@@ -158,37 +158,56 @@ assigned Attribute Set.
 
 ## Storage
 
-`product_attributes` (foundation 001 + feature 002 + feature 012):
+Since feature 061 (migration `102`) an attribute is split between the
+generic [Custom Fields layer](../../architecture/custom-fields.md) and
+a catalog-owned extension row. The API shape above is unchanged — the
+admin surface composes the two back into the legacy form.
 
-- `id uuid PK`, `key varchar(64)` UNIQUE on `LOWER(key)`,
-  `label jsonb`, `label_default varchar(200) NOT NULL`,
-  `value_type varchar(16)` (`string` | `number` | `boolean` | `price`
-  | `date` | `select` | `multiselect` | `enum`).
+`custom_field_definitions` (owned by `custom_fields`, rows with
+`entity_type = 'product'`):
+
+- `id uuid PK`, `key` (unique per entity type), `label jsonb`,
+  `label_default`, `value_type` (generic six-type set: `text` |
+  `number` | `boolean` | `date` | `select` | `multiselect`),
+  `required`, `sort_order`. The legacy eight-value `valueType` form is
+  derived bijectively from the generic type plus the extension
+  refinements below (`enum` = `select` + `select_display='pill'`,
+  `price` = `number` + `numeric_kind='price'`, ...).
+
+`custom_field_options` (owned by `custom_fields`):
+
+- Option rows keyed UNIQUE `(definition_id, value)` with per-locale
+  `label`, `label_default`, `is_default`, `sort_order`. The
+  catalog-owned `attribute_options` table (feature 012, migration
+  `032`) was dropped by migration `102` after its rows moved here.
+
+`product_attributes` (owned by `catalog`) — the 1:1 **extension**:
+
+- `id uuid PK` (stable — admin API attribute ids survived the
+  migration), `custom_field_definition_id uuid NOT NULL UNIQUE` FK →
+  `custom_field_definitions.id` ON DELETE RESTRICT.
 - Boolean flags: `is_searchable`, `is_filterable`, `is_variant_axis`,
-  `is_comparable`, `is_required`, `is_promo_rule`,
-  `is_visible_on_product_page`, `display_as_slider`.
+  `is_comparable`, `quick_searchable`, `is_promo_rule`,
+  `is_visible_on_product_page`, `display_as_slider`,
+  `channel_scoped`, `language_scoped`, `mass_editable`.
 - `filter_position int NOT NULL DEFAULT 0`.
-- Partial index `(filter_position) WHERE is_filterable = true` keeps
-  the storefront filter sort cheap.
-- The legacy `enum_values jsonb` column was dropped by migration `032`
-  after every row migrated into `attribute_options`.
-
-`attribute_options` (feature 012, migration `032`):
-
-- `id uuid PK`, `attribute_id uuid` FK → `product_attributes.id`
-  ON DELETE CASCADE.
-- `value varchar(200) NOT NULL`, `label jsonb NOT NULL`,
-  `label_default varchar(200) NOT NULL`,
-  `is_default boolean NOT NULL DEFAULT false`,
-  `sort_order int NOT NULL DEFAULT 0`.
-- UNIQUE `(attribute_id, value)`.
-- Partial index `(attribute_id) WHERE is_default = true` supports the
-  "find the default option" reads cheaply.
+- Presentation refinements: `select_display varchar(16) NULL`
+  (`pill` = legacy `enum`, `dropdown` = legacy `select`) and
+  `numeric_kind varchar(8) NULL` (`number` | `price`).
+- The duplicated definition columns (`key`, `label`, `label_default`,
+  `value_type`, `is_required`) were dropped by migration `102` — the
+  definition row is the single source of truth for them.
 
 `products.attribute_values jsonb` carries the per-product map keyed by
-attribute `key`. Values are retained server-side even when the
-attribute leaves the product's currently assigned Attribute Set
-(FR-012) — switching back surfaces them again.
+attribute `key` (unchanged by feature 061 — values never moved).
+Values are retained server-side even when the attribute leaves the
+product's currently assigned Attribute Set (FR-012) — switching back
+surfaces them again.
+
+All attribute and option mutations flow through the catalog Commands
+behind `/catalog/attributes` — the generic Custom Fields admin surface
+lists product definitions read-only and refuses mutations with
+`409 host_managed`.
 
 ## Events emitted
 

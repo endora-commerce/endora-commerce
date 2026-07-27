@@ -6,6 +6,7 @@ import { Webhook } from '../entities/webhook.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { WebhookDelivery } from '../entities/webhook-delivery.entity.js';
+import { subscriptionReceivesOrganization } from './event-bridge.js';
 
 /**
  * WebhookService (T229) — admin CRUD over Webhook subscriptions plus
@@ -42,6 +43,8 @@ export class WebhookService {
     name: string;
     url: string;
     eventTypes: string[];
+    /** Feature 062 — optional org binding; null/omitted = platform-wide. */
+    organizationId?: string | null;
     createdByAdminUserId?: string;
   }): Promise<Webhook> {
     const em = this.emFactory();
@@ -50,12 +53,17 @@ export class WebhookService {
       url: input.url,
       eventTypes: input.eventTypes,
       secret: randomBytes(32).toString('hex'),
+      organizationId: input.organizationId ?? null,
       ...(input.createdByAdminUserId !== undefined
         ? { createdByAdminUserId: input.createdByAdminUserId }
         : {}),
     });
     em.persist(webhook);
-    this.#audit(em, 'webhook.create', webhook.id, null, { name: webhook.name, url: webhook.url });
+    this.#audit(em, 'webhook.create', webhook.id, null, {
+      name: webhook.name,
+      url: webhook.url,
+      organizationId: webhook.organizationId ?? null,
+    });
     await em.flush();
     return webhook;
   }
@@ -67,6 +75,8 @@ export class WebhookService {
       url?: string | undefined;
       eventTypes?: string[] | undefined;
       status?: 'active' | 'paused' | undefined;
+      /** Feature 062 — set to bind, null to make platform-wide. */
+      organizationId?: string | null | undefined;
     },
   ): Promise<Webhook> {
     const em = this.emFactory();
@@ -76,7 +86,12 @@ export class WebhookService {
     if (patch.url !== undefined) webhook.url = patch.url;
     if (patch.eventTypes !== undefined) webhook.eventTypes = patch.eventTypes;
     if (patch.status !== undefined) webhook.status = patch.status;
-    this.#audit(em, 'webhook.update', webhook.id, null, { name: webhook.name, status: webhook.status });
+    if (patch.organizationId !== undefined) webhook.organizationId = patch.organizationId;
+    this.#audit(em, 'webhook.update', webhook.id, null, {
+      name: webhook.name,
+      status: webhook.status,
+      organizationId: webhook.organizationId ?? null,
+    });
     await em.flush();
     return webhook;
   }
@@ -143,14 +158,22 @@ export class WebhookService {
   /**
    * Look up active subscriptions for a given event type — used by the
    * event-bridge to decide which receivers should get a delivery.
+   *
+   * Feature 062 (contracts/order-webhooks.md §2): `organizationId` is the
+   * value extracted from the event payload. Platform-wide subscriptions
+   * (`organizationId` NULL) always match; org-bound subscriptions match only
+   * their own organization's events and never an event without one
+   * (fail closed — Principle XI).
    */
   async findActiveByEventType(
     eventType: string,
+    organizationId: string | null,
   ): Promise<Array<{ webhookId: string; url: string; secret: string }>> {
     const em = this.emFactory();
     const rows = await em.find(Webhook, { status: 'active' });
     return rows
       .filter((w) => w.eventTypes.includes(eventType))
+      .filter((w) => subscriptionReceivesOrganization(w.organizationId ?? null, organizationId))
       .map((w) => ({ webhookId: w.id, url: w.url, secret: w.secret }));
   }
 

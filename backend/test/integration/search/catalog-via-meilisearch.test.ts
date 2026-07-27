@@ -45,6 +45,7 @@ describe('catalog list — Meilisearch backend', () => {
     const indexer = new SearchIndexer({
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
+      attributeRead: h.catalogAttributeRead,
     });
     const channels = await h.em().find(SalesChannel, {});
     for (const channel of channels) {

@@ -39,6 +39,8 @@ export async function registerWebhooksAdminRoutes(
         name: body.name,
         url: body.url,
         eventTypes: body.eventTypes,
+        // Feature 062 — optional organization binding (additive).
+        organizationId: body.organizationId ?? null,
         ...(adminId !== undefined ? { createdByAdminUserId: adminId } : {}),
       });
       reply.status(201);
@@ -105,6 +107,7 @@ function serializeWebhook(w: Webhook): Record<string, unknown> {
     url: w.url,
     eventTypes: w.eventTypes,
     status: w.status,
+    organizationId: w.organizationId ?? null,
     createdAt: w.createdAt.toISOString(),
     updatedAt: w.updatedAt.toISOString(),
   };

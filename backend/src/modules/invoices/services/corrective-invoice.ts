@@ -4,7 +4,7 @@ import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
 import { Order } from '../../orders/entities/order.entity.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
-import type { InvoiceAuditRecorder } from './invoice-service.js';
+import type { InvoiceAuditRecorder, InvoiceDomainEventEmitter } from './invoice-service.js';
 import type {
   CorrectiveInvoiceInput,
   CorrectiveInvoicePort,
@@ -29,6 +29,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
     private readonly emFactory: () => EntityManager,
     private readonly numbers?: InvoiceNumberGenerator,
     private readonly audit?: InvoiceAuditRecorder,
+    private readonly events?: InvoiceDomainEventEmitter,
   ) {}
 
   async createCorrection(input: CorrectiveInvoiceInput): Promise<CorrectiveInvoiceResult> {
@@ -113,6 +114,16 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
         })
         .catch(() => undefined);
     }
+
+    // Feature 059 — domain event for downstream consumers (e.g. KSeF submission).
+    this.events?.emit('invoice.corrected.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      invoiceId: invoice.id,
+      originalInvoiceId: original?.id ?? null,
+      orderId: input.orderId,
+      salesChannelId,
+    });
 
     return { invoiceId: invoice.id, number: invoice.number, status: invoice.status };
   }

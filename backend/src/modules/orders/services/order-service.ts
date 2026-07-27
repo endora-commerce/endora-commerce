@@ -97,8 +97,13 @@ export interface OrderEvents extends Record<string, EventBase> {
   'order.created.v1': EventBase & { orderId: string; organizationId: string };
   'order.status_changed.v1': EventBase & {
     orderId: string;
+    // Feature 062 — additive: tenant key for org-scoped webhook delivery
+    // (Principle XI), plus channel + human-readable order number.
+    organizationId: string;
+    salesChannelId: string;
     from: string;
     to: string;
+    businessId?: string | null;
   };
   'order.cancelled.v1': EventBase & { orderId: string };
   // Feature 045 (T092) — fired post-commit per finalized promotion redemption.

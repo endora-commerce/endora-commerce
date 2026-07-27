@@ -61,6 +61,7 @@ describe('SearchIndexer — feature 012 searchableOptions payload (T050)', () =>
     const indexer = new SearchIndexer({
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
+      attributeRead: h.catalogAttributeRead,
     });
     const em = h.em();
     const channels = await em.find(SalesChannel, {});

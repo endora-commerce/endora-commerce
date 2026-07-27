@@ -20,7 +20,8 @@ export class Webhook {
     | 'updatedAt'
     | 'status'
     | 'eventTypes'
-    | 'createdByAdminUserId';
+    | 'createdByAdminUserId'
+    | 'organizationId';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -45,6 +46,17 @@ export class Webhook {
 
   @Property({ type: 'uuid', nullable: true })
   createdByAdminUserId?: string | null;
+
+  /**
+   * Feature 062 — delivery filter (data-model.md §3). NULL = platform-wide
+   * subscription (legacy semantics); a value restricts delivery to events
+   * whose payload `organizationId` matches. Evaluated in the event-bridge
+   * lookup; the row itself stays `@GlobalEntity()` (admin-managed platform
+   * configuration — research §R12).
+   */
+  @Property({ type: 'uuid', nullable: true })
+  @Index()
+  organizationId?: string | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

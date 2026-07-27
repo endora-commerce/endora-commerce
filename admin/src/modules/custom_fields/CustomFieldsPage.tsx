@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
 import { customFieldsClient } from './api/custom-fields-client';
@@ -20,17 +21,18 @@ import {
 import { useTranslation } from '@/i18n/useTranslation';
 import type {
   CustomFieldDefinitionDto,
+  CustomFieldEntityTypeInfo,
   CustomFieldValueType,
   SupportedEntityType,
 } from '@b2b/contracts';
 
-const ENTITY_TYPES: SupportedEntityType[] = [
-  'category',
-  'order',
-  'organization',
-  'customer',
-  'quote_request',
-];
+/** Pre-API fallback so the page renders before the entity-types fetch resolves. */
+const FALLBACK_ENTITY_TYPES: CustomFieldEntityTypeInfo[] = (
+  ['category', 'order', 'organization', 'customer', 'quote_request'] as SupportedEntityType[]
+).map((entityType) => ({
+  entityType,
+  labelKey: `customFields.entity.${entityType === 'quote_request' ? 'quoteRequest' : entityType}`,
+}));
 const VALUE_TYPES: CustomFieldValueType[] = [
   'text',
   'number',
@@ -44,9 +46,17 @@ const SELECT_TYPES = new Set<CustomFieldValueType>(['select', 'multiselect']);
 /** Custom-field definition management (feature 055). List + create per entity type. */
 export function CustomFieldsPage(): ReactNode {
   const t = useTranslation('core');
+  const tcf = useTranslation('custom_fields');
+  const [entityTypes, setEntityTypes] = useState<CustomFieldEntityTypeInfo[]>(
+    FALLBACK_ENTITY_TYPES,
+  );
   const [entityType, setEntityType] = useState<SupportedEntityType>('organization');
   const [rows, setRows] = useState<CustomFieldDefinitionDto[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // Host-managed marker for the selected type (feature 061): definitions are
+  // rendered read-only with a link to the owning module's surface.
+  const managedBy = entityTypes.find((i) => i.entityType === entityType)?.managedBy;
 
   // New-definition form state.
   const [key, setKey] = useState('');
@@ -67,6 +77,16 @@ export function CustomFieldsPage(): ReactNode {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setEntityTypes(await customFieldsClient.listEntityTypes());
+      } catch {
+        // Keep the static fallback; the definitions list still works.
+      }
+    })();
+  }, []);
 
   const run = useCallback(
     async (fn: () => Promise<unknown>): Promise<void> => {
@@ -130,14 +150,25 @@ export function CustomFieldsPage(): ReactNode {
             value={entityType}
             onChange={(e) => setEntityType(e.target.value as SupportedEntityType)}
           >
-            {ENTITY_TYPES.map((et) => (
-              <option key={et} value={et}>
-                {et}
+            {entityTypes.map((info) => (
+              <option key={info.entityType} value={info.entityType}>
+                {tcf(info.labelKey)}
               </option>
             ))}
           </Select>
         </div>
       </div>
+
+      {managedBy && (
+        <Alert>
+          <AlertDescription className="flex flex-wrap items-center gap-2">
+            <span>{tcf('customFields.managedBy.notice')}</span>
+            <Link to={managedBy.route} className="font-medium underline underline-offset-4">
+              {tcf(managedBy.labelKey)}
+            </Link>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -170,19 +201,22 @@ export function CustomFieldsPage(): ReactNode {
                     {d.options.map((o) => o.value).join(', ') || '—'}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void run(() => customFieldsClient.remove(d.id))}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    {!managedBy && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void run(() => customFieldsClient.remove(d.id))}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
 
+          {!managedBy && (
           <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1">
               <Label htmlFor="key">Key</Label>
@@ -237,6 +271,7 @@ export function CustomFieldsPage(): ReactNode {
               Add field
             </Button>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -78,6 +78,9 @@ export class ScriptedLlm {
   }) as typeof fetch;
 }
 
+const PROMPT_ACTIONS_TEST_LLM_CODE = 'prompt-actions-test-llm';
+const LLM_PROVIDERS = ['openai', 'google', 'anthropic', 'deepseek'];
+
 export async function seedPromptActionsSettings(
   h: BackendServerHandle,
   values: Partial<{
@@ -89,14 +92,13 @@ export async function seedPromptActionsSettings(
   }> = {},
 ): Promise<void> {
   const adminCookie = { b2b_session: 'stub-admin-session' };
-  const entries: Array<[string, unknown]> = [
-    ['prompt_actions.enabled', values.enabled ?? true],
-    ['prompt_actions.provider', values.provider ?? 'anthropic'],
-    ['prompt_actions.model', values.model ?? 'claude-sonnet-4-6'],
-    ['prompt_actions.api_key', values.apiKey ?? 'sk-test-key'],
-    ['prompt_actions.bulk_limit', values.bulkLimit ?? 500],
-  ];
-  for (const [code, value] of entries) {
+  const enabled = values.enabled ?? true;
+  const provider = values.provider ?? 'anthropic';
+  const model = values.model ?? 'claude-sonnet-4-6';
+  const apiKey = values.apiKey ?? 'sk-test-key';
+  const bulkLimit = values.bulkLimit ?? 500;
+
+  const setValue = async (code: string, value: unknown): Promise<void> => {
     const r = await h.app.inject({
       method: 'PUT',
       url: `/api/v1/admin/settings/${code}/value`,
@@ -106,7 +108,47 @@ export async function seedPromptActionsSettings(
     if (r.statusCode !== 200) {
       throw new Error(`Seeding setting ${code} failed: ${r.statusCode} ${r.body}`);
     }
+  };
+
+  // Feature 058 — provider/model/apiKey now live in a reusable `llm` credential
+  // configuration referenced by `prompt_actions.llm_credentials` (the single
+  // credential source). A blank apiKey models "not configured" (no reference);
+  // an unknown provider is mapped to `deepseek` — a valid `llm` provider that
+  // prompt_actions has no adapter for — so it resolves to `not_configured`.
+  //
+  // Clear the reference before touching the config so a still-referenced
+  // configuration is not blocked from deletion (CREDENTIAL_IN_USE).
+  await setValue('prompt_actions.llm_credentials', '');
+  await h.app.inject({
+    method: 'DELETE',
+    url: `/api/v1/admin/credentials/${PROMPT_ACTIONS_TEST_LLM_CODE}`,
+    cookies: adminCookie,
+  });
+
+  let credentialCode = '';
+  if (apiKey !== '') {
+    const providerCode = LLM_PROVIDERS.includes(provider) ? provider : 'deepseek';
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/credentials',
+      cookies: adminCookie,
+      payload: {
+        code: PROMPT_ACTIONS_TEST_LLM_CODE,
+        name: 'Prompt Actions Test LLM',
+        typeCode: 'llm',
+        providerCode,
+        values: { apiKey, model },
+      },
+    });
+    if (created.statusCode !== 201) {
+      throw new Error(`Seeding credential failed: ${created.statusCode} ${created.body}`);
+    }
+    credentialCode = PROMPT_ACTIONS_TEST_LLM_CODE;
   }
+
+  await setValue('prompt_actions.enabled', enabled);
+  await setValue('prompt_actions.llm_credentials', credentialCode);
+  await setValue('prompt_actions.bulk_limit', bulkLimit);
   // Cache invalidation rides the in-process EventBus subscriber the settings
   // module attaches (`settings.value_changed` → invalidate), so the seeded
   // values are visible to the next read without manual cache work.

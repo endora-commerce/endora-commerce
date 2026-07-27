@@ -21,28 +21,57 @@ import {
   updateDefinitionCommand,
   updateOptionCommand,
 } from '../commands/definition-commands.js';
+import {
+  applyCreateDefinition,
+  applyCreateOption,
+  applyDeleteDefinition,
+  applyDeleteOption,
+  applyUpdateDefinition,
+  applyUpdateOption,
+  assertOptionsRule,
+  CustomFieldDefinitionError,
+} from './custom-field-definition-apply.js';
 import type { CustomFieldValueService } from './custom-field-value.service.js';
 import type { DefinitionSource } from './custom-field-value.service.js';
 
-/** Typed failures the routes map to HTTP status codes. */
-export class CustomFieldDefinitionError extends Error {
-  constructor(
-    readonly code:
-      | 'not_found'
-      | 'duplicate_key'
-      | 'options_required'
-      | 'options_forbidden'
-      | 'entity_type_unknown'
-      | 'value_type_locked'
-      | 'option_in_use',
-    message: string,
-  ) {
-    super(message);
-    this.name = 'CustomFieldDefinitionError';
-  }
-}
+// Feature 061 — the error class moved next to the shared apply functions;
+// re-exported here so existing imports keep working.
+export { CustomFieldDefinitionError };
 
 const SELECT_TYPES = new Set(['select', 'multiselect']);
+
+/**
+ * Transactional apply seam for host modules (feature 061,
+ * contracts/custom-fields-product-host.md §3). Every `apply*` call runs inside
+ * the CALLER's transactional EM (a host Command's `run({ em })`), performs the
+ * same invariants as the public CRUD, and does NO command dispatch, NO audit
+ * (the host command audits the composite operation), and NO cache publish.
+ * The caller MUST invoke `publishInvalidate(entityType)` after its transaction
+ * commits.
+ */
+export interface CustomFieldDefinitionApplyApi {
+  applyCreate(em: EntityManager, input: CreateCustomFieldDefinitionRequest): Promise<CustomFieldDefinition>;
+  applyUpdate(
+    em: EntityManager,
+    id: string,
+    patch: UpdateCustomFieldDefinitionRequest,
+  ): Promise<CustomFieldDefinition>;
+  applyDelete(em: EntityManager, id: string): Promise<void>;
+  applyCreateOption(
+    em: EntityManager,
+    definitionId: string,
+    input: CustomFieldOptionDto,
+  ): Promise<CustomFieldOption>;
+  applyUpdateOption(
+    em: EntityManager,
+    definitionId: string,
+    optionId: string,
+    patch: Partial<Pick<CustomFieldOptionDto, 'label' | 'labelDefault' | 'isDefault' | 'sortOrder'>>,
+  ): Promise<CustomFieldOption>;
+  applyDeleteOption(em: EntityManager, definitionId: string, optionId: string): Promise<void>;
+  /** Post-commit responsibility of the caller. */
+  publishInvalidate(entityType: SupportedEntityType): Promise<void>;
+}
 
 /**
  * CustomFieldDefinitionService (feature 055) — CRUD over definitions and options.
@@ -51,9 +80,11 @@ const SELECT_TYPES = new Set(['select', 'multiselect']);
  * audit entry, so this service never calls the audit writer by hand. Reads are
  * served from the per-`entityType` cache and every committed mutation publishes a
  * cross-process invalidation. Implements {@link DefinitionSource} so the value
- * service can validate host writes against the live definitions.
+ * service can validate host writes against the live definitions, and
+ * {@link CustomFieldDefinitionApplyApi} so host modules can mutate definitions
+ * co-transactionally with their own data (feature 061).
  */
-export class CustomFieldDefinitionService implements DefinitionSource {
+export class CustomFieldDefinitionService implements DefinitionSource, CustomFieldDefinitionApplyApi {
   /** Set post-construction to break the definition⇄value service cycle (used by change guards). */
   private valueService?: CustomFieldValueService;
 
@@ -137,7 +168,7 @@ export class CustomFieldDefinitionService implements DefinitionSource {
     if (!isSupportedEntityType(input.entityType)) {
       throw new CustomFieldDefinitionError('entity_type_unknown', `Unknown entity type "${input.entityType}".`);
     }
-    this.assertOptionsRule(input.valueType, input.options);
+    assertOptionsRule(input.valueType, input.options);
     const existing = await this.emFactory().findOne(CustomFieldDefinition, {
       entityType: input.entityType,
       key: input.key,
@@ -164,7 +195,7 @@ export class CustomFieldDefinitionService implements DefinitionSource {
         );
       }
     }
-    const def = await this.commandBus.run(updateDefinitionCommand(id, patch));
+    const def = await this.commandBus.run(updateDefinitionCommand(id, patch, this.valueService));
     await this.cache.publishInvalidate(current.entityType);
     return def;
   }
@@ -194,7 +225,7 @@ export class CustomFieldDefinitionService implements DefinitionSource {
   ): Promise<CustomFieldOption> {
     const def = await this.emFactory().findOne(CustomFieldDefinition, { id: definitionId });
     if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
-    const opt = await this.commandBus.run(updateOptionCommand(optionId, patch));
+    const opt = await this.commandBus.run(updateOptionCommand(definitionId, optionId, patch));
     await this.cache.publishInvalidate(def.entityType);
     return opt;
   }
@@ -219,17 +250,54 @@ export class CustomFieldDefinitionService implements DefinitionSource {
         );
       }
     }
-    await this.commandBus.run(deleteOptionCommand(optionId));
+    await this.commandBus.run(deleteOptionCommand(definitionId, optionId, this.valueService));
     await this.cache.publishInvalidate(def.entityType);
   }
 
-  private assertOptionsRule(valueType: string, options: CustomFieldOptionDto[]): void {
-    const isSelect = SELECT_TYPES.has(valueType);
-    if (isSelect && options.length === 0) {
-      throw new CustomFieldDefinitionError('options_required', 'Select fields require at least one option.');
-    }
-    if (!isSelect && options.length > 0) {
-      throw new CustomFieldDefinitionError('options_forbidden', 'Only select fields may carry options.');
-    }
+  // ---- Transactional apply seam (feature 061, CustomFieldDefinitionApplyApi)
+
+  async applyCreate(
+    em: EntityManager,
+    input: CreateCustomFieldDefinitionRequest,
+  ): Promise<CustomFieldDefinition> {
+    return applyCreateDefinition(em, input);
+  }
+
+  async applyUpdate(
+    em: EntityManager,
+    id: string,
+    patch: UpdateCustomFieldDefinitionRequest,
+  ): Promise<CustomFieldDefinition> {
+    return applyUpdateDefinition(em, id, patch, this.valueService);
+  }
+
+  async applyDelete(em: EntityManager, id: string): Promise<void> {
+    await applyDeleteDefinition(em, id);
+  }
+
+  async applyCreateOption(
+    em: EntityManager,
+    definitionId: string,
+    input: CustomFieldOptionDto,
+  ): Promise<CustomFieldOption> {
+    return applyCreateOption(em, definitionId, input);
+  }
+
+  async applyUpdateOption(
+    em: EntityManager,
+    definitionId: string,
+    optionId: string,
+    patch: Partial<Pick<CustomFieldOptionDto, 'label' | 'labelDefault' | 'isDefault' | 'sortOrder'>>,
+  ): Promise<CustomFieldOption> {
+    return applyUpdateOption(em, definitionId, optionId, patch);
+  }
+
+  async applyDeleteOption(em: EntityManager, definitionId: string, optionId: string): Promise<void> {
+    await applyDeleteOption(em, definitionId, optionId, this.valueService);
+  }
+
+  /** Post-commit cache fan-out for apply-seam callers (also used internally after every command). */
+  async publishInvalidate(entityType: SupportedEntityType): Promise<void> {
+    await this.cache.publishInvalidate(entityType);
   }
 }

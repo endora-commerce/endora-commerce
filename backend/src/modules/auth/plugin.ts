@@ -36,6 +36,15 @@ export type ActorApiKey = {
   kind: 'api_key';
   apiKeyId: string;
   scopes: string[];
+  /**
+   * Feature 062 — distributor binding, resolved by ApiKeyService.authenticate.
+   * All three are set for a bound key, all null/absent for a legacy unbound
+   * key. The tenant-context hook derives single-org scope from them and the
+   * sales-channel resolver pins the channel (fail closed on header mismatch).
+   */
+  organizationId?: string | null;
+  salesChannelId?: string | null;
+  customerAccountId?: string | null;
 };
 export type Actor = ActorAnonymous | ActorCustomer | ActorAdmin | ActorApiKey;
 
@@ -50,7 +59,13 @@ declare module 'fastify' {
 export interface AuthPluginOptions {
   sessionService: SessionService;
   /** Resolves an API key bearer token to an ApiKey actor. Installed by the api_keys module. */
-  apiKeyResolver?: (token: string) => Promise<{ apiKeyId: string; scopes: string[] } | null>;
+  apiKeyResolver?: (token: string) => Promise<{
+    apiKeyId: string;
+    scopes: string[];
+    organizationId?: string | null;
+    salesChannelId?: string | null;
+    customerAccountId?: string | null;
+  } | null>;
   /**
    * Resolves a customerAccountId to the customer's `organizationId`. Used to
    * stamp `actor.organizationId` for customer + impersonation sessions so

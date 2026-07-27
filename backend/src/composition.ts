@@ -11,6 +11,7 @@ import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, cmsColorPaletteSchema } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
+import { ApiInterceptorRegistry } from './http/interceptors/index.js';
 import { registerHealthRoutes } from './modules/health_checks/routes.js';
 import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
@@ -65,6 +66,7 @@ import { OrderReturnContextProvider } from './modules/orders/services/order-retu
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
 import { invoicesModule } from './modules/invoices/plugin.js';
+import { ksefModule } from './modules/ksef/plugin.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
 import { AddressService } from './modules/addresses/services/address-service.js';
@@ -84,10 +86,19 @@ import {
   type OAuthProviderPort,
 } from './modules/mfa/services/oauth-provider-service.js';
 import { inventoryModule } from './modules/inventory/plugin.js';
+import { StockLevelService } from './modules/inventory/services/stock-level-service.js';
+import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from './modules/credit_limits/plugin.js';
 import { customFieldsModule } from './modules/custom_fields/plugin.js';
 import { integrationsModule } from './modules/api_keys/plugin.js';
+// Feature 062 (T029) — outbound webhook delivery pipeline.
+import { wireEventBridge } from './modules/webhooks/services/event-bridge.js';
+import {
+  createWebhookQueue,
+  createWebhookWorker,
+} from './modules/webhooks/services/webhook-queue.js';
+import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
 import { analyticsModule } from './modules/analytics/plugin.js';
 import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
@@ -123,6 +134,11 @@ import { quoteRequestsManifest, QUOTE_REQUESTS_SETTING_CODES } from './modules/q
 import { inventoryManifest } from './modules/inventory/manifest.js';
 import { promptActionsModule } from './modules/prompt_actions/plugin.js';
 import { promptActionsSettingsManifest } from './modules/prompt_actions/manifest.js';
+// Feature 058 — Credentials (reusable credential configurations).
+import { credentialsModule } from './modules/credentials/plugin.js';
+import { configurationTypeRegistry } from './modules/credentials/services/registry-singleton.js';
+import { llmConfigurationType } from './modules/credentials/types/llm.type.js';
+import { emailAdapterConfigurationType } from './modules/credentials/types/email-adapter.type.js';
 // Feature 046 — Progressive Web App.
 import { pwaModule } from './modules/pwa/plugin.js';
 import { pwaSettingsManifest } from './modules/pwa/manifest.js';
@@ -180,7 +196,18 @@ import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
 import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
-import { REGISTERED_MANIFESTS } from './modules/_lifecycle/registered-manifests.js';
+import { registerApiInterceptorAdminRoutes } from './modules/_lifecycle/routes.admin.js';
+import {
+  REGISTERED_MANIFESTS,
+  type RegisteredManifestEntry,
+} from './modules/_lifecycle/registered-manifests.js';
+// Feature 057 — per-deployment overlay resolution (build/composition-time).
+import {
+  discoverOverlayModuleManifests,
+  loadOverlayModulePlugins,
+  loadOverlayServiceClasses,
+} from './overlay/overlay-runtime.js';
+import type { PricingService } from './modules/price_lists/services/pricing-service.js';
 import { i18nModule as adminI18nModule } from './modules/_i18n/plugin.js';
 import { adminActionsModule } from './modules/admin_actions/plugin.js';
 import { AdminUserService } from './modules/admin_users/services/admin-user-service.js';
@@ -188,6 +215,7 @@ import { registerCatalogAssetReferences } from './modules/catalog/services/asset
 import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
+import { CatalogAttributeReadService } from './modules/catalog/services/catalog-attribute-read.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
 import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
@@ -213,6 +241,12 @@ export interface ComposeAppHandle {
   errorEnvelope: ErrorEnvelopeOptions;
   /** Feature 054 — the Command Bus, exposed so migrated module wiring can consume it. */
   commandBus: CommandBus;
+  /**
+   * Feature 060 — the API interceptor registry. index.ts passes it to
+   * `buildServer({ apiInterceptors })`; modules receive it through their
+   * factory options / OverlayModuleContext and register during composition.
+   */
+  apiInterceptors: ApiInterceptorRegistry;
   /** Closes the ORM + redis connection; call from a SIGTERM handler. */
   dispose: () => Promise<void>;
 }
@@ -256,8 +290,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const sessionService = new SessionService(em, redis);
   const auditLogService = new AuditLogService(em);
   const permissionService = new PermissionService(em);
+
+  // Feature 057 — resolve the per-deployment overlay once. For a bare-core
+  // build (no DEPLOYMENT / no overlay dir) all of these are empty and the wiring
+  // below is byte-for-byte unchanged. `resolvedRegistry` = the hand-maintained
+  // core registry + overlay-only modules (the core array is never edited).
+  const overlayServiceClasses = await loadOverlayServiceClasses();
+  const overlayPricingService = overlayServiceClasses.get(
+    'price_lists/services/pricing-service.ts',
+  ) as typeof PricingService | undefined;
+  const overlayModuleManifests = await discoverOverlayModuleManifests();
+  const resolvedRegistry: RegisteredManifestEntry[] = [
+    ...REGISTERED_MANIFESTS,
+    ...overlayModuleManifests.map((m) => ({ manifest: m.manifest, filePath: m.filePath })),
+  ];
+
   const permissionCatalogueService = new PermissionCatalogueService({
-    registryEntries: REGISTERED_MANIFESTS,
+    registryEntries: resolvedRegistry,
   });
   const adminRoleService = new AdminRoleService(em, permissionCatalogueService, auditLogService);
 
@@ -268,6 +317,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // audit insert co-transactionally, and dispatches the domain event on commit.
   // Threaded into module factories alongside `eventBus` as writes are migrated.
   const commandBus = new CommandBus(orm, auditLogService, eventBus);
+
+  // Feature 060 — API interceptor registry. Modules register pre/post
+  // interceptors against endpoints owned by other modules; execution is
+  // lifecycle-gated per interceptor via the enabled-set cache predicate.
+  const apiInterceptors = new ApiInterceptorRegistry({
+    isModuleEnabled: (moduleId) => registryCache.isEnabled(moduleId),
+  });
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
@@ -361,6 +417,33 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
   });
 
+  // Feature 062 (T029 / FR-014) — outbound webhook delivery, org-scoped.
+  // The bridge (producer) runs in every role: it maps bridged in-process
+  // events onto the durable BullMQ queue, filtered per subscription through
+  // `WebhookService.findActiveByEventType(eventType, organizationId)` so an
+  // org-bound subscription only ever sees its own organization's events
+  // (Principle XI; contracts/order-webhooks.md §2). The consumer (delivery
+  // worker: HMAC signing + retries + `webhook_deliveries` bookkeeping) runs
+  // co-located unless BACKEND_ROLE=api, exactly like the other workers
+  // (Principle X — separable via `pnpm --filter backend run worker`).
+  const webhookQueue = createWebhookQueue(redis);
+  const unwireWebhookBridge = wireEventBridge({
+    eventBus,
+    queue: webhookQueue,
+    subscriptionLookup: integrations.handle.webhookService,
+    bridgedEventTypes: ['order.created.v1', 'order.status_changed.v1'],
+  });
+  const webhookWorker = runWorkers
+    ? createWebhookWorker(
+        redis,
+        createDeliveryProcessor({
+          recordDelivery: async (input) => {
+            await integrations.handle.webhookService.recordDelivery(input);
+          },
+        }),
+      )
+    : null;
+
   const authModulePlugin: ModulePlugin = async (app) => {
     await app.register(authPlugin, {
       sessionService,
@@ -437,6 +520,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   void customFields.handle.cache.start(redisSubscriber);
 
+  // Feature 061 — the composed attribute read model (product-host custom-field
+  // definitions + catalog extension rows). Built once, threaded into catalog,
+  // search, quick_order, and comparisons as the sanctioned attribute read port.
+  const catalogAttributeReadService = new CatalogAttributeReadService(
+    em,
+    customFields.handle.definitionService,
+  );
+
   const analytics = analyticsModule({ emFactory: em, requireAdmin });
   const importExport = importExportModule({ emFactory: em, requireAdmin });
   // `seoModule` is instantiated AFTER settings (further below) so the
@@ -505,6 +596,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     auditLogService,
     commandBus,
+    // Feature 057 — swap in the deployment's overlay pricing engine, if any.
+    ...(overlayPricingService ? { pricingServiceClass: overlayPricingService } : {}),
     resolveAdminAuditContext: (request) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
       if (actor?.kind !== 'admin') {
@@ -526,7 +619,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // (the documented cross-module port — Constitution I) so the rule editor
   // can list `isPromoRule` attributes and the resolver can validate
   // `attribute` criteria against the authoritative option list.
-  const catalogQueryServiceForPromotions = new CatalogQueryService(em);
+  const catalogQueryServiceForPromotions = new CatalogQueryService(
+    em,
+    undefined,
+    undefined,
+    catalogAttributeReadService,
+  );
   const promotions = promotionsModule({
     emFactory: em,
     requireAdmin,
@@ -613,6 +711,32 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         '(openssl rand -base64 32) in backend/.env (see .env.example) and restart the backend.',
     );
   }
+
+  // Feature 058 — Credentials module. Instantiated right after `settings` (its
+  // only hard dependency) so that consumer modules constructed further down
+  // (search, newsletter, prompt_actions) can receive `credentials.handle.service`
+  // for the `credential_ref` resolution path (feature 058 Phase 8). The
+  // configuration-type registry is the process-wide cross-module seam; core
+  // types are registered here at boot.
+  configurationTypeRegistry.register(llmConfigurationType);
+  configurationTypeRegistry.register(emailAdapterConfigurationType);
+  const credentials = credentialsModule({
+    emFactory: em,
+    // US2 — the delete-integrity guard reaches settings only through this port
+    // (Principle I): `SettingsService.listReferencesToConfiguration`.
+    settings: settings.handle.settingsService,
+    permissionService,
+    requireAdmin,
+    resolveAdminContext: adminContextResolver,
+    commandBus,
+    configurationTypeRegistry,
+    auditLogService,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
+  });
+  // `credentials.plugin` is added to the `modules` array below (declared later);
+  // the handle is used by the consumer modules constructed above/below.
 
   // Feature 042 — MFA module. Constructed here (after `settings`) so it can
   // read the per-scope MFA settings; its login port is bound to the late-bound
@@ -1049,7 +1173,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
             const scope = await resolveAdminOrdersScope(request);
             return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
           }
-          // anonymous / api_key: trusted platform read scope. Guest-owned rows are
+          // Feature 062 — a BOUND api key pins the request to its organization +
+          // designated service account; an unbound key keeps the legacy trusted
+          // system scope (its only surface is the global-entity PIM path).
+          if (actor.kind === 'api_key') {
+            return resolveTenantContext({
+              kind: 'api_key',
+              apiKeyId: actor.apiKeyId,
+              organizationId: actor.organizationId ?? null,
+              customerAccountId: actor.customerAccountId ?? null,
+            });
+          }
+          // anonymous: trusted platform read scope. Guest-owned rows are
           // scoped by their own token mechanism, not by the tenant filter.
           return systemTenantContext(`actor:${actor.kind}`);
         };
@@ -1065,11 +1200,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     );
   };
 
+  // Feature 062 — read-only inventory accessors backing the external catalog
+  // namespace's availability indication (channel-candidate warehouses +
+  // cumulative on-hand → display band). Standalone instances: reads only,
+  // no event emission, no audit.
+  const externalAvailabilityStockLevels = new StockLevelService(em);
+  const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
+
   const modules: ModulePlugin[] = [
     healthPlugin,
     authModulePlugin,
     tenantContextModulePlugin,
     admin.plugin,
+    // Feature 058 — Credentials (instantiated earlier, right after settings).
+    credentials.plugin,
     creditLimits.plugin,
     customFields.plugin,
     integrations.plugin,
@@ -1099,6 +1243,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       addressService: new AddressService(em, dictionaries.handle.validator, auditLogService),
       promotionService: promotions.handle.promotionService,
       redis,
+      // Feature 062 — external orders namespace (/api/v1/external/orders*):
+      // bound-key gate + the org method allow-lists (FR-021 envelope).
+      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      resolveOrganizationMethodAllowLists: async (organizationId: string) => {
+        try {
+          const lists = await organizationRestrictionService.readAllowLists(organizationId);
+          return {
+            paymentMethodIds: lists.paymentMethodIds,
+            deliveryMethodIds: lists.deliveryMethodIds,
+          };
+        } catch {
+          return null;
+        }
+      },
       // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.
       resolveCartAbandonmentInactivityMinutes: async () => {
         try {
@@ -1392,7 +1550,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       auditLogService,
       customFieldValues: customFields.handle.valueService,
       customFieldDefinitions: customFields.handle.definitionService,
+      // Feature 061 — apply seam + composed attribute read model.
+      customFieldsPort: customFields.handle.definitionService,
+      attributeReadService: catalogAttributeReadService,
       requireApiKey: integrations.handle.requireApiKey,
+      // Feature 062 — external catalog namespace (/api/v1/external/catalog/*):
+      // bound-key gate + the SAME pricing engine cart pricing uses (SC-001
+      // parity by construction) + the inventory availability indication port.
+      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      pricingService: priceLists.handle.pricingService,
+      resolveExternalAvailability: async (productIds, salesChannelId) => {
+        const candidateWarehouseIds =
+          await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
+        return externalAvailabilityStockLevels.resolveAvailabilityBands(
+          productIds,
+          candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+        );
+      },
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
       adminNotificationService: adminNotifications.handle.adminNotificationService,
@@ -1407,7 +1581,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // `searchable` flag flips. A fresh indexer reads Meili config from env,
       // exactly like the CLI.
       reindexSearchIndexes: async () => {
-        const indexer = new SearchIndexer();
+        const indexer = new SearchIndexer({ attributeRead: catalogAttributeReadService });
         const results = await indexer.reindexAllChannels(em());
         const documentCount = results.reduce((sum, r) => sum + r.documentCount, 0);
         return { documentCount };
@@ -1703,8 +1877,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const search = searchModule({
     emFactory: em,
     eventBus,
+    catalogAttributeRead: catalogAttributeReadService,
     settingsService: settings.handle.settingsService,
     settingsAdminService: settings.handle.adminService,
+    // Feature 058 — resolve `search.llm.embedder_credentials`; legacy embedder
+    // settings remain the per-field fallback.
+    credentials: credentials.handle.service,
     requireAdmin,
     // Typeahead suggestions carry the per-customer price-list resolution so
     // the popup shows the price the searching user would actually pay,
@@ -1745,10 +1923,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // routes respectively. Reads catalog through CatalogQueryService (the
   // documented service port — Constitution I) and `compare.max_products`
   // through SettingsService.
-  const catalogQueryServiceForCompare = new CatalogQueryService(em);
+  const catalogQueryServiceForCompare = new CatalogQueryService(
+    em,
+    undefined,
+    undefined,
+    catalogAttributeReadService,
+  );
   const comparisons = comparisonsModule({
     emFactory: em,
     catalogQueryService: catalogQueryServiceForCompare,
+    catalogAttributeRead: catalogAttributeReadService,
     settingsService: settings.handle.settingsService,
     requireAdmin,
   });
@@ -2035,6 +2219,41 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   modules.push(invoices.plugin);
 
+  // Feature 059 — KSeF (Krajowy System e-Faktur). Consumes the invoices
+  // domain events, submits FA(3) documents through a durable queue, and feeds
+  // the KSeF number/QR back through the invoices port + PDF-renderer seam.
+  const ksef = ksefModule({
+    emFactory: em,
+    requireAdmin,
+    settingsService: settings.handle.settingsService,
+    commandBus,
+    eventBus,
+    invoices: {
+      buildDetail: (invoiceId) => invoices.handle.invoiceService.buildDetail(invoiceId),
+      recordKsefAssignment: (invoiceId, assignment) =>
+        invoices.handle.invoiceService.recordKsefAssignment(invoiceId, assignment),
+    },
+    auditLogService,
+    redis,
+    runWorkers,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
+    resolveSellerNip: async () => {
+      try {
+        const raw = await settings.handle.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', z.string());
+        const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
+        return nip.length > 0 ? nip : null;
+      } catch {
+        return null;
+      }
+    },
+  });
+  modules.push(ksef.plugin);
+  // PDF QR seam (contracts/invoices-integration.md §3) — one resolver covers
+  // every render path; absent/disabled module ⇒ pre-059 output.
+  invoices.handle.pdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
+
   // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
   // through the OrderReturnContextPort (Principle I); settings drive the
   // free-return window and RMA prefix/suffix.
@@ -2049,7 +2268,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       orderContext: new OrderReturnContextProvider(em),
       paymentRefund: new PaymentRefundProvider(em),
-      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoices.handle.numberGenerator, auditLogService),
+      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoices.handle.numberGenerator, auditLogService, eventBus),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
@@ -2163,7 +2382,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       settingsService: settings.handle.settingsService,
       requireAdmin,
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
-      manifests: REGISTERED_MANIFESTS.map((e) => e.manifest),
+      manifests: resolvedRegistry.map((e) => e.manifest),
       mailer: organizationsMailer,
       auditLog: auditLogService,
       settingsAdmin: settings.handle.adminService,
@@ -2226,6 +2445,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         }),
       redis,
       runWorkers,
+      // Feature 058 — resolve `newsletter.email_credentials` (email_adapter);
+      // falls back to the legacy `newsletter.smtp.*` settings when unset.
+      credentials: credentials.handle.service,
       resolveEmailBranding: async (salesChannelId) => {
         if (!emailBrandingService) {
           return { logoUrl: '', accentColor: '#1f2937' };
@@ -2279,6 +2501,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     shoppingListsModule({
       emFactory: em,
       rfqService: quoteRequests.handle().rfqService,
+      catalogAttributeRead: catalogAttributeReadService,
       requireCustomer,
       resolveCustomerContext: customerResolver,
       // Provision the customer's default shopping list eagerly on creation.
@@ -2365,7 +2588,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // module_actions aligned with the lifecycle.
       adminActionsReconciler: adminActions.handle.reconciler,
     },
-    REGISTERED_MANIFESTS.map((e) => ({
+    resolvedRegistry.map((e) => ({
       manifest: e.manifest,
       filePath: e.filePath,
       ...(e.installHook ? { installHook: e.installHook } : {}),
@@ -2382,6 +2605,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
 
   modules.push(lifecycle.plugin);
+  // Feature 060 — read-only interceptor diagnostics on the lifecycle admin
+  // surface (same permission gate as the modules listing).
+  modules.push(async (app) => {
+    registerApiInterceptorAdminRoutes(app, { registry: apiInterceptors, requireAdmin });
+  });
   modules.push(adminI18n.plugin);
   modules.push(adminActions.plugin);
 
@@ -2405,6 +2633,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     resolveAdminContext: adminContextResolver,
     auditLogService,
+    // Feature 058 — resolve `prompt_actions.llm_credentials`; legacy settings
+    // remain the fallback when no credential reference is configured.
+    credentials: credentials.handle.service,
     bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
   });
   // Feature 043 — per-module AI-assistant command registration.
@@ -2473,11 +2704,25 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     } as never);
   }
 
+  // Feature 057 — mount the active deployment's client-only overlay modules.
+  // Empty for a bare-core build, so `modules` is unchanged there.
+  const overlayModulePlugins = await loadOverlayModulePlugins({
+    emFactory: em,
+    redis,
+    eventBus,
+    commandBus,
+    auditLogService,
+    requireAdmin,
+    apiInterceptors,
+  });
+  for (const plugin of overlayModulePlugins) modules.push(plugin);
+
   return {
     orm,
     redis,
     modules,
     commandBus,
+    apiInterceptors,
     errorEnvelope: {
       resolvePreferredLanguage: async (request) => {
         if (request.actor.kind !== 'admin') return null;
@@ -2494,6 +2739,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     },
     dispose: async () => {
+      // Feature 062 — stop bridging + drain the webhook delivery pipeline
+      // before dropping the Redis connections (graceful shutdown).
+      unwireWebhookBridge();
+      if (webhookWorker) await webhookWorker.close().catch(() => undefined);
+      await webhookQueue.close().catch(() => undefined);
       redis.disconnect();
       redisSubscriber.disconnect();
       await closeOrm();

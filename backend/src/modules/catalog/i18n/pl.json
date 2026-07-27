@@ -186,6 +186,7 @@
   "attributes.column.actions": "Akcje",
   "attributes.edit.title": "Edytuj atrybut {key}",
   "attributes.edit.lockedHint": "Klucza i typu nie można zmienić po utworzeniu.",
+  "attributes.edit.customFieldDefinitionId": "ID definicji pola niestandardowego:",
   "attributes.batch.unsaved": "Niezapisane zmiany flag: {count}",
   "attributes.success.flagsSaved": "Zapisano atrybuty: {count}.",
   "attributes.options.title": "Opcje",

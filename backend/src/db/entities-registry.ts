@@ -15,7 +15,6 @@ import { Product } from '../modules/catalog/entities/product.entity.js';
 import { ProductVariant } from '../modules/catalog/entities/product-variant.entity.js';
 import { Category } from '../modules/catalog/entities/category.entity.js';
 import { ProductAttribute } from '../modules/catalog/entities/product-attribute.entity.js';
-import { AttributeOption } from '../modules/catalog/entities/attribute-option.entity.js';
 import { ProductValueOverride } from '../modules/catalog/entities/product-value-override.entity.js';
 import { ProductEditorPreference } from '../modules/catalog/entities/product-editor-preference.entity.js';
 import { BulkOperation } from '../modules/catalog/entities/bulk-operation.entity.js';
@@ -88,6 +87,8 @@ import { OrderStatus } from '../modules/orders/entities/order-status.entity.js';
 import { OrderStatusTransition } from '../modules/orders/entities/order-status-transition.entity.js';
 import { OrderComment } from '../modules/orders/entities/order-comment.entity.js';
 import { OrderListSavedView } from '../modules/orders/entities/order-list-saved-view.entity.js';
+// Feature 062 — Distributor API: durable order-intake idempotency.
+import { OrderPlacementIntent } from '../modules/orders/entities/order-placement-intent.entity.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import { ReturnStatus } from '../modules/returns/entities/return-status.entity.js';
 import { ReturnStatusTransition } from '../modules/returns/entities/return-status-transition.entity.js';
@@ -175,6 +176,9 @@ import { StockAllocation } from '../modules/inventory/entities/stock-allocation.
 import { ModuleRegistration } from '../modules/_lifecycle/entities/module-registration.entity.js';
 import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.entity.js';
 import { ModuleAction } from '../modules/admin_actions/entities/module-action.entity.js';
+import { CredentialConfiguration } from '../modules/credentials/entities/credential-configuration.entity.js';
+import { KsefCredential } from '../modules/ksef/entities/ksef-credential.entity.js';
+import { KsefSubmission } from '../modules/ksef/entities/ksef-submission.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -204,7 +208,6 @@ export const ALL_ENTITIES = [
   ProductVariant,
   Category,
   ProductAttribute,
-  AttributeOption,
   // per-channel + per-language overrides (feature 022)
   ProductValueOverride,
   ProductEditorPreference,
@@ -251,6 +254,7 @@ export const ALL_ENTITIES = [
   OrderStatusTransition,
   OrderComment,
   OrderListSavedView,
+  OrderPlacementIntent,
   // Feature 046 — Returns & Complaints (Refunds, RMA).
   ReturnStatus,
   ReturnStatusTransition,
@@ -341,6 +345,11 @@ export const ALL_ENTITIES = [
   SettingGroup,
   Setting,
   SettingValue,
+  // credentials (feature 058)
+  CredentialConfiguration,
+  // ksef (feature 059)
+  KsefCredential,
+  KsefSubmission,
   // search analytics ingest (feature 006 / US3)
   SearchPhraseRecord,
   // comparisons (feature 007)

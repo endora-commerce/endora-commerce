@@ -13,7 +13,13 @@ const sidebars = {
       type: 'category',
       label: 'Architecture',
       link: { type: 'generated-index', title: 'Architecture' },
-      items: ['architecture/tenant-scoping', 'architecture/command-bus'],
+      items: [
+        'architecture/tenant-scoping',
+        'architecture/api-interceptor',
+        'architecture/command-bus',
+        'architecture/custom-fields',
+        'architecture/overlay-pattern',
+      ],
     },
     {
       type: 'category',
@@ -67,6 +73,7 @@ const sidebars = {
           items: ['modules/cms/extending-page-builder'],
         },
         { type: 'doc', id: 'modules/comparisons', label: 'Compare Products' },
+        'modules/credentials',
         'modules/credit_limits',
         'modules/currencies',
         'modules/customer_accounts',
@@ -145,7 +152,7 @@ const sidebars = {
       type: 'category',
       label: 'Integrations',
       link: { type: 'generated-index', title: 'Integrations' },
-      items: ['integrations/README'],
+      items: ['integrations/README', 'integrations/api-access'],
     },
     {
       type: 'category',

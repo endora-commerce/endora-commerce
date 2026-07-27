@@ -69,7 +69,7 @@ export async function registerInvoicesCustomerRoutes(
 
   app.get<{ Params: { id: string; invoiceId: string } }>(
     '/api/v1/orders/:id/invoices/:invoiceId/pdf',
-    { preHandler: requireCustomer },
+    { preHandler: requireCustomer, config: { streamingResponse: true } },
     async (request, reply) => {
       await ownedOrderOr404(request, request.params.id);
       const em = emFactory();

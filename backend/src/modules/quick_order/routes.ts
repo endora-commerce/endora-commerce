@@ -6,7 +6,7 @@ import {
   quickOrderSearchQuerySchema,
 } from '@b2b/contracts';
 import { Product } from '../catalog/entities/product.entity.js';
-import { ProductAttribute } from '../catalog/entities/product-attribute.entity.js';
+import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
 import type { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import type { QuickOrderBuildService } from './services/quick-order-build-service.js';
 import { parseImportRequest } from './services/import-from-request.js';
@@ -32,6 +32,12 @@ export interface QuickOrderRoutesDeps {
   };
   /** Reads the `quick_order.import_max_rows` setting (falls back internally). */
   resolveImportMaxRows: () => Promise<number>;
+  /**
+   * Feature 061 — the catalog's composed attribute read model. Replaces the
+   * former direct `ProductAttribute` entity find (Principle I): quick-search
+   * sources its `quick_searchable` keys through this injected port.
+   */
+  catalogAttributeRead: CatalogAttributeReadService;
 }
 
 export async function registerQuickOrderRoutes(
@@ -82,9 +88,9 @@ export async function registerQuickOrderRoutes(
     // Quick search matches SKU, name, and values of `quick_searchable`
     // attributes only (FR-011 / FR-013). Name + attribute matching needs JSONB
     // text operators, so the candidate ids are resolved with knex, then loaded.
-    const quickKeys = (
-      await em.find(ProductAttribute, { quickSearchable: true }, { fields: ['key'] })
-    ).map((a) => a.key);
+    const quickKeys = (await deps.catalogAttributeRead.listByFlag('quickSearchable')).map(
+      (a) => a.key,
+    );
 
     const knex = em.getKnex();
     const idRows = (await knex('products as p')

@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
@@ -9,6 +8,10 @@ import type {
 import type { SettingsService } from '../../settings/services/settings.service.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { SEARCH_SETTING_CODES } from '../manifest.js';
+import {
+  resolveEmbedderConfig,
+  type CredentialResolvePort,
+} from './embedder-config-resolver.js';
 
 /**
  * LlmToggleService — feature 006 / US2 / T024.
@@ -24,8 +27,6 @@ import { SEARCH_SETTING_CODES } from '../manifest.js';
  * Disabling never refuses — turning off LLM-augmented search must always
  * be possible regardless of the embedder fields' state.
  */
-
-const stringSchema = z.string();
 
 export interface LlmToggleParams {
   enabled: boolean;
@@ -46,6 +47,8 @@ export class LlmToggleService {
     private readonly emFactory: () => EntityManager,
     private readonly settingsService: SettingsService,
     private readonly settingsAdminService: SettingsAdminService,
+    /** Feature 058 — resolves `search.llm.embedder_credentials` (optional). */
+    private readonly credentials?: CredentialResolvePort,
   ) {}
 
   async toggle(params: LlmToggleParams): Promise<LlmToggleResult> {
@@ -104,17 +107,25 @@ export class LlmToggleService {
       );
     }
 
-    const missing: Array<{ channelCode: string; settingCode: string }> = [];
+    const missing: Array<{ channelCode: string; field: string }> = [];
     for (const channel of channels) {
+      // Feature 058 — the embedder config comes solely from the
+      // `search.llm.embedder_credentials` reference (Base URL + API key + model).
+      // A field is "missing" when the referenced configuration does not supply
+      // it (or no reference is set); the error points at the credential setting.
+      const cfg = await resolveEmbedderConfig(
+        this.settingsService,
+        channel.id,
+        this.credentials,
+      );
       const fields: Array<[string, string]> = [
-        [SEARCH_SETTING_CODES.LLM_EMBEDDER_URL, 'embedder_url'],
-        [SEARCH_SETTING_CODES.LLM_EMBEDDER_API_KEY, 'embedder_api_key'],
-        [SEARCH_SETTING_CODES.LLM_EMBEDDER_MODEL, 'embedder_model'],
+        ['url', cfg.url],
+        ['apiKey', cfg.apiKey],
+        ['model', cfg.model],
       ];
-      for (const [code] of fields) {
-        const value = await this.settingsService.get(code, channel.id, stringSchema);
+      for (const [field, value] of fields) {
         if (!value || value.length === 0) {
-          missing.push({ channelCode: channel.code, settingCode: code });
+          missing.push({ channelCode: channel.code, field });
         }
       }
     }
@@ -122,10 +133,10 @@ export class LlmToggleService {
       throw new HttpError(
         400,
         ERROR_CODES.LLM_CONFIG_INCOMPLETE,
-        'LLM-augmented search cannot be enabled until every embedder.* field is set on every targeted channel.',
+        'LLM-augmented search cannot be enabled until the referenced embedder credential supplies a Base URL, API key and model on every targeted channel.',
         missing.map((m) => ({
-          path: `${m.channelCode}.${m.settingCode}`,
-          issue: 'value is empty',
+          path: `${m.channelCode}.${SEARCH_SETTING_CODES.LLM_EMBEDDER_CREDENTIALS}`,
+          issue: `embedder ${m.field} is not provided by the credential`,
         })),
       );
     }

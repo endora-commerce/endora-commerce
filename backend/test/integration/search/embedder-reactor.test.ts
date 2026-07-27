@@ -6,6 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { SearchEventSubscriber } from '../../../src/modules/search/services/search-event-subscriber.js';
 import type { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
+import { CredentialConfiguration } from '../../../src/modules/credentials/entities/credential-configuration.entity.js';
 import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
 
 /**
@@ -16,9 +17,11 @@ import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
  * REAL database, settings cache, event bus, and admin route — but
  * substitutes the {@link SearchIndexer} with a recording fake. The
  * integration value is "the reactor reads the right values and asks the
- * indexer to attach/detach against the right channel". Meilisearch's
- * actual `updateEmbedders` round-trip is already proven by
- * `catalog-via-meilisearch.test.ts`.
+ * indexer to attach/detach against the right channel".
+ *
+ * Feature 058 — the embedder config comes solely from the
+ * `search.llm.embedder_credentials` reference (an `llm` credential supplying
+ * Base URL + API key + model).
  */
 describe('LLM reactor — settings.value_changed → embedder attach/detach (T023)', () => {
   let h: BackendServerHandle;
@@ -29,8 +32,6 @@ describe('LLM reactor — settings.value_changed → embedder attach/detach (T02
   let unsubscribe: (() => void) | null = null;
 
   beforeAll(async () => {
-    // Feature 043: search.llm.embedder_api_key is a `secret` setting now —
-    // writing it through the admin API requires the encryption key.
     process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] =
       process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ??
       Buffer.from(Array.from({ length: 32 }, (_, i) => i + 1)).toString('base64');
@@ -57,6 +58,7 @@ describe('LLM reactor — settings.value_changed → embedder attach/detach (T02
       emFactory: h.em,
       indexer: fakeIndexer as SearchIndexer,
       settingsService: h.settings.settingsService,
+      credentials: h.credentials.service,
     });
     unsubscribe = replacement.subscribe();
   }, 60_000);
@@ -67,10 +69,9 @@ describe('LLM reactor — settings.value_changed → embedder attach/detach (T02
   });
 
   beforeEach(async () => {
-    // Reset every search.llm.* setting_value through the admin service
-    // so the cache invalidator naturally fires (clears both Redis and
-    // the in-process LRU). Going through em.remove directly bypasses
-    // SettingsAdminService and would leave stale cache reads behind.
+    // Reset every search.llm.* setting_value through the admin service so the
+    // cache invalidator naturally fires (clears both Redis and the in-process
+    // LRU), and drop any credential configuration left by a prior test.
     for (const code of Object.values(SEARCH_SETTING_CODES)) {
       try {
         await h.settings.adminService.resetValues(code, undefined, {
@@ -80,51 +81,55 @@ describe('LLM reactor — settings.value_changed → embedder attach/detach (T02
         // Setting may not have any values yet; ignore.
       }
     }
-    // Settle the dispatch chain that resetValues for LLM_ENABLED may
-    // have started (reactor → detach), then wipe the recording so each
-    // test only observes events caused by its own actions.
+    await h.em().nativeDelete(CredentialConfiguration, {});
+    // Settle the dispatch chain that resetValues for LLM_ENABLED may have
+    // started (reactor → detach), then wipe the recording.
     await new Promise((resolve) => setTimeout(resolve, 250));
     recorded.length = 0;
   });
 
   const adminCookie = { b2b_session: 'stub-admin-session' };
 
-  async function populateAllChannels(code: string, value: unknown): Promise<void> {
+  async function setValue(code: string, value: unknown): Promise<void> {
     const r = await h.app.inject({
       method: 'PUT',
       url: `/api/v1/admin/settings/${code}/value`,
       cookies: adminCookie,
       payload: { scope: 'all', value },
     });
-    if (r.statusCode !== 200) {
-      throw new Error(`populateAllChannels(${code}) failed: ${r.statusCode}`);
-    }
+    if (r.statusCode !== 200) throw new Error(`setValue(${code}) failed: ${r.statusCode}`);
   }
 
-  /**
-   * Wait for the event-bus dispatch chain (cache invalidator → reactor)
-   * to complete. The bus dispatches via `void` so we cannot await it
-   * directly; poll the recording array up to 5 s and bail early if a
-   * change is observed.
-   */
+  /** Create an `llm` credential and point `embedder_credentials` at it. */
+  async function configureEmbedderCredential(values: Record<string, unknown>): Promise<void> {
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/credentials',
+      cookies: adminCookie,
+      payload: { code: 'reactor-embedder', name: 'reactor-embedder', typeCode: 'llm', providerCode: 'openai', values },
+    });
+    if (created.statusCode !== 201) throw new Error(`create config failed: ${created.statusCode} ${created.body}`);
+    await setValue(SEARCH_SETTING_CODES.LLM_EMBEDDER_CREDENTIALS, 'reactor-embedder');
+  }
+
   async function flushEventBus(): Promise<void> {
     const start = Date.now();
     const initial = recorded.length;
     while (Date.now() - start < 5000) {
       await new Promise((resolve) => setTimeout(resolve, 50));
       if (recorded.length !== initial) {
-        // Got at least one event — give the chain a final beat to
-        // collect any remaining channels from the same emit.
         await new Promise((resolve) => setTimeout(resolve, 200));
         return;
       }
     }
   }
 
-  it('attaches the openAi embedder on enable=true with complete config', async () => {
-    await populateAllChannels(SEARCH_SETTING_CODES.LLM_EMBEDDER_URL, 'https://emb.example/v1');
-    await populateAllChannels(SEARCH_SETTING_CODES.LLM_EMBEDDER_API_KEY, 'sk-test');
-    await populateAllChannels(SEARCH_SETTING_CODES.LLM_EMBEDDER_MODEL, 'text-embedding-3-small');
+  it('attaches the openAi embedder on enable=true with a complete credential', async () => {
+    await configureEmbedderCredential({
+      apiKey: 'sk-test',
+      model: 'text-embedding-3-small',
+      baseUrl: 'https://emb.example/v1',
+    });
 
     recorded.length = 0;
     const r = await h.app.inject({
@@ -151,10 +156,11 @@ describe('LLM reactor — settings.value_changed → embedder attach/detach (T02
   });
 
   it('detaches when enable flips back to false', async () => {
-    // First flip on.
-    await populateAllChannels(SEARCH_SETTING_CODES.LLM_EMBEDDER_URL, 'https://emb.example/v1');
-    await populateAllChannels(SEARCH_SETTING_CODES.LLM_EMBEDDER_API_KEY, 'sk-test');
-    await populateAllChannels(SEARCH_SETTING_CODES.LLM_EMBEDDER_MODEL, 'text-embedding-3-small');
+    await configureEmbedderCredential({
+      apiKey: 'sk-test',
+      model: 'text-embedding-3-small',
+      baseUrl: 'https://emb.example/v1',
+    });
     await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/search/llm/toggle',
@@ -164,7 +170,6 @@ describe('LLM reactor — settings.value_changed → embedder attach/detach (T02
     await flushEventBus();
     recorded.length = 0;
 
-    // Now flip off.
     const r = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/search/llm/toggle',
@@ -178,13 +183,10 @@ describe('LLM reactor — settings.value_changed → embedder attach/detach (T02
     expect(recorded.every((r) => r.kind === 'detach')).toBe(true);
   });
 
-  it('does NOT attach if any embedder.* field is empty (toggle is refused → no event fires)', async () => {
-    // The toggle wrapper refuses to enable when config is incomplete, so
-    // no `settings.value_changed` event for `search.llm.enabled` ever
-    // fires. Verifies the wrapper's pre-write validator and the
-    // reactor's read-time check are belt-and-braces, not redundant.
-    await populateAllChannels(SEARCH_SETTING_CODES.LLM_EMBEDDER_URL, 'https://emb.example/v1');
-    // api_key + model intentionally not populated.
+  it('does NOT attach if the credential is incomplete (toggle refused → no event fires)', async () => {
+    // Credential missing baseUrl → embedder URL missing → toggle refused, so no
+    // `settings.value_changed` for `search.llm.enabled` ever fires.
+    await configureEmbedderCredential({ apiKey: 'sk-test', model: 'text-embedding-3-small' });
 
     const r = await h.app.inject({
       method: 'POST',

@@ -12,6 +12,7 @@ import {
   DEFAULT_MINIMUM_QUERY_LENGTH,
 } from './services/search-suggest.service.js';
 import { LlmToggleService } from './services/llm-toggle.service.js';
+import type { CredentialResolvePort } from './services/embedder-config-resolver.js';
 import { SearchReindexWorker } from './services/search-reindex-worker.js';
 import { SearchPhraseRecorder } from './services/search-phrase-recorder.service.js';
 import {
@@ -20,6 +21,7 @@ import {
 } from './routes.public.js';
 import { registerSearchAdminRoutes } from './routes.admin.js';
 import type { RequireAdminFactory } from '../settings/plugin.js';
+import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
 import type {
   AdminAuditContext,
   SettingsAdminService,
@@ -51,6 +53,12 @@ export interface SearchModuleOptions {
   emFactory: () => EntityManager;
   eventBus: EventBus;
   /**
+   * Feature 061 — the catalog's composed attribute read model (Principle I).
+   * Backs the indexer's searchable/filterable settings + option-label
+   * aggregation and the query service's filterable validation.
+   */
+  catalogAttributeRead: CatalogAttributeReadService;
+  /**
    * Universal-getter for Settings. When provided, the suggest service
    * resolves its per-channel popup-count + minimum-query-length from
    * Settings, and the event subscriber attaches the `settings.value_changed`
@@ -59,6 +67,12 @@ export interface SearchModuleOptions {
    * predate Settings.
    */
   settingsService?: SettingsService;
+  /**
+   * Feature 058 — resolves the `search.llm.embedder_credentials` reference into
+   * the embedder config, falling back per field to the legacy embedder settings.
+   * Injected as a narrow port (Principle I); optional.
+   */
+  credentials?: CredentialResolvePort;
   /**
    * Admin Settings service — required when admin routes are mounted.
    * Drives the `LlmToggleService.toggle` write path. Without it, only
@@ -107,7 +121,7 @@ export interface SearchModuleResult {
 const numberSchema = z.number();
 
 export function searchModule(options: SearchModuleOptions): SearchModuleResult {
-  const indexer = new SearchIndexer();
+  const indexer = new SearchIndexer({ attributeRead: options.catalogAttributeRead });
   const subscriber = new SearchEventSubscriber({
     eventBus: options.eventBus as never,
     emFactory: options.emFactory,
@@ -115,8 +129,12 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
     ...(options.settingsService !== undefined
       ? { settingsService: options.settingsService }
       : {}),
+    ...(options.credentials !== undefined ? { credentials: options.credentials } : {}),
   });
-  const searchQueryService = new SearchQueryService(options.emFactory);
+  const searchQueryService = new SearchQueryService(
+    options.emFactory,
+    options.catalogAttributeRead,
+  );
 
   // Settings-aware suggest config, with fallback to manifest defaults
   // when the resolver fails for any reason (e.g. Redis hiccup,
@@ -163,6 +181,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
           options.emFactory,
           options.settingsService,
           options.settingsAdminService,
+          options.credentials,
         )
       : undefined;
 

@@ -121,8 +121,9 @@ describe('ModuleSettingsManifestSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('exposes the six expected value types', () => {
-    // 'secret' added by feature 043 (write-only settings).
+  it('exposes the seven expected value types', () => {
+    // 'secret' added by feature 043 (write-only settings);
+    // 'credential_ref' added by feature 058 (credential configurations).
     expect(SettingValueTypeSchema.options).toEqual([
       'string',
       'number',
@@ -130,6 +131,7 @@ describe('ModuleSettingsManifestSchema', () => {
       'json',
       'string_list',
       'secret',
+      'credential_ref',
     ]);
   });
 });

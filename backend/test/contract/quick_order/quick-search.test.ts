@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { ProductAttribute } from '../../../src/modules/catalog/entities/product-attribute.entity.js';
+import { createAttributeFixture } from '../../helpers/seed-catalog.js';
 
 /**
  * Feature 039 (US3) — quick search matches SKU, name, and the values of
@@ -34,20 +34,19 @@ describe('Quick-order quick search', () => {
     h = await setupBackendServer();
     const em = h.em();
     // A quick_searchable attribute + a plain (non-flagged) attribute.
-    em.create(ProductAttribute, {
+    await createAttributeFixture(em, {
       key: 'qo_flag_attr',
       label: { 'en-US': 'QO Flagged' },
       labelDefault: 'QO Flagged',
       valueType: 'string',
       quickSearchable: true,
     });
-    em.create(ProductAttribute, {
+    await createAttributeFixture(em, {
       key: 'qo_plain_attr',
       label: { 'en-US': 'QO Plain' },
       labelDefault: 'QO Plain',
       valueType: 'string',
     });
-    await em.flush();
 
     const product = await em.findOne(Product, { status: 'active' });
     productId = product!.id;

@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import Redis from 'ioredis';
 import { buildServer, type ModulePlugin } from '../../src/http/server.js';
+import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
+import { registerApiInterceptorAdminRoutes } from '../../src/modules/_lifecycle/routes.admin.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { runInTenantContext, type TenantContext } from '../../src/tenancy/tenant-context.js';
 import {
@@ -51,6 +53,8 @@ import { ConsoleMailer } from '../../src/modules/email/services/mailer.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
+import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
+import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
 import { returnsModule } from '../../src/modules/returns/plugin.js';
 import { invoicesModule } from '../../src/modules/invoices/plugin.js';
@@ -122,10 +126,17 @@ import { createSuggestionPricingEnricher } from '../../src/modules/search/servic
 import { searchManifest } from '../../src/modules/search/manifest.js';
 import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/modules/prompt_actions/plugin.js';
 import { promptActionsSettingsManifest } from '../../src/modules/prompt_actions/manifest.js';
+import { credentialsModule } from '../../src/modules/credentials/plugin.js';
+import { ksefModule } from '../../src/modules/ksef/plugin.js';
+import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
+import { configurationTypeRegistry } from '../../src/modules/credentials/services/registry-singleton.js';
+import { llmConfigurationType } from '../../src/modules/credentials/types/llm.type.js';
+import { emailAdapterConfigurationType } from '../../src/modules/credentials/types/email-adapter.type.js';
 import { pwaModule } from '../../src/modules/pwa/plugin.js';
 import { pwaSettingsManifest } from '../../src/modules/pwa/manifest.js';
 import { transactionalEmailsSettingsManifest } from '../../src/modules/transactional_emails/manifest.js';
 import { invoicesSettingsManifest } from '../../src/modules/invoices/manifest.js';
+import { ksefSettingsManifest } from '../../src/modules/ksef/manifest.js';
 import { SalesChannel } from '../../src/modules/sales_channels/entities/sales-channel.entity.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import {
@@ -145,6 +156,7 @@ import { blogManifest } from '../../src/modules/blog/manifest.js';
 import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
+import { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
 import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
@@ -180,10 +192,23 @@ export interface BackendServerOptions {
   extraModules?: ModulePlugin[];
   /** When set, injected into `organizationsModule` so tests can assert outbound mail (verification + invitations). */
   organizationsMailer?: Mailer;
+  /**
+   * Feature 062 — when set, injected into `commerceModule` so tests can assert
+   * the order-confirmation e-mail on placement paths (SC-004 parity).
+   */
+  commerceMailer?: Mailer;
   /** Feature 043 — scripted LLM fetch + clock/TTL seams for prompt-action tests. */
   promptActionsLlmFetch?: PromptActionsModuleOptions['llmFetch'];
   promptActionsNow?: () => Date;
   promptActionsTtlMinutes?: number;
+  /** Feature 059 — stub KSeF API client for submission/credential tests. */
+  ksefClientFactory?: (baseUrl: string) => KsefApiClientPort;
+  /**
+   * Feature 060 — contribute API interceptor registrations before the server
+   * seals the registry on ready. Contract tests use this to register fixture
+   * interceptors against real module endpoints.
+   */
+  configureInterceptors?: (registry: ApiInterceptorRegistry) => void;
 }
 
 export interface BackendServerHandle {
@@ -191,6 +216,8 @@ export interface BackendServerHandle {
   orm: MikroORM;
   em: () => EntityManager;
   eventBus: EventBus;
+  /** Feature 060 — the sealed API interceptor registry (execution plan via `.list()`). */
+  apiInterceptors: ApiInterceptorRegistry;
   redis: Redis;
   sessionService: SessionService;
   auditLogService: AuditLogService;
@@ -200,10 +227,18 @@ export interface BackendServerHandle {
   settings: ReturnType<typeof settingsModule>['handle'];
   /** Feature 043 — prompt assistant handle (registry + request service). */
   promptActions: ReturnType<typeof promptActionsModule>['handle'];
+  /** Feature 058 — credentials handle (config-type registry + service). */
+  credentials: ReturnType<typeof credentialsModule>['handle'];
+  /** Feature 047 — invoices handle (issuance service, PDF renderer, number generator). */
+  invoices: ReturnType<typeof invoicesModule>['handle'];
+  /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
+  ksef: ReturnType<typeof ksefModule>['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: ReturnType<typeof pwaModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
   salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
+  /** Feature 062 — api-keys/webhooks/integrations handle (api-key gates). */
+  integrations: ReturnType<typeof integrationsModule>['handle'];
   /** Feature 006 — exposes the indexer + suggest service for tests that
    *  want deterministic teardown or to exercise embedder attach/detach. */
   search: ReturnType<typeof searchModule>['handle'];
@@ -225,6 +260,8 @@ export interface BackendServerHandle {
   promotions: ReturnType<typeof promotionsModule>['handle'];
   /** Feature 055 — custom fields (definition + value services). */
   customFields: ReturnType<typeof customFieldsModule>['handle'];
+  /** Feature 061 — the composed attribute read model (definition + extension views). */
+  catalogAttributeRead: CatalogAttributeReadService;
   /** Feature 026 — moderation lifecycle, admin notifications, org context. */
   organizations: {
     moderationService: OrganizationModerationService;
@@ -276,6 +313,8 @@ function testAnyLabel(name: unknown): string {
 }
 
 const SEEDED_TABLES = [
+  // Feature 058 — credentials. Platform-global; truncate so each test starts clean.
+  'credential_configurations',
   // Feature 055 — custom fields. Options cascade from definitions.
   'custom_field_options',
   'custom_field_definitions',
@@ -313,6 +352,8 @@ const SEEDED_TABLES = [
   'sitemap_cache',
   'seo_meta_overrides',
   'audit_log_entries',
+  'ksef_submissions',
+  'ksef_credentials',
   'invoices',
   'payments',
   'order_items',
@@ -571,6 +612,14 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
 
+  // Feature 061 — the composed attribute read model (mirrors composition.ts):
+  // product-host custom-field definitions + catalog extension rows, threaded
+  // into catalog, search, quick_order, and comparisons.
+  const catalogAttributeReadService = new CatalogAttributeReadService(
+    em,
+    customFields.handle.definitionService,
+  );
+
   // US7 — API keys, webhooks, external integrations. The handle exposes
   // requireApiKey, threaded into the catalog module's by-sku route so that
   // surface gets real bearer-token gating.
@@ -679,7 +728,7 @@ export async function setupBackendServer(
     salesChannelMembership: salesChannels.handle.membershipService,
     // Feature 012 / US8 — wire the catalog read port so the rule-target
     // picker + criterion validation work in tests.
-    catalogQueryService: new CatalogQueryService(em),
+    catalogQueryService: new CatalogQueryService(em, undefined, undefined, catalogAttributeReadService),
     dictionaryValidator: dictionaries.handle.validator,
     // Feature 026 US5 — org-targeted promotions skip when the Organization
     // is not active. Inlined as a raw SQL lookup to avoid coupling promotions
@@ -729,9 +778,21 @@ export async function setupBackendServer(
   // Feature 047 — late-bound transactional-email sender (mirrors composition).
   let transactionalEmailSender: import('@b2b/contracts').TransactionalEmailSender | undefined;
 
+  // Feature 062 — read-only inventory accessors backing the external catalog
+  // namespace's availability indication (mirrors composition.ts).
+  const externalAvailabilityStockLevels = new StockLevelService(em);
+  const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
+
   const modules: ModulePlugin[] = [
     async (app) => {
-      registerTestAuth(app, { sessionService, emFactory: em });
+      registerTestAuth(app, {
+        sessionService,
+        emFactory: em,
+        // Feature 062 — mirror production: Bearer sk_live_* resolves to an
+        // api_key actor (incl. distributor binding) before the tenant hook
+        // and the sales-channel resolver run.
+        apiKeyResolver: async (token) => integrations.handle.apiKeyService.authenticate(token),
+      });
       // Feature 050 — establish the ambient TenantContext from the resolved test
       // actor, after registerTestAuth sets it. Mirrors composition.ts wiring
       // (callback-style so the AsyncLocalStorage store reaches the handler).
@@ -762,6 +823,16 @@ export async function setupBackendServer(
         if (actor?.kind === 'admin') {
           const scope = await resolveTestAdminOrdersScope(request);
           return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
+        }
+        // Feature 062 — mirror production: a bound api key derives single-org
+        // scope from its binding; an unbound key keeps trusted system scope.
+        if (actor?.kind === 'api_key') {
+          return resolveTenantContext({
+            kind: 'api_key',
+            apiKeyId: actor.apiKeyId,
+            organizationId: actor.organizationId ?? null,
+            customerAccountId: actor.customerAccountId ?? null,
+          });
         }
         return systemTenantContext(`test-actor:${actor?.kind ?? 'anonymous'}`);
       };
@@ -818,6 +889,21 @@ export async function setupBackendServer(
       pricingService: priceLists.handle.pricingService,
       promotionService: promotions.handle.promotionService,
       redis,
+      // Feature 062 — external orders namespace (mirrors composition.ts):
+      // bound-key gate + the org method allow-lists (FR-021 envelope).
+      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      resolveOrganizationMethodAllowLists: async (organizationId: string) => {
+        try {
+          const lists = await sharedRestrictionService.readAllowLists(organizationId);
+          return {
+            paymentMethodIds: lists.paymentMethodIds,
+            deliveryMethodIds: lists.deliveryMethodIds,
+          };
+        } catch {
+          return null;
+        }
+      },
+      ...(options.commerceMailer ? { mailer: options.commerceMailer } : {}),
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
       // Global backorder gate — resolved at request time via the Settings
       // module (declared below; the closure runs well after setup completes).
@@ -1025,7 +1111,23 @@ export async function setupBackendServer(
       auditLogService,
       customFieldValues: customFields.handle.valueService,
       customFieldDefinitions: customFields.handle.definitionService,
+      // Feature 061 — apply seam + composed attribute read model.
+      customFieldsPort: customFields.handle.definitionService,
+      attributeReadService: catalogAttributeReadService,
       requireApiKey: integrations.handle.requireApiKey,
+      // Feature 062 — external catalog namespace (mirrors composition.ts):
+      // bound-key gate + the SAME pricing engine cart pricing uses + the
+      // inventory availability port.
+      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      pricingService: priceLists.handle.pricingService,
+      resolveExternalAvailability: async (productIds, salesChannelId) => {
+        const candidateWarehouseIds =
+          await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
+        return externalAvailabilityStockLevels.resolveAvailabilityBands(
+          productIds,
+          candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+        );
+      },
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
       // Tests assert the queued ack only: no `redis` is wired into the catalog
@@ -1214,6 +1316,33 @@ export async function setupBackendServer(
   });
   modules.push(adminActions.plugin);
 
+  // Feature 058 — Credentials module. Instantiated before the consumer modules
+  // (prompt_actions, search, newsletter) so they can receive
+  // `credentials.handle.service` for the `credential_ref` resolution path.
+  if (!configurationTypeRegistry.isRegistered(llmConfigurationType.code)) {
+    configurationTypeRegistry.register(llmConfigurationType);
+  }
+  if (!configurationTypeRegistry.isRegistered(emailAdapterConfigurationType.code)) {
+    configurationTypeRegistry.register(emailAdapterConfigurationType);
+  }
+  const credentials = credentialsModule({
+    emFactory: em,
+    settings: settings.handle.settingsService,
+    permissionService,
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveAdminContext: (request) => ({
+      adminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+    }),
+    commandBus,
+    configurationTypeRegistry,
+    auditLogService,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
+  });
+  modules.push(credentials.plugin);
+
   // Feature 043 — prompt assistant (mirrors composition.ts). Tool handlers
   // contributed by catalog/inventory; provider HTTP is injected by tests.
   const catalogToolDeps = {
@@ -1238,6 +1367,7 @@ export async function setupBackendServer(
           : TEST_ADMIN_ID,
     }),
     auditLogService,
+    credentials: credentials.handle.service,
     bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
     ...(options.promptActionsLlmFetch !== undefined
       ? { llmFetch: options.promptActionsLlmFetch }
@@ -1447,8 +1577,10 @@ export async function setupBackendServer(
   const search = searchModule({
     emFactory: em,
     eventBus,
+    catalogAttributeRead: catalogAttributeReadService,
     settingsService: settings.handle.settingsService,
     settingsAdminService: settings.handle.adminService,
+    credentials: credentials.handle.service,
     requireAdmin: requireTestAdmin(permissionService),
     enrichSuggestionPricing: createSuggestionPricingEnricher({
       emFactory: em,
@@ -1466,7 +1598,8 @@ export async function setupBackendServer(
   // in subsequent stories.
   const comparisons = comparisonsModule({
     emFactory: em,
-    catalogQueryService: new CatalogQueryService(em),
+    catalogQueryService: new CatalogQueryService(em, undefined, undefined, catalogAttributeReadService),
+    catalogAttributeRead: catalogAttributeReadService,
     settingsService: settings.handle.settingsService,
     requireAdmin: requireTestAdmin(permissionService),
   });
@@ -1618,6 +1751,7 @@ export async function setupBackendServer(
         em,
         new InvoiceNumberGenerator(createSettingsPatternResolver(settings.handle.settingsService)),
         auditLogService,
+        eventBus,
       ),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
@@ -1634,8 +1768,7 @@ export async function setupBackendServer(
   );
 
   // Feature 047 — Invoices.
-  modules.push(
-    invoicesModule({
+  const invoices = invoicesModule({
       emFactory: em,
       eventBus,
       requireAdmin: requireTestAdmin(permissionService),
@@ -1660,8 +1793,43 @@ export async function setupBackendServer(
         (salesChannelId
           ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
           : null) ?? 'en-US',
-    }).plugin,
-  );
+  });
+  modules.push(invoices.plugin);
+
+  // Feature 059 — KSeF. No redis queue in tests (submissions are processed by
+  // driving `submissions.process(...)` directly); the sweep interval is off.
+  const ksef = ksefModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+    settingsService: settings.handle.settingsService,
+    commandBus,
+    eventBus,
+    invoices: {
+      buildDetail: (invoiceId) => invoices.handle.invoiceService.buildDetail(invoiceId),
+      recordKsefAssignment: (invoiceId, assignment) =>
+        invoices.handle.invoiceService.recordKsefAssignment(invoiceId, assignment),
+    },
+    auditLogService,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
+    resolveSellerNip: async () => {
+      try {
+        const { z: zod } = await import('zod');
+        const raw = await settings.handle.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', zod.string());
+        const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
+        return nip.length > 0 ? nip : null;
+      } catch {
+        return null;
+      }
+    },
+    ...(options.ksefClientFactory ? { clientFactory: options.ksefClientFactory } : {}),
+    sweepIntervalMs: 0,
+    pollAttempts: 3,
+    pollIntervalMs: 5,
+  });
+  modules.push(ksef.plugin);
+  invoices.handle.pdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
 
   // Feature 047 — Transactional Emails.
   emailDefaultsRegistry.register('order_confirmation', {
@@ -1769,6 +1937,7 @@ export async function setupBackendServer(
           occurredAt: new Date().toISOString(),
           ...payload,
         }),
+      credentials: credentials.handle.service,
     }),
   );
 
@@ -1798,6 +1967,7 @@ export async function setupBackendServer(
     shoppingListsModule({
       emFactory: em,
       rfqService: quoteRequests.handle().rfqService,
+      catalogAttributeRead: catalogAttributeReadService,
       requireCustomer: requireTestCustomer(),
       resolveCustomerContext: customerResolver,
       eventBus,
@@ -1832,6 +2002,20 @@ export async function setupBackendServer(
 
   if (options.extraModules) modules.push(...options.extraModules);
 
+  // Feature 060 — API interceptor registry, mirroring composition.ts wiring.
+  // Fixture registrations arrive via `options.configureInterceptors`; the
+  // registry is sealed (after boot validation) inside app.ready().
+  const apiInterceptors = new ApiInterceptorRegistry({
+    isModuleEnabled: (moduleId) => registryCache.isEnabled(moduleId),
+  });
+  modules.push(async (app) => {
+    registerApiInterceptorAdminRoutes(app, {
+      registry: apiInterceptors,
+      requireAdmin: requireTestAdmin(permissionService),
+    });
+  });
+  options.configureInterceptors?.(apiInterceptors);
+
   // Feature 004 — boot-time manifest reconciliation. Runs before
   // app.ready() so contract tests start from a consistent settings
   // catalog.
@@ -1853,6 +2037,7 @@ export async function setupBackendServer(
     newsletterSettingsManifest,
     googleAnalyticsSettingsManifest,
     invoicesSettingsManifest,
+    ksefSettingsManifest,
   ]);
 
   const app = await buildServer({
@@ -1864,6 +2049,7 @@ export async function setupBackendServer(
     },
     disableRateLimit: true,
     modules,
+    apiInterceptors,
     errorEnvelope: {
       resolvePreferredLanguage: async (request) => {
         if (request.testActor?.kind !== 'admin') return null;
@@ -1896,15 +2082,20 @@ export async function setupBackendServer(
     orm,
     em,
     eventBus,
+    apiInterceptors,
     redis,
     sessionService,
     auditLogService,
     promptActions: promptActions.handle,
+    credentials: credentials.handle,
+    invoices: invoices.handle,
+    ksef: ksef.handle,
     pwa: pwa.handle,
     permissionService,
     permissionCatalogueService,
     settings: settings.handle,
     salesChannels: salesChannels.handle,
+    integrations: integrations.handle,
     search: search.handle,
     comparisons: comparisons.handle,
     assetsLibrary: assetsLibrary.handle,
@@ -1915,6 +2106,8 @@ export async function setupBackendServer(
     adminI18n: adminI18n.handle,
     promotions: promotions.handle,
     customFields: customFields.handle,
+    // Feature 061 — the composed attribute read model for test fixtures.
+    catalogAttributeRead: catalogAttributeReadService,
     organizations: handleFeature026 ?? {
       moderationService: null as unknown as OrganizationModerationService,
       adminNotificationService: null as unknown as ReturnType<

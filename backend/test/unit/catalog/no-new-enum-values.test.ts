@@ -38,6 +38,9 @@ const allowlist = [
   'backend/src/modules/catalog/services/attribute-type-mapping.ts',
   'backend/src/modules/catalog/services/catalog-admin.service.ts',
   'backend/src/modules/catalog/services/catalog-query.service.ts',
+  // Feature 061 — the attribute create Command inherits the write-side
+  // legacy `enumValues` acceptance from catalog-admin.service.ts.
+  'backend/src/modules/catalog/commands/attribute-commands.ts',
   'backend/src/modules/catalog/routes.admin.ts',
   'backend/src/modules/catalog/entities/product-attribute.entity.ts',
   'backend/src/modules/catalog/seeds/dev-catalog-seed.ts',

@@ -114,7 +114,7 @@ export async function registerInvoicesAdminRoutes(
   // PDF (rendered on demand) ---------------------------------------------
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/invoices/:id/pdf',
-    { preHandler: requireAdmin('invoices:read') },
+    { preHandler: requireAdmin('invoices:read'), config: { streamingResponse: true } },
     async (request, reply) => {
       const detail = await invoiceService.buildDetail(request.params.id);
       const tree = await templateService.resolveTree(detail.salesChannelId, RENDER_LANGUAGE);
@@ -240,7 +240,7 @@ export async function registerInvoicesAdminRoutes(
   // canvas tree (POST) without persisting.
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/invoice-templates/:id/preview',
-    { preHandler: requireAdmin('invoices:write') },
+    { preHandler: requireAdmin('invoices:write'), config: { streamingResponse: true } },
     async (request, reply) => {
       const tpl = await templateService.get(request.params.id);
       const tree = pickLanguageTree(tpl.content, RENDER_LANGUAGE);

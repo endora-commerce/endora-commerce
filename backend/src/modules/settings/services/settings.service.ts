@@ -198,6 +198,40 @@ export class SettingsService {
     if (!isSecretEnvelope(value)) return value;
     return decryptSecretValue(value, this.secretEncryptionKey);
   }
+
+  /**
+   * Feature 058 (US2) — delete-integrity lookup for the credentials module.
+   *
+   * Returns every `credential_ref` setting whose resolved value (global
+   * override OR a per-channel `SettingValue`) equals `configurationCode`. The
+   * credentials module calls this through its port interface (Principle I)
+   * before deleting a configuration; a non-empty result blocks the delete
+   * (`CREDENTIAL_IN_USE`, FR-012). The manifest `defaultValue` is intentionally
+   * ignored — a manifest never ships a real configuration code.
+   */
+  async listReferencesToConfiguration(
+    configurationCode: string,
+  ): Promise<{ settingCode: string; salesChannelCode?: string }[]> {
+    const em = this.emFactory();
+    const settings = await em.find(Setting, { valueType: 'credential_ref' });
+    const refs: { settingCode: string; salesChannelCode?: string }[] = [];
+    for (const setting of settings) {
+      if (setting.globalValue === configurationCode) {
+        refs.push({ settingCode: setting.code });
+      }
+      const values = await em.find(
+        SettingValue,
+        { setting },
+        { populate: ['salesChannel'] },
+      );
+      for (const v of values) {
+        if (v.value === configurationCode) {
+          refs.push({ settingCode: setting.code, salesChannelCode: v.salesChannel.code });
+        }
+      }
+    }
+    return refs;
+  }
 }
 
 /**

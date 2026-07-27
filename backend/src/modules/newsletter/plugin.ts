@@ -24,7 +24,10 @@ import { NewsletterStatsService } from './services/stats.service.js';
 import { NewsletterEmailBlockService } from './services/email-block.service.js';
 import { NewsletterProviderAdminService, type SettingsWriter } from './services/provider-admin.service.js';
 import type { AdminAuditContext } from './services/provider-admin.types.js';
-import { NewsletterProviderRegistry } from './services/provider/provider-registry.js';
+import {
+  NewsletterProviderRegistry,
+  type CredentialResolvePort,
+} from './services/provider/provider-registry.js';
 import {
   createCampaignPlanQueue,
   createSendQueue,
@@ -66,6 +69,12 @@ export interface NewsletterModuleOptions {
   redis?: Redis;
   /** Whether this process runs queue consumers (BACKEND_ROLE != api). */
   runWorkers?: boolean;
+  /**
+   * Feature 058 — resolves the `newsletter.email_credentials` reference into a
+   * usable SMTP transport. Injected as a narrow port (Principle I); when absent
+   * the registry uses the legacy `newsletter.smtp.*` settings.
+   */
+  credentials?: CredentialResolvePort;
   /** Resolve transactional email branding (logo + accent) for a sales channel. */
   resolveEmailBranding?: (
     salesChannelId: string | null,
@@ -82,7 +91,11 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
   const optIn = new NewsletterOptInService(options.settings, tokens);
   const content = new NewsletterContentService();
   const audience = new NewsletterAudienceResolver(options.emFactory);
-  const providers = new NewsletterProviderRegistry(options.settings, options.platformChannelId);
+  const providers = new NewsletterProviderRegistry(
+    options.settings,
+    options.platformChannelId,
+    options.credentials,
+  );
 
   const links: NewsletterLinkBuilder = {
     confirm: (t) => `${options.publicBaseUrl}/api/v1/newsletter/confirm?token=${encodeURIComponent(t)}`,

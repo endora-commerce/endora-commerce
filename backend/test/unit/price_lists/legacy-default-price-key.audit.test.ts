@@ -37,6 +37,12 @@ const ALLOW = new Set<string>([
   // dependency optional).
   'backend/src/modules/carts/services/cart-service.ts',
 
+  // External order intake (feature 062) mirrors cart-service's fallback in
+  // its PRICE_UNAVAILABLE probe so a product the org's buyer can put in a
+  // cart is never refused by the API surface; migrates together with
+  // cart-service when the legacy keys are stripped.
+  'backend/src/modules/orders/services/order-api-intake-service.ts',
+
   // Comparison + search projections mirror the same fallback as
   // catalog-query; they're the next migration targets.
   'backend/src/modules/comparisons/services/comparison-service.ts',

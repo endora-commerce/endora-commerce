@@ -1,21 +1,20 @@
 /**
- * Attribute / option-list validator (feature 012).
+ * Attribute / option-list validator (feature 012, retained by feature 061).
  *
- * Pure functions used by the admin write surface to refuse bad input
- * before it reaches the DB. Re-used by both `AttributeService.create()`
- * and the dedicated option-CRUD endpoints.
+ * Pure functions used by the attribute Commands
+ * (`catalog/commands/attribute-commands.ts`) to refuse bad input before it
+ * reaches the DB. Attribute-key format is enforced at the API boundary by
+ * the Zod schemas in `@b2b/contracts`.
  */
 
-const ATTRIBUTE_KEY_REGEX = /^[a-z][a-z0-9_]*$/;
 const OPTION_VALUE_REGEX = /^[a-z0-9_-]{1,200}$/;
 
-/** Value types whose options live in `attribute_options` (FR-021). */
+/**
+ * Value types whose options live in `custom_field_options` (feature 061;
+ * previously the catalog-owned `attribute_options` table, FR-021 of 012).
+ */
 export const SELECT_STYLE_VALUE_TYPES = ['select', 'enum', 'multiselect'] as const;
 export type SelectStyleValueType = (typeof SELECT_STYLE_VALUE_TYPES)[number];
-
-export function isValidAttributeKey(key: string): boolean {
-  return ATTRIBUTE_KEY_REGEX.test(key);
-}
 
 export function isValidOptionValue(value: string): boolean {
   return OPTION_VALUE_REGEX.test(value);

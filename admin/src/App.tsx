@@ -85,6 +85,7 @@ import { CartDetail } from './modules/carts/CartDetail.js';
 import { InvoicesList } from './modules/invoices/InvoicesList.js';
 import { InvoiceDetail } from './modules/invoices/InvoiceDetail.js';
 import { InvoiceTemplatesPage } from './modules/invoices/templates/InvoiceTemplatesPage.js';
+import { KsefPage } from './modules/ksef/pages/KsefPage.js';
 import { InvoiceTemplateEditor } from './modules/invoices/templates/InvoiceTemplateEditor.js';
 import { TaxesPage } from './modules/taxes/TaxesPage.js';
 import { PromotionsPage } from './modules/promotions/PromotionsPage.js';
@@ -98,6 +99,7 @@ import { HomePage } from './modules/home/HomePage.js';
 import { DeliveryMethodsPage } from './modules/delivery_methods/DeliveryMethodsPage.js';
 import { PaymentMethodsPage } from './modules/payment_methods/PaymentMethodsPage.js';
 import { StripeSettingsPage } from './modules/stripe/StripeSettingsPage.js';
+import { CredentialsPage } from './modules/credentials/pages/CredentialsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { LowStockPage } from './modules/inventory/LowStockPage.js';
 import { AvailabilityNotificationsPage } from './modules/inventory/AvailabilityNotificationsPage.js';
@@ -215,6 +217,7 @@ export function App(): ReactNode {
         <Route path="/invoices/templates" element={<InvoiceTemplatesPage />} />
         <Route path="/invoices/templates/:id" element={<InvoiceTemplateEditor />} />
         <Route path="/invoices/:id" element={<InvoiceDetail />} />
+        <Route path="/ksef" element={<KsefPage />} />
         <Route path="/taxes" element={<TaxesPage />} />
         <Route path="/promotions" element={<PromotionsPage />} />
         <Route path="/promotions/new" element={<PromotionEditPage />} />
@@ -227,6 +230,7 @@ export function App(): ReactNode {
         <Route path="/delivery-methods" element={<DeliveryMethodsPage />} />
         <Route path="/payment-methods" element={<PaymentMethodsPage />} />
         <Route path="/settings/stripe" element={<StripeSettingsPage />} />
+        <Route path="/credentials" element={<CredentialsPage />} />
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/inventory/low-stock" element={<LowStockPage />} />
         <Route path="/inventory/notifications" element={<AvailabilityNotificationsPage />} />

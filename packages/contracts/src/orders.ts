@@ -472,6 +472,67 @@ export const adminCreateOrderRequestSchema = z
   });
 export type AdminCreateOrderRequest = z.infer<typeof adminCreateOrderRequestSchema>;
 
+// --- External order intake (feature 062, contracts/orders-api-key-intake.md) ---
+
+/**
+ * Inline address for the external order-intake body — the admin-create
+ * pattern: per side, the caller supplies EITHER an existing org address id OR
+ * an inline address. `saveToAddressBook` defaults to a one-time address (the
+ * org book stays clean; the order keeps its own snapshot).
+ */
+export const apiInlineAddressSchema = z.object({
+  recipientName: z.string().min(1).max(160),
+  street: z.string().min(1).max(255),
+  city: z.string().min(1).max(120),
+  postalCode: z.string().min(1).max(20),
+  country: z.string().length(2),
+  phone: z.string().max(32).optional(),
+  saveToAddressBook: z.boolean().default(false),
+});
+export type ApiInlineAddress = z.infer<typeof apiInlineAddressSchema>;
+
+/**
+ * `POST /api/v1/external/orders` body (bound API keys only). Line items are
+ * addressed by SKU + quantity; the response reuses the existing serialized
+ * order envelope — no bespoke partner DTO.
+ */
+export const apiPlaceOrderRequestSchema = z
+  .object({
+    lines: z
+      .array(
+        z.object({
+          sku: z.string().min(1),
+          quantity: z.number().int().min(1),
+        }),
+      )
+      .min(1),
+    deliveryMethodId: uuidSchema,
+    paymentMethodId: uuidSchema,
+    deliveryAddressId: uuidSchema.optional(),
+    billingAddressId: uuidSchema.optional(),
+    deliveryAddress: apiInlineAddressSchema.optional(),
+    billingAddress: apiInlineAddressSchema.optional(),
+    /** Partner's own order number → persisted as the order `customerNote`. */
+    customerReference: z.string().max(160).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if ((val.deliveryAddressId == null) === (val.deliveryAddress == null)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['deliveryAddressId'],
+        message: 'Provide exactly one of deliveryAddressId or deliveryAddress.',
+      });
+    }
+    if ((val.billingAddressId == null) === (val.billingAddress == null)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['billingAddressId'],
+        message: 'Provide exactly one of billingAddressId or billingAddress.',
+      });
+    }
+  });
+export type ApiPlaceOrderRequest = z.infer<typeof apiPlaceOrderRequestSchema>;
+
 // --- Admin order pricing preview (live summary on the create form) ---------
 
 export const adminOrderPreviewRequestSchema = z.object({

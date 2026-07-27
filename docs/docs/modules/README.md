@@ -38,6 +38,7 @@ how to consume it.
 | [catalog](./catalog) | Products, variants, categories, attributes, sales channels | yes |
 | [cms](./cms) | Page Builder authoring surface — Pages, Blocks, Templates, Hooks — per channel + language | yes |
 | [comparisons](./comparisons) | Compare Products: customer-curated set with display modes, share link, and PDF export | yes |
+| [credentials](./credentials) | Reusable typed credential configurations (LLM, email adapter) referenced from settings | yes (admin) |
 | [credit_limits](./credit_limits) | Credit-limit grant + atomic reservation | yes |
 | [currencies](./currencies) | Pool of accepted ISO 4217 currencies + default | yes |
 | [customer_accounts](./customer_accounts) | Customer login, password reset, 2FA, role assignment | yes |
@@ -48,6 +49,7 @@ how to consume it.
 | [integrations](./integrations) | External vendor configurations (encrypted) | yes |
 | [inventory](./inventory) | Stock levels, reservations, availability notifications | yes |
 | [invoices](./invoices) | PDF invoice / proforma generation + asset linkage | yes |
+| [ksef](./ksef) | Krajowy System e-Faktur integration — FA(3) submission of issued invoices, KSeF numbers + UPO, certificate management | yes (admin) |
 | [languages](./languages) | Pool of supported BCP-47 language tags + translation-fallback helper | yes |
 | [megamenu](./megamenu) | Configurable navigation tree with per-channel + per-language bindings | yes |
 | [module-lifecycle](./module-lifecycle) | CLI-driven install / uninstall / enable / disable / status for every backend module + dependency validation + first-boot reconciliation | yes (read-only admin endpoint) |

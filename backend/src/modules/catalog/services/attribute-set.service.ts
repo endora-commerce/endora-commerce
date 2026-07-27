@@ -27,7 +27,10 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CommandBus } from '../../../commands/index.js';
 import { AttributeSet } from '../entities/attribute-set.entity.js';
-import { ProductAttribute } from '../entities/product-attribute.entity.js';
+import type {
+  CatalogAttributeReadService,
+  CatalogAttributeView,
+} from './catalog-attribute-read.service.js';
 import {
   assertCodeNotImmutable,
   assertNotInUse,
@@ -47,7 +50,22 @@ export class AttributeSetService {
     private readonly emFactory: () => EntityManager,
     /** Feature 054 — audits attribute-set writes co-transactionally when provided. */
     private readonly commandBus?: CommandBus,
+    /**
+     * Feature 061 — composed attribute read model. Set membership is stored by
+     * definition id, but the API keeps accepting/returning attribute
+     * (extension) ids — this service maps between the two at the boundary.
+     */
+    private readonly attributeRead?: CatalogAttributeReadService,
   ) {}
+
+  #requireAttributeRead(): CatalogAttributeReadService {
+    if (!this.attributeRead) {
+      throw new Error(
+        'AttributeSetService: CatalogAttributeReadService is not wired — attribute reads are unavailable.',
+      );
+    }
+    return this.attributeRead;
+  }
 
   /**
    * Feature 054 — run a write through the Command Bus (co-transactional audit)
@@ -146,10 +164,13 @@ export class AttributeSetService {
 
   async createSet(input: CreateAttributeSetRequest): Promise<AttributeSetDetailDto> {
     // Validate the initial attribute ids exist BEFORE creating the set.
-    let initialAttributes: ProductAttribute[] = [];
+    // Input ids are attribute (extension) ids; membership persists definition ids.
+    let initialAttributes: CatalogAttributeView[] = [];
     if (input.attributeIds && input.attributeIds.length > 0) {
-      const em0 = this.emFactory();
-      initialAttributes = await em0.find(ProductAttribute, { id: { $in: input.attributeIds } });
+      const all = await this.#requireAttributeRead().listAll();
+      initialAttributes = input.attributeIds
+        .map((id) => all.find((v) => v.id === id))
+        .filter((v): v is CatalogAttributeView => v !== undefined);
       if (initialAttributes.length !== input.attributeIds.length) {
         const found = new Set(initialAttributes.map((a) => a.id));
         const missing = input.attributeIds.filter((id) => !found.has(id));
@@ -202,7 +223,10 @@ export class AttributeSetService {
       await this.#insertAssignments(
         em,
         set.id,
-        initialAttributes.map((a, idx) => ({ attributeId: a.id, position: idx })),
+        initialAttributes.map((a, idx) => ({
+          definitionId: a.customFieldDefinitionId,
+          position: idx,
+        })),
       );
     }
     const attrs = await this.#listAssignedAttributes(em, set.id);
@@ -311,8 +335,8 @@ export class AttributeSetService {
     id: string,
     input: AssignAttributesRequest,
   ): Promise<AttributeSetDetailDto> {
-    const em = this.emFactory();
-    const set = await em.findOne(AttributeSet, { id });
+    const readEm = this.emFactory();
+    const set = await readEm.findOne(AttributeSet, { id });
     if (!set) {
       throw new HttpError(
         404,
@@ -321,12 +345,13 @@ export class AttributeSetService {
       );
     }
 
-    // Validate every attribute id exists (single round-trip query).
+    // Validate every attribute id exists. Input ids are attribute (extension)
+    // ids; membership persists definition ids (feature 061).
     const attributeIds = input.assignments.map((a) => a.attributeId);
-    const found = await em.find(ProductAttribute, { id: { $in: attributeIds } });
-    if (found.length !== attributeIds.length) {
-      const foundIds = new Set(found.map((a) => a.id));
-      const missing = attributeIds.filter((aid) => !foundIds.has(aid));
+    const allViews = await this.#requireAttributeRead().listAll();
+    const viewById = new Map(allViews.map((v) => [v.id, v]));
+    const missing = attributeIds.filter((aid) => !viewById.has(aid));
+    if (missing.length > 0) {
       throw new HttpError(
         404,
         ERROR_CODES.ATTRIBUTE_NOT_FOUND,
@@ -334,35 +359,53 @@ export class AttributeSetService {
       );
     }
 
-    // Default position when omitted: append at the end of the current
-    // assignments. We compute the next-position once per call rather
-    // than per-assignment to avoid a roundtrip per row.
-    const conn = em.getConnection();
-    const rows = (await conn.execute(
-      `select coalesce(max(position), -1) + 1 as next_position
-       from attribute_set_attributes where attribute_set_id = ?`,
-      [id],
-    )) as Array<{ next_position: number }>;
-    let runningTail = rows[0]?.next_position ?? 0;
-    const resolved = input.assignments.map((a) => {
-      if (a.position === undefined) {
-        const pos = runningTail;
-        runningTail += 1;
-        return { attributeId: a.attributeId, position: pos };
-      }
-      return { attributeId: a.attributeId, position: a.position };
+    // The bridge write + its audit are co-transactional (Command Bus,
+    // Principle XIII — replaces the hand audit the route used to emit).
+    await this.#audited('attribute_set.assign_attributes', id, async (em) => {
+      // Default position when omitted: append at the end of the current
+      // assignments. We compute the next-position once per call rather
+      // than per-assignment to avoid a roundtrip per row.
+      const conn = em.getConnection();
+      const rows = (await conn.execute(
+        `select coalesce(max(position), -1) + 1 as next_position
+         from attribute_set_attributes where attribute_set_id = ?`,
+        [id],
+        'all',
+        em.getTransactionContext(),
+      )) as Array<{ next_position: number }>;
+      let runningTail = rows[0]?.next_position ?? 0;
+      const resolved = input.assignments.map((a) => {
+        const definitionId = viewById.get(a.attributeId)!.customFieldDefinitionId;
+        if (a.position === undefined) {
+          const pos = runningTail;
+          runningTail += 1;
+          return { attributeId: a.attributeId, definitionId, position: pos };
+        }
+        return { attributeId: a.attributeId, definitionId, position: a.position };
+      });
+
+      await this.#insertAssignments(em, id, resolved);
+      return {
+        result: undefined,
+        before: null,
+        after: {
+          assignments: resolved.map((r) => ({
+            attributeId: r.attributeId,
+            position: r.position,
+          })),
+        },
+      };
     });
 
-    await this.#insertAssignments(em, id, resolved);
-
+    const em = this.emFactory();
     const attrs = await this.#listAssignedAttributes(em, id);
     const counts = await this.#computeCounts(em, id);
     return this.#toDetailDto(set, attrs, counts);
   }
 
   async unassignAttribute(id: string, attributeId: string): Promise<void> {
-    const em = this.emFactory();
-    const set = await em.findOne(AttributeSet, { id });
+    const readEm = this.emFactory();
+    const set = await readEm.findOne(AttributeSet, { id });
     if (!set) {
       throw new HttpError(
         404,
@@ -370,14 +413,28 @@ export class AttributeSetService {
         `Attribute Set ${id} not found.`,
       );
     }
-    const conn = em.getConnection();
-    // DELETE is idempotent — a missing assignment is a no-op (matches
-    // the "DELETE returns 204 even if it wasn't there" REST convention).
-    await conn.execute(
-      `delete from attribute_set_attributes
-       where attribute_set_id = ? and product_attribute_id = ?`,
-      [id, attributeId],
-    );
+    // DELETE is idempotent — a missing assignment (or an unknown attribute id)
+    // is a no-op (matches the "DELETE returns 204 even if it wasn't there"
+    // REST convention). The URL carries the attribute (extension) id; the
+    // bridge row is keyed by definition id (feature 061).
+    const view = await this.#requireAttributeRead().getByIdOrKey(attributeId);
+    if (!view) return;
+    // The bridge delete + its audit are co-transactional (Command Bus,
+    // Principle XIII — replaces the hand audit the route used to emit).
+    await this.#audited('attribute_set.unassign_attribute', id, async (em) => {
+      await em.getConnection().execute(
+        `delete from attribute_set_attributes
+         where attribute_set_id = ? and custom_field_definition_id = ?`,
+        [id, view.customFieldDefinitionId],
+        'run',
+        em.getTransactionContext(),
+      );
+      return {
+        result: undefined,
+        before: { attributeId: view.id, key: view.key },
+        after: null,
+      };
+    });
   }
 
   // -- INTERNAL HELPERS ------------------------------------------------------
@@ -387,33 +444,34 @@ export class AttributeSetService {
     setId: string,
   ): Promise<AttributeSetAssignedAttributeDto[]> {
     const conn = em.getConnection();
+    // Membership is definition-keyed (feature 061); the attribute identity —
+    // extension id + key + label + legacy valueType — comes from the composed
+    // view so the API keeps returning attribute (extension) ids.
     const rows = (await conn.execute(
-      `select pa.id, pa.key, pa.label, pa.value_type, pa.display_as_slider, asa.position
-       from attribute_set_attributes asa
-       join product_attributes pa on pa.id = asa.product_attribute_id
-       where asa.attribute_set_id = ?
-       order by asa.position asc, pa.key asc`,
+      `select custom_field_definition_id, position
+       from attribute_set_attributes
+       where attribute_set_id = ?`,
       [setId],
-    )) as Array<{
-      id: string;
-      key: string;
-      label: Record<string, string>;
-      value_type: string;
-      display_as_slider: boolean;
-      position: number;
-    }>;
+    )) as Array<{ custom_field_definition_id: string; position: number }>;
+    if (rows.length === 0) return [];
+    const views = await this.#requireAttributeRead().listAll();
+    const viewByDefinitionId = new Map(views.map((v) => [v.customFieldDefinitionId, v]));
 
-    // The contract exposes the DB value type for Attribute-Set-attached
-    // attributes (consumers care about validation shape, not the API
-    // affordance). Admin UI calls `dbTypeToApi` separately when building
-    // the editor form for a single attribute.
-    return rows.map((r) => ({
-      id: r.id,
-      key: r.key,
-      label: r.label,
-      valueType: r.value_type as AttributeSetAssignedAttributeDto['valueType'],
-      position: r.position,
-    }));
+    const assigned = rows
+      .map((r) => {
+        const view = viewByDefinitionId.get(r.custom_field_definition_id);
+        if (!view) return undefined;
+        return {
+          id: view.id,
+          key: view.key,
+          label: view.label,
+          valueType: view.valueType as AttributeSetAssignedAttributeDto['valueType'],
+          position: r.position,
+        };
+      })
+      .filter((a): a is AttributeSetAssignedAttributeDto => a !== undefined);
+    assigned.sort((a, b) => a.position - b.position || a.key.localeCompare(b.key));
+    return assigned;
   }
 
   async #computeCounts(
@@ -436,16 +494,20 @@ export class AttributeSetService {
   async #insertAssignments(
     em: EntityManager,
     setId: string,
-    assignments: Array<{ attributeId: string; position: number }>,
+    assignments: Array<{ definitionId: string; position: number }>,
   ): Promise<void> {
     if (assignments.length === 0) return;
     const conn = em.getConnection();
     const values = assignments.map(() => '(?, ?, ?)').join(', ');
-    const params = assignments.flatMap((a) => [setId, a.attributeId, a.position]);
+    const params = assignments.flatMap((a) => [setId, a.definitionId, a.position]);
+    // Joins the caller's transaction when run inside a Command (undefined
+    // context = plain pool execution, e.g. the post-commit createSet path).
     await conn.execute(
-      `insert into attribute_set_attributes (attribute_set_id, product_attribute_id, position) values ${values}
-       on conflict (attribute_set_id, product_attribute_id) do update set position = excluded.position`,
+      `insert into attribute_set_attributes (attribute_set_id, custom_field_definition_id, position) values ${values}
+       on conflict (attribute_set_id, custom_field_definition_id) do update set position = excluded.position`,
       params,
+      'run',
+      em.getTransactionContext(),
     );
   }
 

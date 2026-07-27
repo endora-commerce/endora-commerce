@@ -55,7 +55,9 @@ export class LanguageService {
 
   async listActive(): Promise<Language[]> {
     const em = this.emFactory();
-    return em.find(Language, { isActive: true }, { orderBy: { sortOrder: 'asc' } });
+    // `code` tiebreak keeps the order deterministic when several languages
+    // share a sortOrder (e.g. the seed default 0) — matches list() above.
+    return em.find(Language, { isActive: true }, { orderBy: { sortOrder: 'asc', code: 'asc' } });
   }
 
   async getDefault(): Promise<Language | null> {

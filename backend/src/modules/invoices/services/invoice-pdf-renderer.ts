@@ -10,6 +10,7 @@ import {
   vatSummarySection,
   totalsSection,
   ksefSection,
+  type KsefVerificationData,
 } from '../pdf-components/sections.js';
 import { treeToContent } from '../pdf-components/tree-mapper.js';
 import {
@@ -79,8 +80,24 @@ export type InvoicePdfRendererOptions = {
 export class InvoicePdfRenderer {
   readonly #loadAssetImage: LoadAssetImage | undefined;
 
+  /**
+   * Feature 059 — optional KSeF-verification resolver, late-bound in
+   * composition when the ksef module is active. Covers every render path
+   * (admin PDF, regenerate, customer download, email attachment) with one
+   * seam; absent ⇒ pre-059 output byte-for-byte.
+   */
+  private ksefVerificationResolver?: (
+    invoiceId: string,
+  ) => Promise<KsefVerificationData | null>;
+
   constructor(opts: InvoicePdfRendererOptions = {}) {
     this.#loadAssetImage = opts.loadAssetImage;
+  }
+
+  setKsefVerificationResolver(
+    resolver: (invoiceId: string) => Promise<KsefVerificationData | null>,
+  ): void {
+    this.ksefVerificationResolver = resolver;
   }
 
   async render(
@@ -94,11 +111,24 @@ export class InvoicePdfRenderer {
       pdfMake.setUrlAccessPolicy(() => false);
       fontsRegistered = true;
     }
+
+    let enriched = invoice;
+    if (this.ksefVerificationResolver) {
+      try {
+        const verification = await this.ksefVerificationResolver(invoice.id);
+        if (verification) {
+          enriched = { ...invoice, ksefVerification: verification } as InvoiceDetail;
+        }
+      } catch {
+        // Verification data is an enrichment — rendering never fails on it.
+      }
+    }
+
     const tree = templateTree
       ? await embedInvoiceLogoImages(templateTree, this.#loadAssetImage)
       : undefined;
-    const fromTemplate = tree ? treeToContent(tree, invoice, locale) : null;
-    const content = fromTemplate ?? builtinLayout(invoice, locale);
+    const fromTemplate = tree ? treeToContent(tree, enriched, locale) : null;
+    const content = fromTemplate ?? builtinLayout(enriched, locale);
     return pdfMake.createPdf(this.buildDoc(content)).getBuffer();
   }
 

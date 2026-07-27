@@ -104,6 +104,17 @@ import { Migration095QuoteRequestCustomFieldValues } from '../modules/quote_requ
 import { Migration096CategoryCustomFieldValues } from '../modules/catalog/migrations/096_category_custom_field_values.js';
 import { Migration097OrgHierarchy } from '../modules/organizations/migrations/097_org_hierarchy.js';
 import { Migration098CustomerSubtreeRollup } from '../modules/customer_accounts/migrations/098_customer_subtree_rollup.js';
+import { Migration099CredentialsInit } from '../modules/credentials/migrations/099_credentials_init.js';
+import { Migration100SettingsCredentialRefValueType } from '../modules/settings/migrations/100_settings_credential_ref_value_type.js';
+import { Migration101KsefInit } from '../modules/ksef/migrations/101_ksef_init.js';
+// Feature 061 — product attributes converge onto the Custom Fields layer.
+import { Migration102AttributesOnCustomFields } from '../modules/catalog/migrations/102_attributes_on_custom_fields.js';
+// Feature 062 — Distributor API: api-key binding columns.
+import { Migration103ApiKeysDistributorBinding } from '../modules/api_keys/migrations/103_api_keys_distributor_binding.js';
+// Feature 062 — Distributor API: durable order-intake idempotency.
+import { Migration104OrderPlacementIntents } from '../modules/orders/migrations/104_order_placement_intents.js';
+// Feature 062 — Distributor API: org-scoped webhook delivery filter.
+import { Migration105WebhooksOrgFilter } from '../modules/webhooks/migrations/105_webhooks_org_filter.js';
 import { Migration099EmailDefaultsReseed } from '../modules/transactional_emails/migrations/099_email_defaults_reseed.js';
 
 /**
@@ -496,6 +507,34 @@ export default defineConfig({
       {
         name: 'Migration098CustomerSubtreeRollup',
         class: Migration098CustomerSubtreeRollup,
+      },
+      {
+        name: 'Migration099CredentialsInit',
+        class: Migration099CredentialsInit,
+      },
+      {
+        name: 'Migration100SettingsCredentialRefValueType',
+        class: Migration100SettingsCredentialRefValueType,
+      },
+      {
+        name: 'Migration101KsefInit',
+        class: Migration101KsefInit,
+      },
+      {
+        name: 'Migration102AttributesOnCustomFields',
+        class: Migration102AttributesOnCustomFields,
+      },
+      {
+        name: 'Migration103ApiKeysDistributorBinding',
+        class: Migration103ApiKeysDistributorBinding,
+      },
+      {
+        name: 'Migration104OrderPlacementIntents',
+        class: Migration104OrderPlacementIntents,
+      },
+      {
+        name: 'Migration105WebhooksOrgFilter',
+        class: Migration105WebhooksOrgFilter,
       },
       {
         name: 'Migration099EmailDefaultsReseed',

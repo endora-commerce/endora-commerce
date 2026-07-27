@@ -16,6 +16,7 @@ import {
   resolvePriceBracket,
   type PriceBracketRow,
 } from './price-bracket-resolver.js';
+import type { PricingServiceContract } from './pricing-service.interface.js';
 
 /**
  * PricingService (feature 011).
@@ -33,7 +34,7 @@ import {
  * `PricingCache` injected at construction.
  */
 
-export class PricingService {
+export class PricingService implements PricingServiceContract {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cache?: import('./pricing-cache.js').PricingCache<{
@@ -274,6 +275,29 @@ export class PricingService {
       bracketStartQuantity: out.base.bracket.minQuantity,
       displayMode: out.displayMode,
     };
+  }
+
+  /**
+   * Feature 062 — distinct bracket start quantities (ascending) across every
+   * ACTIVE list for a (product, currency). Consumers probe `resolveLinePrice`
+   * at each quantity to derive the acting org's effective tier ladder; a
+   * quantity contributed by a non-matching list simply resolves to the same
+   * amount as its predecessor and is de-duplicated by the caller — no
+   * cross-org data leaks through this read.
+   */
+  async listBracketMinQuantities(productId: string, currencyCode: string): Promise<number[]> {
+    const em = this.emFactory();
+    const rows = await em
+      .getConnection()
+      .execute<Array<{ min_quantity: number | string }>>(
+        `select distinct b.min_quantity
+           from price_list_price_brackets b
+           join price_lists l on l.id = b.price_list_id
+          where b.product_id = ? and b.currency_code = ? and l.status = 'active'
+          order by b.min_quantity asc`,
+        [productId, currencyCode.toUpperCase()],
+      );
+    return rows.map((r) => Number(r.min_quantity));
   }
 
   /**

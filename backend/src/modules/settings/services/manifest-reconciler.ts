@@ -306,6 +306,13 @@ export class ManifestReconciler {
           existing.enumOptions = nextEnumOptions;
           changed = true;
         }
+        // configurationType is manifest-driven config (feature 058) — keep it
+        // in sync with the manifest on every reconciliation.
+        const nextConfigurationType = entry.configurationType ?? null;
+        if ((existing.configurationType ?? null) !== nextConfigurationType) {
+          existing.configurationType = nextConfigurationType;
+          changed = true;
+        }
         // hidden is manifest-driven config — keep it in sync on every run.
         const nextHidden = entry.hidden ?? false;
         if (existing.hidden !== nextHidden) {
@@ -344,6 +351,7 @@ export class ManifestReconciler {
           ownerModule: moduleCode,
           description: entry.description ?? null,
           enumOptions: entry.enumOptions ?? null,
+          configurationType: entry.configurationType ?? null,
           hidden: entry.hidden ?? false,
         });
         if (entry.salesChannelCodes && entry.salesChannelCodes.length > 0) {

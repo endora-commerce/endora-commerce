@@ -53,6 +53,20 @@ export class SalesChannelResolverService {
   }
 
   /**
+   * Feature 062 — lookup by id (bound api keys pin their channel by id, not
+   * code). Primes the code-keyed cache on hit so subsequent explicit-signal
+   * resolutions of the same channel are warm. Returns null when unknown.
+   */
+  async getById(id: string): Promise<CachedChannel | null> {
+    const em = this.emFactory();
+    const channel = await em.findOne(SalesChannel, { id });
+    if (channel === null) return null;
+    const view = toCachedChannel(channel);
+    await this.cache.set(view.code, view);
+    return view;
+  }
+
+  /**
    * Resolve a code to an *active* channel. Returns one of:
    *   - { ok: true, channel }
    *   - { ok: false, error: 'unknown_sales_channel' }

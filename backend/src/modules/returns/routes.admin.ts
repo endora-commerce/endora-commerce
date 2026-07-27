@@ -87,7 +87,11 @@ export async function registerReturnsAdminRoutes(
 
   app.get(
     '/api/v1/admin/returns/export',
-    { preHandler: requireAdmin('returns:read'), schema: { querystring: adminReturnsListQuerySchema } },
+    {
+      preHandler: requireAdmin('returns:read'),
+      schema: { querystring: adminReturnsListQuerySchema },
+      config: { streamingResponse: true },
+    },
     async (request, reply) => {
       const query = adminReturnsListQuerySchema.parse(request.query);
       const { csv, rowCount, truncated } = await exportService.exportCsv(query);

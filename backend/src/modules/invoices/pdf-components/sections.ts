@@ -401,8 +401,33 @@ export function footerSection(props: Props, inv: InvoiceDetail): Content {
   return textBlock(raw, inv, props, { fontSize: 9, showTopDivider: true, marginBottom: 8 });
 }
 
+/**
+ * KSeF verification data supplied by the ksef module (feature 059) through the
+ * renderer's optional resolver — absent when the module is inactive, in which
+ * case this section renders exactly the pre-059 number + date.
+ */
+export interface KsefVerificationData {
+  /** KOD I verification URL rendered as a QR code. */
+  verificationUrl: string;
+  /** Issued during a KSeF outage — offline marking required (FR-017). */
+  offline: boolean;
+}
+
+export type InvoiceDetailWithKsef = InvoiceDetail & { ksefVerification?: KsefVerificationData };
+
 export function ksefSection(inv: InvoiceDetail, props: Props = {}): Content {
+  const verification = (inv as InvoiceDetailWithKsef).ksefVerification;
   if (!inv.ksefReferenceNumber) {
+    // Offline marking applies even before the KSeF number is assigned — a
+    // document shared during an outage must say so (FR-017).
+    if (verification?.offline) {
+      return {
+        text: 'Faktura wystawiona w trybie offline — oczekuje na przydzielenie numeru KSeF.',
+        fontSize: num(props, 'fontSize', 8),
+        color: optStr(props, 'color'),
+        margin: marginBox(props, 8, 0),
+      };
+    }
     if (bool(props, 'hideWhenEmpty', true)) return { text: '' };
     return { text: '', margin: marginBox(props, 8, 0) };
   }
@@ -421,6 +446,17 @@ export function ksefSection(inv: InvoiceDetail, props: Props = {}): Content {
       fontSize,
       color,
     });
+  }
+  if (verification?.offline) {
+    stack.push({ text: 'Faktura wystawiona w trybie offline.', fontSize, color });
+  }
+  if (verification?.verificationUrl) {
+    stack.push({
+      qr: verification.verificationUrl,
+      fit: 90,
+      margin: [0, 6, 0, 2] as [number, number, number, number],
+    });
+    stack.push({ text: 'Zweryfikuj fakturę w KSeF', fontSize: Math.max(7, fontSize - 1), color });
   }
   return { stack, margin: marginBox(props, 8, 0) };
 }

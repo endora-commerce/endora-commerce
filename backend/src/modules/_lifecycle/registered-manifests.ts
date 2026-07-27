@@ -1,6 +1,11 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
+import { DISCOVERED_MANIFESTS } from './manifest-index.generated.js';
+import {
+  overlayModulesRootFor,
+  selectedDeployment,
+} from '../../overlay/overlay-roots.js';
 import { manifest as lifecycleManifest } from './manifest.js';
 import {
   manifest as settingsManifest,
@@ -40,6 +45,10 @@ import {
   manifest as customFieldsManifest,
   uninstallHook as customFieldsUninstallHook,
 } from '../custom_fields/manifest.js';
+// Feature 058 — Credentials (reusable credential configurations).
+import { manifest as credentialsManifest } from '../credentials/manifest.js';
+// Feature 059 — KSeF (Krajowy System e-Faktur invoice integration).
+import { manifest as ksefManifest } from '../ksef/manifest.js';
 // Pass C retrofit — manifest backfills for every remaining legacy module.
 // These predate the lifecycle system; the manifest is the static record
 // required for the module to be considered active. A module on disk that
@@ -157,6 +166,10 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
     filePath: pathFor('custom_fields'),
     uninstallHook: customFieldsUninstallHook,
   },
+  // Feature 058 — Credentials module.
+  { manifest: credentialsManifest, filePath: pathFor('credentials') },
+  // Feature 059 — KSeF module.
+  { manifest: ksefManifest, filePath: pathFor('ksef') },
   // Pass C retrofit — every remaining legacy module gets a manifest so
   // none of them are treated as inactive. Sort: alphabetical by id.
   { manifest: addressesManifest, filePath: pathFor('addresses') },
@@ -244,4 +257,36 @@ export function findInactiveModules(): InactiveModule[] {
     }
   }
   return out;
+}
+
+/**
+ * The **deployment-resolved** manifest set = the hand-maintained core
+ * `REGISTERED_MANIFESTS` PLUS any overlay-only module discovered for the active
+ * deployment (feature 057). The core array is never edited per deployment
+ * (FR-004): overlay modules are appended from the generated manifest index
+ * (which includes overlay entries when the build ran with `DEPLOYMENT` set).
+ *
+ * For a bare-core build (`DEPLOYMENT` unset) the generated index contains only
+ * core modules, so this returns `REGISTERED_MANIFESTS` unchanged (FR-008).
+ * Consumers that must include overlay modules — lifecycle scripts, the
+ * permission catalogue, composition — call this instead of reading the raw
+ * array. `filePath` stays real so the i18n bundle loader keeps working.
+ */
+export function resolvedManifestEntries(): RegisteredManifestEntry[] {
+  const byId = new Map<string, RegisteredManifestEntry>(
+    REGISTERED_MANIFESTS.map((e) => [e.manifest.id, e]),
+  );
+  const deployment = selectedDeployment();
+  for (const discovered of DISCOVERED_MANIFESTS) {
+    if (byId.has(discovered.id)) continue; // core module already registered
+    // An overlay-only module: prefer a real core path if one somehow exists,
+    // else resolve under the deployment's overlay tree.
+    const corePath = pathFor(discovered.id);
+    const filePath =
+      existsSync(corePath) || deployment === null
+        ? corePath
+        : join(overlayModulesRootFor(deployment), discovered.id, 'manifest.ts');
+    byId.set(discovered.id, { manifest: discovered.manifest, filePath });
+  }
+  return [...byId.values()];
 }

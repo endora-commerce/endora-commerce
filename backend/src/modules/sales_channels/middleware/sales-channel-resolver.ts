@@ -3,6 +3,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CachedChannel } from '../services/sales-channels-cache.js';
 import type { SalesChannelResolverService } from '../services/sales-channel-resolver.service.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * Sales-channel resolver middleware — feature 005 / T015.
@@ -13,6 +14,11 @@ import type { SalesChannelResolverService } from '../services/sales-channel-reso
  *
  * Resolution order:
  *
+ *   0. Bound api-key actor (feature 062) — the channel derives from the
+ *      key's binding. An explicit header/query signal naming a DIFFERENT
+ *      channel refuses with 403 `API_KEY_CHANNEL_MISMATCH` (audited); an
+ *      unknown/inactive bound channel refuses with the standard
+ *      `UNKNOWN_/INACTIVE_SALES_CHANNEL` — never a fallback.
  *   1. `X-Sales-Channel: <code>` header
  *   2. `?salesChannel=<code>` query parameter — IGNORED on
  *      `/api/v1/admin/*` paths to prevent cross-channel admin bleed.
@@ -51,6 +57,31 @@ export interface SalesChannelResolverPluginOptions {
    * to exercise the production behaviour.
    */
   strictAdmin?: boolean;
+  /**
+   * Feature 062 — sink for the `api_key.channel_mismatch` refusal audit
+   * (bound key named a channel other than its bound one). Optional so
+   * minimal test composition roots keep working.
+   */
+  auditLogService?: AuditLogService;
+}
+
+/**
+ * The slice of the ambient actor this middleware reads (feature 062). The
+ * production shape is `ActorApiKey` from the auth plugin; the test harness
+ * mirrors it. Kept structural so the middleware does not import the auth
+ * module's internals.
+ */
+interface ApiKeyActorSlice {
+  kind: string;
+  apiKeyId: string;
+  salesChannelId?: string | null;
+}
+
+function boundApiKeyActor(request: FastifyRequest): ApiKeyActorSlice | null {
+  const actor = (request as { actor?: { kind?: string } }).actor;
+  if (!actor || actor.kind !== 'api_key') return null;
+  const candidate = actor as ApiKeyActorSlice;
+  return candidate.salesChannelId ? candidate : null;
 }
 
 const HEADER_NAME = 'x-sales-channel';
@@ -91,9 +122,47 @@ export async function registerSalesChannelResolverMiddleware(
 
     const adminPath = isAdminPath(path);
 
+    const explicit = headerCode ?? queryCode;
+
+    // Step 0 (feature 062) — a bound api key derives its channel from the
+    // binding, fail closed: an explicit signal naming a different channel is
+    // a 403, an unknown/inactive bound channel refuses, never a fallback.
+    const boundActor = boundApiKeyActor(request);
+    if (boundActor) {
+      const bound = await resolver.getById(boundActor.salesChannelId!);
+      if (bound === null) {
+        throw resolverErrorToHttp('unknown_sales_channel', boundActor.salesChannelId!);
+      }
+      if (explicit && explicit.trim() !== '' && explicit !== bound.code) {
+        if (options.auditLogService) {
+          await options.auditLogService.record({
+            action: 'api_key.channel_mismatch',
+            objectType: 'api_key',
+            objectId: boundActor.apiKeyId,
+            stateBefore: null,
+            stateAfter: {
+              requestedChannel: explicit,
+              boundChannelId: bound.id,
+              boundChannelCode: bound.code,
+            },
+          });
+        }
+        throw new HttpError(
+          403,
+          ERROR_CODES.API_KEY_CHANNEL_MISMATCH,
+          'API key is bound to a different sales channel.',
+        );
+      }
+      if (!bound.active) {
+        throw resolverErrorToHttp('inactive_sales_channel', bound.code);
+      }
+      request.salesChannel = bound;
+      reply.header(ECHO_HEADER, bound.code);
+      return;
+    }
+
     // Steps 1 + 2 — explicit signals always win, and an unknown / inactive
     // signal always refuses (no silent fallback per FR-014).
-    const explicit = headerCode ?? queryCode;
     if (explicit && explicit.trim() !== '') {
       const result = await resolver.resolveActive(explicit);
       if (!result.ok) {

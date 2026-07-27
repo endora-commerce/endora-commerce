@@ -1,5 +1,4 @@
 import type { AttributeScope } from '@b2b/contracts';
-import type { ProductAttribute } from '../entities/product-attribute.entity.js';
 
 /**
  * Feature 022 — scope flags for the **system** product attributes that
@@ -33,14 +32,15 @@ export function isSystemAttributeKey(key: string): key is SystemAttributeKey {
 
 /**
  * Resolve the effective scope of an attribute given its key and (for
- * user-defined attributes) its `ProductAttribute` row. Returns the
- * system-pinned scope when the key is reserved; falls back to the
- * row's flags otherwise; returns `{ false, false }` when neither
- * applies (caller should treat as global-only).
+ * user-defined attributes) its scope flags — sourced from the composed
+ * `CatalogAttributeView` since feature 061 (the flags stay on the catalog
+ * extension row). Returns the system-pinned scope when the key is reserved;
+ * falls back to the row's flags otherwise; returns `{ false, false }` when
+ * neither applies (caller should treat as global-only).
  */
 export function getAttributeScope(
   attributeKey: string,
-  productAttributeRow?: Pick<ProductAttribute, 'channelScoped' | 'languageScoped'> | null,
+  productAttributeRow?: { channelScoped: boolean; languageScoped: boolean } | null,
 ): AttributeScope {
   if (isSystemAttributeKey(attributeKey)) {
     // SYSTEM_ATTRIBUTE_SCOPES is keyed by SystemAttributeKey so the lookup

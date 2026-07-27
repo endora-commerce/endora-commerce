@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { OrganizationPicker } from '@/components/organization-picker';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import {
@@ -57,6 +58,8 @@ export function WebhooksPage(): ReactNode {
   const [info, setInfo] = useState<string | null>(null);
   const [revealedSecret, setRevealedSecret] = useState<{ name: string; secret: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  // Feature 062 — best-effort id → name lookup for the org-scope column.
+  const [orgNames, setOrgNames] = useState<Map<string, string>>(new Map());
 
   const copySecret = useCallback(async (secret: string): Promise<void> => {
     try {
@@ -104,12 +107,53 @@ export function WebhooksPage(): ReactNode {
     void refreshDeliveries();
   }, [refreshDeliveries]);
 
+  // Resolve organization names for org-bound subscriptions (feature 062).
+  useEffect(() => {
+    const missing = Array.from(
+      new Set(
+        webhooks
+          .map((w) => w.organizationId)
+          .filter((id): id is string => typeof id === 'string' && !orgNames.has(id)),
+      ),
+    );
+    if (missing.length === 0) return;
+    void (async () => {
+      const entries = await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const res = await apiClient.get<{ data: { name: string } }>(
+              `/api/v1/admin/organizations/${id}`,
+            );
+            return [id, res.data.name] as const;
+          } catch {
+            return [id, id] as const;
+          }
+        }),
+      );
+      setOrgNames((prev) => {
+        const next = new Map(prev);
+        for (const [id, name] of entries) next.set(id, name);
+        return next;
+      });
+    })();
+  }, [webhooks, orgNames]);
+
   const handleCreate = useCallback(
-    async (input: { name: string; url: string; eventTypes: string[] }): Promise<void> => {
+    async (input: {
+      name: string;
+      url: string;
+      eventTypes: string[];
+      organizationId: string | null;
+    }): Promise<void> => {
       try {
         const res = await apiClient.post<{ data: Webhook & { secret: string } }>(
           '/api/v1/admin/webhooks',
-          input,
+          {
+            name: input.name,
+            url: input.url,
+            eventTypes: input.eventTypes,
+            ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+          },
         );
         setInfo(t('webhooks.create.success'));
         if (res.data.secret) {
@@ -253,6 +297,7 @@ export function WebhooksPage(): ReactNode {
                   <TableHead>{t('webhooks.column.name')}</TableHead>
                   <TableHead>{t('webhooks.column.url')}</TableHead>
                   <TableHead>{t('webhooks.column.events')}</TableHead>
+                  <TableHead>{t('webhooks.column.organization')}</TableHead>
                   <TableHead>{t('webhooks.column.status')}</TableHead>
                   <TableHead />
                 </TableRow>
@@ -270,6 +315,17 @@ export function WebhooksPage(): ReactNode {
                           </Badge>
                         ))}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {w.organizationId ? (
+                        <Badge variant="outline">
+                          {orgNames.get(w.organizationId) ?? w.organizationId}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          {t('webhooks.organization.platformWide')}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={w.status === 'active' ? 'success' : 'warning'}>
@@ -406,12 +462,18 @@ function DeliveryStatusBadge({ status }: { status: WebhookDelivery['status'] }):
 }
 
 function CreateWebhookForm(props: {
-  onSubmit: (input: { name: string; url: string; eventTypes: string[] }) => Promise<void>;
+  onSubmit: (input: {
+    name: string;
+    url: string;
+    eventTypes: string[];
+    organizationId: string | null;
+  }) => Promise<void>;
 }): ReactNode {
   const t = useTranslation('core');
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [events, setEvents] = useState<Set<string>>(new Set());
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const toggle = (event: string): void => {
@@ -428,10 +490,16 @@ function CreateWebhookForm(props: {
     if (!name.trim() || !url.trim() || events.size === 0) return;
     setSubmitting(true);
     try {
-      await props.onSubmit({ name: name.trim(), url: url.trim(), eventTypes: Array.from(events) });
+      await props.onSubmit({
+        name: name.trim(),
+        url: url.trim(),
+        eventTypes: Array.from(events),
+        organizationId,
+      });
       setName('');
       setUrl('');
       setEvents(new Set());
+      setOrganizationId(null);
     } finally {
       setSubmitting(false);
     }
@@ -466,6 +534,16 @@ function CreateWebhookForm(props: {
             required
           />
         </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="webhook-organization">{t('webhooks.create.organizationLabel')}</Label>
+        <OrganizationPicker
+          id="webhook-organization"
+          value={organizationId}
+          onChange={setOrganizationId}
+          ariaLabel={t('webhooks.create.organizationLabel')}
+        />
+        <p className="text-xs text-muted-foreground">{t('webhooks.create.organizationHelp')}</p>
       </div>
       <div className="space-y-2">
         <Label>{t('webhooks.create.eventsLabel')}</Label>

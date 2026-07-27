@@ -13,6 +13,7 @@ import { useTranslation } from '@/i18n/useTranslation';
 import { ImageSettingInput } from './ImageSettingInput';
 import { AssetIdSettingInput } from './AssetIdSettingInput';
 import { SellerCompanyDataInput, SELLER_COMPANY_DATA_CODE } from './SellerCompanyDataInput';
+import { ConfigurationReferenceInput } from './ConfigurationReferenceInput';
 
 /**
  * String settings that hold an image URL get a file-upload editor (drag-and-drop
@@ -196,6 +197,12 @@ export function SettingRowEditor({
           <AssetIdSettingInput value={draft.text} onChange={setText} />
         ) : isImageUrlSetting(setting) ? (
           <ImageSettingInput value={draft.text} onChange={setText} />
+        ) : setting.valueType === 'credential_ref' ? (
+          <ConfigurationReferenceInput
+            configurationType={setting.configurationType}
+            value={draft.text}
+            onChange={setText}
+          />
         ) : isSecret ? (
           <Input
             type="password"
@@ -365,6 +372,8 @@ export function parseValue(
   switch (valueType) {
     case 'string':
     case 'secret':
+    // Feature 058 — a credential_ref value is the referenced configuration code.
+    case 'credential_ref':
       return text;
     case 'number':
       return Number(text);

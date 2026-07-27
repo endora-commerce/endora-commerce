@@ -33,7 +33,7 @@ interface AdminAttribute {
   /** Feature 012 — fallback label used when active locale is missing from `label`. */
   labelDefault: string;
   valueType: ValueType;
-  /** Legacy projection from `attribute_options` rows (feature 012 read shape). */
+  /** Legacy projection of the option values (feature 012 read shape; backed by `custom_field_options` since feature 061). */
   enumValues: string[] | null;
   isSearchable: boolean;
   isFilterable: boolean;
@@ -52,6 +52,8 @@ interface AdminAttribute {
   massEditable: boolean;
   /** Feature 039 — gates participation in Quick Order search. */
   quickSearchable: boolean;
+  /** Feature 061 — backing product-host custom-field definition (read-only, additive). */
+  customFieldDefinitionId?: string;
 }
 
 // Boolean flags surfaced as togglable checkbox columns in the list.
@@ -485,6 +487,12 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
       </div>
       {isEdit ? (
         <p className="text-xs text-muted-foreground">{t('attributes.edit.lockedHint')}</p>
+      ) : null}
+      {isEdit && attribute?.customFieldDefinitionId ? (
+        <p className="text-xs text-muted-foreground">
+          {t('attributes.edit.customFieldDefinitionId')}{' '}
+          <span className="font-mono">{attribute.customFieldDefinitionId}</span>
+        </p>
       ) : null}
       {/* Options of an existing enum/multiselect are edited below via the
           dedicated editor; the comma input is for initial creation only. */}

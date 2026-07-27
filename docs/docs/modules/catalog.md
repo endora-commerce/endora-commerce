@@ -116,12 +116,14 @@ a per-locale label fallback:
 ### Option lists (US4)
 
 Select-style attribute types (`select`, `enum`, `multiselect`) carry an
-`AttributeOption[]` table — each row keyed by `(attributeId, value)`
-with per-locale label + fallback + sort order + default flag. The
-legacy `enum_values: string[]` JSONB column on `product_attributes` was
-decommissioned by migration 032. Existing readers project the new shape
-back into the legacy form for backward compatibility at the API
-boundary.
+ordered option list — each row keyed by `(definition, value)` with
+per-locale label + fallback + sort order + default flag. The legacy
+`enum_values: string[]` JSONB column on `product_attributes` was
+decommissioned by migration 032 (into the catalog-owned
+`attribute_options` table), and feature 061 / migration 102 moved the
+rows into the generic `custom_field_options` table. Existing readers
+project the option list back into the legacy form for backward
+compatibility at the API boundary.
 
 ### Editable SKU (US3)
 
@@ -150,3 +152,57 @@ documented service ports per Constitution I):
   — feature 012 / US8 (Promotions)
 - `buildVisibleAttributesProjection()` — internal, used by the PDP
   detail response to assemble the `visibleAttributes[]` payload
+
+## Feature 061 — attributes as Custom Field extensions
+
+Feature 061 converged the attribute definition store onto the generic
+[Custom Fields layer](../architecture/custom-fields.md) (feature 055),
+adapter-shaped per Constitution Principle XIV. Nothing changed on the
+HTTP surface — every endpoint above keeps its shape — but the storage
+and ownership model is different:
+
+- **A product attribute is a catalog extension of a product-host Custom
+  Field definition.** The generic identity (`key`, per-locale `label` +
+  `labelDefault`, `valueType`, `required`) lives on a
+  `custom_field_definitions` row with `entity_type = 'product'`. The
+  `product_attributes` table remains, rebuilt as a thin 1:1 extension
+  row (`custom_field_definition_id` UNIQUE FK) carrying only the
+  catalog behaviour flags (`isSearchable`, `isFilterable`,
+  `isVariantAxis`, `displayAsSlider`, `isComparable`,
+  `quickSearchable`, `isPromoRule`, `filterPosition`,
+  `isVisibleOnProductPage`, `channelScoped`, `languageScoped`,
+  `massEditable`) plus two presentation refinements (`selectDisplay`,
+  `numericKind`) that keep the legacy `enum`/`select` and
+  `number`/`price` distinctions lossless. **Flags stay catalog-owned**
+  — the generic core never interprets them.
+- **Options live in `custom_field_options`.** The catalog-owned
+  `attribute_options` table is gone; option lists are ordinary Custom
+  Field option rows on the product-host definition.
+- **Single write surface: `/catalog/attributes`.** Attribute and
+  option mutations are catalog Commands that create/update/delete the
+  definition and the extension together in one transaction (one audit
+  row), using the transactional apply seam exported by
+  `custom_fields`. The generic Custom Fields admin surface lists
+  product definitions read-only and refuses mutations with
+  `409 host_managed`.
+- **Migration `102_attributes_on_custom_fields.ts`** performed the
+  one-time convergence in a single transaction: backfilled one
+  definition per legacy attribute (key, labels, mapped value type,
+  required, deterministic sort order), moved `attribute_options` rows
+  into `custom_field_options`, re-keyed `attribute_set_attributes` to
+  definition ids, added `custom_field_definition_id` /
+  `select_display` / `numeric_kind` to `product_attributes`, dropped
+  the duplicated columns (`key`, `label`, `label_default`,
+  `value_type`, `is_required`), and dropped `attribute_options`. The
+  migration is reversible (`down()` restores the legacy shape) and
+  aborts loudly on a reserved-key collision.
+- **Attribute values did not move** — `products.attribute_values`,
+  `product_variants.variant_attribute_values`, and
+  `product_value_overrides` keep their shape and catalog ownership
+  (the host owns its data).
+
+Internal consumers (search, quick order, comparisons, bulk edit, the
+promotions port, the scope editor) read attributes through the
+catalog-exported `CatalogAttributeReadService`, which composes the
+definition and the extension into the legacy-shaped
+`CatalogAttributeView`.

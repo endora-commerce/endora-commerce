@@ -96,7 +96,7 @@ export async function registerNewsletterAdminRoutes(
     const query = subscriberListQuerySchema.parse(req.query);
     return reply.send({ data: await deps.subscriberAdmin.list(query) });
   });
-  app.get(`${base}/subscribers/export`, read, async (req, reply) => {
+  app.get(`${base}/subscribers/export`, { ...read, config: { streamingResponse: true } }, async (req, reply) => {
     const query = subscriberListQuerySchema.partial().parse(req.query);
     const csv = await deps.subscriberAdmin.exportCsv(query);
     reply.header('content-type', 'text/csv; charset=utf-8');

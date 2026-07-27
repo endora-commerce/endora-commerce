@@ -15,10 +15,12 @@ export interface SettingsWriter {
 }
 
 /**
- * Provider configuration admin (feature 048, US7). Reads the non-secret config
- * for display (the SMTP password is reported only as `passwordSet`, never
- * returned) and writes changes through the Settings admin service — the secret
- * is encrypted at rest by the `secret` value type (feature 043).
+ * Provider configuration admin (feature 048, US7; feature 058). The SMTP
+ * connection + credentials now live in a reusable `email_adapter` credential
+ * configuration referenced by `newsletter.email_credentials` (managed on the
+ * Credentials / Settings screen). This surface manages only the non-credential
+ * sender + throttle config, and exposes a `test()` that resolves the referenced
+ * provider and verifies it.
  */
 export class NewsletterProviderAdminService {
   constructor(
@@ -34,26 +36,15 @@ export class NewsletterProviderAdminService {
   private num(code: string, fallback: number): Promise<number> {
     return this.settings.get(code, this.channelId, z.number()).catch(() => fallback);
   }
-  private bool(code: string): Promise<boolean> {
-    return this.settings.get(code, this.channelId, z.boolean()).catch(() => false);
-  }
 
   async getConfig(): Promise<ProviderConfig> {
     const C = NEWSLETTER_SETTING_CODES;
-    const [provider, host, port, secure, username, password, fromEmail, fromName, rate] = await Promise.all([
-      this.str(C.PROVIDER),
-      this.str(C.SMTP_HOST),
-      this.num(C.SMTP_PORT, 587),
-      this.bool(C.SMTP_SECURE),
-      this.str(C.SMTP_USERNAME),
-      this.str(C.SMTP_PASSWORD),
+    const [fromEmail, fromName, rate] = await Promise.all([
       this.str(C.SENDER_FROM_EMAIL),
       this.str(C.SENDER_FROM_NAME),
       this.num(C.RATE_LIMIT_PER_SECOND, 14),
     ]);
     return {
-      provider: provider === 'smtp' ? 'smtp' : 'console',
-      smtp: { host, port, secure, username, passwordSet: password.length > 0 },
       sender: { fromEmail, fromName },
       rateLimitPerSecond: rate,
     };
@@ -64,19 +55,10 @@ export class NewsletterProviderAdminService {
     const w = (code: string, value: unknown): Promise<unknown> =>
       this.writer.setValueForAllChannels(code, value, null, actor);
     await Promise.all([
-      w(C.PROVIDER, input.provider),
-      w(C.SMTP_HOST, input.smtp.host),
-      w(C.SMTP_PORT, input.smtp.port),
-      w(C.SMTP_SECURE, input.smtp.secure),
-      w(C.SMTP_USERNAME, input.smtp.username),
       w(C.SENDER_FROM_EMAIL, input.sender.fromEmail),
       w(C.SENDER_FROM_NAME, input.sender.fromName),
       w(C.RATE_LIMIT_PER_SECOND, input.rateLimitPerSecond),
     ]);
-    // Only overwrite the secret when a new value is supplied (FR-032).
-    if (input.smtp.password !== undefined) {
-      await w(C.SMTP_PASSWORD, input.smtp.password);
-    }
     return this.getConfig();
   }
 
