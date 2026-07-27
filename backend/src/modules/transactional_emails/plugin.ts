@@ -29,6 +29,8 @@ export interface TransactionalEmailsModuleOptions {
   settingsAdmin?: SettingsAdminService;
   /** Exposes the sender back to composition so owning modules can send. */
   exposeSender?: (sender: TransactionalEmailService) => void;
+  /** Exposes branding so newsletter (and others) can inject logoUrl/accent. */
+  exposeBranding?: (branding: BrandingService) => void;
 }
 
 /**
@@ -70,6 +72,7 @@ export function transactionalEmailsModule(
     }
 
     options.exposeSender?.(service);
+    options.exposeBranding?.(branding);
 
     await registerTransactionalEmailsAdminRoutes(app, {
       service,

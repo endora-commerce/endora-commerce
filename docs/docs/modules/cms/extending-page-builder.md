@@ -192,6 +192,11 @@ Default breakpoints (configurable via Settings
 Email and invoice builders use a single layout width and do not expose
 responsive fields.
 
+**Email builders** (transactional + newsletter) do **not** use CMS Mobile /
+Tablet / Desktop viewports. The authoring canvas is fixed at **600px** (mail
+width). A **Preview** modal offers **600px** / **320px** HTML frames. Color
+fields reuse the CMS color palette.
+
 ## Nesting (slots)
 
 Layout components (`Row`, `Columns`) use Puck **slot** fields — nested

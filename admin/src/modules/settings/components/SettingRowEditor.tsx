@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { ImageSettingInput } from './ImageSettingInput';
+import { AssetIdSettingInput } from './AssetIdSettingInput';
 import { SellerCompanyDataInput, SELLER_COMPANY_DATA_CODE } from './SellerCompanyDataInput';
 
 /**
@@ -24,6 +25,11 @@ function isImageUrlSetting(setting: SettingDto): boolean {
     setting.code.includes('image') &&
     setting.code.endsWith('_url')
   );
+}
+
+/** String settings that store an Assets Library UUID (e.g. logo_asset_id). */
+function isAssetIdSetting(setting: SettingDto): boolean {
+  return setting.valueType === 'string' && setting.code.endsWith('_asset_id');
 }
 
 export interface SettingDraft {
@@ -186,6 +192,8 @@ export function SettingRowEditor({
           </select>
         ) : setting.code === SELLER_COMPANY_DATA_CODE ? (
           <SellerCompanyDataInput value={draft.text} onChange={setText} />
+        ) : isAssetIdSetting(setting) ? (
+          <AssetIdSettingInput value={draft.text} onChange={setText} />
         ) : isImageUrlSetting(setting) ? (
           <ImageSettingInput value={draft.text} onChange={setText} />
         ) : isSecret ? (

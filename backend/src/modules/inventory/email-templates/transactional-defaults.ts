@@ -1,20 +1,9 @@
 // Default subject + content for inventory transactional emails (feature 047):
-// low_stock_alert (ops) + availability_back_in_stock (customer). Reproduces the
-// legacy inline text (SC-003) with email-safe components + default blocks.
+// low_stock_alert (ops) + availability_back_in_stock (customer).
+
+import { simpleEmailBodyTree } from '@b2b/email-components/defaults/simple-email-body';
 
 const LANGS = ['en-US', 'pl-PL'];
-
-function bodyTree(text: string) {
-  return {
-    root: { props: {} },
-    content: [
-      { type: 'EmailInsertBlock', props: { id: 'hdr', code: 'default_email_header' } },
-      { type: 'EmailText', props: { id: 'body', text, align: 'left' } },
-      { type: 'EmailInsertBlock', props: { id: 'ftr', code: 'default_email_footer' } },
-    ],
-    zones: {},
-  };
-}
 
 export const LOW_STOCK_ALERT_DEFAULT = {
   defaultSubject: {
@@ -24,12 +13,16 @@ export const LOW_STOCK_ALERT_DEFAULT = {
   defaultContent: {
     schema_version: 1,
     languages: {
-      'en-US': bodyTree(
-        'Cumulative on-hand for "{{var product.name}}" (SKU {{var product.sku}}) has crossed the low-stock threshold.\n\n  Current cumulative on-hand: {{var cumulativeOnHand}}\n  Threshold: {{var threshold}}',
-      ),
-      'pl-PL': bodyTree(
-        'Łączny stan magazynowy dla "{{var product.name}}" (SKU {{var product.sku}}) spadł poniżej progu niskiego stanu.\n\n  Bieżący łączny stan: {{var cumulativeOnHand}}\n  Próg: {{var threshold}}',
-      ),
+      'en-US': simpleEmailBodyTree({
+        idPrefix: 'low-stock',
+        heading: 'Low stock alert',
+        text: 'Cumulative on-hand for "{{var product.name}}" (SKU {{var product.sku}}) has crossed the low-stock threshold.\n\n  Current cumulative on-hand: {{var cumulativeOnHand}}\n  Threshold: {{var threshold}}',
+      }),
+      'pl-PL': simpleEmailBodyTree({
+        idPrefix: 'low-stock',
+        heading: 'Alert niskiego stanu',
+        text: 'Łączny stan magazynowy dla "{{var product.name}}" (SKU {{var product.sku}}) spadł poniżej progu niskiego stanu.\n\n  Bieżący łączny stan: {{var cumulativeOnHand}}\n  Próg: {{var threshold}}',
+      }),
     },
   } as Record<string, unknown>,
   languages: LANGS,
@@ -43,8 +36,16 @@ export const AVAILABILITY_BACK_IN_STOCK_DEFAULT = {
   defaultContent: {
     schema_version: 1,
     languages: {
-      'en-US': bodyTree('Good news — "{{var product.name}}" is available again.'),
-      'pl-PL': bodyTree('Dobra wiadomość — "{{var product.name}}" jest ponownie dostępny.'),
+      'en-US': simpleEmailBodyTree({
+        idPrefix: 'back-in-stock',
+        heading: 'Back in stock',
+        text: 'Good news — "{{var product.name}}" is available again.',
+      }),
+      'pl-PL': simpleEmailBodyTree({
+        idPrefix: 'back-in-stock',
+        heading: 'Ponownie dostępny',
+        text: 'Dobra wiadomość — "{{var product.name}}" jest ponownie dostępny.',
+      }),
     },
   } as Record<string, unknown>,
   languages: LANGS,

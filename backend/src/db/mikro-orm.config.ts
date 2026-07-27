@@ -104,6 +104,7 @@ import { Migration095QuoteRequestCustomFieldValues } from '../modules/quote_requ
 import { Migration096CategoryCustomFieldValues } from '../modules/catalog/migrations/096_category_custom_field_values.js';
 import { Migration097OrgHierarchy } from '../modules/organizations/migrations/097_org_hierarchy.js';
 import { Migration098CustomerSubtreeRollup } from '../modules/customer_accounts/migrations/098_customer_subtree_rollup.js';
+import { Migration099EmailDefaultsReseed } from '../modules/transactional_emails/migrations/099_email_defaults_reseed.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -495,6 +496,10 @@ export default defineConfig({
       {
         name: 'Migration098CustomerSubtreeRollup',
         class: Migration098CustomerSubtreeRollup,
+      },
+      {
+        name: 'Migration099EmailDefaultsReseed',
+        class: Migration099EmailDefaultsReseed,
       },
     ],
     transactional: true,

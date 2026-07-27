@@ -1,23 +1,35 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import type { Data } from '@measured/puck';
 import type {
   CampaignDetail,
   CampaignTargetType,
+  NewsletterCustomField,
   NewsletterTag,
   SubscriberSummary,
 } from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/lib/auth';
-import { newsletterClient, textContentTree } from '../api/newsletter-client';
+import {
+  EmailEditorPane,
+  EmailSubjectWithVariables,
+  EmailVariablesProvider,
+  listEmailTemplatesForApply,
+  loadEmailTemplateCanvas,
+  newsletterVariables,
+  saveCanvasAsEmailTemplate,
+} from '@/modules/_shared/email-builder';
+import { newsletterClient } from '../api/newsletter-client';
 
-function extractText(content: Record<string, unknown> | undefined): string {
-  const arr = (content?.['content'] as Array<{ props?: { text?: string } }> | undefined) ?? [];
-  return arr[0]?.props?.text ?? '';
+const emptyData: Data = { root: { props: {} }, content: [] };
+
+function asData(content: Record<string, unknown> | undefined): Data {
+  if (!content || typeof content !== 'object') return emptyData;
+  return content as Data;
 }
 
 export function CampaignEditor(): React.ReactElement {
@@ -29,15 +41,14 @@ export function CampaignEditor(): React.ReactElement {
 
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [tags, setTags] = useState<NewsletterTag[]>([]);
+  const [customFields, setCustomFields] = useState<NewsletterCustomField[]>([]);
   const [subscribers, setSubscribers] = useState<SubscriberSummary[]>([]);
   const [targetSubscriberIds, setTargetSubscriberIds] = useState<string[]>([]);
-  // Only persist the manual group when the operator actually edits it, so
-  // saving unrelated fields on an existing group campaign doesn't wipe it.
   const [groupTouched, setGroupTouched] = useState(false);
   const [name, setName] = useState('');
   const [language, setLanguage] = useState('en-US');
   const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
+  const [content, setContent] = useState<Data>(emptyData);
   const [targetType, setTargetType] = useState<CampaignTargetType>('all');
   const [targetTagIds, setTargetTagIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +57,10 @@ export function CampaignEditor(): React.ReactElement {
 
   useEffect(() => {
     newsletterClient.listTags().then((r) => setTags(r.items)).catch(() => undefined);
-    // Active subscribers back the manual-group picker.
+    newsletterClient
+      .listCustomFields()
+      .then((r) => setCustomFields(r.items))
+      .catch(() => undefined);
     newsletterClient
       .listSubscribers({ status: 'active', pageSize: 200 })
       .then((r) => setSubscribers(r.items))
@@ -59,7 +73,7 @@ export function CampaignEditor(): React.ReactElement {
           setName(c.name);
           setLanguage(c.language);
           setSubject(c.subject);
-          setBody(extractText(c.content));
+          setContent(asData(c.content));
           setTargetType(c.targetType);
           setTargetTagIds(c.targetTagIds);
         })
@@ -74,15 +88,13 @@ export function CampaignEditor(): React.ReactElement {
         name,
         language,
         subject,
-        content: textContentTree(body),
+        content: content as Record<string, unknown>,
         targetType,
         targetTagIds,
       };
       let saved = isNew
         ? await newsletterClient.createCampaign(payload)
         : await newsletterClient.updateCampaign(id!, { ...payload, expectedVersion: campaign!.version });
-      // A manual group is stored separately from the campaign record; persist
-      // the picked subscribers once the campaign has an id.
       if (targetType === 'group' && (isNew || groupTouched)) {
         saved = await newsletterClient.setCampaignGroup(saved.id, targetSubscriberIds);
       }
@@ -127,6 +139,8 @@ export function CampaignEditor(): React.ReactElement {
     );
   }
 
+  const variables = newsletterVariables(customFields.map((f) => ({ key: f.key, label: f.label })));
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -162,23 +176,46 @@ export function CampaignEditor(): React.ReactElement {
         </Alert>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Content</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Input placeholder="Campaign name" value={name} onChange={(e) => setName(e.target.value)} disabled={!canWrite} />
-          <Input placeholder="Language (e.g. en-US)" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={!canWrite} />
-          <Input placeholder="Subject (supports {{var ...}})" value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!canWrite} />
-          <Textarea
-            placeholder="Email body (plain text; supports {{var subscriber.email}} etc.)"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={8}
-            disabled={!canWrite}
-          />
-        </CardContent>
-      </Card>
+      <EmailVariablesProvider variables={variables}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Content</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Input placeholder="Campaign name" value={name} onChange={(e) => setName(e.target.value)} disabled={!canWrite} />
+            <Input placeholder="Language (e.g. en-US)" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={!canWrite} />
+            <EmailSubjectWithVariables
+              value={subject}
+              onChange={setSubject}
+              disabled={!canWrite}
+              placeholder="Subject (supports {{var …}})"
+            />
+            <EmailEditorPane
+              editorKey={`campaign:${id ?? 'new'}:${language}`}
+              data={content}
+              onChange={setContent}
+              builderContext="newsletter"
+              {...(canWrite
+                ? {
+                    onSaveAsTemplate: async (
+                      meta: { name: string; code: string },
+                      canvasData: Data,
+                    ) => {
+                      await saveCanvasAsEmailTemplate({
+                        ...meta,
+                        data: canvasData,
+                        languages: [language || 'en-US'],
+                        activeLanguage: language || null,
+                      });
+                    },
+                  }
+                : {})}
+              onListTemplatesForApply={() => listEmailTemplatesForApply(null)}
+              onResolveTemplateLayout={(templateId) => loadEmailTemplateCanvas(templateId, language || null)}
+            />
+          </CardContent>
+        </Card>
+      </EmailVariablesProvider>
 
       <Card>
         <CardHeader>

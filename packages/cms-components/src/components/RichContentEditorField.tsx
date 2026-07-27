@@ -199,15 +199,20 @@ function Toolbar({
   editor,
   expanded,
   onToggleExpand,
+  toolbarExtra,
 }: {
   editor: Editor | null;
   expanded: boolean;
   onToggleExpand: () => void;
+  toolbarExtra?: ReactNode | ((editor: Editor) => ReactNode);
 }) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [imageOpen, setImageOpen] = useState(false);
 
   if (!editor) return null;
+
+  const extra =
+    typeof toolbarExtra === 'function' ? toolbarExtra(editor) : toolbarExtra;
 
   const applyBlock = (value: string) => {
     const chain = editor.chain().focus();
@@ -334,6 +339,13 @@ function Toolbar({
           ↷
         </ToolbarButton>
 
+        {extra ? (
+          <>
+            <Divider />
+            <span className="cmsc:inline-flex cmsc:items-center cmsc:gap-[4px]">{extra}</span>
+          </>
+        ) : null}
+
         <span className="cmsc:ml-auto" />
         <ToolbarButton title={expanded ? 'Collapse editor' : 'Expand editor to full screen'} active={expanded} onClick={onToggleExpand}>
           {expanded ? '🗗' : '⤢'}
@@ -384,10 +396,13 @@ export function RichContentEditorField({
   value,
   onChange,
   readOnly,
+  toolbarExtra,
 }: {
   value: JSONContent | null;
   onChange: (value: JSONContent | null) => void;
   readOnly?: boolean | undefined;
+  /** Optional controls appended to the CMS TipTap toolbar (e.g. email Variable). */
+  toolbarExtra?: ReactNode | ((editor: Editor) => ReactNode);
 }) {
   const [expanded, setExpanded] = useState(false);
   const [, setTick] = useState(0);
@@ -434,7 +449,12 @@ export function RichContentEditorField({
 
   const shell = (
     <div className={expanded ? 'cmsc:flex cmsc:flex-col cmsc:w-full cmsc:max-w-[860px] cmsc:mx-auto cmsc:h-full' : 'cmsc:flex cmsc:flex-col'}>
-      <Toolbar editor={editor} expanded={expanded} onToggleExpand={() => setExpanded((on) => !on)} />
+      <Toolbar
+        editor={editor}
+        expanded={expanded}
+        onToggleExpand={() => setExpanded((on) => !on)}
+        {...(toolbarExtra !== undefined ? { toolbarExtra } : {})}
+      />
       <div
         className={`cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:border-t-0 cmsc:rounded-b-[8px] cmsc:bg-white cmsc:p-[14px] cmsc:overflow-auto ${
           expanded ? 'cmsc:flex-1' : 'cmsc:min-h-[160px]'

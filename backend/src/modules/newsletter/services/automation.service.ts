@@ -16,7 +16,8 @@ import { NewsletterAutomation } from '../entities/newsletter-automation.entity.j
 import { NewsletterAutomationRun } from '../entities/newsletter-automation-run.entity.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterSendRecord } from '../entities/newsletter-send-record.entity.js';
-import type { NewsletterContentService } from './content.service.js';
+import type { NewsletterContentService, EmailBrandingResolver } from './content.service.js';
+import { withEmailBranding } from './content.service.js';
 import type { NewsletterOptInService } from './opt-in.service.js';
 import type { NewsletterLinkBuilder } from './subscriber.service.js';
 
@@ -33,6 +34,7 @@ export interface AutomationServiceDeps {
   enqueueStep: (runId: string, stepIndex: number, delayMs: number) => Promise<void>;
   /** Feature 054 — audits automation lifecycle writes co-transactionally when provided. */
   auditLog?: AuditLogService;
+  resolveEmailBranding?: EmailBrandingResolver;
 }
 
 /**
@@ -283,15 +285,21 @@ export class NewsletterAutomationService {
     const provider = await this.deps.resolveProvider();
     const sender = await this.deps.resolveSender();
     const unsubscribeUrl = this.deps.links.unsubscribe(this.deps.optIn.mintUnsubscribeToken(subscriberId));
+    const branded = await withEmailBranding(
+      {
+        subscriber: { email: subscriber.email },
+        customFields: subscriber.customFields,
+        channel: { id: automation.salesChannelId },
+      },
+      automation.salesChannelId,
+      this.deps.resolveEmailBranding,
+    );
     const rendered = this.deps.content.render({
       subject: step.subject,
       content: step.content,
+      ...(branded.accentColor !== undefined ? { accentColor: branded.accentColor } : {}),
       context: {
-        variables: {
-          subscriber: { email: subscriber.email },
-          customFields: subscriber.customFields,
-          channel: { id: automation.salesChannelId },
-        },
+        variables: branded.variables,
         unsubscribeUrl,
       },
     });

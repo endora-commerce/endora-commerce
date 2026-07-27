@@ -1,30 +1,70 @@
-// Email-safe Puck editor configuration (feature 047).
-//
-// These ComponentConfigs power the admin email editor canvas. They render an
-// approximate on-canvas preview; the authoritative, email-client-safe HTML is
-// produced server-side by `render/render-email-html.ts`. The component name set
-// is the single source of truth shared with the backend via
-// `schema/component-types.ts` (EMAIL_SAFE_COMPONENT_NAMES).
+// Email-safe Puck editor configuration (feature 047 + expansion).
 
+import { createElement, type ComponentType, type ReactNode, type Ref } from 'react';
 import type { ComponentConfig, Config } from '@measured/puck';
-import { definePageBuilderComponent, type PageBuilderComponentDefinition, type PageBuilderContext } from '@b2b/page-builder-core';
+import {
+  createColorField,
+  definePageBuilderComponent,
+  type PageBuilderComponentDefinition,
+  type PageBuilderContext,
+} from '@b2b/page-builder-core';
 import { useEmailEmbeds } from './components/email-embeds-context.js';
+import { useEmailBrandingPreview } from './components/email-branding-preview-context.js';
 import type {
   EmailButtonProps,
-  EmailColumnsProps,
+  EmailCalloutProps,
+  EmailColumnProps,
+  EmailDividerProps,
+  EmailFooterLegalProps,
   EmailHeadingProps,
   EmailImageProps,
   EmailInsertBlockProps,
-  EmailInsertTemplateProps,
+  EmailLogoProps,
+  EmailOrderLabeledVarProps,
+  EmailOrderSummaryProps,
+  EmailProductCardProps,
+  EmailProductGridProps,
+  EmailCategoryGridProps,
+  EmailRichTextProps,
+  EmailRowProps,
+  EmailSectionProps,
+  EmailSocialProps,
   EmailSpacerProps,
+  EmailTableHeader,
+  EmailTableProps,
+  EmailTableRow,
   EmailTextProps,
 } from './schema/component-types.js';
+import {
+  EMAIL_COMPONENT_REQUIRED_VARIABLES,
+  EMAIL_ORDER_BLOCK_MARGIN_DEFAULT,
+  EMAIL_ORDER_LABELED_FIELDS,
+} from './schema/component-types.js';
+import { EMAIL_SOCIAL_BRAND_COLORS, EMAIL_SOCIAL_LABELS } from './render/social-icon-svg.js';
 
 const ALIGN_OPTIONS = [
   { label: 'Left', value: 'left' },
   { label: 'Center', value: 'center' },
   { label: 'Right', value: 'right' },
 ];
+
+const SOCIAL_NETWORK_OPTIONS = [
+  { label: 'Facebook', value: 'facebook' },
+  { label: 'Instagram', value: 'instagram' },
+  { label: 'LinkedIn', value: 'linkedin' },
+  { label: 'X', value: 'x' },
+  { label: 'YouTube', value: 'youtube' },
+  { label: 'TikTok', value: 'tiktok' },
+  { label: 'Other', value: 'other' },
+];
+
+const VERTICAL_ALIGN_OPTIONS = [
+  { label: 'Top', value: 'top' },
+  { label: 'Middle', value: 'middle' },
+  { label: 'Bottom', value: 'bottom' },
+];
+
+const BRANDING_LOGO_SRC = '{{var branding.logoUrl}}';
 
 export const EmailHeading: ComponentConfig<EmailHeadingProps> = {
   label: 'Heading',
@@ -60,17 +100,23 @@ export const EmailText: ComponentConfig<EmailTextProps> = {
   ),
 };
 
-export const EmailButton: ComponentConfig<EmailButtonProps> = {
+export const EmailButton = {
   label: 'Button',
   fields: {
     label: { type: 'text', label: 'Label' },
     href: { type: 'text', label: 'Link' },
     align: { type: 'select', label: 'Align', options: ALIGN_OPTIONS },
-    backgroundColor: { type: 'text', label: 'Background color' },
-    textColor: { type: 'text', label: 'Text color' },
+    backgroundColor: createColorField({ label: 'Background color' }),
+    textColor: createColorField({ label: 'Text color' }),
   },
-  defaultProps: { label: 'Call to action', href: '#', align: 'left', backgroundColor: '#1f2937', textColor: '#ffffff' },
-  render: ({ label, href, align, backgroundColor, textColor }) => (
+  defaultProps: {
+    label: 'Call to action',
+    href: '#',
+    align: 'left' as const,
+    backgroundColor: '#1f2937',
+    textColor: '#ffffff',
+  },
+  render: ({ label, href, align, backgroundColor, textColor }: EmailButtonProps) => (
     <div style={{ textAlign: align, margin: '8px 0' }}>
       <a
         href={href || '#'}
@@ -88,35 +134,126 @@ export const EmailButton: ComponentConfig<EmailButtonProps> = {
       </a>
     </div>
   ),
-};
+} as ComponentConfig<EmailButtonProps>;
 
-export const EmailImage: ComponentConfig<EmailImageProps> = {
+export const EmailImage = {
   label: 'Image',
   fields: {
+    imageSource: {
+      type: 'select',
+      label: 'Image source',
+      options: [
+        { label: 'URL', value: 'url' },
+        { label: 'Asset library', value: 'library' },
+      ],
+    },
     src: { type: 'text', label: 'Image URL' },
+    assetId: { type: 'text', label: 'Image' },
     alt: { type: 'text', label: 'Alt text' },
     href: { type: 'text', label: 'Link (optional)' },
     width: { type: 'number', label: 'Width (px)' },
     align: { type: 'select', label: 'Align', options: ALIGN_OPTIONS },
   },
-  defaultProps: { src: '', alt: '', href: '', width: 200, align: 'center' },
-  render: ({ src, alt, width, align }) => (
-    <div style={{ textAlign: align }}>
-      {src ? (
-        <img src={src} alt={alt} width={width} style={{ maxWidth: '100%' }} />
-      ) : (
-        <span style={{ color: '#9ca3af' }}>[image]</span>
-      )}
-    </div>
-  ),
-};
+  defaultProps: {
+    imageSource: 'url' as const,
+    src: '',
+    assetId: '',
+    alt: '',
+    href: '',
+    width: 200,
+    align: 'center' as const,
+  },
+  resolveFields: (data: { props: EmailImageProps }, { fields }: { fields: Record<string, unknown> }) => {
+    const source = data.props.imageSource ?? 'url';
+    const next = { ...fields };
+    if (source === 'library') {
+      delete next['src'];
+    } else {
+      delete next['assetId'];
+    }
+    return next;
+  },
+  render: ({ src, alt, width, align }: EmailImageProps) => {
+    const margin =
+      align === 'center' ? '0 auto' : align === 'right' ? '0 0 0 auto' : '0';
+    return (
+      <div style={{ textAlign: align }}>
+        {src ? (
+          <img
+            src={src}
+            alt={alt}
+            width={width}
+            style={{ display: 'block', maxWidth: '100%', margin }}
+          />
+        ) : (
+          <span style={{ color: '#9ca3af' }}>[image]</span>
+        )}
+      </div>
+    );
+  },
+} as unknown as ComponentConfig<EmailImageProps>;
 
-export const EmailDivider: ComponentConfig<Record<string, never>> = {
+export const EmailLogo = {
+  label: 'Logo',
+  fields: {
+    alt: { type: 'text', label: 'Alt text' },
+    href: { type: 'text', label: 'Link (optional)' },
+    width: { type: 'number', label: 'Width (px)' },
+    align: { type: 'select', label: 'Align', options: ALIGN_OPTIONS },
+  },
+  defaultProps: {
+    src: BRANDING_LOGO_SRC,
+    alt: 'Logo',
+    href: '',
+    width: 160,
+    align: 'center' as const,
+  },
+  resolveData: async ({ props }: { props: EmailLogoProps }) => ({
+    props: {
+      ...props,
+      src: BRANDING_LOGO_SRC,
+    },
+  }),
+  render: ({ alt, width, align }: EmailLogoProps) => {
+    const { logoUrl } = useEmailBrandingPreview();
+    const margin =
+      align === 'center' ? '0 auto' : align === 'right' ? '0 0 0 auto' : '0';
+    return (
+      <div style={{ textAlign: align, width: '100%' }}>
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt={alt || 'Logo'}
+            width={width}
+            style={{ display: 'block', maxWidth: '100%', height: 'auto', margin }}
+          />
+        ) : (
+          <span style={{ color: '#9ca3af', fontSize: 13, display: 'inline-block' }}>
+            [{alt || 'logo'} — set in Branding]
+          </span>
+        )}
+      </div>
+    );
+  },
+} as unknown as ComponentConfig<EmailLogoProps>;
+
+export const EmailDivider = {
   label: 'Divider',
-  fields: {},
-  defaultProps: {},
-  render: () => <hr style={{ border: 0, borderTop: '1px solid #e5e7eb', margin: '8px 0' }} />,
-};
+  fields: {
+    thickness: { type: 'number', label: 'Thickness (px)', min: 1, max: 8 },
+    color: createColorField({ label: 'Color' }),
+  },
+  defaultProps: { thickness: 1, color: '#e5e7eb' },
+  render: ({ thickness, color }: EmailDividerProps) => (
+    <hr
+      style={{
+        border: 0,
+        borderTop: `${Math.max(1, thickness || 1)}px solid ${color || '#e5e7eb'}`,
+        margin: '8px 0',
+      }}
+    />
+  ),
+} as ComponentConfig<EmailDividerProps>;
 
 export const EmailSpacer: ComponentConfig<EmailSpacerProps> = {
   label: 'Spacer',
@@ -125,28 +262,866 @@ export const EmailSpacer: ComponentConfig<EmailSpacerProps> = {
   render: ({ height }) => <div style={{ height }} />,
 };
 
-export const EmailColumns: ComponentConfig<EmailColumnsProps> = {
-  label: 'Columns',
+function padEmailTableRow(row: EmailTableRow, colCount: number): EmailTableRow {
+  const cells = [...(row.cells ?? [])];
+  while (cells.length < colCount) cells.push({ value: '' });
+  return { cells: cells.slice(0, Math.max(colCount, 1)) };
+}
+
+export const EmailTable = {
+  label: 'Table',
   fields: {
     columns: {
       type: 'array',
       label: 'Columns',
-      arrayFields: { text: { type: 'textarea', label: 'Text' } },
+      getItemSummary: (item: EmailTableHeader, index?: number) =>
+        item.label?.trim() || `Column ${(index ?? 0) + 1}`,
+      arrayFields: {
+        label: { type: 'text', label: 'Header' },
+      },
+      defaultItemProps: { label: 'Column' },
+      min: 1,
+      max: 6,
+    },
+    tableRows: {
+      type: 'array',
+      label: 'Rows',
+      getItemSummary: (item: EmailTableRow, index?: number) => {
+        const preview = (item.cells ?? [])
+          .map((c) => c.value?.trim())
+          .filter(Boolean)
+          .join(' | ');
+        return preview || `Row ${(index ?? 0) + 1}`;
+      },
+      arrayFields: {
+        cells: {
+          type: 'array',
+          label: 'Cells',
+          arrayFields: {
+            value: { type: 'text', label: 'Value' },
+          },
+          getItemSummary: (item: { value?: string }, i?: number) =>
+            item.value?.trim() || `Cell ${(i ?? 0) + 1}`,
+        },
+      },
+      defaultItemProps: { cells: [{ value: '' }, { value: '' }] },
+    },
+    striped: {
+      type: 'radio',
+      label: 'Striped rows',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
     },
   },
-  defaultProps: { columns: [{ text: 'Column 1' }, { text: 'Column 2' }] },
-  render: ({ columns }) => (
-    <table style={{ width: '100%' }}>
-      <tbody>
-        <tr>
-          {(columns ?? []).map((c, i) => (
-            <td key={i} style={{ verticalAlign: 'top', padding: '0 8px' }}>
-              {c?.text ?? ''}
-            </td>
+  defaultProps: {
+    columns: [{ label: 'Column 1' }, { label: 'Column 2' }],
+    tableRows: [
+      { cells: [{ value: 'A1' }, { value: 'B1' }] },
+      { cells: [{ value: 'A2' }, { value: 'B2' }] },
+    ],
+    striped: true,
+  },
+  resolveData: async ({ props }: { props: EmailTableProps }) => {
+    const columns =
+      Array.isArray(props.columns) && props.columns.length > 0
+        ? props.columns
+        : [{ label: 'Column 1' }];
+    const colCount = columns.length;
+    const tableRows = (Array.isArray(props.tableRows) ? props.tableRows : []).map((row) =>
+      padEmailTableRow(row, colCount),
+    );
+    return { props: { ...props, columns, tableRows } };
+  },
+  render: ({ columns, tableRows, striped }: EmailTableProps) => {
+    const cols = columns?.length ? columns : [{ label: 'Column 1' }];
+    const rows = (tableRows ?? []).map((row) => padEmailTableRow(row, cols.length));
+    return (
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr>
+            {cols.map((c, i) => (
+              <th
+                key={i}
+                style={{
+                  textAlign: 'left',
+                  borderBottom: '2px solid #e5e7eb',
+                  padding: '6px 8px',
+                  color: '#6b7280',
+                }}
+              >
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, ri) => (
+            <tr key={ri} style={striped && ri % 2 === 1 ? { background: '#f9fafb' } : undefined}>
+              {(row.cells ?? []).map((cell, ci) => (
+                <td key={ci} style={{ padding: '6px 8px', borderBottom: '1px solid #f3f4f6' }}>
+                  {cell.value}
+                </td>
+              ))}
+            </tr>
           ))}
-        </tr>
-      </tbody>
-    </table>
+        </tbody>
+      </table>
+    );
+  },
+} as unknown as ComponentConfig<EmailTableProps>;
+
+export const EmailSection = {
+  label: 'Section',
+  fields: {
+    backgroundColor: createColorField({ label: 'Background color' }),
+    paddingY: { type: 'number', label: 'Vertical padding (px)' },
+    paddingX: { type: 'number', label: 'Horizontal padding (px)' },
+    content: {
+      type: 'slot',
+      /** Columns only belong inside EmailRow. */
+      disallow: ['EmailColumn'],
+    },
+  },
+  defaultProps: {
+    backgroundColor: '#ffffff',
+    paddingY: 16,
+    paddingX: 24,
+    content: [] as unknown[],
+  },
+  render: ({
+    backgroundColor,
+    paddingY,
+    paddingX,
+    content: contentSlot,
+  }: EmailSectionProps & { content?: (() => ReactNode) | unknown }) => (
+    <div
+      style={{
+        backgroundColor: backgroundColor || '#ffffff',
+        padding: `${paddingY ?? 16}px ${paddingX ?? 24}px`,
+        minHeight: 48,
+      }}
+    >
+      {typeof contentSlot === 'function' ? (contentSlot as () => ReactNode)() : null}
+    </div>
+  ),
+} as ComponentConfig<EmailSectionProps>;
+
+const EMAIL_ROW_SLOT_EDIT_PROPS = {
+  minEmptyHeight: 144,
+  collisionAxis: 'dynamic' as const,
+  className: 'cmsc-pb-slot cmsc-pb-row-slot',
+};
+
+const EMAIL_COLUMN_SLOT_EDIT_PROPS = {
+  minEmptyHeight: 0,
+  collisionAxis: 'y' as const,
+  className: 'cmsc-pb-slot cmsc-pb-column-slot',
+};
+
+export const EmailColumn = {
+  label: 'Column',
+  /** Grid cell is .cmsc-pb-row-col — Puck must not wrap it in an extra block. */
+  inline: true,
+  fields: {
+    span: {
+      type: 'number',
+      label: 'Width (1–12)',
+      min: 1,
+      max: 12,
+    },
+    content: {
+      type: 'slot',
+      disallow: ['EmailColumn'],
+    },
+  },
+  defaultProps: {
+    span: 6,
+    content: [] as unknown[],
+  },
+  render: (
+    props: EmailColumnProps & {
+      content?: ComponentType<Record<string, unknown>> | unknown;
+      puck?: { isEditing?: boolean; dragRef?: Ref<HTMLDivElement> | null };
+    },
+  ) => {
+    const { content: contentSlot, span, puck } = props;
+    const editing = puck?.isEditing !== false;
+    const colSpan = Math.min(12, Math.max(1, span ?? 6));
+    const Slot = typeof contentSlot === 'function' ? (contentSlot as ComponentType<Record<string, unknown>>) : null;
+    return (
+      <div
+        ref={puck?.dragRef ?? undefined}
+        className="cmsc-pb-row-col cmsc:min-w-0 cmsc:self-stretch"
+        style={{ gridColumn: `span ${colSpan}` }}
+        data-pb-editing={editing ? '1' : '0'}
+      >
+        {Slot ? createElement(Slot, EMAIL_COLUMN_SLOT_EDIT_PROPS) : null}
+      </div>
+    );
+  },
+} as unknown as ComponentConfig<EmailColumnProps>;
+
+export const EmailRow = {
+  label: 'Row',
+  fields: {
+    gap: { type: 'number', label: 'Column gap (px)' },
+    verticalAlign: {
+      type: 'select',
+      label: 'Vertical align',
+      options: VERTICAL_ALIGN_OPTIONS,
+    },
+    content: {
+      type: 'slot',
+      allow: ['EmailColumn'],
+    },
+  },
+  defaultProps: {
+    gap: 16,
+    verticalAlign: 'top' as const,
+    content: [] as unknown[],
+  },
+  render: (
+    props: EmailRowProps & {
+      content?: ComponentType<Record<string, unknown>> | unknown;
+      puck?: { isEditing?: boolean };
+    },
+  ) => {
+    const { gap, verticalAlign, content: contentSlot, puck } = props;
+    const editing = puck?.isEditing !== false;
+    const alignItems =
+      verticalAlign === 'middle' ? 'center' : verticalAlign === 'bottom' ? 'flex-end' : 'stretch';
+    const Slot = typeof contentSlot === 'function' ? (contentSlot as ComponentType<Record<string, unknown>>) : null;
+    return (
+      <div
+        className={`cmsc-pb-row-cols cmsc:w-full ${editing ? 'cmsc-pb-row-cols--editing' : ''}`}
+        style={{
+          gap: gap ?? 16,
+          alignItems,
+          width: '100%',
+          boxSizing: 'border-box',
+        }}
+      >
+        {Slot
+          ? editing
+            ? createElement(Slot, EMAIL_ROW_SLOT_EDIT_PROPS)
+            : createElement(Slot)
+          : null}
+      </div>
+    );
+  },
+} as unknown as ComponentConfig<EmailRowProps>;
+
+export const EmailRichText: ComponentConfig<EmailRichTextProps> = {
+  label: 'Rich text',
+  fields: {
+    content: { type: 'textarea', label: 'Content (TipTap JSON — edited in admin)' },
+    align: { type: 'select', label: 'Align', options: ALIGN_OPTIONS },
+  } as NonNullable<ComponentConfig<EmailRichTextProps>['fields']>,
+  defaultProps: {
+    content: null,
+    html: '<p>Rich text. Use {{var your.variable}} for dynamic values.</p>',
+    align: 'left',
+  },
+  render: ({ html, align }) => (
+    <div
+      style={{ textAlign: align, fontSize: 15, lineHeight: 1.5, color: '#1f2937' }}
+      dangerouslySetInnerHTML={{ __html: html || '<p></p>' }}
+    />
+  ),
+};
+
+export const EmailProductCard = {
+  label: 'Product card',
+  fields: {
+    productSlug: { type: 'text', label: 'Product' },
+    showImage: {
+      type: 'radio',
+      label: 'Show image',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    showSku: {
+      type: 'radio',
+      label: 'Show SKU',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    showPrice: {
+      type: 'radio',
+      label: 'Show price',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    price: { type: 'text', label: 'Price (override)' },
+    ctaLabel: { type: 'text', label: 'CTA label' },
+    href: { type: 'text', label: 'Link (override)' },
+    align: { type: 'select', label: 'Align', options: ALIGN_OPTIONS },
+  },
+  defaultProps: {
+    productSlug: '',
+    productId: '',
+    imageSrc: '',
+    title: 'Select a product',
+    sku: '',
+    price: '',
+    href: '',
+    ctaLabel: 'View product',
+    showImage: true,
+    showPrice: true,
+    showSku: false,
+    align: 'left' as const,
+  },
+  render: ({ imageSrc, title, sku, price, ctaLabel, showImage, showPrice, showSku }: EmailProductCardProps) => {
+    const showImg = showImage !== false && showImage !== ('false' as unknown as boolean);
+    return (
+      <div style={{ display: 'flex', gap: 12, padding: 8, border: '1px solid #e5e7eb', borderRadius: 6 }}>
+        {showImg ? (
+          imageSrc && !String(imageSrc).includes('{{') ? (
+            <img src={imageSrc} alt="" width={64} height={64} style={{ objectFit: 'cover', flexShrink: 0 }} />
+          ) : (
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                background: '#f3f4f6',
+                border: '1px dashed #d1d5db',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 10,
+                color: '#9ca3af',
+                textAlign: 'center',
+                lineHeight: 1.2,
+                padding: 4,
+                boxSizing: 'border-box',
+              }}
+            >
+              No image
+            </div>
+          )
+        ) : null}
+        <div>
+          <div style={{ fontWeight: 600 }}>{title}</div>
+          {showSku && sku ? <div style={{ fontSize: 12, color: '#6b7280' }}>{sku}</div> : null}
+          {showPrice !== false && price ? <div>{price}</div> : null}
+          <div style={{ marginTop: 4, fontSize: 13, color: '#1f2937' }}>{ctaLabel}</div>
+        </div>
+      </div>
+    );
+  },
+} as unknown as ComponentConfig<EmailProductCardProps>;
+
+export const EmailProductGrid = {
+  label: 'Product grid',
+  fields: {
+    productSlugs: { type: 'text', label: 'Products' },
+    columns: { type: 'number', label: 'Columns', min: 1, max: 3 },
+    gap: { type: 'number', label: 'Gap (px)', min: 0, max: 48 },
+    showImage: {
+      type: 'radio',
+      label: 'Show image',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    showSku: {
+      type: 'radio',
+      label: 'Show SKU',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    showPrice: {
+      type: 'radio',
+      label: 'Show price',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    ctaLabel: { type: 'text', label: 'CTA label' },
+  },
+  defaultProps: {
+    productSlugs: [] as string[],
+    columns: 2,
+    gap: 16,
+    showImage: true,
+    showPrice: true,
+    showSku: false,
+    ctaLabel: 'View',
+    items: [] as EmailProductGridProps['items'],
+  },
+  render: ({
+    items,
+    columns,
+    showImage,
+    showPrice,
+    showSku,
+    ctaLabel,
+  }: EmailProductGridProps) => {
+    const cols = Math.min(3, Math.max(1, columns || 2));
+    const list = Array.isArray(items) ? items : [];
+    if (list.length === 0) {
+      return (
+        <div style={{ padding: 12, color: '#9ca3af', fontSize: 13, border: '1px dashed #e5e7eb' }}>
+          Select products for the grid
+        </div>
+      );
+    }
+    return (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${cols}, 1fr)`,
+          gap: 12,
+        }}
+      >
+        {list.map((item) => (
+          <div key={item.productId || item.productSlug} style={{ fontSize: 13 }}>
+            {showImage !== false ? (
+              item.imageSrc ? (
+                <img
+                  src={item.imageSrc}
+                  alt=""
+                  style={{ width: '100%', height: 80, objectFit: 'cover', marginBottom: 6 }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '100%',
+                    height: 80,
+                    background: '#f3f4f6',
+                    border: '1px dashed #d1d5db',
+                    marginBottom: 6,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 11,
+                    color: '#9ca3af',
+                  }}
+                >
+                  No image
+                </div>
+              )
+            ) : null}
+            <div style={{ fontWeight: 600 }}>{item.title}</div>
+            {showSku && item.sku ? <div style={{ fontSize: 11, color: '#6b7280' }}>{item.sku}</div> : null}
+            {showPrice !== false && item.price ? <div>{item.price}</div> : null}
+            <div style={{ marginTop: 4, fontSize: 12 }}>{ctaLabel}</div>
+          </div>
+        ))}
+      </div>
+    );
+  },
+} as unknown as ComponentConfig<EmailProductGridProps>;
+
+export const EmailCategoryGrid = {
+  label: 'Category grid',
+  fields: {
+    categorySlugs: { type: 'text', label: 'Categories' },
+    columns: { type: 'number', label: 'Columns', min: 1, max: 3 },
+    gap: { type: 'number', label: 'Gap (px)', min: 0, max: 48 },
+    showImage: {
+      type: 'radio',
+      label: 'Show image',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+  },
+  defaultProps: {
+    categorySlugs: [] as string[],
+    columns: 2,
+    gap: 16,
+    showImage: true,
+    items: [] as EmailCategoryGridProps['items'],
+  },
+  render: ({ items, columns, showImage }: EmailCategoryGridProps) => {
+    const cols = Math.min(3, Math.max(1, columns || 2));
+    const list = Array.isArray(items) ? items : [];
+    if (list.length === 0) {
+      return (
+        <div style={{ padding: 12, color: '#9ca3af', fontSize: 13, border: '1px dashed #e5e7eb' }}>
+          Select categories for the grid
+        </div>
+      );
+    }
+    return (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${cols}, 1fr)`,
+          gap: 12,
+        }}
+      >
+        {list.map((item) => (
+          <div key={item.categoryId || item.categorySlug} style={{ fontSize: 13 }}>
+            {showImage !== false ? (
+              item.imageSrc ? (
+                <img
+                  src={item.imageSrc}
+                  alt=""
+                  style={{ width: '100%', height: 64, objectFit: 'cover', marginBottom: 6 }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '100%',
+                    height: 64,
+                    background: '#f3f4f6',
+                    border: '1px dashed #d1d5db',
+                    marginBottom: 6,
+                  }}
+                />
+              )
+            ) : null}
+            <div style={{ fontWeight: 600 }}>{item.title}</div>
+          </div>
+        ))}
+      </div>
+    );
+  },
+} as unknown as ComponentConfig<EmailCategoryGridProps>;
+
+export const EmailOrderSummary = {
+  label: 'Order summary',
+  fields: {
+    title: { type: 'text', label: 'Title' },
+    showSku: {
+      type: 'radio',
+      label: 'Show SKU column',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    showName: {
+      type: 'radio',
+      label: 'Show name column',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    showQuantity: {
+      type: 'radio',
+      label: 'Show quantity column',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    showPrice: {
+      type: 'radio',
+      label: 'Show price column',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    showTotals: {
+      type: 'radio',
+      label: 'Show totals',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    marginTop: { type: 'number', label: 'Margin top (px)' },
+    marginBottom: { type: 'number', label: 'Margin bottom (px)' },
+  },
+  defaultProps: {
+    title: 'Order summary',
+    showSku: false,
+    showName: true,
+    showQuantity: true,
+    showPrice: true,
+    showTotals: true,
+    marginTop: EMAIL_ORDER_BLOCK_MARGIN_DEFAULT,
+    marginBottom: EMAIL_ORDER_BLOCK_MARGIN_DEFAULT,
+  },
+  render: ({
+    title,
+    showSku,
+    showName,
+    showQuantity,
+    showPrice,
+    showTotals,
+    marginTop,
+    marginBottom,
+  }: EmailOrderSummaryProps) => {
+    const cols = [
+      showSku ? 'SKU' : null,
+      showName !== false ? 'Item' : null,
+      showQuantity !== false ? 'Qty' : null,
+      showPrice !== false ? 'Price' : null,
+    ].filter(Boolean) as string[];
+    const mt = marginTop ?? EMAIL_ORDER_BLOCK_MARGIN_DEFAULT;
+    const mb = marginBottom ?? EMAIL_ORDER_BLOCK_MARGIN_DEFAULT;
+    return (
+      <div style={{ padding: 8, marginTop: mt, marginBottom: mb }}>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>{title}</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              {cols.map((c) => (
+                <th key={c} style={{ textAlign: 'left', borderBottom: '1px solid #e5e7eb', padding: 4 }}>
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {cols.map((c) => (
+                <td key={c} style={{ padding: 4, color: '#9ca3af' }}>
+                  …
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+        {showTotals ? (
+          <div style={{ marginTop: 8, fontSize: 13, color: '#6b7280' }}>Totals (order.summaryText)</div>
+        ) : null}
+      </div>
+    );
+  },
+} as unknown as ComponentConfig<EmailOrderSummaryProps>;
+
+function makeOrderLabeledVarConfig(
+  name: keyof typeof EMAIL_ORDER_LABELED_FIELDS,
+): ComponentConfig<EmailOrderLabeledVarProps> {
+  const meta = EMAIL_ORDER_LABELED_FIELDS[name];
+  return {
+    label: meta.label,
+    fields: {
+      title: { type: 'text', label: 'Title' },
+      marginTop: { type: 'number', label: 'Margin top (px)' },
+      marginBottom: { type: 'number', label: 'Margin bottom (px)' },
+    },
+    defaultProps: {
+      title: meta.defaultTitle,
+      marginTop: EMAIL_ORDER_BLOCK_MARGIN_DEFAULT,
+      marginBottom: EMAIL_ORDER_BLOCK_MARGIN_DEFAULT,
+    },
+    render: ({ title, marginTop, marginBottom }: EmailOrderLabeledVarProps) => {
+      const mt = marginTop ?? EMAIL_ORDER_BLOCK_MARGIN_DEFAULT;
+      const mb = marginBottom ?? EMAIL_ORDER_BLOCK_MARGIN_DEFAULT;
+      return (
+        <div style={{ padding: 8, marginTop: mt, marginBottom: mb }}>
+          {title ? <div style={{ fontWeight: 600, marginBottom: 6 }}>{title}</div> : null}
+          <div style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'pre-wrap' }}>{meta.previewHint}</div>
+        </div>
+      );
+    },
+  } as unknown as ComponentConfig<EmailOrderLabeledVarProps>;
+}
+
+export const EmailOrderId = makeOrderLabeledVarConfig('EmailOrderId');
+export const EmailBillingAddress = makeOrderLabeledVarConfig('EmailBillingAddress');
+export const EmailShippingAddress = makeOrderLabeledVarConfig('EmailShippingAddress');
+export const EmailOrderTotals = makeOrderLabeledVarConfig('EmailOrderTotals');
+export const EmailAppliedDiscounts = makeOrderLabeledVarConfig('EmailAppliedDiscounts');
+export const EmailDeliveryMethod = makeOrderLabeledVarConfig('EmailDeliveryMethod');
+export const EmailPaymentMethod = makeOrderLabeledVarConfig('EmailPaymentMethod');
+
+export const EmailSocial = {
+  label: 'Social links',
+  fields: {
+    links: {
+      type: 'array',
+      label: 'Links',
+      arrayFields: {
+        network: { type: 'select', label: 'Network', options: SOCIAL_NETWORK_OPTIONS },
+        href: { type: 'text', label: 'URL' },
+        label: { type: 'text', label: 'Label (optional)' },
+        enabled: {
+          type: 'radio',
+          label: 'Enabled',
+          options: [
+            { label: 'Yes', value: true },
+            { label: 'No', value: false },
+          ],
+        },
+      },
+      getItemSummary: (item: { label?: string; network?: string; enabled?: boolean }) => {
+        const on = item.enabled !== false ? '' : ' (off)';
+        return `${item.label || item.network || 'Link'}${on}`;
+      },
+      defaultItemProps: { network: 'facebook', href: '', label: '', enabled: true },
+    },
+    showIcons: {
+      type: 'radio',
+      label: 'Show icons',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    showLabels: {
+      type: 'radio',
+      label: 'Show labels',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    iconSize: { type: 'number', label: 'Icon size (px)', min: 16, max: 48 },
+    useBrandColors: {
+      type: 'radio',
+      label: 'Brand colors',
+      options: [
+        { label: 'Yes', value: true },
+        { label: 'No', value: false },
+      ],
+    },
+    color: createColorField({ label: 'Icon / text color' }),
+    align: { type: 'select', label: 'Align', options: ALIGN_OPTIONS },
+  },
+  defaultProps: {
+    links: [
+      { network: 'facebook', href: 'https://facebook.com/', enabled: true },
+      { network: 'linkedin', href: 'https://linkedin.com/', enabled: true },
+    ],
+    align: 'center' as const,
+    showIcons: true,
+    showLabels: false,
+    iconSize: 28,
+    useBrandColors: true,
+    color: '#1f2937',
+  },
+  render: ({
+    links,
+    align,
+    showIcons,
+    showLabels,
+    iconSize,
+    useBrandColors,
+    color,
+  }: EmailSocialProps) => (
+    <div style={{ textAlign: align, padding: 8 }}>
+      {(links ?? [])
+        .filter((l) => l?.enabled !== false && l?.href)
+        .map((l, i) => {
+          const network = l.network in EMAIL_SOCIAL_LABELS ? l.network : 'other';
+          const label = l.label || EMAIL_SOCIAL_LABELS[network];
+          const iconColor = useBrandColors ? EMAIL_SOCIAL_BRAND_COLORS[network] : color || '#1f2937';
+          const size = Math.max(16, iconSize || 28);
+          return (
+            <a
+              key={i}
+              href={l.href || '#'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                margin: '0 8px',
+                color: iconColor,
+                textDecoration: 'none',
+                verticalAlign: 'middle',
+              }}
+            >
+              {showIcons !== false ? (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    width: size,
+                    height: size,
+                    borderRadius: '50%',
+                    background: iconColor,
+                    color: '#fff',
+                    fontSize: Math.round(size * 0.4),
+                    fontWeight: 700,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    lineHeight: 1,
+                  }}
+                >
+                  {network === 'facebook'
+                    ? 'f'
+                    : network === 'instagram'
+                      ? 'ig'
+                      : network === 'linkedin'
+                        ? 'in'
+                        : network === 'x'
+                          ? 'X'
+                          : network === 'youtube'
+                            ? 'yt'
+                            : network === 'tiktok'
+                              ? 'tt'
+                              : '·'}
+                </span>
+              ) : null}
+              {showLabels ? <span style={{ fontSize: 13 }}>{label}</span> : null}
+            </a>
+          );
+        })}
+    </div>
+  ),
+} as unknown as ComponentConfig<EmailSocialProps>;
+
+export const EmailCallout = {
+  label: 'Callout',
+  fields: {
+    text: { type: 'textarea', label: 'Text' },
+    backgroundColor: createColorField({ label: 'Background' }),
+    borderColor: createColorField({ label: 'Border' }),
+    textColor: createColorField({ label: 'Text color' }),
+    align: { type: 'select', label: 'Align', options: ALIGN_OPTIONS },
+  },
+  defaultProps: {
+    text: 'Important notice',
+    backgroundColor: '#f3f4f6',
+    borderColor: '#d1d5db',
+    textColor: '#1f2937',
+    align: 'left' as const,
+  },
+  render: ({ text, backgroundColor, borderColor, textColor, align }: EmailCalloutProps) => (
+    <div
+      style={{
+        backgroundColor,
+        border: `1px solid ${borderColor}`,
+        borderRadius: 6,
+        padding: 14,
+        textAlign: align,
+        color: textColor || '#1f2937',
+      }}
+    >
+      {text}
+    </div>
+  ),
+} as ComponentConfig<EmailCalloutProps>;
+
+export const EmailFooterLegal: ComponentConfig<EmailFooterLegalProps> = {
+  label: 'Footer / legal',
+  fields: {
+    text: { type: 'textarea', label: 'Text' },
+    align: { type: 'select', label: 'Align', options: ALIGN_OPTIONS },
+  },
+  defaultProps: {
+    text: 'You received this email because you are subscribed.\n<a href="{{var unsubscribeUrl}}">Unsubscribe</a>',
+    align: 'center',
+  },
+  render: ({ text, align }) => (
+    <p
+      style={{ margin: 0, fontSize: 12, color: '#6b7280', textAlign: align }}
+      dangerouslySetInnerHTML={{
+        __html: (text || '').replace(/\r?\n/g, '<br />'),
+      }}
+    />
   ),
 };
 
@@ -166,22 +1141,6 @@ export const EmailInsertBlock: ComponentConfig<EmailInsertBlockProps> = {
   },
 };
 
-export const EmailInsertTemplate: ComponentConfig<EmailInsertTemplateProps> = {
-  label: 'Insert template',
-  fields: { code: { type: 'text', label: 'Template code' } },
-  defaultProps: { code: '' },
-  render: ({ code }) => {
-    const { templates } = useEmailEmbeds();
-    const preview = code ? templates[code] : null;
-    if (preview) return <>{preview}</>;
-    return (
-      <div style={{ padding: 8, border: '1px dashed #cbd5e1', color: '#64748b' }}>
-        {code ? `Template "${code}"` : 'Choose a template'}
-      </div>
-    );
-  },
-};
-
 const emailContexts: PageBuilderContext[] = ['email', 'newsletter'];
 
 function emailComponent(config: unknown): PageBuilderComponentDefinition {
@@ -191,31 +1150,110 @@ function emailComponent(config: unknown): PageBuilderComponentDefinition {
   });
 }
 
+/**
+ * Hide palette entries that require variables not declared on the current email
+ * (e.g. Order summary needs `order.items`).
+ *
+ * Hidden names are removed from both `categories` and `components` so Puck does
+ * not dump them into the uncategorized "Other" drawer group.
+ */
+export function filterEmailPaletteByVariables(
+  config: Config,
+  variableKeys: readonly string[],
+): Config {
+  const available = new Set(variableKeys);
+  const hide = new Set(
+    Object.entries(EMAIL_COMPONENT_REQUIRED_VARIABLES)
+      .filter(([, required]) => !required.every((key) => available.has(key)))
+      .map(([name]) => name),
+  );
+  if (hide.size === 0) return config;
+
+  const components: Config['components'] = {};
+  for (const [name, component] of Object.entries(config.components ?? {})) {
+    if (!hide.has(name)) components[name] = component;
+  }
+
+  const categories: Config['categories'] = {};
+  for (const [key, category] of Object.entries(config.categories ?? {})) {
+    const list = (category.components ?? []).filter((name) => !hide.has(name) && name in components);
+    if (list.length > 0) {
+      categories[key] = { ...category, components: list };
+    }
+  }
+  return { ...config, components, categories };
+}
+
 export const defaultEmailBuilderConfig: Config = {
   categories: {
     content: {
       title: 'Content',
-      components: ['EmailHeading', 'EmailText', 'EmailButton', 'EmailImage'],
+      components: [
+        'EmailHeading',
+        'EmailText',
+        'EmailRichText',
+        'EmailButton',
+        'EmailImage',
+        'EmailLogo',
+        'EmailProductCard',
+        'EmailProductGrid',
+        'EmailCategoryGrid',
+        'EmailSocial',
+        'EmailCallout',
+        'EmailFooterLegal',
+      ],
+      defaultExpanded: true,
+    },
+    order: {
+      title: 'Order',
+      components: [
+        'EmailOrderId',
+        'EmailOrderSummary',
+        'EmailOrderTotals',
+        'EmailAppliedDiscounts',
+        'EmailDeliveryMethod',
+        'EmailPaymentMethod',
+        'EmailShippingAddress',
+        'EmailBillingAddress',
+      ],
       defaultExpanded: true,
     },
     layout: {
       title: 'Layout',
-      components: ['EmailColumns', 'EmailDivider', 'EmailSpacer'],
+      components: ['EmailSection', 'EmailRow', 'EmailTable', 'EmailDivider', 'EmailSpacer'],
     },
     embeds: {
       title: 'Embeds',
-      components: ['EmailInsertBlock', 'EmailInsertTemplate'],
+      components: ['EmailInsertBlock'],
     },
   },
   components: {
     EmailHeading: emailComponent(EmailHeading),
     EmailText: emailComponent(EmailText),
+    EmailRichText: emailComponent(EmailRichText),
     EmailButton: emailComponent(EmailButton),
     EmailImage: emailComponent(EmailImage),
+    EmailLogo: emailComponent(EmailLogo),
+    EmailProductCard: emailComponent(EmailProductCard),
+    EmailProductGrid: emailComponent(EmailProductGrid),
+    EmailCategoryGrid: emailComponent(EmailCategoryGrid),
+    EmailOrderSummary: emailComponent(EmailOrderSummary),
+    EmailOrderId: emailComponent(EmailOrderId),
+    EmailBillingAddress: emailComponent(EmailBillingAddress),
+    EmailShippingAddress: emailComponent(EmailShippingAddress),
+    EmailOrderTotals: emailComponent(EmailOrderTotals),
+    EmailAppliedDiscounts: emailComponent(EmailAppliedDiscounts),
+    EmailDeliveryMethod: emailComponent(EmailDeliveryMethod),
+    EmailPaymentMethod: emailComponent(EmailPaymentMethod),
+    EmailSocial: emailComponent(EmailSocial),
+    EmailCallout: emailComponent(EmailCallout),
+    EmailFooterLegal: emailComponent(EmailFooterLegal),
+    EmailSection: emailComponent(EmailSection),
+    EmailRow: emailComponent(EmailRow),
+    EmailColumn: emailComponent(EmailColumn),
     EmailDivider: emailComponent(EmailDivider),
     EmailSpacer: emailComponent(EmailSpacer),
-    EmailColumns: emailComponent(EmailColumns),
+    EmailTable: emailComponent(EmailTable),
     EmailInsertBlock: emailComponent(EmailInsertBlock),
-    EmailInsertTemplate: emailComponent(EmailInsertTemplate),
   },
 };

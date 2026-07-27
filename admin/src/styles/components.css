@@ -396,24 +396,28 @@
 .cms-page-builder [data-pb-drawer-filtering] [class*="ComponentList-content"] {
   display: block !important;
 }
-.cms-page-builder .cms-pb-header-shell {
+.cms-page-builder .cms-pb-header-shell,
+.email-builder-pane .cms-pb-header-shell {
   display: contents;
 }
 /* Left column: sidebar toggles + template actions, flush start. */
-.cms-page-builder .cms-pb-header-left {
+.cms-page-builder .cms-pb-header-left,
+.email-builder-pane .cms-pb-header-left {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: nowrap;
   min-width: 0;
 }
-.cms-page-builder .cms-pb-header-leading {
+.cms-page-builder .cms-pb-header-leading,
+.email-builder-pane .cms-pb-header-leading {
   display: inline-flex;
   align-items: center;
   min-width: 0;
   /* Puck's left toggle column sets a muted `color` — reset so our buttons match. */
   color: hsl(var(--foreground));
 }
-.cms-page-builder .cms-pb-header-actions {
+.cms-page-builder .cms-pb-header-actions,
+.email-builder-pane .cms-pb-header-actions {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -421,32 +425,42 @@
   color: hsl(var(--foreground));
 }
 /* Keep the center title as a single centered label (Puck 1fr / auto / 1fr grid). */
-.cms-page-builder [class*="PuckHeader-title"] {
+.cms-page-builder [class*="PuckHeader-title"],
+.email-builder-pane [class*="PuckHeader-title"] {
   justify-self: center;
   text-align: center;
 }
 /* Right tools: never wrap onto a second row. */
-.cms-page-builder [class*="PuckHeader-tools"] {
+.cms-page-builder [class*="PuckHeader-tools"],
+.email-builder-pane [class*="PuckHeader-tools"] {
   align-items: center;
   min-width: 0;
 }
-.cms-page-builder [class*="MenuBar-inner"] {
+.cms-page-builder [class*="MenuBar-inner"],
+.email-builder-pane [class*="MenuBar-inner"] {
   flex-wrap: nowrap !important;
   gap: 0.5rem !important;
 }
 /* Prefer compact icon buttons on the right; show labels when there is room. */
-.cms-page-builder [class*="PuckHeader-tools"] .cms-pb-header-actions__label {
+.cms-page-builder [class*="PuckHeader-tools"] .cms-pb-header-actions__label,
+.email-builder-pane [class*="PuckHeader-tools"] .cms-pb-header-actions__label {
   display: none;
   margin-inline-start: 0.25rem;
 }
 @media (min-width: 1280px) {
-  .cms-page-builder [class*="PuckHeader-tools"] .cms-pb-header-actions__label {
+  .cms-page-builder [class*="PuckHeader-tools"] .cms-pb-header-actions__label,
+  .email-builder-pane [class*="PuckHeader-tools"] .cms-pb-header-actions__label {
     display: inline;
   }
 }
 /* Left template actions keep their labels. */
-.cms-page-builder .cms-pb-header-leading .cms-pb-header-actions__label {
+.cms-page-builder .cms-pb-header-leading .cms-pb-header-actions__label,
+.email-builder-pane .cms-pb-header-leading .cms-pb-header-actions__label {
   display: inline;
+}
+/* Email header: Preview sits beside Clear/Fullscreen from PageBuilderHeaderActions. */
+.email-builder-pane [class*="PuckHeader-tools"] > .cms-pb-header-actions > .cms-pb-header-actions {
+  display: contents;
 }
 @media (max-width: 1023px) {
   .cms-content-editor__builder .cms-page-builder {
@@ -1663,5 +1677,26 @@ textarea.b2b-field {
   white-space: nowrap;
   pointer-events: none;
   box-shadow: 0 4px 12px rgb(15 23 42 / 20%);
+}
+
+/* Email builder — mail canvas width (600 / 320), not CMS breakpoints */
+.email-builder-pane [class*='PuckLayout-canvas'] {
+  overflow-x: auto;
+}
+
+.email-builder-pane[data-preview-width='600'] [class*='PuckLayout-canvas'] > div,
+.email-builder-pane[data-preview-width='320'] [class*='PuckLayout-canvas'] > div {
+  margin-inline: auto;
+  max-width: var(--email-preview-width, 600px);
+}
+
+/* Only constrain the root canvas dropzone — nested Row/Column slots must stay fluid. */
+.email-builder-pane[data-preview-width='600'] [class*='PuckLayout-canvas'] > div > [class*='DropZone'],
+.email-builder-pane[data-preview-width='320'] [class*='PuckLayout-canvas'] > div > [class*='DropZone'] {
+  max-width: var(--email-preview-width, 600px);
+}
+
+.email-builder-pane [class*='DropZone'] [class*='DropZone'] {
+  max-width: none;
 }
 

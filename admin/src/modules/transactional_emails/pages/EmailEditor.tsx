@@ -6,15 +6,21 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/lib/auth';
 import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { transactionalEmailsClient } from '../api/transactional-emails-client';
+import {
+  EmailSubjectWithVariables,
+  EmailVariablesProvider,
+  mergeEmailVariables,
+  saveCanvasAsEmailTemplate,
+  listEmailTemplatesForApply,
+  loadEmailTemplateCanvas,
+} from '@/modules/_shared/email-builder';
 import { EmailEditorPane } from '../components/EmailEditorPane';
-import { BrandingPanel } from '../components/BrandingPanel';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 
@@ -101,25 +107,6 @@ export function EmailEditor(): React.ReactElement {
     }
   };
 
-  const preview = async (): Promise<void> => {
-    try {
-      const res = await transactionalEmailsClient.preview(code, {
-        ...(channelId ? { salesChannelId: channelId } : {}),
-        language,
-        draftSubject: subject,
-        draftContent: content,
-      });
-      const w = window.open('', '_blank');
-      if (w) {
-        w.document.open();
-        w.document.write(`<title>${res.subject}</title>${res.html}`);
-        w.document.close();
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
   if (!hasPermission('transactional_emails:read')) {
     return (
       <Alert>
@@ -133,6 +120,22 @@ export function EmailEditor(): React.ReactElement {
       <PageHeader
         title={detail?.name ?? code}
         description={`Source: ${detail?.effective.source ?? '—'}`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => void reset()} disabled={!canWrite || busy}>
+              Reset to default
+            </Button>
+            <SaveButtonGroup
+              onSave={() => void save()}
+              onSaveAndExit={() => void saveAndExit()}
+              saving={busy}
+              disabled={!canWrite}
+              saveLabel="Save"
+              savingLabel="Save"
+              saveAndExitLabel="Save and exit"
+            />
+          </div>
+        }
       />
 
       {error ? (
@@ -183,47 +186,46 @@ export function EmailEditor(): React.ReactElement {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Subject</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Input value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!canWrite} />
-        </CardContent>
-      </Card>
+      <EmailVariablesProvider variables={mergeEmailVariables(detail?.variables)}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Subject</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <EmailSubjectWithVariables
+              value={subject}
+              onChange={setSubject}
+              disabled={!canWrite}
+            />
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Content</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <EmailEditorPane
-            editorKey={`${code}:${channelId ?? 'global'}:${language}`}
-            data={content}
-            onChange={setContent}
-          />
-        </CardContent>
-      </Card>
-
-      <div className="flex gap-2">
-        <SaveButtonGroup
-          onSave={() => void save()}
-          onSaveAndExit={() => void saveAndExit()}
-          saving={busy}
-          disabled={!canWrite}
-          saveLabel="Save"
-          savingLabel="Save"
-          saveAndExitLabel="Save and exit"
-        />
-        <Button variant="outline" onClick={() => void reset()} disabled={!canWrite || busy}>
-          Reset to default
-        </Button>
-        <Button variant="outline" onClick={() => void preview()}>
-          Preview
-        </Button>
-      </div>
-
-      <BrandingPanel salesChannelId={channelId} />
+        <Card>
+          <CardHeader>
+            <CardTitle>Content</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <EmailEditorPane
+              editorKey={`${code}:${channelId ?? 'global'}:${language}`}
+              data={content}
+              onChange={setContent}
+              salesChannelId={channelId}
+              previewLanguage={language || null}
+              onSaveAsTemplate={async (meta, canvasData) => {
+                await saveCanvasAsEmailTemplate({
+                  ...meta,
+                  data: canvasData,
+                  salesChannelIds: channelId ? [channelId] : [],
+                  languages: detail?.languages?.length ? detail.languages : [language || 'en-US'],
+                  activeLanguage: language || null,
+                });
+              }}
+              onListTemplatesForApply={() => listEmailTemplatesForApply(channelId)}
+              onResolveTemplateLayout={(templateId) => loadEmailTemplateCanvas(templateId, language || null)}
+            />
+          </CardContent>
+        </Card>
+      </EmailVariablesProvider>
     </div>
   );
 }

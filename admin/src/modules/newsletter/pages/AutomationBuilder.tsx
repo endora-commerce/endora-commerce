@@ -1,23 +1,40 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { AutomationDetail, AutomationStep, AutomationTriggerType, NewsletterTag } from '@b2b/contracts';
+import type { Data } from '@measured/puck';
+import type {
+  AutomationDetail,
+  AutomationStep,
+  AutomationTriggerType,
+  NewsletterCustomField,
+  NewsletterTag,
+} from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/lib/auth';
-import { newsletterClient, textContentTree } from '../api/newsletter-client';
+import {
+  EmailEditorPane,
+  EmailSubjectWithVariables,
+  EmailVariablesProvider,
+  listEmailTemplatesForApply,
+  loadEmailTemplateCanvas,
+  newsletterVariables,
+  saveCanvasAsEmailTemplate,
+} from '@/modules/_shared/email-builder';
+import { newsletterClient } from '../api/newsletter-client';
+
+const emptyData: Data = { root: { props: {} }, content: [] };
 
 type LocalStep =
-  | { type: 'send'; subject: string; body: string }
+  | { type: 'send'; subject: string; content: Data }
   | { type: 'wait'; days: number };
 
 function toApiSteps(steps: LocalStep[]): AutomationStep[] {
   return steps.map((s) =>
     s.type === 'send'
-      ? { type: 'send', subject: s.subject, content: textContentTree(s.body) }
+      ? { type: 'send', subject: s.subject, content: s.content as Record<string, unknown> }
       : { type: 'wait', days: s.days },
   );
 }
@@ -25,8 +42,11 @@ function toApiSteps(steps: LocalStep[]): AutomationStep[] {
 function fromApiSteps(steps: AutomationStep[]): LocalStep[] {
   return steps.map((s) => {
     if (s.type === 'wait') return { type: 'wait', days: s.days };
-    const arr = (s.content?.['content'] as Array<{ props?: { text?: string } }> | undefined) ?? [];
-    return { type: 'send', subject: s.subject, body: arr[0]?.props?.text ?? '' };
+    return {
+      type: 'send',
+      subject: s.subject,
+      content: (s.content as Data) ?? emptyData,
+    };
   });
 }
 
@@ -39,23 +59,31 @@ export function AutomationBuilder(): React.ReactElement {
 
   const [detail, setDetail] = useState<AutomationDetail | null>(null);
   const [tags, setTags] = useState<NewsletterTag[]>([]);
+  const [customFields, setCustomFields] = useState<NewsletterCustomField[]>([]);
   const [name, setName] = useState('');
   const [triggerType, setTriggerType] = useState<AutomationTriggerType>('all');
   const [triggerTagIds, setTriggerTagIds] = useState<string[]>([]);
-  const [steps, setSteps] = useState<LocalStep[]>([{ type: 'send', subject: '', body: '' }]);
+  const [steps, setSteps] = useState<LocalStep[]>([{ type: 'send', subject: '', content: emptyData }]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     newsletterClient.listTags().then((r) => setTags(r.items)).catch(() => undefined);
+    newsletterClient
+      .listCustomFields()
+      .then((r) => setCustomFields(r.items))
+      .catch(() => undefined);
     if (!isNew && id) {
-      newsletterClient.getAutomation(id).then((a) => {
-        setDetail(a);
-        setName(a.name);
-        setTriggerType(a.triggerType);
-        setTriggerTagIds(a.triggerTagIds);
-        setSteps(fromApiSteps(a.steps));
-      }).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+      newsletterClient
+        .getAutomation(id)
+        .then((a) => {
+          setDetail(a);
+          setName(a.name);
+          setTriggerType(a.triggerType);
+          setTriggerTagIds(a.triggerTagIds);
+          setSteps(fromApiSteps(a.steps));
+        })
+        .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
     }
   }, [id, isNew]);
 
@@ -112,6 +140,8 @@ export function AutomationBuilder(): React.ReactElement {
       </Alert>
     );
   }
+
+  const variables = newsletterVariables(customFields.map((f) => ({ key: f.key, label: f.label })));
 
   return (
     <div className="space-y-4">
@@ -176,69 +206,105 @@ export function AutomationBuilder(): React.ReactElement {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Steps</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {steps.map((step, idx) => (
-            <div key={idx} className="rounded border p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">
-                  {idx + 1}. {step.type === 'send' ? 'Send email' : 'Wait'}
-                </span>
-                {canWrite ? (
-                  <span className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => move(idx, -1)}>↑</Button>
-                    <Button variant="ghost" size="sm" onClick={() => move(idx, 1)}>↓</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setSteps((p) => p.filter((_, i) => i !== idx))}>✕</Button>
+      <EmailVariablesProvider variables={variables}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Steps</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {steps.map((step, idx) => (
+              <div key={idx} className="rounded border p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    {idx + 1}. {step.type === 'send' ? 'Send email' : 'Wait'}
                   </span>
-                ) : null}
+                  {canWrite ? (
+                    <span className="flex gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => move(idx, -1)}>
+                        ↑
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => move(idx, 1)}>
+                        ↓
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setSteps((p) => p.filter((_, i) => i !== idx))}>
+                        ✕
+                      </Button>
+                    </span>
+                  ) : null}
+                </div>
+                {step.type === 'send' ? (
+                  <>
+                    <EmailSubjectWithVariables
+                      value={step.subject}
+                      onChange={(subject) =>
+                        setSteps((p) => p.map((s, i) => (i === idx && s.type === 'send' ? { ...s, subject } : s)))
+                      }
+                      disabled={!canWrite}
+                      placeholder="Subject"
+                    />
+                    <EmailEditorPane
+                      editorKey={`automation:${id ?? 'new'}:step:${idx}`}
+                      data={step.content}
+                      onChange={(content) =>
+                        setSteps((p) => p.map((s, i) => (i === idx && s.type === 'send' ? { ...s, content } : s)))
+                      }
+                      builderContext="newsletter"
+                      {...(canWrite
+                        ? {
+                            onSaveAsTemplate: async (
+                              meta: { name: string; code: string },
+                              canvasData: Data,
+                            ) => {
+                              await saveCanvasAsEmailTemplate({
+                                ...meta,
+                                data: canvasData,
+                                languages: ['en-US'],
+                                activeLanguage: 'en-US',
+                              });
+                            },
+                          }
+                        : {})}
+                      onListTemplatesForApply={() => listEmailTemplatesForApply(null)}
+                      onResolveTemplateLayout={(templateId) => loadEmailTemplateCanvas(templateId, 'en-US')}
+                    />
+                  </>
+                ) : (
+                  <label className="flex items-center gap-2 text-sm">
+                    Wait
+                    <Input
+                      type="number"
+                      min={1}
+                      className="w-24"
+                      value={step.days}
+                      onChange={(e) =>
+                        setSteps((p) =>
+                          p.map((s, i) => (i === idx && s.type === 'wait' ? { ...s, days: Number(e.target.value) } : s)),
+                        )
+                      }
+                      disabled={!canWrite}
+                    />
+                    days
+                  </label>
+                )}
               </div>
-              {step.type === 'send' ? (
-                <>
-                  <Input
-                    placeholder="Subject"
-                    value={step.subject}
-                    onChange={(e) => setSteps((p) => p.map((s, i) => (i === idx && s.type === 'send' ? { ...s, subject: e.target.value } : s)))}
-                    disabled={!canWrite}
-                  />
-                  <Textarea
-                    placeholder="Email body"
-                    value={step.body}
-                    onChange={(e) => setSteps((p) => p.map((s, i) => (i === idx && s.type === 'send' ? { ...s, body: e.target.value } : s)))}
-                    rows={4}
-                    disabled={!canWrite}
-                  />
-                </>
-              ) : (
-                <label className="flex items-center gap-2 text-sm">
-                  Wait
-                  <Input
-                    type="number"
-                    min={1}
-                    className="w-24"
-                    value={step.days}
-                    onChange={(e) => setSteps((p) => p.map((s, i) => (i === idx && s.type === 'wait' ? { ...s, days: Number(e.target.value) } : s)))}
-                    disabled={!canWrite}
-                  />
-                  days
-                </label>
-              )}
-            </div>
-          ))}
-          {canWrite ? (
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setSteps((p) => [...p, { type: 'send', subject: '', body: '' }])}>
-                + Send email
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setSteps((p) => [...p, { type: 'wait', days: 1 }])}>
-                + Wait
-              </Button>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+            ))}
+            {canWrite ? (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSteps((p) => [...p, { type: 'send', subject: '', content: emptyData }])}
+                >
+                  + Send email
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setSteps((p) => [...p, { type: 'wait', days: 1 }])}>
+                  + Wait
+                </Button>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </EmailVariablesProvider>
     </div>
   );
 }

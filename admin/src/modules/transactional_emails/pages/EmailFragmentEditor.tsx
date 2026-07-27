@@ -10,6 +10,13 @@ import { Select } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/lib/auth';
 import { transactionalEmailsClient } from '../api/transactional-emails-client';
+import {
+  EmailVariablesProvider,
+  mergeEmailVariables,
+  saveCanvasAsEmailTemplate,
+  listEmailTemplatesForApply,
+  loadEmailTemplateCanvas,
+} from '@/modules/_shared/email-builder';
 import { EmailEditorPane } from '../components/EmailEditorPane';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
@@ -102,6 +109,17 @@ export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.R
       <PageHeader
         title={detail?.name ?? id}
         description={kind === 'block' ? 'Email block content' : 'Email template content'}
+        actions={
+          <SaveButtonGroup
+            onSave={() => void save()}
+            onSaveAndExit={() => void saveAndExit()}
+            saving={busy}
+            disabled={!canWrite}
+            saveLabel="Save"
+            savingLabel="Save"
+            saveAndExitLabel="Save and exit"
+          />
+        }
       />
       {error ? (
         <Alert variant="destructive">
@@ -129,24 +147,38 @@ export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.R
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Content</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <EmailEditorPane editorKey={`${kind}:${id}:${language}`} data={content} onChange={setContent} />
-        </CardContent>
-      </Card>
-
-      <SaveButtonGroup
-        onSave={() => void save()}
-        onSaveAndExit={() => void saveAndExit()}
-        saving={busy}
-        disabled={!canWrite}
-        saveLabel="Save"
-        savingLabel="Save"
-        saveAndExitLabel="Save and exit"
-      />
+      <EmailVariablesProvider variables={mergeEmailVariables([])}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Content</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <EmailEditorPane
+              editorKey={`${kind}:${id}:${language}`}
+              data={content}
+              onChange={setContent}
+              {...(canWrite
+                ? {
+                    onSaveAsTemplate: async (
+                      meta: { name: string; code: string },
+                      canvasData: Data,
+                    ) => {
+                      await saveCanvasAsEmailTemplate({
+                        ...meta,
+                        data: canvasData,
+                        salesChannelIds: [],
+                        languages: detail?.languages?.length ? detail.languages : [language || 'en-US'],
+                        activeLanguage: language || null,
+                      });
+                    },
+                  }
+                : {})}
+              onListTemplatesForApply={() => listEmailTemplatesForApply(null)}
+              onResolveTemplateLayout={(templateId) => loadEmailTemplateCanvas(templateId, language || null)}
+            />
+          </CardContent>
+        </Card>
+      </EmailVariablesProvider>
     </div>
   );
 }

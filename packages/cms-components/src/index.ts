@@ -68,6 +68,14 @@ export * from './components/ProductSlider.js';
 export * from './components/RawHtml.js';
 export * from './components/RawJs.js';
 export * from './components/RichContent.js';
+export { RichContentEditorField } from './components/RichContentEditorField.js';
+export {
+  coerceRichContentProps,
+  defaultRichContent,
+  htmlFromTiptap,
+  richContentExtensions,
+  sanitizeRichHtml,
+} from './components/rich-content-shared.js';
 export * from './components/Row.js';
 export * from './components/SimpleTable.js';
 export * from './components/Slide.js';

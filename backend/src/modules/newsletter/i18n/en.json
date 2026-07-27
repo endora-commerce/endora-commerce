@@ -17,6 +17,13 @@
       "tags": "Tags",
       "customFields": "Custom fields",
       "provider": "Sending provider"
+    },
+    "editor": {
+      "viewportDesktop": "Desktop mail (600px)",
+      "viewportNarrow": "Narrow (320px)",
+      "insertVariable": "Insert variable",
+      "variable": "Variable",
+      "livePreview": "Live HTML preview"
     }
   }
 }

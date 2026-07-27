@@ -56,6 +56,7 @@ import { ORGANIZATIONS_SETTING_CODES } from './modules/organizations/manifest.js
 import { ConsoleMailer } from './modules/email/services/mailer.js';
 import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
 import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
+import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
 import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import { returnsModule } from './modules/returns/plugin.js';
@@ -128,6 +129,7 @@ import { pwaSettingsManifest } from './modules/pwa/manifest.js';
 // Feature 047 — Transactional Emails.
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
 import { transactionalEmailsSettingsManifest } from './modules/transactional_emails/manifest.js';
+import type { BrandingService } from './modules/transactional_emails/services/branding.service.js';
 // Feature 048 — Newsletter.
 import { newsletterModule } from './modules/newsletter/plugin.js';
 import { newsletterSettingsManifest } from './modules/newsletter/manifest.js';
@@ -1010,6 +1012,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // other owning modules) read it via a getter; the transactional_emails module
   // sets it through exposeSender once built.
   let transactionalEmailSender: TransactionalEmailSender | undefined;
+  let emailBrandingService: BrandingService | undefined;
 
   // Feature 050 — establish the ambient TenantContext for every request from the
   // already-authenticated actor (never from request inputs). fp-wrapped and
@@ -1531,7 +1534,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     resolveAssetUrl: async (assetId) => {
       try {
-        return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
+        const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
+        return absolutizePublicUrl(resolved.url);
       } catch {
         return null;
       }
@@ -2147,13 +2151,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       settingsAdmin: settings.handle.adminService,
       resolveAssetUrl: async (assetId) => {
         try {
-          return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
+          const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
+          return absolutizePublicUrl(resolved.url);
         } catch {
           return null;
         }
       },
       exposeSender: (sender) => {
         transactionalEmailSender = sender;
+      },
+      exposeBranding: (branding) => {
+        emailBrandingService = branding;
       },
     }),
   );
@@ -2200,6 +2208,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         }),
       redis,
       runWorkers,
+      resolveEmailBranding: async (salesChannelId) => {
+        if (!emailBrandingService) {
+          return { logoUrl: '', accentColor: '#1f2937' };
+        }
+        const branding = await emailBrandingService.resolve(salesChannelId);
+        return { logoUrl: branding.logoUrl, accentColor: branding.accentColor };
+      },
     }),
   );
 

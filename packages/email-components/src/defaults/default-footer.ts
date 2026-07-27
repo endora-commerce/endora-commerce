@@ -1,31 +1,36 @@
-// Default email footer block content (feature 047, FR-020).
-//
-// Seeded as a system block (`default_email_footer`) and auto-inserted into new
-// emails. Authors edit it once to update every email that embeds it.
-
 import type { PuckDataTree } from '../schema/envelope.js';
 
 export const DEFAULT_FOOTER_BLOCK_CODE = 'default_email_footer';
 
+/**
+ * Shared TE + newsletter system footer.
+ * Newsletter send injects `unsubscribeUrl`; TE leaves the link empty when unset.
+ */
 export function defaultFooterTree(): PuckDataTree {
   return {
     root: { props: {} },
     content: [
       {
         type: 'EmailDivider',
-        props: { id: 'default-footer-divider' },
+        props: { id: 'default-footer-divider', thickness: 1, color: '#e5e7eb' },
       },
       {
-        type: 'EmailText',
+        type: 'EmailSpacer',
+        props: { id: 'default-footer-spacer-top', height: 12 },
+      },
+      {
+        type: 'EmailFooterLegal',
         props: {
-          id: 'default-footer-text',
-          text: 'You are receiving this email because of activity on your account.',
+          id: 'default-footer-legal',
+          text:
+            'You are receiving this email because of activity related to your account.\n' +
+            '<a href="{{var unsubscribeUrl}}">Unsubscribe</a>',
           align: 'center',
         },
       },
       {
         type: 'EmailSpacer',
-        props: { id: 'default-footer-spacer', height: 24 },
+        props: { id: 'default-footer-spacer-bottom', height: 24 },
       },
     ],
     zones: {},

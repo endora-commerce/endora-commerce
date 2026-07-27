@@ -17,6 +17,13 @@
       "tags": "Tagi",
       "customFields": "Pola dodatkowe",
       "provider": "Usługa wysyłki"
+    },
+    "editor": {
+      "viewportDesktop": "Mail desktop (600px)",
+      "viewportNarrow": "Wąski (320px)",
+      "insertVariable": "Wstaw zmienną",
+      "variable": "Zmienna",
+      "livePreview": "Podgląd HTML na żywo"
     }
   }
 }

@@ -1,28 +1,43 @@
 import { useEffect, useState, useCallback } from 'react';
-import type { NewsletterEmailBlockSummary } from '@b2b/contracts';
+import type { Data } from '@measured/puck';
+import type { NewsletterCustomField, NewsletterEmailBlockSummary } from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/lib/auth';
-import { newsletterClient, textContentTree } from '../api/newsletter-client';
+import {
+  EmailEditorPane,
+  EmailVariablesProvider,
+  listEmailTemplatesForApply,
+  loadEmailTemplateCanvas,
+  newsletterVariables,
+  saveCanvasAsEmailTemplate,
+} from '@/modules/_shared/email-builder';
+import { newsletterClient } from '../api/newsletter-client';
+
+const emptyData: Data = { root: { props: {} }, content: [] };
+
+function asData(content: unknown): Data {
+  if (!content || typeof content !== 'object') return emptyData;
+  return content as Data;
+}
 
 export function BlocksPage(): React.ReactElement {
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('newsletter:write');
   const [items, setItems] = useState<NewsletterEmailBlockSummary[]>([]);
+  const [customFields, setCustomFields] = useState<NewsletterCustomField[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [body, setBody] = useState('');
-  // Inline edit state for an existing block; null when the create form is shown.
+  const [createContent, setCreateContent] = useState<Data>(emptyData);
   const [edit, setEdit] = useState<{
     id: string;
     code: string;
     name: string;
-    body: string;
+    content: Data;
     active: boolean;
     version: number;
   } | null>(null);
@@ -34,20 +49,23 @@ export function BlocksPage(): React.ReactElement {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
   useEffect(() => load(), [load]);
+  useEffect(() => {
+    newsletterClient
+      .listCustomFields()
+      .then((r) => setCustomFields(r.items))
+      .catch(() => undefined);
+  }, []);
 
   const startEdit = useCallback((id: string): void => {
     setError(null);
     newsletterClient
       .getBlock(id)
       .then((b) => {
-        // The create form authors a single plain-text EmailText block; mirror
-        // that here by lifting the first text node back into the textarea.
-        const first = (b.content as { content?: Array<{ props?: { text?: string } }> }).content?.[0];
         setEdit({
           id: b.id,
           code: b.code,
           name: b.name,
-          body: first?.props?.text ?? '',
+          content: asData(b.content),
           active: b.active,
           version: b.version,
         });
@@ -73,6 +91,8 @@ export function BlocksPage(): React.ReactElement {
     );
   }
 
+  const variables = newsletterVariables(customFields.map((f) => ({ key: f.key, label: f.label })));
+
   return (
     <div className="space-y-4">
       <PageHeader title="Newsletter — Email blocks" description="Reusable email-safe blocks (e.g. header / footer)." />
@@ -81,82 +101,120 @@ export function BlocksPage(): React.ReactElement {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {canWrite && edit ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Edit block</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Input value={edit.code} readOnly disabled className="max-w-sm font-mono" />
-            <Input
-              placeholder="name"
-              value={edit.name}
-              onChange={(e) => setEdit((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
-              className="max-w-sm"
-            />
-            <Textarea
-              placeholder="Block content (plain text)"
-              value={edit.body}
-              onChange={(e) => setEdit((prev) => (prev ? { ...prev, body: e.target.value } : prev))}
-              rows={4}
-            />
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={edit.active}
-                onChange={(e) => setEdit((prev) => (prev ? { ...prev, active: e.target.checked } : prev))}
+      <EmailVariablesProvider variables={variables}>
+        {canWrite && edit ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Edit block</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Input value={edit.code} readOnly disabled className="max-w-sm font-mono" />
+              <Input
+                placeholder="name"
+                value={edit.name}
+                onChange={(e) => setEdit((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+                className="max-w-sm"
               />
-              Active
-            </label>
-            <div className="flex gap-2">
+              <EmailEditorPane
+                editorKey={`nl-block:${edit.id}`}
+                data={edit.content}
+                onChange={(data) => setEdit((prev) => (prev ? { ...prev, content: data } : prev))}
+                builderContext="newsletter"
+                {...(canWrite
+                  ? {
+                      onSaveAsTemplate: async (
+                        meta: { name: string; code: string },
+                        canvasData: Data,
+                      ) => {
+                        await saveCanvasAsEmailTemplate({
+                          ...meta,
+                          data: canvasData,
+                          languages: ['en-US'],
+                          activeLanguage: 'en-US',
+                        });
+                      },
+                    }
+                  : {})}
+                onListTemplatesForApply={() => listEmailTemplatesForApply(null)}
+                onResolveTemplateLayout={(templateId) => loadEmailTemplateCanvas(templateId, 'en-US')}
+              />
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={edit.active}
+                  onChange={(e) => setEdit((prev) => (prev ? { ...prev, active: e.target.checked } : prev))}
+                />
+                Active
+              </label>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    void run(async () => {
+                      await newsletterClient.updateBlock(edit.id, {
+                        name: edit.name,
+                        content: edit.content as Record<string, unknown>,
+                        active: edit.active,
+                        expectedVersion: edit.version,
+                      });
+                      setEdit(null);
+                    })
+                  }
+                >
+                  Save changes
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setEdit(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+        {canWrite && !edit ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>New block</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Input placeholder="code (e.g. promo_footer)" value={code} onChange={(e) => setCode(e.target.value)} className="max-w-sm" />
+              <Input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} className="max-w-sm" />
+              <EmailEditorPane
+                editorKey={`nl-block:new:${code || 'draft'}`}
+                data={createContent}
+                onChange={setCreateContent}
+                builderContext="newsletter"
+                onSaveAsTemplate={async (meta, canvasData) => {
+                  await saveCanvasAsEmailTemplate({
+                    ...meta,
+                    data: canvasData,
+                    languages: ['en-US'],
+                    activeLanguage: 'en-US',
+                  });
+                }}
+                onListTemplatesForApply={() => listEmailTemplatesForApply(null)}
+                onResolveTemplateLayout={(templateId) => loadEmailTemplateCanvas(templateId, 'en-US')}
+              />
               <Button
                 size="sm"
                 onClick={() =>
                   void run(async () => {
-                    await newsletterClient.updateBlock(edit.id, {
-                      name: edit.name,
-                      content: textContentTree(edit.body),
-                      active: edit.active,
-                      expectedVersion: edit.version,
+                    await newsletterClient.createBlock({
+                      code,
+                      name,
+                      content: createContent as Record<string, unknown>,
                     });
-                    setEdit(null);
+                    setCode('');
+                    setName('');
+                    setCreateContent(emptyData);
                   })
                 }
               >
-                Save changes
+                Create block
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setEdit(null)}>
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-      {canWrite && !edit ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>New block</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Input placeholder="code (e.g. promo_footer)" value={code} onChange={(e) => setCode(e.target.value)} className="max-w-sm" />
-            <Input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} className="max-w-sm" />
-            <Textarea placeholder="Block content (plain text)" value={body} onChange={(e) => setBody(e.target.value)} rows={4} />
-            <Button
-              size="sm"
-              onClick={() =>
-                void run(async () => {
-                  await newsletterClient.createBlock({ code, name, content: textContentTree(body) });
-                  setCode('');
-                  setName('');
-                  setBody('');
-                })
-              }
-            >
-              Create block
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
+      </EmailVariablesProvider>
       <Card>
         <CardContent className="p-0">
           <table className="w-full text-sm">
@@ -174,7 +232,7 @@ export function BlocksPage(): React.ReactElement {
                 <tr key={b.id} className="border-b last:border-0 hover:bg-muted/40">
                   <td className="p-3 font-mono text-xs">{b.code}</td>
                   <td className="p-3">{b.name}</td>
-                  <td className="p-3">{b.active ? 'Yes' : 'No'}</td>
+                  <td className="p-3">{b.active ? 'Yes' : '—'}</td>
                   <td className="p-3">{b.isSystem ? 'Yes' : '—'}</td>
                   {canWrite ? (
                     <td className="p-3">

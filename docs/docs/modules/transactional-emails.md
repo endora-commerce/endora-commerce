@@ -24,9 +24,11 @@ substitutes at send time.
   `transactional_email_contents`. Resolution at send time is
   **per-channel → global → module default**, with a fallback to the channel's
   default language. Absence of a row means "fall back"; **Reset** deletes it.
-- **Blocks & Templates** — reusable email-safe fragments embedded by `code`
-  (`EmailInsertBlock` / `EmailInsertTemplate`). The seeded system blocks
-  `default_email_header` (renders the branding logo) and `default_email_footer`
+- **Blocks & Templates** — reusable email-safe fragments. Blocks are embedded by
+  `code` via `EmailInsertBlock`. Email templates remain a separate admin list
+  (apply/save outside the canvas); `EmailInsertTemplate` is withdrawn from the
+  palette (legacy trees still render). The seeded system blocks
+  `default_email_header` (renders branding via `EmailLogo` / `{{var branding.logoUrl}}`) and `default_email_footer`
   are auto-included in the default content.
 - **Branding** — header logo, accent color, and the default header/footer block
   codes, resolved per scope through the Settings module
@@ -36,7 +38,40 @@ substitutes at send time.
   `{{var path}}`, `{{if path}}…{{/if}}`, `{{for alias in list}}…{{/for}}`. Values
   are HTML-escaped in the HTML body and raw in the plain-text alternative. A
   missing value resolves to empty — an email is never sent with an unresolved
-  `{{…}}` and a missing variable never fails a send.
+  `{{…}}` and a missing variable never fails a send. The admin editor exposes an
+  **Insert variable** picker (subject, plain text fields, and rich text toolbar)
+  fed by the email's declared variables plus branding keys.
+
+## Email editor
+
+The transactional (and newsletter) editors share `EmailEditorPane`:
+
+- Email-safe Puck palette from `@b2b/email-components` (no CMS breakpoints /
+  responsive stacking). **Row** opens a column-layout picker (1–6 columns) like
+  CMS; columns use a fixed table at send time and the CMS 12-col grid on the
+  canvas. **Column** is not listed in the palette (only inside Row). **Table** is
+  the data grid (headers + rows, like CMS SimpleTable).
+- The canvas is fixed at mail width (**600px**), with an Outline panel like CMS.
+  Use **Preview email** for a modal HTML render with sample variable data and
+  **Desktop mail (600px)** / **Narrow (320px)** options (fluid `max-width:600px`
+  shell so narrow preview does not overflow).
+  **Save as template** / **Apply template** reuse the CMS header actions against
+  transactional email templates (`email_templates`).
+- `EmailLogo` shows the branding logo (no URL field). `EmailImage` supports URL or
+  asset library, same as CMS. Color fields use the shared CMS color palette.
+  Branding logo in Settings (`*_asset_id`) uses the Assets Library picker.
+- `EmailRichText` reuses the CMS Rich Content TipTap editor (plus Variable).
+- `EmailProductCard` picks a catalog product; `EmailOrderSummary` is column/totals
+  toggles and appears in the palette only when the email declares `order.items`
+  (today: **Order confirmation** only). Order confirmation also exposes labeled
+  detail blocks: Order ID, Billing/Shipping address, Summary, Applied discounts,
+  Delivery method, Payment method (each gated on its template variable).
+- Content blocks include layout (`EmailSection`, `EmailRow`/`EmailColumn`, table,
+  spacer, divider),
+  copy (`EmailText`, `EmailRichText`, headings, callout, footer/legal), media
+  (`EmailImage`, `EmailLogo`), commerce (`EmailProductCard`, `EmailOrderSummary`
+  and the order detail blocks above), `EmailSocial` (icons + labels + per-link
+  enable), and `EmailInsertBlock`.
 
 ## Rendering
 
@@ -44,6 +79,8 @@ Rendering is performed **server-side** by the first-party `@b2b/email-components
 package (React-free): the Puck content tree is walked and emitted as
 table-based, inline-styled, email-client-safe HTML plus a plain-text
 alternative. The admin editor reuses the same email-safe component palette.
+`EmailRichText` HTML is whitelist-sanitized (`p/strong/em/u/a/ul/ol/li/br`)
+before send; directive markers in text are preserved.
 
 ## Registering an email from a module
 

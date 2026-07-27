@@ -97,10 +97,15 @@ export const manifest = defineModuleManifest({
         { key: 'order.shippingLine', label: 'Delivery method line', sampleValue: 'Courier — 15.00 PLN' },
         { key: 'order.paymentLine', label: 'Payment method line', sampleValue: 'Card (+5.00 PLN)' },
         { key: 'order.discountsText', label: 'Applied discounts', sampleValue: '  none' },
-        { key: 'order.summaryText', label: 'Order summary', sampleValue: '  Total: 1 230,00 PLN' },
+        {
+          key: 'order.summaryText',
+          label: 'Order summary',
+          sampleValue:
+            '  Subtotal: 99.99 PLN\n  Tax: 23.00 PLN\n  Delivery: 15.00 PLN\n  Total: 137.99 PLN',
+        },
         { key: 'order.shippingAddressText', label: 'Shipping address', sampleValue: '  Anna Nowak\n  ul. Główna 1' },
         { key: 'order.billingAddressText', label: 'Billing address', sampleValue: '  Acme Sp. z o.o.' },
-        { key: 'order.items', label: 'Order line items (list)' },
+        { key: 'order.items', label: 'Order line items (list)', sampleValue: '[{"name":"Widget A","sku":"W-A","quantity":2,"price":"120,00 PLN"},{"name":"Widget B","sku":"W-B","quantity":1,"price":"990,00 PLN"}]' },
       ],
     },
     {

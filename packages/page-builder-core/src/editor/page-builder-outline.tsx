@@ -16,7 +16,7 @@ let activeOutlineDrag: OutlineDropPayload | null = null;
 
 function outlineTypeIcon(type: string): string {
   if (type === 'Row') return '▦';
-  if (type === 'Column') return '▥';
+  if (type === 'Column' || type === 'EmailColumn') return '▥';
   return '▪';
 }
 
@@ -42,7 +42,11 @@ function OutlineItem({ item, depth }: { item: PuckItem; depth: number }): ReactE
   const isSelected = selectedId === itemId;
   const nested = collectChildItems(item.props);
   const columnSpan =
-    item.type === 'Column' && typeof item.props.span === 'number' ? ` · ${item.props.span}/12` : '';
+    item.type === 'Column' || item.type === 'EmailColumn'
+      ? typeof item.props.span === 'number'
+        ? ` · ${item.props.span}/12`
+        : ''
+      : '';
 
   const selectItem = (): void => {
     if (isSelected) {
@@ -118,7 +122,7 @@ function OutlineItem({ item, depth }: { item: PuckItem; depth: number }): ReactE
 
   return (
     <li
-      className={`pb-outline-item ${item.type === 'Column' ? 'pb-outline-item--column' : ''} ${isSelected ? 'pb-outline-item--selected' : ''} ${isDragging ? 'pb-outline-item--dragging' : ''} ${dropBefore ? 'pb-outline-item--drop-before' : ''}`}
+      className={`pb-outline-item ${item.type === 'Column' || item.type === 'EmailColumn' ? 'pb-outline-item--column' : ''} ${isSelected ? 'pb-outline-item--selected' : ''} ${isDragging ? 'pb-outline-item--dragging' : ''} ${dropBefore ? 'pb-outline-item--drop-before' : ''}`}
       style={{ '--pb-outline-depth': depth } as React.CSSProperties}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
