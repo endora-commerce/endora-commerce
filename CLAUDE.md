@@ -154,6 +154,17 @@ Every new module with admin routes gated by `requireAdmin(...)` **must** registe
 
 Do not duplicate shared codes from core `PERMISSION_CATALOGUE` (`packages/contracts/src/admin.ts`). Contract: `specs/026-admin-roles-permissions/contracts/module-manifest-permissions.md`.
 
+### New backend module — command palette (required, Principle XVI)
+
+Every module with an admin surface **must** be discoverable under ⌘K / CTRL+K. Sidebar-only is not enough.
+
+1. **`manifest.ts`** — `actions: [{ id, labelKey, descriptionKey, icon, targetRoute, requiredPermission, keywords, weight }]` for the module's landing surface plus its few highest-value operator actions. Curate — this is a discovery surface, not a route dump.
+2. **`requiredPermission`** — the code gating the surface the entry routes to, so the palette never advertises a 403.
+3. **i18n** — the `labelKey` / `descriptionKey` are **relative to the module namespace** (`actions.openX.label`, not `<module>.actions.openX.label`) and live in the module's own `i18n/en.json` + `pl.json`. Those files must be a **flat** `{"a.b.c": "text"}` map — a nested object fails `TranslationBundleEntriesSchema`, and the boot reconciler only logs and skips it, so the palette silently renders raw keys.
+4. **`icon`** — must be in `KnownIconNameSchema` (`packages/contracts/src/admin-actions.ts`); adding a name there requires the matching entry in `admin/src/lib/admin-actions/icon-map.ts` in the same PR.
+5. **`targetRoute`** — a real admin route (no query string; the route regex rejects one). Deep-link actions need an actual route, e.g. `/credentials/new`.
+6. **CI** — `pnpm --filter backend exec vitest run test/unit/_i18n/registered-bundles-shape.test.ts` verifies every registered module's real on-disk bundles load and that every manifest action key resolves in every shipped language.
+
 ### Overlay modules (per-deployment customization, feature 057)
 
 A **client-only overlay module** lives under `backend/src/apps/<deployment>/modules/<id>/` and is discovered without editing the shared core registry (`REGISTERED_MANIFESTS` stays untouched — FR-004). It is an ordinary lifecycle participant, so the same rules apply, with one difference: its admin permissions must appear on `/admin-roles` and pass the permission-inventory check **for that deployment** — run the inventory test with `DEPLOYMENT=<name>` set. Overriding a core **service** requires the core service to expose a `*.interface.ts`; the overlay `implements` it via the `@core/*` alias so `tsc` is the contract gate. Never override a core entity/migration (schema overrides are out of v1) — ship new schema as tables owned by the overlay module. See `docs/docs/architecture/overlay-pattern.md` and `specs/057-overlay-pattern-multideploy/`.

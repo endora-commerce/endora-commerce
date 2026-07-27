@@ -1,34 +1,31 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 3.7.0 → 3.8.0
-Rationale: MINOR bump. A new principle — XV (Untouched Core & Per-Deployment
-Overlay) — is added, codifying the architectural stance from the
-057-overlay-pattern-multideploy feature. The platform is a multi-deployment
-product (one codebase, many client installations). Per-deployment customization
-MUST go through a per-deployment overlay location whose files shadow/extend
-their core equivalents, resolved deterministically at build/composition time —
-never by editing a file under the core modules tree or forking. The core stays
-deployment-agnostic and the bare-core build MUST keep working unchanged.
-Overriding a core unit is contract-gated: the unit exposes a documented
-interface an overlay MUST satisfy, checked at build time, so contract drift is a
-build failure, not a runtime surprise. Conflicting overrides fail the build
-(never silent last-wins); every build emits an override manifest so a
-deployment's divergence from core is auditable. Overlay modules are ordinary
-lifecycle participants that register without editing the shared core registry,
-declare their permissions, and run under the same tenant (XI), channel (XII),
-and Command-Bus (XIII) guards. The v1 overridable surface is services, routes,
-config, and whole new modules; schema/entity/migration overrides are out of
-scope until a deployment demands them, and resolution adds no new runtime
-dependency. A new principle is added (not a redefinition or removal), so the
-versioning policy mandates a MINOR bump.
+Version change: 3.8.0 → 3.9.0
+Rationale: MINOR bump. A new principle — XVI (Module Discoverability in the
+Admin Command Palette) — is added. A module that ships an admin surface is not
+finished when its routes work: an operator must be able to *find* it. The
+platform already has one authoritative discovery mechanism — the ⌘K / CTRL+K
+command palette, whose Actions group is sourced from module manifests (feature
+020). Nothing required a module to use it, so discoverability drifted module by
+module: `credentials` shipped with no palette presence at all, and
+`google_analytics` / `newsletter` declared actions whose labels rendered as raw
+translation keys because their translation bundles silently failed to install.
+The principle makes the palette contract binding: every module with an admin
+surface MUST declare a palette entry for its primary landing surface plus its
+few highest-value operator actions, in its own manifest; entries MUST be
+permission-gated, MUST resolve their labels from the module's own translation
+bundle in every supported language, and MUST route to a real admin route. A
+module MUST NOT be discoverable only through the sidebar. A new principle is
+added (not a redefinition or removal), so the versioning policy mandates a
+MINOR bump.
 
 Modified principles:
   - (none renamed/redefined)
 
 Added sections:
-  - XV. Untouched Core & Per-Deployment Overlay — new principle.
-  - Quality gate #14 (Per-deployment overlay customization) in Development Workflow.
+  - XVI. Module Discoverability in the Admin Command Palette — new principle.
+  - Quality gate #15 (Command-palette discoverability) in Development Workflow.
 
 Removed sections:
   - (none)
@@ -38,21 +35,22 @@ Templates / artifacts requiring alignment:
        generic; no edits required.
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
-  - ✅ README.md — added Principle XV quick-reference note (point 15) and
-       extended the PR-gates paragraph.
-  - ✅ .github/pull_request_template.md — added gate #14 (per-deployment overlay
-       customization) and refreshed the gate-count comment.
+  - ✅ README.md — added Principle XVI quick-reference note (point 16).
+  - ✅ .github/pull_request_template.md — added gate #15 (command-palette
+       discoverability) and refreshed the gate-count sentence.
+  - ✅ CLAUDE.md — extended the "New backend module" checklist with the
+       manifest `actions:` + palette-entry requirement.
 
 Deferred items / TODOs:
-  - Principle XV composes with the existing guards rather than adding a new
-    mechanism: an override swaps an implementation, never a guard seam, so
-    tenant isolation (XI), channel scoping (XII), and Command-Bus auditing (XIII)
-    hold unchanged for overlay code. Resolution reuses the existing filesystem-
-    scan + codegen pattern (feature 018) and the TypeScript compiler API already
-    present as a devDependency — no new runtime dependency (Principle IV).
-    Schema/entity/migration overrides are deferred; a deployment needing new
-    schema ships it as a client-only overlay module that owns its own tables.
+  - Principle XVI adds no mechanism: the manifest `actions:` field, the
+    boot-time reconciler, the `module_actions` table, and the permission
+    filter all already exist (feature 020-admin-search-actions). The principle
+    only makes their use mandatory and names the failure modes that made
+    discoverability drift (missing declaration, unresolved label key,
+    ungated entry, dead route).
 
+  (History) 3.7.0 → 3.8.0 added Principle XV + quality gate #14 (untouched core
+    & per-deployment overlay, feature 057-overlay-pattern-multideploy).
   (History) 3.6.0 → 3.7.0 added Principle XIV + quality gate #13
     (entity-agnostic extensibility & runtime custom fields, feature
     055-custom-fields-layer).
@@ -641,6 +639,52 @@ adds no runtime dependency. The bounded v1 surface (services / routes / config /
 schema deferred) keeps the mechanism minimal until a real deployment need justifies more.
 Introduced by feature `057-overlay-pattern-multideploy`.
 
+### XVI. Module Discoverability in the Admin Command Palette
+
+A module that ships an admin surface MUST make itself **discoverable through the admin command
+palette** (⌘K / CTRL+K), declared in its **own manifest** — never only through the sidebar and
+never by an operator having to know the URL. The following are binding for every module with at
+least one admin route:
+
+- **Every admin module declares palette entries.** The module manifest MUST declare an
+  `actions:` entry for its **primary landing surface** (its "open X" navigation entry) plus the
+  **few highest-value operator actions** for that module — the things an operator does often
+  enough to want a keystroke (e.g. "New credential configuration", "Import products"). Palette
+  entries are declared **by the module that owns them**, so adding a module never means editing a
+  shared, hand-maintained palette list — the same registry discipline Principle I applies to module
+  wiring and Principle XV to overlay registration.
+- **Curated, not exhaustive.** This is a discovery surface, not a sitemap. A module MUST NOT
+  enumerate every route it owns; declare the landing surface and the operator actions that earn
+  their place. Principle IV governs the count — when in doubt, fewer.
+- **Permission-gated.** Every entry MUST carry the permission code that gates the surface it
+  routes to, so the palette shows an operator only what they may actually reach. An ungated entry
+  that navigates into a `requireAdmin(...)` surface is a defect: it advertises a capability the
+  operator does not have and turns discovery into a 403.
+- **Labels resolve in every supported language.** Entry labels and descriptions MUST come from the
+  module's **own translation bundle** (Principle VIII's scope), MUST resolve in **every supported
+  admin language**, and MUST be covered by an automated check. A palette entry rendering a raw
+  translation key is a defect, not a cosmetic issue — and because bundle installation is
+  load-and-skip-on-error, a malformed bundle fails **silently**, so the check MUST verify the real
+  on-disk bundles rather than trusting that boot logged nothing.
+- **Entries point at live routes.** Every `targetRoute` MUST resolve to a real admin route. A
+  module MUST NOT ship an entry for a route that does not exist, nor leave an entry behind when its
+  route is removed — a dead palette entry is worse than no entry.
+
+**Rationale**: Module surfaces are useless if operators cannot find them, and this platform has
+many modules. The command palette is the one authoritative discovery mechanism, and the mechanism
+already exists — manifest-declared actions, a boot-time reconciler, a `module_actions` table, and a
+permission filter (feature `020-admin-search-actions`). What was missing was the *obligation* to use
+it, so discoverability drifted per module: `credentials` shipped with no palette presence at all,
+and `google_analytics` / `newsletter` declared correct actions whose labels rendered as raw keys
+because their translation bundles were the wrong shape and failed to install with only a log line.
+Both failures are invisible to every existing gate — the routes work, the types check, the tests
+pass — which is exactly the kind of drift a constitutional principle exists to stop. Making the
+palette contract binding costs a module roughly ten lines of manifest and four translation keys,
+and it composes with the guards already in place rather than adding a mechanism: entries carry the
+same permission codes `requireAdmin` enforces, labels live in the same per-module bundles Principle
+VIII governs, and overlay modules (Principle XV) declare their entries the same way core modules
+do. Introduced after the `credentials` / `google_analytics` / `newsletter` palette regressions.
+
 ## Technology Stack
 
 The following stack is mandated. Substitutions require amending this
@@ -753,7 +797,7 @@ deployment technique is an operational choice, not a constitutional one.
 
 ## Development Workflow & Quality Gates
 
-Every change MUST pass the following gates before merge:
+Every change MUST pass the following fifteen gates before merge:
 
 1. **Constitution Check** — the `/speckit.plan` Constitution Check block
    MUST be completed and MUST show no unjustified violations.
@@ -829,6 +873,15 @@ Every change MUST pass the following gates before merge:
     registration / the per-deployment permission-inventory check, or that bypasses the tenant (XI),
     channel (XII), or Command-Bus (XIII) guards; or a schema / entity / migration override of an
     existing core unit (out of scope) rather than a client-only overlay module owning its own tables.
+15. **Command-palette discoverability** — reviewers MUST reject any change that violates Principle
+    XVI: a module that ships an admin surface but declares no palette entry in its own manifest (or
+    is reachable only from the sidebar); a palette entry added to a shared hand-maintained list
+    instead of the owning module's manifest; an entry that omits the permission code gating the
+    surface it routes to; an entry whose label or description does not resolve in every supported
+    admin language, or whose module translation bundle is not covered by the automated on-disk
+    bundle check; or an entry pointing at a route that does not exist (including one left behind
+    when its route was removed). Exhaustive route dumps are a violation too — declare the landing
+    surface plus the operator actions that earn a keystroke (Principle IV).
 
 Code review MUST explicitly verify each of the above. "LGTM" without
 evidence of checking the gates is not an approval.
@@ -867,4 +920,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 3.8.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-20
+**Version**: 3.9.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-27
