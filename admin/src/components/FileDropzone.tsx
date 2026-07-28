@@ -8,10 +8,13 @@ export function FileDropzone({
   onFile,
   accept = '.csv,.xlsx',
   label = 'Drag a CSV or Excel file here, or click to choose',
+  selectedLabel,
 }: {
   onFile: (filename: string, contentBase64: string) => void;
   accept?: string;
   label?: string;
+  /** Rendered instead of `label` once a file is chosen. Defaults to `Selected: <name>`. */
+  selectedLabel?: (filename: string) => string;
 }): ReactNode {
   const inputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState<string | null>(null);
@@ -52,7 +55,7 @@ export function FileDropzone({
         role="button"
         tabIndex={0}
       >
-        {name ? `Selected: ${name}` : label}
+        {name ? (selectedLabel ? selectedLabel(name) : `Selected: ${name}`) : label}
       </div>
       <input
         ref={inputRef}
