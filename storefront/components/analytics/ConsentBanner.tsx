@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { GaStorefrontConfig } from '@b2b/contracts';
 import { updateAnalyticsConsent } from '../../lib/analytics/gtag';
+import { broadcastConsent } from '../../lib/analytics/consent';
 
 const STORAGE_KEY = 'ga-consent';
 
@@ -44,6 +45,9 @@ export function ConsentBanner({
       // Private mode / storage disabled — apply the choice for this session only.
     }
     updateAnalyticsConsent(granted);
+    // Every ad platform reads one decision — announce it so a platform that was
+    // blocked at first render starts (or stays off) without a reload.
+    broadcastConsent(granted);
     setOpen(false);
   }
 

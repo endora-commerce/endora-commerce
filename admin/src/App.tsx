@@ -16,6 +16,8 @@ import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
 import { AnalyticsPage } from './modules/analytics/AnalyticsPage.js';
 import { CustomEventsListPage } from './modules/google_analytics/pages/CustomEventsListPage.js';
 import { CustomEventEditPage } from './modules/google_analytics/pages/CustomEventEditPage.js';
+import { ConversionMappingsListPage } from './modules/linkedin_ads/pages/ConversionMappingsListPage.js';
+import { ConversionMappingEditPage } from './modules/linkedin_ads/pages/ConversionMappingEditPage.js';
 import { ImportExportPage } from './modules/import_export/ImportExportPage.js';
 import { SeoPage } from './modules/seo/SeoPage.js';
 import { DictionaryPage } from './modules/dictionaries/DictionaryPage.js';
@@ -253,6 +255,9 @@ export function App(): ReactNode {
         <Route path="/google-analytics" element={<CustomEventsListPage />} />
         <Route path="/google-analytics/new" element={<CustomEventEditPage />} />
         <Route path="/google-analytics/:id" element={<CustomEventEditPage />} />
+        <Route path="/linkedin-ads" element={<ConversionMappingsListPage />} />
+        <Route path="/linkedin-ads/new" element={<ConversionMappingEditPage />} />
+        <Route path="/linkedin-ads/:id" element={<ConversionMappingEditPage />} />
         <Route path="/import-export" element={<ImportExportPage />} />
         <Route path="/seo" element={<SeoPage />} />
         <Route path="/dictionary" element={<DictionaryPage />} />

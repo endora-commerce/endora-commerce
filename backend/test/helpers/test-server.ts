@@ -62,6 +62,7 @@ import { transactionalEmailsModule } from '../../src/modules/transactional_email
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
 import { googleAnalyticsModule } from '../../src/modules/google_analytics/plugin.js';
+import { linkedInAdsModule } from '../../src/modules/linkedin_ads/plugin.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
   ORDER_COMMENT_DEFAULT,
@@ -1940,6 +1941,19 @@ export async function setupBackendServer(
           return items.find((c) => c.id === id)?.code ?? null;
         },
       },
+      resolveAuditContext: (req) => ({
+        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+    }),
+  );
+
+  // Feature 063 — LinkedIn Ads. Config + mapping CRUD are fully exercised.
+  modules.push(
+    linkedInAdsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin: requireTestAdmin(permissionService),
       resolveAuditContext: (req) => ({
         actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
       }),
