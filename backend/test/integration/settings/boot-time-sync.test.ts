@@ -14,11 +14,10 @@ import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales
  * data and never overwrite admin-chosen `setting_values`. The reconciler is
  * the function `composeApp()` calls before HTTP routes start serving (T024).
  *
- * The fixture deliberately uses a group code no shipped module owns. It used to
- * claim `sales_channels`, which only worked while that module's real manifest
- * happened not to have been reconciled into the test database — once it was,
- * the fixture hit GroupCodeConflict, because a group belongs to exactly one
- * owner module.
+ * The fixture deliberately uses a group code no shipped module owns. It used
+ * to claim `sales_channels`, which only worked while the test harness happened
+ * not to reconcile that module's real manifest — once it did, the fixture hit
+ * GroupCodeConflict because a group belongs to exactly one owner module.
  */
 describe('boot-time manifest sync (T019)', () => {
   let db: TestDb;
