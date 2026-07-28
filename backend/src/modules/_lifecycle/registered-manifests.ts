@@ -39,6 +39,7 @@ import { manifest as newsletterManifest } from '../newsletter/manifest.js';
 // Feature 049 — Google Analytics (GA4 integration + custom events + server-side tagging).
 import { manifest as googleAnalyticsManifest } from '../google_analytics/manifest.js';
 import { manifest as linkedInAdsManifest } from '../linkedin_ads/manifest.js';
+import { manifest as metaAdsManifest } from '../meta_ads/manifest.js';
 // Feature 049 — Stripe payment gateway.
 import { manifest as stripeManifest } from '../stripe/manifest.js';
 // Feature 055 — Custom Fields Layer (entity-agnostic runtime fields).
@@ -160,6 +161,8 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: googleAnalyticsManifest, filePath: pathFor('google_analytics') },
   // Feature 063 — LinkedIn Ads module.
   { manifest: linkedInAdsManifest, filePath: pathFor('linkedin_ads') },
+  // Feature 064 — Meta Ads module.
+  { manifest: metaAdsManifest, filePath: pathFor('meta_ads') },
   // Feature 049 — Stripe payment gateway module.
   { manifest: stripeManifest, filePath: pathFor('stripe') },
   // Feature 055 — Custom Fields Layer module.

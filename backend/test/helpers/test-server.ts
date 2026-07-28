@@ -63,6 +63,7 @@ import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/se
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
 import { googleAnalyticsModule } from '../../src/modules/google_analytics/plugin.js';
 import { linkedInAdsModule } from '../../src/modules/linkedin_ads/plugin.js';
+import { metaAdsModule } from '../../src/modules/meta_ads/plugin.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
   ORDER_COMMENT_DEFAULT,
@@ -1951,6 +1952,19 @@ export async function setupBackendServer(
   // Feature 063 — LinkedIn Ads. Config + mapping CRUD are fully exercised.
   modules.push(
     linkedInAdsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin: requireTestAdmin(permissionService),
+      resolveAuditContext: (req) => ({
+        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+    }),
+  );
+
+  // Feature 064 — Meta Ads. Config + custom-event CRUD are fully exercised.
+  modules.push(
+    metaAdsModule({
       emFactory: em,
       settings: settings.handle.settingsService,
       requireAdmin: requireTestAdmin(permissionService),

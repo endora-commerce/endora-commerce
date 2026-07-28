@@ -140,6 +140,8 @@ import { newsletterModule } from './modules/newsletter/plugin.js';
 import { googleAnalyticsModule } from './modules/google_analytics/plugin.js';
 // Feature 063 — LinkedIn Ads.
 import { linkedInAdsModule } from './modules/linkedin_ads/plugin.js';
+// Feature 064 — Meta Ads.
+import { metaAdsModule } from './modules/meta_ads/plugin.js';
 import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
@@ -2417,6 +2419,29 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }),
   );
 
+  // Feature 064 — Meta Ads. Per-channel Meta Pixel + custom event mappings.
+  modules.push(
+    metaAdsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin,
+      resolveAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+      onSettingChanged: (handler) =>
+        eventBus.on('settings.value_changed', (payload) =>
+          handler((payload as unknown as { settingCode: string }).settingCode),
+        ),
+      ...(process.env['STOREFRONT_BASE_URL']
+        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
+        : {}),
+      ...(process.env['REVALIDATE_SECRET']
+        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
+        : {}),
+    }),
+  );
+
   // Shopping lists / quick order — depends on the RFQ service built above
   // so the "convert to RFQ" flow goes through the new createForCustomer API.
   modules.push(
@@ -2588,7 +2613,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Derived from the module registry, not hand-listed: a module that declared
   // `settings:` but was forgotten in a literal array never got its rows, so
   // /settings silently omitted it (see collectRegisteredSettingsManifests).
-  // linkedin_ads needs no entry here — registering its manifest is enough.
+  // linkedin_ads / meta_ads need no entry here — registering their manifests
+  // is enough.
   const settingsManifests: ModuleSettingsManifest[] =
     collectRegisteredSettingsManifests();
   const reconcilerEm = em();

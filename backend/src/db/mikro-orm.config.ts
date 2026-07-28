@@ -117,6 +117,7 @@ import { Migration104OrderPlacementIntents } from '../modules/orders/migrations/
 import { Migration105WebhooksOrgFilter } from '../modules/webhooks/migrations/105_webhooks_org_filter.js';
 import { Migration106DropExternalIntegrations } from '../modules/webhooks/migrations/106_drop_external_integrations.js';
 import { Migration107LinkedinAdsInit } from '../modules/linkedin_ads/migrations/107_linkedin_ads_init.js';
+import { Migration108MetaAdsInit } from '../modules/meta_ads/migrations/108_meta_ads_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -544,6 +545,10 @@ export default defineConfig({
       {
         name: 'Migration107LinkedinAdsInit',
         class: Migration107LinkedinAdsInit,
+      },
+      {
+        name: 'Migration108MetaAdsInit',
+        class: Migration108MetaAdsInit,
       },
     ],
     transactional: true,
