@@ -18,6 +18,8 @@ import { CustomEventsListPage } from './modules/google_analytics/pages/CustomEve
 import { CustomEventEditPage } from './modules/google_analytics/pages/CustomEventEditPage.js';
 import { ConversionMappingsListPage } from './modules/linkedin_ads/pages/ConversionMappingsListPage.js';
 import { ConversionMappingEditPage } from './modules/linkedin_ads/pages/ConversionMappingEditPage.js';
+import { CustomEventMappingsListPage as MetaEventsListPage } from './modules/meta_ads/pages/CustomEventMappingsListPage.js';
+import { CustomEventMappingEditPage as MetaEventEditPage } from './modules/meta_ads/pages/CustomEventMappingEditPage.js';
 import { ImportExportPage } from './modules/import_export/ImportExportPage.js';
 import { SeoPage } from './modules/seo/SeoPage.js';
 import { DictionaryPage } from './modules/dictionaries/DictionaryPage.js';
@@ -258,6 +260,9 @@ export function App(): ReactNode {
         <Route path="/linkedin-ads" element={<ConversionMappingsListPage />} />
         <Route path="/linkedin-ads/new" element={<ConversionMappingEditPage />} />
         <Route path="/linkedin-ads/:id" element={<ConversionMappingEditPage />} />
+        <Route path="/meta-ads" element={<MetaEventsListPage />} />
+        <Route path="/meta-ads/new" element={<MetaEventEditPage />} />
+        <Route path="/meta-ads/:id" element={<MetaEventEditPage />} />
         <Route path="/import-export" element={<ImportExportPage />} />
         <Route path="/seo" element={<SeoPage />} />
         <Route path="/dictionary" element={<DictionaryPage />} />

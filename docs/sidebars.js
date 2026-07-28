@@ -91,6 +91,7 @@ const sidebars = {
         'modules/invoices',
         'modules/languages',
         'modules/linkedin-ads',
+        'modules/meta-ads',
         {
           type: 'category',
           label: 'Megamenu',

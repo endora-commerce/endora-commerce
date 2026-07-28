@@ -24,6 +24,8 @@ import { getGoogleAnalyticsConfig } from '../lib/api/analytics-config';
 import { GoogleAnalytics } from '../components/analytics/GoogleAnalytics';
 import { getLinkedInAdsConfig } from '../lib/api/linkedin-config';
 import { LinkedInInsightTag } from '../components/analytics/LinkedInInsightTag';
+import { getMetaAdsConfig } from '../lib/api/meta-config';
+import { MetaPixel } from '../components/analytics/MetaPixel';
 import { AnalyticsProvider } from '../components/analytics/AnalyticsProvider';
 import { ConsentBanner } from '../components/analytics/ConsentBanner';
 import { CookieConsentMessage } from '../components/analytics/CookieConsentMessage';
@@ -88,7 +90,7 @@ export default async function RootLayout({
     ...(session ? { session } : {}),
     ...(anon ? { anon } : {}),
   };
-  const [megamenu, dictionary, cartItemCount, me, speculation, gaConfig, linkedInConfig] =
+  const [megamenu, dictionary, cartItemCount, me, speculation, gaConfig, linkedInConfig, metaConfig] =
     await Promise.all([
     getActiveMegamenu(ctx),
     fetchDictionary({ ctx }),
@@ -104,8 +106,10 @@ export default async function RootLayout({
     // Feature 049 — per-channel Google Analytics config. Best-effort; returns a
     // disabled config on any read error so analytics never breaks the render.
     getGoogleAnalyticsConfig(ctx),
-    // Feature 063 — per-channel LinkedIn Ads config, same best-effort contract.
+    // Features 063 / 064 — per-channel ad-platform configs, same best-effort
+    // contract as GA above.
     getLinkedInAdsConfig(ctx),
+    getMetaAdsConfig(ctx),
   ]);
   return (
     <html lang={locale}>
@@ -187,6 +191,7 @@ export default async function RootLayout({
         <GoogleAnalytics config={gaConfig} />
         <AnalyticsProvider config={gaConfig} />
         <LinkedInInsightTag config={linkedInConfig} />
+        <MetaPixel config={metaConfig} />
         <ConsentBanner config={gaConfig} message={<CookieConsentMessage ctx={ctx} />} />
       </body>
     </html>

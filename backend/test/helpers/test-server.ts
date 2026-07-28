@@ -65,6 +65,8 @@ import { newsletterSettingsManifest } from '../../src/modules/newsletter/manifes
 import { googleAnalyticsModule } from '../../src/modules/google_analytics/plugin.js';
 import { linkedInAdsModule } from '../../src/modules/linkedin_ads/plugin.js';
 import { linkedInAdsSettingsManifest } from '../../src/modules/linkedin_ads/manifest.js';
+import { metaAdsModule } from '../../src/modules/meta_ads/plugin.js';
+import { metaAdsSettingsManifest } from '../../src/modules/meta_ads/manifest.js';
 import { googleAnalyticsSettingsManifest } from '../../src/modules/google_analytics/manifest.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
@@ -1977,6 +1979,19 @@ export async function setupBackendServer(
     }),
   );
 
+  // Feature 064 — Meta Ads. Config + custom-event CRUD are fully exercised.
+  modules.push(
+    metaAdsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin: requireTestAdmin(permissionService),
+      resolveAuditContext: (req) => ({
+        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+    }),
+  );
+
   modules.push(
     shoppingListsModule({
       emFactory: em,
@@ -2051,6 +2066,7 @@ export async function setupBackendServer(
     newsletterSettingsManifest,
     googleAnalyticsSettingsManifest,
     linkedInAdsSettingsManifest,
+    metaAdsSettingsManifest,
     invoicesSettingsManifest,
     ksefSettingsManifest,
   ]);

@@ -40,29 +40,30 @@ import { manifest as manifest_32 } from '../ksef/manifest.js';
 import { manifest as manifest_33 } from '../languages/manifest.js';
 import { manifest as manifest_34 } from '../linkedin_ads/manifest.js';
 import { manifest as manifest_35 } from '../megamenu/manifest.js';
-import { manifest as manifest_36 } from '../mfa/manifest.js';
-import { manifest as manifest_37 } from '../newsletter/manifest.js';
-import { manifest as manifest_38 } from '../orders/manifest.js';
-import { manifest as manifest_39 } from '../organizations/manifest.js';
-import { manifest as manifest_40 } from '../payment_methods/manifest.js';
-import { manifest as manifest_41 } from '../payments/manifest.js';
-import { manifest as manifest_42 } from '../price_lists/manifest.js';
-import { manifest as manifest_43 } from '../promotions/manifest.js';
-import { manifest as manifest_44 } from '../prompt_actions/manifest.js';
-import { manifest as manifest_45 } from '../pwa/manifest.js';
-import { manifest as manifest_46 } from '../quick_order/manifest.js';
-import { manifest as manifest_47 } from '../quote_requests/manifest.js';
-import { manifest as manifest_48 } from '../returns/manifest.js';
-import { manifest as manifest_49 } from '../sales_channels/manifest.js';
-import { manifest as manifest_50 } from '../search/manifest.js';
-import { manifest as manifest_51 } from '../seo/manifest.js';
-import { manifest as manifest_52 } from '../settings/manifest.js';
-import { manifest as manifest_53 } from '../shipments/manifest.js';
-import { manifest as manifest_54 } from '../shopping_lists/manifest.js';
-import { manifest as manifest_55 } from '../stripe/manifest.js';
-import { manifest as manifest_56 } from '../taxes/manifest.js';
-import { manifest as manifest_57 } from '../transactional_emails/manifest.js';
-import { manifest as manifest_58 } from '../webhooks/manifest.js';
+import { manifest as manifest_36 } from '../meta_ads/manifest.js';
+import { manifest as manifest_37 } from '../mfa/manifest.js';
+import { manifest as manifest_38 } from '../newsletter/manifest.js';
+import { manifest as manifest_39 } from '../orders/manifest.js';
+import { manifest as manifest_40 } from '../organizations/manifest.js';
+import { manifest as manifest_41 } from '../payment_methods/manifest.js';
+import { manifest as manifest_42 } from '../payments/manifest.js';
+import { manifest as manifest_43 } from '../price_lists/manifest.js';
+import { manifest as manifest_44 } from '../promotions/manifest.js';
+import { manifest as manifest_45 } from '../prompt_actions/manifest.js';
+import { manifest as manifest_46 } from '../pwa/manifest.js';
+import { manifest as manifest_47 } from '../quick_order/manifest.js';
+import { manifest as manifest_48 } from '../quote_requests/manifest.js';
+import { manifest as manifest_49 } from '../returns/manifest.js';
+import { manifest as manifest_50 } from '../sales_channels/manifest.js';
+import { manifest as manifest_51 } from '../search/manifest.js';
+import { manifest as manifest_52 } from '../seo/manifest.js';
+import { manifest as manifest_53 } from '../settings/manifest.js';
+import { manifest as manifest_54 } from '../shipments/manifest.js';
+import { manifest as manifest_55 } from '../shopping_lists/manifest.js';
+import { manifest as manifest_56 } from '../stripe/manifest.js';
+import { manifest as manifest_57 } from '../taxes/manifest.js';
+import { manifest as manifest_58 } from '../transactional_emails/manifest.js';
+import { manifest as manifest_59 } from '../webhooks/manifest.js';
 
 export interface DiscoveredManifestEntry {
   id: string;
@@ -106,27 +107,28 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'languages', manifest: manifest_33 },
   { id: 'linkedin_ads', manifest: manifest_34 },
   { id: 'megamenu', manifest: manifest_35 },
-  { id: 'mfa', manifest: manifest_36 },
-  { id: 'newsletter', manifest: manifest_37 },
-  { id: 'orders', manifest: manifest_38 },
-  { id: 'organizations', manifest: manifest_39 },
-  { id: 'payment_methods', manifest: manifest_40 },
-  { id: 'payments', manifest: manifest_41 },
-  { id: 'price_lists', manifest: manifest_42 },
-  { id: 'promotions', manifest: manifest_43 },
-  { id: 'prompt_actions', manifest: manifest_44 },
-  { id: 'pwa', manifest: manifest_45 },
-  { id: 'quick_order', manifest: manifest_46 },
-  { id: 'quote_requests', manifest: manifest_47 },
-  { id: 'returns', manifest: manifest_48 },
-  { id: 'sales_channels', manifest: manifest_49 },
-  { id: 'search', manifest: manifest_50 },
-  { id: 'seo', manifest: manifest_51 },
-  { id: 'settings', manifest: manifest_52 },
-  { id: 'shipments', manifest: manifest_53 },
-  { id: 'shopping_lists', manifest: manifest_54 },
-  { id: 'stripe', manifest: manifest_55 },
-  { id: 'taxes', manifest: manifest_56 },
-  { id: 'transactional_emails', manifest: manifest_57 },
-  { id: 'webhooks', manifest: manifest_58 },
+  { id: 'meta_ads', manifest: manifest_36 },
+  { id: 'mfa', manifest: manifest_37 },
+  { id: 'newsletter', manifest: manifest_38 },
+  { id: 'orders', manifest: manifest_39 },
+  { id: 'organizations', manifest: manifest_40 },
+  { id: 'payment_methods', manifest: manifest_41 },
+  { id: 'payments', manifest: manifest_42 },
+  { id: 'price_lists', manifest: manifest_43 },
+  { id: 'promotions', manifest: manifest_44 },
+  { id: 'prompt_actions', manifest: manifest_45 },
+  { id: 'pwa', manifest: manifest_46 },
+  { id: 'quick_order', manifest: manifest_47 },
+  { id: 'quote_requests', manifest: manifest_48 },
+  { id: 'returns', manifest: manifest_49 },
+  { id: 'sales_channels', manifest: manifest_50 },
+  { id: 'search', manifest: manifest_51 },
+  { id: 'seo', manifest: manifest_52 },
+  { id: 'settings', manifest: manifest_53 },
+  { id: 'shipments', manifest: manifest_54 },
+  { id: 'shopping_lists', manifest: manifest_55 },
+  { id: 'stripe', manifest: manifest_56 },
+  { id: 'taxes', manifest: manifest_57 },
+  { id: 'transactional_emails', manifest: manifest_58 },
+  { id: 'webhooks', manifest: manifest_59 },
 ];

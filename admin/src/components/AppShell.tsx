@@ -303,6 +303,12 @@ const NAV: NavSection[] = [
         icon: Sparkles,
         requiredPermission: 'linkedin_ads:read',
       },
+      {
+        to: '/meta-ads',
+        labelKey: 'appShell.nav.metaAds',
+        icon: Sparkles,
+        requiredPermission: 'meta_ads:read',
+      },
       { to: '/import-export', labelKey: 'appShell.nav.importExport', icon: Upload },
       {
         to: '/settings',
@@ -636,6 +642,9 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   ] },
   { test: /^\/linkedin-ads(\/.*)?$/, build: () => [
     { labelKey: 'appShell.nav.linkedinAds', href: '/linkedin-ads' },
+  ] },
+  { test: /^\/meta-ads(\/.*)?$/, build: () => [
+    { labelKey: 'appShell.nav.metaAds', href: '/meta-ads' },
   ] },
   { test: /^\/analytics\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },
