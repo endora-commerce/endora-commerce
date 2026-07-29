@@ -198,7 +198,7 @@ boundary, and referenced from Settings through the `credential_ref` value type.
 Configure them at **Admin Panel → Credentials**. See
 [Credentials](../modules/credentials.md).
 
-Vendor-specific integrations (Stripe, Google Analytics, KSeF, newsletter
+Vendor-specific integrations (Stripe, TPay, Google Analytics, KSeF, newsletter
 providers, VIES / Biała lista lookups) each ship as their own module with their
 own settings and admin surface — there is no generic vendor-adapter registry.
 

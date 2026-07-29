@@ -58,6 +58,7 @@ export const MIGRATED_MODULES: readonly string[] = [
   'languages',
   'mfa',
   'stripe',
+  'tpay',
   'transactional_emails',
   'invoices',
   'newsletter',

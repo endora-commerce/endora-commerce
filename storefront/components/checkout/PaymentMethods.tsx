@@ -12,11 +12,13 @@ export function PaymentMethods({
   methods,
   currency,
   preferredId,
+  locale,
 }: {
   methods: PaymentMethodSummary[];
   currency?: string | undefined;
   /** Feature 039 — pre-select this method (the resolved default) when present. */
   preferredId?: string | null;
+  locale?: string | undefined;
 }): ReactNode {
   const preferredIdx = preferredId ? methods.findIndex((m) => m.id === preferredId) : -1;
   const selectedIdx = preferredIdx >= 0 ? preferredIdx : 0;
@@ -31,7 +33,13 @@ export function PaymentMethods({
         methods.map((m, i) => {
           const Renderer = resolvePaymentMethodRenderer(m.rendererKey);
           return (
-            <Renderer key={m.id} method={m} defaultChecked={i === selectedIdx} currency={currency} />
+            <Renderer
+              key={m.id}
+              method={m}
+              defaultChecked={i === selectedIdx}
+              currency={currency}
+              locale={locale}
+            />
           );
         })
       )}

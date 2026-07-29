@@ -144,6 +144,18 @@ export interface PaymentAdapter {
     paymentId: string;
     amount: number;
     currency: string;
+    /**
+     * Preferred over a DB reload: place-order runs inside a transaction, so a
+     * forked EM often cannot see the just-flushed Payment/Order rows yet.
+     */
+    paymentMethodCode?: string;
+    paymentMethodId?: string;
+    salesChannelId?: string | null;
+    /** Buyer identity for gateway create (TPay requires payer.email + payer.name). */
+    payerEmail?: string | null;
+    payerName?: string | null;
+    billingCountry?: string | null;
+    orderBusinessId?: string | null;
   }): Promise<StartPaymentResult>;
 
   onReceivePayment(ctx: ReceivePaymentContext): Promise<PaymentOutcome>;

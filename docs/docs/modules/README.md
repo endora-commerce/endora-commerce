@@ -56,6 +56,7 @@ how to consume it.
 | [orders](./orders) | Order placement, status machine, payment + delivery linkage | yes |
 | [organizations](./organizations) | Customer Organizations, registration, invitations | yes |
 | [payment_methods](./payment_methods) | Configured payment methods | yes |
+| [tpay](./tpay) | TPay payment gateway (BLIK, cards, transfers) | yes |
 | [payments](./payments) | Payment driver dispatch + settlement events | yes |
 | [price_lists](./price_lists) | Customer / group / default pricing with volume tiers + per-category adjustments | yes |
 | [promotions](./promotions) | Cart-level percentage / amount / free-delivery discounts with eligibility filters | yes |
