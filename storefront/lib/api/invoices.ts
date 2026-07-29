@@ -26,9 +26,8 @@ export async function listMyOrderInvoices(
   sessionCookie: string,
   orderId: string,
 ): Promise<MyOrderInvoice[]> {
-  const res = await apiGetAuthed<{ data: MyOrderInvoice[] }>({
+  return apiGetAuthed<MyOrderInvoice[]>({
     path: `/api/v1/orders/${orderId}/invoices`,
     sessionCookie,
   });
-  return res.data;
 }

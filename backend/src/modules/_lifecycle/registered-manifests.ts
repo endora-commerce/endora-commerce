@@ -42,6 +42,7 @@ import { manifest as linkedInAdsManifest } from '../linkedin_ads/manifest.js';
 import { manifest as metaAdsManifest } from '../meta_ads/manifest.js';
 // Feature 049 — Stripe payment gateway.
 import { manifest as stripeManifest } from '../stripe/manifest.js';
+import { manifest as tpayManifest } from '../tpay/manifest.js';
 // Feature 055 — Custom Fields Layer (entity-agnostic runtime fields).
 import {
   manifest as customFieldsManifest,
@@ -165,6 +166,7 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: metaAdsManifest, filePath: pathFor('meta_ads') },
   // Feature 049 — Stripe payment gateway module.
   { manifest: stripeManifest, filePath: pathFor('stripe') },
+  { manifest: tpayManifest, filePath: pathFor('tpay') },
   // Feature 055 — Custom Fields Layer module.
   {
     manifest: customFieldsManifest,

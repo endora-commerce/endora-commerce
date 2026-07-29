@@ -10,7 +10,7 @@
 
 export type SupportedLocale = string;
 
-type MessageKey =
+export type MessageKey =
   | 'nav.home'
   | 'nav.catalog'
   | 'nav.search'
@@ -104,6 +104,49 @@ type MessageKey =
   | 'checkout.address.billingCompanyHint'
   | 'checkout.address.companyName'
   | 'checkout.address.taxId'
+  // Feature 063 — TPay checkout / pay step.
+  | 'tpay.redirect.notice'
+  | 'tpay.pay.title'
+  | 'tpay.pay.subtitle'
+  | 'tpay.blik.label'
+  | 'tpay.blik.placeholder'
+  | 'tpay.blik.invalid'
+  | 'tpay.blik.submit'
+  | 'tpay.blik.oneClick'
+  | 'tpay.blik.registerHint'
+  | 'tpay.blik.forget'
+  | 'tpay.blik.multiAppFallback'
+  | 'tpay.blik.accountTitle'
+  | 'tpay.blik.accountRegistered'
+  | 'tpay.blik.accountNotRegistered'
+  | 'tpay.card.number'
+  | 'tpay.card.expiry'
+  | 'tpay.card.cvc'
+  | 'tpay.card.submit'
+  | 'tpay.card.save'
+  | 'tpay.card.savedListLabel'
+  | 'tpay.card.savedLabel'
+  | 'tpay.card.paySaved'
+  | 'tpay.card.remove'
+  | 'tpay.card.empty'
+  | 'tpay.card.encryptError'
+  | 'tpay.card.rsaMissing'
+  | 'tpay.card.fieldset'
+  | 'tpay.card.orNew'
+  | 'tpay.card.processing'
+  | 'tpay.card.checkDetails'
+  | 'tpay.card.numberIncomplete'
+  | 'tpay.card.numberInvalid'
+  | 'tpay.card.expiryIncomplete'
+  | 'tpay.card.expiryInvalid'
+  | 'tpay.card.expiryPast'
+  | 'tpay.card.cvcIncomplete'
+  | 'tpay.card.cvcInvalid'
+  | 'tpay.3ds.hint'
+  | 'tpay.terms.label'
+  | 'tpay.pay.failure'
+  | 'tpay.pay.retry'
+  | 'tpay.bank.redirectHint'
   // Feature 008 — Quote Request success page (parallel to checkout success).
   | 'quoteRequest.success.title'
   | 'quoteRequest.success.numberPrefix'
@@ -213,6 +256,54 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Defaults to your organization. Override for this order if needed.',
     'checkout.address.companyName': 'Company name',
     'checkout.address.taxId': 'Tax ID (NIP)',
+    // Feature 063 — TPay.
+    'tpay.redirect.notice':
+      'After you click “Place order”, you’ll be redirected to TPay to complete your payment securely.',
+    'tpay.pay.title': 'Complete your payment',
+    'tpay.pay.subtitle': 'Enter your payment details to finish the order.',
+    'tpay.blik.label': 'BLIK code',
+    'tpay.blik.placeholder': '6-digit code',
+    'tpay.blik.invalid': 'Enter a valid 6-digit BLIK code.',
+    'tpay.blik.submit': 'Pay with BLIK',
+    'tpay.blik.oneClick': 'Pay with BLIK One Click',
+    'tpay.blik.registerHint': 'Remember for BLIK One Click',
+    'tpay.blik.forget': 'Forget BLIK One Click',
+    'tpay.blik.multiAppFallback':
+      'Confirm the payment in your banking app, or enter a BLIK code instead.',
+    'tpay.blik.accountTitle': 'BLIK One Click',
+    'tpay.blik.accountRegistered':
+      'Enabled. At checkout you can pay with BLIK without entering a 6-digit code — just confirm in your banking app.',
+    'tpay.blik.accountNotRegistered':
+      'Not enabled yet. At checkout, pay with a 6-digit BLIK code (sandbox: starts with 777), tick “Remember for BLIK One Click”, and complete the payment. One Click unlocks after that payment succeeds.',
+    'tpay.card.number': 'Card number',
+    'tpay.card.expiry': 'Expiry (MM/YY)',
+    'tpay.card.cvc': 'CVC',
+    'tpay.card.submit': 'Pay by card',
+    'tpay.card.save': 'Save this card',
+    'tpay.card.savedListLabel': 'Saved cards',
+    'tpay.card.savedLabel': 'Saved card',
+    'tpay.card.paySaved': 'Pay with saved card',
+    'tpay.card.remove': 'Remove',
+    'tpay.card.empty': 'No saved cards yet.',
+    'tpay.card.encryptError': 'Could not encrypt the card details. Check the RSA key in TPay settings and try again.',
+    'tpay.card.rsaMissing': 'Card payments need an RSA public key. Add it under Admin → TPay settings.',
+    'tpay.card.fieldset': 'Card details',
+    'tpay.card.orNew': 'Or pay with a new card',
+    'tpay.card.processing': 'Processing…',
+    'tpay.card.checkDetails': 'Check the card details and try again.',
+    'tpay.card.numberIncomplete': 'Enter your complete card number.',
+    'tpay.card.numberInvalid': 'Your card number is invalid.',
+    'tpay.card.expiryIncomplete': 'Enter a complete expiry date.',
+    'tpay.card.expiryInvalid': 'Your card’s expiry date is invalid.',
+    'tpay.card.expiryPast': 'Your card has expired.',
+    'tpay.card.cvcIncomplete': 'Enter your card’s security code.',
+    'tpay.card.cvcInvalid': 'Your card’s security code is incomplete.',
+    'tpay.3ds.hint': 'You will be redirected to complete 3-D Secure verification.',
+    'tpay.terms.label': 'TPay terms and information clause',
+    'tpay.pay.failure': 'Payment failed. Please try again.',
+    'tpay.pay.retry': 'Try again',
+    'tpay.bank.redirectHint':
+      'Complete the payment on the TPay page if you were not redirected automatically.',
     // Feature 008 — Quote Request success page.
     'quoteRequest.success.title': 'Thank you — your quote request is submitted',
     'quoteRequest.success.numberPrefix': 'Your quote request number is ',
@@ -323,6 +414,54 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Domyslnie dane Twojej organizacji. Mozesz je nadpisac dla tego zamowienia.',
     'checkout.address.companyName': 'Nazwa firmy',
     'checkout.address.taxId': 'NIP',
+    // Feature 063 — TPay.
+    'tpay.redirect.notice':
+      'Po kliknięciu „Złóż zamówienie” zostaniesz przekierowany do TPay, aby bezpiecznie dokończyć płatność.',
+    'tpay.pay.title': 'Dokończ płatność',
+    'tpay.pay.subtitle': 'Podaj dane płatności, aby zakończyć zamówienie.',
+    'tpay.blik.label': 'Kod BLIK',
+    'tpay.blik.placeholder': '6-cyfrowy kod',
+    'tpay.blik.invalid': 'Podaj prawidłowy 6-cyfrowy kod BLIK.',
+    'tpay.blik.submit': 'Zapłać BLIKIEM',
+    'tpay.blik.oneClick': 'Zapłać BLIK One Click',
+    'tpay.blik.registerHint': 'Zapamiętaj do BLIK One Click',
+    'tpay.blik.forget': 'Zapomnij BLIK One Click',
+    'tpay.blik.multiAppFallback':
+      'Potwierdź płatność w aplikacji bankowej albo wpisz kod BLIK.',
+    'tpay.blik.accountTitle': 'BLIK One Click',
+    'tpay.blik.accountRegistered':
+      'Włączone. Przy kolejnych zamówieniach możesz płacić BLIKIEM bez kodu 6-cyfrowego — wystarczy potwierdzenie w aplikacji banku.',
+    'tpay.blik.accountNotRegistered':
+      'Jeszcze nie włączone. Przy płatności podaj kod BLIK (na sandboxie: zaczyna się od 777), zaznacz „Zapamiętaj do BLIK One Click” i dokończ płatność. Po udanej płatności One Click pojawi się tutaj.',
+    'tpay.card.number': 'Numer karty',
+    'tpay.card.expiry': 'Ważność (MM/RR)',
+    'tpay.card.cvc': 'CVC',
+    'tpay.card.submit': 'Zapłać kartą',
+    'tpay.card.save': 'Zapisz tę kartę',
+    'tpay.card.savedListLabel': 'Zapisane karty',
+    'tpay.card.savedLabel': 'Zapisana karta',
+    'tpay.card.paySaved': 'Zapłać zapisaną kartą',
+    'tpay.card.remove': 'Usuń',
+    'tpay.card.empty': 'Brak zapisanych kart.',
+    'tpay.card.encryptError': 'Nie udało się zaszyfrować danych karty. Sprawdź klucz RSA w ustawieniach TPay i spróbuj ponownie.',
+    'tpay.card.rsaMissing': 'Płatność kartą wymaga klucza RSA. Dodaj go w Admin → ustawienia TPay.',
+    'tpay.card.fieldset': 'Dane karty',
+    'tpay.card.orNew': 'Albo zapłać nową kartą',
+    'tpay.card.processing': 'Przetwarzanie…',
+    'tpay.card.checkDetails': 'Sprawdź dane karty i spróbuj ponownie.',
+    'tpay.card.numberIncomplete': 'Podaj pełny numer karty.',
+    'tpay.card.numberInvalid': 'Numer karty jest nieprawidłowy.',
+    'tpay.card.expiryIncomplete': 'Podaj pełną datę ważności.',
+    'tpay.card.expiryInvalid': 'Data ważności karty jest nieprawidłowa.',
+    'tpay.card.expiryPast': 'Karta jest przeterminowana.',
+    'tpay.card.cvcIncomplete': 'Podaj kod CVC karty.',
+    'tpay.card.cvcInvalid': 'Kod CVC jest niekompletny.',
+    'tpay.3ds.hint': 'Zostaniesz przekierowany, aby dokończyć weryfikację 3-D Secure.',
+    'tpay.terms.label': 'Regulamin i klauzula informacyjna TPay',
+    'tpay.pay.failure': 'Płatność nie powiodła się. Spróbuj ponownie.',
+    'tpay.pay.retry': 'Spróbuj ponownie',
+    'tpay.bank.redirectHint':
+      'Dokończ płatność na stronie TPay, jeśli nie nastąpiło automatyczne przekierowanie.',
     // Feature 008 — Quote Request success page.
     'quoteRequest.success.title': 'Dziekujemy — Twoje zapytanie ofertowe zostalo zlozone',
     'quoteRequest.success.numberPrefix': 'Numer Twojego zapytania ofertowego: ',

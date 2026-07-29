@@ -111,7 +111,7 @@ export default async function OrderConfirmationPage({
             Request return / complaint
           </Link>
         ) : null}
-        {invoices.map((inv) => (
+        {(invoices ?? []).map((inv) => (
           <a
             key={inv.id}
             href={invoiceDownloadUrl(order.id, inv.id)}

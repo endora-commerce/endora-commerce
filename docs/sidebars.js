@@ -118,6 +118,7 @@ const sidebars = {
         'modules/organization-hierarchy',
         'modules/payment_methods',
         'modules/payments',
+        'modules/tpay',
         'modules/price_lists',
         {
           type: 'doc',
