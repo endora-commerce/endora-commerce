@@ -1,6 +1,4 @@
-import { readdirSync, existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type { IMigrator } from '@mikro-orm/core';
 import type Redis from 'ioredis';
@@ -30,6 +28,7 @@ import {
 } from '../plugin-helpers.js';
 import type { LoadedManifestRegistry } from './manifest-loader.js';
 import { getMigrator } from '../../../db/migrator.js';
+import { MIGRATION_REGISTRY } from '../../../db/migrations-registry.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -42,11 +41,6 @@ export interface OrchestratorDeps {
   auditLog: AuditLogService;
   /** The loaded manifest registry — built once at boot or per CLI run. */
   registry: LoadedManifestRegistry;
-  /**
-   * Migrations directory; defaults to `<repo>/backend/src/db/migrations`.
-   * Tests can override to point at a fixture tree.
-   */
-  migrationsDir?: string;
   /**
    * How a migrator is obtained. Defaults to `getMigrator` from
    * src/db/migrator.ts, which runs the legacy-name pre-flight (feature 065)
@@ -148,11 +142,9 @@ export class LifecycleError extends Error {
 
 export class ModuleLifecycleOrchestrator {
   private readonly log: NonNullable<OrchestratorDeps['log']>;
-  private readonly migrationsDir: string;
 
   constructor(private readonly deps: OrchestratorDeps) {
     this.log = deps.log ?? consoleLogger();
-    this.migrationsDir = deps.migrationsDir ?? defaultMigrationsDir();
   }
 
   // -------------------------------------------------------------------------
@@ -826,37 +818,38 @@ export class ModuleLifecycleOrchestrator {
       .filter((id) => installed.has(id));
   }
 
-  /**
-   * Revert migrations whose filename matches `^\d+_<id>_` in reverse order.
-   * Best-effort: modules that don't follow the convention will produce no
-   * matches and the orchestrator will log a warning instead of failing.
-   */
   private async migrator(): Promise<IMigrator> {
     const accessor = this.deps.migratorFor ?? getMigrator;
     return accessor(this.deps.orm);
   }
 
+  /**
+   * Revert the migrations a module owns, newest first.
+   *
+   * Ownership comes from `MIGRATION_REGISTRY` (a data-only import — the
+   * orchestrator must never pull in the ORM config) and the migration name is
+   * always `cls.name`, which is exactly what `mikro_orm_migrations.name`
+   * stores. Ordering is ascending timestamp, which for a single module is the
+   * resolved execution order: `orderMigrations` guarantees intra-module
+   * chronology (contracts/ordering-algorithm.md, invariant I2).
+   *
+   * Best-effort: a module with no migrations logs a warning and reverts
+   * nothing, and a failing revert stops the loop rather than widening the gap.
+   */
   private async revertMigrationsFor(moduleId: string): Promise<string[]> {
-    if (!existsSync(this.migrationsDir)) return [];
-    const files = readdirSync(this.migrationsDir)
-      .filter((f) => /\.[jt]s$/.test(f))
-      .filter((f) => new RegExp(`^\\d+_${escapeRegex(moduleId)}_`).test(f))
-      .sort()
-      .reverse();
-    if (files.length === 0) {
+    const names = MIGRATION_REGISTRY.filter((entry) => entry.moduleId === moduleId)
+      .map((entry) => entry.cls.name)
+      .sort();
+    if (names.length === 0) {
       this.log.warn(
-        `[uninstall] no migrations match filename pattern for "${moduleId}"; ` +
+        `[uninstall] module "${moduleId}" owns no registered migration; ` +
           `skipping migration revert. Hard-uninstall relies on the uninstall hook.`,
       );
       return [];
     }
     const migrator = await this.migrator();
     const reverted: string[] = [];
-    for (const file of files) {
-      // Migrator class name is derived from filename — strip extension and
-      // prefix with `Migration`. We pass the file's basename without ext
-      // because MikroORM matches on the migration name (not class name).
-      const name = file.replace(/\.[jt]s$/, '');
+    for (const name of names.reverse()) {
       try {
         const result = await migrator.down({ migrations: [name] });
         for (const m of result) reverted.push(m.name);
@@ -883,18 +876,4 @@ function consoleLogger(): NonNullable<OrchestratorDeps['log']> {
     warn: (m) => console.warn(m),
     error: (m) => console.error(m),
   };
-}
-
-function defaultMigrationsDir(): string {
-  // Resolve relative to this source file. In dev/test (tsx + vitest) this
-  // points at `backend/src/db/migrations`; in compiled prod (`dist/`) it
-  // points at `dist/db/migrations` — same convention as MikroORM config.
-  return resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    '../../../db/migrations',
-  );
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
