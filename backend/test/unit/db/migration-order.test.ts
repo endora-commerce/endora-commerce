@@ -8,12 +8,20 @@ import {
   type MigrationClass,
   type MigrationRegistryEntry,
 } from '../../../src/db/migration-order.js';
+import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.js';
+import {
+  FROZEN_THROUGH as REAL_FROZEN_THROUGH,
+  LEGACY_MIGRATION_RENAMES,
+} from '../../../src/db/legacy-migration-names.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
 
 /**
- * Invariants I1-I9 of
+ * Invariants I1-I10 of
  * specs/065-manifest-aware-migrations/contracts/ordering-algorithm.md §3.
  *
- * Pure unit test: no database, no ORM import, synthetic entries only.
+ * I1-I9 are pure: no database, synthetic entries only. I10 runs the same pure
+ * function over the real registry and the real manifest graph — still no
+ * database, still no ORM bootstrap.
  */
 
 const FROZEN_THROUGH = '20260801T000000';
@@ -372,5 +380,103 @@ describe('orderMigrations — I9 input errors', () => {
     const graph = deps({ catalog: [] });
     const core = entry('core', '20260901T090000', 'foundation');
     expect(run([core], graph)).toEqual([core.cls.name]);
+  });
+});
+
+/**
+ * The real module dependency graph, assembled exactly as
+ * src/db/mikro-orm.config.ts assembles it (contracts/ordering-algorithm.md §5).
+ */
+const REAL_MODULE_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map<
+  string,
+  readonly string[]
+>([
+  ['core', []],
+  ...DISCOVERED_MANIFESTS.map(
+    (manifestEntry) => [manifestEntry.id, manifestEntry.manifest.dependencies ?? []] as const,
+  ),
+]);
+
+function runReal(entries: readonly MigrationRegistryEntry[]): string[] {
+  return orderMigrations({
+    entries,
+    moduleDependencies: REAL_MODULE_DEPENDENCIES,
+    frozenThrough: REAL_FROZEN_THROUGH,
+    correctionHorizonDays: HORIZON_DAYS,
+  }).map((m) => m.name);
+}
+
+describe('orderMigrations — I10 real registry', () => {
+  it('orders the real registry against the real manifest graph without throwing', () => {
+    expect(() => runReal(MIGRATION_REGISTRY)).not.toThrow();
+  });
+
+  it('emits exactly as many migrations as the registry holds, each named by its class', () => {
+    const ordered = orderMigrations({
+      entries: MIGRATION_REGISTRY,
+      moduleDependencies: REAL_MODULE_DEPENDENCIES,
+      frozenThrough: REAL_FROZEN_THROUGH,
+      correctionHorizonDays: HORIZON_DAYS,
+    });
+
+    expect(ordered).toHaveLength(MIGRATION_REGISTRY.length);
+    for (const emitted of ordered) {
+      expect(emitted.name).toBe(emitted.class!.name);
+    }
+    expect(new Set(ordered.map((m) => m.name)).size).toBe(MIGRATION_REGISTRY.length);
+  });
+
+  it('reproduces the frozen legacy order as its prefix', () => {
+    const expectedPrefix = LEGACY_MIGRATION_RENAMES.map((rename) => rename.name);
+    const emitted = runReal(MIGRATION_REGISTRY);
+
+    expect(emitted.slice(0, expectedPrefix.length)).toEqual(expectedPrefix);
+  });
+
+  it('accepts the frozen order as an explicit assertion input', () => {
+    expect(() =>
+      orderMigrations({
+        entries: MIGRATION_REGISTRY,
+        moduleDependencies: REAL_MODULE_DEPENDENCIES,
+        frozenThrough: REAL_FROZEN_THROUGH,
+        correctionHorizonDays: HORIZON_DAYS,
+        frozenOrder: LEGACY_MIGRATION_RENAMES.map((rename) => rename.name),
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe('orderMigrations — the concurrent-branch hazard, against the real graph', () => {
+  // The hazard this feature exists to fix: two branches merge, the module that
+  // owns the referenced table lands with the later timestamp, and a fresh
+  // database applies the referencing migration first. `orders` transitively
+  // depends on `catalog` in the real manifest graph.
+  const ordersEntry = entry('orders', '20260810T090000', 'placement_intents');
+
+  it('emits the dependency module first when the merge inverted them', () => {
+    const catalogEntry = entry('catalog', '20260812T090000', 'product_column');
+    const emitted = runReal([...MIGRATION_REGISTRY, ordersEntry, catalogEntry]);
+
+    expect(emitted.indexOf(catalogEntry.cls.name)).toBeLessThan(
+      emitted.indexOf(ordersEntry.cls.name),
+    );
+  });
+
+  it('leaves chronological order alone once the pair is beyond the correction horizon', () => {
+    // 52 days after the orders entry — outside CORRECTION_HORIZON_DAYS.
+    const catalogEntry = entry('catalog', '20261001T090000', 'product_column');
+    const emitted = runReal([...MIGRATION_REGISTRY, ordersEntry, catalogEntry]);
+
+    expect(emitted.indexOf(ordersEntry.cls.name)).toBeLessThan(
+      emitted.indexOf(catalogEntry.cls.name),
+    );
+  });
+
+  it('leaves the frozen prefix untouched in both cases', () => {
+    const expectedPrefix = LEGACY_MIGRATION_RENAMES.map((rename) => rename.name);
+    const catalogEntry = entry('catalog', '20260812T090000', 'product_column');
+    const emitted = runReal([...MIGRATION_REGISTRY, ordersEntry, catalogEntry]);
+
+    expect(emitted.slice(0, expectedPrefix.length)).toEqual(expectedPrefix);
   });
 });

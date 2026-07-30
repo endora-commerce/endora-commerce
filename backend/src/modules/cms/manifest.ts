@@ -11,7 +11,7 @@ export const manifest = defineModuleManifest({
   name: 'CMS',
   description: 'Pages, blocks, templates, and hooks for content management.',
   version: '1.0.0',
-  dependencies: [],
+  dependencies: ['sales_channels'],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'cms.read', label: 'View CMS content' },

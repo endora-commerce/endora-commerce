@@ -82,7 +82,7 @@ export const manifest = defineModuleManifest({
   description:
     'Google Analytics 4 integration: per-sales-channel activation and Measurement ID, Enhanced Ecommerce, configurable custom events, and optional server-side tagging.',
   version: '1.0.0',
-  dependencies: ['settings', 'sales_channels', 'audit_logs'],
+  dependencies: ['audit_logs', 'sales_channels', 'settings'],
   settings: googleAnalyticsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

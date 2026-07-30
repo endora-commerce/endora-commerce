@@ -102,7 +102,7 @@ export const manifest = defineModuleManifest({
   description:
     'Per-channel Meilisearch indexes, suggest popup, and optional LLM-augmented search.',
   version: '1.0.0',
-  dependencies: ['settings', 'sales_channels', 'credentials'],
+  dependencies: ['credentials', 'sales_channels', 'settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: 'search:write', label: 'Configure search (LLM / indexing)' }],

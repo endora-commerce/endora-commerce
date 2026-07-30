@@ -17,17 +17,18 @@ export const manifest = defineModuleManifest({
   name: 'Promotions',
   description: 'Promotion rules engine: rule builder, actions, coupons, limits, statistics.',
   version: '1.0.0',
-  dependencies: [
-    'catalog',
-    'sales_channels',
-    'carts',
-    'orders',
-    'organizations',
-    'price_lists',
-    'payment_methods',
-    'delivery_methods',
-    'dictionaries',
-  ],
+  // `carts` and `orders` are deliberately NOT declared, despite the rule
+  // builder reading both at runtime: carts applies promotions through
+  // PromotionService.applyToCart(CartSnapshot) — a value object — and orders
+  // snapshots the applied promotions, so both edges run the other way. The
+  // reverse declaration would cycle: promotions → carts → promotions and
+  // promotions → orders → promotions.
+  // The remaining former declarations (organizations, price_lists,
+  // payment_methods, delivery_methods, dictionaries) are rule *dimensions* the
+  // builder offers, not install-time necessities: a promotion module with no
+  // price lists installed simply offers fewer conditions. `dependencies` means
+  // "cannot exist without" — specs/065-manifest-aware-migrations/research.md §R9.
+  dependencies: ['catalog', 'sales_channels'],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: PROMOTION_PERMISSIONS.READ, label: 'View promotions' },

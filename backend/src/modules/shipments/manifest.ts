@@ -15,7 +15,7 @@ export const manifest = defineModuleManifest({
   name: 'Shipments',
   description: 'Shipment record and the order_created / shipment_created / receive_shipment lifecycle.',
   version: '1.0.0',
-  dependencies: [],
+  dependencies: ['delivery_methods', 'orders'],
   // Feature 047 — admin-editable transactional email owned by this module.
   transactionalEmails: [
     {

@@ -81,7 +81,7 @@ export const manifest = defineModuleManifest({
   name: 'Orders',
   description: 'Order placement, lifecycle, and history.',
   version: '1.3.0',
-  dependencies: ['settings'],
+  dependencies: ['api_keys', 'carts', 'organizations', 'promotions', 'settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — transactional emails owned by this module. Default subject +

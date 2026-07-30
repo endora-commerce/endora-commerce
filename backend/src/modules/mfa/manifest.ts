@@ -102,7 +102,7 @@ export const manifest = defineModuleManifest({
   description:
     'Two-factor authentication (TOTP + recovery codes) and Google/Microsoft sign-in, with per-scope enablement/enforcement and admin reset.',
   version: '1.0.0',
-  dependencies: ['settings', 'customer_accounts', 'admin_users', 'organizations'],
+  dependencies: ['admin_users', 'customer_accounts', 'organizations', 'settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

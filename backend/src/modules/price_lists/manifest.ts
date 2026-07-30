@@ -44,7 +44,7 @@ export const manifest = defineModuleManifest({
   description:
     'Customer-group pricing, brackets, display modes, and rule-based engine.',
   version: '1.0.0',
-  dependencies: ['settings'],
+  dependencies: ['catalog', 'settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
 });

@@ -61,7 +61,27 @@ export const manifest = defineModuleManifest({
   description:
     'B2B organization records, members, addresses, sales-rep assignment, moderation lifecycle, and per-org commercial scoping.',
   version: '1.1.0',
-  dependencies: [],
+  // Rule 3 (tenancy root) — specs/065-manifest-aware-migrations/research.md §R9.
+  // `organizations` is the single unit of tenancy (Principle XI) and must stay
+  // installable first, so it declares no tenant-owned domain module. Five
+  // cross-module foreign keys are therefore deliberately NOT declared here —
+  // each is a late additive column, not an install-time necessity:
+  //   → customer_accounts  (email_verification_tokens.customer_account_id)
+  //                        would cycle: organizations → customer_accounts →
+  //                        organizations
+  //   → inventory          (organization_warehouses.warehouse_id)
+  //                        would cycle: organizations → inventory →
+  //                        sales_channels → organizations
+  //   → admin_users        (organizations.assigned_sales_rep_id,
+  //                         organization_tax_id_validations.validated_by)
+  //   → delivery_methods   (organization_delivery_methods.delivery_method_id)
+  //   → payment_methods    (organization_payment_methods.payment_method_id)
+  // The last three close no cycle on their own; they are dropped because a
+  // tenancy root that cannot install before an optional commercial module is
+  // not a root. All five are recorded in
+  // test/unit/db/acknowledged-fk-edges.ts, which asserts each is still real and
+  // still an exception.
+  dependencies: ['settings'],
   settings,
   // Feature 047 — admin-editable transactional emails owned by this module.
   transactionalEmails: [

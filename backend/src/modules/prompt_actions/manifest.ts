@@ -76,7 +76,7 @@ export const manifest = defineModuleManifest({
   description:
     'Natural-language prompt mode for the admin command palette: interpret an operator instruction with an LLM, preview the plan, execute it through existing module services after explicit confirmation.',
   version: '1.0.0',
-  dependencies: ['_lifecycle', '_i18n', 'settings', 'credentials'],
+  dependencies: ['_i18n', '_lifecycle', 'credentials', 'settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

@@ -11,7 +11,7 @@ export const manifest = defineModuleManifest({
   name: 'Megamenu',
   description: 'Multi-column dropdown navigation builder.',
   version: '1.0.0',
-  dependencies: ['cms'],
+  dependencies: ['cms', 'sales_channels'],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'megamenu.read', label: 'View megamenu configuration' },

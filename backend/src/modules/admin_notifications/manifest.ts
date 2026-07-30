@@ -16,5 +16,5 @@ export const manifest = defineModuleManifest({
   description:
     'In-app notification feed surfaced in the admin top-nav bell. Generic so any module can write entries.',
   version: '1.0.0',
-  dependencies: [],
+  dependencies: ['admin_users'],
 });
