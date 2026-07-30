@@ -2,6 +2,7 @@ import { readdirSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
+import type { IMigrator } from '@mikro-orm/core';
 import type Redis from 'ioredis';
 import type {
   ModuleInstallHook,
@@ -28,6 +29,7 @@ import {
   resumeWorkersFor,
 } from '../plugin-helpers.js';
 import type { LoadedManifestRegistry } from './manifest-loader.js';
+import { getMigrator } from '../../../db/migrator.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -45,6 +47,12 @@ export interface OrchestratorDeps {
    * Tests can override to point at a fixture tree.
    */
   migrationsDir?: string;
+  /**
+   * How a migrator is obtained. Defaults to `getMigrator` from
+   * src/db/migrator.ts, which runs the legacy-name pre-flight (feature 065)
+   * before anything computes pending work. Tests inject a stub here.
+   */
+  migratorFor?: (orm: MikroORM) => Promise<IMigrator>;
   /** Optional logger (Fastify request-logger compatible). Defaults to console. */
   log?: {
     info(msg: string): void;
@@ -230,7 +238,7 @@ export class ModuleLifecycleOrchestrator {
         //    instance migrations are global (linear log); installing a
         //    module's migrations also runs any prior pending ones, which is
         //    the expected outcome.
-        const migrator = this.deps.orm.getMigrator();
+        const migrator = await this.migrator();
         const pendingBefore = await migrator.getPendingMigrations();
         if (pendingBefore.length > 0) {
           const applied = await migrator.up();
@@ -298,7 +306,7 @@ export class ModuleLifecycleOrchestrator {
         // Rollback path: revert any migrations we just applied (in reverse).
         for (const name of [...appliedMigrations].reverse()) {
           try {
-            await this.deps.orm.getMigrator().down({ migrations: [name] });
+            await (await this.migrator()).down({ migrations: [name] });
           } catch (revertErr) {
             this.log.error(
               `[install-rollback] failed to revert migration ${name}: ` +
@@ -823,6 +831,11 @@ export class ModuleLifecycleOrchestrator {
    * Best-effort: modules that don't follow the convention will produce no
    * matches and the orchestrator will log a warning instead of failing.
    */
+  private async migrator(): Promise<IMigrator> {
+    const accessor = this.deps.migratorFor ?? getMigrator;
+    return accessor(this.deps.orm);
+  }
+
   private async revertMigrationsFor(moduleId: string): Promise<string[]> {
     if (!existsSync(this.migrationsDir)) return [];
     const files = readdirSync(this.migrationsDir)
@@ -837,7 +850,7 @@ export class ModuleLifecycleOrchestrator {
       );
       return [];
     }
-    const migrator = this.deps.orm.getMigrator();
+    const migrator = await this.migrator();
     const reverted: string[] = [];
     for (const file of files) {
       // Migrator class name is derived from filename — strip extension and

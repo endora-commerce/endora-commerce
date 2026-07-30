@@ -3,6 +3,7 @@ import { MikroORM } from '@mikro-orm/postgresql';
 import baseConfig from '../../../src/db/mikro-orm.config.js';
 import { applyLegacyMigrationRenames } from '../../../src/db/legacy-migration-rename.js';
 import { LEGACY_MIGRATION_RENAMES } from '../../../src/db/legacy-migration-names.js';
+import { getMigrator } from '../../../src/db/migrator.js';
 
 /**
  * Safety matrix for the legacy-name pre-flight — see
@@ -93,6 +94,11 @@ describe('applyLegacyMigrationRenames', () => {
     expect(result.renamed).toBe(112);
     expect(result.unknown).toEqual([]);
     expect(await storedNames()).toEqual(LEGACY_MIGRATION_RENAMES.map((rename) => rename.name));
+
+    // SC-001 — a fully migrated legacy database has nothing pending after the
+    // rename, so it never re-runs its 112 applied migrations.
+    const migrator = await getMigrator(orm);
+    expect(await migrator.getPendingMigrations()).toEqual([]);
   });
 
   it('is idempotent — a second run renames nothing and creates no duplicates', async () => {

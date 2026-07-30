@@ -32,8 +32,8 @@ import path from 'node:path';
 
 const allowlist = [
   // Foundation + the migration itself
-  'backend/src/db/migrations/001_foundation_init.ts',
-  'backend/src/modules/catalog/migrations/032_attribute_options_and_flags.ts',
+  'backend/src/db/migrations/20260424T165847_core_foundation_init.ts',
+  'backend/src/modules/catalog/migrations/20260505T060113_catalog_attribute_options_and_flags.ts',
   // Boundary helpers — accept + project the legacy shape
   'backend/src/modules/catalog/services/attribute-type-mapping.ts',
   'backend/src/modules/catalog/services/catalog-admin.service.ts',
