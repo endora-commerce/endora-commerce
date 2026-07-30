@@ -58,6 +58,8 @@ uploads/
 tmp/
 # Local-FS storage adapter for the Assets Library — dev-only blob store.
 backend/var/assets/
+# Feature 065 migration-rename baseline capture (scratch, deleted after the branch).
+backend/var/065-baseline/
 
 # Claude Code local agent state (skills/ stays tracked)
 .claude/scheduled_tasks.lock
