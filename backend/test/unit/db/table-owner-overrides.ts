@@ -1,0 +1,50 @@
+/**
+ * Explicit owners for the tables no entity claims.
+ *
+ * Rule 2 of
+ * specs/065-manifest-aware-migrations/contracts/fk-dependency-check.md §2.1:
+ * ownership resolves by entity `tableName` first, then by this map, then it
+ * fails. There is deliberately **no** "whichever migration created it" fallback
+ * — that produced provably wrong owners (`sales_channel_products` → `core`).
+ *
+ * Every key is asserted to be a really-created table that no entity claims, so
+ * a stale entry fails the build (fk-dependency-drift.test.ts, case V2).
+ */
+export const TABLE_OWNER_OVERRIDES: Readonly<Record<string, string>> = {
+  // Attribute options were split out of a JSONB column; the catalog entity
+  // reaches them through ProductAttribute, so no entity declares the table.
+  attribute_options: 'catalog',
+
+  // CMS scoping bridges — owned by the module whose content they scope.
+  cms_block_sales_channels: 'cms',
+  cms_hook_sales_channels: 'cms',
+  cms_page_sales_channels: 'cms',
+  cms_template_sales_channels: 'cms',
+
+  // Legacy outbound-integration table, read through the webhooks module.
+  external_integrations: 'webhooks',
+
+  // Price-list child tables, reached through PriceList.
+  price_list_assignments: 'price_lists',
+  price_list_items: 'price_lists',
+
+  // Catalog junction tables.
+  product_assets: 'catalog',
+  product_categories: 'catalog',
+
+  // Sales-channel membership bridges (Principle XII — read only through
+  // SalesChannelMembershipService).
+  sales_channel_categories: 'sales_channels',
+  sales_channel_cms_pages: 'sales_channels',
+  sales_channel_customer_accounts: 'sales_channels',
+  sales_channel_delivery_methods: 'sales_channels',
+  sales_channel_organizations: 'sales_channels',
+  sales_channel_payment_methods: 'sales_channels',
+  sales_channel_products: 'sales_channels',
+  sales_channel_promotions: 'sales_channels',
+  sales_channel_taxes: 'sales_channels',
+
+  // Settings scoping bridges.
+  setting_group_sales_channels: 'settings',
+  setting_sales_channels: 'settings',
+};
