@@ -14,5 +14,5 @@ export const manifest = defineModuleManifest({
   description:
     'Customer (B2B) account records, including organization membership and role.',
   version: '1.0.0',
-  dependencies: [],
+  dependencies: ['organizations', 'price_lists'],
 });

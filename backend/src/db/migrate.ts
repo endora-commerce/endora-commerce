@@ -1,4 +1,5 @@
 import { initOrm, closeOrm } from './index.js';
+import { getMigrator } from './migrator.js';
 
 /**
  * Programmatic migration runner — invoked via `tsx src/db/migrate.ts <command>`
@@ -15,7 +16,9 @@ import { initOrm, closeOrm } from './index.js';
 async function main(): Promise<void> {
   const cmd = process.argv[2] ?? 'up';
   const orm = await initOrm();
-  const migrator = orm.getMigrator();
+  // getMigrator runs the legacy-name pre-flight (feature 065) and prints its
+  // result before anything computes pending work.
+  const migrator = await getMigrator(orm);
 
   try {
     switch (cmd) {

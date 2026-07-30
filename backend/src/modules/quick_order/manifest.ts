@@ -50,7 +50,7 @@ export const manifest = defineModuleManifest({
   description:
     'Bulk Cart / Quote Request import (CSV + Excel, with variants), quick product search, reorder, default ordering preferences, and one-click buy.',
   version: '2.0.0',
-  dependencies: [],
+  dependencies: ['addresses', 'delivery_methods', 'payment_methods'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   actions: [

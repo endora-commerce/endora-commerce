@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { MigrationObject } from '@mikro-orm/core';
-import config from '../../../src/db/mikro-orm.config.js';
+import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.js';
 
 /**
- * Guard against the "added a migration file but forgot to register it" class
- * of bug. `mikro-orm.config.ts` keeps an explicit `migrationsList` (no glob
- * discovery — see the comment in that file for why), so a migration that
- * lives on disk but is missing from the list is invisible to the migrator,
- * `migration:pending` silently reports "no pending migrations", and the
- * runtime crashes the first time something queries the missing table.
+ * Round-trip guard for the migration registry.
  *
- * This test enforces the round-trip: every migration class derived from a
- * `*_*.ts` file under `src/db/migrations/` or `src/modules/<x>/migrations/`
- * is in `migrationsList`, and every entry in `migrationsList` has a file.
+ * `src/db/migrations-registry.ts` keeps an explicit list of statically imported
+ * migration classes (no glob discovery — Node's ESM loader cannot transform
+ * `.ts` at runtime and it breaks under Vitest), so a migration that lives on
+ * disk but is missing from the registry is invisible to the migrator,
+ * `migration:pending` silently reports "no pending migrations", and the runtime
+ * crashes the first time something queries the missing table.
+ *
+ * The naming and registration rules asserted here are specified once, in
+ * specs/065-manifest-aware-migrations/contracts/naming-convention.md.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -23,96 +23,161 @@ const backendRoot = resolve(here, '../../..');
 const dbMigrationsDir = resolve(backendRoot, 'src/db/migrations');
 const modulesRoot = resolve(backendRoot, 'src/modules');
 
-const MIGRATION_FILE_RE = /^(\d+)_([a-z0-9_]+)\.ts$/;
+/** contracts/naming-convention.md §1 — the only recognizer any tool may use. */
+const MIGRATION_FILE_RE = /^(\d{8}T\d{6})_([a-z0-9_]+)\.ts$/;
 
-interface DiscoveredMigration {
-  /** Absolute file path. */
-  path: string;
-  /** Class name derived from the filename per project convention. */
-  className: string;
-}
+/** contracts/naming-convention.md §4 — non-migration helpers in a migrations/ dir. */
+const HELPER_ALLOW_LIST = new Set([
+  'src/modules/quote_requests/migrations/status-mapping.ts',
+]);
 
+/** contracts/naming-convention.md §2. */
 function classNameFromFile(filename: string): string {
   const match = MIGRATION_FILE_RE.exec(filename);
   if (!match) {
     throw new Error(`Unexpected migration filename: ${filename}`);
   }
-  const [, number, rest] = match;
-  const titleCase = rest!
+  const [, stamp, tail] = match;
+  const pascal = tail!
     .split('_')
+    .filter((segment) => segment.length > 0)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join('');
-  return `Migration${number}${titleCase}`;
+  return `Migration${stamp}${pascal}`;
 }
 
-function listMigrationFiles(dir: string): DiscoveredMigration[] {
-  if (!existsSync(dir) || !statSync(dir).isDirectory()) return [];
-  return readdirSync(dir)
-    .filter((name) => MIGRATION_FILE_RE.test(name))
-    .map((name) => ({
-      path: resolve(dir, name),
-      className: classNameFromFile(name),
+/** contracts/naming-convention.md §1 — segment normalization. */
+function segmentOf(moduleId: string): string {
+  return moduleId === 'core' ? 'core' : moduleId.replace(/^_/, '');
+}
+
+interface DiscoveredMigration {
+  /** Repo-relative-to-backend path, for readable failure messages. */
+  relativePath: string;
+  filename: string;
+  className: string;
+  /** Owning module id — 'core' for src/db/migrations/. */
+  moduleId: string;
+}
+
+function migrationDirs(): { dir: string; moduleId: string }[] {
+  const moduleDirs = readdirSync(modulesRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({
+      dir: resolve(modulesRoot, entry.name, 'migrations'),
+      moduleId: entry.name,
     }));
+  return [{ dir: dbMigrationsDir, moduleId: 'core' }, ...moduleDirs];
+}
+
+function listTsFiles(dir: string): string[] {
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) return [];
+  return readdirSync(dir).filter((name) => name.endsWith('.ts'));
 }
 
 function discoverAllMigrations(): DiscoveredMigration[] {
-  const moduleDirs = readdirSync(modulesRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => resolve(modulesRoot, entry.name, 'migrations'));
-  return [
-    ...listMigrationFiles(dbMigrationsDir),
-    ...moduleDirs.flatMap(listMigrationFiles),
-  ];
+  const discovered: DiscoveredMigration[] = [];
+  for (const { dir, moduleId } of migrationDirs()) {
+    for (const filename of listTsFiles(dir)) {
+      if (!MIGRATION_FILE_RE.test(filename)) continue;
+      discovered.push({
+        relativePath: relative(backendRoot, resolve(dir, filename)),
+        filename,
+        className: classNameFromFile(filename),
+        moduleId,
+      });
+    }
+  }
+  return discovered;
 }
 
-function isMigrationObject(
-  entry: MigrationObject | { new (...args: never[]): unknown },
-): entry is MigrationObject {
-  return typeof entry === 'object' && 'name' in entry && 'class' in entry;
-}
+const onDisk = discoverAllMigrations();
+const onDiskByClassName = new Map(onDisk.map((migration) => [migration.className, migration]));
+const registeredNames = MIGRATION_REGISTRY.map((entry) => entry.cls.name);
 
-describe('migrationsList registration guard', () => {
-  const onDisk = discoverAllMigrations();
-  const onDiskNames = new Set(onDisk.map((m) => m.className));
-  const rawList = config.migrations?.migrationsList ?? [];
-  const registered: MigrationObject[] = rawList.filter(isMigrationObject);
-  const registeredNames = new Set(registered.map((m) => m.name));
-
+describe('migration registry round-trip', () => {
   it('discovers at least one migration file (sanity check)', () => {
     expect(onDisk.length).toBeGreaterThan(0);
   });
 
-  it.each(onDisk.map((m) => [m.className, m.path]))(
-    '%s is registered in mikro-orm.config.ts',
+  it.each(onDisk.map((migration) => [migration.className, migration.relativePath]))(
+    '%s is registered in migrations-registry.ts',
     (className) => {
       expect(
-        registeredNames.has(className),
+        registeredNames.includes(className),
         `Migration file for ${className} exists on disk but is not in ` +
-          `migrationsList — add an import + entry in ` +
-          `backend/src/db/mikro-orm.config.ts.`,
+          `MIGRATION_REGISTRY — add an import + migration() entry in ` +
+          `backend/src/db/migrations-registry.ts.`,
       ).toBe(true);
     },
   );
 
-  it('every registered migration entry corresponds to a file on disk', () => {
-    const orphans = [...registeredNames].filter(
-      (name) => !onDiskNames.has(name),
-    );
+  it('every registry entry corresponds to a file on disk', () => {
+    const orphans = registeredNames.filter((name) => !onDiskByClassName.has(name));
     expect(
       orphans,
-      `migrationsList references entries with no matching file on disk: ` +
-        orphans.join(', '),
+      `MIGRATION_REGISTRY references entries with no matching file on disk: ${orphans.join(', ')}`,
     ).toEqual([]);
   });
 
-  it('registry entry name matches its class.name', () => {
-    const mismatched = registered
-      .filter((entry) => entry.class.name !== entry.name)
-      .map((entry) => `${entry.name} (class.name=${entry.class.name})`);
+  it('registers every migration exactly once', () => {
+    const seen = new Set<string>();
+    const duplicates = registeredNames.filter((name) => !seen.add(name) && true);
+    expect(duplicates, `duplicate registry entries: ${duplicates.join(', ')}`).toEqual([]);
+    expect(registeredNames).toHaveLength(onDisk.length);
+  });
+
+  it('every entry declares the module that owns the file', () => {
+    const mismatched = MIGRATION_REGISTRY.filter((entry) => {
+      const file = onDiskByClassName.get(entry.cls.name);
+      return file !== undefined && file.moduleId !== entry.moduleId;
+    }).map((entry) => {
+      const file = onDiskByClassName.get(entry.cls.name)!;
+      return `${entry.cls.name} declares moduleId "${entry.moduleId}" but lives in ${file.relativePath} (owner "${file.moduleId}")`;
+    });
+    expect(mismatched, mismatched.join('; ')).toEqual([]);
+  });
+
+  it("every filename's segment equals the normalized owning module id", () => {
+    const mismatched = onDisk
+      .filter((migration) => {
+        const segment = segmentOf(migration.moduleId);
+        const tail = MIGRATION_FILE_RE.exec(migration.filename)![2]!;
+        return tail !== segment && !tail.startsWith(`${segment}_`);
+      })
+      .map(
+        (migration) =>
+          `${migration.relativePath} must start its tail with the segment "${segmentOf(migration.moduleId)}"`,
+      );
+    expect(mismatched, mismatched.join('; ')).toEqual([]);
+  });
+
+  it('has no unrecognized .ts file in any migrations directory', () => {
+    const strays: string[] = [];
+    for (const { dir } of migrationDirs()) {
+      for (const filename of listTsFiles(dir)) {
+        const relativePath = relative(backendRoot, resolve(dir, filename));
+        if (MIGRATION_FILE_RE.test(filename)) continue;
+        if (HELPER_ALLOW_LIST.has(relativePath.split('\\').join('/'))) continue;
+        strays.push(relativePath);
+      }
+    }
     expect(
-      mismatched,
-      `migrationsList entries whose name field disagrees with the imported ` +
-        `class.name: ${mismatched.join(', ')}`,
+      strays,
+      `unrecognized .ts files in migrations directories (rename them per ` +
+        `contracts/naming-convention.md §1, or add them to the helper allow-list): ${strays.join(', ')}`,
     ).toEqual([]);
+  });
+
+  it('has no legacy sequentially-numbered migration file left', () => {
+    const legacy: string[] = [];
+    for (const { dir } of migrationDirs()) {
+      for (const filename of listTsFiles(dir)) {
+        if (/^\d{3}_/.test(filename)) {
+          legacy.push(relative(backendRoot, resolve(dir, filename)));
+        }
+      }
+    }
+    expect(legacy, `legacy-numbered migration files remain: ${legacy.join(', ')}`).toEqual([]);
   });
 });

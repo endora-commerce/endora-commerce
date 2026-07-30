@@ -14,5 +14,5 @@ export const manifest = defineModuleManifest({
   description:
     'Outbound webhook subscription registry and dispatcher.',
   version: '1.0.0',
-  dependencies: [],
+  dependencies: ['organizations'],
 });

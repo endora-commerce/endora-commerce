@@ -155,7 +155,10 @@ function buildOrchestrator(opts: {
   const migrator = opts.migrator ?? new FakeMigrator();
   const redis = opts.redis ?? new FakeRedis();
   const auditLog = opts.auditLog ?? new FakeAuditLog();
-  const orm = { getMigrator: () => migrator } as never;
+  // The orchestrator obtains its migrator through the injectable
+  // `migratorFor` seam (feature 065) so the real accessor — which runs the
+  // legacy-name pre-flight against a database — is never reached in a unit test.
+  const orm = {} as never;
   return {
     em,
     migrator,
@@ -167,6 +170,7 @@ function buildOrchestrator(opts: {
       em: () => em as never,
       auditLog: auditLog as never,
       registry: opts.registry,
+      migratorFor: async () => migrator as never,
     }),
   };
 }

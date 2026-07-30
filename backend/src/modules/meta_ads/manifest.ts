@@ -52,7 +52,7 @@ export const manifest = defineModuleManifest({
   description:
     'Meta Ads integration: per-sales-channel Meta Pixel, consent-gated tracking, standard commerce events, and configurable custom events.',
   version: '1.0.0',
-  dependencies: ['settings', 'sales_channels', 'audit_logs'],
+  dependencies: ['audit_logs', 'sales_channels', 'settings'],
   settings: metaAdsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

@@ -60,7 +60,7 @@ export const manifest = defineModuleManifest({
   description:
     'Admin-editable transactional email content and look (global + per sales channel), email-safe blocks/templates, variables, and preview.',
   version: '1.0.0',
-  dependencies: ['settings', 'sales_channels', 'email', 'assets_library'],
+  dependencies: ['assets_library', 'email', 'sales_channels', 'settings'],
   settings: transactionalEmailsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

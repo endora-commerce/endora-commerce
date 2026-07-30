@@ -20,6 +20,6 @@ export const manifest = defineModuleManifest({
   description:
     'Module-contributed action registry that surfaces declared actions in the admin command palette.',
   version: '1.0.0',
-  dependencies: ['_lifecycle', '_i18n'],
+  dependencies: ['_i18n', '_lifecycle'],
   i18n: { bundlesDir: 'i18n' },
 });

@@ -86,7 +86,7 @@ export const manifest = defineModuleManifest({
   description:
     'Customer-initiated RFQ workflow with admin pricing, approvals, and expiry.',
   version: '1.0.0',
-  dependencies: ['settings', 'catalog'],
+  dependencies: ['catalog', 'settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   actions: [

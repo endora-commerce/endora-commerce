@@ -129,7 +129,7 @@ export const manifest = defineModuleManifest({
   description:
     'Installability, static-asset caching, controlled service-worker updates, and provider-agnostic push notifications for the storefront and admin.',
   version: '1.0.0',
-  dependencies: ['_lifecycle', '_i18n', 'settings', 'sales_channels', 'assets_library'],
+  dependencies: ['_i18n', '_lifecycle', 'assets_library', 'sales_channels', 'settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

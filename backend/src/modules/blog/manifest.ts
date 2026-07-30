@@ -86,7 +86,14 @@ export const manifest = defineModuleManifest({
   description:
     'Multi-channel, multi-language blog with categories, tags, and Page Builder posts.',
   version: '1.0.0',
-  dependencies: ['settings', 'cms', 'assets_library', 'dictionaries'],
+  dependencies: [
+    'assets_library',
+    'catalog',
+    'cms',
+    'dictionaries',
+    'sales_channels',
+    'settings',
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
   actions: [

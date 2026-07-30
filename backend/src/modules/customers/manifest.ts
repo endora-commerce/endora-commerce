@@ -66,7 +66,7 @@ export const manifest = defineModuleManifest({
   description:
     'Customer lifecycle business logic: registration, self-service, blocking, impersonation, groups, deletion, and presence.',
   version: '1.0.0',
-  dependencies: ['settings', 'customer_accounts', 'organizations'],
+  dependencies: ['customer_accounts', 'organizations', 'settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   actions: [

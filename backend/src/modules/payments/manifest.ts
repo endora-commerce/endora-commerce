@@ -14,7 +14,7 @@ export const manifest = defineModuleManifest({
   description:
     'Payment driver abstraction and PSP integrations.',
   version: '1.0.0',
-  dependencies: [],
+  dependencies: ['orders', 'payment_methods'],
   // Feature 047 — admin-editable transactional email owned by this module.
   transactionalEmails: [
     {

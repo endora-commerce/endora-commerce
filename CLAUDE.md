@@ -3,6 +3,14 @@
 Auto-generated from all feature plans. Last updated: 2026-07-23
 
 ## Active Technologies
+
+> **Migration filenames below are historical.** Entries in this section quote the
+> `NNN_*` sequential filenames and "next free repo-wide number" wording that were in
+> force when each feature shipped. Feature 065 retired that scheme: migrations are now
+> `<YYYYMMDDTHHmmss>_<module>_<slug>.ts` and ordering is computed, not numbered. Do
+> **not** copy the numbering wording into a new plan — see the
+> "New migration (required)" section at the end of this file.
+
 - TypeScript 5.x (strict mode) na Node.js LTS (≥ 22.17, jak w README po update foundation 001). + bez nowych runtime — wszystkie wymagane już są: (002-catalog-module)
 - PostgreSQL — nowe tabele `attribute_sets`, `attribute_set_attributes` (bridge), `gallery_items`, `gallery_item_labels` (bridge etykiet), `product_attachments`, `attachment_types`, `product_links`, `grouped_items`, `bundle_slots`, `bundle_slot_options`. Migracje generowane standardową ścieżką MikroORM (`pnpm --filter backend run migration:generate`). Zmiany w `products`: dodanie kolumn `attributeSetId` (FK), `downloadAssetId` (FK nullable, virtual), `downloadUrl` (varchar nullable, virtual), rozszerzenie enuma `type`. Zmiana enuma `valueType` w `product_attributes` (dodanie `multiselect`, `price`) + nowa kolumna `displayAsSlider` (bool). (002-catalog-module)
 - TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + Existing stack only — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues. **No new runtime dependency** is justified for this feature. (004-settings-module)
@@ -168,6 +176,33 @@ Every module with an admin surface **must** be discoverable under ⌘K / CTRL+K.
 ### Overlay modules (per-deployment customization, feature 057)
 
 A **client-only overlay module** lives under `backend/src/apps/<deployment>/modules/<id>/` and is discovered without editing the shared core registry (`REGISTERED_MANIFESTS` stays untouched — FR-004). It is an ordinary lifecycle participant, so the same rules apply, with one difference: its admin permissions must appear on `/admin-roles` and pass the permission-inventory check **for that deployment** — run the inventory test with `DEPLOYMENT=<name>` set. Overriding a core **service** requires the core service to expose a `*.interface.ts`; the overlay `implements` it via the `@core/*` alias so `tsc` is the contract gate. Never override a core entity/migration (schema overrides are out of v1) — ship new schema as tables owned by the overlay module. See `docs/docs/architecture/overlay-pattern.md` and `specs/057-overlay-pattern-multideploy/`.
+
+### New migration (required, feature 065)
+
+There is **no repo-wide sequential migration number**. Never write "the next free
+`NNN_*` number", never pick a number, never edit an execution list.
+
+1. **Scaffold it** — `pnpm --filter backend run migration:new -- --module <id> --name <slug>`.
+   The file lands in `backend/src/modules/<id>/migrations/` (or `backend/src/db/migrations/`
+   for `--module core`), named `<YYYYMMDDTHHmmss>_<module-segment>_<slug>.ts` with a
+   UTC timestamp. The class name is derived mechanically from the filename
+   (`Migration<STAMP><PascalCaseTail>`); it is the name persisted in
+   `mikro_orm_migrations`, so never rename an applied class.
+2. **Register it** — paste the two printed lines (import + `migration('<id>', Class)`)
+   into the module's group in **`backend/src/db/migrations-registry.ts`**. This registry
+   replaced the hand-ordered `migrationsList` in `mikro-orm.config.ts`. An unregistered
+   migration does not run; `test/unit/db/migrations-registry.test.ts` fails the build for it.
+3. **Do not order by hand.** Declaration order in the registry has no effect. Execution
+   order is computed by `backend/src/db/migration-order.ts` from the timestamps, corrected
+   by the module-manifest dependency graph (45-day horizon). If `db:fresh` fails on
+   ordering, bump the timestamp or fix the manifest `dependencies` — never move a registry line.
+4. **Cross-module FK ⇒ declare the dependency.** A new foreign key to another module's
+   table requires that module in your manifest's `dependencies` (transitively), or
+   `pnpm --filter backend exec vitest run test/unit/db/fk-dependency-drift.test.ts` fails.
+5. **Never edit** `backend/src/db/legacy-migration-names.ts` — it is the frozen rename map
+   that keeps deployed databases from re-running 112 migrations.
+
+Full guide: `docs/docs/architecture/migrations.md`; contracts under `specs/065-manifest-aware-migrations/contracts/`.
 
 When you introduce new feature, follow principles described in `.specify/memory/constitution.md` file.
 

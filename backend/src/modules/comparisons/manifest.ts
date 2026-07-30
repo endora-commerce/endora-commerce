@@ -47,7 +47,7 @@ export const manifest = defineModuleManifest({
   description:
     'Customer-facing product comparison feature with shareable links and PDF export.',
   version: '1.0.0',
-  dependencies: ['settings', 'catalog'],
+  dependencies: ['catalog', 'customer_accounts', 'sales_channels', 'settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: 'comparisons:read', label: 'View product comparisons' }],

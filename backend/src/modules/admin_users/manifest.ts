@@ -14,5 +14,5 @@ export const manifest = defineModuleManifest({
   description:
     'Admin user accounts, sessions, and impersonation flows.',
   version: '1.0.0',
-  dependencies: [],
+  dependencies: ['admin_roles'],
 });

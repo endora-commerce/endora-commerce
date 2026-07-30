@@ -16,6 +16,7 @@ const sidebars = {
       items: [
         'architecture/tenant-scoping',
         'architecture/api-interceptor',
+        'architecture/migrations',
         'architecture/command-bus',
         'architecture/custom-fields',
         'architecture/overlay-pattern',

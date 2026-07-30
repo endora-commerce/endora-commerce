@@ -14,5 +14,8 @@ export const manifest = defineModuleManifest({
   description:
     'Reusable address entities used by organizations, customers, and order fulfilment.',
   version: '1.0.0',
-  dependencies: [],
+  // `addresses.organization_id` foreign-keys `organizations`. The edge was
+  // found by the FK-drift validator (feature 065) and is genuinely declarable:
+  // quick_order → addresses → organizations → settings stays acyclic.
+  dependencies: ['organizations'],
 });

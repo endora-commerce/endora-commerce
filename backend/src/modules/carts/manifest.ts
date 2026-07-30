@@ -47,7 +47,15 @@ export const manifest = defineModuleManifest({
   name: 'Carts',
   description: 'Shopping cart aggregation, pricing, lifecycle, and approval gate.',
   version: '2.0.0',
-  dependencies: ['settings', 'sales_channels', 'organizations', 'price_lists'],
+  dependencies: [
+    'customer_accounts',
+    'organizations',
+    'price_lists',
+    'promotions',
+    'quote_requests',
+    'sales_channels',
+    'settings',
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
 });

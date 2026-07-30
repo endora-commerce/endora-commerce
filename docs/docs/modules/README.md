@@ -46,7 +46,6 @@ how to consume it.
 | [dictionary](./dictionary) | Seeded reference data — Countries, Currencies, Languages — with admin reordering | yes |
 | [health_checks](./health_checks) | Liveness + readiness probe | yes |
 | [import_export](./import_export) | CSV import / export for bulk-edit entities | yes |
-| [integrations](./integrations) | External vendor configurations (encrypted) | yes |
 | [inventory](./inventory) | Stock levels, reservations, availability notifications | yes |
 | [invoices](./invoices) | PDF invoice / proforma generation + asset linkage | yes |
 | [ksef](./ksef) | Krajowy System e-Faktur integration — FA(3) submission of issued invoices, KSeF numbers + UPO, certificate management | yes (admin) |

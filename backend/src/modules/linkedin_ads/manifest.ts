@@ -71,7 +71,7 @@ export const manifest = defineModuleManifest({
   description:
     'LinkedIn Ads integration: per-sales-channel Insight Tag, consent-gated tracking, configurable conversion mappings, and optional server-side reporting through the Conversions API.',
   version: '1.0.0',
-  dependencies: ['settings', 'sales_channels', 'audit_logs'],
+  dependencies: ['audit_logs', 'sales_channels', 'settings'],
   settings: linkedInAdsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

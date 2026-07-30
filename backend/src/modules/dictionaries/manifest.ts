@@ -35,7 +35,7 @@ export const manifest = defineModuleManifest({
   description:
     'Cross-module registry of countries, languages, and currencies — backs every dropdown, validator, and address-form picker on the storefront and admin.',
   version: '1.0.0',
-  dependencies: [],
+  dependencies: ['currencies', 'languages'],
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: DICTIONARY_PERMISSIONS.WRITE, label: 'Manage dictionary registry' }],
 });
