@@ -1,6 +1,7 @@
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ERROR_CODES, impersonationRequestSchema } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import type { TestActorCarrier } from '../../http/test-actor-carrier.js';
 import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { ImpersonationService } from './services/impersonation-service.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
@@ -39,10 +40,14 @@ export async function registerImpersonationRoutes(
     },
     async (request, reply) => {
       const body = impersonationRequestSchema.parse(request.body);
-      if (request.testActor?.kind !== 'admin') {
+      // The test harness decorates `request.testActor` (test/helpers/test-actors.ts).
+      // Narrow it locally rather than relying on that file's global `fastify`
+      // augmentation — it lives under test/, which tsconfig.build.json excludes.
+      const testActor = (request as FastifyRequest & TestActorCarrier).testActor;
+      if (testActor?.kind !== 'admin') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
       }
-      const adminId = request.testActor.adminUserId;
+      const adminId = testActor.adminUserId;
 
       const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
       // The admin's own session lives in the dedicated admin cookie; fall back to

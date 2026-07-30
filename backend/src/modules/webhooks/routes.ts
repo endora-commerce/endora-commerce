@@ -4,6 +4,7 @@ import type { WebhookService } from './services/webhook-service.js';
 import type { Webhook } from './entities/webhook.entity.js';
 import type { WebhookDelivery } from './entities/webhook-delivery.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import { testAdminUserId } from '../../http/test-actor-carrier.js';
 
 export interface WebhooksAdminDeps {
   webhookService: WebhookService;
@@ -33,8 +34,7 @@ export async function registerWebhooksAdminRoutes(
     },
     async (request, reply) => {
       const body = createWebhookRequestSchema.parse(request.body);
-      const adminId =
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : undefined;
+      const adminId = testAdminUserId(request);
       const w = await webhookService.create({
         name: body.name,
         url: body.url,
