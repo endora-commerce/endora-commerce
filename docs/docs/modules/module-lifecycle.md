@@ -119,7 +119,7 @@ Manifest fields:
 
 Soft-uninstall preserves data: settings rows are removed, the registry row keeps `state = 'uninstalled'`, schema and data tables are untouched. Re-installing the same module reuses already-applied migrations and finishes in seconds.
 
-Hard-uninstall (`--hard`) additionally reverts the module's migrations (matched by filename pattern `^\d+_<id>_`) and deletes the registry row.
+Hard-uninstall (`--hard`) additionally reverts the module's migrations and deletes the registry row. The migrations to revert are resolved from `MIGRATION_REGISTRY` (`backend/src/db/migrations-registry.ts`) by their declared `moduleId`, sorted ascending, and reverted in reverse order — see [Database Migrations](../architecture/migrations.md#module-uninstall-migration-revert). A module that owns no registered migration logs a warning and reverts nothing; hard-uninstall then relies on its `uninstallHook`.
 
 ## How disable works (feature gating without restart)
 
@@ -187,13 +187,19 @@ export async function uninstallHook({ em, hard, log }) {
 }
 ```
 
-### 3. Author migrations using the filename convention
+### 3. Author migrations
 
-```text
-backend/src/db/migrations/040_coupons_init.ts
+Scaffold the migration into the module's own `migrations/` directory — never pick a number:
+
+```bash
+pnpm --filter backend run migration:new -- --module coupons --name coupons_init
 ```
 
-The leading number is sequential (next available after the previous module's last migration). The `<id>_` infix is what the orchestrator's hard-uninstall path matches against — modules whose migration filenames don't follow this convention skip migration revert with a warning.
+```text
+backend/src/modules/coupons/migrations/20260805T141530_coupons_init.ts
+```
+
+The `<YYYYMMDDTHHmmss>` prefix is a UTC timestamp, not a sequence number; the class name is derived mechanically from the filename. The command prints an import line and a `migration('coupons', …)` entry line — paste both into the module's group in `backend/src/db/migrations-registry.ts`. **An unregistered migration does not run**, and the declared `moduleId` in that entry is what the orchestrator's hard-uninstall path matches against when reverting. See [Database Migrations](../architecture/migrations.md) for the naming convention, the ordering rules, and the FK-drift validator that requires a cross-module foreign key to be backed by a manifest `dependencies` entry.
 
 ### 4. Register the module
 
@@ -255,7 +261,7 @@ Expected output:
 ```text
 [install] coupons 1.0.0
   ✓ dependencies satisfied (settings, sales_channels, pricing)
-  ✓ migrations applied: 040
+  ✓ migrations applied: Migration20260805T141530CouponsInit
   ✓ settings reconciled: +1 group, +1 setting
   ✓ i18n bundles installed: en, pl
   ✓ admin actions reconciled: +1 row
