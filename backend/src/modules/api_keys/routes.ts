@@ -3,6 +3,7 @@ import { createApiKeyRequestSchema } from '@b2b/contracts';
 import type { ApiKeyService } from './services/api-key-service.js';
 import type { ApiKey } from './entities/api-key.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import { testAdminUserId } from '../../http/test-actor-carrier.js';
 
 export interface ApiKeysAdminDeps {
   apiKeyService: ApiKeyService;
@@ -32,8 +33,7 @@ export async function registerApiKeysAdminRoutes(
     },
     async (request, reply) => {
       const body = createApiKeyRequestSchema.parse(request.body);
-      const adminId =
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : undefined;
+      const adminId = testAdminUserId(request);
       const result = await apiKeyService.create({
         name: body.name,
         scopes: body.scopes,
