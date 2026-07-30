@@ -70,7 +70,8 @@ export const manifest = defineModuleManifest({
   //                        would cycle: organizations → customer_accounts →
   //                        organizations
   //   → inventory          (organization_warehouses.warehouse_id)
-  //                        would cycle: organizations → inventory →
+  //                        cycles as soon as the sales_channels bridge edge is
+  //                        also declared: organizations → inventory →
   //                        sales_channels → organizations
   //   → admin_users        (organizations.assigned_sales_rep_id,
   //                         organization_tax_id_validations.validated_by)

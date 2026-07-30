@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { deriveFkGraph } from '../../helpers/fk-graph.js';
+import { deriveFkGraph, type FkEdge } from '../../helpers/fk-graph.js';
 import { TABLE_OWNER_OVERRIDES } from './table-owner-overrides.js';
+import { ACKNOWLEDGED_FK_EDGES, type AcknowledgedFkEdge } from './acknowledged-fk-edges.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
 
 /**
  * FK-vs-manifest drift validator — cases V1-V10 of
@@ -17,6 +19,75 @@ const here = dirname(fileURLToPath(import.meta.url));
 const backendSrc = resolve(here, '../../../src');
 
 const graph = deriveFkGraph(backendSrc, { overrides: TABLE_OWNER_OVERRIDES });
+
+const MANIFEST_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map(
+  DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
+);
+
+/**
+ * Transitive dependency closure — the same closure the ordering algorithm uses
+ * (contracts/ordering-algorithm.md Step 3). Transitive, not direct: a module
+ * that declares `orders` inherits everything `orders` declares.
+ */
+function closureOf(
+  moduleId: string,
+  dependencies: ReadonlyMap<string, readonly string[]>,
+): Set<string> {
+  const reachable = new Set<string>();
+  const stack = [...(dependencies.get(moduleId) ?? [])];
+  while (stack.length > 0) {
+    const next = stack.pop()!;
+    if (next === moduleId || reachable.has(next)) continue;
+    reachable.add(next);
+    stack.push(...(dependencies.get(next) ?? []));
+  }
+  return reachable;
+}
+
+function violationMessage(edge: FkEdge, moduleFile: string): string {
+  return (
+    `[fk-drift] undeclared cross-module foreign key:\n` +
+    `  ${edge.via.map((pair) => `${edge.from}.${pair}`).join('\n  ')}\n` +
+    `  module "${edge.from}" references module "${edge.to}" but does not declare ` +
+    `it (transitively) in ${moduleFile}.\n\n` +
+    `  Fix one of:\n` +
+    `    (a) add '${edge.to}' to \`dependencies\` in ${edge.from}/manifest.ts  ← usually this\n` +
+    `    (b) if the edge must stay undeclared (it would create a cycle), add an ` +
+    `entry to backend/test/unit/db/acknowledged-fk-edges.ts with a reason and the cycle.`
+  );
+}
+
+/** The validator itself — reusable so the synthetic cases exercise real code. */
+function findViolations(
+  edges: readonly FkEdge[],
+  dependencies: ReadonlyMap<string, readonly string[]>,
+  acknowledged: readonly AcknowledgedFkEdge[],
+): string[] {
+  const allowed = new Set(acknowledged.map((edge) => `${edge.from}|${edge.to}`));
+  const messages: string[] = [];
+  for (const edge of edges) {
+    if (closureOf(edge.from, dependencies).has(edge.to)) continue;
+    if (allowed.has(`${edge.from}|${edge.to}`)) continue;
+    messages.push(violationMessage(edge, `backend/src/modules/${edge.from}/manifest.ts`));
+  }
+  return messages;
+}
+
+describe('fk drift — V1 zero violations against the real tree (SC-011)', () => {
+  it('every cross-module foreign key is declared or acknowledged', () => {
+    const violations = findViolations(
+      graph.edges,
+      MANIFEST_DEPENDENCIES,
+      ACKNOWLEDGED_FK_EDGES,
+    );
+    expect(violations, violations.join('\n\n')).toEqual([]);
+  });
+
+  it('derives a non-trivial edge set (guards against a silently empty scan)', () => {
+    expect(graph.edges.length).toBeGreaterThan(50);
+    expect(graph.createdTables.size).toBeGreaterThan(150);
+  });
+});
 
 describe('fk ownership map — V2 exhaustiveness', () => {
   it('resolves an owner for every table any migration creates', () => {
@@ -45,6 +116,195 @@ describe('fk ownership map — V2 exhaustiveness', () => {
       `these TABLE_OWNER_OVERRIDES keys are no longer needed (the table is gone, ` +
         `or an entity now declares it): ${stale.join(', ')}`,
     ).toEqual([]);
+  });
+});
+
+describe('fk drift — V3 failure-message contract (FR-042)', () => {
+  const syntheticEdge: FkEdge = {
+    from: 'orders',
+    to: 'api_keys',
+    count: 1,
+    via: ['order_placement_intents → api_keys'],
+  };
+
+  it('names both tables, both modules and both remediations', () => {
+    const violations = findViolations(
+      [syntheticEdge],
+      new Map([
+        ['orders', []],
+        ['api_keys', []],
+      ]),
+      [],
+    );
+
+    expect(violations).toHaveLength(1);
+    const message = violations[0]!;
+    expect(message).toContain('order_placement_intents');
+    expect(message).toContain('api_keys');
+    expect(message).toContain('module "orders"');
+    expect(message).toContain('module "api_keys"');
+    expect(message).toContain("add 'api_keys' to `dependencies` in orders/manifest.ts");
+    expect(message).toContain('acknowledged-fk-edges.ts');
+  });
+});
+
+describe('fk drift — V4 transitive satisfaction', () => {
+  it('accepts an edge satisfied through an intermediate module', () => {
+    const edge: FkEdge = { from: 'x', to: 'y', count: 1, via: ['x_table → y_table'] };
+    const dependencies = new Map<string, readonly string[]>([
+      ['x', ['z']],
+      ['z', ['y']],
+      ['y', []],
+    ]);
+
+    expect(findViolations([edge], dependencies, [])).toEqual([]);
+  });
+
+  it('rejects the same edge when the intermediate link is missing', () => {
+    const edge: FkEdge = { from: 'x', to: 'y', count: 1, via: ['x_table → y_table'] };
+    const dependencies = new Map<string, readonly string[]>([
+      ['x', ['z']],
+      ['z', []],
+      ['y', []],
+    ]);
+
+    expect(findViolations([edge], dependencies, [])).toHaveLength(1);
+  });
+});
+
+/** The allow-list minimality checks, each also proven by a synthetic mutation. */
+describe('fk drift — allow-list minimality M1-M5 (V5-V9)', () => {
+  const derivedPairs = new Set(graph.edges.map((edge) => `${edge.from}|${edge.to}`));
+
+  function stalePairs(entries: readonly AcknowledgedFkEdge[]): string[] {
+    return entries
+      .filter((entry) => !derivedPairs.has(`${entry.from}|${entry.to}`))
+      .map((entry) => `${entry.from} → ${entry.to}`);
+  }
+
+  function nowDeclared(
+    entries: readonly AcknowledgedFkEdge[],
+    dependencies: ReadonlyMap<string, readonly string[]>,
+  ): string[] {
+    return entries
+      .filter((entry) => closureOf(entry.from, dependencies).has(entry.to))
+      .map((entry) => `${entry.from} → ${entry.to}`);
+  }
+
+  function unjustified(entries: readonly AcknowledgedFkEdge[]): string[] {
+    const rules = new Set(['platform-root', 'bridge-owner', 'tenancy-root']);
+    return entries
+      .filter(
+        (entry) =>
+          entry.reason.trim().length === 0 ||
+          entry.cycle.trim().length === 0 ||
+          !rules.has(entry.rule),
+      )
+      .map((entry) => `${entry.from} → ${entry.to}`);
+  }
+
+  function duplicatePairs(entries: readonly AcknowledgedFkEdge[]): string[] {
+    const seen = new Set<string>();
+    const duplicates: string[] = [];
+    for (const entry of entries) {
+      const key = `${entry.from}|${entry.to}`;
+      if (seen.has(key)) duplicates.push(`${entry.from} → ${entry.to}`);
+      seen.add(key);
+    }
+    return duplicates;
+  }
+
+  it('M1 — every entry corresponds to a foreign key that still exists', () => {
+    const stale = stalePairs(ACKNOWLEDGED_FK_EDGES);
+    expect(
+      stale,
+      `these acknowledged edges no longer correspond to any foreign key — delete ` +
+        `them: ${stale.join(', ')}`,
+    ).toEqual([]);
+
+    // Mutation: an entry for a pair with no derived FK must be caught.
+    expect(
+      stalePairs([
+        {
+          from: 'seo',
+          to: 'taxes',
+          via: ['nothing → nothing'],
+          reason: 'synthetic',
+          rule: 'platform-root',
+          cycle: 'synthetic',
+        },
+      ]),
+    ).toEqual(['seo → taxes']);
+  });
+
+  it('M2 — no entry is already satisfied by the manifest graph', () => {
+    const declared = nowDeclared(ACKNOWLEDGED_FK_EDGES, MANIFEST_DEPENDENCIES);
+    expect(
+      declared,
+      `these acknowledged edges are now declared in the manifests, so the ` +
+        `exception is dead weight — delete them: ${declared.join(', ')}`,
+    ).toEqual([]);
+
+    // Mutation: once `settings` declares `sales_channels`, its entry must fail.
+    const mutated = new Map(MANIFEST_DEPENDENCIES);
+    mutated.set('settings', ['sales_channels']);
+    expect(nowDeclared(ACKNOWLEDGED_FK_EDGES, mutated)).toContain('settings → sales_channels');
+  });
+
+  it('M3 — every entry carries a reason, a known rule and a cycle statement', () => {
+    const bad = unjustified(ACKNOWLEDGED_FK_EDGES);
+    expect(bad, `unjustified acknowledged edges: ${bad.join(', ')}`).toEqual([]);
+    for (const entry of ACKNOWLEDGED_FK_EDGES) {
+      expect(entry.via.length, `${entry.from} → ${entry.to} has no via pair`).toBeGreaterThan(0);
+    }
+
+    // Mutation: an empty reason must be caught.
+    expect(
+      unjustified([
+        {
+          from: 'settings',
+          to: 'sales_channels',
+          via: ['setting_values → sales_channels'],
+          reason: '   ',
+          rule: 'platform-root',
+          cycle: 'settings → sales_channels → settings',
+        },
+      ]),
+    ).toEqual(['settings → sales_channels']);
+  });
+
+  it('M4 — no duplicate (from, to) pair', () => {
+    expect(duplicatePairs(ACKNOWLEDGED_FK_EDGES)).toEqual([]);
+
+    // Mutation: the same pair twice must be caught.
+    const entry = ACKNOWLEDGED_FK_EDGES[0]!;
+    expect(duplicatePairs([entry, entry])).toEqual([`${entry.from} → ${entry.to}`]);
+  });
+
+  it('M5 — the list stays at or below the SC-012 cap of 15', () => {
+    expect(ACKNOWLEDGED_FK_EDGES.length).toBeLessThanOrEqual(15);
+
+    // Mutation: a 16th entry must be caught.
+    const overCap = [
+      ...ACKNOWLEDGED_FK_EDGES,
+      {
+        from: 'seo',
+        to: 'taxes',
+        via: ['nothing → nothing'],
+        reason: 'synthetic',
+        rule: 'platform-root' as const,
+        cycle: 'synthetic',
+      },
+    ];
+    expect(overCap.length).toBeGreaterThan(15);
+  });
+
+  it('records the rule mix the design measured', () => {
+    const byRule = ACKNOWLEDGED_FK_EDGES.reduce<Record<string, number>>((counts, entry) => {
+      counts[entry.rule] = (counts[entry.rule] ?? 0) + 1;
+      return counts;
+    }, {});
+    expect(byRule).toEqual({ 'tenancy-root': 5, 'bridge-owner': 9, 'platform-root': 1 });
   });
 });
 
