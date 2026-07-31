@@ -88,6 +88,18 @@ TRAE_FILE="$REPO_ROOT/.trae/rules/project_rules.md"
 IFLOW_FILE="$REPO_ROOT/IFLOW.md"
 FORGE_FILE="$AGENTS_FILE"
 
+# --- repo-local override: one agent-context file -----------------------------
+# AGENTS.md is the single source of truth for agent instructions in this repo.
+# CLAUDE.md and .cursor/rules/specify-rules.mdc are thin pointers to it, so the
+# generated sections must not be written into them: before this override each
+# tool's /speckit.plan updated its own file and the three copies drifted apart
+# (CLAUDE.md 58 KB, AGENTS.md 8.5 KB, specify-rules.mdc 6.3 KB, all different).
+# update_all_existing_agents() de-duplicates by realpath, so the aliasing below
+# is safe for both the single-agent and the update-everything code paths.
+CLAUDE_FILE="$AGENTS_FILE"
+CURSOR_FILE="$AGENTS_FILE"
+# -----------------------------------------------------------------------------
+
 # Template file
 TEMPLATE_FILE="$REPO_ROOT/.specify/templates/agent-file-template.md"
 

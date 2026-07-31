@@ -4,65 +4,16 @@ globs: ["**/*"]
 alwaysApply: true
 ---
 
-# b2b-monorepo Development Guidelines
+# Project Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-05-26
+The project instructions live in `AGENTS.md` at the repository root, which Cursor loads
+natively. Read it before changing anything: stack, repo map, commands, binding principles
+from `.specify/memory/constitution.md`, and the required checklists for a new backend module
+(admin permissions, command palette, migrations, i18n, overlay modules).
 
-## Active Technologies
-- TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend); evergreen browser via Vite (admin), per README and `backend/package.json` engines. + Existing stack only — Fastify, MikroORM, Zod, Vitest (backend); React 19, Vite, react-router-dom 7, `@b2b/api-client`, `@b2b/contracts` (admin). **No new runtime dependency.** (master)
-- PostgreSQL — **no schema change**. Uses existing `products.sku`, `products.status`, `products.archived_at`. (master)
-- TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend, contracts, admin), per `backend/package.json` engines and README. + Existing stack only — Fastify, MikroORM (PostgreSQL driver), Zod, ioredis (module enabled-set cache + pub/sub from feature 018), Vite, React 19, react-router-dom 7. **No new runtime dependency.** (026-admin-roles-permissions)
-- No schema change. `admin_roles.permissions` JSONB unchanged. Catalogue is computed in-process (optional short-lived cache invalidated on `b2b:module:state-changed`). (026-admin-roles-permissions)
-- TypeScript 5.x strict; Node.js LTS ≥ 22.17 (per `admin/package.json` engines). Browser target: evergreen mobile Safari/Chrome (admin Vite SPA). + Existing stack only — React 19, Vite 7, react-router-dom 7, Tailwind CSS 4 (`@tailwindcss/vite`), shadcn/Radix primitives, `lucide-react`, `@b2b/api-client`, `@b2b/contracts`, `@measured/puck` (CMS editors). **No new runtime dependency.** (029-admin-mobile-ui)
-- N/A — no database, cache, or schema changes. All state is client-side (drawer open, viewport tier, existing `localStorage` rail preference). (029-admin-mobile-ui)
-- TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend + admin), per README and `backend/package.json` engines. + Existing stack — Fastify, MikroORM, Zod, Vitest, ioredis/event bus (search reindex), React 19 + Vite (admin). **No new runtime dependency.** (032-product-lifecycle)
-- PostgreSQL — `products.status` is `varchar(16)` (not a PG enum); migrate `archived` → `inactive`. Reuse `products.deleted_at` for deletion; keep `archived_at` as withdrawal timestamp when status becomes `inactive`. (032-product-lifecycle)
-- TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend + admin), per `README` and `backend/package.json` engines. + Existing stack — Fastify, MikroORM, Zod, Vitest (backend); React 19 + Vite (admin). **No new runtime dependency.** (033-products-collection-select)
-- PostgreSQL — read-only `SELECT id` on `products`; no schema change. (033-products-collection-select)
+Do not copy content from `AGENTS.md` into this rule — a duplicated copy is how these two
+files drifted apart before 2026-07-31. Repository-wide rules belong in `AGENTS.md`; only
+Cursor-specific configuration belongs in `.cursor/`.
 
-- TypeScript 5.x strict, Node.js LTS per root `README` (≥ 22.x). + Existing stack — Fastify, MikroORM, Zod, Vitest. **New runtime dependency**: `nodemailer` (or similar minimal SMTP client) **only if** implementing production `Mailer` via SMTP — justified in PR per Principle IV (see `research.md` R-1). (003-org-client-admin-governance)
-
-## Project Structure
-
-```text
-src/
-tests/
-```
-
-## Commands
-
-npm test && npm run lint
-
-## Code Style
-
-TypeScript 5.x strict, Node.js LTS per root `README` (≥ 22.x).: Follow standard conventions
-
-## Recent Changes
-- 032-product-lifecycle: Added TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend + admin), per README and `backend/package.json` engines. + Existing stack — Fastify, MikroORM, Zod, Vitest, ioredis/event bus (search reindex), React 19 + Vite (admin). **No new runtime dependency.**
-- 026-admin-roles-permissions: Added TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend, contracts, admin), per `backend/package.json` engines and README. + Existing stack only — Fastify, MikroORM (PostgreSQL driver), Zod, ioredis (module enabled-set cache + pub/sub from feature 018), Vite, React 19, react-router-dom 7. **No new runtime dependency.**
-- 033-products-collection-select: Added TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend + admin), per `README` and `backend/package.json` engines. + Existing stack — Fastify, MikroORM, Zod, Vitest (backend); React 19 + Vite (admin). **No new runtime dependency.**
-- 029-admin-mobile-ui: Added TypeScript 5.x strict; Node.js LTS ≥ 22.17 (per `admin/package.json` engines). Browser target: evergreen mobile Safari/Chrome (admin Vite SPA). + Existing stack only — React 19, Vite 7, react-router-dom 7, Tailwind CSS 4 (`@tailwindcss/vite`), shadcn/Radix primitives, `lucide-react`, `@b2b/api-client`, `@b2b/contracts`, `@measured/puck` (CMS editors). **No new runtime dependency.**
-- 029-admin-mobile-ui: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
-- master: Added TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend); evergreen browser via Vite (admin), per README and `backend/package.json` engines. + Existing stack only — Fastify, MikroORM, Zod, Vitest (backend); React 19, Vite, react-router-dom 7, `@b2b/api-client`, `@b2b/contracts` (admin). **No new runtime dependency.**
-
-
-<!-- MANUAL ADDITIONS START -->
-
-## New backend module — admin permissions (required)
-
-Every new module with admin routes gated by `requireAdmin(...)` **must** register its permission codes so they appear on `/admin-roles` and pass CI inventory.
-
-**Checklist (do not skip):**
-
-1. **`manifest.ts`** — add `permissions: [{ code, label, module? }]` for every code this module owns (same strings as route gates).
-2. **`registered-manifests.ts`** — register the manifest once (alongside `composition.ts` wiring).
-3. **Routes** — `requireAdmin('…')` / `requireAdminAny([…])` literals must match manifest `code` values exactly.
-4. **i18n** — add `adminRoles.permission.<code>` in `backend/src/modules/_i18n/i18n/en.json` and `pl.json` (or rely on manifest `label` as English default).
-5. **Admin nav** — set `requiredPermission` on matching entries in `admin/src/components/AppShell.tsx` when the module has a sidebar route.
-6. **CI** — before PR: `pnpm --filter backend exec vitest run test/contract/admin_users/permission-inventory.test.ts`.
-
-**Do not duplicate** shared cross-module codes already in core `PERMISSION_CATALOGUE` (`packages/contracts/src/admin.ts`) — e.g. `catalog:write`, `customers:manage`. Only declare codes **owned** by your module.
-
-Full contract: `specs/026-admin-roles-permissions/contracts/module-manifest-permissions.md`.
-
-<!-- MANUAL ADDITIONS END -->
+Role-specialised subagents are defined in `.cursor/agents/`:
+`endora-commerce-architect`, `endora-commerce-dev`, `endora-commerce-product-owner`.
