@@ -19,6 +19,7 @@ COPY tsconfig.base.json tsconfig.base.json
 COPY backend/package.json backend/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/api-client/package.json packages/api-client/package.json
+COPY packages/page-builder-core/package.json packages/page-builder-core/package.json
 COPY packages/cms-components/package.json packages/cms-components/package.json
 COPY packages/email-components/package.json packages/email-components/package.json
 COPY storefront/package.json storefront/package.json
