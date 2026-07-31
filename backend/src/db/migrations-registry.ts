@@ -169,7 +169,7 @@ import { Migration20260720T044254OrganizationsOrgHierarchy } from '../modules/or
 import { Migration20260611T140353PaymentMethodsAdapter } from '../modules/payment_methods/migrations/20260611T140353_payment_methods_adapter.js';
 
 // ── payu ──────────────────────────────────────────────────────────────────
-import { Migration20260731T100943PayuInit } from '../modules/payu/migrations/20260731T100943_payu_init.js';
+import { Migration20260801T100943PayuInit } from '../modules/payu/migrations/20260801T100943_payu_init.js';
 
 // ── price_lists ───────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '../modules/price_lists/migrations/20260426T075235_price_lists_pricing_init.js';
@@ -398,7 +398,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),
 
   // ── payu ──────────────────────────────────────────────────────────────────
-  migration('payu', Migration20260731T100943PayuInit),
+  migration('payu', Migration20260801T100943PayuInit),
 
   // ── price_lists ───────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),

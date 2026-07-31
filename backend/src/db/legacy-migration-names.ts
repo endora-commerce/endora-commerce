@@ -375,7 +375,6 @@ export const LEGACY_MIGRATION_RENAMES: readonly LegacyMigrationRename[] = [
   { legacyName: 'Migration107LinkedinAdsInit', name: 'Migration20260727T233211LinkedinAdsInit' },
   { legacyName: 'Migration108MetaAdsInit', name: 'Migration20260728T002715MetaAdsInit' },
   { legacyName: 'Migration109TpayInit', name: 'Migration20260729T132507TpayInit' },
-  { legacyName: 'Migration110PayuInit', name: 'Migration20260731T100943PayuInit' },
 ];
 
 /** Every migration at or before this stamp is order-frozen. Set once; never advanced. */
