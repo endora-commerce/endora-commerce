@@ -98,6 +98,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
             baseQuery={parsed.baseQuery}
             filtersSlot={
               <MobileFilterSheet
+                key="mobile-filter-sheet"
                 resultCount={products.data.length}
                 activeFilterCount={activeFilterCount}
                 clearHref={clearHref}

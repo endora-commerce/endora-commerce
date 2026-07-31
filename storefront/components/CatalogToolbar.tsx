@@ -69,8 +69,12 @@ export function CatalogToolbar(props: {
       aria-busy={pending ? 'true' : undefined}
     >
       <div className="flex items-center gap-3 text-[13px] text-muted">
-        {props.filtersSlot}
-        <span className="max-md:text-[12px]">
+        {props.filtersSlot != null ? (
+          <div key="filters-slot" className="contents">
+            {props.filtersSlot}
+          </div>
+        ) : null}
+        <span key="shown-count" className="max-md:text-[12px]">
           Pokazuję <strong className="font-mono font-semibold text-fg">1–{props.shown}</strong>{' '}
           <span className="max-md:hidden">wyników</span>
         </span>

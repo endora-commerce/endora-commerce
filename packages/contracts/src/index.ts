@@ -28,6 +28,7 @@ export * from './payments.js';
 export * from './payment-methods.js';
 export * from './stripe.js';
 export * from './tpay.js';
+export * from './payu.js';
 export * from './shipping-methods.js';
 export * from './admin.js';
 export * from './credit-limits.js';

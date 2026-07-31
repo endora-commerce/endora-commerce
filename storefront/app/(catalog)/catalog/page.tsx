@@ -76,6 +76,7 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
             baseQuery={query.baseQuery}
             filtersSlot={
               <MobileFilterSheet
+                key="mobile-filter-sheet"
                 resultCount={products.data.length}
                 activeFilterCount={activeFilterCount}
                 clearHref={clearHref}

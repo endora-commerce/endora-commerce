@@ -120,6 +120,7 @@ const sidebars = {
         'modules/payment_methods',
         'modules/payments',
         'modules/tpay',
+        'modules/payu',
         'modules/price_lists',
         {
           type: 'doc',

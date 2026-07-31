@@ -147,6 +147,46 @@ export type MessageKey =
   | 'tpay.pay.failure'
   | 'tpay.pay.retry'
   | 'tpay.bank.redirectHint'
+  // Feature 065 — PayU checkout / pay step.
+  | 'payu.redirect.notice'
+  | 'payu.pay.title'
+  | 'payu.pay.subtitle'
+  | 'payu.blik.label'
+  | 'payu.blik.placeholder'
+  | 'payu.blik.invalid'
+  | 'payu.blik.submit'
+  | 'payu.blik.oneClick'
+  | 'payu.blik.registerHint'
+  | 'payu.blik.forget'
+  | 'payu.blik.multiAppFallback'
+  | 'payu.blik.accountTitle'
+  | 'payu.blik.accountRegistered'
+  | 'payu.blik.accountNotRegistered'
+  | 'payu.card.savedListLabel'
+  | 'payu.card.savedLabel'
+  | 'payu.card.paySaved'
+  | 'payu.card.remove'
+  | 'payu.card.empty'
+  | 'payu.card.save'
+  | 'payu.card.fieldset'
+  | 'payu.card.orNew'
+  | 'payu.card.submit'
+  | 'payu.card.processing'
+  | 'payu.card.numberPlaceholder'
+  | 'payu.card.widgetLoading'
+  | 'payu.card.tokenizeError'
+  | 'payu.card.tokenMissing'
+  | 'payu.card.fallbackLabel'
+  | 'payu.card.fallbackPlaceholder'
+  | 'payu.card.fallbackHint'
+  | 'payu.3ds.hint'
+  | 'payu.pay.failure'
+  | 'payu.pay.retry'
+  | 'payu.bank.redirectHint'
+  | 'payu.wallet.googlePay'
+  | 'payu.wallet.applePay'
+  | 'payu.wallet.googleUnavailable'
+  | 'payu.wallet.appleUnavailable'
   // Feature 008 — Quote Request success page (parallel to checkout success).
   | 'quoteRequest.success.title'
   | 'quoteRequest.success.numberPrefix'
@@ -304,6 +344,54 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'tpay.pay.retry': 'Try again',
     'tpay.bank.redirectHint':
       'Complete the payment on the TPay page if you were not redirected automatically.',
+    // Feature 065 — PayU.
+    'payu.redirect.notice':
+      'After you click “Place order”, you’ll be redirected to PayU to complete your payment securely.',
+    'payu.pay.title': 'Complete your payment',
+    'payu.pay.subtitle': 'Enter your payment details to finish the order.',
+    'payu.blik.label': 'BLIK code',
+    'payu.blik.placeholder': '6-digit code',
+    'payu.blik.invalid': 'Enter a valid 6-digit BLIK code.',
+    'payu.blik.submit': 'Pay with BLIK',
+    'payu.blik.oneClick': 'Pay with BLIK One Click',
+    'payu.blik.registerHint': 'Remember for BLIK One Click',
+    'payu.blik.forget': 'Forget BLIK One Click',
+    'payu.blik.multiAppFallback':
+      'Confirm the payment in your banking app, or enter a BLIK code instead.',
+    'payu.blik.accountTitle': 'BLIK One Click',
+    'payu.blik.accountRegistered':
+      'Enabled. At checkout you can pay with BLIK without entering a 6-digit code — just confirm in your banking app.',
+    'payu.blik.accountNotRegistered':
+      'Not enabled yet. At checkout, pay with a 6-digit BLIK code, tick “Remember for BLIK One Click”, and complete the payment. One Click unlocks after that payment succeeds.',
+    'payu.card.savedListLabel': 'Saved cards',
+    'payu.card.savedLabel': 'Saved card',
+    'payu.card.paySaved': 'Pay with saved card',
+    'payu.card.remove': 'Remove',
+    'payu.card.empty': 'No saved cards yet.',
+    'payu.card.save': 'Save this card',
+    'payu.card.fieldset': 'Card details',
+    'payu.card.orNew': 'Or pay with a new card',
+    'payu.card.submit': 'Pay by card',
+    'payu.card.processing': 'Processing…',
+    'payu.card.numberPlaceholder': 'Card number',
+    'payu.card.widgetLoading': 'Loading the secure card form…',
+    'payu.card.tokenizeError': 'Could not process the card details. Check them and try again.',
+    'payu.card.tokenMissing': 'Enter a card token to continue.',
+    'payu.card.fallbackLabel': 'Card token',
+    'payu.card.fallbackPlaceholder': 'TOKC_… / TOK_…',
+    'payu.card.fallbackHint':
+      'The secure card form could not load, so enter a PayU card token directly (e.g. from a sandbox test token).',
+    'payu.3ds.hint': 'You may be redirected to complete 3-D Secure verification.',
+    'payu.pay.failure': 'Payment failed. Please try again.',
+    'payu.pay.retry': 'Try again',
+    'payu.bank.redirectHint':
+      'Complete the payment on the PayU page if you were not redirected automatically.',
+    'payu.wallet.googlePay': 'Pay with Google Pay',
+    'payu.wallet.applePay': 'Pay with Apple Pay',
+    'payu.wallet.googleUnavailable':
+      'Google Pay is not available in this browser or for the current PayU POS.',
+    'payu.wallet.appleUnavailable':
+      'Apple Pay is not available (Safari / Apple device required, and merchant identity must be configured).',
     // Feature 008 — Quote Request success page.
     'quoteRequest.success.title': 'Thank you — your quote request is submitted',
     'quoteRequest.success.numberPrefix': 'Your quote request number is ',
@@ -462,6 +550,54 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'tpay.pay.retry': 'Spróbuj ponownie',
     'tpay.bank.redirectHint':
       'Dokończ płatność na stronie TPay, jeśli nie nastąpiło automatyczne przekierowanie.',
+    // Feature 065 — PayU.
+    'payu.redirect.notice':
+      'Po kliknięciu „Złóż zamówienie” zostaniesz przekierowany do PayU, aby bezpiecznie dokończyć płatność.',
+    'payu.pay.title': 'Dokończ płatność',
+    'payu.pay.subtitle': 'Podaj dane płatności, aby zakończyć zamówienie.',
+    'payu.blik.label': 'Kod BLIK',
+    'payu.blik.placeholder': '6-cyfrowy kod',
+    'payu.blik.invalid': 'Podaj prawidłowy 6-cyfrowy kod BLIK.',
+    'payu.blik.submit': 'Zapłać BLIKIEM',
+    'payu.blik.oneClick': 'Zapłać BLIK One Click',
+    'payu.blik.registerHint': 'Zapamiętaj do BLIK One Click',
+    'payu.blik.forget': 'Zapomnij BLIK One Click',
+    'payu.blik.multiAppFallback':
+      'Potwierdź płatność w aplikacji bankowej albo wpisz kod BLIK.',
+    'payu.blik.accountTitle': 'BLIK One Click',
+    'payu.blik.accountRegistered':
+      'Włączone. Przy kolejnych zamówieniach możesz płacić BLIKIEM bez kodu 6-cyfrowego — wystarczy potwierdzenie w aplikacji banku.',
+    'payu.blik.accountNotRegistered':
+      'Jeszcze nie włączone. Przy płatności podaj kod BLIK, zaznacz „Zapamiętaj do BLIK One Click” i dokończ płatność. Po udanej płatności One Click pojawi się tutaj.',
+    'payu.card.savedListLabel': 'Zapisane karty',
+    'payu.card.savedLabel': 'Zapisana karta',
+    'payu.card.paySaved': 'Zapłać zapisaną kartą',
+    'payu.card.remove': 'Usuń',
+    'payu.card.empty': 'Brak zapisanych kart.',
+    'payu.card.save': 'Zapisz tę kartę',
+    'payu.card.fieldset': 'Dane karty',
+    'payu.card.orNew': 'Albo zapłać nową kartą',
+    'payu.card.submit': 'Zapłać kartą',
+    'payu.card.processing': 'Przetwarzanie…',
+    'payu.card.numberPlaceholder': 'Numer karty',
+    'payu.card.widgetLoading': 'Ładowanie bezpiecznego formularza karty…',
+    'payu.card.tokenizeError': 'Nie udało się przetworzyć danych karty. Sprawdź je i spróbuj ponownie.',
+    'payu.card.tokenMissing': 'Podaj token karty, aby kontynuować.',
+    'payu.card.fallbackLabel': 'Token karty',
+    'payu.card.fallbackPlaceholder': 'TOKC_… / TOK_…',
+    'payu.card.fallbackHint':
+      'Nie udało się załadować bezpiecznego formularza karty — podaj token karty PayU bezpośrednio (np. testowy token z sandboxa).',
+    'payu.3ds.hint': 'Możesz zostać przekierowany, aby dokończyć weryfikację 3-D Secure.',
+    'payu.pay.failure': 'Płatność nie powiodła się. Spróbuj ponownie.',
+    'payu.pay.retry': 'Spróbuj ponownie',
+    'payu.bank.redirectHint':
+      'Dokończ płatność na stronie PayU, jeśli nie nastąpiło automatyczne przekierowanie.',
+    'payu.wallet.googlePay': 'Zapłać Google Pay',
+    'payu.wallet.applePay': 'Zapłać Apple Pay',
+    'payu.wallet.googleUnavailable':
+      'Google Pay jest niedostępny w tej przeglądarce lub dla bieżącego POS PayU.',
+    'payu.wallet.appleUnavailable':
+      'Apple Pay jest niedostępny (wymagany Safari / urządzenie Apple oraz skonfigurowana tożsamość sprzedawcy).',
     // Feature 008 — Quote Request success page.
     'quoteRequest.success.title': 'Dziekujemy — Twoje zapytanie ofertowe zostalo zlozone',
     'quoteRequest.success.numberPrefix': 'Numer Twojego zapytania ofertowego: ',

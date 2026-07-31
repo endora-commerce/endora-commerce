@@ -17,10 +17,12 @@ export const metadata = { robots: { index: false, follow: false } };
 export default async function CheckoutSuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string }>;
+  searchParams: Promise<{ id?: string; orderId?: string }>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
-  const { id } = await searchParams;
+  const params = await searchParams;
+  // Prefer `id` (canonical); accept legacy `orderId` from older gateway continueUrls.
+  const id = params.id ?? params.orderId;
   if (!session) redirect('/login?next=/account/orders');
   if (!id) redirect('/account/orders');
 

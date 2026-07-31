@@ -13,6 +13,12 @@ import { TpaySavedCard } from '../modules/tpay/entities/tpay-saved-card.entity.j
 import { TpayBlikAlias } from '../modules/tpay/entities/tpay-blik-alias.entity.js';
 import { TpayPaymentMethodRule } from '../modules/tpay/entities/tpay-payment-method-rule.entity.js';
 import { TpayPaymentMethodOrgDisable } from '../modules/tpay/entities/tpay-payment-method-org-disable.entity.js';
+import { PayuOrder } from '../modules/payu/entities/payu-order.entity.js';
+import { PayuNotificationEvent } from '../modules/payu/entities/payu-notification-event.entity.js';
+import { PayuSavedCard } from '../modules/payu/entities/payu-saved-card.entity.js';
+import { PayuBlikAlias } from '../modules/payu/entities/payu-blik-alias.entity.js';
+import { PayuPaymentMethodRule } from '../modules/payu/entities/payu-payment-method-rule.entity.js';
+import { PayuPaymentMethodOrgDisable } from '../modules/payu/entities/payu-payment-method-org-disable.entity.js';
 import { CustomFieldDefinition } from '../modules/custom_fields/entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../modules/custom_fields/entities/custom-field-option.entity.js';
 import { AuditLogEntry } from '../modules/audit_logs/entities/audit-log-entry.entity.js';
@@ -438,6 +444,12 @@ export const ALL_ENTITIES = [
   TpayBlikAlias,
   TpayPaymentMethodRule,
   TpayPaymentMethodOrgDisable,
+  PayuOrder,
+  PayuNotificationEvent,
+  PayuSavedCard,
+  PayuBlikAlias,
+  PayuPaymentMethodRule,
+  PayuPaymentMethodOrgDisable,
   // Feature 055 — Custom Fields Layer (entity-agnostic runtime fields).
   CustomFieldDefinition,
   CustomFieldOption,

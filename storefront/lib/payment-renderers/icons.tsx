@@ -203,6 +203,16 @@ function iconFor(method: Pick<PaymentMethodSummary, 'code' | 'kind'>): ReactNode
       return <BlikMark />;
     case 'tpay_bank_transfer':
       return <BankIcon />;
+    case 'payu_card':
+      return <CardIcon />;
+    case 'payu_blik':
+      return <BlikMark />;
+    case 'payu_pbl':
+      return <BankIcon />;
+    case 'payu_apple_pay':
+      return <ApplePayMark />;
+    case 'payu_google_pay':
+      return <GooglePayMark />;
     default:
       break;
   }

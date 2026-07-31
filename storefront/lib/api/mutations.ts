@@ -17,6 +17,27 @@ import { StorefrontApiError } from './client';
 
 const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
 
+function throwFromErrorEnvelope(status: number, envelope: unknown): never {
+  const err = (envelope as { error?: {
+    code: string;
+    message: string;
+    requestId?: string;
+    details?: Array<{ path: string; issue: string }> | Record<string, unknown>;
+  } } | null)?.error;
+  if (err) {
+    let message = err.message;
+    if (Array.isArray(err.details) && err.details.length > 0) {
+      const hint = err.details
+        .slice(0, 3)
+        .map((d) => `${d.path || '(root)'}: ${d.issue}`)
+        .join('; ');
+      message = `${message} (${hint})`;
+    }
+    throw new StorefrontApiError(status, err.code, message, err.requestId);
+  }
+  throw new StorefrontApiError(status, 'INTERNAL', `HTTP ${status}`);
+}
+
 export interface MutateOptions {
   method: 'POST' | 'PATCH' | 'DELETE' | 'PUT';
   path: string;
@@ -69,18 +90,8 @@ export async function apiMutate<T>(opts: MutateOptions): Promise<MutateResult<T>
   }
 
   if (!response.ok) {
-    const envelope = (await response.json().catch(() => null)) as
-      | { error: { code: string; message: string; requestId?: string } }
-      | null;
-    if (envelope?.error) {
-      throw new StorefrontApiError(
-        response.status,
-        envelope.error.code,
-        envelope.error.message,
-        envelope.error.requestId,
-      );
-    }
-    throw new StorefrontApiError(response.status, 'INTERNAL', `HTTP ${response.status}`);
+    const envelope = await response.json().catch(() => null);
+    throwFromErrorEnvelope(response.status, envelope);
   }
 
   const payload = (await response.json()) as { data: T };
@@ -111,18 +122,8 @@ export async function apiGetAuthed<T>(opts: {
     cache: 'no-store',
   });
   if (!response.ok) {
-    const envelope = (await response.json().catch(() => null)) as
-      | { error: { code: string; message: string; requestId?: string } }
-      | null;
-    if (envelope?.error) {
-      throw new StorefrontApiError(
-        response.status,
-        envelope.error.code,
-        envelope.error.message,
-        envelope.error.requestId,
-      );
-    }
-    throw new StorefrontApiError(response.status, 'INTERNAL', `HTTP ${response.status}`);
+    const envelope = await response.json().catch(() => null);
+    throwFromErrorEnvelope(response.status, envelope);
   }
   const payload = (await response.json()) as { data: T };
   return payload.data;
