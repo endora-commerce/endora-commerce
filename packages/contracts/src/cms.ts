@@ -20,6 +20,12 @@ export const cmsPageStatusSchema = z.enum(['draft', 'published', 'archived']);
 export type CmsPageStatus = z.infer<typeof cmsPageStatusSchema>;
 
 export const cmsContentEnvelopeSchema = z.object({
+  // naming:allow-snake-case — the spelling is fixed by rows already in the
+  // database, not by our API style: the applied CMS migration bakes
+  // `{"schema_version":1,…}` into the `content` column defaults of
+  // `cms_pages` / `cms_templates`. Renaming it would need a data migration
+  // for no gain, since the key is deprecated and normalized away on read
+  // (`packages/cms-components/src/schema/envelope.ts`).
   /** @deprecated Ignored — legacy rows may still carry this key. */
   schema_version: z.number().int().min(1).optional(),
   /** Per-language Puck data trees. The trees are opaque at this boundary. */

@@ -1,5 +1,8 @@
 ---
 sidebar_label: Admin UI Translations
+# check-language: allow-non-english — this page *is* the EN→PL glossary, so the
+# Polish column is its content, not untranslated prose. Kept in the YAML front
+# matter so it never reaches the rendered page in either Markdown or MDX mode.
 ---
 
 # Admin UI Translations

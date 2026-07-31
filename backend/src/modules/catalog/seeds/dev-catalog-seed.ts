@@ -887,7 +887,7 @@ async function main(): Promise<void> {
   await em.flush();
 
   // Distribute stock for the seeded products: 60% in default, 40% in
-  // Magazyn Kraków. Skip products that already have stock rows so a
+  // `Magazyn Kraków`. Skip products that already have stock rows so a
   // re-run of the seed doesn't double-up.
   const productsForStock = await em.find(Product, {});
   let stockRowsCreated = 0;

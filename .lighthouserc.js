@@ -12,10 +12,13 @@
  *   pnpm --filter storefront run build && pnpm --filter storefront run start &
  *   pnpm dlx @lhci/cli@0.14.x autorun
  *
- * The CI workflow (.github/workflows/lighthouse.yml) runs this on
- * `workflow_dispatch` + a nightly cron — not on every PR — because a
- * realistic Lighthouse run needs a populated catalog and stable
- * latency, neither of which a generic PR runner gives.
+ * NOT RUN BY CI. This used to run on `workflow_dispatch` + a nightly cron
+ * in `.github/workflows/lighthouse.yml`, removed along with the rest of the
+ * GitHub Actions setup (the project delivers through GitLab MRs). It was
+ * never a per-MR gate anyway — a realistic Lighthouse run needs a populated
+ * catalog and stable latency, neither of which a generic MR runner gives.
+ * Until an equivalent scheduled GitLab pipeline exists, Core Web Vitals
+ * (Principle VII) are verified by running the commands above by hand.
  */
 
 const STOREFRONT_BASE = process.env.STOREFRONT_BASE_URL ?? 'http://localhost:3000';

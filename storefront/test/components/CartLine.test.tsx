@@ -68,7 +68,7 @@ describe('CartLine — SSR rendering', () => {
         strings={STRINGS}
       />,
     );
-    // 12,50 net → 15,38 zł gross; 37,50 net → 46,13 zł gross (rounded).
+    // 12,50 net → `15,38 zł` gross; 37,50 net → `46,13 zł` gross (rounded).
     expect(html).toMatch(/15,38\s*zł/);
     expect(html).toMatch(/46,13\s*zł/);
     expect(html).toContain('gross');

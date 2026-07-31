@@ -160,6 +160,35 @@ Full guide: `docs/docs/architecture/migrations.md`; contracts under
 All user-facing strings ship in **both `en` and `pl`**; a static CI check rejects hard-coded
 literals (`pnpm --filter backend run i18n:hardcoded`).
 
+## Static checks and their escape hatches
+
+Both run in CI as GitLab's `quality:static` job — full tree, every MR and every push to
+`master`. They need only bash, grep, perl and POSIX awk (no `pnpm install`), so keep them
+free of gawk-isms and of anything that assumes a node toolchain. Neither script may pass on
+an empty file list; both exit 2 when `git` is missing rather than reporting a vacuous green.
+
+`pnpm run check:language` (Principle VIII) scans source-code **comments** and `docs/docs/**`
+pages for Polish. It ignores cited terms — anything inside backticks, `"quotes"`, a fenced
+code block, or (in docs) markdown emphasis — because an English comment routinely has to
+quote a Polish UI label, currency rendering or expected test string. **If it flags you, cite
+the term rather than translating it.** Two deliberate carve-outs exist:
+
+- Polish proper nouns with no English form (state institutions, official registries, the
+  Polish names of shipped features) live in the `proper_nouns` list in
+  `scripts/check-language.sh`. Keep it short — a UI label is a citation, not a proper noun.
+- An intrinsically bilingual page opts out with `check-language: allow-non-english` plus a
+  reason, in its YAML front matter. Currently only the EN→PL glossary
+  (`docs/docs/contributing/translations.md`) qualifies.
+
+`pnpm run check:naming` (Principle VI) checks backend module folder shape, migration
+identifiers, Zod contract keys and route segments. Module folders are plural snake_case;
+`_`-prefixed infra modules (`_i18n`, `_lifecycle`), singular named surfaces and vendor/
+protocol proper nouns are allow-listed in `scripts/check-naming.sh`. A `z.object()` field
+that must stay snake_case because it is **persisted verbatim** (a JSONB envelope with a SQL
+column default, an external vendor's wire format) is marked with `naming:allow-snake-case`
+plus a reason in a comment directly above the field — see `cmsContentEnvelopeSchema` in
+`packages/contracts/src/cms.ts`. Do not use it to skip a genuine API-shape fix.
+
 ## Overlay modules (per-deployment customization, feature 057)
 
 A **client-only overlay module** lives under `backend/src/apps/<deployment>/modules/<id>/` and
@@ -207,7 +236,16 @@ short on purpose — repository conventions live here, not in the agent files.
 | --- | --- |
 | `endora-commerce-architect` | Designing features: specs, plans, module boundaries, data models |
 | `endora-commerce-dev` | Implementing plans and fixing bugs, with tests |
+| `endora-commerce-designer` | Designing and auditing UI: commerce surfaces (cart, checkout, PDP, PLP), admin screens, UX/accessibility reviews |
 | `endora-commerce-product-owner` | Verifying business ↔ implementation consistency, spec/task audits, `docs/` |
+
+## UX laws
+
+`.claude/skills/ux-laws/SKILL.md` is the **single source of truth** for the UX rules applied to
+every UI change — the Laws of UX (<https://lawsofux.com/>) rewritten as actionable frontend
+rules, plus the WCAG 2.2 AA floor, the repo's design tokens and primitives, and the required
+component states. Unlike the subagent prompts it is **not duplicated per tool**: the Cursor
+agent reads that path directly. Update it in place; never fork a second copy.
 
 ---
 

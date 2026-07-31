@@ -71,7 +71,7 @@ export class BankTransferAdapter extends BaseAdapter {
   }
 }
 
-/** Cash on delivery / pickup (Płatność przy odbiorze) — settled on receipt. */
+/** Cash on delivery / pickup (`Płatność przy odbiorze`) — settled on receipt. */
 export class PickupAdapter extends BaseAdapter {
   readonly adapterKey = 'pickup';
   readonly type = 'pickup' as const;
@@ -81,7 +81,7 @@ export class PickupAdapter extends BaseAdapter {
   }
 }
 
-/** Credit limit (Limit kredytowy) — reservation handled inline by OrderService. */
+/** Credit limit (`Limit kredytowy`) — reservation handled inline by OrderService. */
 export class CreditLimitAdapter extends BaseAdapter {
   readonly adapterKey = 'credit_limit';
   readonly type = 'credit_limit' as const;
@@ -92,7 +92,7 @@ export class CreditLimitAdapter extends BaseAdapter {
 }
 
 /**
- * Payment gateway (Bramka płatności) — a vendor adapter ships separately and
+ * Payment gateway (`Bramka płatności`) — a vendor adapter ships separately and
  * overrides `onStorefrontOrderCreated` to return a redirect. The bundled
  * placeholder returns `none`; the real redirect comes from the wired
  * GatewayAdapterPort.

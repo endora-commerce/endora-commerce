@@ -3,7 +3,7 @@ import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
- * Shipment (Przesyłka / Paczka) — a first-class record of one
+ * Shipment (`Przesyłka` / `Paczka`) — a first-class record of one
  * shipment-generation attempt against an Order (feature 035). An Order may
  * have several: a failed generation followed by a successful retry, or a
  * future split into multiple parcels. The delivery-side twin of `Payment`.
