@@ -115,8 +115,8 @@ quality:static:
 # ---------------------------------------------------------------------------
 # Test — split into the DB-backed backend suite (sharded) and the fast,
 # service-less frontend/contract suites, to keep MR wall-clock low while staying
-# a required gate. The GitHub workflow (.github/workflows/ci.yml) still runs the
-# whole suite in one job; this split is GitLab-runner specific.
+# a required gate. This is now the only CI that runs the suite: the GitHub
+# Actions workflows were removed (the project delivers through GitLab MRs).
 # ---------------------------------------------------------------------------
 
 # Overlay per-deployment matrix (feature 057, FR-010): the bare-core build is
