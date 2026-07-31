@@ -48,6 +48,7 @@ export const DefaultPaymentMethodRenderer: PaymentMethodRenderer = ({
  */
 export const STRIPE_REDIRECT_RENDERER_KEY = 'stripe_redirect';
 export const TPAY_REDIRECT_RENDERER_KEY = 'tpay_redirect';
+export const PAYU_REDIRECT_RENDERER_KEY = 'payu_redirect';
 
 export const StripeRedirectRenderer: PaymentMethodRenderer = ({ method, defaultChecked }) => (
   <label style={{ display: 'block' }}>
@@ -89,6 +90,22 @@ export const TpayRedirectRenderer: PaymentMethodRenderer = ({ method, defaultChe
   );
 };
 
+export const PayuRedirectRenderer: PaymentMethodRenderer = ({ method, defaultChecked, locale }) => {
+  const t = tForLocale(locale ?? 'en-US');
+  return (
+    <label style={{ display: 'block' }}>
+      <span style={{ display: 'flex', alignItems: 'center' }}>
+        <input type="radio" name="paymentMethodId" value={method.id} defaultChecked={defaultChecked} />{' '}
+        <PaymentMethodIcon method={method} />
+        {pickName(method.name)}
+      </span>
+      <p className="muted" style={{ margin: '4px 0 0 24px', fontSize: '0.85em' }}>
+        {t('payu.redirect.notice')}
+      </p>
+    </label>
+  );
+};
+
 const registry = new Map<string, PaymentMethodRenderer>();
 
 export function registerPaymentMethodRenderer(key: string, renderer: PaymentMethodRenderer): void {
@@ -97,6 +114,7 @@ export function registerPaymentMethodRenderer(key: string, renderer: PaymentMeth
 
 registerPaymentMethodRenderer(STRIPE_REDIRECT_RENDERER_KEY, StripeRedirectRenderer);
 registerPaymentMethodRenderer(TPAY_REDIRECT_RENDERER_KEY, TpayRedirectRenderer);
+registerPaymentMethodRenderer(PAYU_REDIRECT_RENDERER_KEY, PayuRedirectRenderer);
 
 export function resolvePaymentMethodRenderer(rendererKey: string | null): PaymentMethodRenderer {
   if (rendererKey) {

@@ -43,6 +43,8 @@ import { manifest as metaAdsManifest } from '../meta_ads/manifest.js';
 // Feature 049 — Stripe payment gateway.
 import { manifest as stripeManifest } from '../stripe/manifest.js';
 import { manifest as tpayManifest } from '../tpay/manifest.js';
+// Feature 065 — PayU payment gateway.
+import { manifest as payuManifest } from '../payu/manifest.js';
 // Feature 055 — Custom Fields Layer (entity-agnostic runtime fields).
 import {
   manifest as customFieldsManifest,
@@ -167,6 +169,8 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   // Feature 049 — Stripe payment gateway module.
   { manifest: stripeManifest, filePath: pathFor('stripe') },
   { manifest: tpayManifest, filePath: pathFor('tpay') },
+  // Feature 065 — PayU payment gateway module.
+  { manifest: payuManifest, filePath: pathFor('payu') },
   // Feature 055 — Custom Fields Layer module.
   {
     manifest: customFieldsManifest,

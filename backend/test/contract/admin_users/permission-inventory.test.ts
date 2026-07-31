@@ -36,6 +36,7 @@ describe('permission inventory (SC-001)', () => {
     // +2 for feature 063 LinkedIn Ads (linkedin_ads:read, linkedin_ads:write).
     // +2 for feature 064 Meta Ads (meta_ads:read, meta_ads:write).
     // +2 for feature 063 TPay (tpay:read, tpay:write).
-    expect(assignable.size).toBe(63);
+    // +2 for feature 065 PayU (payu:read, payu:write).
+    expect(assignable.size).toBe(65);
   });
 });

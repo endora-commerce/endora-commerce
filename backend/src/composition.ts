@@ -62,6 +62,7 @@ import { commerceModule } from './modules/orders/plugin.js';
 import { returnsModule } from './modules/returns/plugin.js';
 import { stripeModule } from './modules/stripe/plugin.js';
 import { tpayModule } from './modules/tpay/plugin.js';
+import { payuModule } from './modules/payu/plugin.js';
 import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
@@ -2310,6 +2311,29 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   );
 
   modules.push(
+    payuModule({
+      emFactory: em,
+      eventBus,
+      settingsService: settings.handle.settingsService,
+      settingsAdmin: settings.handle.adminService,
+      requireAdmin,
+      requireCustomer,
+      resolveCustomerAccountId,
+      resolveAdminAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      resolveDefaultChannelId: async () =>
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.handle.membershipService,
+      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+      publicApiBaseUrl:
+        process.env['PUBLIC_API_BASE_URL'] ??
+        process.env['API_PUBLIC_URL'] ??
+        'http://localhost:3001',
+    }),
+  );
+
+  modules.push(
     transactionalEmailsModule({
       emFactory: em,
       settingsService: settings.handle.settingsService,
@@ -2637,7 +2661,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Derived from the module registry, not hand-listed: a module that declared
   // `settings:` but was forgotten in a literal array never got its rows, so
   // /settings silently omitted it (see collectRegisteredSettingsManifests).
-  // linkedin_ads / meta_ads / tpay need no entry here — registering their
+  // linkedin_ads / meta_ads / tpay / payu need no entry here — registering their
   // manifests is enough.
   const settingsManifests: ModuleSettingsManifest[] =
     collectRegisteredSettingsManifests();
