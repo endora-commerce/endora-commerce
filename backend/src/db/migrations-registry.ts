@@ -121,7 +121,7 @@ import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from 
 
 // ── invoices ──────────────────────────────────────────────────────────────
 import { Migration20260629T125121InvoicesModule } from '../modules/invoices/migrations/20260629T125121_invoices_module.js';
-import { Migration20260801T111000InvoiceGenericTemplateReseed } from '../modules/invoices/migrations/20260801T111000_invoice_generic_template_reseed.js';
+import { Migration20260801T111000InvoicesGenericTemplateReseed } from '../modules/invoices/migrations/20260801T111000_invoices_generic_template_reseed.js';
 
 // ── ksef ──────────────────────────────────────────────────────────────────
 import { Migration20260722T224358KsefInit } from '../modules/ksef/migrations/20260722T224358_ksef_init.js';
@@ -233,7 +233,7 @@ import { Migration20260729T132507TpayInit } from '../modules/tpay/migrations/202
 
 // ── transactional_emails ──────────────────────────────────────────────────
 import { Migration20260629T113442TransactionalEmailsInit } from '../modules/transactional_emails/migrations/20260629T113442_transactional_emails_init.js';
-import { Migration20260801T111001EmailDefaultsReseed } from '../modules/transactional_emails/migrations/20260801T111001_email_defaults_reseed.js';
+import { Migration20260801T111001TransactionalEmailsEmailDefaultsReseed } from '../modules/transactional_emails/migrations/20260801T111001_transactional_emails_email_defaults_reseed.js';
 
 // ── webhooks ──────────────────────────────────────────────────────────────
 import { Migration20260425T091359WebhooksUs7Init } from '../modules/webhooks/migrations/20260425T091359_webhooks_us7_init.js';
@@ -352,7 +352,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── invoices ──────────────────────────────────────────────────────────────
   migration('invoices', Migration20260629T125121InvoicesModule),
-  migration('invoices', Migration20260801T111000InvoiceGenericTemplateReseed),
+  migration('invoices', Migration20260801T111000InvoicesGenericTemplateReseed),
 
   // ── ksef ──────────────────────────────────────────────────────────────────
   migration('ksef', Migration20260722T224358KsefInit),
@@ -464,7 +464,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── transactional_emails ──────────────────────────────────────────────────
   migration('transactional_emails', Migration20260629T113442TransactionalEmailsInit),
-  migration('transactional_emails', Migration20260801T111001EmailDefaultsReseed),
+  migration('transactional_emails', Migration20260801T111001TransactionalEmailsEmailDefaultsReseed),
 
   // ── webhooks ──────────────────────────────────────────────────────────────
   migration('webhooks', Migration20260425T091359WebhooksUs7Init),

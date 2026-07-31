@@ -13,7 +13,7 @@ function jsonbLiteral(value: unknown): string {
   return JSON.stringify(value).replace(/'/g, "''");
 }
 
-export class Migration20260801T111000InvoiceGenericTemplateReseed extends Migration {
+export class Migration20260801T111000InvoicesGenericTemplateReseed extends Migration {
   override async up(): Promise<void> {
     const contentJson = jsonbLiteral(GENERIC_INVOICE_TEMPLATE_CONTENT);
     const languagesJson = jsonbLiteral(GENERIC_INVOICE_TEMPLATE_LANGUAGES);

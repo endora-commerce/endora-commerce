@@ -28,7 +28,7 @@ function jsonbLiteral(value: unknown): string {
   return JSON.stringify(value).replace(/'/g, "''");
 }
 
-export class Migration20260801T111001EmailDefaultsReseed extends Migration {
+export class Migration20260801T111001TransactionalEmailsEmailDefaultsReseed extends Migration {
   override async up(): Promise<void> {
     // Retire the mis-numbered 099 row if a previous deploy already applied it.
     this.addSql(
