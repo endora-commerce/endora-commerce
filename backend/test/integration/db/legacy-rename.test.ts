@@ -2,8 +2,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MikroORM } from '@mikro-orm/postgresql';
 import baseConfig from '../../../src/db/mikro-orm.config.js';
 import { applyLegacyMigrationRenames } from '../../../src/db/legacy-migration-rename.js';
-import { LEGACY_MIGRATION_RENAMES } from '../../../src/db/legacy-migration-names.js';
+import {
+  FROZEN_THROUGH,
+  LEGACY_MIGRATION_RENAMES,
+} from '../../../src/db/legacy-migration-names.js';
 import { getMigrator } from '../../../src/db/migrator.js';
+
+const MIGRATION_STAMP_RE = /^Migration(\d{8}T\d{6})/;
 
 /**
  * Safety matrix for the legacy-name pre-flight — see
@@ -95,10 +100,17 @@ describe('applyLegacyMigrationRenames', () => {
     expect(result.unknown).toEqual([]);
     expect(await storedNames()).toEqual(LEGACY_MIGRATION_RENAMES.map((rename) => rename.name));
 
-    // SC-001 — a fully migrated legacy database has nothing pending after the
-    // rename, so it never re-runs its 112 applied migrations.
+    // SC-001 — after the rename, none of the frozen (≤ FROZEN_THROUGH) migrations
+    // are pending, so the 112 applied rows never re-run. Migrations stamped
+    // after the freeze watermark (added post-cutover) may still be pending on a
+    // DB that only ever applied the legacy set — that is expected.
     const migrator = await getMigrator(orm);
-    expect(await migrator.getPendingMigrations()).toEqual([]);
+    const pending = await migrator.getPendingMigrations();
+    const frozenPending = pending.filter((migration) => {
+      const stamp = MIGRATION_STAMP_RE.exec(migration.name)?.[1];
+      return stamp !== undefined && stamp <= FROZEN_THROUGH;
+    });
+    expect(frozenPending).toEqual([]);
   });
 
   it('is idempotent — a second run renames nothing and creates no duplicates', async () => {
