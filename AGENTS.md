@@ -1,73 +1,231 @@
-# b2b-platform Development Guidelines
+# Endora Commerce (b2b-platform) — Agent Instructions
 
-Auto-generated from all feature plans. Last updated: 2026-05-05
+Last updated: 2026-07-31
 
-## Active Technologies
-- TypeScript 5.x (strict mode) na Node.js LTS (≥ 22.17, jak w README po update foundation 001). + bez nowych runtime — wszystkie wymagane już są: (002-catalog-module)
-- PostgreSQL — nowe tabele `attribute_sets`, `attribute_set_attributes` (bridge), `gallery_items`, `gallery_item_labels` (bridge etykiet), `product_attachments`, `attachment_types`, `product_links`, `grouped_items`, `bundle_slots`, `bundle_slot_options`. Migracje generowane standardową ścieżką MikroORM (`pnpm --filter backend run migration:generate`). Zmiany w `products`: dodanie kolumn `attributeSetId` (FK), `downloadAssetId` (FK nullable, virtual), `downloadUrl` (varchar nullable, virtual), rozszerzenie enuma `type`. Zmiana enuma `valueType` w `product_attributes` (dodanie `multiselect`, `price`) + nowa kolumna `displayAsSlider` (bool). (002-catalog-module)
-- TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + Existing stack only — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues. **No new runtime dependency** is justified for this feature. (004-settings-module)
-- PostgreSQL — five new tables introduced via a single MikroORM migration (`005_settings_init.ts`): (004-settings-module)
-- TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + Existing stack only — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues. **No new runtime dependency** is justified for this feature. (005-sales-channels)
-- PostgreSQL — one MikroORM migration (`025_sales_channels_promote.ts`): (005-sales-channels)
-- TypeScript 5.x (strict) on Node.js LTS ≥ 22.17, per `backend/package.json` engines and the project README. + Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), Meilisearch JS client, ioredis, BullMQ-class queues, Next.js (storefront) and React (admin) — **no new runtime dependency**. (006-search-module)
-- PostgreSQL — one new MikroORM migration (`026_search_phrase_records_init.ts`) creating `search_phrase_records` and its indexes; no other schema change. Meilisearch (existing) hosts the per-channel `products_<channel_code>` indexes; `search.llm.enabled=true` attaches a Meilisearch embedder per channel index. (006-search-module)
-- TypeScript 5.x (strict) on Node.js LTS ≥ 22.17, per `backend/package.json` engines and the project README. + Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), ioredis, BullMQ-class queues, Next.js (storefront), React (admin) — **plus** one new dependency, `pdfmake`, used exclusively by the comparison-PDF service. No other addition. (007-compare-module)
-- PostgreSQL — three new MikroORM migrations: (007-compare-module)
-- TypeScript 5.x (strict) on Node.js LTS ≥ 22.17. + Fastify, MikroORM (PostgreSQL driver), Zod, ioredis, BullMQ-class repeating jobs, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**. (008-quote-requests)
-- PostgreSQL via MikroORM. New migration `028_quote_requests_workflow.ts` (next available number after the existing `027_*` from feature 007) introduces: (008-quote-requests)
-- TypeScript 5.x (strict) on Node.js LTS ≥ 22.17. + Fastify, MikroORM (PostgreSQL driver), Zod, ioredis, BullMQ-class jobs, Next.js (storefront), React + Vite (admin). One new dependency under consideration for Excel parsing — see `research.md` § R8. CSV is handled by Node-native streaming utilities, no extra dep. (010-inventory-module)
-- PostgreSQL via MikroORM. New migration `030_inventory_workflow.ts` (next available after `029_quote_requests_workflow.ts`) introduces: (010-inventory-module)
-- TypeScript 5.x (strict) on Node.js LTS ≥ 22.17. + Fastify, MikroORM (PostgreSQL driver), Zod, ioredis, BullMQ-class repeatable jobs, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**. The rule builder is implemented in the admin app as plain React + the existing Admin UI Design System; the rule expression is persisted as JSONB on `price_lists.application_rule`. (011-price-lists)
-- PostgreSQL via MikroORM. New migration `031_price_lists_engine.ts` (next available after `030_inventory_workflow.ts`) introduces: (011-price-lists)
-- TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 — same as the rest of the project. + Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), Meilisearch JS client, ioredis, BullMQ, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**. (012-attributes)
-- PostgreSQL — one MikroORM migration (`032_attribute_options_and_flags.ts`) introduces the new `attribute_options` table, adds four columns to `product_attributes`, extends the `value_type` enum with `'select'`, migrates the legacy `enum_values` JSONB into the new options table, and drops the legacy column. (012-attributes)
-- TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + existing stack — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues — *plus* five new runtime dependencies justified below: (013-assets-library)
-- PostgreSQL via MikroORM. New migration `033_assets_library_init.ts` (next available number; see `data-model.md` § "Migration ordering"): (013-assets-library)
-- TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + existing stack — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues, Next.js (storefront), React + Vite (admin) — *plus* three new runtime dependencies on the **frontend side only**: (014-cms)
-- PostgreSQL via MikroORM. New migration `035_cms_init.ts` (next available number after `034_assets_library_init.ts`) introduces: (014-cms)
+**This file is the single source of truth for every AI coding agent working in this
+repository.** `CLAUDE.md` and `.cursor/rules/specify-rules.mdc` are thin pointers to it —
+put shared knowledge here, never in a pointer. Cursor, Codex, Amp and other AGENTS.md-aware
+tools read this file directly; Claude Code reaches it through the `@AGENTS.md` import in
+`CLAUDE.md`.
 
-- TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x) + MikroORM (PostgreSQL driver) for persistence; Zod for boundary validation; Next.js for the storefront; React for the admin panel; Meilisearch client; Redis client (cache + BullMQ-class queue). Backend HTTP layer intentionally minimal (a small, well-known Node/TypeScript HTTP router; choice deferred to Phase 0 research with a bias toward the smallest dependency footprint compatible with TDD, Zod, and modular routing). (001-b2b-platform-foundation)
+## Stack
 
-## Project Structure
+- **`backend/`** — TypeScript 5.x strict on Node.js ≥ 22.17. Fastify, MikroORM (PostgreSQL),
+  Zod, ioredis, BullMQ, Meilisearch, `nodemailer`, `pdfmake`. Cross-cutting infrastructure:
+  in-process `EventBus` (`src/events/bus.ts`), Command Bus (`src/commands/`), TenantContext
+  (`src/tenancy/`), module lifecycle (`src/modules/_lifecycle/`), i18n (`src/modules/_i18n/`).
+- **`admin/`** — React 19 + Vite + react-router-dom 7 + `@b2b/api-client` + `lucide-react` +
+  Tailwind 4 + Radix/shadcn primitives; `@measured/puck` for the CMS/e-mail builders;
+  `@dnd-kit` for drag-drop; charts through the `<EChart>` wrapper
+  (`admin/src/components/charts/echart.tsx`).
+- **`storefront/`** — Next.js 15 App Router + React 19 + Tailwind v4, Server Components and
+  server actions.
+- **`packages/`** — `contracts` (Zod schemas: the source of truth for every API shape),
+  `api-client`, `cms-components`, `email-components`.
 
-```text
-src/
-tests/
-```
+**A new runtime dependency needs written justification** in the feature plan's Complexity
+Tracking section (Constitution IV). The default answer is "no new dependency" — reuse what
+is already in the stack.
+
+## Repo map
+
+| Path | Contents |
+| --- | --- |
+| `backend/src/modules/<id>/` | A domain module: `entities/`, `services/`, `routes.ts`, `manifest.ts`, `plugin.ts`, `migrations/`, `i18n/`, optional `actions/`, `workers/` |
+| `backend/src/apps/<deployment>/modules/<id>/` | Per-deployment overlay modules (feature 057) |
+| `backend/test/{unit,contract,integration,perf}/` | Backend tests, mirroring module names |
+| `specs/NNN-slug/` | Feature artifacts: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/`, `tasks.md` |
+| `.specify/memory/constitution.md` | Binding principles — read before designing anything |
+| `docs/` | Docusaurus site (end-user and engineer documentation, English only) |
 
 ## Commands
 
-npm test && npm run lint
+```bash
+pnpm -r run typecheck                    # or: pnpm --filter <app> run typecheck
+pnpm -r run lint
+pnpm --filter backend run test           # vitest run; :unit / :contract / :integration variants
+pnpm --filter backend exec vitest run <path>   # targeted run — prefer this while iterating
+pnpm run dev                             # full dev stack; pnpm run dev:infra for docker services
+pnpm --filter backend run db:fresh       # rebuild the schema from migrations
+pnpm run check:naming && pnpm run check:language
+```
 
-## Code Style
+## Binding principles
 
-TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x): Follow standard conventions
+Full text in `.specify/memory/constitution.md` — this is the working summary, not a
+replacement. Non-negotiable ones are marked **(NN)**.
 
-## Recent Changes
-- 014-cms: Added TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + existing stack — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues, Next.js (storefront), React + Vite (admin) — *plus* three new runtime dependencies on the **frontend side only**:
-- 013-assets-library: Added TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + existing stack — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues — *plus* five new runtime dependencies justified below:
-- 012-attributes: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 — same as the rest of the project. + Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), Meilisearch JS client, ioredis, BullMQ, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**.
+- **I. Modular architecture (NN)** — a module owns its entities, services, routes,
+  migrations, i18n and tests. Cross-module interaction goes through exported services or the
+  `EventBus`; never import another module's internals. Design every module so it can be
+  detached.
+- **II. API-first** — define the shape as a Zod schema in `packages/contracts/` first;
+  breaking changes are versioned.
+- **III. TDD (NN)** — failing test first, then implementation. Every functional requirement
+  traces to a test.
+- **IV. YAGNI & minimal dependencies** — see the Stack note above.
+- **V. TypeScript everywhere** / **VI. Naming conventions (NN)** / **VIII. English-only
+  working language (NN)**.
+- **VII. SEO, performance & discoverability** — storefront pages stay SSR/SSG-capable.
+- **IX. UI reuse** — reuse the admin design system and existing primitives before adding new
+  ones.
+- **X. Scalable queue consumers** — long-running or repeatable work follows the existing
+  BullMQ worker pattern (e.g. `quote_requests/rfq-expiry-worker.ts`).
+- **XI. Multi-tenant isolation (NN)** — the Organization is the one tenant concept; every
+  transacting customer has one (B2C gets a personal org). Tenant-scoped entities pass through
+  the global-filter guard in `backend/src/tenancy/`. A design with a "no-organization" path
+  is invalid.
+- **XII. Sales-channel content scoping (NN)** — channel-scoped reads go through the resolved
+  request channel and the sanctioned bridge accessors, not hand-rolled queries.
+- **XIII. Uniform write auditing via Command Bus (NN)** — admin/domain writes run through
+  `CommandBus.run` so auditing and undo stay uniform.
+- **XIV. Entity-agnostic extensibility** — runtime custom fields instead of bespoke columns
+  where the requirement is "add a field".
+- **XV. Untouched core & per-deployment overlay** — see "Overlay modules" below.
+- **XVI. Module discoverability in the command palette** — see the checklist below.
 
+## Required checklists for a new backend module
 
-<!-- MANUAL ADDITIONS START -->
+### Admin permissions
 
-Skip in commit messages trailer: "Co-Authored-By: ..." or any other LLM/AI Agent.
-
-### New backend module — admin permissions (required)
-
-Every new module with admin routes gated by `requireAdmin(...)` **must** register its permission codes so they appear on `/admin-roles` and pass CI inventory.
+Every module with routes gated by `requireAdmin(...)` **must** register its permission codes
+so they appear on `/admin-roles` and pass the CI inventory.
 
 1. **`manifest.ts`** — `permissions: [{ code, label, module? }]` for every code this module owns.
 2. **`registered-manifests.ts`** — register the manifest once.
 3. **Routes** — `requireAdmin('…')` literals must match manifest `code` values exactly.
 4. **i18n** — `adminRoles.permission.<code>` in `_i18n/i18n/en.json` and `pl.json`.
 5. **AppShell** — `requiredPermission` on nav entries where applicable.
-6. **CI** — `pnpm --filter backend exec vitest run test/contract/admin_users/permission-inventory.test.ts` before PR.
+6. **CI** — `pnpm --filter backend exec vitest run test/contract/admin_users/permission-inventory.test.ts`
+   before opening the MR.
 
-Do not duplicate shared codes from core `PERMISSION_CATALOGUE` (`packages/contracts/src/admin.ts`). Contract: `specs/026-admin-roles-permissions/contracts/module-manifest-permissions.md`.
+Do not duplicate shared codes from core `PERMISSION_CATALOGUE`
+(`packages/contracts/src/admin.ts`). Contract:
+`specs/026-admin-roles-permissions/contracts/module-manifest-permissions.md`.
 
-When you introduce new feature, follow principles described in `.specify/memory/constitution.md` file.
+### Command palette (Principle XVI)
 
-Do not create commit messages in other language than English.
+Every module with an admin surface **must** be discoverable under ⌘K / CTRL+K. Sidebar-only
+is not enough.
 
-<!-- MANUAL ADDITIONS END -->
+1. **`manifest.ts`** — `actions: [{ id, labelKey, descriptionKey, icon, targetRoute,
+   requiredPermission, keywords, weight }]` for the module's landing surface plus its few
+   highest-value operator actions. Curate — this is a discovery surface, not a route dump.
+2. **`requiredPermission`** — the code gating the target surface, so the palette never
+   advertises a 403.
+3. **i18n** — `labelKey` / `descriptionKey` are **relative to the module namespace**
+   (`actions.openX.label`, not `<module>.actions.openX.label`) and live in the module's own
+   `i18n/en.json` + `pl.json`. Those files must be a **flat** `{"a.b.c": "text"}` map — a
+   nested object fails `TranslationBundleEntriesSchema`, the boot reconciler only logs and
+   skips it, and the palette silently renders raw keys.
+4. **`icon`** — must be in `KnownIconNameSchema` (`packages/contracts/src/admin-actions.ts`);
+   adding a name there requires the matching entry in
+   `admin/src/lib/admin-actions/icon-map.ts` in the same MR.
+5. **`targetRoute`** — a real admin route (no query string; the route regex rejects one).
+   Deep-link actions need an actual route, e.g. `/credentials/new`.
+6. **CI** — `pnpm --filter backend exec vitest run test/unit/_i18n/registered-bundles-shape.test.ts`
+   verifies that every registered module's on-disk bundles load and that every manifest action
+   key resolves in every shipped language.
+
+### Migrations (feature 065)
+
+There is **no repo-wide sequential migration number**. Never write "the next free `NNN_*`
+number", never pick a number, never edit an execution list.
+
+1. **Scaffold it** — `pnpm --filter backend run migration:new -- --module <id> --name <slug>`.
+   The file lands in `backend/src/modules/<id>/migrations/` (or `backend/src/db/migrations/`
+   for `--module core`), named `<YYYYMMDDTHHmmss>_<module-segment>_<slug>.ts` with a UTC
+   timestamp. The class name is derived mechanically from the filename
+   (`Migration<STAMP><PascalCaseTail>`); it is the name persisted in `mikro_orm_migrations`,
+   so never rename an applied class.
+2. **Register it** — paste the two printed lines (import + `migration('<id>', Class)`) into
+   the module's group in **`backend/src/db/migrations-registry.ts`**. This registry replaced
+   the hand-ordered `migrationsList` in `mikro-orm.config.ts`. An unregistered migration does
+   not run; `test/unit/db/migrations-registry.test.ts` fails the build for it.
+3. **Do not order by hand.** Declaration order in the registry has no effect. Execution order
+   is computed by `backend/src/db/migration-order.ts` from the timestamps, corrected by the
+   module-manifest dependency graph (45-day horizon). If `db:fresh` fails on ordering, bump
+   the timestamp or fix the manifest `dependencies` — never move a registry line.
+4. **Cross-module FK ⇒ declare the dependency.** A new foreign key to another module's table
+   requires that module in your manifest's `dependencies` (transitively), or
+   `pnpm --filter backend exec vitest run test/unit/db/fk-dependency-drift.test.ts` fails.
+5. **Never edit** `backend/src/db/legacy-migration-names.ts` — it is the frozen rename map
+   that keeps deployed databases from re-running 112 migrations.
+
+Full guide: `docs/docs/architecture/migrations.md`; contracts under
+`specs/065-manifest-aware-migrations/contracts/`.
+
+### i18n
+
+All user-facing strings ship in **both `en` and `pl`**; a static CI check rejects hard-coded
+literals (`pnpm --filter backend run i18n:hardcoded`).
+
+## Overlay modules (per-deployment customization, feature 057)
+
+A **client-only overlay module** lives under `backend/src/apps/<deployment>/modules/<id>/` and
+is discovered without editing the shared core registry (`REGISTERED_MANIFESTS` stays
+untouched — FR-004). It is an ordinary lifecycle participant, so every checklist above
+applies, with one difference: its admin permissions must appear on `/admin-roles` and pass
+the permission-inventory check **for that deployment** — run the inventory test with
+`DEPLOYMENT=<name>` set. Overriding a core **service** requires the core service to expose a
+`*.interface.ts`; the overlay `implements` it through the `@core/*` alias so `tsc` is the
+contract gate. Never override a core entity or migration (schema overrides are out of v1) —
+ship new schema as tables owned by the overlay module. See
+`docs/docs/architecture/overlay-pattern.md` and `specs/057-overlay-pattern-multideploy/`.
+
+## Working agreement
+
+- **Verify before reporting done**: `typecheck` + `lint` + the targeted tests for what you
+  touched. Report failures with their output; never hide them.
+- **Read before writing** — the module you are changing, the closest prior feature's spec
+  directory, and the relevant contracts.
+- **English only** in code, comments, identifiers, specs, docs and commit messages
+  (Principle VIII).
+- **Commits**: never add `Co-Authored-By: Claude` or any other AI/LLM trailer. Branch off
+  `master` and deliver through a merge request — never commit straight to `master`.
+- **Do not touch**: generated files, another module's migrations, `legacy-migration-names.ts`,
+  or the auto-generated appendix at the bottom of this file.
+
+Specs written before 2026-07-31 refer to the checklists above as "the CLAUDE.md new-module
+rules" — same rules, they simply moved here.
+
+## Feature workflow (speckit)
+
+New features follow the speckit flow: `/speckit.specify` → `/speckit.plan` → `/speckit.tasks`
+→ `/speckit.implement`, producing `specs/NNN-slug/`. `/speckit.plan` regenerates the appendix
+below through `.specify/scripts/bash/update-agent-context.sh`, which is pinned to write into
+this file only (see the repo-local override near the top of that script) — that is what keeps
+`CLAUDE.md`, `.cursor/rules/specify-rules.mdc` and this file from drifting apart again.
+
+## Subagents
+
+Role-specialised subagents are defined twice, once per tool, with identical roles:
+`.claude/agents/*.md` (Claude Code) and `.cursor/agents/*.md` (Cursor). Their prompts stay
+short on purpose — repository conventions live here, not in the agent files.
+
+| Agent | Use for |
+| --- | --- |
+| `endora-commerce-architect` | Designing features: specs, plans, module boundaries, data models |
+| `endora-commerce-dev` | Implementing plans and fixing bugs, with tests |
+| `endora-commerce-product-owner` | Verifying business ↔ implementation consistency, spec/task audits, `docs/` |
+
+---
+
+<!-- Everything below is appended automatically by speckit's update-agent-context.sh.
+     Treat it as an append-only log; prune it when it stops being useful. -->
+
+## Active Technologies
+
+- TypeScript 5.x strict on Node.js ≥ 22.17; Fastify + MikroORM (PostgreSQL) + Zod + ioredis + BullMQ + Meilisearch (backend)
+- React 19 + Vite + react-router-dom 7 + Tailwind 4 (admin); Next.js 15 App Router + React 19 + Tailwind v4 (storefront)
+- PostgreSQL via MikroORM, module-scoped timestamped migrations (feature 065)
+
+## Project Structure
+
+See "Repo map" above.
+
+## Recent Changes
+
+- 060-api-interceptor: Fastify `onRoute`/`preSerialization`/`onReady` hook registry, diagnostics endpoint; no schema change.
+- 059-ksef-integration: KSeF submission module — BullMQ `ksef.submit` queue, `node:crypto` signing, credentials via the Settings module.
+- 058-credentials-module: `credential_configurations` + the `credential_ref` settings value type; AES-256-GCM secret envelopes.
