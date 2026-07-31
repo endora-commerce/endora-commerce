@@ -1,6 +1,10 @@
 import type { MailerSendInput } from '../../email/services/mailer.js';
 import { resolvePaymentEmailRenderer } from '../../payments/services/payment-email-renderer.js';
 import { resolveShippingEmailRenderer } from '../../shipments/services/shipping-email-renderer.js';
+import {
+  orderTotalsLabels,
+  type OrderTotalsLabels,
+} from '@b2b/email-components/render/order-labels';
 
 /**
  * Order-confirmation e-mail (feature 034). Sent after a successful checkout.
@@ -25,6 +29,8 @@ export interface OrderConfirmationAddress {
 
 export interface BuildOrderConfirmationEmailInput {
   to: string;
+  /** Content language (channel default); drives built-in totals/address labels. */
+  language?: string;
   order: {
     id: string;
     /** Feature 036 — customer-facing business Order ID used in the e-mail. */
@@ -63,13 +69,31 @@ function money(value: string | number, currency: string): string {
   return `${Number(value).toFixed(2)} ${currency}`;
 }
 
-function formatAddress(a: OrderConfirmationAddress): string {
+function formatAddress(a: OrderConfirmationAddress, labels: OrderTotalsLabels): string {
   const lines: string[] = [];
   if (a.companyName) lines.push(a.companyName);
-  if (a.taxId) lines.push(`NIP: ${a.taxId}`);
+  if (a.taxId) lines.push(`${labels.taxId}: ${a.taxId}`);
   lines.push(a.recipientName, a.street, `${a.postalCode} ${a.city}`, a.country);
   if (a.phone) lines.push(`tel. ${a.phone}`);
   return lines.map((l) => `  ${l}`).join('\n');
+}
+
+function buildSummaryLines(
+  order: BuildOrderConfirmationEmailInput['order'],
+  labels: OrderTotalsLabels,
+): string[] {
+  const currency = order.currency;
+  const discountTotal = Number(order.discountTotal);
+  const summaryLines = [
+    `  ${labels.subtotal}: ${money(order.subtotal, currency)}`,
+    `  ${labels.tax}: ${money(order.taxTotal, currency)}`,
+    `  ${labels.delivery}: ${money(order.deliveryTotal, currency)}`,
+  ];
+  if (discountTotal > 0) {
+    summaryLines.push(`  ${labels.discount}: -${money(discountTotal, currency)}`);
+  }
+  summaryLines.push(`  ${labels.total}: ${money(order.total, currency)}`);
+  return summaryLines;
 }
 
 /**
@@ -84,6 +108,7 @@ export function buildOrderConfirmationVariables(
   const { order, items } = input;
   const currency = order.currency;
   const discountTotal = Number(order.discountTotal);
+  const labels = orderTotalsLabels(input.language);
 
   const paymentLine = resolvePaymentEmailRenderer(order.paymentRendererKey)({
     name: order.paymentMethodSnapshot.name,
@@ -97,18 +122,10 @@ export function buildOrderConfirmationVariables(
     currency,
   });
 
-  const summaryLines = [
-    `  Subtotal: ${money(order.subtotal, currency)}`,
-    `  Tax: ${money(order.taxTotal, currency)}`,
-    `  Delivery: ${money(order.deliveryTotal, currency)}`,
-  ];
-  if (discountTotal > 0) summaryLines.push(`  Discount: -${money(discountTotal, currency)}`);
-  summaryLines.push(`  Total: ${money(order.total, currency)}`);
-
   const discountsText =
     discountTotal > 0 || order.promotionCode
       ? `  ${order.promotionCode ? `${order.promotionCode}: ` : ''}-${money(discountTotal, currency)}`
-      : `  none`;
+      : `  ${labels.none}`;
 
   return {
     order: {
@@ -117,15 +134,17 @@ export function buildOrderConfirmationVariables(
       shippingLine,
       paymentLine,
       discountsText,
-      summaryText: summaryLines.join('\n'),
-      shippingAddressText: formatAddress(order.deliveryAddress),
-      billingAddressText: formatAddress(order.billingAddress),
+      summaryText: buildSummaryLines(order, labels).join('\n'),
+      shippingAddressText: formatAddress(order.deliveryAddress, labels),
+      billingAddressText: formatAddress(order.billingAddress, labels),
       items: items.map((it) => ({
         name: it.productSnapshot.name,
         sku: it.productSnapshot.sku,
         quantity: it.quantity,
         unitPrice: money(it.unitPrice, currency),
         lineTotal: money(it.lineTotal, currency),
+        /** Alias used by EmailOrderSummary price column. */
+        price: money(it.lineTotal, currency),
       })),
     },
     customer: { firstName: input.customerFirstName ?? '' },
@@ -138,6 +157,8 @@ export function buildOrderConfirmationEmail(
   const { order, items } = input;
   const currency = order.currency;
   const discountTotal = Number(order.discountTotal);
+  const labels = orderTotalsLabels(input.language);
+  const pl = (input.language ?? '').toLowerCase().startsWith('pl');
 
   const productLines = items.map(
     (it) =>
@@ -159,49 +180,45 @@ export function buildOrderConfirmationEmail(
     currency,
   });
 
-  const summary = [
-    `  Subtotal: ${money(order.subtotal, currency)}`,
-    `  Tax: ${money(order.taxTotal, currency)}`,
-    `  Delivery: ${money(order.deliveryTotal, currency)}`,
-  ];
-  if (discountTotal > 0) summary.push(`  Discount: -${money(discountTotal, currency)}`);
-  summary.push(`  Total: ${money(order.total, currency)}`);
+  const summary = buildSummaryLines(order, labels);
 
   const discountSection =
     discountTotal > 0 || order.promotionCode
       ? [
           ``,
-          `Applied discounts:`,
+          pl ? `Zastosowane rabaty:` : `Applied discounts:`,
           `  ${order.promotionCode ? `${order.promotionCode}: ` : ''}-${money(discountTotal, currency)}`,
         ]
-      : [``, `Applied discounts:`, `  none`];
+      : [``, pl ? `Zastosowane rabaty:` : `Applied discounts:`, `  ${labels.none}`];
 
   const text = [
-    `Thank you for your order.`,
+    pl ? `Dziękujemy za zamówienie.` : `Thank you for your order.`,
     ``,
-    `Order: ${order.businessId}`,
+    pl ? `Zamówienie: ${order.businessId}` : `Order: ${order.businessId}`,
     ``,
-    `Products:`,
+    pl ? `Produkty:` : `Products:`,
     ...productLines,
     ``,
-    `Delivery method: ${shippingLine}`,
-    `Payment method: ${paymentLine}`,
+    pl ? `Metoda dostawy: ${shippingLine}` : `Delivery method: ${shippingLine}`,
+    pl ? `Metoda płatności: ${paymentLine}` : `Payment method: ${paymentLine}`,
     ...discountSection,
     ``,
-    `Summary:`,
+    pl ? `Podsumowanie:` : `Summary:`,
     ...summary,
     ``,
-    `Shipping address:`,
-    formatAddress(order.deliveryAddress),
+    pl ? `Adres dostawy:` : `Shipping address:`,
+    formatAddress(order.deliveryAddress, labels),
     ``,
-    `Billing address:`,
-    formatAddress(order.billingAddress),
+    pl ? `Adres rozliczeniowy:` : `Billing address:`,
+    formatAddress(order.billingAddress, labels),
   ].join('\n');
 
   return {
     messageId: `order_confirmation:${order.id}`,
     to: input.to,
-    subject: `Order confirmation ${order.businessId}`,
+    subject: pl
+      ? `Potwierdzenie zamówienia ${order.businessId}`
+      : `Order confirmation ${order.businessId}`,
     text,
     meta: {
       kind: 'order_confirmation',

@@ -1,19 +1,9 @@
 // Default subject + content for the shipment_created transactional email
-// (feature 047). Net-new email — email-safe components + default blocks.
+// (feature 047). Simple layout via shared header/footer embeds.
+
+import { simpleEmailBodyTree } from '@b2b/email-components/defaults/simple-email-body';
 
 const LANGS = ['en-US', 'pl-PL'];
-
-function bodyTree(text: string) {
-  return {
-    root: { props: {} },
-    content: [
-      { type: 'EmailInsertBlock', props: { id: 'hdr', code: 'default_email_header' } },
-      { type: 'EmailText', props: { id: 'body', text, align: 'left' } },
-      { type: 'EmailInsertBlock', props: { id: 'ftr', code: 'default_email_footer' } },
-    ],
-    zones: {},
-  };
-}
 
 export const SHIPMENT_CREATED_DEFAULT = {
   defaultSubject: {
@@ -23,12 +13,16 @@ export const SHIPMENT_CREATED_DEFAULT = {
   defaultContent: {
     schema_version: 1,
     languages: {
-      'en-US': bodyTree(
-        'Good news — a shipment has been created for your order {{var order.businessId}}. You will receive tracking details soon.',
-      ),
-      'pl-PL': bodyTree(
-        'Dobra wiadomość — utworzono przesyłkę dla Twojego zamówienia {{var order.businessId}}. Wkrótce otrzymasz dane do śledzenia.',
-      ),
+      'en-US': simpleEmailBodyTree({
+        idPrefix: 'shipment',
+        heading: 'Your order has shipped',
+        text: 'Good news — a shipment has been created for your order {{var order.businessId}}. You will receive tracking details soon.',
+      }),
+      'pl-PL': simpleEmailBodyTree({
+        idPrefix: 'shipment',
+        heading: 'Zamówienie wysłane',
+        text: 'Dobra wiadomość — utworzono przesyłkę dla Twojego zamówienia {{var order.businessId}}. Wkrótce otrzymasz dane do śledzenia.',
+      }),
     },
   } as Record<string, unknown>,
   languages: LANGS,

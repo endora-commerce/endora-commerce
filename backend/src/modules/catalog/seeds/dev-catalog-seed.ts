@@ -243,14 +243,18 @@ async function main(): Promise<void> {
     // boot reconciler would promote the lexically-first channel (pl_b2b_vip,
     // a logged-in-only channel) — the wrong default for the storefront.
     systemDefault: true,
+    languages: ['pl-PL', 'en-US'],
     defaultLanguage: 'pl-PL',
+    currencies: ['PLN', 'EUR'],
     defaultCurrency: 'PLN',
   });
   const b2bVip = em.create(SalesChannel, {
     code: 'pl_b2b_vip',
     name: { 'en-US': 'PL B2B VIP', 'pl-PL': 'PL B2B VIP' },
     isPublic: false,
+    languages: ['pl-PL', 'en-US'],
     defaultLanguage: 'pl-PL',
+    currencies: ['PLN', 'EUR'],
     defaultCurrency: 'PLN',
   });
   await em.persistAndFlush([retail, b2bVip]);

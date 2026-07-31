@@ -8,5 +8,10 @@
   "newsletter.nav.automations": "Automatyzacje",
   "newsletter.nav.tags": "Tagi",
   "newsletter.nav.customFields": "Pola dodatkowe",
-  "newsletter.nav.provider": "Usługa wysyłki"
+  "newsletter.nav.provider": "Usługa wysyłki",
+  "newsletter.editor.viewportDesktop": "Mail desktop (600px)",
+  "newsletter.editor.viewportNarrow": "Wąski (320px)",
+  "newsletter.editor.insertVariable": "Wstaw zmienną",
+  "newsletter.editor.variable": "Zmienna",
+  "newsletter.editor.livePreview": "Podgląd HTML na żywo"
 }

@@ -12,8 +12,16 @@ import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { Textarea } from '@/components/ui/textarea';
 import { useTranslation } from '@/i18n/useTranslation';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
+import { CmsContentEditorLayout } from '../components/CmsContentEditorLayout';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
+import { emptyPageBuilderData } from '../components/page-builder-data';
+import {
+  listCmsTemplatesForApply,
+  loadCmsTemplateCanvas,
+  saveCanvasAsCmsTemplate,
+} from '../components/cms-template-layout';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
+import { resolveScopedContentLanguage } from '../components/scope-utils';
 import { cmsClient } from '../api/cms-client';
 
 interface FormState {
@@ -41,6 +49,7 @@ export function TemplateEditor(): ReactNode {
   const [scope, setScope] = useState<CmsScopeValue>({ salesChannelIds: [], languages: [] });
   const [activeLanguage, setActiveLanguage] = useState<string | null>(null);
   const [draftData, setDraftData] = useState<Data | null>(null);
+  const [languageContentOverrides, setLanguageContentOverrides] = useState<Record<string, Data>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -62,18 +71,52 @@ export function TemplateEditor(): ReactNode {
   }, [load]);
 
   useEffect(() => {
+    if (!isNew) return;
+    setTemplate(null);
+    setForm(blankForm);
+    setScope({ salesChannelIds: [], languages: [] });
+    setActiveLanguage(null);
+    setDraftData(null);
+    setLanguageContentOverrides({});
+    setError(null);
+  }, [isNew, id]);
+
+  useEffect(() => {
+    setDraftData(null);
+    setLanguageContentOverrides({});
+  }, [id]);
+
+  useEffect(() => {
     if (!activeLanguage && scope.languages.length > 0) setActiveLanguage(scope.languages[0] ?? null);
     if (activeLanguage && !scope.languages.includes(activeLanguage)) {
       setActiveLanguage(scope.languages[0] ?? null);
     }
   }, [activeLanguage, scope.languages]);
 
-  const currentData = useMemo(
-    () => draftData ?? dataFor(template, activeLanguage),
-    [activeLanguage, template, draftData],
-  );
+  const currentData = useMemo(() => {
+    if (draftData) return draftData;
+    if (activeLanguage && languageContentOverrides[activeLanguage]) {
+      return languageContentOverrides[activeLanguage] ?? null;
+    }
+    return dataFor(template, activeLanguage);
+  }, [activeLanguage, draftData, languageContentOverrides, template]);
 
   const save = async (): Promise<boolean> => {
+    if (scope.salesChannelIds.length === 0) {
+      setError(t('templateEditor.errors.selectChannel'));
+      return false;
+    }
+    if (scope.languages.length === 0) {
+      setError(t('templateEditor.errors.selectLanguage'));
+      return false;
+    }
+
+    const contentLanguage = resolveScopedContentLanguage(scope, activeLanguage);
+    if (!contentLanguage) {
+      setError(t('templateEditor.errors.selectLanguage'));
+      return false;
+    }
+
     setSaving(true);
     setError(null);
     try {
@@ -93,14 +136,22 @@ export function TemplateEditor(): ReactNode {
             languages: scope.languages,
             version: template!.version,
           });
-      if (activeLanguage && currentData) {
-        saved = await cmsClient.putTemplateContent(saved.id, activeLanguage, {
+      if (currentData) {
+        saved = await cmsClient.putTemplateContent(saved.id, contentLanguage, {
           data: currentData,
+          version: saved.version,
+        });
+      }
+      for (const [lang, data] of Object.entries(languageContentOverrides)) {
+        if (lang === contentLanguage) continue;
+        saved = await cmsClient.putTemplateContent(saved.id, lang, {
+          data,
           version: saved.version,
         });
       }
       setTemplate(saved);
       setDraftData(null);
+      setLanguageContentOverrides({});
       if (isNew) navigate(`/cms/templates/${saved.id}`, { replace: true });
       return true;
     } catch (err) {
@@ -116,33 +167,37 @@ export function TemplateEditor(): ReactNode {
   };
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title={isNew ? t('templateEditor.title.new') : form.name || t('templateEditor.title.edit')}
-        description={t('templateEditor.description')}
-        actions={
-          <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link to="/cms/templates">{t('common.back')}</Link>
-            </Button>
-            <SaveButtonGroup
-              onSave={() => void save()}
-              onSaveAndExit={() => void saveAndExit()}
-              saving={saving}
-              saveLabel={t('common.save')}
-              savingLabel={t('common.saving')}
-              saveAndExitLabel={t('common.saveAndExit')}
-            />
-          </div>
-        }
-      />
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-4 space-y-4">
+    <CmsContentEditorLayout
+      header={
+        <>
+          <PageHeader
+            title={isNew ? t('templateEditor.title.new') : form.name || t('templateEditor.title.edit')}
+            description={t('templateEditor.description')}
+            actions={
+              <div className="flex gap-2">
+                <Button asChild variant="outline">
+                  <Link to="/cms/templates">{t('common.back')}</Link>
+                </Button>
+                <SaveButtonGroup
+                  onSave={() => void save()}
+                  onSaveAndExit={() => void saveAndExit()}
+                  saving={saving}
+                  saveLabel={t('common.save')}
+                  savingLabel={t('common.saving')}
+                  saveAndExitLabel={t('common.saveAndExit')}
+                />
+              </div>
+            }
+          />
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+        </>
+      }
+      settings={
+        <>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{t('templateEditor.metadata')}</CardTitle>
@@ -166,19 +221,55 @@ export function TemplateEditor(): ReactNode {
             </CardContent>
           </Card>
           <ScopePicker value={scope} onChange={setScope} />
-        </div>
-        <div className="col-span-8 space-y-3">
-          <ContentLanguageTabs
-            languages={scope.languages}
-            activeLanguage={activeLanguage}
-            onChange={(language) => {
-              setDraftData(null);
-              setActiveLanguage(language);
-            }}
-          />
-          <PageBuilderEditor data={currentData} onChange={setDraftData} />
-        </div>
-      </div>
-    </div>
+        </>
+      }
+      languageTabs={
+        <ContentLanguageTabs
+          languages={scope.languages}
+          activeLanguage={activeLanguage}
+          onChange={(language) => {
+            if (activeLanguage && draftData) {
+              setLanguageContentOverrides((prev) => ({
+                ...prev,
+                [activeLanguage]: draftData,
+              }));
+            }
+            setDraftData(null);
+            setActiveLanguage(language);
+          }}
+        />
+      }
+      builder={
+        <PageBuilderEditor
+          data={currentData}
+          onChange={setDraftData}
+          contentKey={`${id ?? 'new'}:${activeLanguage ?? ''}`}
+          languages={scope.languages}
+          activeLanguage={activeLanguage}
+          onResolveLanguageContent={(language) => {
+            if (language === activeLanguage && draftData) {
+              return structuredClone(draftData);
+            }
+            if (languageContentOverrides[language]) {
+              return structuredClone(languageContentOverrides[language]!);
+            }
+            return structuredClone(dataFor(template, language) ?? emptyPageBuilderData());
+          }}
+          onSaveAsTemplate={async (meta, canvasData) => {
+            await saveCanvasAsCmsTemplate({
+              ...meta,
+              data: canvasData,
+              salesChannelIds: scope.salesChannelIds,
+              languages: scope.languages,
+              activeLanguage,
+            });
+          }}
+          onListTemplatesForApply={listCmsTemplatesForApply}
+          onResolveTemplateLayout={(templateId) =>
+            loadCmsTemplateCanvas(templateId, activeLanguage)
+          }
+        />
+      }
+    />
   );
 }

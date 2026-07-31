@@ -18,14 +18,14 @@ type BlockRow = {
   code: string;
   active: boolean;
   description: string | null;
-  content: { schema_version?: number; languages?: Record<string, unknown> };
+  content: { languages?: Record<string, unknown> };
   languages: string[];
   version: number;
   created_at: Date | string;
   updated_at: Date | string;
 };
 
-const emptyContent = { schema_version: 1, languages: {} };
+const emptyContent = { languages: {} };
 
 export class CmsBlockService {
   constructor(
@@ -169,7 +169,6 @@ export class CmsBlockService {
         );
       }
       const content = {
-        schema_version: row.content.schema_version ?? 1,
         languages: { ...(row.content.languages ?? {}), [language]: data },
       };
       const languages = row.languages.includes(language) ? row.languages : [...row.languages, language];
@@ -273,7 +272,6 @@ export class CmsBlockService {
     return {
       ...(await this.toSummary(row)),
       content: {
-        schema_version: row.content.schema_version ?? 1,
         languages: row.content.languages ?? {},
       },
     };

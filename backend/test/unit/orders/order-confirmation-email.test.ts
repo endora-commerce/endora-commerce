@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildOrderConfirmationEmail } from '../../../src/modules/orders/email-templates/order-confirmation.js';
+import {
+  buildOrderConfirmationEmail,
+  buildOrderConfirmationVariables,
+} from '../../../src/modules/orders/email-templates/order-confirmation.js';
 
 /**
  * Order-confirmation e-mail builder — covers every section required by the
@@ -59,17 +62,11 @@ describe('buildOrderConfirmationEmail', () => {
     expect(mail.messageId).toBe('order_confirmation:abcdef12-0000-4000-8000-000000000001');
 
     const body = mail.text;
-    // products + amounts
     expect(body).toContain('2 × Widget (SKU-1) — 98.40 PLN');
-    // delivery method + cost
     expect(body).toContain('Delivery method: Courier — 12.00 PLN');
-    // payment method + additional cost (default renderer)
     expect(body).toContain('Payment method: Cash on delivery (+5.00 PLN)');
-    // applied discounts
     expect(body).toContain('SAVE10: -10.00 PLN');
-    // total summary
     expect(body).toContain('Total: 130.00 PLN');
-    // both addresses
     expect(body).toContain('Shipping address:');
     expect(body).toContain('Jan Kowalski');
     expect(body).toContain('Billing address:');
@@ -78,7 +75,6 @@ describe('buildOrderConfirmationEmail', () => {
 
   it('identifies the order by its business Order ID (feature 036)', () => {
     const mail = buildOrderConfirmationEmail(input());
-    // Subject + body reference the customer-facing business ID, not the UUID.
     expect(mail.subject).toContain('ORD-1042');
     expect(mail.text).toContain('Order: ORD-1042');
     expect(mail.subject).not.toContain('abcdef12');
@@ -92,5 +88,33 @@ describe('buildOrderConfirmationEmail', () => {
     const body = buildOrderConfirmationEmail(i).text;
     expect(body).toContain('Applied discounts:');
     expect(body).toContain('none');
+  });
+
+  it('localizes summary labels for pl-PL', () => {
+    const mail = buildOrderConfirmationEmail({ ...input(), language: 'pl-PL' });
+    expect(mail.subject).toContain('Potwierdzenie zamówienia');
+    expect(mail.text).toContain('Suma częściowa: 100.00 PLN');
+    expect(mail.text).toContain('VAT: 23.00 PLN');
+    expect(mail.text).toContain('Dostawa: 12.00 PLN');
+    expect(mail.text).toContain('Razem: 130.00 PLN');
+    expect(mail.text).toContain('Podsumowanie:');
+  });
+});
+
+describe('buildOrderConfirmationVariables', () => {
+  it('uses English totals labels by default', () => {
+    const vars = buildOrderConfirmationVariables(input());
+    const order = vars['order'] as { summaryText: string };
+    expect(order.summaryText).toContain('Subtotal:');
+    expect(order.summaryText).toContain('Tax:');
+  });
+
+  it('uses Polish totals labels for pl-PL', () => {
+    const vars = buildOrderConfirmationVariables({ ...input(), language: 'pl-PL' });
+    const order = vars['order'] as { summaryText: string };
+    expect(order.summaryText).toContain('Suma częściowa:');
+    expect(order.summaryText).toContain('VAT:');
+    expect(order.summaryText).toContain('Razem:');
+    expect(order.summaryText).not.toContain('Subtotal:');
   });
 });

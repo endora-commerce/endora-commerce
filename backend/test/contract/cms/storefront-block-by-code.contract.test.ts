@@ -93,7 +93,7 @@ describe('storefront CMS block-by-code contract (T052)', () => {
         id,
         code,
         language: 'en-US',
-        content: { schemaVersion: 1 },
+        content: { data: expect.anything() },
       },
     });
   });

@@ -19,6 +19,8 @@ import type {
   PatchCmsPageRequest,
   PatchCmsTemplateRequest,
   PutCmsPageContentRequest,
+  PutCmsColorPaletteRequest,
+  CmsColorPaletteEntry,
 } from '@b2b/contracts';
 
 export type {
@@ -41,6 +43,8 @@ export type {
   PatchCmsPageRequest,
   PatchCmsTemplateRequest,
   PutCmsPageContentRequest,
+  PutCmsColorPaletteRequest,
+  CmsColorPaletteEntry,
 };
 
 export interface ListPagesQuery {
@@ -154,6 +158,14 @@ export const cmsClient = {
   async getPageBuilderConfig(): Promise<CmsPageBuilderDescriptor> {
     const out = await apiClient.get<{ data: CmsPageBuilderDescriptor }>(
       '/api/v1/admin/cms/page-builder/config',
+    );
+    return out.data;
+  },
+
+  async putColorPalette(body: PutCmsColorPaletteRequest): Promise<{ entries: CmsColorPaletteEntry[] }> {
+    const out = await apiClient.put<{ data: { entries: CmsColorPaletteEntry[] } }>(
+      '/api/v1/admin/cms/page-builder/color-palette',
+      body,
     );
     return out.data;
   },

@@ -13,6 +13,15 @@ export interface CmsScopeValue {
   languages: string[];
 }
 
+function languagesForChannel(
+  channel: SalesChannelSummary,
+  detailsByCode: Record<string, SalesChannelDetail>,
+): string[] {
+  const detail = detailsByCode[channel.code];
+  if (detail?.languages?.length) return detail.languages;
+  return channel.defaultLanguage ? [channel.defaultLanguage] : [];
+}
+
 export function ScopePicker({
   value,
   onChange,
@@ -22,7 +31,7 @@ export function ScopePicker({
 }): ReactNode {
   const t = useTranslation('cms');
   const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
-  const [details, setDetails] = useState<Record<string, SalesChannelDetail>>({});
+  const [detailsByCode, setDetailsByCode] = useState<Record<string, SalesChannelDetail>>({});
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,55 +50,85 @@ export function ScopePicker({
   }, []);
 
   useEffect(() => {
-    let live = true;
+    let cancelled = false;
     const missing = channels.filter(
-      (channel) => value.salesChannelIds.includes(channel.id) && !details[channel.id],
+      (channel) => value.salesChannelIds.includes(channel.id) && !detailsByCode[channel.code],
     );
     if (missing.length === 0) return;
 
-    Promise.all(missing.map((channel) => salesChannelsClient.getByCode(channel.code)))
+    void Promise.all(missing.map((channel) => salesChannelsClient.getByCode(channel.code)))
       .then((rows) => {
-        if (!live) return;
-        setDetails((current) => ({
+        if (cancelled) return;
+        setDetailsByCode((current) => ({
           ...current,
-          ...Object.fromEntries(rows.map((row) => [row.id, row])),
+          ...Object.fromEntries(rows.map((row) => [row.code, row])),
         }));
       })
       .catch((err: unknown) => {
-        if (live) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       });
 
     return () => {
-      live = false;
+      cancelled = true;
     };
-  }, [channels, details, value.salesChannelIds]);
+  }, [channels, detailsByCode, value.salesChannelIds]);
+
+  const selectedChannels = useMemo(
+    () => channels.filter((channel) => value.salesChannelIds.includes(channel.id)),
+    [channels, value.salesChannelIds],
+  );
 
   const allowedLanguages = useMemo(() => {
     const out = new Set<string>();
-    for (const channelId of value.salesChannelIds) {
-      const detail = details[channelId];
-      if (detail) {
-        for (const language of detail.languages) out.add(language);
+    for (const channel of selectedChannels) {
+      for (const language of languagesForChannel(channel, detailsByCode)) {
+        out.add(language);
       }
     }
     return Array.from(out).sort();
-  }, [details, value.salesChannelIds]);
+  }, [detailsByCode, selectedChannels]);
+
+  useEffect(() => {
+    if (value.salesChannelIds.length === 0 || allowedLanguages.length === 0) return;
+
+    const allowed = new Set(allowedLanguages);
+    const pruned = value.languages.filter((language) => allowed.has(language));
+    if (pruned.length === value.languages.length) return;
+
+    onChange({
+      salesChannelIds: value.salesChannelIds,
+      languages: pruned,
+    });
+  }, [allowedLanguages, onChange, value.languages, value.salesChannelIds]);
 
   const setChannel = useCallback(
     (channelId: string, checked: boolean) => {
+      const channel = channels.find((item) => item.id === channelId);
       const nextChannels = checked
         ? Array.from(new Set([...value.salesChannelIds, channelId]))
         : value.salesChannelIds.filter((id) => id !== channelId);
-      const nextLanguages =
+
+      const nextAllowed = new Set<string>();
+      for (const selected of channels) {
+        if (!nextChannels.includes(selected.id)) continue;
+        for (const language of languagesForChannel(selected, detailsByCode)) {
+          nextAllowed.add(language);
+        }
+      }
+
+      let nextLanguages =
         nextChannels.length === 0
           ? []
-          : value.languages.filter(
-              (language) =>
-                allowedLanguages.includes(language) || details[channelId]?.languages.includes(language),
-            );
+          : value.languages.filter((language) => nextAllowed.has(language));
+
+      if (checked && channel && nextLanguages.length === 0) {
+        const defaults = languagesForChannel(channel, detailsByCode);
+        if (defaults[0]) nextLanguages = [defaults[0]];
+      }
+
       onChange({ salesChannelIds: nextChannels, languages: nextLanguages });
     },
-    [allowedLanguages, details, onChange, value.languages, value.salesChannelIds],
+    [channels, detailsByCode, onChange, value.languages, value.salesChannelIds],
   );
 
   const setLanguage = useCallback(
@@ -103,6 +142,8 @@ export function ScopePicker({
     },
     [onChange, value],
   );
+
+  const hasSelectedChannels = value.salesChannelIds.length > 0;
 
   return (
     <Card>
@@ -143,8 +184,10 @@ export function ScopePicker({
                 <span>{language}</span>
               </label>
             ))}
-            {allowedLanguages.length === 0 ? (
+            {!hasSelectedChannels ? (
               <p className="text-sm text-muted-foreground">{t('scope.selectChannel')}</p>
+            ) : allowedLanguages.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('scope.loadingLanguages')}</p>
             ) : null}
           </div>
         </div>

@@ -40,7 +40,7 @@ export function TemplatesListPage(): ReactNode {
   }, [load]);
 
   return (
-    <div className="space-y-4">
+    <div className="b2b-page b2b-page--wide space-y-4">
       <PageHeader
         title={t('templatesList.title')}
         description={t('templatesList.description')}
@@ -71,7 +71,6 @@ export function TemplatesListPage(): ReactNode {
                   <TableHead>{t('columns.name')}</TableHead>
                   <TableHead>{t('columns.code')}</TableHead>
                   <TableHead>{t('columns.languages')}</TableHead>
-                  <TableHead className="text-right">{t('columns.version')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -88,9 +87,6 @@ export function TemplatesListPage(): ReactNode {
                     <TableCell className="font-mono text-xs">{template.code}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {template.languages.join(', ')}
-                    </TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground">
-                      v{template.version}
                     </TableCell>
                   </TableRow>
                 ))}

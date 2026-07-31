@@ -1,10 +1,16 @@
-import { CmsRenderProvider } from '@b2b/cms-components';
+import { CmsRenderProvider } from '@b2b/cms-components/components/render-context';
 // Self-contained, prefix-isolated stylesheet for the CMS Page Builder components
 // (feature 041, FR-012a). SSR-safe — bundled globally by Next at build time.
 import '@b2b/cms-components/styles.css';
 import type { CmsResolvedPage, CmsResolvedBlock, CmsResolvedTemplate } from '@b2b/contracts';
+import { toAbsoluteAssetUrl } from '../lib/asset-url';
 import { Hook } from './Hook';
 import { PageBuilderRender } from './PageBuilderRender';
+
+const mediaBaseUrl = (process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001').replace(
+  /\/+$/,
+  '',
+);
 
 function embedNode(item: CmsResolvedBlock | CmsResolvedTemplate) {
   return <PageBuilderRender data={item.content.data} />;
@@ -20,10 +26,17 @@ export function CmsPageRenderer({ page }: { page: CmsResolvedPage }) {
     ),
   };
 
+  const assets = Object.fromEntries(
+    Object.entries(page.assets).map(([id, asset]) => [
+      id,
+      { ...asset, url: toAbsoluteAssetUrl(asset.url) },
+    ]),
+  );
+
   return (
-    <CmsRenderProvider embeds={embeds}>
+    <CmsRenderProvider embeds={embeds} assets={assets} mediaBaseUrl={mediaBaseUrl}>
       <Hook code="cms.page.top" />
-      <PageBuilderRender data={page.content.data} />
+      <PageBuilderRender data={page.content.data} pageContainer />
       <Hook code="cms.page.bottom" />
     </CmsRenderProvider>
   );

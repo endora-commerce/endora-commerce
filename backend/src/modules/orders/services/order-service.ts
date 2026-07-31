@@ -296,6 +296,7 @@ export class OrderService {
       const variables = buildOrderConfirmationVariables({
         to: customer.email,
         customerFirstName: customer.firstName,
+        language,
         order: {
           id: order.id,
           businessId: order.businessId,
@@ -372,8 +373,11 @@ export class OrderService {
     const deliveryMethod = await em.findOne(DeliveryMethod, { id: order.deliveryMethodId });
     const shippingRendererKey =
       this.shippingAdapters?.get(deliveryMethod?.adapter ?? '')?.renderers?.email ?? null;
+    const channel = await em.findOne(SalesChannel, { id: order.salesChannelId });
+    const language = channel?.defaultLanguage ?? 'en-US';
     const message = buildOrderConfirmationEmail({
       to: customer.email,
+      language,
       order: {
         id: order.id,
         businessId: order.businessId,

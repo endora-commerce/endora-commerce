@@ -31,11 +31,17 @@ it never collides with an external ESP (MailerLite, GetResponse, …).
   automation triggers, custom fields enrich subscribers (set via API, Admin UI,
   or signup) and feed automation criteria.
 - **Campaign** — a one-off send to `all` / a manual `group` / a `tag` / a
-  `tag_list`. Authored with subject + email-safe content + variables; previewed
+  `tag_list`. Authored in the shared email Page Builder (same palette as
+  transactional emails) with subject + Puck content tree + variables; previewed
   with sample data; sent now or scheduled.
 - **Automation** — a linear `send` / `wait N days` sequence triggered by
-  all/tag/tag-list. The step model is designed to extend to conditional
-  branching later without rework.
+  all/tag/tag-list. Send steps use the same email Page Builder. The step model
+  is designed to extend to conditional branching later without rework.
+- **Email blocks** — reusable email-safe fragments edited with the same Puck
+  editor and embeddable via `EmailInsertBlock` where configured.
+- **Variables** — newsletter catalogue includes `subscriber.email`,
+  `customFields.*`, `unsubscribeUrl`, `webviewUrl`, `channel.id`, plus branding
+  keys; the admin **Insert variable** picker works on subject and content.
 - **Provider** — selected + configured in the Admin UI; the SMTP password is
   stored as a Settings `secret` (AES-256-GCM, write-only at the boundary).
 

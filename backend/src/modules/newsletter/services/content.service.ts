@@ -40,6 +40,27 @@ export interface RenderedNewsletterEmail {
 
 const EMPTY_EMBEDS: EmailEmbeds = { blocks: {}, templates: {} };
 
+export type EmailBrandingResolver = (
+  salesChannelId: string | null,
+) => Promise<{ logoUrl: string; accentColor: string }>;
+
+/** Merge channel branding into the directive variable map (logo + accent). */
+export async function withEmailBranding(
+  variables: Record<string, unknown>,
+  salesChannelId: string | null,
+  resolve?: EmailBrandingResolver,
+): Promise<{ variables: Record<string, unknown>; accentColor?: string }> {
+  if (!resolve) return { variables };
+  const branding = await resolve(salesChannelId);
+  return {
+    variables: {
+      ...variables,
+      branding: { logoUrl: branding.logoUrl, accentColor: branding.accentColor },
+    },
+    accentColor: branding.accentColor,
+  };
+}
+
 /**
  * Pure render: tree → email-safe HTML + plain-text, then resolve `{{var}}` /
  * `{{if}}` / `{{for}}` directives against the recipient context. HTML values

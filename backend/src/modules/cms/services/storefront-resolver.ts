@@ -1,12 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  CmsAssetEmbedResolution,
   CmsResolvedBlock,
   CmsResolvedHook,
   CmsResolvedPage,
   CmsResolvedTemplate,
 } from '@b2b/contracts';
-import { walkBlockEmbeds, walkTemplateEmbeds } from './content-tree-walker.js';
+import { walkAssetIds, walkBlockEmbeds, walkTemplateEmbeds } from './content-tree-walker.js';
 import type { CmsCache } from './cms-cache.js';
+
+export type CmsAssetResolver = (assetId: string) => Promise<CmsAssetEmbedResolution | null>;
 
 /** Recursion depth cap for InsertBlock/InsertTemplate inlining (per data-model.md / T082). */
 const EMBED_DEPTH_CAP = 3;
@@ -18,7 +21,7 @@ type PageRow = {
   meta_title: Record<string, string> | null;
   meta_description: Record<string, string> | null;
   meta_keywords: Record<string, string> | null;
-  content: { schema_version?: number; languages?: Record<string, unknown> };
+  content: { languages?: Record<string, unknown> };
   languages: string[];
 };
 
@@ -46,14 +49,14 @@ function toChannelRow(channel: ResolvedChannel): ChannelRow {
 type BlockRow = {
   id: string;
   code: string;
-  content: { schema_version?: number; languages?: Record<string, unknown> };
+  content: { languages?: Record<string, unknown> };
   languages: string[];
 };
 
 type TemplateRow = {
   id: string;
   code: string;
-  content: { schema_version?: number; languages?: Record<string, unknown> };
+  content: { languages?: Record<string, unknown> };
   languages: string[];
 };
 
@@ -64,10 +67,34 @@ type HookRow = {
 };
 
 export class StorefrontResolver {
+  private assetResolver: CmsAssetResolver | null = null;
+
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cache?: CmsCache,
   ) {}
+
+  setAssetResolver(resolver: CmsAssetResolver | null): void {
+    this.assetResolver = resolver;
+  }
+
+  private async resolveAssetsForTrees(trees: unknown[]): Promise<Record<string, CmsAssetEmbedResolution>> {
+    const resolver = this.assetResolver;
+    if (!resolver) return {};
+
+    const ids = new Set<string>();
+    for (const tree of trees) walkAssetIds(tree, ids);
+    if (ids.size === 0) return {};
+
+    const assets: Record<string, CmsAssetEmbedResolution> = {};
+    await Promise.all(
+      Array.from(ids).map(async (assetId) => {
+        const resolved = await resolver(assetId);
+        if (resolved) assets[assetId] = resolved;
+      }),
+    );
+    return assets;
+  }
 
   async resolvePageBySlug(input: {
     resolvedChannel: ResolvedChannel;
@@ -102,6 +129,12 @@ export class StorefrontResolver {
 
     const data = page.content.languages?.[language] ?? {};
     const embeds = await this.inlineEmbeds(em, channel, language, data);
+    const embedTrees = [
+      data,
+      ...Object.values(embeds.blocks).map((b) => b.content.data),
+      ...Object.values(embeds.templates).map((t) => t.content.data),
+    ];
+    const assets = await this.resolveAssetsForTrees(embedTrees);
 
     const resolved: CmsResolvedPage = {
       id: page.id,
@@ -114,11 +147,10 @@ export class StorefrontResolver {
         keywords: page.meta_keywords?.[language] ?? null,
       },
       content: {
-        schemaVersion: page.content.schema_version ?? 1,
         data,
       },
       embeds,
-      assets: {},
+      assets,
     };
     if (this.cache) {
       await this.cache.setPage(input.slug, channel.code, cacheLanguage, resolved);
@@ -161,7 +193,6 @@ export class StorefrontResolver {
       code: block.code,
       language,
       content: {
-        schemaVersion: block.content.schema_version ?? 1,
         data: block.content.languages?.[language] ?? {},
       },
     };
@@ -234,7 +265,6 @@ export class StorefrontResolver {
         code: block.code,
         language,
         content: {
-          schemaVersion: block.content.schema_version ?? 1,
           data: block.content.languages?.[language] ?? {},
         },
       });
@@ -292,7 +322,6 @@ export class StorefrontResolver {
           code: block.code,
           language: blockLanguage,
           content: {
-            schemaVersion: block.content.schema_version ?? 1,
             data: blockData,
           },
         };
@@ -312,7 +341,6 @@ export class StorefrontResolver {
           code: template.code,
           language: templateLanguage,
           content: {
-            schemaVersion: template.content.schema_version ?? 1,
             data: templateData,
           },
         };

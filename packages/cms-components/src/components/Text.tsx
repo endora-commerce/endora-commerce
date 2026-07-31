@@ -1,144 +1,128 @@
 'use client';
 
-import { generateHTML, type JSONContent } from '@tiptap/core';
-import { EditorContent, useEditor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import { type ComponentConfig } from '@measured/puck';
-import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { type ComponentConfig, type PuckComponent } from '@measured/puck';
+import {
+  resolveTextAlignForTier,
+  responsiveTextAlignClass,
+  textAlignDataAttrs,
+  withHideOn,
+} from '@b2b/page-builder-core';
+import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
 import type { TextProps } from '../schema/component-types.js';
+import { BoxStyled } from './box-styles.js';
+import {
+  BOX_BORDER_FIELD,
+  BOX_MARGIN_FIELD,
+  BOX_PADDING_FIELD,
+  DEFAULT_BOX_PROPS,
+  TEXT_TYPOGRAPHY_FIELDS,
+} from '../fields/shared-fields.js';
+import { resolveTextContent, type LegacyTextSource } from './text-content.js';
+import { editingTypographyStyle, responsiveTypographyVars, typographyStyle } from './typography.js';
 
-// The former `editorFrame` CSSProperties as `cmsc:`-prefixed utilities (verbatim:
-// 1px solid #d9e0e7, radius 8, padding 12, white bg, Inter font). Feature 041.
-const EDITOR_FRAME =
-  'cmsc:font-sans cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:rounded-[8px] cmsc:p-[12px] cmsc:bg-white';
+const TEXT_DEFAULTS = { fontSize: 16, fontWeight: 400, lineHeight: 1.65 };
 
-const defaultContent: JSONContent = {
-  type: 'doc',
-  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Body copy' }] }],
-};
-
-const allowedTags = new Set([
-  'p',
-  'br',
-  'strong',
-  'em',
-  's',
-  'u',
-  'blockquote',
-  'code',
-  'pre',
-  'ul',
-  'ol',
-  'li',
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'h5',
-  'h6',
-  'a',
-]);
-
-function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-    .replace(/\son\w+="[^"]*"/gi, '')
-    .replace(/\son\w+='[^']*'/gi, '')
-    .replace(/\s(href|src)=["']javascript:[^"']*["']/gi, '')
-    .replace(/<\/?([a-z0-9-]+)(\s[^>]*)?>/gi, (match, tagName: string) => {
-      if (!allowedTags.has(tagName.toLowerCase())) return '';
-      return match;
-    });
+/**
+ * In the editor, Puck's contentEditable transform replaces string `text` with an
+ * InlineTextField React node. That must be rendered as-is — resolveTextContent()
+ * would coerce it to '' and leave the canvas stuck on legacy/html fallback.
+ */
+function resolveEditingTextContent(props: LegacyTextSource) {
+  const { text, html, tiptapContent } = props;
+  if (typeof text !== 'string' && text != null) {
+    return text as ReactNode;
+  }
+  return resolveTextContent({ text, html, tiptapContent }) || 'Body copy';
 }
 
-function htmlFromTiptap(content: JSONContent | null): string {
-  if (!content) return '';
-
-  try {
-    return sanitizeHtml(generateHTML(content, [StarterKit]));
-  } catch {
-    return '';
-  }
-}
-
-function RichTextField({
-  value,
-  onChange,
-  readOnly,
-}: {
-  value: JSONContent | null;
-  onChange: (value: JSONContent | null) => void;
-  readOnly?: boolean | undefined;
-}) {
-  const [focused, setFocused] = useState(false);
-  const editor = useEditor(
-    {
-      extensions: [StarterKit],
-      content: value ?? defaultContent,
-      editable: !readOnly,
-      immediatelyRender: false,
-      onUpdate: ({ editor: activeEditor }) => {
-        onChange(activeEditor.getJSON());
-      },
-    },
-    [],
-  );
-
-  if (!focused) {
-    return (
-      <button
-        type="button"
-        onFocus={() => setFocused(true)}
-        onClick={() => setFocused(true)}
-        className={`${EDITOR_FRAME} cmsc:block cmsc:w-full cmsc:min-h-[88px] cmsc:text-left ${
-          readOnly ? 'cmsc:cursor-default' : 'cmsc:cursor-text'
-        }`}
-        disabled={readOnly}
-      >
-        <span
-          className="cmsc:font-sans cmsc:text-[#334155] cmsc:text-[14px]"
-          dangerouslySetInnerHTML={{
-            __html: htmlFromTiptap(value) || '<p>Focus to edit rich text</p>',
-          }}
-        />
-      </button>
-    );
-  }
+const TextEditingRender: PuckComponent<TextProps> = (props) => {
+  const tier = usePreviewBreakpointTier();
+  const { text, html, tiptapContent, textAlign, ...box } = props;
+  const resolvedText = resolveEditingTextContent({ text, html, tiptapContent });
+  const alignAttrs = textAlignDataAttrs(textAlign, 'left');
 
   return (
-    <div className={EDITOR_FRAME}>
-      <EditorContent editor={editor} />
-    </div>
+    <BoxStyled previewTier={tier} {...box}>
+      <p
+        className="cmsc:m-0 cmsc:whitespace-pre-wrap cmsc-pb-text-align"
+        style={{
+          ...editingTypographyStyle(props, tier, TEXT_DEFAULTS),
+          ...typographyStyle({
+            ...(props.fontFamily !== undefined ? { fontFamily: props.fontFamily } : {}),
+            ...(props.fontStyle !== undefined ? { fontStyle: props.fontStyle } : {}),
+            color: props.color,
+          }),
+          textAlign: resolveTextAlignForTier(textAlign, tier, 'left'),
+        }}
+        {...alignAttrs}
+      >
+        {resolvedText}
+      </p>
+    </BoxStyled>
   );
-}
+};
 
-export const Text: ComponentConfig<TextProps> = {
-  label: 'Text',
+const TextPublishedRender: PuckComponent<TextProps> = (props) => {
+  const { text, html, tiptapContent, textAlign, ...box } = props;
+  const resolvedText = resolveTextContent({ text, html, tiptapContent });
+  const alignAttrs = textAlignDataAttrs(textAlign, 'left');
+
+  return (
+    <BoxStyled {...box}>
+      <p
+        className={`cmsc:m-0 cmsc:whitespace-pre-wrap cmsc-pb-text-size cmsc-pb-text-weight cmsc-pb-text-leading ${responsiveTextAlignClass(textAlign, 'left')}`}
+        style={{
+          ...responsiveTypographyVars(props, TEXT_DEFAULTS),
+          ...typographyStyle({
+            ...(props.fontFamily !== undefined ? { fontFamily: props.fontFamily } : {}),
+            ...(props.fontStyle !== undefined ? { fontStyle: props.fontStyle } : {}),
+            color: props.color,
+          }),
+        }}
+        {...alignAttrs}
+      >
+        {resolvedText}
+      </p>
+    </BoxStyled>
+  );
+};
+
+const textConfig: ComponentConfig<{ props: TextProps }> = {
+  label: 'Simple Text',
   fields: {
-    tiptapContent: {
-      type: 'custom',
-      label: 'Content',
-      render: ({ value, onChange, readOnly }) => (
-        <RichTextField value={value ?? null} onChange={onChange} readOnly={readOnly} />
-      ),
-    },
-    html: { type: 'textarea', label: 'HTML fallback' },
+    text: { type: 'textarea', label: 'Text', contentEditable: true },
+    ...TEXT_TYPOGRAPHY_FIELDS,
+    margin: BOX_MARGIN_FIELD,
+    padding: BOX_PADDING_FIELD,
+    border: BOX_BORDER_FIELD,
   },
   defaultProps: {
-    tiptapContent: defaultContent,
-    html: '',
+    text: 'Body copy',
+    fontFamily: 'sans',
+    fontStyle: 'normal',
+    color: '#243447',
+    fontSize: 16,
+    fontWeight: 400,
+    textAlign: 'left',
+    lineHeight: 1.65,
+    ...DEFAULT_BOX_PROPS,
   },
-  render: ({ tiptapContent, html }) => {
-    const safeHtml = useMemo(
-      () => htmlFromTiptap(tiptapContent) || sanitizeHtml(html),
-      [html, tiptapContent],
-    );
-
-    return (
-      <div
-        className="cmsc:font-sans cmsc:text-[#243447] cmsc:text-[16px] cmsc:leading-[1.65]"
-        dangerouslySetInnerHTML={{ __html: safeHtml }}
-      />
-    );
+  resolveData: async ({ props }) => {
+    const resolved = resolveTextContent(props);
+    const hasDirectText = typeof props.text === 'string' && props.text.trim().length > 0;
+    if (!hasDirectText && resolved && (props.tiptapContent || props.html)) {
+      return {
+        props: {
+          ...props,
+          text: resolved,
+        },
+      };
+    }
+    return { props };
   },
+  render: (props) =>
+    props.puck?.isEditing ? <TextEditingRender {...props} /> : <TextPublishedRender {...props} />,
 };
+
+export const Text = withHideOn(textConfig);

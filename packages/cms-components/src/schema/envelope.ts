@@ -1,12 +1,7 @@
-// Page Builder content envelope — feature 014 / research.md R5.
+// Page Builder content envelope — feature 014.
 //
 // Every saved CMS content tree (cms_pages.content, cms_blocks.content,
-// cms_templates.content) is wrapped in this envelope. `schema_version` is
-// bumped only when the wire shape of a node changes; the boot-time upgrader
-// (backend/src/modules/cms/services/content-schema-upgrader.ts) walks every
-// row and rewrites trees in place when a bump is taken.
-
-export const CURRENT_SCHEMA_VERSION = 1 as const;
+// cms_templates.content) is wrapped in this envelope.
 
 /**
  * A single Puck data tree as produced by the editor for one language.
@@ -21,12 +16,23 @@ export type PuckDataTree = {
 } & Record<string, unknown>;
 
 export interface ContentEnvelope {
-  /** Bumped when the wire shape of a node changes (not when a new component is added). */
-  schema_version: number;
   /** Per-language content trees keyed by BCP-47 language code. */
   languages: Record<string, PuckDataTree>;
 }
 
 export function emptyEnvelope(): ContentEnvelope {
-  return { schema_version: CURRENT_SCHEMA_VERSION, languages: {} };
+  return { languages: {} };
+}
+
+/** Normalize stored JSONB that may still carry a legacy `schema_version` key. */
+export function normalizeContentEnvelope(raw: unknown): ContentEnvelope {
+  if (!raw || typeof raw !== 'object') {
+    return emptyEnvelope();
+  }
+  const obj = raw as Record<string, unknown>;
+  const languages =
+    obj['languages'] && typeof obj['languages'] === 'object' && !Array.isArray(obj['languages'])
+      ? (obj['languages'] as Record<string, PuckDataTree>)
+      : {};
+  return { languages };
 }

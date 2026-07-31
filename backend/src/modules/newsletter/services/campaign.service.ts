@@ -12,7 +12,8 @@ import { NewsletterCampaign } from '../entities/newsletter-campaign.entity.js';
 import { NewsletterCampaignSubscriber } from '../entities/newsletter-campaign-subscriber.entity.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import type { NewsletterCampaignDispatchService } from './campaign-dispatch.service.js';
-import type { NewsletterContentService } from './content.service.js';
+import type { NewsletterContentService, EmailBrandingResolver } from './content.service.js';
+import { withEmailBranding } from './content.service.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
@@ -28,6 +29,7 @@ export interface CampaignServiceDeps {
    * inline (console fallback / tests). `delayMs` schedules a future fire.
    */
   enqueuePlan?: (campaignId: string, delayMs?: number) => Promise<string | undefined>;
+  resolveEmailBranding?: EmailBrandingResolver;
 }
 
 function iso(d: Date | null): string | null {
@@ -168,11 +170,17 @@ export class NewsletterCampaignService {
         customFields = sub.customFields;
       }
     }
+    const branded = await withEmailBranding(
+      { subscriber: { email }, customFields, channel: { id: campaign.salesChannelId } },
+      campaign.salesChannelId,
+      this.deps.resolveEmailBranding,
+    );
     return this.deps.content.render({
       subject: campaign.subject,
       content: campaign.content,
+      ...(branded.accentColor !== undefined ? { accentColor: branded.accentColor } : {}),
       context: {
-        variables: { subscriber: { email }, customFields, channel: { id: campaign.salesChannelId } },
+        variables: branded.variables,
         unsubscribeUrl: 'https://example.com/newsletter/unsubscribe?token=sample',
       },
     });

@@ -26,8 +26,40 @@ describe('walk-embeds', () => {
     expect([...walkAssetIds(tree)]).toContain('asset-1');
   });
 
-  it('flags components not in the known set', () => {
+  it('flags components not in the known set (legacy InsertTemplate is withdrawn)', () => {
     const known = new Set<string>(EMAIL_SAFE_COMPONENT_NAMES);
-    expect([...walkUnknownComponents(tree, known)]).toEqual(['NotSafe']);
+    expect([...walkUnknownComponents(tree, known)].sort()).toEqual(
+      ['EmailInsertTemplate', 'NotSafe'].sort(),
+    );
+  });
+
+  it('does not treat TipTap JSON under EmailRichText as unknown components', () => {
+    const known = new Set<string>(EMAIL_SAFE_COMPONENT_NAMES);
+    const withRichText = {
+      root: { props: {} },
+      content: [
+        {
+          type: 'EmailRichText',
+          props: {
+            align: 'left',
+            html: '<p>Hello <strong>world</strong></p>',
+            content: {
+              type: 'doc',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [
+                    { type: 'text', text: 'Hello ' },
+                    { type: 'text', marks: [{ type: 'bold' }], text: 'world' },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        { type: 'NotSafe', props: {} },
+      ],
+    };
+    expect([...walkUnknownComponents(withRichText, known)]).toEqual(['NotSafe']);
   });
 });

@@ -41,7 +41,7 @@ export function BlocksListPage(): ReactNode {
   }, [load]);
 
   return (
-    <div className="space-y-4">
+    <div className="b2b-page b2b-page--wide space-y-4">
       <PageHeader
         title={t('blocksList.title')}
         description={t('blocksList.description')}
@@ -73,7 +73,6 @@ export function BlocksListPage(): ReactNode {
                   <TableHead>{t('columns.code')}</TableHead>
                   <TableHead>{t('columns.state')}</TableHead>
                   <TableHead>{t('columns.languages')}</TableHead>
-                  <TableHead className="text-right">{t('columns.version')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -95,9 +94,6 @@ export function BlocksListPage(): ReactNode {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {block.languages.join(', ')}
-                    </TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground">
-                      v{block.version}
                     </TableCell>
                   </TableRow>
                 ))}

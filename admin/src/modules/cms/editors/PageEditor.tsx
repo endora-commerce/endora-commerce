@@ -14,8 +14,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { useTranslation } from '@/i18n/useTranslation';
 import { normalize } from '@/lib/admin-actions/normalize';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
+import { CmsContentEditorLayout } from '../components/CmsContentEditorLayout';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
+import { emptyPageBuilderData } from '../components/page-builder-data';
+import {
+  listCmsTemplatesForApply,
+  loadCmsTemplateCanvas,
+  saveCanvasAsCmsTemplate,
+} from '../components/cms-template-layout';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
+import { resolveScopedContentLanguage } from '../components/scope-utils';
 import { cmsClient } from '../api/cms-client';
 
 interface FormState {
@@ -69,6 +77,7 @@ export function PageEditor(): ReactNode {
   const [scope, setScope] = useState<CmsScopeValue>({ salesChannelIds: [], languages: [] });
   const [activeLanguage, setActiveLanguage] = useState<string | null>(null);
   const [draftData, setDraftData] = useState<Data | null>(null);
+  const [languageContentOverrides, setLanguageContentOverrides] = useState<Record<string, Data>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // For a new page the slug is auto-derived from the name until the operator
@@ -97,12 +106,25 @@ export function PageEditor(): ReactNode {
     void load().catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, [load]);
 
+  useEffect(() => {
+    if (!isNew) return;
+    setPage(null);
+    setForm(blankForm);
+    setScope({ salesChannelIds: [], languages: [] });
+    setActiveLanguage(null);
+    setDraftData(null);
+    setLanguageContentOverrides({});
+    setSlugEdited(false);
+    setError(null);
+  }, [isNew, id]);
+
   // React Router reuses this component instance across `/cms/pages/:id`
   // navigations, so local state survives an id change. Drop any unsaved draft
   // when the edited page changes, otherwise the previous page's edits would
   // mask the newly-loaded content.
   useEffect(() => {
     setDraftData(null);
+    setLanguageContentOverrides({});
   }, [id]);
 
   useEffect(() => {
@@ -112,16 +134,21 @@ export function PageEditor(): ReactNode {
     }
   }, [activeLanguage, scope.languages]);
 
-  const currentData = useMemo(
-    () => draftData ?? dataFor(page, activeLanguage),
-    [activeLanguage, draftData, page],
-  );
+  const currentData = useMemo(() => {
+    // Prefer the in-progress draft for the active tab; otherwise a stashed
+    // per-language override; otherwise the last saved content.
+    if (draftData) return draftData;
+    if (activeLanguage && languageContentOverrides[activeLanguage]) {
+      return languageContentOverrides[activeLanguage] ?? null;
+    }
+    return dataFor(page, activeLanguage);
+  }, [activeLanguage, draftData, languageContentOverrides, page]);
 
-  const saveMeta = async (): Promise<CmsPageDetail> => {
+  const saveMeta = async (contentLanguage: string | null): Promise<CmsPageDetail> => {
     const meta =
-      activeLanguage && (form.metaTitle || form.metaDescription || form.metaKeywords)
+      contentLanguage && (form.metaTitle || form.metaDescription || form.metaKeywords)
         ? {
-            [activeLanguage]: {
+            [contentLanguage]: {
               ...(form.metaTitle ? { title: form.metaTitle } : {}),
               ...(form.metaDescription ? { description: form.metaDescription } : {}),
               ...(form.metaKeywords ? { keywords: form.metaKeywords } : {}),
@@ -155,18 +182,41 @@ export function PageEditor(): ReactNode {
   };
 
   const save = async (): Promise<boolean> => {
+    if (scope.salesChannelIds.length === 0) {
+      setError(t('pageEditor.errors.selectChannel'));
+      return false;
+    }
+    if (scope.languages.length === 0) {
+      setError(t('pageEditor.errors.selectLanguage'));
+      return false;
+    }
+
+    const contentLanguage = resolveScopedContentLanguage(scope, activeLanguage);
+    if (!contentLanguage) {
+      setError(t('pageEditor.errors.selectLanguage'));
+      return false;
+    }
+
     setSaving(true);
     setError(null);
     try {
-      let saved = await saveMeta();
-      if (activeLanguage && currentData) {
-        saved = await cmsClient.putPageContent(saved.id, activeLanguage, {
+      let saved = await saveMeta(contentLanguage);
+      if (currentData) {
+        saved = await cmsClient.putPageContent(saved.id, contentLanguage, {
           data: currentData,
+          version: saved.version,
+        });
+      }
+      for (const [lang, data] of Object.entries(languageContentOverrides)) {
+        if (lang === contentLanguage) continue;
+        saved = await cmsClient.putPageContent(saved.id, lang, {
+          data,
           version: saved.version,
         });
       }
       setPage(saved);
       setDraftData(null);
+      setLanguageContentOverrides({});
       if (isNew) navigate(`/cms/pages/${saved.id}`, { replace: true });
       return true;
     } catch (err) {
@@ -201,50 +251,52 @@ export function PageEditor(): ReactNode {
   };
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title={isNew ? t('pageEditor.title.new') : form.name || t('pageEditor.title.edit')}
-        description={t('pageEditor.description')}
-        actions={
-          <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link to="/cms/pages">{t('common.back')}</Link>
-            </Button>
-            {!isNew && page?.status !== 'published' ? (
-              <Button type="button" variant="outline" onClick={() => void lifecycle('publish')}>
-                {t('common.publish')}
-              </Button>
-            ) : null}
-            {!isNew && page?.status === 'published' ? (
-              <Button type="button" variant="outline" onClick={() => void lifecycle('archive')}>
-                {t('common.archive')}
-              </Button>
-            ) : null}
-            {!isNew && page?.status === 'archived' ? (
-              <Button type="button" variant="outline" onClick={() => void lifecycle('unarchive')}>
-                {t('common.unarchive')}
-              </Button>
-            ) : null}
-            <SaveButtonGroup
-              onSave={() => void save()}
-              onSaveAndExit={() => void saveAndExit()}
-              saving={saving}
-              saveLabel={t('common.save')}
-              savingLabel={t('common.saving')}
-              saveAndExitLabel={t('common.saveAndExit')}
-            />
-          </div>
-        }
-      />
-
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-4 space-y-4">
+    <CmsContentEditorLayout
+      header={
+        <>
+          <PageHeader
+            title={isNew ? t('pageEditor.title.new') : form.name || t('pageEditor.title.edit')}
+            description={t('pageEditor.description')}
+            actions={
+              <div className="flex gap-2">
+                <Button asChild variant="outline">
+                  <Link to="/cms/pages">{t('common.back')}</Link>
+                </Button>
+                {!isNew && page?.status !== 'published' ? (
+                  <Button type="button" variant="outline" onClick={() => void lifecycle('publish')}>
+                    {t('common.publish')}
+                  </Button>
+                ) : null}
+                {!isNew && page?.status === 'published' ? (
+                  <Button type="button" variant="outline" onClick={() => void lifecycle('archive')}>
+                    {t('common.archive')}
+                  </Button>
+                ) : null}
+                {!isNew && page?.status === 'archived' ? (
+                  <Button type="button" variant="outline" onClick={() => void lifecycle('unarchive')}>
+                    {t('common.unarchive')}
+                  </Button>
+                ) : null}
+                <SaveButtonGroup
+                  onSave={() => void save()}
+                  onSaveAndExit={() => void saveAndExit()}
+                  saving={saving}
+                  saveLabel={t('common.save')}
+                  savingLabel={t('common.saving')}
+                  saveAndExitLabel={t('common.saveAndExit')}
+                />
+              </div>
+            }
+          />
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+        </>
+      }
+      settings={
+        <>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{t('pageEditor.metadata')}</CardTitle>
@@ -259,8 +311,6 @@ export function PageEditor(): ReactNode {
                     setForm((f) => ({
                       ...f,
                       name,
-                      // Keep the slug in sync with the name on new pages until
-                      // the operator overrides it.
                       ...(isNew && !slugEdited ? { slug: slugify(name) } : {}),
                     }));
                   }}
@@ -323,24 +373,58 @@ export function PageEditor(): ReactNode {
             </CardContent>
           </Card>
           <ScopePicker value={scope} onChange={setScope} />
-        </div>
-
-        <div className="col-span-8 space-y-3">
-          <ContentLanguageTabs
-            languages={scope.languages}
-            activeLanguage={activeLanguage}
-            onChange={(language) => {
-              setDraftData(null);
-              setActiveLanguage(language);
-            }}
-          />
-          <PageBuilderEditor
-            data={currentData}
-            onChange={setDraftData}
-            contentKey={`${id ?? 'new'}:${activeLanguage ?? ''}`}
-          />
-        </div>
-      </div>
-    </div>
+        </>
+      }
+      languageTabs={
+        <ContentLanguageTabs
+          languages={scope.languages}
+          activeLanguage={activeLanguage}
+          onChange={(language) => {
+            // Keep unsaved canvas per language — clearing draft without stashing
+            // would drop edits when switching tabs.
+            if (activeLanguage && draftData) {
+              setLanguageContentOverrides((prev) => ({
+                ...prev,
+                [activeLanguage]: draftData,
+              }));
+            }
+            setDraftData(null);
+            setActiveLanguage(language);
+          }}
+        />
+      }
+      builder={
+        <PageBuilderEditor
+          data={currentData}
+          onChange={setDraftData}
+          contentKey={`${id ?? 'new'}:${activeLanguage ?? ''}`}
+          pageContainer
+          languages={scope.languages}
+          activeLanguage={activeLanguage}
+          onResolveLanguageContent={(language) => {
+            if (language === activeLanguage && draftData) {
+              return structuredClone(draftData);
+            }
+            if (languageContentOverrides[language]) {
+              return structuredClone(languageContentOverrides[language]!);
+            }
+            return structuredClone(dataFor(page, language) ?? emptyPageBuilderData());
+          }}
+          onSaveAsTemplate={async (meta, canvasData) => {
+            await saveCanvasAsCmsTemplate({
+              ...meta,
+              data: canvasData,
+              salesChannelIds: scope.salesChannelIds,
+              languages: scope.languages,
+              activeLanguage,
+            });
+          }}
+          onListTemplatesForApply={listCmsTemplatesForApply}
+          onResolveTemplateLayout={(templateId) =>
+            loadCmsTemplateCanvas(templateId, activeLanguage)
+          }
+        />
+      }
+    />
   );
 }

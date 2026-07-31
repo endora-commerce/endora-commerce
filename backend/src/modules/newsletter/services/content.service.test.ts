@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderNewsletterEmail } from './content.service.js';
+import { renderNewsletterEmail, withEmailBranding } from './content.service.js';
 
 /**
  * A minimal Puck-style content tree the email renderer understands: a single
@@ -59,5 +59,58 @@ describe('renderNewsletterEmail', () => {
     });
     expect(out.html).toContain('<!DOCTYPE html>');
     expect(out.text.length).toBeGreaterThan(0);
+  });
+
+  it('renders EmailSection + EmailRichText trees with directives', () => {
+    const content = {
+      root: { props: {} },
+      content: [
+        {
+          type: 'EmailSection',
+          props: { id: 'sec', backgroundColor: '#ffffff', paddingY: 8, paddingX: 16 },
+        },
+      ],
+      zones: {
+        'sec:content': [
+          {
+            type: 'EmailRichText',
+            props: {
+              content: null,
+              html: '<p>Hello {{var subscriber.firstName}}</p>',
+              align: 'left',
+            },
+          },
+        ],
+      },
+    };
+    const out = renderNewsletterEmail({
+      subject: 'x',
+      content,
+      context: baseContext,
+    });
+    expect(out.html).toContain('Hello Ada');
+    expect(out.text).toContain('Hello Ada');
+  });
+});
+
+describe('withEmailBranding', () => {
+  it('merges logoUrl and accent into variables when a resolver is provided', async () => {
+    const out = await withEmailBranding(
+      { subscriber: { email: 'a@b.c' } },
+      'channel-1',
+      async () => ({ logoUrl: 'https://cdn/logo.png', accentColor: '#112233' }),
+    );
+    expect(out.accentColor).toBe('#112233');
+    expect(out.variables).toEqual({
+      subscriber: { email: 'a@b.c' },
+      branding: { logoUrl: 'https://cdn/logo.png', accentColor: '#112233' },
+    });
+  });
+
+  it('leaves variables unchanged when no resolver is provided', async () => {
+    const vars = { subscriber: { email: 'a@b.c' } };
+    const out = await withEmailBranding(vars, null);
+    expect(out.variables).toBe(vars);
+    expect(out.accentColor).toBeUndefined();
   });
 });

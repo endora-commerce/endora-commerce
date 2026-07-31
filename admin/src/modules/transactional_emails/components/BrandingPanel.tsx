@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { ColorPicker } from '@/components/ui/color-picker';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
+import { toAbsoluteAssetUrl } from '@/modules/assets_library/lib/asset-url';
 import { useAuth } from '@/lib/auth';
 import { transactionalEmailsClient } from '../api/transactional-emails-client';
 
@@ -85,11 +86,13 @@ export function BrandingPanel({ salesChannelId }: BrandingPanelProps): React.Rea
             onChange={setLogoAssetId}
             acceptMimePrefix="image/"
             allowUpload
-            placeholder="Select a logo image"
+            disabled={!canWrite}
+            placeholder="Select a logo from the Assets Library"
           />
           {branding?.logoUrl ? (
             <p className="text-xs text-muted-foreground">
-              Resolved URL: <span className="font-mono">{branding.logoUrl}</span>
+              Resolved URL:{' '}
+              <span className="font-mono">{toAbsoluteAssetUrl(branding.logoUrl)}</span>
             </p>
           ) : null}
         </div>

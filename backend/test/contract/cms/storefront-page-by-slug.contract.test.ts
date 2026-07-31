@@ -128,7 +128,7 @@ describe('storefront CMS page-by-slug contract (T037)', () => {
           keywords: 'cms,storefront',
         },
         content: {
-          schemaVersion: 1,
+          data: expect.anything(),
         },
         embeds: { blocks: {}, templates: {} },
         assets: {},

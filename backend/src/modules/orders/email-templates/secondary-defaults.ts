@@ -1,20 +1,9 @@
 // Default subject + content for the secondary orders transactional emails
-// (feature 047): order_comment, reorder_created, admin_created_order. Reproduces
-// the legacy builder text (SC-003) with email-safe components + default blocks.
+// (feature 047): order_comment, reorder_created, admin_created_order.
+
+import { simpleEmailBodyTree } from '@b2b/email-components/defaults/simple-email-body';
 
 const LANGS = ['en-US', 'pl-PL'];
-
-function bodyTree(text: string) {
-  return {
-    root: { props: {} },
-    content: [
-      { type: 'EmailInsertBlock', props: { id: 'hdr', code: 'default_email_header' } },
-      { type: 'EmailText', props: { id: 'body', text, align: 'left' } },
-      { type: 'EmailInsertBlock', props: { id: 'ftr', code: 'default_email_footer' } },
-    ],
-    zones: {},
-  };
-}
 
 export const ORDER_COMMENT_DEFAULT = {
   defaultSubject: {
@@ -24,8 +13,16 @@ export const ORDER_COMMENT_DEFAULT = {
   defaultContent: {
     schema_version: 1,
     languages: {
-      'en-US': bodyTree('A new comment was added to your order {{var order.businessId}}:\n\n{{var comment.body}}'),
-      'pl-PL': bodyTree('Do Twojego zamówienia {{var order.businessId}} dodano nowy komentarz:\n\n{{var comment.body}}'),
+      'en-US': simpleEmailBodyTree({
+        idPrefix: 'order-comment',
+        heading: 'New order comment',
+        text: 'A new comment was added to your order {{var order.businessId}}:\n\n{{var comment.body}}',
+      }),
+      'pl-PL': simpleEmailBodyTree({
+        idPrefix: 'order-comment',
+        heading: 'Nowy komentarz',
+        text: 'Do Twojego zamówienia {{var order.businessId}} dodano nowy komentarz:\n\n{{var comment.body}}',
+      }),
     },
   } as Record<string, unknown>,
   languages: LANGS,
@@ -39,12 +36,16 @@ export const REORDER_CREATED_DEFAULT = {
   defaultContent: {
     schema_version: 1,
     languages: {
-      'en-US': bodyTree(
-        "We've prepared a new order on your account based on your previous order {{var order.sourceBusinessId}}.\nOpen your orders list to review and pay for it at checkout.",
-      ),
-      'pl-PL': bodyTree(
-        'Przygotowaliśmy nowe zamówienie na Twoim koncie na podstawie poprzedniego zamówienia {{var order.sourceBusinessId}}.\nOtwórz listę zamówień, aby je sprawdzić i opłacić przy kasie.',
-      ),
+      'en-US': simpleEmailBodyTree({
+        idPrefix: 'reorder',
+        heading: 'Reorder ready',
+        text: "We've prepared a new order on your account based on your previous order {{var order.sourceBusinessId}}.\nOpen your orders list to review and pay for it at checkout.",
+      }),
+      'pl-PL': simpleEmailBodyTree({
+        idPrefix: 'reorder',
+        heading: 'Ponowione zamówienie',
+        text: 'Przygotowaliśmy nowe zamówienie na Twoim koncie na podstawie poprzedniego zamówienia {{var order.sourceBusinessId}}.\nOtwórz listę zamówień, aby je sprawdzić i opłacić przy kasie.',
+      }),
     },
   } as Record<string, unknown>,
   languages: LANGS,
@@ -58,12 +59,16 @@ export const ADMIN_CREATED_ORDER_DEFAULT = {
   defaultContent: {
     schema_version: 1,
     languages: {
-      'en-US': bodyTree(
-        'Our team has prepared order {{var order.businessId}} on your account.\nOpen your orders list to review and pay for it at checkout.',
-      ),
-      'pl-PL': bodyTree(
-        'Nasz zespół przygotował zamówienie {{var order.businessId}} na Twoim koncie.\nOtwórz listę zamówień, aby je sprawdzić i opłacić przy kasie.',
-      ),
+      'en-US': simpleEmailBodyTree({
+        idPrefix: 'admin-order',
+        heading: 'Order created for you',
+        text: 'Our team has prepared order {{var order.businessId}} on your account.\nOpen your orders list to review and pay for it at checkout.',
+      }),
+      'pl-PL': simpleEmailBodyTree({
+        idPrefix: 'admin-order',
+        heading: 'Zamówienie utworzone dla Ciebie',
+        text: 'Nasz zespół przygotował zamówienie {{var order.businessId}} na Twoim koncie.\nOtwórz listę zamówień, aby je sprawdzić i opłacić przy kasie.',
+      }),
     },
   } as Record<string, unknown>,
   languages: LANGS,

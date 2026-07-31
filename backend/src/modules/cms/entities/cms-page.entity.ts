@@ -91,12 +91,12 @@ export class CmsPage {
   metaKeywords?: Record<string, string> | null;
 
   /**
-   * Page Builder content envelope: `{ schema_version, languages: { <lang>: <PuckTree> } }`.
+   * Page Builder content envelope: `{ languages: { <lang>: <PuckTree> } }`.
    * Treated as opaque JSONB at this layer; the in-process content walkers
    * inspect specific shapes at the service layer.
    */
   @Property({ type: 'json' })
-  content: Record<string, unknown> = { schema_version: 1, languages: {} };
+  content: Record<string, unknown> = { languages: {} };
 
   /** Array of BCP-47 language codes the page supports. */
   @Property({ type: 'json' })

@@ -11,6 +11,7 @@ import type { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
 import type { InvoiceTemplateService } from './services/invoice-template-service.js';
 import { INVOICE_PAGE_BUILDER_DESCRIPTOR } from './pdf-components/descriptor.js';
 import { sampleInvoiceDetail } from './pdf-components/sample.js';
+import { pickLanguageTree } from './pdf-components/tree-mapper.js';
 
 /** Minimal email-dispatch seam — implemented by the US5 dispatcher. */
 export interface InvoiceEmailDispatcher {
@@ -235,15 +236,27 @@ export async function registerInvoicesAdminRoutes(
     },
   );
 
-  // Preview: render a sample invoice through the template's tree (GET so it can
-  // be opened directly as a link from the admin editor).
+  // Preview: sample invoice through this template's saved tree (GET) or a draft
+  // canvas tree (POST) without persisting.
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/invoice-templates/:id/preview',
     { preHandler: requireAdmin('invoices:write'), config: { streamingResponse: true } },
     async (request, reply) => {
       const tpl = await templateService.get(request.params.id);
-      const tree = await templateService.resolveTree(tpl.salesChannelId, RENDER_LANGUAGE);
-      const pdf = await pdfRenderer.render(sampleInvoiceDetail(), 'pl', tree);
+      const tree = pickLanguageTree(tpl.content, RENDER_LANGUAGE);
+      const pdf = await pdfRenderer.render(sampleInvoiceDetail(), 'en', tree);
+      reply.header('content-type', 'application/pdf').header('content-disposition', 'inline; filename="preview.pdf"');
+      return reply.send(pdf);
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: unknown }>(
+    '/api/v1/admin/invoice-templates/:id/preview',
+    { preHandler: requireAdmin('invoices:write') },
+    async (request, reply) => {
+      await templateService.get(request.params.id); // 404 if missing
+      const body = z.object({ data: z.unknown() }).parse(request.body);
+      const pdf = await pdfRenderer.render(sampleInvoiceDetail(), 'en', body.data);
       reply.header('content-type', 'application/pdf').header('content-disposition', 'inline; filename="preview.pdf"');
       return reply.send(pdf);
     },

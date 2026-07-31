@@ -5,7 +5,8 @@ import { NewsletterCampaign } from '../entities/newsletter-campaign.entity.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterSendRecord } from '../entities/newsletter-send-record.entity.js';
 import type { NewsletterAudienceResolver } from './audience-resolver.js';
-import type { NewsletterContentService } from './content.service.js';
+import type { NewsletterContentService, EmailBrandingResolver } from './content.service.js';
+import { withEmailBranding } from './content.service.js';
 import type { NewsletterOptInService } from './opt-in.service.js';
 import type { NewsletterLinkBuilder } from './subscriber.service.js';
 
@@ -18,6 +19,7 @@ export interface CampaignDispatchDeps {
   /** Resolves the active provider (e.g. SMTP). */
   resolveProvider: () => Promise<NewsletterSendProvider>;
   resolveSender: () => Promise<{ fromEmail: string; fromName: string }>;
+  resolveEmailBranding?: EmailBrandingResolver;
 }
 
 export interface DispatchResult {
@@ -98,15 +100,21 @@ export class NewsletterCampaignDispatchService {
       this.deps.optIn.mintUnsubscribeToken(subscriber.id),
     );
 
+    const branded = await withEmailBranding(
+      {
+        subscriber: { email: subscriber.email },
+        customFields: subscriber.customFields,
+        channel: { id: campaign.salesChannelId },
+      },
+      campaign.salesChannelId,
+      this.deps.resolveEmailBranding,
+    );
     const rendered = this.deps.content.render({
       subject: campaign.subject,
       content: campaign.content,
+      ...(branded.accentColor !== undefined ? { accentColor: branded.accentColor } : {}),
       context: {
-        variables: {
-          subscriber: { email: subscriber.email },
-          customFields: subscriber.customFields,
-          channel: { id: campaign.salesChannelId },
-        },
+        variables: branded.variables,
         unsubscribeUrl,
       },
     });

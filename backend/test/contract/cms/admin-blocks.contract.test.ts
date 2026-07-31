@@ -105,7 +105,6 @@ describe('admin CMS Blocks contract (T051)', () => {
     expect(put.json()).toMatchObject({
       data: {
         content: {
-          schema_version: 1,
           languages: { 'en-US': data },
         },
       },
@@ -178,7 +177,6 @@ describe('admin CMS Blocks contract (T051)', () => {
     const pageId = randomUUID();
     const now = new Date();
     const content = {
-      schema_version: 1,
       languages: {
         'en-US': {
           root: { props: {} },

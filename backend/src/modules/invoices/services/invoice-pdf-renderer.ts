@@ -10,8 +10,13 @@ import {
   vatSummarySection,
   totalsSection,
   ksefSection,
+  type KsefVerificationData,
 } from '../pdf-components/sections.js';
 import { treeToContent } from '../pdf-components/tree-mapper.js';
+import {
+  embedInvoiceLogoImages,
+  type LoadAssetImage,
+} from '../pdf-components/embed-logo-images.js';
 
 interface PdfMakeOutput {
   getBuffer(): Promise<Buffer>;
@@ -60,6 +65,11 @@ function builtinLayout(inv: InvoiceDetail, locale: AmountToWordsLocale): Content
   ];
 }
 
+export type InvoicePdfRendererOptions = {
+  /** Load library asset bytes for InvoiceLogo (avoids pdfmake self-HTTP). */
+  loadAssetImage?: LoadAssetImage;
+};
+
 /**
  * Renders an invoice to a PDF Buffer using pdfmake (feature 047, R1/R2/US6).
  *
@@ -68,6 +78,8 @@ function builtinLayout(inv: InvoiceDetail, locale: AmountToWordsLocale): Content
  * built-in generic layout (FR-016). Both paths share the same section builders.
  */
 export class InvoicePdfRenderer {
+  readonly #loadAssetImage: LoadAssetImage | undefined;
+
   /**
    * Feature 059 — optional KSeF-verification resolver, late-bound in
    * composition when the ksef module is active. Covers every render path
@@ -76,10 +88,14 @@ export class InvoicePdfRenderer {
    */
   private ksefVerificationResolver?: (
     invoiceId: string,
-  ) => Promise<import('../pdf-components/sections.js').KsefVerificationData | null>;
+  ) => Promise<KsefVerificationData | null>;
+
+  constructor(opts: InvoicePdfRendererOptions = {}) {
+    this.#loadAssetImage = opts.loadAssetImage;
+  }
 
   setKsefVerificationResolver(
-    resolver: (invoiceId: string) => Promise<import('../pdf-components/sections.js').KsefVerificationData | null>,
+    resolver: (invoiceId: string) => Promise<KsefVerificationData | null>,
   ): void {
     this.ksefVerificationResolver = resolver;
   }
@@ -91,9 +107,11 @@ export class InvoicePdfRenderer {
   ): Promise<Buffer> {
     if (!fontsRegistered) {
       pdfMake.setFonts(buildFontDictionary());
+      // Images are inlined as data URIs by embedInvoiceLogoImages — deny network.
       pdfMake.setUrlAccessPolicy(() => false);
       fontsRegistered = true;
     }
+
     let enriched = invoice;
     if (this.ksefVerificationResolver) {
       try {
@@ -105,7 +123,11 @@ export class InvoicePdfRenderer {
         // Verification data is an enrichment — rendering never fails on it.
       }
     }
-    const fromTemplate = templateTree ? treeToContent(templateTree, enriched, locale) : null;
+
+    const tree = templateTree
+      ? await embedInvoiceLogoImages(templateTree, this.#loadAssetImage)
+      : undefined;
+    const fromTemplate = tree ? treeToContent(tree, enriched, locale) : null;
     const content = fromTemplate ?? builtinLayout(enriched, locale);
     return pdfMake.createPdf(this.buildDoc(content)).getBuffer();
   }

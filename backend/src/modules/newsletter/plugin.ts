@@ -75,6 +75,10 @@ export interface NewsletterModuleOptions {
    * the registry uses the legacy `newsletter.smtp.*` settings.
    */
   credentials?: CredentialResolvePort;
+  /** Resolve transactional email branding (logo + accent) for a sales channel. */
+  resolveEmailBranding?: (
+    salesChannelId: string | null,
+  ) => Promise<{ logoUrl: string; accentColor: string }>;
 }
 
 /**
@@ -134,6 +138,9 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
     links,
     resolveProvider: () => providers.resolveProvider(),
     resolveSender: () => providers.resolveSender(),
+    ...(options.resolveEmailBranding
+      ? { resolveEmailBranding: options.resolveEmailBranding }
+      : {}),
   });
 
   // Producer-side queues (needed by the API to enqueue, regardless of worker role).
@@ -154,6 +161,9 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
       }
     },
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
+    ...(options.resolveEmailBranding
+      ? { resolveEmailBranding: options.resolveEmailBranding }
+      : {}),
   });
 
   const campaigns = new NewsletterCampaignService({
@@ -162,6 +172,9 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
     content,
     isProviderConfigured: () => providers.isConfigured(),
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
+    ...(options.resolveEmailBranding
+      ? { resolveEmailBranding: options.resolveEmailBranding }
+      : {}),
     ...(planQueue
       ? {
           enqueuePlan: async (campaignId: string, delayMs?: number) => {

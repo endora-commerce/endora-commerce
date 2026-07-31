@@ -34,7 +34,9 @@ export default async function CmsBuilderPage({ params }: PageProps): Promise<Rea
 
   return (
     <>
-      <Breadcrumbs crumbs={[{ href: '/', label: t('nav.home') }, { href: `/cms/${path}`, label: page.name }]} />
+      <div className="mx-auto max-w-[1360px] px-[24px] pt-[24px] max-md:pt-[16px]">
+        <Breadcrumbs crumbs={[{ href: '/', label: t('nav.home') }, { href: `/cms/${path}`, label: page.name }]} />
+      </div>
       <CmsPageRenderer page={page} />
     </>
   );

@@ -702,6 +702,33 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/profile\/?$/, build: () => [
     { labelKey: 'appShell.crumb.myProfile', href: null },
   ] },
+  { test: /^\/transactional-emails\/?$/, build: () => [
+    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
+    { labelKey: 'appShell.nav.transactionalEmails', href: null },
+  ] },
+  { test: /^\/transactional-emails\/blocks\/?$/, build: () => [
+    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
+    { labelKey: 'appShell.nav.emailBlocks', href: null },
+  ] },
+  { test: /^\/transactional-emails\/blocks\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
+    { labelKey: 'appShell.nav.emailBlocks', href: '/transactional-emails/blocks' },
+    { labelKey: 'appShell.crumb.editor', href: null },
+  ] },
+  { test: /^\/transactional-emails\/templates\/?$/, build: () => [
+    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
+    { labelKey: 'appShell.nav.emailTemplates', href: null },
+  ] },
+  { test: /^\/transactional-emails\/templates\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
+    { labelKey: 'appShell.nav.emailTemplates', href: '/transactional-emails/templates' },
+    { labelKey: 'appShell.crumb.editor', href: null },
+  ] },
+  { test: /^\/transactional-emails\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
+    { labelKey: 'appShell.nav.transactionalEmails', href: '/transactional-emails' },
+    { labelKey: 'appShell.crumb.editor', href: null },
+  ] },
 ];
 
 function buildCrumbs(pathname: string): Crumb[] {
@@ -709,10 +736,11 @@ function buildCrumbs(pathname: string): Crumb[] {
     const match = pathname.match(entry.test);
     if (match) return entry.build(match);
   }
-  const segments = pathname.split('/').filter(Boolean).map((s) => s.replace('-', ' '));
-  return segments.map((literal, idx) => ({
-    literal,
-    href: idx === segments.length - 1 ? null : '/' + segments.slice(0, idx + 1).join('/'),
+  // Keep real path segments in hrefs; only humanize the visible label.
+  const segments = pathname.split('/').filter(Boolean);
+  return segments.map((segment, idx) => ({
+    literal: segment.replace(/-/g, ' '),
+    href: idx === segments.length - 1 ? null : `/${segments.slice(0, idx + 1).join('/')}`,
   }));
 }
 
@@ -835,6 +863,7 @@ export function AppShell(): ReactNode {
   }, [location.pathname]);
 
   const crumbs = useMemo(() => buildCrumbs(location.pathname), [location.pathname]);
+  const isCmsRoute = location.pathname.startsWith('/cms');
 
   return (
     <div
@@ -1056,7 +1085,7 @@ export function AppShell(): ReactNode {
               <Menu size={20} />
             </button>
           ) : null}
-          <div className="b2b-topbar__crumbs">
+          <div className={isCmsRoute ? 'b2b-topbar__crumbs-inner b2b-page b2b-page--wide' : 'b2b-topbar__crumbs'}>
             {crumbs.map((c, i) => (
               <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 {i > 0 ? <ChevronRight size={12} className="crumb-sep" /> : null}

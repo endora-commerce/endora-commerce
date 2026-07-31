@@ -8,7 +8,7 @@ import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
 import { Organization } from './modules/organizations/entities/organization.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, cmsColorPaletteSchema } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
 import { ApiInterceptorRegistry } from './http/interceptors/index.js';
@@ -57,6 +57,7 @@ import { ORGANIZATIONS_SETTING_CODES } from './modules/organizations/manifest.js
 import { ConsoleMailer } from './modules/email/services/mailer.js';
 import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
 import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
+import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
 import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import { returnsModule } from './modules/returns/plugin.js';
@@ -105,6 +106,7 @@ import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
 import { i18nModule } from './modules/languages/plugin.js';
 import { cmsModule } from './modules/cms/plugin.js';
+import { CMS_PAGE_BUILDER_SETTING_CODES } from './modules/cms/manifest.js';
 import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
@@ -136,6 +138,7 @@ import { emailAdapterConfigurationType } from './modules/credentials/types/email
 import { pwaModule } from './modules/pwa/plugin.js';
 // Feature 047 — Transactional Emails.
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
+import type { BrandingService } from './modules/transactional_emails/services/branding.service.js';
 // Feature 048 — Newsletter.
 import { newsletterModule } from './modules/newsletter/plugin.js';
 // Feature 049 — Google Analytics.
@@ -183,6 +186,7 @@ import { inventoryPromptTools } from './modules/inventory/prompt-tools.js';
 import { ordersPromptTools } from './modules/orders/prompt-tools.js';
 import type { PromptActionTool } from './modules/prompt_actions/services/tool-registry.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
+import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
 import { registerApiInterceptorAdminRoutes } from './modules/_lifecycle/routes.admin.js';
 import {
@@ -896,6 +900,49 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   const platformSettingsChannelId = process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default';
 
+  const pageBuilderBreakpointSchema = z.number().int().positive();
+  cms.handle.setPageBuilderBreakpointsResolver(async () => {
+    try {
+      const [tabletMin, desktopMin] = await Promise.all([
+        settings.handle.settingsService.get(
+          CMS_PAGE_BUILDER_SETTING_CODES.BREAKPOINT_TABLET_MIN,
+          platformSettingsChannelId,
+          pageBuilderBreakpointSchema,
+        ),
+        settings.handle.settingsService.get(
+          CMS_PAGE_BUILDER_SETTING_CODES.BREAKPOINT_DESKTOP_MIN,
+          platformSettingsChannelId,
+          pageBuilderBreakpointSchema,
+        ),
+      ]);
+      return { tabletMin, desktopMin };
+    } catch {
+      return cms.handle.pageBuilderRegistry.getBreakpoints();
+    }
+  });
+
+  cms.handle.setColorPaletteResolver(async () => {
+    try {
+      return await settings.handle.settingsService.get(
+        CMS_PAGE_BUILDER_SETTING_CODES.COLOR_PALETTE,
+        platformSettingsChannelId,
+        cmsColorPaletteSchema,
+      );
+    } catch {
+      return [];
+    }
+  });
+
+  cms.handle.setColorPaletteWriter(async (entries, expectedVersion, actor) => {
+    await settings.handle.adminService.setValueForAllChannels(
+      CMS_PAGE_BUILDER_SETTING_CODES.COLOR_PALETTE,
+      entries,
+      expectedVersion,
+      actor,
+    );
+    return entries;
+  });
+
   const resolveModerationMode = async (): Promise<'auto' | 'manual'> => {
     try {
       return await settings.handle.settingsService.get(
@@ -1082,6 +1129,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // other owning modules) read it via a getter; the transactional_emails module
   // sets it through exposeSender once built.
   let transactionalEmailSender: TransactionalEmailSender | undefined;
+  let emailBrandingService: BrandingService | undefined;
 
   // Feature 050 — establish the ambient TenantContext for every request from the
   // already-authenticated actor (never from request inputs). fp-wrapped and
@@ -1617,6 +1665,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
   registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
 
+  cms.handle.setAssetResolver(async (assetId) => {
+    try {
+      const detail = await assetsLibrary.handle.service.getAsset(assetId);
+      return {
+        url: detail.url,
+        mimeType: detail.mimeType,
+        filename: detail.filename,
+        label: detail.label ?? null,
+        visibility: detail.visibility,
+      };
+    } catch {
+      return null;
+    }
+  });
+
   // Feature 046 — PWA module. Owns the installable-app control plane (over the
   // Settings module), the push-subscription registry, the provider-agnostic
   // push fan-out (BullMQ; co-located unless BACKEND_ROLE=api), and the icon
@@ -1638,7 +1701,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     resolveAssetUrl: async (assetId) => {
       try {
-        return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
+        const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
+        return absolutizePublicUrl(resolved.url);
       } catch {
         return null;
       }
@@ -1750,7 +1814,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         )) as Array<{
           id: string;
           code: string;
-          content: { schema_version?: number; languages?: Record<string, unknown> };
+          content: { languages?: Record<string, unknown> };
         }>;
         const row = rows[0];
         if (!row) return null;
@@ -1760,7 +1824,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           id: row.id,
           code: row.code,
           language,
-          content: { schemaVersion: row.content.schema_version ?? 1, data },
+          content: { schemaVersion: 1, data },
         };
       },
     },
@@ -2127,6 +2191,25 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       (salesChannelId
         ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
         : null) ?? 'en-US',
+    loadAssetImage: async (assetId) => {
+      try {
+        const a = await em().findOne(Asset, { id: assetId, deletedAt: null });
+        if (!a || !a.mimeType.startsWith('image/')) return null;
+        const adapter = await assetsLibrary.handle.adapters.getForBackend(
+          a.storageBackend as 'local' | 's3' | 'gcs' | 'legacy',
+        );
+        // Legacy resolver only has resolveUrl — cannot stream bytes for PDF embed.
+        if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
+        const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
+        const chunks: Buffer[] = [];
+        for await (const chunk of stream) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        return { bytes: Buffer.concat(chunks), mimeType: a.mimeType };
+      } catch {
+        return null;
+      }
+    },
   });
   modules.push(invoices.plugin);
 
@@ -2345,13 +2428,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       settingsAdmin: settings.handle.adminService,
       resolveAssetUrl: async (assetId) => {
         try {
-          return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
+          const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
+          return absolutizePublicUrl(resolved.url);
         } catch {
           return null;
         }
       },
       exposeSender: (sender) => {
         transactionalEmailSender = sender;
+      },
+      exposeBranding: (branding) => {
+        emailBrandingService = branding;
       },
     }),
   );
@@ -2401,6 +2488,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // Feature 058 — resolve `newsletter.email_credentials` (email_adapter);
       // falls back to the legacy `newsletter.smtp.*` settings when unset.
       credentials: credentials.handle.service,
+      resolveEmailBranding: async (salesChannelId) => {
+        if (!emailBrandingService) {
+          return { logoUrl: '', accentColor: '#1f2937' };
+        }
+        const branding = await emailBrandingService.resolve(salesChannelId);
+        return { logoUrl: branding.logoUrl, accentColor: branding.accentColor };
+      },
     }),
   );
 
@@ -2661,8 +2755,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Derived from the module registry, not hand-listed: a module that declared
   // `settings:` but was forgotten in a literal array never got its rows, so
   // /settings silently omitted it (see collectRegisteredSettingsManifests).
-  // linkedin_ads / meta_ads / tpay / payu need no entry here — registering their
-  // manifests is enough.
+  // linkedin_ads / meta_ads / tpay / payu / cms need no entry here — registering
+  // their manifests is enough.
   const settingsManifests: ModuleSettingsManifest[] =
     collectRegisteredSettingsManifests();
   const reconcilerEm = em();

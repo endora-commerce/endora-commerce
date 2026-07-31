@@ -8,5 +8,10 @@
   "newsletter.nav.automations": "Automations",
   "newsletter.nav.tags": "Tags",
   "newsletter.nav.customFields": "Custom fields",
-  "newsletter.nav.provider": "Sending provider"
+  "newsletter.nav.provider": "Sending provider",
+  "newsletter.editor.viewportDesktop": "Desktop mail (600px)",
+  "newsletter.editor.viewportNarrow": "Narrow (320px)",
+  "newsletter.editor.insertVariable": "Insert variable",
+  "newsletter.editor.variable": "Variable",
+  "newsletter.editor.livePreview": "Live HTML preview"
 }

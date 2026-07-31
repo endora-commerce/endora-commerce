@@ -97,7 +97,7 @@ quality:
 # Backend: ~2000 DB-backed tests, run SERIALLY per process (vitest singleFork).
 # Sharded across `parallel` job instances — each instance gets its OWN
 # postgres/redis/meilisearch services, and `vitest --shard` splits the test files
-# between them. 4 shards on a concurrent=2 runner ⇒ 2 waves.
+# between them.
 #
 # NOTE: the speedup is bounded by the runner's `concurrent` setting — N shards
 # only run at once if the runner can execute N jobs concurrently. With

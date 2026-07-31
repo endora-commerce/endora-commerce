@@ -12,7 +12,7 @@ storefront with full sales-channel and language scoping.
 | ----------- | ----------------- | ------------------------------------ | --------------------------------------------- |
 | **Page**    | `slug` (per channel) | `draft → published → archived`       | URL on the storefront                         |
 | **Block**   | `code` (per channel) | `active` flag                        | Pages (`InsertBlock`) and Hooks (attachment)  |
-| **Template**| `code` (per channel) | always-visible (no flag)             | Pages and Blocks (`InsertTemplate`)           |
+| **Template**| `code` (per channel) | always-visible (no flag)             | Blueprints for pages/blocks (**Save as template** / **Apply template**). Legacy `InsertTemplate` embeds still resolve at runtime. |
 | **Hook**    | `code` (global)      | `active` flag, system-protected seed | Storefront layouts (`<Hook code="..." />`)    |
 
 ## Entities and the reference graph
@@ -24,8 +24,11 @@ The entity graph at runtime:
                                 ▼
                             Block ─── InsertBlock ───┐
                                                      ▼
-                            Template ── InsertTemplate ──> Page (slug-routed)
+                            Template (blueprint) ──> Page / Block canvas (Save as / Apply template)
+                            Template ── InsertTemplate (legacy) ──> Page (slug-routed)
 ```
+
+Content templates (`cms_templates`) are reusable Page Builder layouts (Save as template / Apply template). Email and invoice templates stay in their own admin lists and storage. Embedding via `InsertTemplate` is withdrawn from the component drawer; existing trees still render.
 
 Reference protection runs on every delete:
 
@@ -39,18 +42,42 @@ The same `content` JSONB is scanned by the **Assets Library reference registry**
 
 ## Page Builder authoring
 
-The Page Builder is built on **Puck** (`@measured/puck`) and ships seven
-default components in `@b2b/cms-components`:
+The Page Builder is built on **Puck** (`@measured/puck`) and ships components
+in `@b2b/cms-components`. Core layout/content defaults:
 
 | Component       | Purpose                                                                |
 | --------------- | ---------------------------------------------------------------------- |
 | `Row`           | Flex-column layout container.                                          |
-| `Columns`       | Configurable column count + per-column percent widths via DropZones.   |
 | `Heading`       | `h1`–`h6` with align + level select.                                   |
-| `Text`          | Tiptap-driven rich text. Stores HTML; storefront renders sanitized.    |
+| `Text`          | Simple body text with typography controls.                             |
+| `RichContent`   | TipTap rich text (links modal, colors, images).                        |
 | `Button`        | Label + link target + variant select.                                  |
+| `Image`         | URL or asset library; width modes + align.                             |
+| `Icons`         | Visual Lucide icon picker (~100 curated icons).                        |
+| `Social`        | Brand social icons (`react-icons`); link list shows network names.     |
+| `Spacer`        | Vertical spacing + optional divider.                                   |
+| `FeatureList`   | Icon + title + description columns.                                    |
+| `Hero`          | CTA banner with background, heading, button.                           |
+| `LogoStrip`     | Partner / trust logos.                                                 |
+| `Testimonial`   | Quote + author (+ optional avatar).                                    |
+| `Stats`         | KPI / counter strip.                                                   |
+| `AnnouncementBar` | Thin promo strip.                                                    |
+| `SimpleTable`   | Simple pipe-separated table.                                           |
+| `NewsletterSignup` | Email signup form (configurable action URL).                        |
+| `ContactFormEmbed` | Form iframe embed or mailto.                                        |
 | `InsertBlock`   | Embeds a Block by `code`. Storefront inlines the resolved Block.       |
-| `InsertTemplate`| Embeds a Template by `code`. Storefront inlines the resolved Template. |
+| `InsertTemplate`| Legacy: embeds a Template by `code`. Kept for existing trees; **not** in the drawer palette. Prefer Save as / Apply template. |
+
+Additional categories (catalog, media, interactive, forms, advanced) ship
+Product*, Video, Map, sliders, Tabs, Accordion, RawHtml/RawJs, etc.
+
+### Preview viewports
+
+Puck Mobile / Tablet / Desktop frames use logical widths **360 / tabletMin /
+max(desktopMin, 1280)**. Zoom is Puck’s built-in `transform: scale` inside an
+iframe (`waitForStyles: true`). Prefer the viewport switcher over browser
+resize when checking responsive props — CSS `@media` rules resolve against the
+iframe width, while editing-tier JS uses the selected viewport width.
 
 The content tree is persisted in a JSONB envelope:
 

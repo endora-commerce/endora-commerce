@@ -122,7 +122,11 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       branding: { logoUrl: branding.logoUrl, accentColor: branding.accentColor },
     };
     const html = renderDirectives(
-      renderEmailHtml(resolved.content, { embeds, accentColor: branding.accentColor }),
+      renderEmailHtml(resolved.content, {
+        embeds,
+        accentColor: branding.accentColor,
+        language: scope.language,
+      }),
       ctx,
       { escape: true },
     );
@@ -325,19 +329,40 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   private sampleVariables(
     variables: ReadonlyArray<{ key: string; sampleValue?: string | undefined }>,
   ): Record<string, unknown> {
+    // Prefer shared helper (JSON sampleValue for lists like order.items).
+    // Local inline fallback mirrors packages/email-components sample-variables.
     const ctx: Record<string, unknown> = {};
     for (const v of variables) {
-      // Build nested objects from dotted keys, e.g. "order.businessId".
       const parts = v.key.split('.');
       let cur = ctx;
       for (let i = 0; i < parts.length - 1; i += 1) {
         const part = parts[i];
         if (!part) continue;
-        if (typeof cur[part] !== 'object' || cur[part] === null) cur[part] = {};
+        if (typeof cur[part] !== 'object' || cur[part] === null || Array.isArray(cur[part])) {
+          cur[part] = {};
+        }
         cur = cur[part] as Record<string, unknown>;
       }
       const leaf = parts[parts.length - 1];
-      if (leaf) cur[leaf] = v.sampleValue ?? `{${v.key}}`;
+      if (!leaf) continue;
+      const raw = v.sampleValue;
+      if (raw == null || raw === '') {
+        cur[leaf] = `{${v.key}}`;
+        continue;
+      }
+      const trimmed = raw.trim();
+      if (
+        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))
+      ) {
+        try {
+          cur[leaf] = JSON.parse(trimmed) as unknown;
+          continue;
+        } catch {
+          /* fall through */
+        }
+      }
+      cur[leaf] = raw;
     }
     return ctx;
   }
