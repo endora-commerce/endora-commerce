@@ -207,7 +207,16 @@ short on purpose — repository conventions live here, not in the agent files.
 | --- | --- |
 | `endora-commerce-architect` | Designing features: specs, plans, module boundaries, data models |
 | `endora-commerce-dev` | Implementing plans and fixing bugs, with tests |
+| `endora-commerce-designer` | Designing and auditing UI: commerce surfaces (cart, checkout, PDP, PLP), admin screens, UX/accessibility reviews |
 | `endora-commerce-product-owner` | Verifying business ↔ implementation consistency, spec/task audits, `docs/` |
+
+## UX laws
+
+`.claude/skills/ux-laws/SKILL.md` is the **single source of truth** for the UX rules applied to
+every UI change — the Laws of UX (<https://lawsofux.com/>) rewritten as actionable frontend
+rules, plus the WCAG 2.2 AA floor, the repo's design tokens and primitives, and the required
+component states. Unlike the subagent prompts it is **not duplicated per tool**: the Cursor
+agent reads that path directly. Update it in place; never fork a second copy.
 
 ---
 
