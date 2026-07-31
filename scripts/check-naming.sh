@@ -9,9 +9,9 @@
 #   4. URL path segments inside Fastify route registrations are kebab-case.
 #
 # Modes:
-#   --diff          scan only files changed against $BASE_REF (defaults to origin/main).
-#                   Used by CI on pull requests; faster + actionable.
-#   (no flag)       full-tree scan. Used locally and by the `main` branch CI.
+#   --diff          scan only files changed against $BASE_REF (defaults to origin/master).
+#                   Used by CI on merge requests; faster + actionable.
+#   (no flag)       full-tree scan. Used locally and by the `master` branch CI.
 
 set -euo pipefail
 
@@ -27,7 +27,7 @@ if [[ "${1:-}" == "--diff" ]]; then
   mode="diff"
 fi
 
-base_ref="${BASE_REF:-origin/main}"
+base_ref="${BASE_REF:-origin/master}"
 
 # Build the file list. In --diff mode we use the changed-files set against $BASE_REF;
 # fall back to a full-tree scan if the base ref isn't fetched.
@@ -45,28 +45,43 @@ fail=0
 
 # ──────────────────────────────────────────────────────────────────────────
 # 1. Backend module folder shape.
-# Plural snake_case, with a small explicit allow-list of singular-mass nouns
-# whose plural forms read worse than the singular (catalog, inventory, search,
-# auth, example, email — service modules; quick_order — a single named
-# user flow rather than a collection).
+# Plural snake_case, with two explicit allow-lists:
+#
+#   * singular-mass nouns and single named surfaces whose plural forms read
+#     worse than the singular (catalog, inventory, search, auth, example,
+#     email — service modules; quick_order, megamenu, assets_library, blog,
+#     newsletter — one named user surface rather than a collection);
+#   * proper nouns — vendor names and standard/protocol acronyms. These are
+#     never pluralised in any language, and the folder name is load-bearing
+#     (manifest ids, migration registry keys, i18n bundle paths, `@core/*`
+#     overlay aliases), so renaming them is not an option.
+#
+# Infrastructure modules carry a leading underscore (`_i18n`, `_lifecycle`)
+# to sort first and to mark "cross-cutting, not a domain" — see AGENTS.md.
 # ──────────────────────────────────────────────────────────────────────────
-allowed_singular="^(auth|catalog|email|example|import_export|inventory|quick_order|search|seo)$"
+allowed_singular="^(auth|catalog|email|example|import_export|inventory|quick_order|search|seo|assets_library|blog|megamenu|newsletter)$"
+allowed_proper_noun="^(ksef|mfa|payu|pwa|stripe|tpay)$"
 
 if [ -d backend/src/modules ]; then
   while IFS= read -r -d '' dir; do
     name="$(basename "$dir")"
     [ -d "$dir" ] || continue
-    if [[ ! "$name" =~ ^[a-z][a-z0-9_]*$ ]]; then
+    if [[ ! "$name" =~ ^_?[a-z][a-z0-9_]*$ ]]; then
       red "✗ Invalid backend module folder casing: backend/src/modules/$name (must be snake_case)"
       fail=1
       continue
     fi
-    if [[ "$name" =~ $allowed_singular ]]; then
+    # Cross-cutting infrastructure module — exempt from the plural rule.
+    if [[ "$name" == _* ]]; then
+      continue
+    fi
+    if [[ "$name" =~ $allowed_singular ]] || [[ "$name" =~ $allowed_proper_noun ]]; then
       continue
     fi
     if [[ ! "$name" =~ (s|ies|ches|shes|xes|zes)$ ]]; then
       red "✗ Backend module folder looks singular: backend/src/modules/$name"
       red "  Principle VI requires plural snake_case. Allowed singular exceptions: ${allowed_singular//[()^$]/}"
+      red "  Allowed proper nouns: ${allowed_proper_noun//[()^$]/}"
       fail=1
     fi
   done < <(find backend/src/modules -mindepth 1 -maxdepth 1 -type d -print0)
@@ -113,6 +128,13 @@ done
 # `{ snake_case: ... }` or `{ PascalCase: ... }` keyed in a z.object call.
 # Heuristic — picks up multi-word identifiers with a leading uppercase or
 # embedded underscore.
+#
+# Not every z.object() describes an HTTP boundary. Some model a payload that
+# is persisted verbatim (a JSONB envelope with a SQL column default, an
+# external vendor's wire format) where the key is fixed by stored data, not
+# by our API style, and renaming it would need a data migration. Mark those
+# with `naming:allow-snake-case` in a comment on or directly above the field,
+# stating why — the marker covers exactly the next field declaration.
 # ──────────────────────────────────────────────────────────────────────────
 contract_files=()
 for f in "${changed_files[@]}"; do
@@ -137,8 +159,13 @@ for f in "${contract_files[@]}"; do
   matches=$(awk '
     /z\.object\(\s*\{/ { inblock=1 }
     inblock {
+      # An opt-out marker arms the exemption for the next field declaration.
+      if ($0 ~ /naming:allow-snake-case/) { allow=1; next }
       if (match($0, /^[[:space:]]*([A-Z][A-Za-z0-9]*|[a-z][a-zA-Z0-9]*_[A-Za-z0-9_]+)[[:space:]]*:/, m)) {
-        print FILENAME":"NR":"$0
+        if (allow) { allow=0 } else { print FILENAME":"NR":"$0 }
+      } else if ($0 ~ /[^[:space:]]/ && $0 !~ /^[[:space:]]*(\/\/|\*|\/\*)/) {
+        # Any other line of real code disarms a dangling marker.
+        allow=0
       }
       if ($0 ~ /\}\)/) inblock=0
     }

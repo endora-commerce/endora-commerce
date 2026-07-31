@@ -13,8 +13,8 @@ import { tForLocale } from '../lib/i18n/messages';
  *
  * The display mode controls the wording:
  *   - `exact` → renders the exact integer
- *   - `band` → maps the band enum to localised labels (Dużo / Średnio / Mało / Brak)
- *   - `available_or_not` → collapses to Dostępny / Brak w magazynie
+ *   - `band` → maps the band enum to localised labels (`Dużo` / `Średnio` / `Mało` / `Brak`)
+ *   - `available_or_not` → collapses to `Dostępny` / `Brak w magazynie`
  */
 export function StockBadge(props: {
   product: Pick<ProductSummary, 'stockLevel' | 'stockIndicator'>;

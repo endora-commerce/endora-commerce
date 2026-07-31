@@ -216,8 +216,8 @@ and `<OrganizationPickerMulti>` (multi-select) on top of the existing
 "Bauhaus Łódź" via the denormalized `name_search` column populated
 by the Organization entity's `@BeforeCreate` / `@BeforeUpdate` hooks.
 `normalizeOrganizationName` handles NFD decomposition + an explicit
-table for precomposed Latin letters NFD doesn't split (ł/Ł, ø/Ø,
-đ/Đ, ð/Ð, þ/Þ, ß, æ, œ).
+table for precomposed Latin letters NFD doesn't split (`ł`/`Ł`, `ø`/`Ø`,
+`đ`/`Đ`, `ð`/`Ð`, `þ`/`Þ`, `ß`, `æ`, `œ`).
 
 ### New settings (declared on the manifest)
 

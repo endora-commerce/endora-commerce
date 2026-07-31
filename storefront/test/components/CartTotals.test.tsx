@@ -35,7 +35,7 @@ describe('CartTotals — SSR rendering', () => {
     expect(html).toContain('Subtotal (2 items)');
     expect(html).toContain('Total');
     expect(html).toContain('Delivery');
-    // pl-PL currency style renders the złoty symbol with an nbsp separator.
+    // pl-PL currency style renders the PLN symbol `zł` with an nbsp separator.
     expect(html).toMatch(/100,00\s*zł/);
     expect(html).not.toContain('Discount');
   });
@@ -70,7 +70,7 @@ describe('CartTotals — SSR rendering', () => {
         strings={STRINGS}
       />,
     );
-    // 100 net → 123,00 zł gross, tagged "gross"; the net value must not appear.
+    // 100 net → `123,00 zł` gross, tagged "gross"; the net value must not appear.
     expect(html).toMatch(/123,00\s*zł/);
     expect(html).toContain('gross');
     expect(html).not.toContain('net<');

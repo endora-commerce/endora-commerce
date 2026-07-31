@@ -53,7 +53,7 @@ abstract class BaseShippingAdapter implements ShippingAdapter {
 }
 
 /**
- * Manual courier (Wysyłka własna) — an operator generates the parcel
+ * Manual courier (`Wysyłka własna`) — an operator generates the parcel
  * out-of-band and reports the outcome via `receive_shipment`.
  */
 export class ManualCourierAdapter extends BaseShippingAdapter {
@@ -65,7 +65,7 @@ export class ManualCourierAdapter extends BaseShippingAdapter {
 }
 
 /**
- * Personal pickup (Odbiór osobisty) — no carrier; generation succeeds as soon
+ * Personal pickup (`Odbiór osobisty`) — no carrier; generation succeeds as soon
  * as a shipment is opened (still confirmed via `receive_shipment`).
  */
 export class PersonalPickupAdapter extends BaseShippingAdapter {
