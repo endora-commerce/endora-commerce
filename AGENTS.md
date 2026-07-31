@@ -162,6 +162,12 @@ literals (`pnpm --filter backend run i18n:hardcoded`).
 
 ## Static checks and their escape hatches
 
+Both run in CI: GitLab's `quality:static` job (full-tree, every MR and every push to
+`master`) and GitHub's `constitution-check` workflow. They need only bash, grep, perl and
+POSIX awk — no `pnpm install` — so keep them free of gawk-isms and of anything that assumes
+a node toolchain. Neither script may pass on an empty file list; both exit 2 when `git` is
+missing rather than reporting a vacuous green.
+
 `pnpm run check:language` (Principle VIII) scans source-code **comments** and `docs/docs/**`
 pages for Polish. It ignores cited terms — anything inside backticks, `"quotes"`, a fenced
 code block, or (in docs) markdown emphasis — because an English comment routinely has to

@@ -55,6 +55,18 @@ fi
 
 base_ref="${BASE_REF:-origin/master}"
 
+# The file list comes from git, and the prose filter needs perl. Without either,
+# the loops below simply find nothing and the script exits 0 having checked
+# NOTHING — a false green is worse than no check, so bail loudly instead.
+if ! command -v git >/dev/null 2>&1 || ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  red "✗ check-language needs git and a git work tree (the file list comes from git ls-files)."
+  exit 2
+fi
+if ! command -v perl >/dev/null 2>&1; then
+  red "✗ check-language needs perl (it blanks cited terms before testing the prose)."
+  exit 2
+fi
+
 # Polish diacritics + the common other-language diacritics that may slip
 # into source-code comments or `/docs/` pages by accident.
 pattern='[ąĄćĆęĘłŁńŃóÓśŚźŹżŻ]'

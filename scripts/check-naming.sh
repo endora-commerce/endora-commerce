@@ -29,6 +29,14 @@ fi
 
 base_ref="${BASE_REF:-origin/master}"
 
+# The file list comes from git. Without it every `git ls-files` below returns
+# nothing and the script would exit 0 having checked NOTHING — a false green is
+# worse than no check, so bail loudly instead.
+if ! command -v git >/dev/null 2>&1 || ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  red "✗ check-naming needs git and a git work tree (the file list comes from git ls-files)."
+  exit 2
+fi
+
 # Build the file list. In --diff mode we use the changed-files set against $BASE_REF;
 # fall back to a full-tree scan if the base ref isn't fetched.
 list_files() {
@@ -156,14 +164,16 @@ for f in "${contract_files[@]}"; do
   # Inside z.object({ ... }) match a `foo_bar: ...` or `Foo: ...` field declaration.
   # Skip lines that are clearly comments. Allow underscore in well-known meta
   # fields like `'application/json'` keys, which are quoted (pattern: '…').
-  matches=$(awk '
-    /z\.object\(\s*\{/ { inblock=1 }
+  # POSIX awk only — the CI image ships mawk, not gawk, so no 3-argument
+  # match() and no \s / non-greedy PCRE constructs.
+  matches=$(awk -v fname="$f" '
+    /z\.object\([ \t]*\{/ { inblock=1 }
     inblock {
       # An opt-out marker arms the exemption for the next field declaration.
       if ($0 ~ /naming:allow-snake-case/) { allow=1; next }
-      if (match($0, /^[[:space:]]*([A-Z][A-Za-z0-9]*|[a-z][a-zA-Z0-9]*_[A-Za-z0-9_]+)[[:space:]]*:/, m)) {
-        if (allow) { allow=0 } else { print FILENAME":"NR":"$0 }
-      } else if ($0 ~ /[^[:space:]]/ && $0 !~ /^[[:space:]]*(\/\/|\*|\/\*)/) {
+      if ($0 ~ /^[ \t]*([A-Z][A-Za-z0-9]*|[a-z][a-zA-Z0-9]*_[A-Za-z0-9_]+)[ \t]*:/) {
+        if (allow) { allow=0 } else { print fname":"NR":"$0 }
+      } else if ($0 ~ /[^ \t]/ && $0 !~ /^[ \t]*(\/\/|\*|\/\*)/) {
         # Any other line of real code disarms a dangling marker.
         allow=0
       }

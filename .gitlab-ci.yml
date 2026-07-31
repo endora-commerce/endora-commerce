@@ -1,7 +1,8 @@
 # GitLab CI/CD — quality gates, build + push Docker images, deploy to the VPS.
 #
 # Pipeline:
-#   quality  → typecheck + lint (fast, every push/MR)
+#   quality  → typecheck + lint, plus the toolchain-free naming/language
+#              conventions check (fast, every push/MR)
 #   test     → migrate + full vitest with postgres/redis/meilisearch services
 #   build    → build & push backend/storefront/admin images to the Container Registry
 #   deploy   → SSH to the VPS, pull tagged images, run migrations, recreate the stack
@@ -73,6 +74,40 @@ quality:
         - pnpm-lock.yaml
     paths:
       - .pnpm-store
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# ---------------------------------------------------------------------------
+# Static conventions — Principle VI (naming) and Principle VIII (English
+# working language). Pure bash/grep/perl/awk over the checked-out tree, so it
+# needs no `pnpm install` and reports in seconds, independently of whether the
+# node toolchain builds at all. Kept as its own job for exactly that reason.
+#
+# Runs in full-tree mode, matching `pnpm run check:naming` / `check:language`
+# locally. The scripts' `--diff` mode is deliberately NOT used here: GitLab
+# clones shallow by default, so `origin/master` is usually absent and --diff
+# would silently degrade to a full scan anyway.
+#
+# Image notes — debian:bookworm-slim already ships perl, mawk and a
+# PCRE-enabled grep (both scripts are written to POSIX awk for mawk, and treat
+# `file` as optional). Only git is missing, and it is load-bearing: the file
+# list comes from `git ls-files`, so both scripts hard-fail with exit 2 when
+# git is absent rather than passing vacuously over an empty list.
+# ---------------------------------------------------------------------------
+quality:static:
+  stage: quality
+  image: debian:bookworm-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+  script:
+    # Run both and fail at the end, so one MR round-trip reports every finding
+    # instead of hiding the language check behind a naming failure.
+    - status=0
+    - bash scripts/check-naming.sh || status=1
+    - bash scripts/check-language.sh || status=1
+    - exit $status
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
