@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -55,6 +56,7 @@ export function SettingsPage(): ReactNode {
   const [saving, setSaving] = useState(false);
   const [resettingCode, setResettingCode] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, SettingDraft>>({});
@@ -104,10 +106,44 @@ export function SettingsPage(): ReactNode {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Ctrl/⌘+Shift+K jumps to the settings filter from anywhere on the page —
+  // the settings list is long enough that reaching for the mouse is the slow
+  // path. Shift distinguishes it from the global ⌘K palette, which skips the
+  // shifted chord (see AppShell's keydown handler).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
+      if (e.key.toLowerCase() !== 'k') return;
+      e.preventDefault();
+      const input = searchRef.current;
+      if (!input) return;
+      input.focus();
+      // Select what's already typed so the next keystroke replaces the
+      // previous query instead of appending to it.
+      input.select();
+    };
+    window.addEventListener('keydown', onKey);
+    return (): void => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const filteredGroups = useMemo(
     () => filterGroupsForContext(groups, search, channelContext),
     [groups, search, channelContext],
   );
+
+  // `/settings?group=<code>` scrolls to that group and expands it — module
+  // pages link here to point an operator at their own settings (e.g. the KSeF
+  // page's "Open module settings"). Runs once the groups have rendered; an
+  // unknown code is a no-op rather than an error, since the group may belong
+  // to a module that is currently disabled.
+  const requestedGroup = new URLSearchParams(location.search).get('group');
+  useEffect(() => {
+    if (!requestedGroup || loading) return;
+    const card = document.getElementById(`settings-group-${requestedGroup}`);
+    if (!card) return;
+    setCollapsed((prev) => ({ ...prev, [requestedGroup]: false }));
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [requestedGroup, loading]);
 
   const channelOptions = useMemo<ChannelOption[]>(() => {
     const byCode = new Map<string, ChannelOption>();
@@ -368,12 +404,20 @@ export function SettingsPage(): ReactNode {
             className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
           />
           <Input
+            ref={searchRef}
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('search.placeholder')}
-            className="pl-8"
+            aria-keyshortcuts="Control+Shift+K Meta+Shift+K"
+            className="pl-8 pr-16"
           />
+          <kbd
+            aria-hidden="true"
+            className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-block"
+          >
+            {t('search.shortcut')}
+          </kbd>
         </div>
         {filteredGroups.length > 0 && (
           <Button variant="outline" size="sm" onClick={toggleAll}>
@@ -397,7 +441,7 @@ export function SettingsPage(): ReactNode {
             const isCollapsed = !!collapsed[group.code];
             const dirtyCount = dirtyCountFor(group);
             return (
-              <Card key={group.code}>
+              <Card key={group.code} id={`settings-group-${group.code}`}>
                 <CardHeader>
                   <button
                     type="button"

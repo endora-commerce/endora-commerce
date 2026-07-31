@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { getMigrator } from '../../../src/db/migrator.js';
 
 /**
  * T011 (feature 061) — SC-001 parity test for migration
- * `102_attributes_on_custom_fields.ts`.
+ * `20260723T230401_catalog_attributes_on_custom_fields.ts`.
  *
  * Strategy (the shared test DB is fully migrated by global-setup, so the test
  * drives the migrator itself):
@@ -150,6 +151,10 @@ const EXPECTED_CF_TYPE: Record<string, string> = {
   mig_release: 'date',
 };
 
+/** Feature 061's migration, under the feature-065 timestamped naming scheme. */
+const TARGET_MIGRATION = 'Migration20260723T230401CatalogAttributesOnCustomFields';
+const TARGET_STAMP = '20260723T230401';
+
 describe('migration 102 — attributes on custom fields (SC-001 parity)', () => {
   let db: TestDb;
 
@@ -167,17 +172,22 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
     // a fully-migrated shared DB the latest executed migration is usually not
     // 102. Step down through anything newer first, then revert 102 itself —
     // but refuse to ever down() a migration OLDER than 102.
+    const migrator = await getMigrator(db.orm);
     for (;;) {
       const latest = await latestExecutedMigration();
-      const ordinal = Number(/^Migration(\d+)/.exec(latest ?? '')?.[1] ?? Number.NaN);
+      const stamp = /^Migration(\d{8}T\d{6})/.exec(latest ?? '')?.[1] ?? '';
       expect(
-        ordinal,
-        `expected migration 102 or a later one as the latest executed migration (got "${latest ?? 'none'}") — refusing to down() anything older than 102`,
-      ).toBeGreaterThanOrEqual(102);
-      if (latest === 'Migration102AttributesOnCustomFields') break;
-      await db.orm.getMigrator().down();
+        stamp,
+        `expected ${TARGET_MIGRATION} or a later one as the latest executed migration (got "${latest ?? 'none'}") — refusing to down() anything older`,
+      ).not.toBe('');
+      expect(
+        stamp >= TARGET_STAMP,
+        `expected ${TARGET_MIGRATION} or a later one as the latest executed migration (got "${latest ?? 'none'}") — refusing to down() anything older`,
+      ).toBe(true);
+      if (latest === TARGET_MIGRATION) break;
+      await migrator.down();
     }
-    await db.orm.getMigrator().down();
+    await migrator.down();
   }
 
   async function seedLegacyFixtures(): Promise<void> {
@@ -244,14 +254,14 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
 
   afterAll(async () => {
     // Whatever happened above, leave the DB fully migrated for other files.
-    await db.orm.getMigrator().up();
+    await (await getMigrator(db.orm)).up();
     await db.close();
   });
 
   it('re-applies migration 102 over legacy fixtures with full parity (SC-001)', async () => {
     await revert102();
     await seedLegacyFixtures();
-    await db.orm.getMigrator().up();
+    await (await getMigrator(db.orm)).up();
 
     // --- Definitions: one per legacy attribute, content preserved.
     const defs = await conn().execute<
@@ -465,7 +475,7 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
       [randomUUID()],
     );
 
-    await expect(db.orm.getMigrator().up()).rejects.toThrow(/reserved|collid/i);
+    await expect((await getMigrator(db.orm)).up()).rejects.toThrow(/reserved|collid/i);
 
     // Atomic: still legacy shape, nothing partially migrated.
     const cols = await conn().execute<Array<{ column_name: string }>>(
@@ -481,10 +491,10 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
     // Clean up the offending row; re-apply so the suite continues migrated.
     // (up() also re-applies any post-102 migrations stepped down by revert102.)
     await conn().execute(`delete from "product_attributes" where "key" = 'name'`);
-    await db.orm.getMigrator().up();
+    await (await getMigrator(db.orm)).up();
     const executed = await conn().execute<Array<{ name: string }>>(
       `select "name" from "mikro_orm_migrations"`,
     );
-    expect(executed.map((r) => r.name)).toContain('Migration102AttributesOnCustomFields');
+    expect(executed.map((r) => r.name)).toContain(TARGET_MIGRATION);
   });
 });

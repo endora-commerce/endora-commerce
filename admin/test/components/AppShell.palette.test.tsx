@@ -183,4 +183,17 @@ describe('AppShell palette — assistant gating (T056)', () => {
     await waitFor(() => expect(capabilitySpy).toHaveBeenCalled());
     expect(screen.queryByText('palette.entry.label')).toBeNull();
   });
+
+  // The shifted chord belongs to in-page search (e.g. the Settings filter),
+  // so the palette must ignore it rather than swallowing the keypress.
+  it('leaves Ctrl+Shift+K alone — the palette stays closed', async () => {
+    renderShell();
+    const user = userEvent.setup();
+    await user.keyboard('{Control>}{Shift>}K{/Shift}{/Control}');
+    expect(document.querySelector('.b2b-palette')).toBeNull();
+
+    // …and the unshifted chord still opens it.
+    await openPalette();
+    await waitFor(() => expect(document.querySelector('.b2b-palette')).not.toBeNull());
+  });
 });

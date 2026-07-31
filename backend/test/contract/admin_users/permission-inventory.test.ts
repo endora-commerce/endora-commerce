@@ -33,6 +33,10 @@ describe('permission inventory (SC-001)', () => {
     // +1 for feature 056 hierarchical organizations (organizations:rollup).
     // +2 for feature 058 credentials (credentials:read, credentials:write).
     // +2 for feature 059 KSeF (ksef:read, ksef:write).
-    expect(assignable.size).toBe(57);
+    // +2 for feature 063 LinkedIn Ads (linkedin_ads:read, linkedin_ads:write).
+    // +2 for feature 064 Meta Ads (meta_ads:read, meta_ads:write).
+    // +2 for feature 063 TPay (tpay:read, tpay:write).
+    // +2 for feature 065 PayU (payu:read, payu:write).
+    expect(assignable.size).toBe(65);
   });
 });

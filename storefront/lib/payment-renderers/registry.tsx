@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { PaymentMethodSummary } from '../api/methods';
 import { PaymentMethodIcon, StripeMark } from './icons';
+import { tForLocale } from '../i18n/messages';
 
 /**
  * Storefront payment-method renderer registry (feature 034, FR-016/FR-017).
@@ -15,6 +16,7 @@ export interface PaymentMethodRenderProps {
   method: PaymentMethodSummary;
   defaultChecked: boolean;
   currency?: string | undefined;
+  locale?: string | undefined;
 }
 
 export type PaymentMethodRenderer = (props: PaymentMethodRenderProps) => ReactNode;
@@ -45,6 +47,8 @@ export const DefaultPaymentMethodRenderer: PaymentMethodRenderer = ({
  * present one option plus an informational note instead of the sub-methods.
  */
 export const STRIPE_REDIRECT_RENDERER_KEY = 'stripe_redirect';
+export const TPAY_REDIRECT_RENDERER_KEY = 'tpay_redirect';
+export const PAYU_REDIRECT_RENDERER_KEY = 'payu_redirect';
 
 export const StripeRedirectRenderer: PaymentMethodRenderer = ({ method, defaultChecked }) => (
   <label style={{ display: 'block' }}>
@@ -70,14 +74,47 @@ export const StripeRedirectRenderer: PaymentMethodRenderer = ({ method, defaultC
   </label>
 );
 
+export const TpayRedirectRenderer: PaymentMethodRenderer = ({ method, defaultChecked, locale }) => {
+  const t = tForLocale(locale ?? 'en-US');
+  return (
+    <label style={{ display: 'block' }}>
+      <span style={{ display: 'flex', alignItems: 'center' }}>
+        <input type="radio" name="paymentMethodId" value={method.id} defaultChecked={defaultChecked} />{' '}
+        <PaymentMethodIcon method={method} />
+        {pickName(method.name)}
+      </span>
+      <p className="muted" style={{ margin: '4px 0 0 24px', fontSize: '0.85em' }}>
+        {t('tpay.redirect.notice')}
+      </p>
+    </label>
+  );
+};
+
+export const PayuRedirectRenderer: PaymentMethodRenderer = ({ method, defaultChecked, locale }) => {
+  const t = tForLocale(locale ?? 'en-US');
+  return (
+    <label style={{ display: 'block' }}>
+      <span style={{ display: 'flex', alignItems: 'center' }}>
+        <input type="radio" name="paymentMethodId" value={method.id} defaultChecked={defaultChecked} />{' '}
+        <PaymentMethodIcon method={method} />
+        {pickName(method.name)}
+      </span>
+      <p className="muted" style={{ margin: '4px 0 0 24px', fontSize: '0.85em' }}>
+        {t('payu.redirect.notice')}
+      </p>
+    </label>
+  );
+};
+
 const registry = new Map<string, PaymentMethodRenderer>();
 
 export function registerPaymentMethodRenderer(key: string, renderer: PaymentMethodRenderer): void {
   registry.set(key, renderer);
 }
 
-// Register the built-in redirect-mode Stripe renderer (side-effect on import).
 registerPaymentMethodRenderer(STRIPE_REDIRECT_RENDERER_KEY, StripeRedirectRenderer);
+registerPaymentMethodRenderer(TPAY_REDIRECT_RENDERER_KEY, TpayRedirectRenderer);
+registerPaymentMethodRenderer(PAYU_REDIRECT_RENDERER_KEY, PayuRedirectRenderer);
 
 export function resolvePaymentMethodRenderer(rendererKey: string | null): PaymentMethodRenderer {
   if (rendererKey) {

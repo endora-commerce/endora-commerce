@@ -8,7 +8,6 @@ import {
   ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
-  Code2,
   CreditCard,
   Bell as BellOutline,
   Box,
@@ -112,7 +111,6 @@ const NAV: NavSection[] = [
       { to: '/orders/quick-order', labelKey: 'appShell.nav.quickOrder', icon: ClipboardCheck },
       { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck },
       { to: '/returns', labelKey: 'appShell.nav.returns', icon: Package, requiredPermission: 'returns:read' },
-      { to: '/custom-fields', labelKey: 'appShell.nav.customFields', icon: Layers, requiredPermission: 'custom_fields:read' },
       { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText },
       { to: '/invoices', labelKey: 'appShell.nav.invoices', icon: Receipt, requiredPermission: 'invoices:read' },
       { to: '/invoices/templates', labelKey: 'appShell.nav.invoiceTemplates', icon: Receipt, requiredPermission: 'invoices:read' },
@@ -277,10 +275,17 @@ const NAV: NavSection[] = [
         icon: ListChecks,
         requiredPermission: 'catalog:read',
       },
+      // Custom fields extend Organizations, Orders, Customers, Categories and
+      // more, so the entry belongs to System rather than to any one domain.
+      {
+        to: '/custom-fields',
+        labelKey: 'appShell.nav.customFields',
+        icon: Layers,
+        requiredPermission: 'custom_fields:read',
+      },
       { to: '/audit-log', labelKey: 'appShell.nav.auditLog', icon: ListChecks },
       { to: '/api-keys', labelKey: 'appShell.nav.apiKeys', icon: KeyRound },
       { to: '/webhooks', labelKey: 'appShell.nav.webhooks', icon: Webhook },
-      { to: '/integrations', labelKey: 'appShell.nav.integrations', icon: Code2 },
       {
         to: '/credentials',
         labelKey: 'appShell.nav.credentials',
@@ -298,6 +303,18 @@ const NAV: NavSection[] = [
         labelKey: 'appShell.nav.googleAnalytics',
         icon: Sparkles,
         requiredPermission: 'google_analytics:read',
+      },
+      {
+        to: '/linkedin-ads',
+        labelKey: 'appShell.nav.linkedinAds',
+        icon: Sparkles,
+        requiredPermission: 'linkedin_ads:read',
+      },
+      {
+        to: '/meta-ads',
+        labelKey: 'appShell.nav.metaAds',
+        icon: Sparkles,
+        requiredPermission: 'meta_ads:read',
       },
       { to: '/import-export', labelKey: 'appShell.nav.importExport', icon: Upload },
       {
@@ -500,6 +517,21 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.paymentMethods', href: null },
   ] },
+  { test: /^\/settings\/tpay\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.paymentMethods', href: '/payment-methods' },
+    { labelKey: 'appShell.nav.tpay', href: null },
+  ] },
+  { test: /^\/settings\/stripe\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.paymentMethods', href: '/payment-methods' },
+    { labelKey: 'appShell.nav.stripe', href: null },
+  ] },
+  { test: /^\/settings\/payu\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.paymentMethods', href: '/payment-methods' },
+    { labelKey: 'appShell.nav.payu', href: null },
+  ] },
   { test: /^\/organizations\/?$/, build: () => [
     { labelKey: 'appShell.section.customers', href: '/organizations' },
     { labelKey: 'appShell.nav.organizations', href: null },
@@ -510,6 +542,21 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.crumb.detail', href: null },
   ] },
   { test: /^\/orders\/?$/, build: () => [{ labelKey: 'appShell.nav.orders', href: null }] },
+  // These three must precede the generic /orders/:id rule below — buildCrumbs
+  // returns on first match, so without them the named sub-pages were labelled
+  // "Orders / Detail" as if their path segment were an order id.
+  { test: /^\/orders\/new\/?$/, build: () => [
+    { labelKey: 'appShell.nav.orders', href: '/orders' },
+    { labelKey: 'appShell.nav.newOrder', href: null },
+  ] },
+  { test: /^\/orders\/quick-order\/?$/, build: () => [
+    { labelKey: 'appShell.nav.orders', href: '/orders' },
+    { labelKey: 'appShell.nav.quickOrder', href: null },
+  ] },
+  { test: /^\/orders\/statuses\/?$/, build: () => [
+    { labelKey: 'appShell.nav.orders', href: '/orders' },
+    { labelKey: 'appShell.nav.orderStatuses', href: null },
+  ] },
   { test: /^\/orders\/[^/]+\/?$/, build: () => [
     { labelKey: 'appShell.nav.orders', href: '/orders' },
     { labelKey: 'appShell.crumb.detail', href: null },
@@ -627,12 +674,14 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.system', href: '/admin-users' },
     { labelKey: 'appShell.nav.webhooks', href: null },
   ] },
-  { test: /^\/integrations\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.integrations', href: null },
-  ] },
   { test: /^\/google-analytics(\/.*)?$/, build: () => [
     { labelKey: 'appShell.nav.googleAnalytics', href: '/google-analytics' },
+  ] },
+  { test: /^\/linkedin-ads(\/.*)?$/, build: () => [
+    { labelKey: 'appShell.nav.linkedinAds', href: '/linkedin-ads' },
+  ] },
+  { test: /^\/meta-ads(\/.*)?$/, build: () => [
+    { labelKey: 'appShell.nav.metaAds', href: '/meta-ads' },
   ] },
   { test: /^\/analytics\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },
@@ -735,6 +784,7 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.settings', sub: 'appShell.palette.sub.platformConfiguration', icon: Settings, to: '/settings', keywords: 'settings configuration config ustawienia konfiguracja' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.apiKeys', sub: 'appShell.palette.sub.apiKeys', icon: KeyRound, to: '/api-keys', keywords: 'api keys bearer token integration klucze api token integracja' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.webhooks', sub: 'appShell.palette.sub.webhooks', icon: Webhook, to: '/webhooks', keywords: 'webhook webhooks events signing secret integration webhooki zdarzenia integracja' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.credentials', sub: 'appShell.palette.sub.credentials', icon: KeyRound, to: '/credentials', keywords: 'credentials credential secrets provider llm smtp poświadczenia sekrety dostawca' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.promotions', sub: 'appShell.palette.sub.promotions', icon: PercentDiamond, to: '/promotions', keywords: 'promotion promotions discount coupon marketing promocje rabaty kupony' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.promotionRules', sub: 'appShell.palette.sub.promotionRules', icon: PercentDiamond, to: '/promotion-rules', keywords: 'promotion rules rule builder reguły promocji' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterSubscribers', sub: 'appShell.palette.sub.newsletterSubscribers', icon: Newspaper, to: '/newsletter/subscribers', keywords: 'newsletter subscribers marketing subskrybenci newslettera' },
@@ -788,7 +838,9 @@ export function AppShell(): ReactNode {
   // sidebar rail (matches the shadcn / VS Code shortcut convention).
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      // `!e.shiftKey` keeps ⌘K off Ctrl/⌘+Shift+K, which pages claim for
+      // their own in-page search (e.g. the Settings page's filter box).
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setPaletteOpen(true);
       } else if (

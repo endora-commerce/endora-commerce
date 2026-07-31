@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Image from 'next/image';
 import type { PaymentMethodSummary } from '../api/methods';
 
 /**
@@ -103,20 +104,15 @@ function WalletIcon(): ReactNode {
 
 function BlikMark(): ReactNode {
   return (
-    <Badge bg="#000000">
-      <circle cx="8" cy="11" r="2.4" fill="#e5017d" />
-      <text
-        x="21"
-        y="15"
-        textAnchor="middle"
-        fontFamily="system-ui, sans-serif"
-        fontSize="9.5"
-        fontWeight="700"
-        fill="#ffffff"
-      >
-        BLIK
-      </text>
-    </Badge>
+    <Image
+      src="/brands/blik-logo.svg"
+      alt=""
+      aria-hidden="true"
+      width={BADGE_W}
+      height={BADGE_H}
+      style={{ display: 'block' }}
+      unoptimized
+    />
   );
 }
 
@@ -200,6 +196,22 @@ function iconFor(method: Pick<PaymentMethodSummary, 'code' | 'kind'>): ReactNode
     case 'stripe_apple_pay':
       return <ApplePayMark />;
     case 'stripe_google_pay':
+      return <GooglePayMark />;
+    case 'tpay_card':
+      return <CardIcon />;
+    case 'tpay_blik':
+      return <BlikMark />;
+    case 'tpay_bank_transfer':
+      return <BankIcon />;
+    case 'payu_card':
+      return <CardIcon />;
+    case 'payu_blik':
+      return <BlikMark />;
+    case 'payu_pbl':
+      return <BankIcon />;
+    case 'payu_apple_pay':
+      return <ApplePayMark />;
+    case 'payu_google_pay':
       return <GooglePayMark />;
     default:
       break;

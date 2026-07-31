@@ -1276,6 +1276,15 @@ export class OrderService {
       // it to the response NextAction so the Success Page can route the buyer
       // (transfer details / gateway redirect / nothing). The bundled offline
       // adapters are side-effect-free here; credit_limit reserves inline below.
+      // Gateway adapters fork a separate EM and often cannot see just-flushed
+      // Order/Payment/Customer rows until this transaction commits — pass
+      // everything the adapter needs to start payment (esp. TPay payer fields).
+      const placer = await tx.findOne(CustomerAccount, { id: ctx.customerAccountId });
+      const payerName =
+        [placer?.firstName, placer?.lastName].filter(Boolean).join(' ').trim() ||
+        billing.recipientName ||
+        placer?.email ||
+        null;
       const adapter = this.paymentAdapters?.get(paymentMethod.adapter);
       const startResult = adapter
         ? await adapter.onStorefrontOrderCreated({
@@ -1283,6 +1292,13 @@ export class OrderService {
             paymentId: payment.id,
             amount: total,
             currency,
+            paymentMethodCode: paymentMethod.code,
+            paymentMethodId: paymentMethod.id,
+            salesChannelId: order.salesChannelId,
+            payerEmail: placer?.email ?? null,
+            payerName,
+            billingCountry: billing.country ?? null,
+            orderBusinessId: order.businessId ?? null,
           })
         : ({ kind: 'none' } as const);
       order.nextAction = this.mapNextAction(startResult, { total, currency });

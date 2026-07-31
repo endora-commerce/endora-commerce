@@ -36,6 +36,24 @@ export const manifest = defineModuleManifest({
   name: 'Sales Channels',
   description: 'Multi-channel storefront resolver and channel registry.',
   version: '1.0.0',
+  // Rule 2 (bridge owner) — specs/065-manifest-aware-migrations/research.md §R9.
+  // This module owns nine `sales_channel_*` membership bridges plus
+  // `sales_channels.logo_asset_id`, so its tables foreign-key nine other
+  // modules. None of those edges is declared: the module that cannot function
+  // without channel scoping is the *domain* module, and every one of them
+  // already declares `sales_channels`. Four of the nine reverse edges close a
+  // cycle outright — sales_channels → catalog → sales_channels,
+  // sales_channels → cms → sales_channels,
+  // sales_channels → promotions → sales_channels, and
+  // sales_channels → customer_accounts → price_lists → catalog →
+  // sales_channels; together they are what made the naive union a 9-node SCC.
+  // The remaining five (assets_library, delivery_methods, organizations,
+  // payment_methods, taxes) close no cycle but are dropped by the same rule: a
+  // bridge owner declaring what it bridges inverts the ownership direction.
+  // All nine are recorded in test/unit/db/acknowledged-fk-edges.ts.
+  //
+  // Forward-looking convention: a new bridge table for module X is owned by X's
+  // migration, so X → sales_channels covers it and no new exception is needed.
   dependencies: ['settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },

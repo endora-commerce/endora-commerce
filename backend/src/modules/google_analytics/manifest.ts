@@ -82,7 +82,7 @@ export const manifest = defineModuleManifest({
   description:
     'Google Analytics 4 integration: per-sales-channel activation and Measurement ID, Enhanced Ecommerce, configurable custom events, and optional server-side tagging.',
   version: '1.0.0',
-  dependencies: ['settings', 'sales_channels', 'audit_logs'],
+  dependencies: ['audit_logs', 'sales_channels', 'settings'],
   settings: googleAnalyticsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [
@@ -99,6 +99,16 @@ export const manifest = defineModuleManifest({
       requiredPermission: 'google_analytics:read',
       keywords: ['google', 'analytics', 'ga4', 'tracking', 'events', 'ecommerce'],
       weight: 240,
+    },
+    {
+      id: 'new-google-analytics-event',
+      labelKey: 'actions.newCustomEvent.label',
+      descriptionKey: 'actions.newCustomEvent.description',
+      icon: 'Plus',
+      targetRoute: '/google-analytics/new',
+      requiredPermission: 'google_analytics:write',
+      keywords: ['google', 'analytics', 'ga4', 'event', 'zdarzenie', 'custom'],
+      weight: 241,
     },
   ],
 });

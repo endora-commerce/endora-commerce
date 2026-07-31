@@ -38,8 +38,13 @@ import { manifest as transactionalEmailsManifest } from '../transactional_emails
 import { manifest as newsletterManifest } from '../newsletter/manifest.js';
 // Feature 049 — Google Analytics (GA4 integration + custom events + server-side tagging).
 import { manifest as googleAnalyticsManifest } from '../google_analytics/manifest.js';
+import { manifest as linkedInAdsManifest } from '../linkedin_ads/manifest.js';
+import { manifest as metaAdsManifest } from '../meta_ads/manifest.js';
 // Feature 049 — Stripe payment gateway.
 import { manifest as stripeManifest } from '../stripe/manifest.js';
+import { manifest as tpayManifest } from '../tpay/manifest.js';
+// Feature 065 — PayU payment gateway.
+import { manifest as payuManifest } from '../payu/manifest.js';
 // Feature 055 — Custom Fields Layer (entity-agnostic runtime fields).
 import {
   manifest as customFieldsManifest,
@@ -71,7 +76,6 @@ import { manifest as customersManifest } from '../customers/manifest.js';
 import { manifest as deliveryMethodsManifest } from '../delivery_methods/manifest.js';
 import { manifest as emailManifest } from '../email/manifest.js';
 import { manifest as healthChecksManifest } from '../health_checks/manifest.js';
-import { manifest as integrationsManifest } from '../integrations/manifest.js';
 import { manifest as invoicesManifest } from '../invoices/manifest.js';
 import { manifest as languagesManifest } from '../languages/manifest.js';
 import { manifest as ordersManifest } from '../orders/manifest.js';
@@ -158,8 +162,15 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: newsletterManifest, filePath: pathFor('newsletter') },
   // Feature 049 — Google Analytics module.
   { manifest: googleAnalyticsManifest, filePath: pathFor('google_analytics') },
+  // Feature 063 — LinkedIn Ads module.
+  { manifest: linkedInAdsManifest, filePath: pathFor('linkedin_ads') },
+  // Feature 064 — Meta Ads module.
+  { manifest: metaAdsManifest, filePath: pathFor('meta_ads') },
   // Feature 049 — Stripe payment gateway module.
   { manifest: stripeManifest, filePath: pathFor('stripe') },
+  { manifest: tpayManifest, filePath: pathFor('tpay') },
+  // Feature 065 — PayU payment gateway module.
+  { manifest: payuManifest, filePath: pathFor('payu') },
   // Feature 055 — Custom Fields Layer module.
   {
     manifest: customFieldsManifest,
@@ -189,7 +200,6 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: deliveryMethodsManifest, filePath: pathFor('delivery_methods') },
   { manifest: emailManifest, filePath: pathFor('email') },
   { manifest: healthChecksManifest, filePath: pathFor('health_checks') },
-  { manifest: integrationsManifest, filePath: pathFor('integrations') },
   { manifest: invoicesManifest, filePath: pathFor('invoices') },
   { manifest: languagesManifest, filePath: pathFor('languages') },
   { manifest: ordersManifest, filePath: pathFor('orders') },

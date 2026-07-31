@@ -1,29 +1,17 @@
 {
-  "actions": {
-    "openNewsletter": {
-      "label": "Newsletter",
-      "description": "Manage newsletter subscribers, campaigns, and automations"
-    },
-    "newCampaign": {
-      "label": "New newsletter campaign",
-      "description": "Create and send a new newsletter campaign"
-    }
-  },
-  "newsletter": {
-    "nav": {
-      "subscribers": "Subscribers",
-      "campaigns": "Campaigns",
-      "automations": "Automations",
-      "tags": "Tags",
-      "customFields": "Custom fields",
-      "provider": "Sending provider"
-    },
-    "editor": {
-      "viewportDesktop": "Desktop mail (600px)",
-      "viewportNarrow": "Narrow (320px)",
-      "insertVariable": "Insert variable",
-      "variable": "Variable",
-      "livePreview": "Live HTML preview"
-    }
-  }
+  "actions.openNewsletter.label": "Newsletter",
+  "actions.openNewsletter.description": "Manage newsletter subscribers, campaigns, and automations",
+  "actions.newCampaign.label": "New newsletter campaign",
+  "actions.newCampaign.description": "Create and send a new newsletter campaign",
+  "newsletter.nav.subscribers": "Subscribers",
+  "newsletter.nav.campaigns": "Campaigns",
+  "newsletter.nav.automations": "Automations",
+  "newsletter.nav.tags": "Tags",
+  "newsletter.nav.customFields": "Custom fields",
+  "newsletter.nav.provider": "Sending provider",
+  "newsletter.editor.viewportDesktop": "Desktop mail (600px)",
+  "newsletter.editor.viewportNarrow": "Narrow (320px)",
+  "newsletter.editor.insertVariable": "Insert variable",
+  "newsletter.editor.variable": "Variable",
+  "newsletter.editor.livePreview": "Live HTML preview"
 }

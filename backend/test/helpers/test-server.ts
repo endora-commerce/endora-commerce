@@ -61,9 +61,9 @@ import { invoicesModule } from '../../src/modules/invoices/plugin.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
-import { newsletterSettingsManifest } from '../../src/modules/newsletter/manifest.js';
 import { googleAnalyticsModule } from '../../src/modules/google_analytics/plugin.js';
-import { googleAnalyticsSettingsManifest } from '../../src/modules/google_analytics/manifest.js';
+import { linkedInAdsModule } from '../../src/modules/linkedin_ads/plugin.js';
+import { metaAdsModule } from '../../src/modules/meta_ads/plugin.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
   ORDER_COMMENT_DEFAULT,
@@ -114,18 +114,14 @@ import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
 import { settingsModule } from '../../src/modules/settings/plugin.js';
-import { settingsManifest as settingsModuleManifest } from '../../src/modules/settings/manifest.js';
 import { mfaModule } from '../../src/modules/mfa/plugin.js';
-import { mfaSettingsManifest } from '../../src/modules/mfa/manifest.js';
 import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
 import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
 import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
 import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
 import { searchModule } from '../../src/modules/search/plugin.js';
 import { createSuggestionPricingEnricher } from '../../src/modules/search/services/suggestion-pricing-enricher.js';
-import { searchManifest } from '../../src/modules/search/manifest.js';
 import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/modules/prompt_actions/plugin.js';
-import { promptActionsSettingsManifest } from '../../src/modules/prompt_actions/manifest.js';
 import { credentialsModule } from '../../src/modules/credentials/plugin.js';
 import { ksefModule } from '../../src/modules/ksef/plugin.js';
 import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
@@ -133,10 +129,6 @@ import { configurationTypeRegistry } from '../../src/modules/credentials/service
 import { llmConfigurationType } from '../../src/modules/credentials/types/llm.type.js';
 import { emailAdapterConfigurationType } from '../../src/modules/credentials/types/email-adapter.type.js';
 import { pwaModule } from '../../src/modules/pwa/plugin.js';
-import { pwaSettingsManifest } from '../../src/modules/pwa/manifest.js';
-import { transactionalEmailsSettingsManifest } from '../../src/modules/transactional_emails/manifest.js';
-import { invoicesSettingsManifest } from '../../src/modules/invoices/manifest.js';
-import { ksefSettingsManifest } from '../../src/modules/ksef/manifest.js';
 import { SalesChannel } from '../../src/modules/sales_channels/entities/sales-channel.entity.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import {
@@ -146,19 +138,14 @@ import {
 } from '../../src/modules/catalog/prompt-tools.js';
 import { inventoryPromptTools } from '../../src/modules/inventory/prompt-tools.js';
 import { comparisonsModule } from '../../src/modules/comparisons/plugin.js';
-import { comparisonsManifest } from '../../src/modules/comparisons/manifest.js';
-import { quoteRequestsManifest } from '../../src/modules/quote_requests/manifest.js';
-import { inventoryManifest } from '../../src/modules/inventory/manifest.js';
-import { priceListsManifest } from '../../src/modules/price_lists/manifest.js';
 import { assetsLibraryModule } from '../../src/modules/assets_library/plugin.js';
-import { assetsLibraryManifest } from '../../src/modules/assets_library/manifest.js';
-import { blogManifest } from '../../src/modules/blog/manifest.js';
 import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
 import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
+import { collectRegisteredSettingsManifests } from '../../src/modules/settings/services/registered-settings-manifests.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import type { Mailer } from '../../src/modules/email/services/mailer.js';
 import { seedUs1Catalog } from './seed-catalog.js';
@@ -237,7 +224,7 @@ export interface BackendServerHandle {
   pwa: ReturnType<typeof pwaModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
   salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
-  /** Feature 062 — api-keys/webhooks/integrations handle (api-key gates). */
+  /** Feature 062 — api-keys/webhooks handle (api-key gates). */
   integrations: ReturnType<typeof integrationsModule>['handle'];
   /** Feature 006 — exposes the indexer + suggest service for tests that
    *  want deterministic teardown or to exercise embedder attach/detach. */
@@ -371,7 +358,6 @@ const SEEDED_TABLES = [
   'admin_roles',
   'webhook_deliveries',
   'webhooks',
-  'external_integrations',
   'api_keys',
   'credit_limit_reservations',
   'credit_limits',
@@ -620,7 +606,7 @@ export async function setupBackendServer(
     customFields.handle.definitionService,
   );
 
-  // US7 — API keys, webhooks, external integrations. The handle exposes
+  // US7 — API keys + webhooks. The handle exposes
   // requireApiKey, threaded into the catalog module's by-sku route so that
   // surface gets real bearer-token gating.
   const integrations = integrationsModule({
@@ -1963,6 +1949,32 @@ export async function setupBackendServer(
     }),
   );
 
+  // Feature 063 — LinkedIn Ads. Config + mapping CRUD are fully exercised.
+  modules.push(
+    linkedInAdsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin: requireTestAdmin(permissionService),
+      resolveAuditContext: (req) => ({
+        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+    }),
+  );
+
+  // Feature 064 — Meta Ads. Config + custom-event CRUD are fully exercised.
+  modules.push(
+    metaAdsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin: requireTestAdmin(permissionService),
+      resolveAuditContext: (req) => ({
+        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+    }),
+  );
+
   modules.push(
     shoppingListsModule({
       emFactory: em,
@@ -2021,24 +2033,10 @@ export async function setupBackendServer(
   // catalog.
   //   - settingsModuleManifest: built-in `general` group.
   //   - searchManifest:         feature-006 search group + 6 settings.
-  await new ManifestReconciler(em()).apply([
-    settingsModuleManifest,
-    searchManifest,
-    comparisonsManifest,
-    quoteRequestsManifest,
-    inventoryManifest,
-    priceListsManifest,
-    assetsLibraryManifest,
-    blogManifest,
-    mfaSettingsManifest,
-    promptActionsSettingsManifest,
-    pwaSettingsManifest,
-    transactionalEmailsSettingsManifest,
-    newsletterSettingsManifest,
-    googleAnalyticsSettingsManifest,
-    invoicesSettingsManifest,
-    ksefSettingsManifest,
-  ]);
+  // Same derivation the production composition uses, so the harness cannot
+  // drift from it — it previously carried its own hand-maintained copy, which
+  // is why tests saw KSeF/MFA settings that production never created.
+  await new ManifestReconciler(em()).apply(collectRegisteredSettingsManifests());
 
   const app = await buildServer({
     sessionCookieSecret: 'test-secret-do-not-use-in-production',

@@ -16,6 +16,7 @@ const sidebars = {
       items: [
         'architecture/tenant-scoping',
         'architecture/api-interceptor',
+        'architecture/migrations',
         'architecture/command-bus',
         'architecture/custom-fields',
         'architecture/overlay-pattern',
@@ -87,10 +88,11 @@ const sidebars = {
         },
         'modules/health_checks',
         'modules/import_export',
-        'modules/integrations',
         'modules/inventory',
         'modules/invoices',
         'modules/languages',
+        'modules/linkedin-ads',
+        'modules/meta-ads',
         {
           type: 'category',
           label: 'Megamenu',
@@ -117,6 +119,8 @@ const sidebars = {
         'modules/organization-hierarchy',
         'modules/payment_methods',
         'modules/payments',
+        'modules/tpay',
+        'modules/payu',
         'modules/price_lists',
         {
           type: 'doc',

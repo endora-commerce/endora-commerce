@@ -14,5 +14,5 @@ export const manifest = defineModuleManifest({
   description:
     'Per-organization credit limits and credit-check enforcement at checkout.',
   version: '1.0.0',
-  dependencies: [],
+  dependencies: ['organizations'],
 });

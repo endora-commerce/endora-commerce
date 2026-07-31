@@ -46,7 +46,6 @@ how to consume it.
 | [dictionary](./dictionary) | Seeded reference data — Countries, Currencies, Languages — with admin reordering | yes |
 | [health_checks](./health_checks) | Liveness + readiness probe | yes |
 | [import_export](./import_export) | CSV import / export for bulk-edit entities | yes |
-| [integrations](./integrations) | External vendor configurations (encrypted) | yes |
 | [inventory](./inventory) | Stock levels, reservations, availability notifications | yes |
 | [invoices](./invoices) | PDF invoice / proforma generation + asset linkage | yes |
 | [ksef](./ksef) | Krajowy System e-Faktur integration — FA(3) submission of issued invoices, KSeF numbers + UPO, certificate management | yes (admin) |
@@ -56,6 +55,8 @@ how to consume it.
 | [orders](./orders) | Order placement, status machine, payment + delivery linkage | yes |
 | [organizations](./organizations) | Customer Organizations, registration, invitations | yes |
 | [payment_methods](./payment_methods) | Configured payment methods | yes |
+| [tpay](./tpay) | TPay payment gateway (BLIK, cards, transfers) | yes |
+| [payu](./payu) | PayU payment gateway (BLIK, cards, pay-by-link) | yes |
 | [payments](./payments) | Payment driver dispatch + settlement events | yes |
 | [price_lists](./price_lists) | Customer / group / default pricing with volume tiers + per-category adjustments | yes |
 | [promotions](./promotions) | Cart-level percentage / amount / free-delivery discounts with eligibility filters | yes |

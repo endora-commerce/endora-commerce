@@ -13,10 +13,13 @@ import { AppLanguageContext } from './i18n/app-language-context.js';
 import type { SupportedAdminLanguage } from './i18n/types.js';
 import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
 import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
-import { IntegrationsPage } from './modules/integrations/IntegrationsPage.js';
 import { AnalyticsPage } from './modules/analytics/AnalyticsPage.js';
 import { CustomEventsListPage } from './modules/google_analytics/pages/CustomEventsListPage.js';
 import { CustomEventEditPage } from './modules/google_analytics/pages/CustomEventEditPage.js';
+import { ConversionMappingsListPage } from './modules/linkedin_ads/pages/ConversionMappingsListPage.js';
+import { ConversionMappingEditPage } from './modules/linkedin_ads/pages/ConversionMappingEditPage.js';
+import { CustomEventMappingsListPage as MetaEventsListPage } from './modules/meta_ads/pages/CustomEventMappingsListPage.js';
+import { CustomEventMappingEditPage as MetaEventEditPage } from './modules/meta_ads/pages/CustomEventMappingEditPage.js';
 import { ImportExportPage } from './modules/import_export/ImportExportPage.js';
 import { SeoPage } from './modules/seo/SeoPage.js';
 import { DictionaryPage } from './modules/dictionaries/DictionaryPage.js';
@@ -99,6 +102,8 @@ import { HomePage } from './modules/home/HomePage.js';
 import { DeliveryMethodsPage } from './modules/delivery_methods/DeliveryMethodsPage.js';
 import { PaymentMethodsPage } from './modules/payment_methods/PaymentMethodsPage.js';
 import { StripeSettingsPage } from './modules/stripe/StripeSettingsPage.js';
+import { TpaySettingsPage } from './modules/tpay/TpaySettingsPage.js';
+import { PayuSettingsPage } from './modules/payu/PayuSettingsPage.js';
 import { CredentialsPage } from './modules/credentials/pages/CredentialsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { LowStockPage } from './modules/inventory/LowStockPage.js';
@@ -230,7 +235,10 @@ export function App(): ReactNode {
         <Route path="/delivery-methods" element={<DeliveryMethodsPage />} />
         <Route path="/payment-methods" element={<PaymentMethodsPage />} />
         <Route path="/settings/stripe" element={<StripeSettingsPage />} />
+        <Route path="/settings/tpay" element={<TpaySettingsPage />} />
+        <Route path="/settings/payu" element={<PayuSettingsPage />} />
         <Route path="/credentials" element={<CredentialsPage />} />
+        <Route path="/credentials/new" element={<CredentialsPage initialMode="new" />} />
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/inventory/low-stock" element={<LowStockPage />} />
         <Route path="/inventory/notifications" element={<AvailabilityNotificationsPage />} />
@@ -249,11 +257,16 @@ export function App(): ReactNode {
         <Route path="/audit-log" element={<AuditLogViewer />} />
         <Route path="/api-keys" element={<ApiKeysPage />} />
         <Route path="/webhooks" element={<WebhooksPage />} />
-        <Route path="/integrations" element={<IntegrationsPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/google-analytics" element={<CustomEventsListPage />} />
         <Route path="/google-analytics/new" element={<CustomEventEditPage />} />
         <Route path="/google-analytics/:id" element={<CustomEventEditPage />} />
+        <Route path="/linkedin-ads" element={<ConversionMappingsListPage />} />
+        <Route path="/linkedin-ads/new" element={<ConversionMappingEditPage />} />
+        <Route path="/linkedin-ads/:id" element={<ConversionMappingEditPage />} />
+        <Route path="/meta-ads" element={<MetaEventsListPage />} />
+        <Route path="/meta-ads/new" element={<MetaEventEditPage />} />
+        <Route path="/meta-ads/:id" element={<MetaEventEditPage />} />
         <Route path="/import-export" element={<ImportExportPage />} />
         <Route path="/seo" element={<SeoPage />} />
         <Route path="/dictionary" element={<DictionaryPage />} />

@@ -77,7 +77,14 @@ export const manifest = defineModuleManifest({
   description:
     'Own-infrastructure newsletter: subscribers with tags + custom fields, campaigns, linear automations, email-safe templates and variables, engagement stats, and a configurable bulk-sending provider.',
   version: '1.0.0',
-  dependencies: ['settings', 'sales_channels', 'customers', 'email', 'audit_logs', 'credentials'],
+  dependencies: [
+    'audit_logs',
+    'credentials',
+    'customers',
+    'email',
+    'sales_channels',
+    'settings',
+  ],
   settings: newsletterSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

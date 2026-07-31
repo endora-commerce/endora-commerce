@@ -6,6 +6,7 @@ import {
   grantCreditLimitRequestSchema,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import { testAdminUserId } from '../../http/test-actor-carrier.js';
 import { isOrgInScope } from '../../tenancy/derived-scope.js';
 import type { CreditLimitService } from './services/credit-limit-service.js';
 import type { CreditLimit } from './entities/credit-limit.entity.js';
@@ -101,9 +102,7 @@ export async function registerCreditLimitsRoutes(
           'A credit limit is already granted; use PATCH to adjust it.',
         );
       }
-      const adminId = (request.testActor?.kind === 'admin'
-        ? request.testActor.adminUserId
-        : undefined) as string | undefined;
+      const adminId = testAdminUserId(request);
       const limit = await creditLimitService.grant({
         organizationId: request.params.id,
         grantedAmount: body.grantedAmount,

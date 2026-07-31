@@ -14,5 +14,5 @@ export const manifest = defineModuleManifest({
   description:
     'Programmatic API keys (Bearer tokens) used by integrations and webhooks.',
   version: '1.0.0',
-  dependencies: [],
+  dependencies: ['customer_accounts', 'organizations', 'sales_channels'],
 });

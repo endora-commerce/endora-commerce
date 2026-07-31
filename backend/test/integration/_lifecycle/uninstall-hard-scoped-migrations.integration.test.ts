@@ -11,16 +11,14 @@ import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/ser
 /**
  * Integration test for FR-011 scoped migration revert (US2).
  *
- * Hard uninstall MUST revert ONLY the target module's migrations
- * (matched by filename pattern `^\d+_<id>_`). Other modules'
+ * Hard uninstall MUST revert ONLY the target module's migrations — resolved
+ * from `MIGRATION_REGISTRY` by `moduleId` since feature 065. Other modules'
  * migrations remain applied.
  *
- * Authored skeleton; the migrator stub in the orchestrator's
- * `revertMigrationsFor` implementation is the authoritative path.
- * A test that exercises real migrations would require dedicated
- * fixture migrations on disk — out of scope for this skeleton.
- * This test asserts the contract by inspecting the result.revertedMigrations
- * array against an in-memory expectation.
+ * This case covers a module that owns no registered migration: the orchestrator
+ * warns and reverts nothing. The positive case (a module that does own
+ * migrations, and the order they come back in) is
+ * `uninstall-revert.integration.test.ts`.
  */
 
 describe('Module uninstall — hard reverts only target module migrations (integration)', () => {
@@ -49,7 +47,7 @@ describe('Module uninstall — hard reverts only target module migrations (integ
     await db.close();
   });
 
-  it('hard uninstall returns a revertedMigrations array scoped by filename pattern', async () => {
+  it('hard uninstall returns a revertedMigrations array scoped by owning module', async () => {
     const manifest = defineModuleManifest({
       id: 'fixture_scoped',
       name: 'Fixture Scoped',
@@ -85,13 +83,11 @@ describe('Module uninstall — hard reverts only target module migrations (integ
     });
 
     const result = await orchestrator.uninstall('fixture_scoped', { hard: true });
-    // No migrations on disk match `^\d+_fixture_scoped_` — orchestrator's
-    // `revertMigrationsFor` returns [] and logs a warning. Other
-    // modules' migrations are unaffected (the migrator was never asked
-    // to revert them).
-    expect(Array.isArray(result.revertedMigrations)).toBe(true);
-    // The 038/039 migrations belonging to `dictionaries` and
-    // `_lifecycle` MUST NOT appear here.
+    // No registry entry declares `fixture_scoped` as its owning module, so
+    // `revertMigrationsFor` returns [] and logs a warning. Other modules'
+    // migrations are unaffected (the migrator was never asked to revert them).
+    expect(result.revertedMigrations).toEqual([]);
+    // Migrations belonging to `dictionaries` and `_lifecycle` MUST NOT appear.
     for (const name of result.revertedMigrations) {
       expect(name).not.toMatch(/dictionary/);
       expect(name).not.toMatch(/module_lifecycle/);

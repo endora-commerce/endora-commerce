@@ -22,7 +22,7 @@ import { describe, expect, it } from 'vitest';
 const ALLOW = new Set<string>([
   // Migration helper itself — strips the legacy keys; the references
   // are fundamental to the migration logic.
-  'backend/src/modules/price_lists/migrations/031_price_lists_engine.ts',
+  'backend/src/modules/price_lists/migrations/20260504T125655_price_lists_engine.ts',
   'backend/src/modules/price_lists/services/default-price-list-migration.ts',
 
   // Catalog projection layer — feeds storefront ProductSummary.price

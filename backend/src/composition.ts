@@ -62,6 +62,8 @@ import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import { returnsModule } from './modules/returns/plugin.js';
 import { stripeModule } from './modules/stripe/plugin.js';
+import { tpayModule } from './modules/tpay/plugin.js';
+import { payuModule } from './modules/payu/plugin.js';
 import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
@@ -104,36 +106,29 @@ import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
 import { i18nModule } from './modules/languages/plugin.js';
 import { cmsModule } from './modules/cms/plugin.js';
-import { CMS_PAGE_BUILDER_SETTING_CODES, cmsSettingsManifest } from './modules/cms/manifest.js';
+import { CMS_PAGE_BUILDER_SETTING_CODES } from './modules/cms/manifest.js';
 import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
 import { blogModule } from './modules/blog/plugin.js';
 import { dictionariesModule } from './modules/dictionaries/plugin.js';
-import { blogManifest } from './modules/blog/manifest.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
 import { promotionsModule } from './modules/promotions/plugin.js';
 import { settingsModule } from './modules/settings/plugin.js';
-import { settingsManifest as settingsModuleManifest } from './modules/settings/manifest.js';
 import { ManifestReconciler } from './modules/settings/services/manifest-reconciler.js';
 import { salesChannelsModule } from './modules/sales_channels/plugin.js';
-import { salesChannelsManifest } from './modules/sales_channels/manifest.js';
 import { DefaultChannelReconciler } from './modules/sales_channels/services/default-channel-reconciler.js';
 import { searchModule } from './modules/search/plugin.js';
 import { createSuggestionPricingEnricher } from './modules/search/services/suggestion-pricing-enricher.js';
 import { SearchIndexer } from './modules/search/services/search-indexer.js';
 import {
-  searchManifest,
   SEARCH_SETTING_CODES,
   DEFAULT_REINDEX_INTERVAL_MINUTES,
 } from './modules/search/manifest.js';
 import { comparisonsModule } from './modules/comparisons/plugin.js';
-import { comparisonsManifest } from './modules/comparisons/manifest.js';
-import { quoteRequestsManifest, QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
-import { inventoryManifest } from './modules/inventory/manifest.js';
+import { QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
 import { promptActionsModule } from './modules/prompt_actions/plugin.js';
-import { promptActionsSettingsManifest } from './modules/prompt_actions/manifest.js';
 // Feature 058 — Credentials (reusable credential configurations).
 import { credentialsModule } from './modules/credentials/plugin.js';
 import { configurationTypeRegistry } from './modules/credentials/services/registry-singleton.js';
@@ -141,19 +136,18 @@ import { llmConfigurationType } from './modules/credentials/types/llm.type.js';
 import { emailAdapterConfigurationType } from './modules/credentials/types/email-adapter.type.js';
 // Feature 046 — Progressive Web App.
 import { pwaModule } from './modules/pwa/plugin.js';
-import { pwaSettingsManifest } from './modules/pwa/manifest.js';
 // Feature 047 — Transactional Emails.
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
-import { transactionalEmailsSettingsManifest } from './modules/transactional_emails/manifest.js';
 import type { BrandingService } from './modules/transactional_emails/services/branding.service.js';
 // Feature 048 — Newsletter.
 import { newsletterModule } from './modules/newsletter/plugin.js';
-import { newsletterSettingsManifest } from './modules/newsletter/manifest.js';
 // Feature 049 — Google Analytics.
 import { googleAnalyticsModule } from './modules/google_analytics/plugin.js';
-import { googleAnalyticsSettingsManifest } from './modules/google_analytics/manifest.js';
-import { invoicesSettingsManifest } from './modules/invoices/manifest.js';
-import { stripeSettingsManifest } from './modules/stripe/manifest.js';
+// Feature 063 — LinkedIn Ads.
+import { linkedInAdsModule } from './modules/linkedin_ads/plugin.js';
+// Feature 064 — Meta Ads.
+import { metaAdsModule } from './modules/meta_ads/plugin.js';
+import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
@@ -191,8 +185,6 @@ import {
 import { inventoryPromptTools } from './modules/inventory/prompt-tools.js';
 import { ordersPromptTools } from './modules/orders/prompt-tools.js';
 import type { PromptActionTool } from './modules/prompt_actions/services/tool-registry.js';
-import { priceListsManifest } from './modules/price_lists/manifest.js';
-import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
 import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
@@ -2379,6 +2371,52 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   );
 
   modules.push(
+    tpayModule({
+      emFactory: em,
+      eventBus,
+      settingsService: settings.handle.settingsService,
+      settingsAdmin: settings.handle.adminService,
+      requireAdmin,
+      requireCustomer,
+      resolveCustomerAccountId,
+      resolveAdminAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      resolveDefaultChannelId: async () =>
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.handle.membershipService,
+      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+      publicApiBaseUrl:
+        process.env['PUBLIC_API_BASE_URL'] ??
+        process.env['API_PUBLIC_URL'] ??
+        'http://localhost:3001',
+    }),
+  );
+
+  modules.push(
+    payuModule({
+      emFactory: em,
+      eventBus,
+      settingsService: settings.handle.settingsService,
+      settingsAdmin: settings.handle.adminService,
+      requireAdmin,
+      requireCustomer,
+      resolveCustomerAccountId,
+      resolveAdminAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      resolveDefaultChannelId: async () =>
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.handle.membershipService,
+      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+      publicApiBaseUrl:
+        process.env['PUBLIC_API_BASE_URL'] ??
+        process.env['API_PUBLIC_URL'] ??
+        'http://localhost:3001',
+    }),
+  );
+
+  modules.push(
     transactionalEmailsModule({
       emFactory: em,
       settingsService: settings.handle.settingsService,
@@ -2484,6 +2522,55 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       runWorkers,
       // On-demand storefront cache invalidation: any google_analytics.* setting
       // change (and custom-event CRUD) revalidates the storefront `ga:config`.
+      onSettingChanged: (handler) =>
+        eventBus.on('settings.value_changed', (payload) =>
+          handler((payload as unknown as { settingCode: string }).settingCode),
+        ),
+      ...(process.env['STOREFRONT_BASE_URL']
+        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
+        : {}),
+      ...(process.env['REVALIDATE_SECRET']
+        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
+        : {}),
+    }),
+  );
+
+  // Feature 063 — LinkedIn Ads. Per-channel Insight Tag + conversion mappings.
+  // Config lives in the Settings module; the access token is a `secret` setting.
+  modules.push(
+    linkedInAdsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin,
+      resolveAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+      // Any linkedin_ads.* setting change (and mapping CRUD) revalidates the
+      // storefront `linkedin:config` cache tag.
+      onSettingChanged: (handler) =>
+        eventBus.on('settings.value_changed', (payload) =>
+          handler((payload as unknown as { settingCode: string }).settingCode),
+        ),
+      ...(process.env['STOREFRONT_BASE_URL']
+        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
+        : {}),
+      ...(process.env['REVALIDATE_SECRET']
+        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
+        : {}),
+    }),
+  );
+
+  // Feature 064 — Meta Ads. Per-channel Meta Pixel + custom event mappings.
+  modules.push(
+    metaAdsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin,
+      resolveAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
       onSettingChanged: (handler) =>
         eventBus.on('settings.value_changed', (payload) =>
           handler((payload as unknown as { settingCode: string }).settingCode),
@@ -2665,26 +2752,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // module's settings manifest and inserts any missing groups/settings
   // idempotently before the HTTP layer starts serving requests. NEVER deletes
   // (R-1); destructive uninstall is CLI-only.
-  const settingsManifests: ModuleSettingsManifest[] = [
-    settingsModuleManifest,
-    salesChannelsManifest,
-    searchManifest,
-    comparisonsManifest,
-    quoteRequestsManifest,
-    inventoryManifest,
-    priceListsManifest,
-    assetsLibraryManifest,
-    blogManifest,
-    promptActionsSettingsManifest,
-    pwaSettingsManifest,
-    transactionalEmailsSettingsManifest,
-    newsletterSettingsManifest,
-    googleAnalyticsSettingsManifest,
-    invoicesSettingsManifest,
-    stripeSettingsManifest,
-    cmsSettingsManifest,
-    // Other modules' manifests are appended here as they start using settings.
-  ];
+  // Derived from the module registry, not hand-listed: a module that declared
+  // `settings:` but was forgotten in a literal array never got its rows, so
+  // /settings silently omitted it (see collectRegisteredSettingsManifests).
+  // linkedin_ads / meta_ads / tpay / payu / cms need no entry here — registering
+  // their manifests is enough.
+  const settingsManifests: ModuleSettingsManifest[] =
+    collectRegisteredSettingsManifests();
   const reconcilerEm = em();
   const reconciler = new ManifestReconciler(reconcilerEm);
   const reconciliation = await reconciler.apply(settingsManifests);

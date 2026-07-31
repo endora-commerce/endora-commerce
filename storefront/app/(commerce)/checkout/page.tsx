@@ -11,7 +11,13 @@ import {
 import { listAddresses, createAddress } from '../../../lib/api/organization';
 import { listDeliveryMethods, listPaymentMethods } from '../../../lib/api/methods';
 import { getStripeStorefrontConfig, getStripeClientSecret } from '../../../lib/api/stripe';
-import { STRIPE_REDIRECT_RENDERER_KEY } from '../../../lib/payment-renderers/registry';
+import { getTpayStorefrontConfig } from '../../../lib/api/tpay';
+import { getPayuStorefrontConfig } from '../../../lib/api/payu';
+import {
+  STRIPE_REDIRECT_RENDERER_KEY,
+  TPAY_REDIRECT_RENDERER_KEY,
+  PAYU_REDIRECT_RENDERER_KEY,
+} from '../../../lib/payment-renderers/registry';
 import {
   StripeInlinePaymentMethods,
   type StripeInlinePrepareResult,
@@ -68,6 +74,8 @@ export default async function CheckoutPage({
     Awaited<ReturnType<typeof getResolvedQuickOrderDefaults>> | null,
     Awaited<ReturnType<typeof listCountries>>,
     Awaited<ReturnType<typeof getStripeStorefrontConfig>> | null,
+    Awaited<ReturnType<typeof getTpayStorefrontConfig>> | null,
+    Awaited<ReturnType<typeof getPayuStorefrontConfig>> | null,
   ];
   try {
     loaded = await Promise.all([
@@ -87,6 +95,8 @@ export default async function CheckoutPage({
       // Feature 049 — Stripe display mode drives whether checkout shows one
       // collapsed "Stripe" option (redirect) or the inline sub-methods.
       getStripeStorefrontConfig().catch(() => null),
+      getTpayStorefrontConfig().catch(() => null),
+      getPayuStorefrontConfig().catch(() => null),
     ]);
   } catch (err) {
     // A stale/expired `b2b_session` cookie is still truthy, so it slips past
@@ -108,6 +118,8 @@ export default async function CheckoutPage({
     defaults,
     countries,
     stripeConfig,
+    tpayConfig,
+    payuConfig,
   ] = loaded;
   if (cartResult.newAnonCookie) await setAnonCartCookie(cartResult.newAnonCookie);
   const cart = cartResult.cart;
@@ -145,6 +157,34 @@ export default async function CheckoutPage({
         rendererKey: STRIPE_REDIRECT_RENDERER_KEY,
       };
       paymentMethods = [...nonStripe, collapsed];
+    }
+  }
+
+  if (tpayConfig?.active && tpayConfig.displayMode === 'redirect') {
+    const tpayMethods = paymentMethods.filter((m) => m.adapter === 'tpay');
+    if (tpayMethods.length > 0) {
+      const nonTpay = paymentMethods.filter((m) => m.adapter !== 'tpay');
+      const primary = tpayMethods.find((m) => m.code === 'tpay_blik') ?? tpayMethods[0]!;
+      const collapsed = {
+        ...primary,
+        name: { default: 'TPay', 'en-US': 'TPay', 'pl-PL': 'TPay' },
+        rendererKey: TPAY_REDIRECT_RENDERER_KEY,
+      };
+      paymentMethods = [...nonTpay, collapsed];
+    }
+  }
+
+  if (payuConfig?.active && payuConfig.displayMode === 'redirect') {
+    const payuMethods = paymentMethods.filter((m) => m.adapter === 'payu');
+    if (payuMethods.length > 0) {
+      const nonPayu = paymentMethods.filter((m) => m.adapter !== 'payu');
+      const primary = payuMethods.find((m) => m.code === 'payu_blik') ?? payuMethods[0]!;
+      const collapsed = {
+        ...primary,
+        name: { default: 'PayU', 'en-US': 'PayU', 'pl-PL': 'PayU' },
+        rendererKey: PAYU_REDIRECT_RENDERER_KEY,
+      };
+      paymentMethods = [...nonPayu, collapsed];
     }
   }
 
@@ -248,6 +288,7 @@ export default async function CheckoutPage({
             methods={paymentMethods}
             currency={cart.subtotal.currency}
             preferredId={defaults?.paymentMethodId ?? null}
+            locale={locale}
           />
         )}
 
@@ -433,6 +474,12 @@ async function submitAction(formData: FormData): Promise<void> {
   // step before landing on the Success Page.
   if (order.paymentMethod?.code?.startsWith('stripe_')) {
     redirect(`/checkout/pay?id=${order.id}`);
+  }
+  if (order.paymentMethod?.code?.startsWith('tpay_')) {
+    redirect(`/checkout/pay?id=${order.id}&gateway=tpay`);
+  }
+  if (order.paymentMethod?.code?.startsWith('payu_')) {
+    redirect(`/checkout/pay?id=${order.id}&gateway=payu`);
   }
   redirect(`/checkout/success?id=${order.id}`);
 }

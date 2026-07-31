@@ -122,6 +122,8 @@ export function PaymentMethodsPage(): ReactNode {
   }, []);
 
   const showStripe = hasPermission('stripe:read');
+  const showTpay = hasPermission('tpay:read');
+  const showPayu = hasPermission('payu:read');
 
   return (
     <>
@@ -141,29 +143,63 @@ export function PaymentMethodsPage(): ReactNode {
         </Alert>
       ) : null}
 
-      {showStripe ? (
+      {showStripe || showTpay || showPayu ? (
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>{t('legacyMethods.integrations.title')}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <p className="mb-4 text-sm text-muted-foreground">
               {t('legacyMethods.integrations.description')}
             </p>
-            <div className="flex items-center justify-between gap-4 rounded-md border p-4">
-              <div>
-                <div className="font-medium">{t('legacyMethods.integrations.stripe.name')}</div>
-                <div className="text-sm text-muted-foreground">
-                  {t('legacyMethods.integrations.stripe.description')}
+            {showStripe ? (
+              <div className="flex items-center justify-between gap-4 rounded-md border p-4">
+                <div>
+                  <div className="font-medium">{t('legacyMethods.integrations.stripe.name')}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {t('legacyMethods.integrations.stripe.description')}
+                  </div>
                 </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/settings/stripe">
+                    {t('legacyMethods.integrations.configure')}
+                    <ArrowRight />
+                  </Link>
+                </Button>
               </div>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/settings/stripe">
-                  {t('legacyMethods.integrations.configure')}
-                  <ArrowRight />
-                </Link>
-              </Button>
-            </div>
+            ) : null}
+            {showTpay ? (
+              <div className="flex items-center justify-between gap-4 rounded-md border p-4">
+                <div>
+                  <div className="font-medium">{t('legacyMethods.integrations.tpay.name')}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {t('legacyMethods.integrations.tpay.description')}
+                  </div>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/settings/tpay">
+                    {t('legacyMethods.integrations.configure')}
+                    <ArrowRight />
+                  </Link>
+                </Button>
+              </div>
+            ) : null}
+            {showPayu ? (
+              <div className="flex items-center justify-between gap-4 rounded-md border p-4">
+                <div>
+                  <div className="font-medium">{t('legacyMethods.integrations.payu.name')}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {t('legacyMethods.integrations.payu.description')}
+                  </div>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/settings/payu">
+                    {t('legacyMethods.integrations.configure')}
+                    <ArrowRight />
+                  </Link>
+                </Button>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

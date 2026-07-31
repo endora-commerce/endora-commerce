@@ -47,4 +47,23 @@ describe('PaymentMethods section (SSR)', () => {
     const html = renderToString(<PaymentMethods methods={[]} />);
     expect(html).toContain('No payment method is available');
   });
+
+  it('omits Apple Pay on SSR / unsupported clients', () => {
+    const html = renderToString(
+      <PaymentMethods
+        methods={[
+          method({ id: 'pm-bank', code: 'bank_transfer', name: { default: 'Bank transfer' } }),
+          method({
+            id: 'pm-apple',
+            code: 'payu_apple_pay',
+            name: { default: 'Apple Pay' },
+            kind: 'gateway',
+            adapter: 'payu',
+          }),
+        ]}
+      />,
+    );
+    expect(html).toContain('Bank transfer');
+    expect(html).not.toContain('Apple Pay');
+  });
 });

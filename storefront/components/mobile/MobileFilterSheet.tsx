@@ -71,7 +71,7 @@ export function MobileFilterSheet(props: {
         title={props.labels.filters}
         closeLabel={props.labels.close}
         footer={
-          <>
+          <div className="flex w-full gap-2">
             <Link
               href={props.clearHref}
               className="btn btn--outline"
@@ -88,7 +88,7 @@ export function MobileFilterSheet(props: {
             >
               {applyLabel}
             </button>
-          </>
+          </div>
         }
       >
         <div ref={bodyRef}>{props.children}</div>

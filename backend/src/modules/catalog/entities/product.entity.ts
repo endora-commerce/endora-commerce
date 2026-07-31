@@ -79,11 +79,13 @@ export class Product {
 
   /**
    * Attribute Set the Product is wired to (feature 002, data-model.md §1.1).
-   * Backfilled by migration 017 to the system Default set; never null.
+   * Backfilled by the attribute-sets init migration to the system Default
+   * set; never null.
    * Validation of `attributeValues` is performed against this set's
    * attributes by `catalog-admin.service.ts` (T023).
    *
-   * Default value matches `Migration017AttributeSetsInit.DEFAULT_ATTRIBUTE_SET_ID`
+   * Default value matches
+   * `Migration20260429T064146CatalogAttributeSetsInit.DEFAULT_ATTRIBUTE_SET_ID`
    * — the deterministic UUID of the system Default set. Inlined here as a
    * literal so the entity has zero migration-package dependencies.
    */

@@ -103,7 +103,7 @@ export const manifest = defineModuleManifest({
   description:
     'Multi-warehouse stock levels, fulfilment strategy, and storefront display modes.',
   version: '1.0.0',
-  dependencies: ['settings', 'sales_channels', 'dictionaries'],
+  dependencies: ['catalog', 'dictionaries', 'sales_channels', 'settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — admin-editable transactional emails owned by this module.

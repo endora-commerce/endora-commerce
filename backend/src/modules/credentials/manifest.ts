@@ -22,7 +22,7 @@ export const manifest = defineModuleManifest({
   description:
     'Reusable credential configurations (LLM, email adapter, …) referenced by settings and resolved by consumers; secrets encrypted at rest and write-only at the boundary.',
   version: '1.0.0',
-  dependencies: ['_lifecycle', '_i18n', 'settings'],
+  dependencies: ['_i18n', '_lifecycle', 'settings'],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     {
@@ -34,6 +34,28 @@ export const manifest = defineModuleManifest({
       code: CREDENTIALS_WRITE_PERMISSION,
       label: 'Manage credential configurations',
       description: 'Allows creating, editing, and deleting credential configurations, including writing secret fields.',
+    },
+  ],
+  actions: [
+    {
+      id: 'open-credentials',
+      labelKey: 'actions.openCredentials.label',
+      descriptionKey: 'actions.openCredentials.description',
+      icon: 'KeyRound',
+      targetRoute: '/credentials',
+      requiredPermission: CREDENTIALS_READ_PERMISSION,
+      keywords: ['credentials', 'secrets', 'api key', 'poświadczenia', 'sekrety', 'klucze'],
+      weight: 250,
+    },
+    {
+      id: 'new-credential',
+      labelKey: 'actions.newCredential.label',
+      descriptionKey: 'actions.newCredential.description',
+      icon: 'Plus',
+      targetRoute: '/credentials/new',
+      requiredPermission: CREDENTIALS_WRITE_PERMISSION,
+      keywords: ['credential', 'configuration', 'nowe poświadczenie', 'konfiguracja'],
+      weight: 251,
     },
   ],
 });

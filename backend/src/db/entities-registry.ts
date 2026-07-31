@@ -6,6 +6,19 @@ import { StripePaymentIntent } from '../modules/stripe/entities/stripe-payment-i
 import { StripeWebhookEvent } from '../modules/stripe/entities/stripe-webhook-event.entity.js';
 import { StripePaymentMethodRule } from '../modules/stripe/entities/stripe-payment-method-rule.entity.js';
 import { StripePaymentMethodOrgDisable } from '../modules/stripe/entities/stripe-payment-method-org-disable.entity.js';
+// TPay payment gateway (feature 063)
+import { TpayTransaction } from '../modules/tpay/entities/tpay-transaction.entity.js';
+import { TpayNotificationEvent } from '../modules/tpay/entities/tpay-notification-event.entity.js';
+import { TpaySavedCard } from '../modules/tpay/entities/tpay-saved-card.entity.js';
+import { TpayBlikAlias } from '../modules/tpay/entities/tpay-blik-alias.entity.js';
+import { TpayPaymentMethodRule } from '../modules/tpay/entities/tpay-payment-method-rule.entity.js';
+import { TpayPaymentMethodOrgDisable } from '../modules/tpay/entities/tpay-payment-method-org-disable.entity.js';
+import { PayuOrder } from '../modules/payu/entities/payu-order.entity.js';
+import { PayuNotificationEvent } from '../modules/payu/entities/payu-notification-event.entity.js';
+import { PayuSavedCard } from '../modules/payu/entities/payu-saved-card.entity.js';
+import { PayuBlikAlias } from '../modules/payu/entities/payu-blik-alias.entity.js';
+import { PayuPaymentMethodRule } from '../modules/payu/entities/payu-payment-method-rule.entity.js';
+import { PayuPaymentMethodOrgDisable } from '../modules/payu/entities/payu-payment-method-org-disable.entity.js';
 import { CustomFieldDefinition } from '../modules/custom_fields/entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../modules/custom_fields/entities/custom-field-option.entity.js';
 import { AuditLogEntry } from '../modules/audit_logs/entities/audit-log-entry.entity.js';
@@ -72,6 +85,8 @@ import { NewsletterCampaignSubscriber } from '../modules/newsletter/entities/new
 import { NewsletterSendRecord } from '../modules/newsletter/entities/newsletter-send-record.entity.js';
 import { NewsletterEngagementEvent } from '../modules/newsletter/entities/newsletter-engagement-event.entity.js';
 import { GaCustomEvent } from '../modules/google_analytics/entities/ga-custom-event.entity.js';
+import { LinkedInConversionMapping } from '../modules/linkedin_ads/entities/linkedin-conversion-mapping.entity.js';
+import { MetaCustomEventMapping } from '../modules/meta_ads/entities/meta-custom-event-mapping.entity.js';
 import { NewsletterAutomation } from '../modules/newsletter/entities/newsletter-automation.entity.js';
 import { NewsletterAutomationRun } from '../modules/newsletter/entities/newsletter-automation-run.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
@@ -116,7 +131,6 @@ import { CreditLimitReservation } from '../modules/credit_limits/entities/credit
 import { ApiKey } from '../modules/api_keys/entities/api-key.entity.js';
 import { Webhook } from '../modules/webhooks/entities/webhook.entity.js';
 import { WebhookDelivery } from '../modules/webhooks/entities/webhook-delivery.entity.js';
-import { ExternalIntegration } from '../modules/integrations/entities/external-integration.entity.js';
 import { AnalyticsEvent } from '../modules/analytics/entities/analytics-event.entity.js';
 import { SeoMetaOverride } from '../modules/seo/entities/seo-meta-override.entity.js';
 import { SitemapCache } from '../modules/seo/entities/sitemap-cache.entity.js';
@@ -283,11 +297,10 @@ export const ALL_ENTITIES = [
   // credit limits (US6)
   CreditLimit,
   CreditLimitReservation,
-  // US7 — API keys, webhooks, integrations
+  // US7 — API keys, webhooks
   ApiKey,
   Webhook,
   WebhookDelivery,
-  ExternalIntegration,
   // analytics (Phase 10 / T237)
   AnalyticsEvent,
   // seo (Phase 10 / T235)
@@ -415,6 +428,8 @@ export const ALL_ENTITIES = [
   NewsletterAutomation,
   NewsletterAutomationRun,
   GaCustomEvent,
+  LinkedInConversionMapping,
+  MetaCustomEventMapping,
   // Stripe payment gateway (feature 049)
   StripeCustomer,
   StripeSavedCard,
@@ -422,6 +437,19 @@ export const ALL_ENTITIES = [
   StripeWebhookEvent,
   StripePaymentMethodRule,
   StripePaymentMethodOrgDisable,
+  // TPay payment gateway (feature 063)
+  TpayTransaction,
+  TpayNotificationEvent,
+  TpaySavedCard,
+  TpayBlikAlias,
+  TpayPaymentMethodRule,
+  TpayPaymentMethodOrgDisable,
+  PayuOrder,
+  PayuNotificationEvent,
+  PayuSavedCard,
+  PayuBlikAlias,
+  PayuPaymentMethodRule,
+  PayuPaymentMethodOrgDisable,
   // Feature 055 — Custom Fields Layer (entity-agnostic runtime fields).
   CustomFieldDefinition,
   CustomFieldOption,

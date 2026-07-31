@@ -75,4 +75,22 @@ export default [
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
+  {
+    // Feature 065 — the migrator must always be obtained through
+    // getMigrator(orm), which runs the legacy-name pre-flight before anything
+    // computes pending migrations. src/db/migrator.ts is the one place allowed
+    // to call the ORM's own accessor.
+    files: ['backend/src/**/*.ts', 'backend/test/**/*.ts'],
+    ignores: ['backend/src/db/migrator.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.property.name='getMigrator']",
+          message:
+            'Obtain the migrator via getMigrator(orm) from backend/src/db/migrator.ts — it runs the legacy-name pre-flight before pending work is computed.',
+        },
+      ],
+    },
+  },
 ];
