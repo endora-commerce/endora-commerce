@@ -147,6 +147,8 @@ import { googleAnalyticsModule } from './modules/google_analytics/plugin.js';
 import { linkedInAdsModule } from './modules/linkedin_ads/plugin.js';
 // Feature 064 — Meta Ads.
 import { metaAdsModule } from './modules/meta_ads/plugin.js';
+// Feature 066 — Google Tag Manager.
+import { googleTagManagerModule } from './modules/google_tag_manager/plugin.js';
 import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
@@ -2571,6 +2573,29 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
       }),
       auditLog: auditLogService,
+      onSettingChanged: (handler) =>
+        eventBus.on('settings.value_changed', (payload) =>
+          handler((payload as unknown as { settingCode: string }).settingCode),
+        ),
+      ...(process.env['STOREFRONT_BASE_URL']
+        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
+        : {}),
+      ...(process.env['REVALIDATE_SECRET']
+        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
+        : {}),
+    }),
+  );
+
+  // Feature 066 — Google Tag Manager. Settings-only module: per-channel
+  // container injection plus the optional server-side tagging relay. It owns
+  // no table and no admin page, so no EntityManager and no requireAdmin here.
+  modules.push(
+    googleTagManagerModule({
+      settings: settings.handle.settingsService,
+      redis,
+      runWorkers,
+      // Any google_tag_manager.* setting change revalidates the storefront
+      // `gtm:config` cache tag.
       onSettingChanged: (handler) =>
         eventBus.on('settings.value_changed', (payload) =>
           handler((payload as unknown as { settingCode: string }).settingCode),

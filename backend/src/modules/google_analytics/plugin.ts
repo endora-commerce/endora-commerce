@@ -18,7 +18,7 @@ import {
 import { makeEnqueuer, makeProcessor } from './services/ss-delivery.service.js';
 import { Ga4MpClient } from './services/ga4-mp-client.js';
 import { ensureCookieConsentBlock } from './services/cookie-consent-block-seeder.js';
-import { StorefrontRevalidator } from './services/storefront-revalidator.js';
+import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import { registerGoogleAnalyticsStorefrontRoutes } from './routes.storefront.js';
 import { registerGoogleAnalyticsAdminRoutes } from './routes.admin.js';
 

@@ -26,6 +26,9 @@ import { getLinkedInAdsConfig } from '../lib/api/linkedin-config';
 import { LinkedInInsightTag } from '../components/analytics/LinkedInInsightTag';
 import { getMetaAdsConfig } from '../lib/api/meta-config';
 import { MetaPixel } from '../components/analytics/MetaPixel';
+import { getGoogleTagManagerConfig } from '../lib/api/gtm-config';
+import { GoogleTagManager } from '../components/analytics/GoogleTagManager';
+import { GtmProvider } from '../components/analytics/GtmProvider';
 import { AnalyticsProvider } from '../components/analytics/AnalyticsProvider';
 import { ConsentBanner } from '../components/analytics/ConsentBanner';
 import { CookieConsentMessage } from '../components/analytics/CookieConsentMessage';
@@ -90,8 +93,17 @@ export default async function RootLayout({
     ...(session ? { session } : {}),
     ...(anon ? { anon } : {}),
   };
-  const [megamenu, dictionary, cartItemCount, me, speculation, gaConfig, linkedInConfig, metaConfig] =
-    await Promise.all([
+  const [
+    megamenu,
+    dictionary,
+    cartItemCount,
+    me,
+    speculation,
+    gaConfig,
+    linkedInConfig,
+    metaConfig,
+    gtmConfig,
+  ] = await Promise.all([
     getActiveMegamenu(ctx),
     fetchDictionary({ ctx }),
     // Header cart-icon badge. Never blocks the render — getCartItemCount
@@ -110,6 +122,9 @@ export default async function RootLayout({
     // contract as GA above.
     getLinkedInAdsConfig(ctx),
     getMetaAdsConfig(ctx),
+    // Feature 066 — per-channel Google Tag Manager config, same best-effort
+    // contract again.
+    getGoogleTagManagerConfig(ctx),
   ]);
   return (
     <html lang={locale}>
@@ -192,7 +207,16 @@ export default async function RootLayout({
         <AnalyticsProvider config={gaConfig} />
         <LinkedInInsightTag config={linkedInConfig} />
         <MetaPixel config={metaConfig} />
-        <ConsentBanner config={gaConfig} message={<CookieConsentMessage ctx={ctx} />} />
+        {/* Feature 066 — the operator's GTM container plus the client-side
+            bootstrap for the platform's own dataLayer vocabulary. */}
+        <GoogleTagManager config={gtmConfig} />
+        <GtmProvider config={gtmConfig} />
+        {/* The prompt is owed whenever any enabled integration on the channel
+            requires consent — not only Google Analytics (FR-015). */}
+        <ConsentBanner
+          platforms={[gaConfig, linkedInConfig, metaConfig, gtmConfig]}
+          message={<CookieConsentMessage ctx={ctx} />}
+        />
       </body>
     </html>
   );

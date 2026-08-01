@@ -86,6 +86,7 @@ const sidebars = {
           link: { type: 'doc', id: 'modules/dictionary/index' },
           items: [],
         },
+        'modules/google-tag-manager',
         'modules/health_checks',
         'modules/import_export',
         'modules/inventory',

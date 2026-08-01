@@ -59,16 +59,17 @@ fail=0
 #     worse than the singular (catalog, inventory, search, auth, example,
 #     email — service modules; quick_order, megamenu, assets_library, blog,
 #     newsletter — one named user surface rather than a collection);
-#   * proper nouns — vendor names and standard/protocol acronyms. These are
-#     never pluralised in any language, and the folder name is load-bearing
-#     (manifest ids, migration registry keys, i18n bundle paths, `@core/*`
-#     overlay aliases), so renaming them is not an option.
+#   * proper nouns — vendor product names and standard/protocol acronyms
+#     (google_tag_manager, stripe, ksef). These are never pluralised in any
+#     language, and the folder name is load-bearing (manifest ids, migration
+#     registry keys, i18n bundle paths, `@core/*` overlay aliases), so
+#     renaming them is not an option.
 #
 # Infrastructure modules carry a leading underscore (`_i18n`, `_lifecycle`)
 # to sort first and to mark "cross-cutting, not a domain" — see AGENTS.md.
 # ──────────────────────────────────────────────────────────────────────────
 allowed_singular="^(auth|catalog|email|example|import_export|inventory|quick_order|search|seo|assets_library|blog|megamenu|newsletter)$"
-allowed_proper_noun="^(ksef|mfa|payu|pwa|stripe|tpay)$"
+allowed_proper_noun="^(google_tag_manager|ksef|mfa|payu|pwa|stripe|tpay)$"
 
 if [ -d backend/src/modules ]; then
   while IFS= read -r -d '' dir; do

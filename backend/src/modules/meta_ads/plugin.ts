@@ -9,7 +9,7 @@ import {
   type MetaAuditContext,
   type MetaAuditSink,
 } from './services/custom-event-mappings.service.js';
-import { StorefrontRevalidator } from '../google_analytics/services/storefront-revalidator.js';
+import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import { registerMetaAdsStorefrontRoutes } from './routes.storefront.js';
 import { registerMetaAdsAdminRoutes } from './routes.admin.js';
 

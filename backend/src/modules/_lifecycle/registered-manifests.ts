@@ -40,6 +40,8 @@ import { manifest as newsletterManifest } from '../newsletter/manifest.js';
 import { manifest as googleAnalyticsManifest } from '../google_analytics/manifest.js';
 import { manifest as linkedInAdsManifest } from '../linkedin_ads/manifest.js';
 import { manifest as metaAdsManifest } from '../meta_ads/manifest.js';
+// Feature 066 — Google Tag Manager (container injection + server-side relay).
+import { manifest as googleTagManagerManifest } from '../google_tag_manager/manifest.js';
 // Feature 049 — Stripe payment gateway.
 import { manifest as stripeManifest } from '../stripe/manifest.js';
 import { manifest as tpayManifest } from '../tpay/manifest.js';
@@ -166,6 +168,8 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: linkedInAdsManifest, filePath: pathFor('linkedin_ads') },
   // Feature 064 — Meta Ads module.
   { manifest: metaAdsManifest, filePath: pathFor('meta_ads') },
+  // Feature 066 — Google Tag Manager module.
+  { manifest: googleTagManagerManifest, filePath: pathFor('google_tag_manager') },
   // Feature 049 — Stripe payment gateway module.
   { manifest: stripeManifest, filePath: pathFor('stripe') },
   { manifest: tpayManifest, filePath: pathFor('tpay') },
