@@ -1,17 +1,21 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import type { GaStorefrontConfig } from '@b2b/contracts';
 import { updateAnalyticsConsent } from '../../lib/analytics/gtag';
 import { broadcastConsent } from '../../lib/analytics/consent';
+import {
+  shouldPromptConsent,
+  type ConsentRequiringPlatform,
+} from '../../lib/analytics/consent-gate';
 
 const STORAGE_KEY = 'ga-consent';
 
 /**
- * Cookie-consent banner (feature 049) driving Google Consent Mode v2. Shown only
- * when GA is enabled for the channel and `requireConsent` is on and the visitor
- * has not yet decided. A prior decision is re-applied on load so analytics
- * storage matches the saved choice without re-prompting.
+ * Cookie-consent banner (feature 049) driving Google Consent Mode v2. Shown
+ * when any enabled tracking integration on the channel requires consent and the
+ * visitor has not yet decided (feature 066, FR-015 — it used to be gated on the
+ * Google Analytics config alone). A prior decision is re-applied on load so
+ * analytics storage matches the saved choice without re-prompting.
  *
  * The banner markup is always rendered (starting hidden) so the server-rendered
  * `message` prop — the `cookieconsent.message` CMS block — is present in the SSR
@@ -19,24 +23,25 @@ const STORAGE_KEY = 'ga-consent';
  * there is no content flash (it starts hidden).
  */
 export function ConsentBanner({
-  config,
+  platforms,
   message,
 }: {
-  config: GaStorefrontConfig;
+  /** Every tracking integration resolved for the channel, enabled or not. */
+  platforms: ReadonlyArray<ConsentRequiringPlatform>;
   /** Banner text — supplied from the `cookieconsent.message` CMS block. */
   message?: ReactNode;
 }): ReactNode {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!config.enabled || !config.requireConsent) return;
+    if (!shouldPromptConsent(platforms)) return;
     const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
     if (saved === 'granted' || saved === 'denied') {
       updateAnalyticsConsent(saved === 'granted');
       return;
     }
     setOpen(true);
-  }, [config]);
+  }, [platforms]);
 
   function decide(granted: boolean): void {
     try {

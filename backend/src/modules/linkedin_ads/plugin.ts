@@ -9,7 +9,7 @@ import {
   type LinkedInAuditContext,
   type LinkedInAuditSink,
 } from './services/conversion-mappings.service.js';
-import { StorefrontRevalidator } from '../google_analytics/services/storefront-revalidator.js';
+import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import { registerLinkedInAdsStorefrontRoutes } from './routes.storefront.js';
 import { registerLinkedInAdsAdminRoutes } from './routes.admin.js';
 

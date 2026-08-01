@@ -121,6 +121,7 @@ export * from './newsletter.js';
 export * from './google-analytics.js';
 export * from './linkedin-ads.js';
 export * from './meta-ads.js';
+export * from './google-tag-manager.js';
 export * from './custom-fields.js';
 export * from './credentials.js';
 export * from './ksef.js';
