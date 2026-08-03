@@ -1,0 +1,5 @@
+# Google_Product_Taxonomy_Version: 2020-01-01
+1 - Animals & Pet Supplies
+3237 - Animals & Pet Supplies > Live Animals
+2 - Animals & Pet Supplies > Pet Supplies
+3 - Animals & Pet Supplies > Pet Supplies > Bird Supplies

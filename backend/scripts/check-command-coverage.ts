@@ -88,6 +88,7 @@ export const MIGRATED_MODULES: readonly string[] = [
   '_i18n',
   'credentials',
   'ksef',
+  'product_feeds',
 ];
 
 const MUTATION_METHODS = new Set([

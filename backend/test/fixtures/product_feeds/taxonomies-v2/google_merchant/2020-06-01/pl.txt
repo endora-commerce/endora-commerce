@@ -1,0 +1,5 @@
+# Google_Product_Taxonomy_Version: 2020-06-01
+1 - Zwierzęta i artykuły dla zwierząt
+2 - Zwierzęta i artykuły dla zwierząt > Artykuły dla zwierząt
+3 - Zwierzęta i artykuły dla zwierząt > Artykuły dla zwierząt > Artykuły dla ptaków
+4 - Zwierzęta i artykuły dla zwierząt > Artykuły dla zwierząt > Artykuły dla kotów

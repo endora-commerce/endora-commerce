@@ -50,7 +50,8 @@ describe('Admin roles CRUD', () => {
     // +2 for feature 064 Meta Ads (meta_ads:read, meta_ads:write).
     // +2 for feature 063 TPay (tpay:read, tpay:write).
     // +2 for feature 065 PayU (payu:read, payu:write).
-    expect(body.data.length).toBe(65);
+    // +2 for feature 067 Product Feed (product_feeds:read, product_feeds:write).
+    expect(body.data.length).toBe(67);
     expect(body.data.some((p) => p.code === 'promotions:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'stripe:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'tpay:write')).toBe(true);

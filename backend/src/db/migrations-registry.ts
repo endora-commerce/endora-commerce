@@ -176,6 +176,12 @@ import { Migration20260801T100943PayuInit } from '../modules/payu/migrations/202
 import { Migration20260426T075235PriceListsPricingInit } from '../modules/price_lists/migrations/20260426T075235_price_lists_pricing_init.js';
 import { Migration20260504T125655PriceListsEngine } from '../modules/price_lists/migrations/20260504T125655_price_lists_engine.js';
 
+// ── product_feeds ─────────────────────────────────────────────────────────
+import { Migration20260802T073547ProductFeedsInit } from '../modules/product_feeds/migrations/20260802T073547_product_feeds_init.js';
+import { Migration20260802T073627ProductFeedsRuns } from '../modules/product_feeds/migrations/20260802T073627_product_feeds_runs.js';
+import { Migration20260802T110630ProductFeedsTaxonomies } from '../modules/product_feeds/migrations/20260802T110630_product_feeds_taxonomies.js';
+import { Migration20260803T060153ProductFeedsTaxonomyRefresh } from '../modules/product_feeds/migrations/20260803T060153_product_feeds_taxonomy_refresh.js';
+
 // ── promotions ────────────────────────────────────────────────────────────
 import { Migration20260505T074605PromotionsCriteria } from '../modules/promotions/migrations/20260505T074605_promotions_criteria.js';
 import { Migration20260618T100727PromotionsEngine } from '../modules/promotions/migrations/20260618T100727_promotions_engine.js';
@@ -406,6 +412,12 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── price_lists ───────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),
   migration('price_lists', Migration20260504T125655PriceListsEngine),
+
+  // ── product_feeds ─────────────────────────────────────────────────────────
+  migration('product_feeds', Migration20260802T073547ProductFeedsInit),
+  migration('product_feeds', Migration20260802T073627ProductFeedsRuns),
+  migration('product_feeds', Migration20260802T110630ProductFeedsTaxonomies),
+  migration('product_feeds', Migration20260803T060153ProductFeedsTaxonomyRefresh),
 
   // ── promotions ────────────────────────────────────────────────────────────
   migration('promotions', Migration20260505T074605PromotionsCriteria),

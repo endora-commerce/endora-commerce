@@ -3,33 +3,90 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import type {
-  PromotionRule,
-  PromotionRuleCondition,
-  PromotionRuleField,
-  PromotionRuleOp,
-} from '@b2b/contracts';
+import type { PromotionRule } from '@b2b/contracts';
 
 /**
- * Feature 045 — generic, controlled rule builder for the typed promotion
- * Rule AST (`all` | `condition` | `group`). Extracted as a shared admin
- * component so it can be reused beyond promotions. Built-in fields are a
- * fixed catalogue; promo-eligible product attributes are supplied by the
- * caller via `attributeFields`.
+ * Feature 045 — generic, controlled rule builder for a typed rule AST
+ * (`all` | `condition` | `group`). Extracted as a shared admin component so it
+ * can be reused beyond promotions.
+ *
+ * Feature 067 made the **built-in field catalogue a prop**. It was hard-coded
+ * to the promotion cart context (`cartTotal`, `paymentMethod`, …), which the
+ * product feed criteria panel cannot use: its criteria are about products, not
+ * carts. Forking the file would have made this the admin's *third* rule builder
+ * and forked its accessibility and bug fixes with it (Principle IX).
+ *
+ * The generalisation is deliberately conservative. Every new prop is optional
+ * and every default reproduces the promotion behaviour **exactly** — the same
+ * catalogue in the same order, the same operators, the same seed condition
+ * (`cartTotal >= 0`) and the same copy. `admin/test/components/RuleBuilder.test.tsx`
+ * pins all of it, because the incumbent callers (`PromotionRulesPage`,
+ * `PromotionEditPage`) are live screens that must not shift under this feature.
  */
 export interface RuleAttributeField {
   attributeKey: string;
   label: string;
 }
 
-interface BuiltinFieldDef {
-  key: Extract<PromotionRuleField, { kind: 'builtin' }>['key'];
-  kind: 'number' | 'string' | 'set';
-  ops: PromotionRuleOp[];
+/**
+ * The structural rule tree the component actually manipulates. Every concrete
+ * AST it edits (`PromotionRule`, the feed's `ProductSelectionRule`) is a
+ * narrowing of this: same three node kinds, different field catalogue and
+ * operator enum. Typing against the structure rather than one module's contract
+ * is what lets a second caller reuse the component without either contract
+ * learning about the other.
+ */
+export type StructuralRuleField =
+  | { kind: 'builtin'; key: string }
+  | { kind: 'attribute'; attributeKey: string }
+  | { kind: 'customField'; fieldKey: string };
+
+export type StructuralRuleValue = string | number | boolean;
+
+export interface StructuralRuleCondition {
+  kind: 'condition';
+  field: StructuralRuleField;
+  op: string;
+  values: StructuralRuleValue[];
 }
 
-const BUILTIN_FIELDS: BuiltinFieldDef[] = [
-  { key: 'cartTotal', kind: 'number', ops: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between'] },
+export type StructuralRule =
+  | { kind: 'all' }
+  | StructuralRuleCondition
+  | { kind: 'group'; op: 'AND' | 'OR'; children: StructuralRule[] };
+
+export interface RuleBuilderBuiltinField {
+  key: string;
+  kind: 'number' | 'string' | 'set';
+  ops: string[];
+  /** Shown in the picker. Defaults to `key`, which is what promotions renders. */
+  label?: string;
+  /**
+   * The operator and values used when this field seeds a brand-new condition.
+   * Only the first field of a catalogue ever needs it; it exists so the
+   * promotion default (`cartTotal >= 0`) survives the generalisation verbatim
+   * instead of silently becoming `cartTotal = ∅`.
+   */
+  seed?: { op: string; values: StructuralRuleValue[] };
+}
+
+/** Copy the component cannot know, because it depends on what is being filtered. */
+export interface RuleBuilderLabels {
+  /** Heading of the built-in `optgroup`. */
+  builtinGroup?: string;
+  /** Heading of the attribute `optgroup`. */
+  attributeGroup?: string;
+  /** The sentence shown on the `all` node. */
+  matchAll?: string;
+}
+
+const BUILTIN_FIELDS: RuleBuilderBuiltinField[] = [
+  {
+    key: 'cartTotal',
+    kind: 'number',
+    ops: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between'],
+    seed: { op: 'gte', values: [0] },
+  },
   { key: 'paymentMethod', kind: 'string', ops: ['eq', 'neq', 'in', 'notIn'] },
   { key: 'deliveryMethod', kind: 'string', ops: ['eq', 'neq', 'in', 'notIn'] },
   { key: 'deliveryCountry', kind: 'string', ops: ['eq', 'neq', 'in', 'notIn'] },
@@ -39,31 +96,49 @@ const BUILTIN_FIELDS: BuiltinFieldDef[] = [
   { key: 'category', kind: 'set', ops: ['in', 'notIn'] },
 ];
 
-const ATTRIBUTE_OPS: PromotionRuleOp[] = ['eq', 'neq', 'in', 'notIn', 'between'];
+const DEFAULT_LABELS: Required<RuleBuilderLabels> = {
+  builtinGroup: 'Cart & relationship',
+  attributeGroup: 'Attributes',
+  matchAll: 'Matches all carts.',
+};
 
-function defaultCondition(): PromotionRuleCondition {
-  return { kind: 'condition', field: { kind: 'builtin', key: 'cartTotal' }, op: 'gte', values: [0] };
+const ATTRIBUTE_OPS: string[] = ['eq', 'neq', 'in', 'notIn', 'between'];
+
+function defaultCondition(fields: RuleBuilderBuiltinField[]): StructuralRuleCondition {
+  const first = fields[0];
+  if (!first) return { kind: 'condition', field: { kind: 'attribute', attributeKey: '' }, op: 'eq', values: [] };
+  return {
+    kind: 'condition',
+    field: { kind: 'builtin', key: first.key },
+    op: first.seed?.op ?? first.ops[0] ?? 'eq',
+    values: first.seed?.values ?? [],
+  };
 }
 
-function fieldKey(field: PromotionRuleField): string {
-  return field.kind === 'builtin' ? `builtin:${field.key}` : `attribute:${field.attributeKey}`;
+function fieldKey(field: StructuralRuleField): string {
+  if (field.kind === 'builtin') return `builtin:${field.key}`;
+  if (field.kind === 'attribute') return `attribute:${field.attributeKey}`;
+  return `attribute:${field.fieldKey}`;
 }
 
-function builtinDef(field: PromotionRuleField): BuiltinFieldDef | null {
+function builtinDef(
+  field: StructuralRuleField,
+  fields: RuleBuilderBuiltinField[],
+): RuleBuilderBuiltinField | null {
   if (field.kind !== 'builtin') return null;
-  return BUILTIN_FIELDS.find((f) => f.key === field.key) ?? null;
+  return fields.find((f) => f.key === field.key) ?? null;
 }
 
-function opsForField(field: PromotionRuleField): PromotionRuleOp[] {
-  const def = builtinDef(field);
+function opsForField(field: StructuralRuleField, fields: RuleBuilderBuiltinField[]): string[] {
+  const def = builtinDef(field, fields);
   return def ? def.ops : ATTRIBUTE_OPS;
 }
 
-function isNumericField(field: PromotionRuleField): boolean {
-  return builtinDef(field)?.kind === 'number';
+function isNumericField(field: StructuralRuleField, fields: RuleBuilderBuiltinField[]): boolean {
+  return builtinDef(field, fields)?.kind === 'number';
 }
 
-function valuesToText(values: ReadonlyArray<string | number | boolean>): string {
+function valuesToText(values: ReadonlyArray<StructuralRuleValue>): string {
   return values.map((v) => String(v)).join(', ');
 }
 
@@ -78,28 +153,39 @@ function textToValues(text: string, numeric: boolean): Array<string | number> {
 /** Option lists for fields that should render a value picker, keyed by field key. */
 export type RuleFieldOptions = Partial<Record<string, Array<{ value: string; label: string }>>>;
 
-export interface RuleBuilderProps {
-  value: PromotionRule;
-  onChange: (next: PromotionRule) => void;
+export interface RuleBuilderProps<T extends StructuralRule = PromotionRule> {
+  value: T;
+  onChange: (next: T) => void;
+  /** Defaults to the promotion cart catalogue — see the file header. */
+  builtinFields?: RuleBuilderBuiltinField[];
   attributeFields?: RuleAttributeField[];
   fieldOptions?: RuleFieldOptions;
+  labels?: RuleBuilderLabels;
   disabled?: boolean;
 }
 
-export function RuleBuilder({
+export function RuleBuilder<T extends StructuralRule = PromotionRule>({
   value,
   onChange,
+  builtinFields = BUILTIN_FIELDS,
   attributeFields = [],
   fieldOptions = {},
+  labels,
   disabled = false,
-}: RuleBuilderProps): ReactNode {
+}: RuleBuilderProps<T>): ReactNode {
+  const copy: Required<RuleBuilderLabels> = { ...DEFAULT_LABELS, ...labels };
   return (
     <div className="rounded-md border border-line p-3">
       <RuleNode
         node={value}
-        onChange={onChange}
+        // The editor produces structural nodes; the caller owns the concrete
+        // AST. Every node this component can build is valid in `T` because the
+        // caller supplied the field catalogue and the operator lists it uses.
+        onChange={(next): void => onChange(next as T)}
+        builtinFields={builtinFields}
         attributeFields={attributeFields}
         fieldOptions={fieldOptions}
+        labels={copy}
         disabled={disabled}
         depth={0}
       />
@@ -110,23 +196,27 @@ export function RuleBuilder({
 function RuleNode({
   node,
   onChange,
+  builtinFields,
   attributeFields,
   fieldOptions,
+  labels,
   disabled,
   depth,
 }: {
-  node: PromotionRule;
-  onChange: (next: PromotionRule) => void;
+  node: StructuralRule;
+  onChange: (next: StructuralRule) => void;
+  builtinFields: RuleBuilderBuiltinField[];
   attributeFields: RuleAttributeField[];
   fieldOptions: RuleFieldOptions;
+  labels: Required<RuleBuilderLabels>;
   disabled: boolean;
   depth: number;
 }): ReactNode {
   if (node.kind === 'all') {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span>Matches all carts.</span>
-        <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => onChange(defaultCondition())}>
+        <span>{labels.matchAll}</span>
+        <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => onChange(defaultCondition(builtinFields))}>
           <Plus className="mr-1 h-3 w-3" /> Add condition
         </Button>
         <Button
@@ -134,7 +224,9 @@ function RuleNode({
           size="sm"
           variant="outline"
           disabled={disabled}
-          onClick={() => onChange({ kind: 'group', op: 'AND', children: [defaultCondition()] })}
+          onClick={() =>
+            onChange({ kind: 'group', op: 'AND', children: [defaultCondition(builtinFields)] })
+          }
         >
           <Plus className="mr-1 h-3 w-3" /> Add group
         </Button>
@@ -148,8 +240,10 @@ function RuleNode({
         <ConditionRow
           condition={node}
           onChange={onChange}
+          builtinFields={builtinFields}
           attributeFields={attributeFields}
           fieldOptions={fieldOptions}
+          labels={labels}
           disabled={disabled}
           onRemove={() => onChange({ kind: 'all' })}
         />
@@ -159,7 +253,13 @@ function RuleNode({
             size="sm"
             variant="ghost"
             disabled={disabled}
-            onClick={() => onChange({ kind: 'group', op: 'AND', children: [node, defaultCondition()] })}
+            onClick={() =>
+              onChange({
+                kind: 'group',
+                op: 'AND',
+                children: [node, defaultCondition(builtinFields)],
+              })
+            }
           >
             <Plus className="mr-1 h-3 w-3" /> Combine with…
           </Button>
@@ -169,7 +269,7 @@ function RuleNode({
   }
 
   // group
-  const setChild = (idx: number, child: PromotionRule): void => {
+  const setChild = (idx: number, child: StructuralRule): void => {
     onChange({ ...node, children: node.children.map((c, i) => (i === idx ? child : c)) });
   };
   const removeChild = (idx: number): void => {
@@ -199,8 +299,10 @@ function RuleNode({
               <RuleNode
                 node={child}
                 onChange={(c) => setChild(idx, c)}
+                builtinFields={builtinFields}
                 attributeFields={attributeFields}
                 fieldOptions={fieldOptions}
+                labels={labels}
                 disabled={disabled}
                 depth={depth + 1}
               />
@@ -216,7 +318,12 @@ function RuleNode({
             size="sm"
             variant="outline"
             disabled={disabled}
-            onClick={() => onChange({ ...node, children: [...node.children, defaultCondition()] })}
+            onClick={() =>
+              onChange({
+                ...node,
+                children: [...node.children, defaultCondition(builtinFields)],
+              })
+            }
           >
             <Plus className="mr-1 h-3 w-3" /> Condition
           </Button>
@@ -227,7 +334,13 @@ function RuleNode({
               variant="outline"
               disabled={disabled}
               onClick={() =>
-                onChange({ ...node, children: [...node.children, { kind: 'group', op: 'AND', children: [defaultCondition()] }] })
+                onChange({
+                  ...node,
+                  children: [
+                    ...node.children,
+                    { kind: 'group', op: 'AND', children: [defaultCondition(builtinFields)] },
+                  ],
+                })
               }
             >
               <Plus className="mr-1 h-3 w-3" /> Group
@@ -242,46 +355,47 @@ function RuleNode({
 function ConditionRow({
   condition,
   onChange,
+  builtinFields,
   attributeFields,
   fieldOptions,
+  labels,
   disabled,
   onRemove,
 }: {
-  condition: PromotionRuleCondition;
-  onChange: (next: PromotionRule) => void;
+  condition: StructuralRuleCondition;
+  onChange: (next: StructuralRule) => void;
+  builtinFields: RuleBuilderBuiltinField[];
   attributeFields: RuleAttributeField[];
   fieldOptions: RuleFieldOptions;
+  labels: Required<RuleBuilderLabels>;
   disabled: boolean;
   onRemove: () => void;
 }): ReactNode {
-  const numeric = isNumericField(condition.field);
-  const ops = opsForField(condition.field);
+  const numeric = isNumericField(condition.field, builtinFields);
+  const ops = opsForField(condition.field, builtinFields);
   const options = condition.field.kind === 'builtin' ? fieldOptions[condition.field.key] : undefined;
 
   const onFieldChange = (selected: string): void => {
-    let field: PromotionRuleField;
-    if (selected.startsWith('attribute:')) {
-      field = { kind: 'attribute', attributeKey: selected.slice('attribute:'.length) };
-    } else {
-      field = { kind: 'builtin', key: selected.slice('builtin:'.length) as BuiltinFieldDef['key'] };
-    }
-    const nextOps = opsForField(field);
-    const op = nextOps.includes(condition.op) ? condition.op : (nextOps[0] as PromotionRuleOp);
+    const field: StructuralRuleField = selected.startsWith('attribute:')
+      ? { kind: 'attribute', attributeKey: selected.slice('attribute:'.length) }
+      : { kind: 'builtin', key: selected.slice('builtin:'.length) };
+    const nextOps = opsForField(field, builtinFields);
+    const op = nextOps.includes(condition.op) ? condition.op : (nextOps[0] ?? condition.op);
     onChange({ ...condition, field, op, values: [] });
   };
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select className="w-44" value={fieldKey(condition.field)} disabled={disabled} onChange={(e) => onFieldChange(e.target.value)}>
-        <optgroup label="Cart & relationship">
-          {BUILTIN_FIELDS.map((f) => (
+        <optgroup label={labels.builtinGroup}>
+          {builtinFields.map((f) => (
             <option key={f.key} value={`builtin:${f.key}`}>
-              {f.key}
+              {f.label ?? f.key}
             </option>
           ))}
         </optgroup>
         {attributeFields.length > 0 ? (
-          <optgroup label="Attributes">
+          <optgroup label={labels.attributeGroup}>
             {attributeFields.map((a) => (
               <option key={a.attributeKey} value={`attribute:${a.attributeKey}`}>
                 {a.label}
@@ -294,7 +408,7 @@ function ConditionRow({
         className="w-28"
         value={condition.op}
         disabled={disabled}
-        onChange={(e) => onChange({ ...condition, op: e.target.value as PromotionRuleOp })}
+        onChange={(e) => onChange({ ...condition, op: e.target.value })}
       >
         {ops.map((op) => (
           <option key={op} value={op}>

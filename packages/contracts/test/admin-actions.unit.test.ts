@@ -129,6 +129,12 @@ describe('KnownIconNameSchema', () => {
   it('rejects an icon name outside the allowlist', () => {
     expect(() => KnownIconNameSchema.parse('NotARealIcon')).toThrow();
   });
+
+  // Feature 067 — the Product Feed module's sidebar entry and landing palette
+  // action both use `Rss`, so the two agree visually.
+  it('accepts the feed icon', () => {
+    expect(() => KnownIconNameSchema.parse('Rss')).not.toThrow();
+  });
 });
 
 describe('GetAdminActionsQuerySchema', () => {
