@@ -31,13 +31,76 @@ import type {
  * hand-rolled DST arithmetic is the classic way to break a scheduler).
  */
 
+/**
+ * The module-wide taxonomy-check schedule, as a port — feature 067 / FR-087,
+ * FR-089.
+ *
+ * Its desired state is a single boolean: **this scheduler exists iff
+ * `product_feeds.taxonomy_fetch_enabled` is true**. Turning the switch off
+ * therefore *deletes* the job rather than leaving one that wakes weekly and
+ * gives up, which is what makes "off means no outbound request whatsoever" a
+ * structural claim rather than a code-review claim.
+ *
+ * A port rather than a direct BullMQ call for the reason everything else here
+ * is one: the test harness carries no Redis, and a no-op default keeps that
+ * true without a null check at every call site.
+ */
+export interface TaxonomyRefreshSchedulePort {
+  ensure(cron: string): Promise<void>;
+  remove(): Promise<void>;
+}
+
+export const noopTaxonomyRefreshSchedule: TaxonomyRefreshSchedulePort = {
+  async ensure(): Promise<void> {
+    /* no scheduler backend configured */
+  },
+  async remove(): Promise<void> {
+    /* no scheduler backend configured */
+  },
+};
+
 export interface FeedScheduleReconcilerDeps {
   emFactory: () => EntityManager;
   scheduler: FeedScheduler;
+  /** Present only where a queue is; defaults to the no-op. */
+  taxonomyRefreshSchedule?: TaxonomyRefreshSchedulePort;
+  /** Reads `taxonomy_fetch_enabled` / `taxonomy_fetch_cron` from Settings. */
+  taxonomyRefreshSettings?: {
+    enabled(): Promise<boolean>;
+    cron(): Promise<string>;
+  };
 }
 
 export class FeedScheduleReconciler {
   constructor(private readonly deps: FeedScheduleReconcilerDeps) {}
+
+  /**
+   * Asserts the taxonomy-check schedule from the setting (FR-087, FR-089).
+   *
+   * Never throws: Redis being unreachable must not fail a boot or a settings
+   * save, and the next reconcile repairs it. The consequence of a missed
+   * removal is a job that runs a check nobody asked for, which the refresh
+   * service itself refuses when the switch is off — belt and braces, because
+   * "no outbound request" is a promise made to an operator, not an aspiration.
+   */
+  async reconcileTaxonomyRefreshSchedule(): Promise<'installed' | 'removed' | 'skipped'> {
+    // command-coverage-ignore: derived index. Projects the already-committed
+    // `product_feeds.taxonomy_fetch_enabled` setting into BullMQ; the audited
+    // write is the Settings module's own.
+    const settings = this.deps.taxonomyRefreshSettings;
+    const schedule = this.deps.taxonomyRefreshSchedule ?? noopTaxonomyRefreshSchedule;
+    if (!settings) return 'skipped';
+    try {
+      if (await settings.enabled()) {
+        await schedule.ensure(await settings.cron());
+        return 'installed';
+      }
+      await schedule.remove();
+      return 'removed';
+    } catch {
+      return 'skipped';
+    }
+  }
 
   /**
    * The desired state: every feed that is enabled **and** carries a complete
@@ -182,6 +245,39 @@ export function attachFeedScheduleSync(
   };
 
   const off = eventBus.on('product_feeds.feed_changed', onChange);
+  return {
+    dispose() {
+      off();
+    },
+  };
+}
+
+/** The two settings whose value decides whether the check scheduler exists. */
+const TAXONOMY_SCHEDULE_SETTING_CODES = new Set([
+  'product_feeds.taxonomy_fetch_enabled',
+  'product_feeds.taxonomy_fetch_cron',
+]);
+
+/**
+ * Makes the taxonomy master switch take effect immediately — feature 067 /
+ * FR-087, FR-089, research §R21.
+ *
+ * The Settings module emits `settings.value_changed` on commit, so subscribing
+ * here means turning the switch off removes the Job Scheduler at that moment
+ * rather than at the next boot. An operator who has just been told the platform
+ * will stop contacting Google should not have to restart it to make that true.
+ */
+export function attachTaxonomyScheduleSync(
+  eventBus: ScheduleEventBus,
+  schedules: Pick<FeedScheduleReconciler, 'reconcileTaxonomyRefreshSchedule'>,
+): FeedScheduleSyncHandle {
+  const onChange = async (payload: unknown): Promise<void> => {
+    const settingCode = (payload as { settingCode?: string } | null)?.settingCode;
+    if (!settingCode || !TAXONOMY_SCHEDULE_SETTING_CODES.has(settingCode)) return;
+    await schedules.reconcileTaxonomyRefreshSchedule();
+  };
+
+  const off = eventBus.on('settings.value_changed', onChange);
   return {
     dispose() {
       off();

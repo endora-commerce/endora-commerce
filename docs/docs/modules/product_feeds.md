@@ -112,7 +112,8 @@ serving**. The panel warns you about that before you save, not afterwards.
 ### Category mapping (Google and Meta)
 
 Both providers understand their own product taxonomy. The platform ships those taxonomies (Google's
-5 595 categories, Meta's 2 967, each in English and Polish) so nothing is fetched at runtime.
+5 595 categories, Meta's 2 967, each in English and Polish), so generating a feed never depends on
+reaching Google or Meta.
 
 Open the mapping screen from the command palette (⌘K / CTRL+K → *Feed category mapping*). Map a shop
 category to a provider node and every descendant inherits it, unless it carries a mapping of its
@@ -121,11 +122,66 @@ coverage strip shows how many categories are mapped, inherited or unmapped.
 
 - An **unmapped** category is not an error: the field is omitted and the item is still emitted, with
   a warning on the run so you can find it.
-- When a taxonomy revision arrives with a platform upgrade and a node you mapped no longer exists,
-  the mapping is kept and flagged **stale** — never remapped to a guess and never deleted. The
-  screen lists stale mappings for review.
+- When a newer taxonomy revision comes into use and a node you mapped no longer exists, the mapping
+  is kept and flagged **stale** — never remapped to a guess and never deleted. The screen lists
+  stale mappings for review. A revision only comes into use when you promote it on
+  [Taxonomy updates](#taxonomy-updates); installing one changes nothing.
 - Above 1 000 shop categories the screen switches from a tree to a paged flat list grouped by
   parent, with the same rows and the same coverage strip.
+
+### Taxonomy updates
+
+Google and Meta reorganise their category lists once or twice a year. The platform can check for a
+newer list and install it — and installing one **changes nothing** until you say so.
+
+**It is off by default, and off is a fully supported state.** With the switch off the platform makes
+no outbound request at all: no scheduled check, no manual check, no probe at boot. Many
+installations run this way on purpose, and an air-gapped one has to. Turning it on is one setting,
+on a screen that names the exact addresses that will be contacted before you flip it.
+
+**Turning it on.** *Settings → Taxonomy updates* (`product_feeds_taxonomy`):
+
+| Setting | What it does |
+| --- | --- |
+| Check for new taxonomy revisions | The master switch. Off by default. |
+| When to check | Cron, interpreted in **UTC**. Defaults to Monday 04:00. These lists change once or twice a year, so checking more often buys nothing. |
+| Google / Meta category list (English, Polish) | The four addresses that will be downloaded. Point them at an internal mirror or a proxy if this platform cannot reach the providers directly — that is the supported answer for a deployment behind a proxy. `https` only. |
+| Category lists kept per provider | How many revisions to retain. The list in use, the newest one nobody has decided about, and any list still holding a category one of your mappings points at are never deleted, whatever this is set to. |
+
+**What a check does.** It downloads both language files for a provider, checks that they really are
+a category list, and compares them with what you already have. If the list is genuinely different it
+is installed **inactive**: your feeds keep using the list they were using, no mapping's status
+changes, and the only visible effect is a new row on *Product feeds → Taxonomy updates* (⌘K /
+CTRL+K → *Taxonomy updates*). If the file has not changed, nothing is created.
+
+**Reading a check.** The screen lists every check with its outcome and, when something went wrong, a
+reason written to tell you **whose side the problem is on**:
+
+| Reason | What it means |
+| --- | --- |
+| `transport` | This server could not reach the provider — usually no outbound internet, or a proxy or firewall. Point the source address at your proxy or an internal copy. |
+| `not_found` | The provider no longer publishes a file at that address. Find the current one in their documentation and update the setting. This is the only failure that raises a notification, and it does so once per transition into failure, not once per check. |
+| `http_status` | The provider answered with an error. Usually temporary on their side; the next check retries. |
+| `not_taxonomy` | The address returned a web page — often a login screen or a proxy notice. Open it in a browser to see what it actually serves. |
+| `empty` / `truncated` / `too_large` | The download was empty, cut short, or larger than the platform will accept. Nothing was installed. |
+| `no_nodes` / `implausible` | The file downloaded but no categories, or far too few, could be read from it. Nothing was installed. |
+| `incomplete_languages` | One language downloaded and the other did not. A list is installed only when both are complete. |
+
+**In every one of those cases your feeds are unaffected** and keep using the list already installed.
+A failed check never fails a generation run, never fails boot and never retries in a storm — the
+next scheduled check is the retry, and *Check now* is there for impatience.
+
+**Promoting.** A revision only comes into use when you promote it, and you can only reach the
+promote button through the impact preview. That preview is computed from your real data and tells
+you what you actually need to know: how many of your mappings would need a new category, how many
+would start working again, and — the number that matters — how many of your shop categories would
+**stop sending a provider category at all**, counting the ones that inherit through an ancestor.
+Promotion is audited, atomic, and reversible: going back to the earlier list is the same action
+against the earlier row.
+
+The request carries the impact figure you were shown, so if a colleague edits mappings while your
+preview sits open the promotion is refused and the numbers are recalculated. Nothing about this
+mechanism can change what a feed emits without somebody reading that screen and pressing the button.
 
 ### Scheduling
 
@@ -281,22 +337,43 @@ regression net, and it exercises the public URL as well, because that endpoint i
 Every operator write is a Command: `product_feeds.feed.create|update|delete|duplicate`,
 `product_feeds.token.rotate|revoke`, `product_feeds.run.start`,
 `product_feeds.template.create|update|duplicate|delete|import`,
-`product_feeds.taxonomy_mapping.set`. Each records exactly one audit entry attributed to the acting
+`product_feeds.taxonomy_mapping.set`, `product_feeds.taxonomy_revision.promote` and
+`product_feeds.taxonomy_check.start`. Each records exactly one audit entry attributed to the acting
 administrator; a whole template import is one entry, not one per field.
 
+The last two are worth reading together. Promoting a taxonomy revision is the **only** write in the
+refresh mechanism that changes what a feed emits, so it is a Command; starting a check by hand is
+audited because it records who asked the platform to make an outbound request, exactly as
+`product_feeds.run.start` records who asked for a generation.
+
 Machine work — a scheduled run, the retention sweep, the reaper, the schedule projection into Redis,
-the taxonomy install — records **nothing**, and each such write carries a
-`command-coverage-ignore: <reason>` marker so the static checker stays honest. Pinned by
-`backend/test/integration/product_feeds/command-coverage.test.ts`.
+the taxonomy install, and **the scheduled taxonomy check together with the inactive revision it may
+install** — records **nothing**, and each such write carries a `command-coverage-ignore: <reason>`
+marker so the static checker stays honest. A scheduled check is machine work precisely because it
+cannot change output: an audit row per weekly check on every installation would bury the operator's
+actual decisions in noise, and the check history table is a richer record than an audit entry would
+be. Pinned by `backend/test/integration/product_feeds/command-coverage.test.ts`.
 
 ### Provider taxonomies
 
-Revisions are bundled on disk under `data/taxonomies/<providerCode>/<revision>/<language>.txt` and
-installed by a boot reconciler in one transaction per revision. **Nothing is fetched at runtime**
-(FR-077): a runtime fetch would make feed output depend on a third party's uptime and would break
-air-gapped installations, so a new revision arrives with a platform upgrade. Installing the current
-drop (8 562 nodes across four files) takes about **2 seconds**; after that the files are never
-opened again, because the database is asked first.
+A revision reaches the database by exactly two routes, and both produce the same kind of row.
+
+**Bundled with the platform.** Revisions ship on disk under
+`data/taxonomies/<providerCode>/<revision>/<language>.txt` and are installed by a boot reconciler in
+one transaction per revision. This path opens no socket and never has. Installing the current drop
+(8 562 nodes across four files) takes about **2 seconds**; after that the files are never opened
+again, because the database is asked first. A bundled revision is marked current only when the
+provider has no current revision yet — on a fresh database that is every first install, and on a
+long-lived one it means a platform upgrade cannot silently replace a revision an operator chose.
+
+**Fetched from the provider.** An optional check, **off by default**, downloads the provider's
+published files and installs a changed revision **inactive** (see
+[Taxonomy updates](#taxonomy-updates)). It cannot become the revision in force by itself.
+
+**Generation never depends on reaching a provider** (FR-077). A run reads the revision in force from
+Postgres and contacts nobody, so a provider that is down, slow or serving nonsense produces a failed
+*check*, never a failed or altered *run* — and an installation that leaves the switch off makes no
+outbound request at all.
 
 An installation with no bundled data boots normally: the mapping screen reports that no taxonomy is
 installed, and `g:google_product_category` resolves as unmapped, which omits the field and still

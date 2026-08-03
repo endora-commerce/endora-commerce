@@ -2357,9 +2357,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }),
     );
   });
-  // FR-077 / FR-078 — install any bundled taxonomy revision the database does
-  // not have and re-evaluate mappings for staleness. Reads files only; never
-  // the network. An installation with no bundled data simply installs nothing.
+  // FR-077 / FR-078 / FR-086 — install any bundled taxonomy revision the
+  // database does not have and re-evaluate mappings for staleness. **This path
+  // reads files only and opens no socket**; a bundled revision becomes the one
+  // in force only when the provider has none, so a platform upgrade never
+  // activates a revision an operator did not choose. An installation with no
+  // bundled data simply installs nothing.
+  //
+  // The other way a revision can arrive is the optional taxonomy check, which
+  // ships **off** (`product_feeds.taxonomy_fetch_enabled` defaults to `false`):
+  // its scheduler is asserted by `reconcileSchedules` below and exists only
+  // while the setting is on, and a check it runs may only add an **inactive**
+  // revision. Feed generation reads the revision in force from Postgres and
+  // contacts nobody, however either arrived.
   void productFeeds.handle.reconcileTaxonomies().catch((err: unknown) => {
     console.warn(
       JSON.stringify({

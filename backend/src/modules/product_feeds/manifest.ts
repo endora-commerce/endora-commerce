@@ -20,9 +20,42 @@ import {
 export const PRODUCT_FEEDS_READ_PERMISSION = 'product_feeds:read';
 export const PRODUCT_FEEDS_WRITE_PERMISSION = 'product_feeds:write';
 
+/**
+ * Weekly, Monday 04:00 **UTC** (research §R21). Per-feed schedules carry an
+ * IANA zone because an operator reasons about "before the shop opens"; nobody
+ * reasons about when a taxonomy check runs, so fixing it to UTC removes a DST
+ * question with no user-visible payoff.
+ */
+export const DEFAULT_TAXONOMY_FETCH_CRON = '0 4 * * 1';
+
+/**
+ * The providers' own published addresses (FR-090). Shipped as defaults, and
+ * overridable per deployment so an installation can point the check at an
+ * internal mirror or at a proxy its egress policy permits — which is also the
+ * supported answer for a deployment behind a proxy, because Node's global
+ * `fetch` ignores `HTTPS_PROXY` and teaching it to would mean a new dependency.
+ */
+export const DEFAULT_TAXONOMY_SOURCE_URLS = {
+  google_merchant: {
+    en: 'https://www.google.com/basepages/producttype/taxonomy-with-ids.en-US.txt',
+    pl: 'https://www.google.com/basepages/producttype/taxonomy-with-ids.pl-PL.txt',
+  },
+  meta: {
+    en: 'https://www.facebook.com/products/categories/en_US.txt',
+    pl: 'https://www.facebook.com/products/categories/pl_PL.txt',
+  },
+} as const;
+
 export const productFeedsSettingsManifest = defineModuleSettingsManifest({
   moduleCode: 'product_feeds',
-  groups: [{ code: 'product_feeds', name: 'Product feeds' }],
+  groups: [
+    { code: 'product_feeds', name: 'Product feeds' },
+    // Feature 067 Phase 11 — the taxonomy revision refresh (research §R24).
+    // A group of its own because it is the one place on the platform that
+    // decides whether this module opens an outbound socket at all, and it has
+    // to disclose the exact addresses before the switch is flipped.
+    { code: 'product_feeds_taxonomy', name: 'Taxonomy updates' },
+  ],
   settings: [
     {
       code: PRODUCT_FEED_SETTING_CODES.ARTEFACT_RETENTION_COUNT,
@@ -86,6 +119,81 @@ export const productFeedsSettingsManifest = defineModuleSettingsManifest({
       groupCode: 'product_feeds',
       valueType: 'number',
       defaultValue: 1000,
+    },
+
+    // -----------------------------------------------------------------------
+    // Group `product_feeds_taxonomy` — revision refresh (FR-086 – FR-099).
+    //
+    // These strings ship in English only: `defineModuleSettingsManifest` has no
+    // `nameKey`/`descriptionKey`, unlike manifest actions, so no setting on this
+    // platform is translated. The bilingual consent copy therefore lives on the
+    // module's own screen, where the module's `en`/`pl` bundle applies
+    // (ux-design §2.13).
+    // -----------------------------------------------------------------------
+    {
+      code: PRODUCT_FEED_SETTING_CODES.TAXONOMY_FETCH_ENABLED,
+      name: 'Check for new taxonomy revisions',
+      description:
+        'When on, once per the schedule below the platform downloads the Google and Meta category lists from the addresses below and nothing else. A downloaded list is installed but not used: an administrator promotes it on Product feeds → Taxonomy updates after reading what it would change. Off by default; off means no request is made at all.',
+      groupCode: 'product_feeds_taxonomy',
+      valueType: 'boolean',
+      // FR-087 / research §R24 — a default must not silently change a product's
+      // network behaviour, and off must be the state every dev environment and
+      // every CI run exercises.
+      defaultValue: false,
+    },
+    {
+      code: PRODUCT_FEED_SETTING_CODES.TAXONOMY_FETCH_CRON,
+      name: 'When to check',
+      description:
+        'Cron expression, interpreted in UTC. Defaults to Monday at 04:00. These lists change once or twice a year, so checking more often than weekly buys nothing.',
+      groupCode: 'product_feeds_taxonomy',
+      valueType: 'string',
+      defaultValue: DEFAULT_TAXONOMY_FETCH_CRON,
+    },
+    {
+      code: PRODUCT_FEED_SETTING_CODES.TAXONOMY_SOURCE_URL_GOOGLE_EN,
+      name: 'Google category list (English)',
+      description:
+        "Address of Google's taxonomy-with-ids.en-US.txt. Point it at an internal mirror or a proxy if this platform cannot reach Google directly. https only.",
+      groupCode: 'product_feeds_taxonomy',
+      valueType: 'string',
+      defaultValue: DEFAULT_TAXONOMY_SOURCE_URLS.google_merchant.en,
+    },
+    {
+      code: PRODUCT_FEED_SETTING_CODES.TAXONOMY_SOURCE_URL_GOOGLE_PL,
+      name: 'Google category list (Polish)',
+      description:
+        "Address of Google's taxonomy-with-ids.pl-PL.txt. A revision is installed only when both languages download successfully.",
+      groupCode: 'product_feeds_taxonomy',
+      valueType: 'string',
+      defaultValue: DEFAULT_TAXONOMY_SOURCE_URLS.google_merchant.pl,
+    },
+    {
+      code: PRODUCT_FEED_SETTING_CODES.TAXONOMY_SOURCE_URL_META_EN,
+      name: 'Meta category list (English)',
+      description: "Address of Meta's en_US.txt product category file. https only.",
+      groupCode: 'product_feeds_taxonomy',
+      valueType: 'string',
+      defaultValue: DEFAULT_TAXONOMY_SOURCE_URLS.meta.en,
+    },
+    {
+      code: PRODUCT_FEED_SETTING_CODES.TAXONOMY_SOURCE_URL_META_PL,
+      name: 'Meta category list (Polish)',
+      description:
+        "Address of Meta's pl_PL.txt product category file. A revision is installed only when both languages download successfully.",
+      groupCode: 'product_feeds_taxonomy',
+      valueType: 'string',
+      defaultValue: DEFAULT_TAXONOMY_SOURCE_URLS.meta.pl,
+    },
+    {
+      code: PRODUCT_FEED_SETTING_CODES.TAXONOMY_REVISION_RETENTION_COUNT,
+      name: 'Category lists kept per provider',
+      description:
+        'How many revisions to keep. The list in use, the newest one nobody has decided about, and any list still holding a category one of your mappings points at are never deleted, whatever this is set to.',
+      groupCode: 'product_feeds_taxonomy',
+      valueType: 'number',
+      defaultValue: 3,
     },
   ],
 });
@@ -179,6 +287,26 @@ export const manifest = defineModuleManifest({
       requiredPermission: PRODUCT_FEEDS_WRITE_PERMISSION,
       keywords: ['taksonomia', 'mapowanie kategorii', 'kategorie', 'google merchant', 'meta'],
       weight: 254,
+    },
+    {
+      // The taxonomy-updates screen has no sidebar entry either: it is reached
+      // from the category-mapping header, so the palette is its second way in.
+      // `Download` is already in `KnownIconNameSchema`, so no icon-map change.
+      id: 'open-feed-taxonomy-revisions',
+      labelKey: 'actions.openFeedTaxonomyRevisions.label',
+      descriptionKey: 'actions.openFeedTaxonomyRevisions.description',
+      icon: 'Download',
+      targetRoute: '/product-feeds/taxonomy-revisions',
+      requiredPermission: PRODUCT_FEEDS_READ_PERMISSION,
+      keywords: [
+        'aktualizacja taksonomii',
+        'nowa wersja',
+        'wersja taksonomii',
+        'pobieranie taksonomii',
+        'taxonomy update',
+        'revision',
+      ],
+      weight: 255,
     },
   ],
 });

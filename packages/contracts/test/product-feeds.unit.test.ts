@@ -2,13 +2,20 @@ import { describe, expect, it } from 'vitest';
 import {
   cronExpressionSchema,
   feedFieldSourceCatalogueSchema,
+  feedTaxonomyCheckSchema,
+  feedTaxonomyRevisionSchema,
+  feedTaxonomySourceUrlSchema,
   feedTemplateDocumentSchema,
   feedTemplateDraftSchema,
   feedTemplateFieldWriteSchema,
   productSelectionRuleSchema,
+  promoteFeedTaxonomyRevisionRequestSchema,
   timezoneSchema,
   updateFeedTemplateRequestSchema,
   updateProductFeedRequestSchema,
+  PRODUCT_FEED_ERROR_CODES,
+  PRODUCT_FEED_SETTING_CODES,
+  TAXONOMY_FETCH_LIMITS,
   type ProductSelectionRule,
 } from '../src/product-feeds.js';
 
@@ -311,5 +318,123 @@ describe('feedFieldSourceCatalogueSchema', () => {
       groups: [{ kind: 'computed', sources: [{ sourceKind: 'liquid_expression' }] }],
     });
     expect(parsed.success).toBe(false);
+  });
+});
+
+/**
+ * Feature 067 Phase 11 / T118 — the taxonomy revision refresh shapes
+ * (FR-086 – FR-099). The invariant every one of them serves: a check may only
+ * ADD an inactive revision, so there is a `promote` request schema and no
+ * `activate` flag anywhere else.
+ */
+describe('taxonomy revision refresh contracts (FR-086 – FR-099)', () => {
+  const revision = {
+    id: '11111111-1111-4111-8111-111111111111',
+    providerCode: 'google_merchant',
+    revision: '2026-05-14',
+    isCurrent: false,
+    nodeCount: 4782,
+    source: 'fetched',
+    sourceUrls: { en: 'https://example.test/en.txt', pl: 'https://example.test/pl.txt' },
+    installedAt: '2026-05-14T04:00:00.000Z',
+    fetchedAt: '2026-05-14T04:00:00.000Z',
+    promotedAt: null,
+    supersededAt: null,
+    flags: ['shrink'],
+  };
+
+  it('accepts a fetched revision and defaults `sourceUrls` / `flags`', () => {
+    expect(feedTaxonomyRevisionSchema.parse(revision).flags).toEqual(['shrink']);
+    const bundled = feedTaxonomyRevisionSchema.parse({
+      ...revision,
+      source: 'bundled',
+      sourceUrls: undefined,
+      fetchedAt: null,
+      flags: undefined,
+    });
+    expect(bundled.sourceUrls).toEqual({});
+    expect(bundled.flags).toEqual([]);
+  });
+
+  it('refuses a source outside {bundled, fetched} and an unknown flag', () => {
+    expect(feedTaxonomyRevisionSchema.safeParse({ ...revision, source: 'uploaded' }).success).toBe(
+      false,
+    );
+    expect(feedTaxonomyRevisionSchema.safeParse({ ...revision, flags: ['grew'] }).success).toBe(
+      false,
+    );
+  });
+
+  it('requires the impact acknowledgement on promote (FR-095)', () => {
+    expect(promoteFeedTaxonomyRevisionRequestSchema.safeParse({}).success).toBe(false);
+    expect(
+      promoteFeedTaxonomyRevisionRequestSchema.parse({ expectedStaleMappingCount: 0 })
+        .expectedStaleMappingCount,
+    ).toBe(0);
+  });
+
+  it('keeps the check outcome and reason vocabularies closed', () => {
+    const check = {
+      id: '22222222-2222-4222-8222-222222222222',
+      providerCode: 'meta',
+      trigger: 'scheduled',
+      startedAt: '2026-05-14T04:00:00.000Z',
+      finishedAt: null,
+      outcome: null,
+      reason: null,
+      detail: null,
+      httpStatus: null,
+      bytesRead: null,
+      contentHash: null,
+      installedTaxonomyId: null,
+    };
+    expect(feedTaxonomyCheckSchema.parse(check).outcome).toBeNull();
+    expect(feedTaxonomyCheckSchema.safeParse({ ...check, outcome: 'promoted' }).success).toBe(false);
+    expect(feedTaxonomyCheckSchema.safeParse({ ...check, reason: 'firewall' }).success).toBe(false);
+    expect(
+      feedTaxonomyCheckSchema.safeParse({ ...check, outcome: 'rejected', reason: 'too_large' })
+        .success,
+    ).toBe(true);
+  });
+
+  it('refuses a source URL that is not credential-free https without a fragment (FR-091)', () => {
+    expect(feedTaxonomySourceUrlSchema.safeParse('https://example.test/en.txt').success).toBe(true);
+    for (const bad of [
+      'http://example.test/en.txt',
+      'https://user:pass@example.test/en.txt',
+      'https://example.test/en.txt#frag',
+      'ftp://example.test/en.txt',
+      'not a url',
+    ]) {
+      expect(feedTaxonomySourceUrlSchema.safeParse(bad).success, bad).toBe(false);
+    }
+  });
+
+  it('carries the four new error codes and the eight new setting codes', () => {
+    expect(PRODUCT_FEED_ERROR_CODES.TAXONOMY_FETCH_DISABLED).toBe('taxonomy_fetch_disabled');
+    expect(PRODUCT_FEED_ERROR_CODES.TAXONOMY_CHECK_IN_PROGRESS).toBe('taxonomy_check_in_progress');
+    expect(PRODUCT_FEED_ERROR_CODES.IMPACT_CHANGED).toBe('impact_changed');
+    expect(PRODUCT_FEED_ERROR_CODES.TAXONOMY_REVISION_ALREADY_CURRENT).toBe(
+      'taxonomy_revision_already_current',
+    );
+    expect(PRODUCT_FEED_SETTING_CODES.TAXONOMY_FETCH_ENABLED).toBe(
+      'product_feeds.taxonomy_fetch_enabled',
+    );
+    expect(PRODUCT_FEED_SETTING_CODES.TAXONOMY_SOURCE_URL_META_PL).toBe(
+      'product_feeds.taxonomy_source_url_meta_pl',
+    );
+  });
+
+  it('keeps the egress limits as constants, not settings (FR-091)', () => {
+    expect(TAXONOMY_FETCH_LIMITS.MAX_REDIRECTS).toBe(3);
+    expect(TAXONOMY_FETCH_LIMITS.MAX_RESPONSE_BYTES).toBe(8 * 1024 * 1024);
+    expect(TAXONOMY_FETCH_LIMITS.MIN_PLAUSIBLE_NODES).toBe(500);
+    // No operator-writable setting may widen an SSRF guard: none of the egress
+    // limits above is reachable through a `product_feeds.*` setting code.
+    expect(
+      Object.values(PRODUCT_FEED_SETTING_CODES).some((code) =>
+        /request_timeout|redirect|response_bytes|plausible/.test(code),
+      ),
+    ).toBe(false);
   });
 });

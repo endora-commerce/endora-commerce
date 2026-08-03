@@ -202,6 +202,7 @@ import { FeedArtefact } from '../modules/product_feeds/entities/feed-artefact.en
 import { FeedTaxonomy } from '../modules/product_feeds/entities/feed-taxonomy.entity.js';
 import { FeedTaxonomyNode } from '../modules/product_feeds/entities/feed-taxonomy-node.entity.js';
 import { FeedTaxonomyMapping } from '../modules/product_feeds/entities/feed-taxonomy-mapping.entity.js';
+import { FeedTaxonomyCheck } from '../modules/product_feeds/entities/feed-taxonomy-check.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -382,6 +383,7 @@ export const ALL_ENTITIES = [
   FeedTaxonomy,
   FeedTaxonomyNode,
   FeedTaxonomyMapping,
+  FeedTaxonomyCheck,
   // search analytics ingest (feature 006 / US3)
   SearchPhraseRecord,
   // comparisons (feature 007)

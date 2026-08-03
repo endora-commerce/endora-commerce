@@ -364,6 +364,14 @@ export const ERROR_CODES = {
    * the operator has to be told first.
    */
   PRODUCT_FEED_CONFIRMATION_REQUIRED: 'PRODUCT_FEED_CONFIRMATION_REQUIRED',
+  /**
+   * A taxonomy revision write refused on a state the operator can see and act
+   * on: the mechanism is switched off, a check for that provider is already
+   * running, the impact figure they acknowledged no longer matches, or the
+   * revision is already the one in force. `details.reason` carries which one,
+   * from `PRODUCT_FEED_ERROR_CODES` (feature 067, FR-087, FR-095, FR-096).
+   */
+  PRODUCT_FEED_TAXONOMY_CONFLICT: 'PRODUCT_FEED_TAXONOMY_CONFLICT',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

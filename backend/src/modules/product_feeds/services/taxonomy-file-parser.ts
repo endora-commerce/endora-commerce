@@ -1,10 +1,12 @@
 /**
- * Parser for the bundled provider taxonomy files — feature 067 / FR-077.
+ * Parser for the provider taxonomy files — feature 067 / FR-077, FR-088.
  *
- * The two providers publish the same information in two shapes, and the files
- * are vendored **verbatim** so a future data drop is a plain download and the
- * provenance stays auditable. That means one tolerant parser rather than a
- * hand-massaged intermediate format nobody can re-derive:
+ * It parses the same bytes whichever way they arrived: the files vendored
+ * inside the module (`data/taxonomies/…`, loaded at boot) and the bytes a
+ * taxonomy check downloaded (`taxonomy-source-fetcher.ts`). The vendored files
+ * are kept **verbatim** so a data drop is a plain download and the provenance
+ * stays auditable, which is also what lets one tolerant parser serve both paths
+ * rather than a hand-massaged intermediate format nobody can re-derive:
  *
  *   Google  `1 - Animals & Pet Supplies > Pet Supplies`
  *   Meta    `1,food & beverages > food > soups & broths`
@@ -16,6 +18,31 @@
  * Pure and synchronous: file reading is the reconciler's job, so this is unit
  * testable against a three-line fixture instead of a 500 KB shipped asset.
  */
+
+/**
+ * Google stamps its revision inside the file, as a comment
+ * `# Google_Product_Taxonomy_Version: 2021-09-21`, which `parseTaxonomyFile`
+ * skips along with every other comment. Meta stamps nothing at all.
+ *
+ * A separate export rather than a second return value from `parseTaxonomyFile`
+ * on purpose: that function's behaviour and signature are relied on by the boot
+ * reconciler and by its own tests, and widening them to serve the refresh path
+ * would make one of the two callers pay for the other's needs.
+ */
+const GOOGLE_VERSION_HEADER_RE = /^#\s*google_product_taxonomy_version\s*:\s*(.+?)\s*$/i;
+
+export function parseTaxonomyHeader(content: string): string | null {
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.replace(/^\uFEFF/, '').trim();
+    if (line === '') continue;
+    // The stamp is in the file's preamble; once real data starts there is no
+    // point walking a 5 600-line file looking for a comment.
+    if (!line.startsWith('#')) return null;
+    const match = GOOGLE_VERSION_HEADER_RE.exec(line);
+    if (match?.[1]) return match[1];
+  }
+  return null;
+}
 
 export interface ParsedTaxonomyLine {
   externalId: string;

@@ -98,6 +98,7 @@ import { FeedTemplateEditorPage } from './modules/product_feeds/FeedTemplateEdit
 import { FeedTemplateImportPage } from './modules/product_feeds/FeedTemplateImportPage.js';
 import { FeedRunDetailPage } from './modules/product_feeds/FeedRunDetailPage.js';
 import { CategoryMappingPage } from './modules/product_feeds/CategoryMappingPage.js';
+import { TaxonomyRevisionsPage } from './modules/product_feeds/TaxonomyRevisionsPage.js';
 import { InvoiceTemplateEditor } from './modules/invoices/templates/InvoiceTemplateEditor.js';
 import { TaxesPage } from './modules/taxes/TaxesPage.js';
 import { PromotionsPage } from './modules/promotions/PromotionsPage.js';
@@ -244,6 +245,7 @@ export function App(): ReactNode {
           element={<FeedTemplateEditorPage />}
         />
         <Route path="/product-feeds/category-mapping" element={<CategoryMappingPage />} />
+        <Route path="/product-feeds/taxonomy-revisions" element={<TaxonomyRevisionsPage />} />
         <Route
           path="/product-feeds/:feedId/runs/:runId"
           element={<FeedRunDetailPage />}

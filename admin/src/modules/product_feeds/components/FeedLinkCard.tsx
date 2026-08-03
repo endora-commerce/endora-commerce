@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Copy, Download, RefreshCw, ShieldOff } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+// Lifted to its own file so token rotation and taxonomy promotion share one
+// dialog rather than growing a second (ux-design §2.12).
+import { ConsequenceDialog } from './ConsequenceDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -172,64 +175,5 @@ export function FeedLinkCard(props: FeedLinkCardProps): ReactNode {
         />
       ) : null}
     </Card>
-  );
-}
-
-/**
- * `role="alertdialog"` with the **safe** button holding initial focus.
- *
- * A native `window.confirm` was not enough here: the consequence of a rotation
- * is two sentences long, it has to be readable, and a browser dialog cannot be
- * styled, translated or focus-managed. The rule from ux-design §6.5 is that the
- * copy names the consequence in full — "the current link stops working straight
- * away" — because the failure mode is silent: the provider keeps the old link,
- * its next fetch 404s, and nothing in this admin says so.
- */
-function ConsequenceDialog(props: {
-  title: string;
-  body: string;
-  confirmLabel: string;
-  cancelLabel: string;
-  busy: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}): ReactNode {
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => cancelRef.current?.focus(), []);
-
-  return (
-    <>
-      <div className="b2b-scrim" onClick={props.onCancel} />
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="feed-link-dialog-title"
-        aria-describedby="feed-link-dialog-body"
-        className="fixed left-1/2 top-1/2 z-50 w-[min(32rem,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-md border border-border bg-background p-4 shadow-lg"
-        onKeyDown={(event): void => {
-          if (event.key === 'Escape') props.onCancel();
-        }}
-      >
-        <h2 id="feed-link-dialog-title" className="text-base font-medium">
-          {props.title}
-        </h2>
-        <p id="feed-link-dialog-body" className="mt-2 text-sm text-muted-foreground">
-          {props.body}
-        </p>
-        <div className="mt-4 flex justify-end gap-2">
-          <Button ref={cancelRef} type="button" variant="outline" onClick={props.onCancel}>
-            {props.cancelLabel}
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={props.busy}
-            onClick={props.onConfirm}
-          >
-            {props.confirmLabel}
-          </Button>
-        </div>
-      </div>
-    </>
   );
 }

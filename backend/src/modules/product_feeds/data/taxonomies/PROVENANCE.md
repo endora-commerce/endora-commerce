@@ -1,8 +1,19 @@
 # Bundled provider taxonomies — provenance and data drop
 
-Feature 067 (Product Feed), FR-077 / FR-078. Contract:
+Feature 067 (Product Feed), FR-077 / FR-078 / FR-098. Contract:
 `specs/067-product-feed/contracts/admin-taxonomy-mappings.md` §2. Rationale:
-`specs/067-product-feed/research.md` §R10.
+`specs/067-product-feed/research.md` §R10 and §R25.
+
+**This file describes what shipped in the image, and nothing else.** A revision
+can also arrive from the optional, off-by-default taxonomy check
+(`services/taxonomy-refresh.service.ts`), and a fetched revision is **never
+written here** (FR-098): it is parsed in memory and inserted straight into
+`product_feed_taxonomies` + `product_feed_taxonomy_nodes`, with its source URLs,
+fetch time and content hash recorded on the row. This directory stays a
+read-only vendored artefact of the image — writing downloads into it would make
+the image's own source tree mutable, would be lost on every redeploy, would
+differ between replicas, and would corrupt the one file whose job is to state
+where the bundled bytes came from.
 
 ---
 
@@ -110,8 +121,16 @@ Recorded plainly so nobody later mistakes this for a cleared question: **prevail
 practice is not a licence grant.** Neither provider has granted redistribution rights in writing,
 and this remains open pending legal sign-off.
 
-If sign-off is refused for a provider, delete that provider's revision directory. The alternative
-that keeps FR-077 intact (no runtime fetch) is a **deployment-time** step: the operator fetches the
-file into a mounted directory during installation, and `TaxonomyReconcilerService` is pointed at it
-via `dataRoot`. That is already supported — the option exists and the tests use it — so backing this
-out changes packaging only, not code.
+If sign-off is refused for a provider, delete that provider's revision directory. Two supported
+alternatives remain, and neither needs a code change:
+
+- a **deployment-time** drop — the operator fetches the file into a mounted directory during
+  installation and `TaxonomyReconcilerService` is pointed at it via `dataRoot` (the option exists
+  and the tests use it);
+- the **taxonomy check** (FR-086), which the operator turns on themselves: it downloads the
+  provider's own published file into the database, never onto disk, and installs it inactive until
+  somebody promotes it.
+
+Both keep the property FR-077 was written to buy — *feed output never depends on a third party
+being reachable* — because generation reads the revision in force from Postgres and contacts
+nobody.

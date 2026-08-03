@@ -153,7 +153,7 @@ export function templateDocumentFilename(name: string): string {
   return `${slug || 'feed-template'}.feed-template.json`;
 }
 
-/** The two providers that publish a taxonomy the platform bundles (FR-077). */
+/** The two providers that publish a category taxonomy the module installs (FR-077). */
 const TAXONOMY_PROVIDERS: ReadonlySet<string> = new Set(['google_merchant', 'meta']);
 
 /**

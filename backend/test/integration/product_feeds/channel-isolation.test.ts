@@ -466,6 +466,11 @@ describe('product feed channel isolation [integration]', () => {
         entity: 'Category',
         why: 'category → provider-node mappings are installation-wide by design (FR-079), never per channel',
       },
+      {
+        file: 'services/taxonomy-revision.service.ts',
+        entity: 'Category',
+        why: 'the impact preview counts coverage over the whole category tree — mappings carry no channel dimension (FR-081), so a channel-scoped read would report a loss that does not depend on the channel',
+      },
     ];
 
     it('is clean under no-unscoped-channel-query, bar the documented reads', async () => {

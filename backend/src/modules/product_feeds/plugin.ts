@@ -67,7 +67,9 @@ import {
 import { FailedRunNotifier } from './services/failed-run-notifier.js';
 import {
   attachFeedScheduleSync,
+  attachTaxonomyScheduleSync,
   FeedScheduleReconciler,
+  type TaxonomyRefreshSchedulePort,
 } from './services/feed-schedule-reconciler.js';
 import { registerFeedGenerationWorker } from './workers/feed-generation-worker.js';
 import {
@@ -84,6 +86,21 @@ import { registerProductFeedsTemplateRoutes } from './routes.templates.js';
 import { registerProductFeedsTaxonomyRoutes } from './routes.taxonomies.js';
 import { TaxonomyMappingService } from './services/taxonomy-mapping.service.js';
 import { TaxonomyReconcilerService } from './services/taxonomy-reconciler.service.js';
+import { TaxonomyRefreshService } from './services/taxonomy-refresh.service.js';
+import { TaxonomyRevisionService } from './services/taxonomy-revision.service.js';
+import { TaxonomyRevisionRetentionService } from './services/taxonomy-revision-retention.service.js';
+import { TaxonomySourceFetcher } from './services/taxonomy-source-fetcher.js';
+import type { TaxonomySourceFetcherPort } from './services/taxonomy-source-fetcher.interface.js';
+import { createTaxonomyRefreshQueue } from './services/queues/taxonomy-refresh-queue.js';
+import {
+  ensureTaxonomyRefreshSchedule,
+  registerTaxonomyRefreshWorker,
+  removeTaxonomyRefreshSchedule,
+} from './workers/taxonomy-refresh-worker.js';
+import {
+  DEFAULT_TAXONOMY_FETCH_CRON,
+  DEFAULT_TAXONOMY_SOURCE_URLS,
+} from './manifest.js';
 
 /**
  * Composition root for the Product Feed module — feature 067.
@@ -204,6 +221,12 @@ export interface ProductFeedsModuleOptions {
   itemFieldResolver?: ItemFieldResolverPort;
   /** Root of the bundled taxonomy files. Tests point it at a small fixture. */
   taxonomyDataRoot?: string;
+  /**
+   * The taxonomy egress transport (overlay seam, Principle XV; research §R24).
+   * Tests inject a stub so **no test in this repository can reach the network**
+   * — the same reason `taxonomyDataRoot` points at a path that does not exist.
+   */
+  taxonomySourceFetcher?: TaxonomySourceFetcherPort;
 }
 
 export interface ProductFeedsModuleHandle {
@@ -227,11 +250,18 @@ export interface ProductFeedsModuleHandle {
   tokenCache: FeedTokenCache;
   taxonomies: TaxonomyMappingService;
   taxonomyReconciler: TaxonomyReconcilerService;
+  /** One check for a newer provider revision; installs INACTIVE (FR-086). */
+  taxonomyRefresh: TaxonomyRefreshService;
+  /** Revisions list, impact preview and the two operator Commands. */
+  taxonomyRevisions: TaxonomyRevisionService;
   /** Installs any missing predefined template (FR-007, FR-008). */
   reconcileTemplates: () => Promise<number>;
   /**
    * Installs any missing bundled taxonomy revision and re-evaluates mappings
-   * for staleness. Reads no network (FR-077) and is a no-op once installed.
+   * for staleness. **This path reads files only and opens no socket**; it is a
+   * no-op once installed, and it marks a bundled revision current only when the
+   * provider has none, so an upgrade never activates a revision an operator did
+   * not choose (FR-078, FR-086).
    */
   reconcileTaxonomies: () => Promise<void>;
   /**
@@ -277,6 +307,21 @@ export function productFeedsModule(
     ): Promise<string> {
       try {
         const value = await options.settings.get(code, salesChannelId, z.string());
+        return value.trim() !== '' ? value.trim() : fallback;
+      } catch {
+        return fallback;
+      }
+    },
+    async getBoolean(code: string, fallback: boolean): Promise<boolean> {
+      try {
+        return await options.settings.get(code, GLOBAL_SETTINGS_SCOPE, z.boolean());
+      } catch {
+        return fallback;
+      }
+    },
+    async getString(code: string, fallback: string): Promise<string> {
+      try {
+        const value = await options.settings.get(code, GLOBAL_SETTINGS_SCOPE, z.string());
         return value.trim() !== '' ? value.trim() : fallback;
       } catch {
         return fallback;
@@ -454,6 +499,60 @@ export function productFeedsModule(
     commandBus: options.commandBus,
   });
 
+  // -------------------------------------------------------------------------
+  // Taxonomy revision refresh (FR-086 – FR-099)
+  //
+  // The whole mechanism ships OFF (`taxonomy_fetch_enabled` defaults to
+  // `false`), and off is a fully supported state: with the switch off no Job
+  // Scheduler exists, `POST /checks` is refused, and nothing here opens a
+  // socket. That is also why off is the state every dev environment and every
+  // CI run exercises — a supported configuration that is never the default is a
+  // configuration that rots.
+  // -------------------------------------------------------------------------
+  const taxonomyFetchEnabled = (): Promise<boolean> =>
+    settings.getBoolean(PRODUCT_FEED_SETTING_CODES.TAXONOMY_FETCH_ENABLED, false);
+
+  const taxonomySourceUrl = async (
+    providerCode: 'google_merchant' | 'meta',
+    language: 'en' | 'pl',
+  ): Promise<string> => {
+    const code =
+      providerCode === 'google_merchant'
+        ? language === 'en'
+          ? PRODUCT_FEED_SETTING_CODES.TAXONOMY_SOURCE_URL_GOOGLE_EN
+          : PRODUCT_FEED_SETTING_CODES.TAXONOMY_SOURCE_URL_GOOGLE_PL
+        : language === 'en'
+          ? PRODUCT_FEED_SETTING_CODES.TAXONOMY_SOURCE_URL_META_EN
+          : PRODUCT_FEED_SETTING_CODES.TAXONOMY_SOURCE_URL_META_PL;
+    return settings.getString(code, DEFAULT_TAXONOMY_SOURCE_URLS[providerCode][language]);
+  };
+
+  const taxonomyRetention = new TaxonomyRevisionRetentionService({
+    emFactory: options.emFactory,
+    retentionCount: () =>
+      settings.getNumber(PRODUCT_FEED_SETTING_CODES.TAXONOMY_REVISION_RETENTION_COUNT, 3),
+    logWarn: warn,
+  });
+
+  const taxonomyRefresh = new TaxonomyRefreshService({
+    emFactory: options.emFactory,
+    fetcher: options.taxonomySourceFetcher ?? new TaxonomySourceFetcher(),
+    reconciler: taxonomyReconciler,
+    retention: taxonomyRetention,
+    settings: { enabled: taxonomyFetchEnabled, sourceUrl: taxonomySourceUrl },
+    ...(failedRunNotifier
+      ? {
+          notifyNotFound: (input) =>
+            failedRunNotifier.notifyTaxonomyNotFound({
+              providerCode: input.providerCode,
+              checkId: input.checkId,
+              detail: input.detail,
+            }),
+        }
+      : {}),
+    logWarn: warn,
+  });
+
   const feeds = new ProductFeedService({
     emFactory: options.emFactory,
     commandBus: options.commandBus,
@@ -518,6 +617,9 @@ export function productFeedsModule(
   // producer-only API process does when the worker lives elsewhere.
   const queue = options.redis ? createFeedGenerationQueue(options.redis) : undefined;
   const reaperQueue = options.redis ? createFeedReaperQueue(options.redis) : undefined;
+  const taxonomyRefreshQueue = options.redis
+    ? createTaxonomyRefreshQueue(options.redis)
+    : undefined;
 
   // The real scheduler exists only where a queue does. Everywhere else the
   // no-op stands in, so no caller needs a null check and no test opens a
@@ -538,9 +640,42 @@ export function productFeedsModule(
       : {}),
   });
 
+  // "Exists iff the setting is on" — turning the switch off REMOVES the job
+  // rather than leaving one that wakes weekly and returns early (FR-087).
+  const taxonomyRefreshSchedule: TaxonomyRefreshSchedulePort | undefined = taxonomyRefreshQueue
+    ? {
+        ensure: (cron) => ensureTaxonomyRefreshSchedule(taxonomyRefreshQueue, cron),
+        remove: () => removeTaxonomyRefreshSchedule(taxonomyRefreshQueue),
+      }
+    : undefined;
+
+  const taxonomyRevisions = new TaxonomyRevisionService({
+    emFactory: options.emFactory,
+    commandBus: options.commandBus,
+    reconciler: taxonomyReconciler,
+    refresh: taxonomyRefresh,
+    fetchEnabled: taxonomyFetchEnabled,
+    ...(taxonomyRefreshQueue
+      ? {
+          enqueueCheck: async ({ providerCode, checkId }) => {
+            await taxonomyRefreshQueue.add('check', { providerCode, checkId });
+          },
+        }
+      : {}),
+  });
+
   const schedules = new FeedScheduleReconciler({
     emFactory: options.emFactory,
     scheduler,
+    ...(taxonomyRefreshSchedule ? { taxonomyRefreshSchedule } : {}),
+    taxonomyRefreshSettings: {
+      enabled: taxonomyFetchEnabled,
+      cron: () =>
+        settings.getString(
+          PRODUCT_FEED_SETTING_CODES.TAXONOMY_FETCH_CRON,
+          DEFAULT_TAXONOMY_FETCH_CRON,
+        ),
+    },
   });
 
   // The schedule lifecycle: Postgres commits first, Redis is touched after
@@ -549,9 +684,15 @@ export function productFeedsModule(
   // create, update, duplicate and delete alike — and means a Redis failure can
   // never roll back a committed feed.
   const scheduleSync = attachFeedScheduleSync(options.eventBus, schedules);
+  // The Settings module emits `settings.value_changed` on commit, so flipping
+  // the taxonomy master switch takes effect at that moment rather than at the
+  // next boot: an operator told the platform will stop contacting Google should
+  // not have to restart it to make that true.
+  const taxonomyScheduleSync = attachTaxonomyScheduleSync(options.eventBus, schedules);
 
   let worker: ReturnType<typeof createFeedGenerationWorker> | undefined;
   let reaperWorker: ReturnType<typeof createFeedReaperWorker> | undefined;
+  let taxonomyRefreshWorker: ReturnType<typeof registerTaxonomyRefreshWorker> | undefined;
   if (options.redis && options.runWorkers) {
     worker = registerFeedGenerationWorker({
       redis: options.redis,
@@ -562,6 +703,11 @@ export function productFeedsModule(
     reaperWorker = registerFeedRunReaperWorker({
       redis: options.redis,
       reaper,
+      logWarn: warn,
+    });
+    taxonomyRefreshWorker = registerTaxonomyRefreshWorker({
+      redis: options.redis,
+      refresh: taxonomyRefresh,
       logWarn: warn,
     });
   }
@@ -581,6 +727,8 @@ export function productFeedsModule(
     tokenCache,
     taxonomies,
     taxonomyReconciler,
+    taxonomyRefresh,
+    taxonomyRevisions,
     reconcileTemplates: () => reconcilePredefinedTemplates(options.emFactory()),
     reconcileTaxonomies: async () => {
       await taxonomyReconciler.reconcile();
@@ -593,6 +741,9 @@ export function productFeedsModule(
       // The module-wide sweep is installed alongside the per-feed schedules, so
       // a flushed Redis rebuilds both in one place.
       if (reaperQueue && options.runWorkers) await ensureReaperSchedule(reaperQueue);
+      // FR-087 / FR-089 — and the taxonomy check scheduler, whose desired state
+      // is the master switch. A flushed Redis rebuilds all three in one place.
+      if (options.runWorkers) await schedules.reconcileTaxonomyRefreshSchedule();
       return result;
     },
   };
@@ -620,6 +771,7 @@ export function productFeedsModule(
     await registerProductFeedsTaxonomyRoutes(app, {
       requireAdmin: options.requireAdmin,
       mappings: taxonomies,
+      revisions: taxonomyRevisions,
     });
     await registerProductFeedsPublicRoutes(app, {
       emFactory: options.emFactory,
@@ -636,10 +788,13 @@ export function productFeedsModule(
     close: async () => {
       cacheInvalidator.dispose();
       scheduleSync.dispose();
+      taxonomyScheduleSync.dispose();
       await worker?.close().catch(() => undefined);
       await reaperWorker?.close().catch(() => undefined);
+      await taxonomyRefreshWorker?.close().catch(() => undefined);
       await queue?.close().catch(() => undefined);
       await reaperQueue?.close().catch(() => undefined);
+      await taxonomyRefreshQueue?.close().catch(() => undefined);
     },
   };
 }

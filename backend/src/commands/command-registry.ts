@@ -315,6 +315,22 @@ export const COMMAND_REGISTRY = {
     reversible: false,
     description: 'Set or clear a shop category → provider taxonomy node mapping',
   },
+  // The one write in the taxonomy refresh feature that changes what a feed
+  // emits. The automated check installs an INACTIVE revision and is therefore a
+  // machine transition, not a Command (research §R26). Rollback is the same
+  // Command run against the earlier revision, which is why this is not marked
+  // reversible: undo would be a second promotion by another name, and the
+  // operator does it deliberately from the revisions list.
+  'product_feeds.taxonomy_revision.promote': {
+    reversible: false,
+    description: 'Promote a provider taxonomy revision so feeds use it',
+  },
+  // Mirrors `product_feeds.run.start`: it records who asked for outbound
+  // traffic, while the check itself runs on the worker.
+  'product_feeds.taxonomy_check.start': {
+    reversible: false,
+    description: 'Start a check for a newer provider taxonomy revision',
+  },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

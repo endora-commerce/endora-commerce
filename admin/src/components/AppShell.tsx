@@ -495,6 +495,12 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
     { labelKey: 'appShell.nav.feedCategoryMapping', href: null },
   ] },
+  { test: /^\/product-feeds\/taxonomy-revisions\/?$/, build: () => [
+    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.feedCategoryMapping', href: '/product-feeds/category-mapping' },
+    { labelKey: 'appShell.nav.feedTaxonomyRevisions', href: null },
+  ] },
   { test: /^\/product-feeds\/[^/]+\/?$/, build: () => [
     { labelKey: 'appShell.section.channels', href: '/product-feeds' },
     { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },

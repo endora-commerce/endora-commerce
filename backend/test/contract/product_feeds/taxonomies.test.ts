@@ -19,7 +19,9 @@ import { TaxonomyReconcilerService } from '../../../src/modules/product_feeds/se
  * (FR-079, FR-081, FR-082, FR-085).
  *
  * Fixture-backed, like every taxonomy test: the shipped data files are never
- * read and the network is never touched.
+ * read and the network is never touched. The refresh surfaces this namespace
+ * also carries (revisions, impact, promote, checks) are covered by
+ * `taxonomy-revisions.test.ts`.
  */
 
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
@@ -108,11 +110,17 @@ describe('feed taxonomies [contract]', () => {
     expect(typeof google['installedAt']).toBe('string');
   });
 
-  it('exposes no route that installs, uploads or refreshes a taxonomy (FR-077)', async () => {
+  it('exposes no route that uploads a taxonomy file, and none that makes a revision current except the audited promote Command (FR-086)', async () => {
+    // The claim this used to make — "no route installs, uploads or refreshes a
+    // taxonomy" — is no longer true and must not be asserted: `POST /checks`
+    // exists, and it may install a revision. What is still true, and is what
+    // actually protects a feed, is narrower and stronger: no route accepts a
+    // taxonomy file, and no route makes a revision current in one step.
+    // Installation and activation are separate by design (contract §7.1).
     for (const [method, url] of [
       ['POST', BASE],
       ['POST', `${BASE}/install`],
-      ['POST', `${BASE}/refresh`],
+      ['POST', `${BASE}/upload`],
       ['PUT', BASE],
     ] as const) {
       const res = await h.app.inject({ method, url, ...ADMIN, payload: {} });

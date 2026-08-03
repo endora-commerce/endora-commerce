@@ -18,9 +18,17 @@ import { TaxonomyReconcilerService } from '../../../src/modules/product_feeds/se
  * (FR-077, FR-078, FR-085).
  *
  * Runs entirely against **small fixtures** in `test/fixtures/product_feeds/`.
- * It never reads the shipped data files and never touches the network: FR-077
- * forbids a runtime fetch, and a test that quietly downloaded 1.5 MB from
- * Google would both violate that and fail on an air-gapped CI runner.
+ * It never reads the shipped data files and never touches the network.
+ *
+ * The "zero outbound HTTP" assertions below are about **this** path and are
+ * still exactly right: the bundled reconciler loads files from disk and opens
+ * no socket, which is what keeps boot independent of anybody's uptime. The
+ * other way a revision can arrive — an optional, off-by-default check that
+ * downloads the provider's published files — lives in
+ * `taxonomy-refresh.service.ts` and is covered by `taxonomy-fetch-check.test.ts`
+ * and `taxonomy-fetch-disabled.test.ts`. It can only ever add an **inactive**
+ * revision, so neither path changes what a feed emits without an operator
+ * promoting it.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -115,7 +123,7 @@ describe('taxonomy reconciler [integration]', () => {
       expect(nodes.some((n) => n.label['en'] === 'category')).toBe(false);
     });
 
-    it('makes zero outbound HTTP requests during install (FR-077)', async () => {
+    it('makes zero outbound HTTP requests during a bundled install (FR-077)', async () => {
       // `node:http`'s ESM namespace is frozen, so it cannot be spied on; the
       // global `fetch` can be, and the source assertion below covers the rest.
       const fetchSpy = vi.spyOn(globalThis, 'fetch');
@@ -127,7 +135,9 @@ describe('taxonomy reconciler [integration]', () => {
     it('has no network call anywhere in the reconciler source', () => {
       // A source assertion as well as a runtime one: the runtime spy only
       // proves this run made no request, while the grep proves the capability
-      // is absent — which is what FR-077 actually asks for.
+      // is absent from the BUNDLED path. Egress lives in one file
+      // (`taxonomy-source-fetcher.ts`), behind one injected seam, and this is
+      // what keeps it from spreading into the path that runs at boot.
       const source = readFileSync(
         join(
           HERE,
@@ -211,7 +221,30 @@ describe('taxonomy reconciler [integration]', () => {
       expect(result.installed).toEqual([
         expect.objectContaining({ providerCode: 'google_merchant', revision: '2020-06-01' }),
       ]);
-      expect(result.markedStale).toBe(1);
+      // **Installing the newer revision changes nothing on its own** (FR-086).
+      // The provider already has a revision in force, so 2020-06-01 lands
+      // inactive and staleness — a property of the revision IN FORCE — does not
+      // move. Before Phase 11 a platform upgrade activated it here, which is
+      // precisely the silent change this feature removed.
+      expect(result.markedStale).toBe(0);
+
+      const em0 = h.em();
+      expect(
+        (
+          await em0.findOneOrFail(FeedTaxonomy, {
+            providerCode: 'google_merchant',
+            isCurrent: true,
+          })
+        ).revision,
+      ).toBe('2020-01-01');
+      const candidate = await em0.findOneOrFail(FeedTaxonomy, { revision: '2020-06-01' });
+      em0.clear();
+
+      // The operator promotes, and *that* is what makes the mapping stale.
+      await h.productFeeds.taxonomyRevisions.promote({
+        taxonomyId: candidate.id,
+        expectedStaleMappingCount: 1,
+      });
 
       const em = h.em();
       em.clear();
@@ -232,6 +265,14 @@ describe('taxonomy reconciler [integration]', () => {
 
       const result = await reconciler(FIXTURE_V2).reconcile();
       expect(result.markedStale).toBe(0);
+      // …and it stays live once the operator promotes, because `3` survives.
+      const promoteEm = h.em();
+      const candidate = await promoteEm.findOneOrFail(FeedTaxonomy, { revision: '2020-06-01' });
+      promoteEm.clear();
+      await h.productFeeds.taxonomyRevisions.promote({
+        taxonomyId: candidate.id,
+        expectedStaleMappingCount: 0,
+      });
 
       const em = h.em();
       em.clear();
@@ -263,7 +304,7 @@ describe('taxonomy reconciler [integration]', () => {
       expect(mapping.stale).toBe(false);
     });
 
-    it('marks exactly one revision current per provider', async () => {
+    it('marks exactly one revision current per provider, and a later bundled drop does not take over', async () => {
       await reconciler(FIXTURE_V1).reconcile();
       await reconciler(FIXTURE_V2).reconcile();
 
@@ -271,8 +312,16 @@ describe('taxonomy reconciler [integration]', () => {
       em.clear();
       const all = await em.find(FeedTaxonomy, { providerCode: 'google_merchant' });
       expect(all.length).toBeGreaterThanOrEqual(2);
+      // The partial unique index guarantees the "exactly one"; what this pins
+      // is WHICH one. A revision shipped in a platform image installs beside
+      // the one in force, not over it: activation is deliberate (FR-086,
+      // contract §2), and a deploy is not a decision anybody made about
+      // taxonomies. On a fresh database — the common case — the first bundled
+      // revision still becomes current immediately, which the install cases
+      // above cover.
       expect(all.filter((t) => t.isCurrent)).toHaveLength(1);
-      expect(all.find((t) => t.isCurrent)!.revision).toBe('2020-06-01');
+      expect(all.find((t) => t.isCurrent)!.revision).toBe('2020-01-01');
+      expect(all.find((t) => t.revision === '2020-06-01')!.promotedAt ?? null).toBeNull();
     });
   });
 

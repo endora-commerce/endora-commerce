@@ -9,6 +9,7 @@ import {
   type TaxonomyMappingService,
 } from './services/taxonomy-mapping.service.js';
 import { resolveEffectiveMapping } from './services/taxonomy-mapping-resolver.js';
+import type { TaxonomyRevisionService } from './services/taxonomy-revision.service.js';
 
 /**
  * Provider taxonomies and category mappings — feature 067
@@ -20,20 +21,31 @@ import { resolveEffectiveMapping } from './services/taxonomy-mapping-resolver.js
  *   PUT /api/v1/admin/feed-taxonomies/mappings
  *   GET /api/v1/admin/feed-taxonomies/coverage
  *   GET /api/v1/admin/feed-taxonomies/stale-mappings
+ *   GET /api/v1/admin/feed-taxonomies/revisions
+ *   GET /api/v1/admin/feed-taxonomies/revisions/:taxonomyId/impact
+ *  POST /api/v1/admin/feed-taxonomies/revisions/:taxonomyId/promote
+ *   GET /api/v1/admin/feed-taxonomies/checks
+ *  POST /api/v1/admin/feed-taxonomies/checks
  *
  * A **sibling** namespace, not a child of `/product-feeds`, which is parametric
  * on `:feedId` — mappings are installation-wide, and nesting them under a feed
  * id would advertise a per-feed scope that FR-081 explicitly does not have.
  *
- * **There is deliberately no install, upload or refresh route.** Taxonomies
- * ship as reference data inside the module and are loaded by the lifecycle
- * reconciler; a runtime fetch is forbidden by FR-077 because it would make feed
- * output depend on a third party's uptime and break air-gapped installations.
+ * **There is deliberately no route that uploads a taxonomy file, and none that
+ * installs a revision as current in one step.** Installation and activation are
+ * separate by design (FR-086): a revision arrives either bundled with the
+ * platform or from an optional, off-by-default check, and in both cases only
+ * `POST /revisions/:id/promote` — an audited operator Command — changes what a
+ * feed emits. `GET /revisions/:id/impact` writes nothing, which is what lets
+ * the admin make promotion physically unreachable without reading the
+ * consequences first.
  */
 
 export interface ProductFeedsTaxonomyRoutesDeps {
   requireAdmin: RequireAdminFactory;
   mappings: TaxonomyMappingService;
+  /** The revisions surface (FR-078, FR-094 – FR-096). */
+  revisions: TaxonomyRevisionService;
   /** Falls back to `en` when the request does not name one. */
   defaultLanguage?: string;
 }
@@ -51,6 +63,25 @@ const nodeSearchQuerySchema = providerQuerySchema.extend({
 const mappingListQuerySchema = providerQuerySchema.extend({
   limit: z.coerce.number().int().positive().max(1000).default(200),
   offset: z.coerce.number().int().nonnegative().optional(),
+});
+
+const languageQuerySchema = z.object({
+  lang: z.string().min(2).max(12).optional(),
+});
+
+const taxonomyIdParamsSchema = z.object({ taxonomyId: z.string().uuid() });
+
+const checkListQuerySchema = providerQuerySchema.extend({
+  limit: z.coerce.number().int().positive().max(50).optional(),
+});
+
+const promoteBodySchema = z.object({
+  /** The figure the impact preview showed — a mismatch is `409` (FR-095). */
+  expectedStaleMappingCount: z.number().int().nonnegative(),
+});
+
+const startCheckBodySchema = z.object({
+  providerCode: taxonomyProviderCodeSchema,
 });
 
 const setMappingBodySchema = z.object({
@@ -168,6 +199,68 @@ export async function registerProductFeedsTaxonomyRoutes(
       data: rows,
       pagination: { cursor: null, hasMore: false, limit: rows.length },
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // Revision refresh (FR-078, FR-094 – FR-096)
+  // -------------------------------------------------------------------------
+
+  app.get('/api/v1/admin/feed-taxonomies/revisions', read, async (request, reply) => {
+    const query = parseOrThrow(providerQuerySchema, request.query ?? {});
+    const rows = await deps.revisions.listRevisions(query.providerCode);
+    return reply.send({
+      data: rows,
+      pagination: { cursor: null, hasMore: false, limit: rows.length },
+    });
+  });
+
+  app.get(
+    '/api/v1/admin/feed-taxonomies/revisions/:taxonomyId/impact',
+    read,
+    async (request, reply) => {
+      const params = parseOrThrow(taxonomyIdParamsSchema, request.params ?? {});
+      const query = parseOrThrow(languageQuerySchema, request.query ?? {});
+      // Read-only, by construction: `impact()` loads and computes, and there is
+      // no write path from here (FR-094).
+      const impact = await deps.revisions.impact(
+        params.taxonomyId,
+        query.lang ?? fallbackLanguage,
+      );
+      return reply.send({ data: impact });
+    },
+  );
+
+  app.post(
+    '/api/v1/admin/feed-taxonomies/revisions/:taxonomyId/promote',
+    write,
+    async (request, reply) => {
+      const params = parseOrThrow(taxonomyIdParamsSchema, request.params ?? {});
+      const body = parseOrThrow(promoteBodySchema, request.body ?? {});
+      const result = await deps.revisions.promote({
+        taxonomyId: params.taxonomyId,
+        expectedStaleMappingCount: body.expectedStaleMappingCount,
+      });
+      const rows = await deps.revisions.listRevisions(result.providerCode);
+      const promoted = rows.find((row) => row.id === result.taxonomyId);
+      return reply.send({ data: promoted ?? null });
+    },
+  );
+
+  app.get('/api/v1/admin/feed-taxonomies/checks', read, async (request, reply) => {
+    const query = parseOrThrow(checkListQuerySchema, request.query ?? {});
+    const rows = await deps.revisions.listChecks(query.providerCode, query.limit);
+    return reply.send({
+      data: rows,
+      pagination: { cursor: null, hasMore: false, limit: rows.length },
+    });
+  });
+
+  app.post('/api/v1/admin/feed-taxonomies/checks', write, async (request, reply) => {
+    const body = parseOrThrow(startCheckBodySchema, request.body ?? {});
+    const check = await deps.revisions.startCheck(body.providerCode);
+    // 202: the row is the receipt and the work belongs to the worker, exactly
+    // as a manual generation run answers.
+    return reply.code(202).send({ data: check });
   });
 }
 

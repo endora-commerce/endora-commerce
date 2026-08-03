@@ -126,6 +126,10 @@ import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/
 import { credentialsModule } from '../../src/modules/credentials/plugin.js';
 import { ksefModule } from '../../src/modules/ksef/plugin.js';
 import { productFeedsModule } from '../../src/modules/product_feeds/plugin.js';
+import type {
+  TaxonomyFetchResult,
+  TaxonomySourceFetcherPort,
+} from '../../src/modules/product_feeds/services/taxonomy-source-fetcher.interface.js';
 import { Asset } from '../../src/modules/assets_library/entities/asset.entity.js';
 import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
 import { configurationTypeRegistry } from '../../src/modules/credentials/services/registry-singleton.js';
@@ -193,6 +197,13 @@ export interface BackendServerOptions {
   promptActionsTtlMinutes?: number;
   /** Feature 059 — stub KSeF API client for submission/credential tests. */
   ksefClientFactory?: (baseUrl: string) => KsefApiClientPort;
+  /**
+   * Feature 067 Phase 11 — the taxonomy egress transport. Defaults to a stub
+   * that FAILS the test if it is ever called, so "no test in this repository
+   * reaches the network" is enforced rather than hoped for; the refresh tests
+   * pass their own fixture-serving stub.
+   */
+  taxonomySourceFetcher?: TaxonomySourceFetcherPort;
   /**
    * Feature 060 — contribute API interceptor registrations before the server
    * seals the registry on ready. Contract tests use this to register fixture
@@ -289,6 +300,32 @@ const fakeOAuthProvider: OAuthProviderPort = {
     emailVerified: code !== 'unverified@example.com',
   }),
 };
+
+/**
+ * The default taxonomy egress transport for tests: one that cannot reach
+ * anything (feature 067 Phase 11, FR-087).
+ *
+ * A test that really called Google would be a flake, a privacy leak and a
+ * dependency on CI having outbound internet. So the shared harness hands the
+ * module a fetcher that refuses every request the same way an air-gapped
+ * installation's network would, and the refresh tests inject their own stub
+ * serving fixtures. This is the transport half of the same precaution that
+ * points `taxonomyDataRoot` at a path which does not exist.
+ */
+function refusingTaxonomyFetcher(): TaxonomySourceFetcherPort {
+  return {
+    async fetchFile(): Promise<TaxonomyFetchResult> {
+      return {
+        ok: false,
+        outcome: 'failed',
+        reason: 'transport',
+        detail: 'No taxonomy egress is configured in the test harness.',
+        httpStatus: null,
+        bytesRead: null,
+      };
+    },
+  };
+}
 
 function hashTestPassword(): Promise<string> {
   return hashPassword('social-login-no-password-placeholder');
@@ -1892,6 +1929,11 @@ export async function setupBackendServer(
     // ~1.5 MB taxonomy files. The taxonomy tests construct their own
     // reconciler pointed at a small fixture instead.
     taxonomyDataRoot: '/nonexistent/product-feeds-taxonomies',
+    // FR-087 / research §R23 — the egress seam. The default below cannot make a
+    // request: it returns a transport failure and records the attempt, so a
+    // code path that starts fetching without a test opting in shows up as a
+    // failed check rather than as a real download.
+    taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
   });
   modules.push(productFeeds.plugin);
   await productFeeds.handle.reconcileTemplates();

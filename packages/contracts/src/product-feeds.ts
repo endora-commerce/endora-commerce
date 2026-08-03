@@ -33,7 +33,12 @@ export const feedProviderCodeSchema = z.enum([
 ]);
 export type FeedProviderCode = z.infer<typeof feedProviderCodeSchema>;
 
-/** Only Google and Meta publish a category taxonomy the module bundles (FR-077). */
+/**
+ * Only Google and Meta publish a category taxonomy. A revision of one reaches
+ * the platform either bundled with the image or from an optional, off-by-default
+ * check (FR-077, FR-086); generation reads the revision in force and contacts
+ * nobody either way.
+ */
 export const taxonomyProviderCodeSchema = z.enum(['google_merchant', 'meta']);
 export type TaxonomyProviderCode = z.infer<typeof taxonomyProviderCodeSchema>;
 
@@ -980,6 +985,193 @@ export const feedTaxonomyCoverageResponseSchema = dataEnvelope(
 );
 
 // ---------------------------------------------------------------------------
+// (8b) Taxonomy revision refresh (FR-086 – FR-099)
+//
+// The invariant every shape below serves: a check may only ADD an inactive
+// revision. Only `promote` changes what a feed emits — which is why there is a
+// `promote` request schema and no `activate` flag anywhere else.
+//
+// `feedTaxonomySchema` above is deliberately left alone: the richer revision
+// shape is additive, so no already-shipped response changes.
+// ---------------------------------------------------------------------------
+
+/** Where a revision came from (FR-078). Both kinds are the same object to the operator. */
+export const feedTaxonomyRevisionSourceSchema = z.enum(['bundled', 'fetched']);
+export type FeedTaxonomyRevisionSource = z.infer<typeof feedTaxonomyRevisionSourceSchema>;
+
+/**
+ * Advisory markers rendered on the revisions list. `shrink` = the node count
+ * collapsed against the revision in force; the revision is still installed,
+ * because a valid smaller taxonomy is the provider's decision to make and the
+ * impact preview is where it becomes visible (research §R22).
+ */
+export const feedTaxonomyRevisionFlagSchema = z.enum(['shrink']);
+export type FeedTaxonomyRevisionFlag = z.infer<typeof feedTaxonomyRevisionFlagSchema>;
+
+export const feedTaxonomyRevisionSchema = z.object({
+  id: uuidSchema,
+  providerCode: taxonomyProviderCodeSchema,
+  /** Google: its own published label. Meta: `YYYY-MM-DD-<hash8>` (FR-088). */
+  revision: z.string().max(32),
+  /** The single selector of the revision in force. A fetched revision lands `false` (FR-086). */
+  isCurrent: z.boolean(),
+  nodeCount: z.number().int().nonnegative(),
+  source: feedTaxonomyRevisionSourceSchema,
+  /** Per-language source URL map; empty for a bundled revision. */
+  sourceUrls: z.record(z.string(), z.string().url()).default({}),
+  installedAt: isoDateTimeSchema,
+  fetchedAt: isoDateTimeSchema.nullable(),
+  /** Null ⇒ never in force. That predicate is also what protects the pending candidate from retention (FR-097). */
+  promotedAt: isoDateTimeSchema.nullable(),
+  supersededAt: isoDateTimeSchema.nullable(),
+  flags: z.array(feedTaxonomyRevisionFlagSchema).default([]),
+});
+export type FeedTaxonomyRevision = z.infer<typeof feedTaxonomyRevisionSchema>;
+
+export const feedTaxonomyRevisionListResponseSchema =
+  collectionEnvelope(feedTaxonomyRevisionSchema);
+export const feedTaxonomyRevisionResponseSchema = dataEnvelope(feedTaxonomyRevisionSchema);
+
+/** One shop category that changes state if the candidate is promoted (FR-094). */
+export const feedTaxonomyImpactCategorySchema = z.object({
+  categoryId: uuidSchema,
+  categoryName: z.string(),
+  nodeExternalId: z.string().max(32),
+  /** Localized path of the node as the CURRENT revision knows it — after promotion it may not exist. */
+  nodeFullPath: z.string().nullable(),
+  effect: z.enum(['becomes_stale', 'becomes_live', 'loses_coverage']),
+  /** Descendants that lose their inherited value through this category (FR-094). */
+  descendantsLosingCoverage: z.number().int().nonnegative(),
+});
+export type FeedTaxonomyImpactCategory = z.infer<typeof feedTaxonomyImpactCategorySchema>;
+
+export const feedTaxonomyRevisionImpactResponseSchema = dataEnvelope(
+  z.object({
+    providerCode: taxonomyProviderCodeSchema,
+    candidateRevision: z.string().max(32),
+    /** Null when the provider has no revision in force yet — then nothing can go stale. */
+    currentRevision: z.string().max(32).nullable(),
+    nodeCountCurrent: z.number().int().nonnegative(),
+    nodeCountCandidate: z.number().int().nonnegative(),
+    nodesAdded: z.number().int().nonnegative(),
+    nodesRemoved: z.number().int().nonnegative(),
+    mappings: z.object({
+      total: z.number().int().nonnegative(),
+      wouldRemainLive: z.number().int().nonnegative(),
+      /** The number the operator must echo back on promote (FR-095). */
+      wouldBecomeStale: z.number().int().nonnegative(),
+      wouldBecomeLive: z.number().int().nonnegative(),
+    }),
+    categories: z.object({
+      total: z.number().int().nonnegative(),
+      coveredNow: z.number().int().nonnegative(),
+      /** Counts inherited coverage, not only explicit mappings — the whole point of FR-094. */
+      coveredAfter: z.number().int().nonnegative(),
+      losingCoverage: z.number().int().nonnegative(),
+    }),
+    /** Capped for display; the full set is the stale review list after promotion. */
+    affected: z.array(feedTaxonomyImpactCategorySchema).max(200),
+    affectedTruncated: z.boolean(),
+  }),
+);
+
+export const promoteFeedTaxonomyRevisionRequestSchema = z.object({
+  /**
+   * The figure the impact preview showed. Recomputed server-side; a mismatch is
+   * refused `409 impact_changed` (FR-095). This is what makes "the operator saw
+   * the impact" a server-side fact rather than a UI convention, and it catches
+   * the real case: a colleague edited mappings while the preview sat open.
+   */
+  expectedStaleMappingCount: z.number().int().nonnegative(),
+});
+export type PromoteFeedTaxonomyRevisionRequest = z.infer<
+  typeof promoteFeedTaxonomyRevisionRequestSchema
+>;
+
+export const feedTaxonomyCheckTriggerSchema = z.enum(['scheduled', 'manual']);
+export type FeedTaxonomyCheckTrigger = z.infer<typeof feedTaxonomyCheckTriggerSchema>;
+
+export const feedTaxonomyCheckOutcomeSchema = z.enum([
+  'unchanged',
+  'installed',
+  'rejected',
+  'failed',
+]);
+export type FeedTaxonomyCheckOutcome = z.infer<typeof feedTaxonomyCheckOutcomeSchema>;
+
+/** Why a check did not install anything. Closed set — the admin renders a translated line per value. */
+export const feedTaxonomyCheckReasonSchema = z.enum([
+  'transport',
+  'not_found',
+  'http_status',
+  'not_taxonomy',
+  'empty',
+  'too_large',
+  'truncated',
+  'no_nodes',
+  'implausible',
+  'incomplete_languages',
+]);
+export type FeedTaxonomyCheckReason = z.infer<typeof feedTaxonomyCheckReasonSchema>;
+
+export const feedTaxonomyCheckSchema = z.object({
+  id: uuidSchema,
+  providerCode: taxonomyProviderCodeSchema,
+  trigger: feedTaxonomyCheckTriggerSchema,
+  startedAt: isoDateTimeSchema,
+  /** Null while in flight — also the predicate that refuses an overlapping check (FR-096). */
+  finishedAt: isoDateTimeSchema.nullable(),
+  outcome: feedTaxonomyCheckOutcomeSchema.nullable(),
+  reason: feedTaxonomyCheckReasonSchema.nullable(),
+  /** One human-readable line. Never a stack trace, never response bytes. */
+  detail: z.string().max(500).nullable(),
+  httpStatus: z.number().int().nullable(),
+  bytesRead: z.number().int().nonnegative().nullable(),
+  /** Recorded whatever the outcome — this is what makes "unchanged" auditable. */
+  contentHash: z.string().max(64).nullable(),
+  installedTaxonomyId: uuidSchema.nullable(),
+});
+export type FeedTaxonomyCheck = z.infer<typeof feedTaxonomyCheckSchema>;
+
+export const feedTaxonomyCheckListResponseSchema = collectionEnvelope(feedTaxonomyCheckSchema);
+export const feedTaxonomyCheckResponseSchema = dataEnvelope(feedTaxonomyCheckSchema);
+
+export const startFeedTaxonomyCheckRequestSchema = z.object({
+  /**
+   * Required, and named deliberately. The design sketch had this optional with
+   * "omitted ⇒ every provider", but the response envelope is **one** check —
+   * `dataEnvelope(feedTaxonomyCheckSchema)` — so an omitted provider could not
+   * be answered without either inventing a second envelope or picking one of
+   * the two checks arbitrarily. The admin always sends the provider tab the
+   * operator is looking at, and the scheduled job (which does sweep both
+   * providers) needs no request body at all.
+   */
+  providerCode: taxonomyProviderCodeSchema,
+});
+export type StartFeedTaxonomyCheckRequest = z.infer<typeof startFeedTaxonomyCheckRequestSchema>;
+
+/**
+ * Source-URL validation, applied at settings-write time AND again immediately
+ * before the request (FR-091). Twice, because settings can also be written by a
+ * seed, a migration or an overlay, so the request-time check is the one that
+ * actually holds. The address-range and redirect checks are NOT expressible in
+ * Zod and live in the fetcher — see research §R23.
+ */
+export const feedTaxonomySourceUrlSchema = z
+  .string()
+  .url()
+  .max(500)
+  .refine((value) => value.startsWith('https://'), {
+    message: 'Taxonomy source URLs must use https.',
+  })
+  .refine((value) => !/^https:\/\/[^/]*@/.test(value), {
+    message: 'Taxonomy source URLs must not carry credentials.',
+  })
+  .refine((value) => !value.includes('#'), {
+    message: 'Taxonomy source URLs must not carry a fragment.',
+  });
+
+// ---------------------------------------------------------------------------
 // (9) Template portability envelope (FR-012 – FR-018)
 // ---------------------------------------------------------------------------
 
@@ -1071,6 +1263,14 @@ export const PRODUCT_FEED_ERROR_CODES = {
   TEMPLATE_NAME_CONFLICT: 'template_name_conflict',
   INVALID_TEMPLATE_DOCUMENT: 'invalid_template_document',
   UNKNOWN_TAXONOMY_NODE: 'unknown_taxonomy_node',
+  /** `POST /checks` while the master switch is off (FR-087) — the response names the setting. */
+  TAXONOMY_FETCH_DISABLED: 'taxonomy_fetch_disabled',
+  /** A check for that provider is already in flight (FR-096). */
+  TAXONOMY_CHECK_IN_PROGRESS: 'taxonomy_check_in_progress',
+  /** `expectedStaleMappingCount` no longer matches the recomputed impact (FR-095). */
+  IMPACT_CHANGED: 'impact_changed',
+  /** The revision is already the one in force. */
+  TAXONOMY_REVISION_ALREADY_CURRENT: 'taxonomy_revision_already_current',
 } as const;
 export type ProductFeedErrorCode =
   (typeof PRODUCT_FEED_ERROR_CODES)[keyof typeof PRODUCT_FEED_ERROR_CODES];
@@ -1088,4 +1288,41 @@ export const PRODUCT_FEED_SETTING_CODES = {
   PUBLIC_FETCH_RATE_LIMIT_PER_MINUTE: 'product_feeds.public_fetch_rate_limit_per_minute',
   /** Above this many shop categories the mapping surface switches from tree to paged flat list. */
   CATEGORY_MAPPING_TREE_LIMIT: 'product_feeds.category_mapping_tree_limit',
+
+  // Group `product_feeds_taxonomy` — revision refresh (FR-086 – FR-099).
+  /**
+   * Master switch. **Defaults to `false`** and off is a first-class state: when
+   * it is off no Job Scheduler exists, `POST /checks` is refused, and the module
+   * makes no outbound request at all (FR-087, research §R24).
+   */
+  TAXONOMY_FETCH_ENABLED: 'product_feeds.taxonomy_fetch_enabled',
+  /** 5-field cron, validated by the module's existing `cronExpressionSchema`. Default `0 4 * * 1`, UTC. */
+  TAXONOMY_FETCH_CRON: 'product_feeds.taxonomy_fetch_cron',
+  /** Per-deployment overridable source URLs — a mirror or an internal proxy (FR-090). */
+  TAXONOMY_SOURCE_URL_GOOGLE_EN: 'product_feeds.taxonomy_source_url_google_en',
+  TAXONOMY_SOURCE_URL_GOOGLE_PL: 'product_feeds.taxonomy_source_url_google_pl',
+  TAXONOMY_SOURCE_URL_META_EN: 'product_feeds.taxonomy_source_url_meta_en',
+  TAXONOMY_SOURCE_URL_META_PL: 'product_feeds.taxonomy_source_url_meta_pl',
+  /** Retained revisions per provider; the three protected classes are never counted out (FR-097). */
+  TAXONOMY_REVISION_RETENTION_COUNT: 'product_feeds.taxonomy_revision_retention_count',
+} as const;
+
+/**
+ * Egress safety limits are deliberately NOT settings (FR-091, research §R23):
+ * they are safety floors, not operator policy, and an admin screen must not be
+ * able to widen an SSRF guard.
+ */
+export const TAXONOMY_FETCH_LIMITS = {
+  /** Per-request abort, via `AbortController` — the `SgtmClient` precedent. */
+  REQUEST_TIMEOUT_MS: 20_000,
+  /** Whole check, across both languages of one provider. */
+  CHECK_BUDGET_MS: 120_000,
+  /** Enforced while reading the stream, never trusted from `Content-Length`. */
+  MAX_RESPONSE_BYTES: 8 * 1024 * 1024,
+  /** Every hop re-validated against the same rules. */
+  MAX_REDIRECTS: 3,
+  /** Below this a parsed file is treated as truncated rather than as a small taxonomy. */
+  MIN_PLAUSIBLE_NODES: 500,
+  /** Checks retained per provider — roughly five months of weekly history. */
+  CHECK_HISTORY_PER_PROVIDER: 20,
 } as const;

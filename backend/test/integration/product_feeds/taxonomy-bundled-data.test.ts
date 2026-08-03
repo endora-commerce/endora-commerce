@@ -18,8 +18,9 @@ import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-prod
  * Feature 067 / T052 — the **shipped** taxonomy data (FR-077, FR-078, FR-083).
  *
  * Every other taxonomy test runs against three-line fixtures, deliberately: the
- * shared harness points `taxonomyDataRoot` at a path that does not exist so no
- * test can read 1.5 MB of vendor text by accident. This file is the single
+ * shared harness points `taxonomyDataRoot` at a path that does not exist — and
+ * hands the module an egress transport that cannot make a request — so no test
+ * can read 1.5 MB of vendor text, or download it, by accident. This file is the single
  * exception, and it exists because installing ~17 000 rows across four files is
  * a materially different piece of work from installing six, and "it worked on
  * the fixture" is not evidence about the thing that actually ships.

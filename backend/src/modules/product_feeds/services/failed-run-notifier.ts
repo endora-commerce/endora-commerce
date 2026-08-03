@@ -51,6 +51,13 @@ export interface FailedRunNotifierDeps {
 /** The `kind` the bell groups these under. */
 export const FEED_RUN_FAILED_NOTIFICATION_KIND = 'product_feed.run_failed';
 
+/**
+ * FR-093 — the one taxonomy-check failure that cannot self-heal: the provider
+ * moved the file, so every future check will fail identically until somebody
+ * edits the source URL.
+ */
+export const TAXONOMY_NOT_FOUND_NOTIFICATION_KIND = 'product_feed.taxonomy_not_found';
+
 export class FailedRunNotifier {
   constructor(private readonly deps: FailedRunNotifierDeps) {}
 
@@ -95,6 +102,71 @@ export class FailedRunNotifier {
       });
       return false;
     }
+  }
+
+  /**
+   * FR-093 — a taxonomy check that failed `not_found`.
+   *
+   * Reuses this class's transition discipline rather than adding a second
+   * notifier, because it is the same problem: a weekly check against a moved
+   * URL fails forever, and one notification a week about a fact that has not
+   * changed is a bell nobody looks at any more.
+   *
+   * **Only `not_found` notifies.** A transport failure on an installation whose
+   * egress was closed after the switch was turned on is not something the
+   * operator can act on from the notification itself, and the checks list
+   * already shows it. `not_found` is different: it names a setting somebody has
+   * to edit, and no amount of waiting fixes it.
+   */
+  async notifyTaxonomyNotFound(input: {
+    providerCode: string;
+    checkId: string;
+    detail: string;
+  }): Promise<boolean> {
+    try {
+      const em = this.deps.emFactory();
+      if (await this.taxonomyAlreadyReported(em, input)) return false;
+
+      await this.deps.notifications.record({
+        audience: 'all_admins',
+        kind: TAXONOMY_NOT_FOUND_NOTIFICATION_KIND,
+        subjectType: 'product_feed_taxonomy',
+        subjectId: input.providerCode,
+        title: `The ${input.providerCode} category list is no longer published at the configured address`,
+        // The operator needs to know two things: which setting to change, and
+        // that their feeds are fine. Both are in the line.
+        body: `${input.detail} Your feeds are unaffected and keep using the category list already installed. Update the source address in Settings → Taxonomy updates.`,
+        linkPath: '/product-feeds/taxonomy-revisions',
+      });
+      return true;
+    } catch (err) {
+      this.deps.logWarn?.('product_feeds: taxonomy not-found notification could not be recorded', {
+        providerCode: input.providerCode,
+        error: String(err),
+      });
+      return false;
+    }
+  }
+
+  /**
+   * True when the previous finished check for this provider already failed
+   * `not_found` — the same "notify on the transition" rule, read off the check
+   * history rather than off a counter that could disagree with it.
+   */
+  private async taxonomyAlreadyReported(
+    em: EntityManager,
+    input: { providerCode: string; checkId: string },
+  ): Promise<boolean> {
+    const rows = (await em.getConnection().execute(
+      `select "reason" from "product_feed_taxonomy_checks"
+        where "provider_code" = ? and "id" <> ? and "finished_at" is not null
+        order by "started_at" desc, "id" desc
+        limit 1`,
+      [input.providerCode, input.checkId],
+      'all',
+      em.getTransactionContext(),
+    )) as Array<{ reason: string | null }>;
+    return rows[0]?.reason === 'not_found';
   }
 
   /**

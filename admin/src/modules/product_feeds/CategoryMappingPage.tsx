@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import type { TaxonomyProviderCode } from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -175,6 +176,14 @@ export function CategoryMappingPage(): ReactNode {
         title={t('mapping.title')}
         description={t('mapping.subtitle')}
         back={{ label: t('page.title'), to: '/product-feeds' }}
+        actions={
+          // The taxonomy-updates screen has no sidebar entry, so this is its
+          // in-context way in: an operator wondering why a node is missing is
+          // already looking at the mapping they are trying to fix.
+          <Button asChild variant="outline" size="sm">
+            <Link to="/product-feeds/taxonomy-revisions">{t('mapping.updates.cta')}</Link>
+          </Button>
+        }
       />
 
       {error && (

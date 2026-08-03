@@ -9,6 +9,10 @@ import '../../../src/modules/product_feeds/entities/product-feed.entity.js';
 import '../../../src/modules/product_feeds/entities/feed-run.entity.js';
 import '../../../src/modules/product_feeds/entities/feed-run-issue.entity.js';
 import '../../../src/modules/product_feeds/entities/feed-artefact.entity.js';
+import '../../../src/modules/product_feeds/entities/feed-taxonomy.entity.js';
+import '../../../src/modules/product_feeds/entities/feed-taxonomy-node.entity.js';
+import '../../../src/modules/product_feeds/entities/feed-taxonomy-mapping.entity.js';
+import '../../../src/modules/product_feeds/entities/feed-taxonomy-check.entity.js';
 
 /**
  * Feature 067 / data-model.md §0 — every Product Feed entity is
@@ -21,9 +25,10 @@ import '../../../src/modules/product_feeds/entities/feed-artefact.entity.js';
  * unresolvable. The comparable entities — `SalesChannel`, `Product`,
  * `CustomFieldDefinition`, `Asset` — are all global too.
  *
- * The three taxonomy entities (`FeedTaxonomy`, `FeedTaxonomyNode`,
- * `FeedTaxonomyMapping`, data-model §§8–10) join this list when Phase 4 adds
- * them; the classification rule is identical.
+ * The taxonomy entities (data-model §§8–10, §14) are on the same rule: a
+ * provider taxonomy, the operator's category mapping and the history of the
+ * checks that looked for a newer revision are all installation-wide reference
+ * data and operational history, with no tenant dimension to scope by.
  */
 
 const ENTITY_DIR = join(
@@ -38,6 +43,10 @@ const ENTITIES: ReadonlyArray<[className: string, fileName: string]> = [
   ['FeedRun', 'feed-run.entity.ts'],
   ['FeedRunIssue', 'feed-run-issue.entity.ts'],
   ['FeedArtefact', 'feed-artefact.entity.ts'],
+  ['FeedTaxonomy', 'feed-taxonomy.entity.ts'],
+  ['FeedTaxonomyNode', 'feed-taxonomy-node.entity.ts'],
+  ['FeedTaxonomyMapping', 'feed-taxonomy-mapping.entity.ts'],
+  ['FeedTaxonomyCheck', 'feed-taxonomy-check.entity.ts'],
 ];
 
 describe('product_feeds entity tenant classification', () => {

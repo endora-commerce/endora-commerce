@@ -2,7 +2,11 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { TaxonomyProviderCode } from '@b2b/contracts';
+import type {
+  FeedTaxonomyRevisionFlag,
+  FeedTaxonomyRevisionSource,
+  TaxonomyProviderCode,
+} from '@b2b/contracts';
 import { FeedTaxonomy } from '../entities/feed-taxonomy.entity.js';
 import { FeedTaxonomyMapping } from '../entities/feed-taxonomy-mapping.entity.js';
 import { FeedTaxonomyNode } from '../entities/feed-taxonomy-node.entity.js';
@@ -13,17 +17,28 @@ import {
 } from './taxonomy-file-parser.js';
 
 /**
- * Taxonomy install / reconcile — feature 067 / FR-077, FR-078, FR-085.
+ * Bundled taxonomy install / reconcile — feature 067 / FR-077, FR-078, FR-085,
+ * FR-086.
  *
  * Runs from the module's lifecycle hook at boot. For each provider it looks at
  * the revisions bundled **on disk inside the module** and installs any that the
  * database does not have yet, in one transaction, then re-evaluates every
  * existing mapping for staleness.
  *
- * **Nothing here fetches anything.** FR-077 forbids a runtime fetch from Google
- * or Meta: it would make feed output depend on a third party's uptime and break
- * air-gapped installations. Installing a newer revision is a platform upgrade —
- * which is why there is no route that installs, uploads or refreshes one.
+ * **This file owns the bundled path only, and opens no socket.** The other way
+ * a revision can arrive — an optional, off-by-default periodic download — lives
+ * in `taxonomy-refresh.service.ts`. Both write the same kind of row, and both
+ * are bounded by the same rule: **generation never depends on reaching a
+ * provider.** A run reads the revision in force from Postgres and contacts
+ * nobody, so a provider that is down, slow or serving nonsense produces a
+ * failed *check*, never a failed or altered *run*.
+ *
+ * **A bundled revision only becomes current when the provider has none.** On a
+ * fresh database that is every first install, which is the common case and is
+ * unchanged. On an installation where an operator has already promoted a
+ * fetched revision, a platform upgrade must not silently activate the revision
+ * that shipped in the image — activation is deliberate (FR-086, contract §2),
+ * and a deploy is not a decision anybody made about taxonomies.
  *
  * **It is lazy in the way that matters.** The database is asked first; a file is
  * read only when its revision is missing. After the first boot the ~1.5 MB of
@@ -135,7 +150,17 @@ export class TaxonomyReconcilerService {
 
       try {
         const drafts = this.loadRevision(providerCode, newest);
-        await this.install(providerCode, newest, drafts);
+        // Current only when the provider has none: a platform upgrade must not
+        // activate a revision an operator never chose (FR-086, contract §2).
+        // First install on a fresh database is unaffected.
+        const current = await em.findOne(FeedTaxonomy, { providerCode, isCurrent: true });
+        await this.installRevision({
+          providerCode,
+          revision: newest,
+          drafts,
+          source: 'bundled',
+          markCurrent: current === null,
+        });
         result.installed.push({ providerCode, revision: newest, nodeCount: drafts.length });
         const delta = await this.reevaluateMappings(providerCode);
         result.markedStale += delta.markedStale;
@@ -153,35 +178,69 @@ export class TaxonomyReconcilerService {
     return result;
   }
 
-  private async install(
-    providerCode: TaxonomyProviderCode,
-    revision: string,
-    drafts: TaxonomyNodeDraft[],
-  ): Promise<void> {
-    // command-coverage-ignore: lifecycle install of platform-shipped reference
-    // data (FR-077). It loads a bundled taxonomy revision at boot — no actor, no
-    // request, and nothing an operator could undo: the revision arrives with a
-    // platform upgrade. Operator decisions ABOUT it (the mappings) are Commands.
+  /**
+   * Writes one revision and its nodes in a single transaction, and returns the
+   * new revision id.
+   *
+   * Shared by the bundled path here and by the refresh service, so "how a
+   * revision is written" exists once. `markCurrent` is the whole safety
+   * boundary: the refresh path always passes `false` (FR-086), and the bundled
+   * path passes `true` only when the provider has no current revision at all.
+   */
+  async installRevision(input: {
+    providerCode: TaxonomyProviderCode;
+    revision: string;
+    drafts: TaxonomyNodeDraft[];
+    markCurrent: boolean;
+    source?: FeedTaxonomyRevisionSource;
+    sourceUrls?: Record<string, string>;
+    sourceContentHash?: string | null;
+    sourceEtag?: string | null;
+    fetchedAt?: Date | null;
+    flags?: FeedTaxonomyRevisionFlag[];
+  }): Promise<string> {
+    // command-coverage-ignore: machine install of reference data. The bundled
+    // path runs at boot with no actor and no request; the fetch path installs
+    // INACTIVE and so cannot change what any feed emits (FR-086, research §R26).
+    // The operator decisions ABOUT a revision — promoting it, mapping against
+    // it — are Commands.
     const em = this.options.emFactory();
+    const { drafts } = input;
+    let taxonomyId = '';
+
     await em.transactional(async (tx) => {
-      // Exactly one current revision per provider — the partial unique index
-      // would refuse a second, so the old one is demoted first.
-      await tx
-        .getConnection()
-        .execute(
-          `update "product_feed_taxonomies" set "is_current" = false where "provider_code" = ?`,
-          [providerCode],
-          'run',
-          tx.getTransactionContext(),
-        );
+      if (input.markCurrent) {
+        // Exactly one current revision per provider — the partial unique index
+        // would refuse a second, so the old one is demoted first.
+        await tx
+          .getConnection()
+          .execute(
+            `update "product_feed_taxonomies" set "is_current" = false, "superseded_at" = now() where "provider_code" = ? and "is_current" = true`,
+            [input.providerCode],
+            'run',
+            tx.getTransactionContext(),
+          );
+      }
 
       const taxonomy = tx.create(FeedTaxonomy, {
-        providerCode,
-        revision,
-        isCurrent: true,
+        providerCode: input.providerCode,
+        revision: input.revision,
+        isCurrent: input.markCurrent,
         nodeCount: drafts.length,
+        source: input.source ?? 'bundled',
+        sourceUrls: input.sourceUrls ?? {},
+        sourceContentHash: input.sourceContentHash ?? null,
+        sourceEtag: input.sourceEtag ?? null,
+        fetchedAt: input.fetchedAt ?? null,
+        // `promotedAt` records an operator's decision, so a first bundled
+        // install — which nobody decided — records the install stamp instead of
+        // pretending somebody promoted it. What it must never be for a fetched
+        // revision is non-null: that is the retention rule's candidate test.
+        promotedAt: input.markCurrent ? new Date() : null,
+        flags: input.flags ?? [],
       });
       await tx.persistAndFlush(taxonomy);
+      taxonomyId = taxonomy.id;
 
       for (let offset = 0; offset < drafts.length; offset += INSERT_CHUNK) {
         for (const draft of drafts.slice(offset, offset + INSERT_CHUNK)) {
@@ -200,6 +259,8 @@ export class TaxonomyReconcilerService {
         tx.clear();
       }
     });
+
+    return taxonomyId;
   }
 
   /**
@@ -210,8 +271,11 @@ export class TaxonomyReconcilerService {
    */
   async reevaluateMappings(
     providerCode: TaxonomyProviderCode,
+    /** The promote Command passes its transactional manager so the demote, the
+     * activation and this re-evaluation are one atomic step (FR-095). */
+    transactionalEm?: EntityManager,
   ): Promise<{ markedStale: number; markedLive: number }> {
-    const em = this.options.emFactory();
+    const em = transactionalEm ?? this.options.emFactory();
     const current = await em.findOne(FeedTaxonomy, { providerCode, isCurrent: true });
     if (!current) return { markedStale: 0, markedLive: 0 };
 
@@ -252,8 +316,8 @@ export class TaxonomyReconcilerService {
    * `provider_category` fields resolve without the operator doing anything.
    * Idempotent and safe to call on every boot.
    */
-  async linkTemplatesToCurrentTaxonomies(): Promise<void> {
-    const em = this.options.emFactory();
+  async linkTemplatesToCurrentTaxonomies(transactionalEm?: EntityManager): Promise<void> {
+    const em = transactionalEm ?? this.options.emFactory();
     for (const providerCode of PROVIDERS) {
       const current = await em.findOne(FeedTaxonomy, { providerCode, isCurrent: true });
       if (!current) continue;
