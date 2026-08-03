@@ -193,6 +193,15 @@ import { ModuleAction } from '../modules/admin_actions/entities/module-action.en
 import { CredentialConfiguration } from '../modules/credentials/entities/credential-configuration.entity.js';
 import { KsefCredential } from '../modules/ksef/entities/ksef-credential.entity.js';
 import { KsefSubmission } from '../modules/ksef/entities/ksef-submission.entity.js';
+import { FeedTemplate } from '../modules/product_feeds/entities/feed-template.entity.js';
+import { FeedTemplateField } from '../modules/product_feeds/entities/feed-template-field.entity.js';
+import { ProductFeed } from '../modules/product_feeds/entities/product-feed.entity.js';
+import { FeedRun } from '../modules/product_feeds/entities/feed-run.entity.js';
+import { FeedRunIssue } from '../modules/product_feeds/entities/feed-run-issue.entity.js';
+import { FeedArtefact } from '../modules/product_feeds/entities/feed-artefact.entity.js';
+import { FeedTaxonomy } from '../modules/product_feeds/entities/feed-taxonomy.entity.js';
+import { FeedTaxonomyNode } from '../modules/product_feeds/entities/feed-taxonomy-node.entity.js';
+import { FeedTaxonomyMapping } from '../modules/product_feeds/entities/feed-taxonomy-mapping.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -363,6 +372,16 @@ export const ALL_ENTITIES = [
   // ksef (feature 059)
   KsefCredential,
   KsefSubmission,
+  // product_feeds (feature 067)
+  FeedTemplate,
+  FeedTemplateField,
+  ProductFeed,
+  FeedRun,
+  FeedRunIssue,
+  FeedArtefact,
+  FeedTaxonomy,
+  FeedTaxonomyNode,
+  FeedTaxonomyMapping,
   // search analytics ingest (feature 006 / US3)
   SearchPhraseRecord,
   // comparisons (feature 007)

@@ -89,6 +89,15 @@ import { InvoicesList } from './modules/invoices/InvoicesList.js';
 import { InvoiceDetail } from './modules/invoices/InvoiceDetail.js';
 import { InvoiceTemplatesPage } from './modules/invoices/templates/InvoiceTemplatesPage.js';
 import { KsefPage } from './modules/ksef/pages/KsefPage.js';
+import { ProductFeedsListPage } from './modules/product_feeds/ProductFeedsListPage.js';
+import { ProductFeedCreatePage } from './modules/product_feeds/ProductFeedCreatePage.js';
+import { ProductFeedDetailPage } from './modules/product_feeds/ProductFeedDetailPage.js';
+import { FeedTemplatesListPage } from './modules/product_feeds/FeedTemplatesListPage.js';
+import { FeedTemplateStartFromPage } from './modules/product_feeds/FeedTemplateStartFromPage.js';
+import { FeedTemplateEditorPage } from './modules/product_feeds/FeedTemplateEditorPage.js';
+import { FeedTemplateImportPage } from './modules/product_feeds/FeedTemplateImportPage.js';
+import { FeedRunDetailPage } from './modules/product_feeds/FeedRunDetailPage.js';
+import { CategoryMappingPage } from './modules/product_feeds/CategoryMappingPage.js';
 import { InvoiceTemplateEditor } from './modules/invoices/templates/InvoiceTemplateEditor.js';
 import { TaxesPage } from './modules/taxes/TaxesPage.js';
 import { PromotionsPage } from './modules/promotions/PromotionsPage.js';
@@ -223,6 +232,23 @@ export function App(): ReactNode {
         <Route path="/invoices/templates/:id" element={<InvoiceTemplateEditor />} />
         <Route path="/invoices/:id" element={<InvoiceDetail />} />
         <Route path="/ksef" element={<KsefPage />} />
+        {/* Feature 067 — Product Feed. `/new` and `/templates` precede the
+            parametric route so they are never captured as a feed id. */}
+        <Route path="/product-feeds" element={<ProductFeedsListPage />} />
+        <Route path="/product-feeds/new" element={<ProductFeedCreatePage />} />
+        <Route path="/product-feeds/templates" element={<FeedTemplatesListPage />} />
+        <Route path="/product-feeds/templates/new" element={<FeedTemplateStartFromPage />} />
+        <Route path="/product-feeds/templates/import" element={<FeedTemplateImportPage />} />
+        <Route
+          path="/product-feeds/templates/:templateId"
+          element={<FeedTemplateEditorPage />}
+        />
+        <Route path="/product-feeds/category-mapping" element={<CategoryMappingPage />} />
+        <Route
+          path="/product-feeds/:feedId/runs/:runId"
+          element={<FeedRunDetailPage />}
+        />
+        <Route path="/product-feeds/:feedId" element={<ProductFeedDetailPage />} />
         <Route path="/taxes" element={<TaxesPage />} />
         <Route path="/promotions" element={<PromotionsPage />} />
         <Route path="/promotions/new" element={<PromotionEditPage />} />

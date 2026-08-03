@@ -50,6 +50,8 @@ export const KnownIconNameSchema = z.enum([
   // documents
   'FileText',
   'BookOpen',
+  // syndication
+  'Rss',
   // commerce
   'Package',
   'Tag',

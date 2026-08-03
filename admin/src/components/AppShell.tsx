@@ -13,6 +13,7 @@ import {
   Box,
   Factory,
   FileText,
+  Rss,
   HelpCircle,
   Home as HomeIcon,
   Image as ImageIcon,
@@ -203,6 +204,18 @@ const NAV: NavSection[] = [
       { to: '/dictionary', labelKey: 'appShell.nav.dictionary', icon: Languages, requiredPermission: 'dictionary.write' },
       { to: '/admin/dictionaries/audit', labelKey: 'appShell.nav.dictionaryAudit', icon: ListChecks, requiredPermission: 'dictionary.write' },
       { to: '/seo', labelKey: 'appShell.nav.seo', icon: Search },
+      {
+        to: '/product-feeds',
+        labelKey: 'appShell.nav.productFeeds',
+        icon: Rss,
+        requiredPermission: 'product_feeds:read',
+      },
+      {
+        to: '/product-feeds/templates',
+        labelKey: 'appShell.nav.feedTemplates',
+        icon: FileText,
+        requiredPermission: 'product_feeds:read',
+      },
     ],
   },
   {
@@ -443,6 +456,49 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/catalog\/attachment-types\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.attachmentTypes', href: null },
+  ] },
+  { test: /^\/product-feeds\/?$/, build: () => [
+    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.productFeeds', href: null },
+  ] },
+  { test: /^\/product-feeds\/new\/?$/, build: () => [
+    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
+    { labelKey: 'appShell.crumb.new', href: null },
+  ] },
+  { test: /^\/product-feeds\/templates\/?$/, build: () => [
+    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.feedTemplates', href: null },
+  ] },
+  { test: /^\/product-feeds\/templates\/new\/?$/, build: () => [
+    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
+    { labelKey: 'appShell.crumb.new', href: null },
+  ] },
+  { test: /^\/product-feeds\/templates\/import\/?$/, build: () => [
+    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
+    { labelKey: 'appShell.crumb.import', href: null },
+  ] },
+  { test: /^\/product-feeds\/templates\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
+    { labelKey: 'appShell.crumb.editor', href: null },
+  ] },
+  { test: /^\/product-feeds\/[^/]+\/runs\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
+    { labelKey: 'appShell.crumb.feedRun', href: null },
+  ] },
+  { test: /^\/product-feeds\/category-mapping\/?$/, build: () => [
+    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.feedCategoryMapping', href: null },
+  ] },
+  { test: /^\/product-feeds\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
+    { labelKey: 'appShell.crumb.editor', href: null },
   ] },
   { test: /^\/assets-library\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },

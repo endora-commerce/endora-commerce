@@ -69,6 +69,7 @@ import { PaymentRefundProvider } from './modules/payments/services/payment-refun
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
 import { invoicesModule } from './modules/invoices/plugin.js';
 import { ksefModule } from './modules/ksef/plugin.js';
+import { productFeedsModule } from './modules/product_feeds/plugin.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
 import { AddressService } from './modules/addresses/services/address-service.js';
@@ -2249,6 +2250,142 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // PDF QR seam (contracts/invoices-integration.md §3) — one resolver covers
   // every render path; absent/disabled module ⇒ pre-059 output.
   invoices.handle.pdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
+
+  // Feature 067 — Product Feed. Projects a sales channel's catalogue into
+  // provider-shaped feed files published at a tokenised URL. Every cross-module
+  // read is an injected collaborator (Principle I); channel membership goes
+  // exclusively through the sanctioned accessor (Principle XII); artefact bytes
+  // go through the Assets Library storage adapters WITHOUT creating `Asset`
+  // rows (FR-043).
+  //
+  // Its own `CatalogQueryService` instance, for the same reason promotions has
+  // one: it is the documented cross-module catalog port (Constitution I), and
+  // sharing one instance between two unrelated consumers would make an
+  // unrelated wiring change to one of them a silent change to the other.
+  const catalogQueryServiceForProductFeeds = new CatalogQueryService(
+    em,
+    undefined,
+    undefined,
+    catalogAttributeReadService,
+  );
+  const productFeeds = productFeedsModule({
+    emFactory: em,
+    requireAdmin,
+    commandBus,
+    eventBus,
+    storageAdapters: {
+      getActive: () => assetsLibrary.handle.adapters.getActive(),
+      getForBackend: async (backend) => {
+        const adapter = await assetsLibrary.handle.adapters.getForBackend(backend);
+        // `getForBackend` also answers the legacy resolver, which can only
+        // build URLs. A feed artefact is always written by a real adapter, so
+        // reaching this branch means the row is corrupt — fail loudly rather
+        // than serving nothing.
+        if (!('open' in adapter) || typeof adapter.open !== 'function') {
+          throw new Error(
+            `product_feeds: storage backend "${backend}" cannot stream artefact bytes.`,
+          );
+        }
+        return adapter;
+      },
+    },
+    salesChannelMembership: salesChannels.handle.membershipService,
+    pricingService: priceLists.handle.pricingService,
+    taxService: taxes.handle.taxService,
+    resolveAvailability: async (productIds, salesChannelId) => {
+      const candidateWarehouseIds =
+        await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
+      return externalAvailabilityStockLevels.resolveAvailabilityBands(
+        productIds,
+        candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+      );
+    },
+    // FR-025 — "category membership, including descendants" through the
+    // documented catalog port, never a `product_categories` read from here.
+    expandCategoryProductIds: (categoryIds) =>
+      catalogQueryServiceForProductFeeds.expandCategoryProductIds(categoryIds),
+    // FR-043 — only stable, PUBLIC URLs reach a feed file. A private asset is
+    // absent from the map rather than present as an expiring signed URL, which
+    // would survive token rotation and break as soon as it expired.
+    resolvePublicImageUrls: async (assetIds) => {
+      const out = new Map<string, string>();
+      if (assetIds.length === 0) return out;
+      const assets = await em().find(Asset, {
+        id: { $in: assetIds },
+        visibility: 'public',
+        deletedAt: null,
+      });
+      const apiOrigin = (process.env['PUBLIC_API_BASE_URL'] ?? '').replace(/\/+$/, '');
+      for (const asset of assets) {
+        try {
+          const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
+          if (resolved.expiresAt !== null) continue; // signed ⇒ not stable
+          const url = /^https?:\/\//i.test(resolved.url)
+            ? resolved.url
+            : apiOrigin === ''
+              ? null
+              : `${apiOrigin}/${resolved.url.replace(/^\/+/, '')}`;
+          if (url) out.set(asset.id, url);
+        } catch {
+          // An unresolvable asset is simply not an image for this feed.
+        }
+      }
+      return out;
+    },
+    customFieldDefinitions: customFields.handle.definitionService,
+    languageService: i18n.handle.languageService,
+    adminNotificationService: adminNotifications.handle.adminNotificationService,
+    settings: settings.handle.settingsService,
+    publicBaseUrl: process.env['PUBLIC_API_BASE_URL'] ?? '',
+    redis,
+    // Principle X — the generation and reaper consumers run co-located unless
+    // BACKEND_ROLE=api, in which case only the separate `pnpm worker` process
+    // owns them.
+    runWorkers,
+  });
+  modules.push(productFeeds.plugin);
+  // FR-007 / FR-008 — install any missing predefined template. Non-destructive
+  // (an existing `system_code` is left alone) and log-and-continue on failure,
+  // the same posture as the `_i18n` bundle reconciler: a missing predefined
+  // template is an inconvenience, an unbootable API is an outage.
+  void productFeeds.handle.reconcileTemplates().catch((err: unknown) => {
+    console.warn(
+      JSON.stringify({
+        level: 'warn',
+        msg: 'product_feeds predefined-template reconcile failed',
+        error: String(err),
+      }),
+    );
+  });
+  // FR-077 / FR-078 — install any bundled taxonomy revision the database does
+  // not have and re-evaluate mappings for staleness. Reads files only; never
+  // the network. An installation with no bundled data simply installs nothing.
+  void productFeeds.handle.reconcileTaxonomies().catch((err: unknown) => {
+    console.warn(
+      JSON.stringify({
+        level: 'warn',
+        msg: 'product_feeds taxonomy reconcile failed',
+        error: String(err),
+      }),
+    );
+  });
+  // FR-031 / research §R5.2 — Postgres is the source of truth for schedules and
+  // Redis is a derived index. Re-asserting every per-feed Job Scheduler on each
+  // worker boot is what makes a flushed Redis, an old snapshot, or a crash
+  // between the Postgres commit and the Redis call cost at most one missed
+  // tick instead of a feed that silently stops regenerating. Only the worker
+  // role does it: an API-only process must not own schedules.
+  if (runWorkers) {
+    void productFeeds.handle.reconcileSchedules().catch((err: unknown) => {
+      console.warn(
+        JSON.stringify({
+          level: 'warn',
+          msg: 'product_feeds schedule reconcile failed',
+          error: String(err),
+        }),
+      );
+    });
+  }
 
   // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
   // through the OrderReturnContextPort (Principle I); settings drive the

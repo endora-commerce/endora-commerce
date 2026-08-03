@@ -1,0 +1,3 @@
+category_id,category
+101,żywność i napoje
+102,żywność i napoje > jedzenie

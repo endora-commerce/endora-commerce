@@ -50,23 +50,24 @@ import { manifest as manifest_42 } from '../payment_methods/manifest.js';
 import { manifest as manifest_43 } from '../payments/manifest.js';
 import { manifest as manifest_44 } from '../payu/manifest.js';
 import { manifest as manifest_45 } from '../price_lists/manifest.js';
-import { manifest as manifest_46 } from '../promotions/manifest.js';
-import { manifest as manifest_47 } from '../prompt_actions/manifest.js';
-import { manifest as manifest_48 } from '../pwa/manifest.js';
-import { manifest as manifest_49 } from '../quick_order/manifest.js';
-import { manifest as manifest_50 } from '../quote_requests/manifest.js';
-import { manifest as manifest_51 } from '../returns/manifest.js';
-import { manifest as manifest_52 } from '../sales_channels/manifest.js';
-import { manifest as manifest_53 } from '../search/manifest.js';
-import { manifest as manifest_54 } from '../seo/manifest.js';
-import { manifest as manifest_55 } from '../settings/manifest.js';
-import { manifest as manifest_56 } from '../shipments/manifest.js';
-import { manifest as manifest_57 } from '../shopping_lists/manifest.js';
-import { manifest as manifest_58 } from '../stripe/manifest.js';
-import { manifest as manifest_59 } from '../taxes/manifest.js';
-import { manifest as manifest_60 } from '../tpay/manifest.js';
-import { manifest as manifest_61 } from '../transactional_emails/manifest.js';
-import { manifest as manifest_62 } from '../webhooks/manifest.js';
+import { manifest as manifest_46 } from '../product_feeds/manifest.js';
+import { manifest as manifest_47 } from '../promotions/manifest.js';
+import { manifest as manifest_48 } from '../prompt_actions/manifest.js';
+import { manifest as manifest_49 } from '../pwa/manifest.js';
+import { manifest as manifest_50 } from '../quick_order/manifest.js';
+import { manifest as manifest_51 } from '../quote_requests/manifest.js';
+import { manifest as manifest_52 } from '../returns/manifest.js';
+import { manifest as manifest_53 } from '../sales_channels/manifest.js';
+import { manifest as manifest_54 } from '../search/manifest.js';
+import { manifest as manifest_55 } from '../seo/manifest.js';
+import { manifest as manifest_56 } from '../settings/manifest.js';
+import { manifest as manifest_57 } from '../shipments/manifest.js';
+import { manifest as manifest_58 } from '../shopping_lists/manifest.js';
+import { manifest as manifest_59 } from '../stripe/manifest.js';
+import { manifest as manifest_60 } from '../taxes/manifest.js';
+import { manifest as manifest_61 } from '../tpay/manifest.js';
+import { manifest as manifest_62 } from '../transactional_emails/manifest.js';
+import { manifest as manifest_63 } from '../webhooks/manifest.js';
 
 export interface DiscoveredManifestEntry {
   id: string;
@@ -120,21 +121,22 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'payments', manifest: manifest_43 },
   { id: 'payu', manifest: manifest_44 },
   { id: 'price_lists', manifest: manifest_45 },
-  { id: 'promotions', manifest: manifest_46 },
-  { id: 'prompt_actions', manifest: manifest_47 },
-  { id: 'pwa', manifest: manifest_48 },
-  { id: 'quick_order', manifest: manifest_49 },
-  { id: 'quote_requests', manifest: manifest_50 },
-  { id: 'returns', manifest: manifest_51 },
-  { id: 'sales_channels', manifest: manifest_52 },
-  { id: 'search', manifest: manifest_53 },
-  { id: 'seo', manifest: manifest_54 },
-  { id: 'settings', manifest: manifest_55 },
-  { id: 'shipments', manifest: manifest_56 },
-  { id: 'shopping_lists', manifest: manifest_57 },
-  { id: 'stripe', manifest: manifest_58 },
-  { id: 'taxes', manifest: manifest_59 },
-  { id: 'tpay', manifest: manifest_60 },
-  { id: 'transactional_emails', manifest: manifest_61 },
-  { id: 'webhooks', manifest: manifest_62 },
+  { id: 'product_feeds', manifest: manifest_46 },
+  { id: 'promotions', manifest: manifest_47 },
+  { id: 'prompt_actions', manifest: manifest_48 },
+  { id: 'pwa', manifest: manifest_49 },
+  { id: 'quick_order', manifest: manifest_50 },
+  { id: 'quote_requests', manifest: manifest_51 },
+  { id: 'returns', manifest: manifest_52 },
+  { id: 'sales_channels', manifest: manifest_53 },
+  { id: 'search', manifest: manifest_54 },
+  { id: 'seo', manifest: manifest_55 },
+  { id: 'settings', manifest: manifest_56 },
+  { id: 'shipments', manifest: manifest_57 },
+  { id: 'shopping_lists', manifest: manifest_58 },
+  { id: 'stripe', manifest: manifest_59 },
+  { id: 'taxes', manifest: manifest_60 },
+  { id: 'tpay', manifest: manifest_61 },
+  { id: 'transactional_emails', manifest: manifest_62 },
+  { id: 'webhooks', manifest: manifest_63 },
 ];

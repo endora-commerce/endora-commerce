@@ -281,6 +281,40 @@ export const COMMAND_REGISTRY = {
   'credential.create': { reversible: false, description: 'Create a credential configuration' },
   'credential.update': { reversible: false, description: 'Update a credential configuration' },
   'credential.delete': { reversible: false, description: 'Delete a credential configuration' },
+  // Product Feed module (feature 067). Machine transitions inside a run — status
+  // changes, artefact publication, retention purge, the reaper — are
+  // deliberately NOT commands and carry `command-coverage-ignore` at their site
+  // (research §R17); auditing them would add a row per scheduled run forever.
+  'product_feeds.feed.create': { reversible: false, description: 'Create a product feed' },
+  'product_feeds.feed.update': { reversible: false, description: 'Update a product feed' },
+  'product_feeds.feed.delete': { reversible: false, description: 'Delete a product feed' },
+  'product_feeds.feed.duplicate': { reversible: false, description: 'Duplicate a product feed' },
+  // Irreversible on purpose: undoing a rotation would restore a token the
+  // operator deliberately invalidated.
+  'product_feeds.token.rotate': { reversible: false, description: 'Rotate a product feed access token' },
+  'product_feeds.token.revoke': { reversible: false, description: 'Revoke a product feed access token' },
+  'product_feeds.run.start': { reversible: false, description: 'Start a product feed generation run' },
+  // Feed templates. The whole ordered field list is one Command, so an operator
+  // session in the structure editor reads as one audit entry rather than a
+  // dozen per-field writes (FR-068).
+  'product_feeds.template.create': { reversible: false, description: 'Create a feed template' },
+  'product_feeds.template.update': { reversible: false, description: 'Update a feed template' },
+  'product_feeds.template.duplicate': {
+    reversible: false,
+    description: 'Duplicate a feed template',
+  },
+  'product_feeds.template.delete': { reversible: false, description: 'Delete a feed template' },
+  // Import is one Command for the whole document — template row, every field
+  // row and the collision resolution — so a failure leaves nothing behind and
+  // an auditor sees one entry per imported file (FR-018).
+  'product_feeds.template.import': {
+    reversible: false,
+    description: 'Import a feed template from a portability document',
+  },
+  'product_feeds.taxonomy_mapping.set': {
+    reversible: false,
+    description: 'Set or clear a shop category → provider taxonomy node mapping',
+  },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

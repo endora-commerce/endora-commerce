@@ -125,6 +125,8 @@ import { createSuggestionPricingEnricher } from '../../src/modules/search/servic
 import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/modules/prompt_actions/plugin.js';
 import { credentialsModule } from '../../src/modules/credentials/plugin.js';
 import { ksefModule } from '../../src/modules/ksef/plugin.js';
+import { productFeedsModule } from '../../src/modules/product_feeds/plugin.js';
+import { Asset } from '../../src/modules/assets_library/entities/asset.entity.js';
 import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
 import { configurationTypeRegistry } from '../../src/modules/credentials/services/registry-singleton.js';
 import { llmConfigurationType } from '../../src/modules/credentials/types/llm.type.js';
@@ -221,6 +223,8 @@ export interface BackendServerHandle {
   invoices: ReturnType<typeof invoicesModule>['handle'];
   /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
   ksef: ReturnType<typeof ksefModule>['handle'];
+  /** Feature 067 — Product Feed handle (feeds, generation, runs, token cache). */
+  productFeeds: ReturnType<typeof productFeedsModule>['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: ReturnType<typeof pwaModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
@@ -1818,6 +1822,80 @@ export async function setupBackendServer(
   modules.push(ksef.plugin);
   invoices.handle.pdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
 
+  // Feature 067 — Product Feed. Deliberately NO `redis` and NO `runWorkers`:
+  // `setupBackendServer()` runs once per test file in a single fork, and adding
+  // BullMQ connections here has previously taken ~225 files down with "too many
+  // clients" (research §R18). Tests drive `productFeeds.generation.generateNow`
+  // directly, exactly as the KSeF tests drive `submissions.process`.
+  const productFeeds = productFeedsModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+    commandBus,
+    eventBus,
+    storageAdapters: {
+      getActive: () => assetsLibrary.handle.adapters.getActive(),
+      getForBackend: async (backend) => {
+        const adapter = await assetsLibrary.handle.adapters.getForBackend(backend);
+        if (!('open' in adapter) || typeof adapter.open !== 'function') {
+          throw new Error(
+            `product_feeds: storage backend "${backend}" cannot stream artefact bytes.`,
+          );
+        }
+        return adapter;
+      },
+    },
+    salesChannelMembership: salesChannels.handle.membershipService,
+    pricingService: priceLists.handle.pricingService,
+    taxService: taxes.handle.taxService,
+    resolveAvailability: async (productIds, salesChannelId) => {
+      const warehouseIds =
+        await new WarehouseChannelService(em).resolveCandidateWarehouseIds(salesChannelId);
+      return new StockLevelService(em).resolveAvailabilityBands(
+        productIds,
+        warehouseIds.length > 0 ? warehouseIds : undefined,
+      );
+    },
+    // FR-025 — category criteria include descendants, read through the
+    // documented catalog port rather than a `product_categories` query here.
+    expandCategoryProductIds: (categoryIds) =>
+      new CatalogQueryService(em).expandCategoryProductIds(categoryIds),
+    resolvePublicImageUrls: async (assetIds) => {
+      const out = new Map<string, string>();
+      if (assetIds.length === 0) return out;
+      const assets = await em().find(Asset, {
+        id: { $in: assetIds },
+        visibility: 'public',
+        deletedAt: null,
+      });
+      for (const asset of assets) {
+        try {
+          const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
+          // Signed ⇒ not stable ⇒ not publishable (FR-043).
+          if (resolved.expiresAt === null && /^https?:\/\//i.test(resolved.url)) {
+            out.set(asset.id, resolved.url);
+          }
+        } catch {
+          // Unresolvable ⇒ simply not an image for this feed.
+        }
+      }
+      return out;
+    },
+    customFieldDefinitions: customFields.handle.definitionService,
+    languageService: i18n.handle.languageService,
+    // FR-056 — a failed run has to be able to raise the operator notification
+    // the integration tests assert on. The module instance lives inside the
+    // feature-026 wiring block above, which exposes it on this handle.
+    adminNotificationService: handleFeature026.adminNotificationService,
+    settings: settings.handle.settingsService,
+    publicBaseUrl: '',
+    // Deliberately a path that does not exist: no test may read the shipped
+    // ~1.5 MB taxonomy files. The taxonomy tests construct their own
+    // reconciler pointed at a small fixture instead.
+    taxonomyDataRoot: '/nonexistent/product-feeds-taxonomies',
+  });
+  modules.push(productFeeds.plugin);
+  await productFeeds.handle.reconcileTemplates();
+
   // Feature 047 — Transactional Emails.
   emailDefaultsRegistry.register('order_confirmation', {
     defaultSubject: ORDER_CONFIRMATION_DEFAULT.defaultSubject,
@@ -2100,6 +2178,7 @@ export async function setupBackendServer(
     credentials: credentials.handle,
     invoices: invoices.handle,
     ksef: ksef.handle,
+    productFeeds: productFeeds.handle,
     pwa: pwa.handle,
     permissionService,
     permissionCatalogueService,

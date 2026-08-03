@@ -343,6 +343,27 @@ export const ERROR_CODES = {
   KSEF_ENROLLMENT_REJECTED: 'KSEF_ENROLLMENT_REJECTED',
   KSEF_ALREADY_SUBMITTED: 'KSEF_ALREADY_SUBMITTED',
   KSEF_NOT_SUBMITTABLE: 'KSEF_NOT_SUBMITTABLE',
+
+  // Product Feed module (feature 067). The module's own operator-facing reason
+  // strings live in `PRODUCT_FEED_ERROR_CODES` (product-feeds.ts) and travel in
+  // the envelope's `details.reason`; these are the transport-level codes.
+  PRODUCT_FEED_DISABLED: 'PRODUCT_FEED_DISABLED',
+  PRODUCT_FEED_TEMPLATE_UNBOUND: 'PRODUCT_FEED_TEMPLATE_UNBOUND',
+  /**
+   * A template write refused on a state the operator can see and act on: it is
+   * a system template, it is still used by a feed, or its name is taken.
+   * `details.reason` carries which one, from `PRODUCT_FEED_ERROR_CODES`.
+   */
+  PRODUCT_FEED_TEMPLATE_CONFLICT: 'PRODUCT_FEED_TEMPLATE_CONFLICT',
+  /**
+   * The write is understood, allowed and refused only until the operator has
+   * seen its consequence — removing a field the provider's shipped template
+   * marks required (FR-074). It is deliberately neither a validation failure
+   * (the request is valid) nor a hard block (re-sending with
+   * `?acknowledgeWarnings=true` performs it); `details.warnings` carries what
+   * the operator has to be told first.
+   */
+  PRODUCT_FEED_CONFIRMATION_REQUIRED: 'PRODUCT_FEED_CONFIRMATION_REQUIRED',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

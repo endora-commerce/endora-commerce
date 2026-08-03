@@ -1,0 +1,5 @@
+# Google_Product_Taxonomy_Version: 2020-06-01
+1 - Animals & Pet Supplies
+2 - Animals & Pet Supplies > Pet Supplies
+3 - Animals & Pet Supplies > Pet Supplies > Bird Supplies
+4 - Animals & Pet Supplies > Pet Supplies > Cat Supplies

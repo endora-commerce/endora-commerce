@@ -1,0 +1,3 @@
+category_id,category
+101,food & beverages
+102,food & beverages > food
