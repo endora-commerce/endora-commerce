@@ -35,17 +35,19 @@ export class GatewayRefundRegistry {
   }
 
   /**
-   * Resolve the handler for a gateway payment. Today a single gateway vendor is
-   * expected at a time, so an `adapterKey`-less lookup returns the sole
-   * registered handler; when the adapter is known, it is preferred.
+   * Resolve the handler for a gateway payment.
+   * - Known `adapterKey` → exact handler only (never guess another PSP).
+   * - Missing key → sole registered handler when exactly one exists.
    */
   resolve(adapterKey?: string | null): GatewayRefundHandler | undefined {
     if (adapterKey) {
-      const exact = this.handlers.get(adapterKey);
-      if (exact) return exact;
+      return this.handlers.get(adapterKey);
     }
-    const [only] = this.handlers.values();
-    return only;
+    if (this.handlers.size === 1) {
+      const [only] = this.handlers.values();
+      return only;
+    }
+    return undefined;
   }
 
   list(): string[] {

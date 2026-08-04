@@ -51,11 +51,13 @@ describe('Admin roles CRUD', () => {
     // +2 for feature 063 TPay (tpay:read, tpay:write).
     // +2 for feature 065 PayU (payu:read, payu:write).
     // +2 for feature 067 Product Feed (product_feeds:read, product_feeds:write).
-    expect(body.data.length).toBe(67);
+    // +2 for feature 067 Autopay (autopay:read, autopay:write).
+    expect(body.data.length).toBe(69);
     expect(body.data.some((p) => p.code === 'promotions:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'stripe:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'tpay:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'payu:write')).toBe(true);
+    expect(body.data.some((p) => p.code === 'autopay:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'mfa:reset')).toBe(true);
     expect(body.data.some((p) => p.code === 'orders:read')).toBe(true);
     expect(body.data.some((p) => p.code === 'settings:read')).toBe(true);

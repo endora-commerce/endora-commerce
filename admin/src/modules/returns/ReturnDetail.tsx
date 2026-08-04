@@ -250,19 +250,37 @@ export function ReturnDetail(): ReactNode {
             <Button
               size="sm"
               onClick={() =>
-                void run(
-                  () =>
-                    returnsClient.settle(id, {
+                void (async () => {
+                  setError(null);
+                  setInfo(null);
+                  try {
+                    const settled = await returnsClient.settle(id, {
                       resolutionType: resolution,
                       lines: prefill.items.map((it) => ({
                         returnCaseItemId: it.returnCaseItemId,
                         approvedRefundAmount: approved[it.returnCaseItemId] ?? 0,
                       })),
-                      ...(resolution === 'refund' && paymentMethodId ? { refundPaymentMethodId: paymentMethodId } : {}),
+                      ...(resolution === 'refund' && paymentMethodId
+                        ? { refundPaymentMethodId: paymentMethodId }
+                        : {}),
                       createCorrectiveInvoice: true,
-                    }),
-                  'Settled.',
-                )
+                    });
+                    if (settled.refund?.settlementState === 'failed') {
+                      setError(
+                        settled.refund.failureReason ?? 'Payment gateway rejected the refund.',
+                      );
+                    } else {
+                      setInfo('Settled.');
+                    }
+                    await refresh();
+                  } catch (err) {
+                    setError(
+                      err instanceof ApiError
+                        ? err.envelope.error.message
+                        : 'Action failed.',
+                    );
+                  }
+                })()
               }
             >
               Settle case

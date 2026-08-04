@@ -262,6 +262,7 @@ export const settlementResultSchema = z.object({
     .object({
       settlementState: settlementStateSchema,
       externalReference: z.string().nullable().optional(),
+      failureReason: z.string().nullable().optional(),
     })
     .optional(),
   correctiveInvoiceId: uuidSchema.nullable().optional(),

@@ -19,6 +19,12 @@ import { PayuSavedCard } from '../modules/payu/entities/payu-saved-card.entity.j
 import { PayuBlikAlias } from '../modules/payu/entities/payu-blik-alias.entity.js';
 import { PayuPaymentMethodRule } from '../modules/payu/entities/payu-payment-method-rule.entity.js';
 import { PayuPaymentMethodOrgDisable } from '../modules/payu/entities/payu-payment-method-org-disable.entity.js';
+import { AutopayTransaction } from '../modules/autopay/entities/autopay-transaction.entity.js';
+import { AutopayNotificationEvent } from '../modules/autopay/entities/autopay-notification-event.entity.js';
+import { AutopaySavedCard } from '../modules/autopay/entities/autopay-saved-card.entity.js';
+import { AutopayBlikAlias } from '../modules/autopay/entities/autopay-blik-alias.entity.js';
+import { AutopayPaymentMethodRule } from '../modules/autopay/entities/autopay-payment-method-rule.entity.js';
+import { AutopayPaymentMethodOrgDisable } from '../modules/autopay/entities/autopay-payment-method-org-disable.entity.js';
 import { CustomFieldDefinition } from '../modules/custom_fields/entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../modules/custom_fields/entities/custom-field-option.entity.js';
 import { AuditLogEntry } from '../modules/audit_logs/entities/audit-log-entry.entity.js';
@@ -471,6 +477,12 @@ export const ALL_ENTITIES = [
   PayuBlikAlias,
   PayuPaymentMethodRule,
   PayuPaymentMethodOrgDisable,
+  AutopayTransaction,
+  AutopayNotificationEvent,
+  AutopaySavedCard,
+  AutopayBlikAlias,
+  AutopayPaymentMethodRule,
+  AutopayPaymentMethodOrgDisable,
   // Feature 055 — Custom Fields Layer (entity-agnostic runtime fields).
   CustomFieldDefinition,
   CustomFieldOption,

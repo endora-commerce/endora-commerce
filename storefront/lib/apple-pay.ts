@@ -8,7 +8,10 @@ type ApplePaySessionStatic = {
   supportsVersion(version: number): boolean;
 };
 
-const APPLE_PAY_METHOD_CODES = new Set(['payu_apple_pay', 'stripe_apple_pay']);
+const APPLE_PAY_METHOD_CODES = new Set([
+  'payu_apple_pay',
+  'stripe_apple_pay',
+]);
 
 export function isApplePayMethodCode(code: string): boolean {
   return APPLE_PAY_METHOD_CODES.has(code);
