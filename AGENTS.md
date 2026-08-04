@@ -1,6 +1,6 @@
 # Endora Commerce (b2b-platform) — Agent Instructions
 
-Last updated: 2026-08-02
+Last updated: 2026-08-04
 
 **This file is the single source of truth for every AI coding agent working in this
 repository.** `CLAUDE.md` and `.cursor/rules/specify-rules.mdc` are thin pointers to it —
@@ -255,6 +255,8 @@ agent reads that path directly. Update it in place; never fork a second copy.
 ## Active Technologies
 - TypeScript 5.x `strict`, Node.js ≥ 22.17 (backend + admin), ESM. (067-product-feed)
 - PostgreSQL for feed configuration, taxonomy reference data, run history and issue records; (067-product-feed)
+- TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ — **no new runtime (068-ergonode-pim-sync)
+- PostgreSQL — 10 new tables owned by `pim_ergonode`, 1 new column on `catalog.categories` (068-ergonode-pim-sync)
 
 - TypeScript 5.x strict on Node.js ≥ 22.17; Fastify + MikroORM (PostgreSQL) + Zod + ioredis + BullMQ + Meilisearch (backend)
 - React 19 + Vite + react-router-dom 7 + Tailwind 4 (admin); Next.js 15 App Router + React 19 + Tailwind v4 (storefront)
@@ -265,7 +267,7 @@ agent reads that path directly. Update it in place; never fork a second copy.
 See "Repo map" above.
 
 ## Recent Changes
+- 068-ergonode-pim-sync: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ — **no new runtime
 - 067-product-feed: Added TypeScript 5.x `strict`, Node.js ≥ 22.17 (backend + admin), ESM.
 
 - 060-api-interceptor: Fastify `onRoute`/`preSerialization`/`onReady` hook registry, diagnostics endpoint; no schema change.
-- 059-ksef-integration: KSeF submission module — BullMQ `ksef.submit` queue, `node:crypto` signing, credentials via the Settings module.
