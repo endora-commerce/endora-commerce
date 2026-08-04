@@ -172,6 +172,9 @@ import { Migration20260611T140353PaymentMethodsAdapter } from '../modules/paymen
 // ── payu ──────────────────────────────────────────────────────────────────
 import { Migration20260801T100943PayuInit } from '../modules/payu/migrations/20260801T100943_payu_init.js';
 
+// ── autopay ───────────────────────────────────────────────────────────────
+import { Migration20260803T065409AutopayInit } from '../modules/autopay/migrations/20260803T065409_autopay_init.js';
+
 // ── price_lists ───────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '../modules/price_lists/migrations/20260426T075235_price_lists_pricing_init.js';
 import { Migration20260504T125655PriceListsEngine } from '../modules/price_lists/migrations/20260504T125655_price_lists_engine.js';
@@ -408,6 +411,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── payu ──────────────────────────────────────────────────────────────────
   migration('payu', Migration20260801T100943PayuInit),
+
+  // ── autopay ───────────────────────────────────────────────────────────────
+  migration('autopay', Migration20260803T065409AutopayInit),
 
   // ── price_lists ───────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),

@@ -35,6 +35,9 @@ export interface ReturnSettlementServiceDeps {
  * the documented ports: money refund (payments), store credit (credit_limits),
  * and the corrective invoice (invoices). Replacement/repair resolutions move no
  * money.
+ *
+ * Gateway money refunds are attempted **before** marking the case resolved, so
+ * a PSP rejection leaves the case in `received` and the admin can retry.
  */
 export class ReturnSettlementService {
   constructor(private readonly deps: ReturnSettlementServiceDeps) {}
@@ -103,6 +106,31 @@ export class ReturnSettlementService {
 
     const movesMoney = input.resolutionType === 'refund' || input.resolutionType === 'credit';
 
+    // Attempt the gateway refund before resolving — a PSP rejection must not
+    // leave the RMA looking successfully settled.
+    let gatewayOutcome: Awaited<ReturnType<PaymentRefundPort['refund']>> | null = null;
+    if (input.resolutionType === 'refund') {
+      gatewayOutcome = await this.deps.paymentRefund.refund({
+        orderId: rc.orderId,
+        amount: total,
+        currency: rc.currency,
+        ...(input.refundPaymentMethodId ? { paymentMethodId: input.refundPaymentMethodId } : {}),
+        idempotencyKey: rc.id,
+      });
+      if (gatewayOutcome.state === 'failed') {
+        throw new HttpError(
+          502,
+          ERROR_CODES.VALIDATION_FAILED,
+          gatewayOutcome.failureReason ?? 'Payment gateway rejected the refund.',
+          {
+            code: 'gateway_refund_failed',
+            settlementState: gatewayOutcome.state,
+            providerDetails: gatewayOutcome.providerDetails ?? null,
+          },
+        );
+      }
+    }
+
     await this.deps.transitions.apply(
       id,
       RETURN_STATUS_RESOLVED,
@@ -132,19 +160,16 @@ export class ReturnSettlementService {
       settlementState: 'pending_manual',
     });
 
-    if (input.resolutionType === 'refund') {
-      const outcome = await this.deps.paymentRefund.refund({
-        orderId: rc.orderId,
-        amount: total,
-        currency: rc.currency,
-        ...(input.refundPaymentMethodId ? { paymentMethodId: input.refundPaymentMethodId } : {}),
-        idempotencyKey: rc.id,
-      });
-      refund.settlementState = outcome.state;
-      refund.externalReference = outcome.externalReference ?? null;
-      refund.providerDetails = outcome.providerDetails ?? null;
-      refund.failureReason = outcome.failureReason ?? null;
-      result.refund = { settlementState: outcome.state, externalReference: outcome.externalReference ?? null };
+    if (input.resolutionType === 'refund' && gatewayOutcome) {
+      refund.settlementState = gatewayOutcome.state;
+      refund.externalReference = gatewayOutcome.externalReference ?? null;
+      refund.providerDetails = gatewayOutcome.providerDetails ?? null;
+      refund.failureReason = gatewayOutcome.failureReason ?? null;
+      result.refund = {
+        settlementState: gatewayOutcome.state,
+        externalReference: gatewayOutcome.externalReference ?? null,
+        failureReason: gatewayOutcome.failureReason ?? null,
+      };
     } else {
       const credit = rc.organizationId
         ? await this.deps.creditTopup.creditFromReturn({

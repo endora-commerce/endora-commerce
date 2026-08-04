@@ -187,6 +187,8 @@ export type MessageKey =
   | 'payu.wallet.applePay'
   | 'payu.wallet.googleUnavailable'
   | 'payu.wallet.appleUnavailable'
+  // Feature 067 — Autopay checkout (redirect paywall).
+  | 'autopay.redirect.notice'
   // Feature 008 — Quote Request success page (parallel to checkout success).
   | 'quoteRequest.success.title'
   | 'quoteRequest.success.numberPrefix'
@@ -392,6 +394,9 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Google Pay is not available in this browser or for the current PayU POS.',
     'payu.wallet.appleUnavailable':
       'Apple Pay is not available (Safari / Apple device required, and merchant identity must be configured).',
+    // Feature 067 — Autopay.
+    'autopay.redirect.notice':
+      'After you click “Place order”, you’ll be redirected to Autopay to complete your payment securely.',
     // Feature 008 — Quote Request success page.
     'quoteRequest.success.title': 'Thank you — your quote request is submitted',
     'quoteRequest.success.numberPrefix': 'Your quote request number is ',
@@ -598,6 +603,9 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Google Pay jest niedostępny w tej przeglądarce lub dla bieżącego POS PayU.',
     'payu.wallet.appleUnavailable':
       'Apple Pay jest niedostępny (wymagany Safari / urządzenie Apple oraz skonfigurowana tożsamość sprzedawcy).',
+    // Feature 067 — Autopay.
+    'autopay.redirect.notice':
+      'Po kliknięciu „Złóż zamówienie” zostaniesz przekierowany do Autopay, aby bezpiecznie dokończyć płatność.',
     // Feature 008 — Quote Request success page.
     'quoteRequest.success.title': 'Dziekujemy — Twoje zapytanie ofertowe zostalo zlozone',
     'quoteRequest.success.numberPrefix': 'Numer Twojego zapytania ofertowego: ',

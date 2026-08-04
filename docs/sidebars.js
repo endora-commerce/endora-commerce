@@ -122,6 +122,7 @@ const sidebars = {
         'modules/payments',
         'modules/tpay',
         'modules/payu',
+        'modules/autopay',
         'modules/price_lists',
         { type: 'doc', id: 'modules/product_feeds', label: 'Product Feeds' },
         {

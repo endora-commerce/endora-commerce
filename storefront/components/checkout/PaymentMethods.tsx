@@ -14,8 +14,9 @@ import {
  * (FR-016/FR-017). Communicates the empty state instead of an actionable but
  * empty list (US2 AC4).
  *
- * Apple Pay (`payu_apple_pay` / `stripe_apple_pay`) is omitted unless the
- * browser exposes a usable `ApplePaySession` (Safari / Apple devices).
+ * Apple Pay (`payu_apple_pay` / `stripe_apple_pay`) is
+ * omitted unless the browser exposes a usable `ApplePaySession` (Safari /
+ * Apple devices).
  */
 export function PaymentMethods({
   methods,

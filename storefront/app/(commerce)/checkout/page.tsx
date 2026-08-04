@@ -13,10 +13,12 @@ import { listDeliveryMethods, listPaymentMethods } from '../../../lib/api/method
 import { getStripeStorefrontConfig, getStripeClientSecret } from '../../../lib/api/stripe';
 import { getTpayStorefrontConfig } from '../../../lib/api/tpay';
 import { getPayuStorefrontConfig } from '../../../lib/api/payu';
+import { getAutopayStorefrontConfig } from '../../../lib/api/autopay';
 import {
   STRIPE_REDIRECT_RENDERER_KEY,
   TPAY_REDIRECT_RENDERER_KEY,
   PAYU_REDIRECT_RENDERER_KEY,
+  AUTOPAY_REDIRECT_RENDERER_KEY,
 } from '../../../lib/payment-renderers/registry';
 import {
   StripeInlinePaymentMethods,
@@ -76,6 +78,7 @@ export default async function CheckoutPage({
     Awaited<ReturnType<typeof getStripeStorefrontConfig>> | null,
     Awaited<ReturnType<typeof getTpayStorefrontConfig>> | null,
     Awaited<ReturnType<typeof getPayuStorefrontConfig>> | null,
+    Awaited<ReturnType<typeof getAutopayStorefrontConfig>> | null,
   ];
   try {
     loaded = await Promise.all([
@@ -97,6 +100,7 @@ export default async function CheckoutPage({
       getStripeStorefrontConfig().catch(() => null),
       getTpayStorefrontConfig().catch(() => null),
       getPayuStorefrontConfig().catch(() => null),
+      getAutopayStorefrontConfig().catch(() => null),
     ]);
   } catch (err) {
     // A stale/expired `b2b_session` cookie is still truthy, so it slips past
@@ -120,6 +124,7 @@ export default async function CheckoutPage({
     stripeConfig,
     tpayConfig,
     payuConfig,
+    autopayConfig,
   ] = loaded;
   if (cartResult.newAnonCookie) await setAnonCartCookie(cartResult.newAnonCookie);
   const cart = cartResult.cart;
@@ -185,6 +190,21 @@ export default async function CheckoutPage({
         rendererKey: PAYU_REDIRECT_RENDERER_KEY,
       };
       paymentMethods = [...nonPayu, collapsed];
+    }
+  }
+
+  if (autopayConfig?.active) {
+    const autopayMethods = paymentMethods.filter((m) => m.adapter === 'autopay');
+    if (autopayMethods.length > 0) {
+      const nonAutopay = paymentMethods.filter((m) => m.adapter !== 'autopay');
+      const primary =
+        autopayMethods.find((m) => m.code === 'autopay_pbl') ?? autopayMethods[0]!;
+      const collapsed = {
+        ...primary,
+        name: { default: 'Autopay', 'en-US': 'Autopay', 'pl-PL': 'Autopay' },
+        rendererKey: AUTOPAY_REDIRECT_RENDERER_KEY,
+      };
+      paymentMethods = [...nonAutopay, collapsed];
     }
   }
 

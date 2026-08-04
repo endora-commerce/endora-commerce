@@ -12,12 +12,14 @@ import { gatewayRefundRegistry } from './gateway-refund-registry.js';
  * Payments-side implementation of the returns module's `PaymentRefundPort`
  * (feature 046, R5).
  *
- * MVP behaviour: gateway payments require a PSP refund integration that does not
- * exist yet, so they are reported `pending_manual`. Offline methods
- * (bank transfer, credit limit, pickup) are recorded as `issued` — the operator
- * performs the actual transfer and the returns ledger captures it. A future
- * adapter-driven `initiateRefund` capability slots in behind this same
- * interface without changing the returns module.
+ * Gateway payments (`kind === 'gateway'`) are delegated to the PSP handler
+ * registered under the **order's** payment adapter (snapshot / order method).
+ * The settlement form's `refundPaymentMethodId` is ledger metadata only — it
+ * must not pick which PSP to call (otherwise Autopay orders refunded under a
+ * bank-transfer method never hit Autopay).
+ *
+ * Offline methods (bank transfer, credit limit, pickup) are recorded as
+ * `issued` — the operator performs the actual transfer.
  */
 export class PaymentRefundProvider implements PaymentRefundPort {
   constructor(private readonly emFactory: () => EntityManager) {}
@@ -27,13 +29,7 @@ export class PaymentRefundProvider implements PaymentRefundPort {
     const order = await em.findOne(Order, { id: input.orderId });
     const kind = order?.paymentMethodSnapshot?.kind;
     if (kind === 'gateway') {
-      // Feature 049 — delegate to the registered gateway refund handler (e.g.
-      // Stripe). The handler is resolved by the order's payment-method adapter
-      // when known; otherwise the sole registered gateway handler is used.
-      const adapterKey =
-        input.paymentMethodId != null
-          ? (await em.findOne(PaymentMethod, { id: input.paymentMethodId }))?.adapter ?? null
-          : null;
+      const adapterKey = await this.resolveOrderAdapterKey(em, order, input.paymentMethodId);
       const handler = gatewayRefundRegistry.resolve(adapterKey);
       if (handler) {
         return handler.refund(input);
@@ -44,5 +40,31 @@ export class PaymentRefundProvider implements PaymentRefundPort {
       };
     }
     return { state: 'issued', externalReference: input.idempotencyKey };
+  }
+
+  /**
+   * Prefer the adapter the order was placed with (snapshot), then the order's
+   * payment method row. Do not use the settlement refund-method id for PSP
+   * resolution when the order snapshot already names an adapter.
+   */
+  private async resolveOrderAdapterKey(
+    em: EntityManager,
+    order: Order | null,
+    settlementPaymentMethodId: string | undefined,
+  ): Promise<string | null> {
+    const fromSnapshot = order?.paymentMethodSnapshot?.adapter?.trim();
+    if (fromSnapshot) return fromSnapshot;
+
+    if (order?.paymentMethodId) {
+      const method = await em.findOne(PaymentMethod, { id: order.paymentMethodId });
+      if (method?.adapter) return method.adapter;
+    }
+
+    // Last resort: settlement form method (legacy callers / missing snapshot).
+    if (settlementPaymentMethodId) {
+      const method = await em.findOne(PaymentMethod, { id: settlementPaymentMethodId });
+      return method?.adapter ?? null;
+    }
+    return null;
   }
 }
