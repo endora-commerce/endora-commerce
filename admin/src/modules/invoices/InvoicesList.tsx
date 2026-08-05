@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
+import { InvoiceSectionTabs } from '@/components/InvoiceSectionTabs';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
 import {
@@ -125,15 +126,10 @@ export function InvoicesList(): ReactNode {
 
   return (
     <>
-      <PageHeader
-        title={t('invoices.title')}
-        description={t('invoices.description')}
-        actions={
-          <Button asChild variant="outline" size="sm">
-            <Link to="/invoices/templates">{t('invoiceTemplates.title')}</Link>
-          </Button>
-        }
-      />
+      {/* The templates button is gone: it is a tab now. */}
+      <PageHeader title={t('invoices.title')} description={t('invoices.description')} />
+
+      <InvoiceSectionTabs />
 
       {error ? (
         <Alert variant="destructive" className="mb-4">

@@ -115,8 +115,9 @@ const NAV: NavSection[] = [
       { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck },
       { to: '/returns', labelKey: 'appShell.nav.returns', icon: Package, requiredPermission: 'returns:read' },
       { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText },
+      // Templates are how an invoice is rendered, not a separate destination:
+      // they are reached through the tab strip on the invoices page.
       { to: '/invoices', labelKey: 'appShell.nav.invoices', icon: Receipt, requiredPermission: 'invoices:read' },
-      { to: '/invoices/templates', labelKey: 'appShell.nav.invoiceTemplates', icon: Receipt, requiredPermission: 'invoices:read' },
       { to: '/ksef', labelKey: 'appShell.nav.ksef', icon: ReceiptText, requiredPermission: 'ksef:read' },
     ],
   },
