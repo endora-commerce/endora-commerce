@@ -200,6 +200,8 @@
   "appShell.nav.feedTaxonomyRevisions": "Taxonomy updates",
   "appShell.nav.pimErgonode": "Ergonode PIM",
   "appShell.nav.pimErgonodeRuns": "Import history",
+  "appShell.nav.pimErgonodeAttributeMappings": "Attribute mapping",
+  "appShell.nav.pimErgonodeCategoryMappings": "Category mapping",
   "appShell.nav.customers": "Customers",
   "appShell.nav.customersOnline": "Online customers",
   "appShell.nav.organizations": "Organizations",

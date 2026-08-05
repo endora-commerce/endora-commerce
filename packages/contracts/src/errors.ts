@@ -395,6 +395,13 @@ export const ERROR_CODES = {
   PIM_ERGONODE_CURRENCY_INACTIVE: 'PIM_ERGONODE_CURRENCY_INACTIVE',
   PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE: 'PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE',
   PIM_ERGONODE_BINDING_EXISTS: 'PIM_ERGONODE_BINDING_EXISTS',
+  /**
+   * A price binding named a price list that does not exist. Named after the
+   * resource rather than the module (admin-api.md § Price bindings): the caller
+   * supplied a `priceListId`, and a bare `NOT_FOUND` on a request carrying three
+   * identifiers says nothing about which one was wrong.
+   */
+  PRICE_LIST_NOT_FOUND: 'PRICE_LIST_NOT_FOUND',
   /** A protected field path does not match the grammar (data-model.md §8). */
   PIM_ERGONODE_FIELD_PATH_INVALID: 'PIM_ERGONODE_FIELD_PATH_INVALID',
 } as const;

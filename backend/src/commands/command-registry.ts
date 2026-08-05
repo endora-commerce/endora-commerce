@@ -342,6 +342,14 @@ export const COMMAND_REGISTRY = {
     reversible: false,
     description: 'Create or update the Ergonode connection',
   },
+  // A *manual* import is an operator decision and is audited. A scheduled tick
+  // is not: it has no acting administrator, and auditing every tick would add a
+  // row per schedule interval forever while saying nothing an operator asked.
+  // The scheduled path keeps its `command-coverage-ignore` at the call site.
+  'pim_ergonode.import.start': {
+    reversible: false,
+    description: 'Start an Ergonode import by hand',
+  },
   'pim_ergonode.connection.delete': {
     reversible: false,
     description: 'Delete the Ergonode connection',
