@@ -467,6 +467,7 @@ export class AttributeSetService {
           label: view.label,
           valueType: view.valueType as AttributeSetAssignedAttributeDto['valueType'],
           position: r.position,
+          languageScoped: view.languageScoped,
         };
       })
       .filter((a): a is AttributeSetAssignedAttributeDto => a !== undefined);

@@ -1165,6 +1165,12 @@ export const attributeSetAssignedAttributeSchema = z.object({
   label: multilingualStringSchema,
   valueType: attributeValueTypeSchema,
   position: z.number().int().nonnegative(),
+  /**
+   * Feature 023 — the attribute's value is keyed by language, so the product
+   * editor renders it (and anything scoped to it, such as feature 068's
+   * overwrite protection) per language rather than once for the attribute.
+   */
+  languageScoped: z.boolean(),
 });
 export type AttributeSetAssignedAttribute = z.infer<typeof attributeSetAssignedAttributeSchema>;
 

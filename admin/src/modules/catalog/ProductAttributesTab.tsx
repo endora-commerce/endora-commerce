@@ -9,8 +9,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSelect } from '@/components/ui/multi-select';
 // Feature 068 / US4 — the Ergonode overwrite-protection control. Renders `null`
 // unless an Ergonode connection is enabled (FR-058), so no condition is needed
-// here.
-import { FieldProtectionToggle } from '../pim_ergonode/components/FieldProtectionToggle';
+// here; it also decides on its own whether the attribute takes one toggle or one
+// per language (FR-052).
+import { ErgonodeAttributeValueProtection } from '../pim_ergonode/components/FieldProtectionToggle';
 
 /**
  * Feature: product Attributes tab.
@@ -38,6 +39,8 @@ interface SetAttribute {
   label: Record<string, string>;
   valueType: ValueType;
   position: number;
+  /** Feature 023 — the value is stored per language, one slot per active locale. */
+  languageScoped: boolean;
 }
 
 interface AttributeOption {
@@ -276,9 +279,14 @@ function AttributeField({
 
   // Feature 068 / US4 — one control per attribute value, because that is the
   // granularity FR-052 asks for: an operator curates *this* value, not "the
-  // attributes".
+  // attributes". A language-scoped value is curated one language at a time, and
+  // the control below renders itself accordingly.
   const protection = (
-    <FieldProtectionToggle productId={productId} fieldPath={`attributeValues.${attr.key}`} />
+    <ErgonodeAttributeValueProtection
+      productId={productId}
+      attributeKey={attr.key}
+      languageScoped={attr.languageScoped === true}
+    />
   );
 
   // The boolean control renders its own inline label.

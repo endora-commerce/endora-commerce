@@ -59,6 +59,7 @@ import { EntityChannelMembership } from '../sales_channels/components/EntityChan
 // is unconditional: the condition belongs to the module that owns the concept,
 // not to the catalogue's editor.
 import {
+  ErgonodePriceProtectionPanel,
   FieldProtectionSummary,
   FieldProtectionToggle,
 } from '../pim_ergonode/components/FieldProtectionToggle';
@@ -764,7 +765,15 @@ export function ProductEditor(): ReactNode {
             />
           ) : null}
 
-          {activeTab === 'pricing' && id ? <LinkedPriceListsPanel productId={id} /> : null}
+          {activeTab === 'pricing' && id ? (
+            <div className="b2b-col" style={{ gap: 16 }}>
+              {/* Feature 068 / FR-062 — one control per price the Ergonode
+                  import could write here. Renders `null` when no binding covers
+                  this product, which is every product until one is bound. */}
+              <ErgonodePriceProtectionPanel productId={id} />
+              <LinkedPriceListsPanel productId={id} />
+            </div>
+          ) : null}
 
           {activeTab === 'variants' && id ? <VariantsSection productId={id} /> : null}
 
