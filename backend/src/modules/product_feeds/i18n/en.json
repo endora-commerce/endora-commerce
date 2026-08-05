@@ -386,6 +386,7 @@
   "runs.issues.export": "Download full list .csv",
   "runs.issues.showing": "showing {shown} of {total}",
   "runs.issues.overflow": "Only the first {cap} problems of this run were recorded. Download the full list for everything that was kept.",
+  "runs.issues.truncated": "This screen shows the first {limit} problems. Download the full list to see the rest.",
   "runs.issues.none.title": "Nothing was left out",
   "runs.issues.none.body": "Every product made it into the file.",
   "runs.issues.fixMapping": "Fix mapping",

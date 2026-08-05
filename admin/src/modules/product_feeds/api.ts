@@ -251,6 +251,14 @@ export interface SelectionPreview {
   sample: Array<{ id: string; sku: string; name: string }>;
 }
 
+/**
+ * The largest page `listQuerySchema` accepts (`packages/contracts/src/pagination.ts`).
+ * Exported so the run-detail page can tell "this run had 200 problems" from
+ * "this run had more problems than one page holds" — a full page means the
+ * list is truncated and the CSV export is the only complete view.
+ */
+export const RUN_ISSUE_PAGE_LIMIT = 200;
+
 export const productFeedsClient = {
   list(limit = 50): Promise<{ data: ProductFeedDto[] }> {
     return apiClient.get<{ data: ProductFeedDto[] }>(`${BASE}?limit=${limit}`);
@@ -305,11 +313,15 @@ export const productFeedsClient = {
    * FR-054 — the per-item diagnostics. `:read`, deliberately: a read-only
    * operator has to be able to answer "why were 61 products left out" without
    * being handed the priced catalogue the artefact carries.
+   *
+   * Capped at `RUN_ISSUE_PAGE_LIMIT`: the shared `listQuerySchema` rejects
+   * anything larger, and the run-detail page loads this alongside the feed and
+   * the run in one `Promise.all`, so a 400 here hid the whole run.
    */
   listRunIssues(
     id: string,
     runId: string,
-    limit = 500,
+    limit: number = RUN_ISSUE_PAGE_LIMIT,
   ): Promise<{ data: FeedRunIssueDto[] }> {
     return apiClient.get<{ data: FeedRunIssueDto[] }>(
       `${BASE}/${id}/runs/${runId}/issues?limit=${limit}`,

@@ -386,6 +386,7 @@
   "runs.issues.export": "Pobierz pełną listę .csv",
   "runs.issues.showing": "widoczne {shown} z {total}",
   "runs.issues.overflow": "Zapisano tylko pierwsze {cap} problemów tego generowania. Pobierz pełną listę, aby zobaczyć wszystkie zapisane.",
+  "runs.issues.truncated": "Ten ekran pokazuje pierwsze {limit} problemów. Pobierz pełną listę, aby zobaczyć pozostałe.",
   "runs.issues.none.title": "Nic nie zostało pominięte",
   "runs.issues.none.body": "Każdy produkt trafił do pliku.",
   "runs.issues.fixMapping": "Popraw mapowanie",
