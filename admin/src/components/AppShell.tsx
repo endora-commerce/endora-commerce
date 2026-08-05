@@ -273,6 +273,39 @@ const NAV: NavSection[] = [
       { to: '/newsletter/provider', labelKey: 'appShell.nav.newsletterProvider', icon: Inbox, requiredPermission: 'newsletter:write' },
     ],
   },
+  // Reporting and paid-acquisition surfaces. They were originally filed under
+  // System because each arrived as a lone integration, but together they are a
+  // domain an operator navigates to on purpose — not a system setting.
+  {
+    key: 'analyticsAds',
+    labelKey: 'appShell.section.analyticsAds',
+    items: [
+      {
+        to: '/analytics',
+        labelKey: 'appShell.nav.analytics',
+        icon: LineChart,
+        requiredPermission: 'analytics:read',
+      },
+      {
+        to: '/google-analytics',
+        labelKey: 'appShell.nav.googleAnalytics',
+        icon: Sparkles,
+        requiredPermission: 'google_analytics:read',
+      },
+      {
+        to: '/linkedin-ads',
+        labelKey: 'appShell.nav.linkedinAds',
+        icon: Sparkles,
+        requiredPermission: 'linkedin_ads:read',
+      },
+      {
+        to: '/meta-ads',
+        labelKey: 'appShell.nav.metaAds',
+        icon: Sparkles,
+        requiredPermission: 'meta_ads:read',
+      },
+    ],
+  },
   {
     key: 'system',
     labelKey: 'appShell.section.system',
@@ -304,30 +337,6 @@ const NAV: NavSection[] = [
         labelKey: 'appShell.nav.credentials',
         icon: KeyRound,
         requiredPermission: 'credentials:read',
-      },
-      {
-        to: '/analytics',
-        labelKey: 'appShell.nav.analytics',
-        icon: LineChart,
-        requiredPermission: 'analytics:read',
-      },
-      {
-        to: '/google-analytics',
-        labelKey: 'appShell.nav.googleAnalytics',
-        icon: Sparkles,
-        requiredPermission: 'google_analytics:read',
-      },
-      {
-        to: '/linkedin-ads',
-        labelKey: 'appShell.nav.linkedinAds',
-        icon: Sparkles,
-        requiredPermission: 'linkedin_ads:read',
-      },
-      {
-        to: '/meta-ads',
-        labelKey: 'appShell.nav.metaAds',
-        icon: Sparkles,
-        requiredPermission: 'meta_ads:read',
       },
       { to: '/import-export', labelKey: 'appShell.nav.importExport', icon: Upload },
       {
