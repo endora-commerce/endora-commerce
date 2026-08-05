@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PageHeader } from '@/components/ui/page-header';
+import { OrderEntryTabs } from '@/components/OrderEntryTabs';
 import { useTranslation } from '@/i18n/useTranslation';
 import { FileDropzone } from '@/components/FileDropzone';
 import {
@@ -94,6 +95,8 @@ export function QuickOrderOnBehalfPage(): ReactNode {
         title={t('onBehalf.page.title')}
         description={t('onBehalf.page.description')}
       />
+
+      <OrderEntryTabs />
 
       {error ? (
         <Alert variant="destructive">

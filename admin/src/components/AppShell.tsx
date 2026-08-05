@@ -109,8 +109,10 @@ const NAV: NavSection[] = [
     labelKey: 'appShell.section.sales',
     items: [
       { to: '/orders', labelKey: 'appShell.nav.orders', icon: ClipboardCheck },
+      // Quick order is not a second destination — it is the other way of
+      // getting lines into the same order, so it lives behind a tab on the
+      // order-entry page rather than on its own sidebar row.
       { to: '/orders/new', labelKey: 'appShell.nav.newOrder', icon: ClipboardCheck },
-      { to: '/orders/quick-order', labelKey: 'appShell.nav.quickOrder', icon: ClipboardCheck },
       { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck },
       { to: '/returns', labelKey: 'appShell.nav.returns', icon: Package, requiredPermission: 'returns:read' },
       { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText },
@@ -155,6 +157,15 @@ const NAV: NavSection[] = [
         labelKey: 'appShell.nav.pimErgonodeCategoryMappings',
         icon: Layers,
         requiredPermission: 'pim_ergonode:read',
+      },
+      // A feed publishes the catalogue, so it belongs beside the catalogue
+      // rather than under Channels. Templates are a view of the same surface
+      // and are reached through the tab strip there, not a second sidebar row.
+      {
+        to: '/product-feeds',
+        labelKey: 'appShell.nav.productFeeds',
+        icon: Rss,
+        requiredPermission: 'product_feeds:read',
       },
     ],
   },
@@ -227,18 +238,6 @@ const NAV: NavSection[] = [
       { to: '/dictionary', labelKey: 'appShell.nav.dictionary', icon: Languages, requiredPermission: 'dictionary.write' },
       { to: '/admin/dictionaries/audit', labelKey: 'appShell.nav.dictionaryAudit', icon: ListChecks, requiredPermission: 'dictionary.write' },
       { to: '/seo', labelKey: 'appShell.nav.seo', icon: Search },
-      {
-        to: '/product-feeds',
-        labelKey: 'appShell.nav.productFeeds',
-        icon: Rss,
-        requiredPermission: 'product_feeds:read',
-      },
-      {
-        to: '/product-feeds/templates',
-        labelKey: 'appShell.nav.feedTemplates',
-        icon: FileText,
-        requiredPermission: 'product_feeds:read',
-      },
     ],
   },
   {
@@ -296,6 +295,39 @@ const NAV: NavSection[] = [
       { to: '/newsletter/provider', labelKey: 'appShell.nav.newsletterProvider', icon: Inbox, requiredPermission: 'newsletter:write' },
     ],
   },
+  // Reporting and paid-acquisition surfaces. They were originally filed under
+  // System because each arrived as a lone integration, but together they are a
+  // domain an operator navigates to on purpose — not a system setting.
+  {
+    key: 'analyticsAds',
+    labelKey: 'appShell.section.analyticsAds',
+    items: [
+      {
+        to: '/analytics',
+        labelKey: 'appShell.nav.analytics',
+        icon: LineChart,
+        requiredPermission: 'analytics:read',
+      },
+      {
+        to: '/google-analytics',
+        labelKey: 'appShell.nav.googleAnalytics',
+        icon: Sparkles,
+        requiredPermission: 'google_analytics:read',
+      },
+      {
+        to: '/linkedin-ads',
+        labelKey: 'appShell.nav.linkedinAds',
+        icon: Sparkles,
+        requiredPermission: 'linkedin_ads:read',
+      },
+      {
+        to: '/meta-ads',
+        labelKey: 'appShell.nav.metaAds',
+        icon: Sparkles,
+        requiredPermission: 'meta_ads:read',
+      },
+    ],
+  },
   {
     key: 'system',
     labelKey: 'appShell.section.system',
@@ -327,30 +359,6 @@ const NAV: NavSection[] = [
         labelKey: 'appShell.nav.credentials',
         icon: KeyRound,
         requiredPermission: 'credentials:read',
-      },
-      {
-        to: '/analytics',
-        labelKey: 'appShell.nav.analytics',
-        icon: LineChart,
-        requiredPermission: 'analytics:read',
-      },
-      {
-        to: '/google-analytics',
-        labelKey: 'appShell.nav.googleAnalytics',
-        icon: Sparkles,
-        requiredPermission: 'google_analytics:read',
-      },
-      {
-        to: '/linkedin-ads',
-        labelKey: 'appShell.nav.linkedinAds',
-        icon: Sparkles,
-        requiredPermission: 'linkedin_ads:read',
-      },
-      {
-        to: '/meta-ads',
-        labelKey: 'appShell.nav.metaAds',
-        icon: Sparkles,
-        requiredPermission: 'meta_ads:read',
       },
       { to: '/import-export', labelKey: 'appShell.nav.importExport', icon: Upload },
       {
@@ -508,51 +516,51 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.nav.pimErgonode', href: null },
   ] },
   { test: /^\/product-feeds\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
     { labelKey: 'appShell.nav.productFeeds', href: null },
   ] },
   { test: /^\/product-feeds\/new\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
     { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
     { labelKey: 'appShell.crumb.new', href: null },
   ] },
   { test: /^\/product-feeds\/templates\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
     { labelKey: 'appShell.nav.feedTemplates', href: null },
   ] },
   { test: /^\/product-feeds\/templates\/new\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
     { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
     { labelKey: 'appShell.crumb.new', href: null },
   ] },
   { test: /^\/product-feeds\/templates\/import\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
     { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
     { labelKey: 'appShell.crumb.import', href: null },
   ] },
   { test: /^\/product-feeds\/templates\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
     { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
     { labelKey: 'appShell.crumb.editor', href: null },
   ] },
   { test: /^\/product-feeds\/[^/]+\/runs\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
     { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
     { labelKey: 'appShell.crumb.feedRun', href: null },
   ] },
   { test: /^\/product-feeds\/category-mapping\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
     { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
     { labelKey: 'appShell.nav.feedCategoryMapping', href: null },
   ] },
   { test: /^\/product-feeds\/taxonomy-revisions\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
     { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
     { labelKey: 'appShell.nav.feedCategoryMapping', href: '/product-feeds/category-mapping' },
     { labelKey: 'appShell.nav.feedTaxonomyRevisions', href: null },
   ] },
   { test: /^\/product-feeds\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/product-feeds' },
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
     { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
     { labelKey: 'appShell.crumb.editor', href: null },
   ] },

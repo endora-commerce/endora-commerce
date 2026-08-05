@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
 import { StickyFormActions } from '@/components/StickyFormActions';
 import { useAuth } from '@/lib/auth';
 import { SalesChannelPicker } from '@/components/sales-channel-picker/SalesChannelPicker';
@@ -133,9 +134,8 @@ export function ProductFeedCreatePage(): ReactNode {
         <CardContent className="flex flex-col gap-4 pt-6">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="feed-template">{t('feeds.create.template')}</Label>
-            <select
+            <Select
               id="feed-template"
-              className="b2b-select"
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
             >
@@ -145,7 +145,7 @@ export function ProductFeedCreatePage(): ReactNode {
                   {tpl.isSystem && tpl.fieldCount <= 7 ? ` — ${t('templates.startingPoint')}` : ''}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -170,9 +170,8 @@ export function ProductFeedCreatePage(): ReactNode {
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="feed-language">{t('feeds.create.language')}</Label>
-            <select
+            <Select
               id="feed-language"
-              className="b2b-select"
               value={languageCode}
               onChange={(e) => setLanguageCode(e.target.value)}
               disabled={!channel}
@@ -182,7 +181,7 @@ export function ProductFeedCreatePage(): ReactNode {
                   {code}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {/* The live derived-settings line: everything the operator did NOT

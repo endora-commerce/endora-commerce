@@ -9,6 +9,7 @@ import { formatDateTime } from '@/lib/format';
 import { useTranslation } from '@/i18n/useTranslation';
 import {
   productFeedsClient,
+  RUN_ISSUE_PAGE_LIMIT,
   type FeedRunDetail,
   type FeedRunIssueDto,
   type ProductFeedDto,
@@ -91,6 +92,9 @@ export function FeedRunDetailPage(): ReactNode {
   const started = run.startedAt ?? run.createdAt;
   const hasSkips = issues.some((issue) => issue.severity === 'skip');
   const hasWarnings = issues.some((issue) => issue.severity === 'warning');
+  // A full page back means rows exist that were never fetched. Saying so beats
+  // a list that silently stops short of the count in the run summary.
+  const issuesTruncated = issues.length >= RUN_ISSUE_PAGE_LIMIT;
   const failed = run.status === 'failed';
 
   const counts: Array<{ id: string; label: string; value: number }> = [
@@ -202,6 +206,8 @@ export function FeedRunDetailPage(): ReactNode {
             severity="skip"
             overflow={run.issueOverflow}
             issueCapHint={ISSUE_CAP_HINT}
+            truncated={issuesTruncated}
+            pageLimit={RUN_ISSUE_PAGE_LIMIT}
           />
         </section>
       ) : null}
@@ -228,6 +234,8 @@ export function FeedRunDetailPage(): ReactNode {
             severity="warning"
             overflow={run.issueOverflow}
             issueCapHint={ISSUE_CAP_HINT}
+            truncated={issuesTruncated}
+            pageLimit={RUN_ISSUE_PAGE_LIMIT}
           />
         </section>
       ) : null}

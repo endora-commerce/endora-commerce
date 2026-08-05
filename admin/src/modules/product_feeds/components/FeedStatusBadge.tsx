@@ -39,22 +39,32 @@ const LABEL_KEYS: Record<FeedRunStatus, string> = {
   skipped: 'runs.outcome.skipped',
 };
 
+/**
+ * Tone modifiers on the shared `.b2b-badge`. The four neutral outcomes take
+ * the base class alone — a queued or skipped run is not news, and giving it a
+ * colour would spend the operator's attention on nothing.
+ *
+ * Deliberately design tokens rather than Tailwind's palette: `--success`
+ * (#008060) and `--warn` (#b54708) are a different hue family from
+ * `emerald-600` / `amber-600`, so the stock palette read as a foreign product
+ * next to every other admin surface.
+ */
 const TONES: Record<FeedRunStatus, string> = {
-  queued: 'text-muted-foreground',
-  running: 'text-muted-foreground',
-  completed: 'text-emerald-600',
-  completed_with_warnings: 'text-amber-600',
-  empty: 'text-muted-foreground',
-  failed: 'text-destructive',
-  skipped: 'text-muted-foreground',
+  queued: '',
+  running: '',
+  completed: 'b2b-badge--success',
+  completed_with_warnings: 'b2b-badge--warn',
+  empty: '',
+  failed: 'b2b-badge--danger',
+  skipped: '',
 };
 
 export function FeedStatusBadge({ status }: { status: FeedRunStatus }): ReactNode {
   const t = useTranslation('product_feeds');
   const Icon = ICONS[status];
   return (
-    <span className={`inline-flex items-center gap-1.5 text-sm ${TONES[status]}`}>
-      <Icon size={14} aria-hidden="true" className={status === 'running' ? 'animate-spin' : ''} />
+    <span className={`b2b-badge ${TONES[status]}`.trim()}>
+      <Icon size={12} aria-hidden="true" className={status === 'running' ? 'animate-spin' : ''} />
       <span>{t(LABEL_KEYS[status])}</span>
     </span>
   );

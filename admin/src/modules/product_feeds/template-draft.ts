@@ -164,6 +164,17 @@ export function validateDraft(draft: TemplateDraft, context: ValidationContext):
   const problems: FieldProblem[] = [];
   const byName = new Map<string, DraftField[]>();
 
+  // The name is required by the write contract (`min(1)` after trimming), so a
+  // blank one is caught here rather than as a 400 on a save the operator was
+  // told would go through.
+  if (draft.name.trim() === '') {
+    problems.push({
+      fieldId: draft.fields[0]?.id ?? '',
+      control: 'template',
+      messageKey: 'builder.error.nameRequired',
+    });
+  }
+
   for (const field of draft.fields) {
     const name = field.outputName.trim().replace(/\s+/g, ' ');
     const list = byName.get(name) ?? [];

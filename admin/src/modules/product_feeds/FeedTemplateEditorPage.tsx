@@ -5,6 +5,7 @@ import type { FeedFieldSourceCatalogue, FeedFieldSourceKind } from '@b2b/contrac
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { useViewportTier } from '@/components/hooks/useViewportTier';
 import { useAuth } from '@/lib/auth';
@@ -32,6 +33,7 @@ import { TemplateFieldList } from './components/TemplateFieldList';
 import {
   PreviewCallToAction,
   TemplatePreviewController,
+  TemplatePreviewVerdict,
   type PreviewSelection,
 } from './components/TemplatePreviewController';
 
@@ -279,7 +281,9 @@ export function FeedTemplateEditorPage(): ReactNode {
         template.id,
         template.version,
         {
-          name: draft.name,
+          // Trimmed to match how the contract validates it, so a stray space
+          // does not become part of the stored name.
+          name: draft.name.trim(),
           description: draft.description,
           providerCode: draft.providerCode,
           outputFormat: draft.outputFormat,
@@ -386,9 +390,6 @@ export function FeedTemplateEditorPage(): ReactNode {
             <TemplatePreviewController
               selection={previewSelection}
               onSelect={setPreviewSelection}
-              preview={preview}
-              loading={previewLoading}
-              error={previewError}
             />
             {/* FR-012 — the portability document, as a plain download. An
                 anchor rather than a fetch, so the filename comes from the
@@ -469,6 +470,58 @@ export function FeedTemplateEditorPage(): ReactNode {
         onToggleShowOnly={(): void => setShowOnlyProblems((only) => !only)}
         onFocusField={(fieldId): void => setSelectedFieldId(fieldId)}
       />
+
+      {/* The preview verdict belongs to the page body, not to the header's
+          action row — see TemplatePreviewVerdict. */}
+      <div className="mb-4 empty:mb-0">
+        <TemplatePreviewVerdict
+          selection={previewSelection}
+          preview={preview}
+          loading={previewLoading}
+          error={previewError}
+        />
+      </div>
+
+      {/* The name and description were sent on every save but had no control,
+          so renaming a template meant duplicating it. They sit above the field
+          list because they describe the template, not any one column. */}
+      <div className="b2b-card mb-4 p-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="template-name">{t('builder.name')}</Label>
+            <Input
+              id="template-name"
+              value={draft.name}
+              maxLength={200}
+              disabled={readOnly}
+              title={readOnly ? (disabledTitle ?? t('templates.systemTemplate.notice')) : undefined}
+              aria-invalid={draft.name.trim() === ''}
+              onChange={(event): void => patchDraft({ name: event.target.value })}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="template-description">{t('builder.description')}</Label>
+            <Input
+              id="template-description"
+              value={draft.description ?? ''}
+              maxLength={500}
+              disabled={readOnly}
+              title={readOnly ? (disabledTitle ?? t('templates.systemTemplate.notice')) : undefined}
+              aria-describedby="template-description-hint"
+              onChange={(event): void =>
+                patchDraft({
+                  // Empty means "no description", which the contract spells
+                  // `null`; an empty string would persist as one.
+                  description: event.target.value.trim() === '' ? null : event.target.value,
+                })
+              }
+            />
+            <p id="template-description-hint" className="b2b-help">
+              {t('builder.description.hint')}
+            </p>
+          </div>
+        </div>
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-3">
