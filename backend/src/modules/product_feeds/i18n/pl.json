@@ -11,6 +11,8 @@
   "page.subtitle": "Publikuj swój katalog do Google, Meta i marketplace'ów.",
   "page.newFeed": "Nowy feed",
   "page.templates": "Szablony",
+  "page.tabs.feeds": "Feedy",
+  "page.tabs.templates": "Szablony",
   "feeds.empty.title": "Nie masz jeszcze żadnego feedu produktowego",
   "feeds.empty.subtitle": "Feed publikuje Twoje produkty do Google, Meta lub marketplace'u pod adresem, który sam pobierają.",
   "feeds.empty.filtered": "Żaden feed nie pasuje do filtrów.",

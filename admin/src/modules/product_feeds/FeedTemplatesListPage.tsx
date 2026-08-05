@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { productFeedsClient, type FeedTemplateSummary } from './api';
+import { FeedSectionTabs } from './components/FeedSectionTabs';
 
 /**
  * Feed templates — ux-design §2.5, FR-006–FR-008.
@@ -164,7 +165,6 @@ export function FeedTemplatesListPage(): ReactNode {
       <PageHeader
         title={t('templates.title')}
         description={t('templates.subtitle')}
-        back={{ label: t('page.title'), to: '/product-feeds' }}
         actions={
           <span className="flex gap-2">
             <Button
@@ -193,6 +193,8 @@ export function FeedTemplatesListPage(): ReactNode {
           </span>
         }
       />
+
+      <FeedSectionTabs />
 
       {error !== null ? (
         <Alert variant="destructive" className="mb-4">

@@ -11,6 +11,8 @@
   "page.subtitle": "Publish your catalogue to Google, Meta and marketplaces.",
   "page.newFeed": "New feed",
   "page.templates": "Templates",
+  "page.tabs.feeds": "Feeds",
+  "page.tabs.templates": "Templates",
   "feeds.empty.title": "No product feeds yet",
   "feeds.empty.subtitle": "A feed publishes your products to Google, Meta or a marketplace, at a link they can fetch.",
   "feeds.empty.filtered": "No feed matches your filters.",

@@ -236,7 +236,7 @@ export function ProductFeedDetailPage(): ReactNode {
               type="button"
               role="tab"
               aria-selected={tab === id}
-              className={`b2b-tab ${tab === id ? 'b2b-tab--active' : ''}`}
+              className={`b2b-tab ${tab === id ? 'is-active' : ''}`}
               onClick={() => setTab(id)}
             >
               {t(`feeds.tab.${id}`)}
