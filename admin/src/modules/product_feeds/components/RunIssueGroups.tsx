@@ -39,6 +39,15 @@ export interface RunIssueGroupsProps {
   /** True once the run hit the per-run cap, so the page can say so. */
   overflow: boolean;
   issueCapHint: number;
+  /**
+   * True when the fetch itself filled a whole page, so rows beyond it exist but
+   * were never loaded. A different fact from `overflow`: that one is about what
+   * the run recorded, this one about what this screen asked for. Both point at
+   * the CSV export, which is paged server-side and always complete.
+   */
+  truncated?: boolean;
+  /** Page size behind `truncated`, for the sentence. */
+  pageLimit?: number;
 }
 
 interface Group {
@@ -138,6 +147,11 @@ export function RunIssueGroups(props: RunIssueGroupsProps): ReactNode {
                 {props.overflow ? (
                   <li className="text-xs text-muted-foreground">
                     {t('runs.issues.overflow', { cap: props.issueCapHint })}
+                  </li>
+                ) : null}
+                {props.truncated ? (
+                  <li className="text-xs text-muted-foreground">
+                    {t('runs.issues.truncated', { limit: props.pageLimit ?? 0 })}
                   </li>
                 ) : null}
               </ul>
