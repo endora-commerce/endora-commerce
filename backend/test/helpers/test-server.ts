@@ -133,7 +133,9 @@ import type {
 import { pimErgonodeModule } from '../../src/modules/pim_ergonode/plugin.js';
 import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services/ergonode-client.port.js';
 import { ergonodeConfigurationType } from '../../src/modules/pim_ergonode/services/ergonode-credential.type.js';
+import type { ErgonodeMediaFetcherPort } from '../../src/modules/pim_ergonode/services/ergonode-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
+import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
 import { Asset } from '../../src/modules/assets_library/entities/asset.entity.js';
 import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
 import { configurationTypeRegistry } from '../../src/modules/credentials/services/registry-singleton.js';
@@ -226,6 +228,13 @@ export interface BackendServerOptions {
    * a `ScriptedErgonodeClient` holding their fixtures.
    */
   ergonodeClient?: ErgonodeClientPort;
+  /**
+   * Feature 068 / US5 — the byte source for imported media. Defaults to a
+   * fetcher that has nothing scripted and therefore answers `not_found`, so a
+   * test never opens a socket; the media tests pass a
+   * `ScriptedErgonodeMediaFetcher` holding their files.
+   */
+  ergonodeMediaFetcher?: ErgonodeMediaFetcherPort;
   /**
    * Feature 060 — contribute API interceptor registrations before the server
    * seals the registry on ready. Contract tests use this to register fixture
@@ -2032,6 +2041,10 @@ export async function setupBackendServer(
     // default would let a test that forgot to script the source pass while
     // importing nothing.
     ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
+    // The byte egress. The real fetcher opens sockets; an empty scripted one
+    // answers `not_found` for everything, which is a failure a test can see
+    // rather than an outbound connection it cannot.
+    mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
   });
   modules.push(pimErgonode.plugin);
 

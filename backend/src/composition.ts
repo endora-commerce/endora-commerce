@@ -2465,6 +2465,26 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     runWorkers,
   });
   modules.push(pimErgonode.plugin);
+  // FR-005 / research §B5 — Postgres is the source of truth for the import
+  // schedule and Redis is a derived index. Re-asserting the connection's Job
+  // Scheduler (and the module-wide stale-run sweep) on each worker boot is what
+  // makes a flushed Redis, an old snapshot, or a crash between the Postgres
+  // commit and the Redis call cost at most one missed tick instead of an
+  // integration that silently stops importing. Only the worker role does it: an
+  // API-only process must not own schedules. Log-and-continue, the same posture
+  // as the reconcilers above — an unbootable API is worse than a drifted
+  // schedule, which the next boot repairs anyway.
+  if (runWorkers) {
+    void pimErgonode.handle.reconcileSchedules().catch((err: unknown) => {
+      console.warn(
+        JSON.stringify({
+          level: 'warn',
+          msg: 'pim_ergonode schedule reconcile failed',
+          error: String(err),
+        }),
+      );
+    });
+  }
 
   // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
   // through the OrderReturnContextPort (Principle I); settings drive the

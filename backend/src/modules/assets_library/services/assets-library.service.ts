@@ -153,6 +153,14 @@ export class AssetsLibraryService {
       mimeType?: string;
       visibility?: 'public' | 'private';
       folderId?: string | null;
+      /**
+       * Per-language alternate text. `AssetDetail` has always reported it and
+       * nothing could write it; feature 068 needs it, because an imported image
+       * must keep the alternate text the source supplied, per language
+       * (FR-047). Not on `patchAssetRequestSchema`, so the HTTP surface is
+       * unchanged — this is a service-level field for module callers.
+       */
+      altText?: Record<string, string> | null;
     },
   ): Promise<AssetDetail> {
     const em = this.deps.emFactory();
@@ -161,6 +169,7 @@ export class AssetsLibraryService {
 
     if (patch.filename !== undefined) a.filename = patch.filename;
     if (patch.label !== undefined) a.label = patch.label;
+    if (patch.altText !== undefined) a.altText = patch.altText;
     if (patch.mimeType !== undefined) {
       a.mimeType = patch.mimeType;
       a.mimeTypeOverridden = true;
