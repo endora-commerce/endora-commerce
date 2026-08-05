@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   SCHEDULE_PRESETS,
+  builderFromCron,
   describeCronExpression,
   isValidCronExpression,
   presetForCron,
@@ -9,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
+import { CronBuilderField } from './CronBuilderField';
 
 /**
  * How often the feed regenerates — ux-design §2.2 (FR-031).
@@ -74,6 +76,15 @@ export function SchedulePresetField(props: SchedulePresetFieldProps): ReactNode 
   const [mode, setMode] = useState<string>(activePreset);
   const [draftCron, setDraftCron] = useState(value?.cron ?? '');
   const [showError, setShowError] = useState(false);
+  /**
+   * Which half of *Custom* is showing. Seeded from the schedule already saved:
+   * an expression the builder cannot represent (a step, a list, a range) opens
+   * on the text input, because opening on dropdowns that cannot show it would
+   * misreport the operator's own schedule back to them.
+   */
+  const [customMode, setCustomMode] = useState<'build' | 'write'>(() =>
+    value === null || builderFromCron(value.cron) !== null ? 'build' : 'write',
+  );
 
   const timezone = value?.timezone ?? defaultTimezone();
   const zones = useMemo(() => timezoneOptions(timezone), [timezone]);
@@ -151,35 +162,75 @@ export function SchedulePresetField(props: SchedulePresetFieldProps): ReactNode 
       )}
 
       {mode === CUSTOM && (
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="feed-schedule-cron">{t('feeds.schedule.custom')}</Label>
-          <Input
-            id="feed-schedule-cron"
-            value={draftCron}
-            placeholder="0 */4 * * *"
-            disabled={disabled}
-            title={props.disabledTitle}
-            aria-invalid={showError && !customValid}
-            aria-describedby="feed-schedule-cron-echo"
-            onChange={(e) => {
-              setDraftCron(e.target.value);
-              // Postel: an expression being typed is not yet an expression that
-              // is wrong. The error waits for blur.
-              setShowError(false);
-            }}
-            onBlur={commitCustom}
-          />
-          <p
-            id="feed-schedule-cron-echo"
-            className={
-              showError && !customValid ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'
-            }
-            role={showError && !customValid ? 'alert' : undefined}
-          >
-            {showError && !customValid
-              ? t('feeds.schedule.invalid')
-              : (echo ?? t('feeds.schedule.customHint'))}
-          </p>
+        <div className="flex flex-col gap-3">
+          {/* Two ways in, because the two audiences are different: an operator
+              who does not know cron needs the dropdowns, and one who does finds
+              them slower than typing. Neither is hidden behind the other. */}
+          <div className="b2b-tabs-scroll">
+            <div className="b2b-tabs" role="tablist">
+              {(['build', 'write'] as const).map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={customMode === id}
+                  className={`b2b-tab ${customMode === id ? 'is-active' : ''}`}
+                  disabled={disabled}
+                  onClick={(): void => setCustomMode(id)}
+                >
+                  {t(`feeds.schedule.custom.${id}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {customMode === 'build' ? (
+            <CronBuilderField
+              cron={draftCron}
+              disabled={disabled}
+              disabledTitle={props.disabledTitle}
+              onChange={(next): void => {
+                setDraftCron(next);
+                setShowError(false);
+                // The builder can only produce valid expressions, so there is
+                // nothing to wait for a blur to find out.
+                onChange({ cron: next, timezone });
+              }}
+            />
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="feed-schedule-cron">{t('feeds.schedule.custom')}</Label>
+              <Input
+                id="feed-schedule-cron"
+                value={draftCron}
+                placeholder="0 */4 * * *"
+                disabled={disabled}
+                title={props.disabledTitle}
+                aria-invalid={showError && !customValid}
+                aria-describedby="feed-schedule-cron-echo"
+                onChange={(e) => {
+                  setDraftCron(e.target.value);
+                  // Postel: an expression being typed is not yet an expression
+                  // that is wrong. The error waits for blur.
+                  setShowError(false);
+                }}
+                onBlur={commitCustom}
+              />
+              <p
+                id="feed-schedule-cron-echo"
+                className={
+                  showError && !customValid
+                    ? 'text-sm text-destructive'
+                    : 'text-sm text-muted-foreground'
+                }
+                role={showError && !customValid ? 'alert' : undefined}
+              >
+                {showError && !customValid
+                  ? t('feeds.schedule.invalid')
+                  : (echo ?? t('feeds.schedule.customHint'))}
+              </p>
+            </div>
+          )}
         </div>
       )}
 

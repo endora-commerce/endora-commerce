@@ -240,6 +240,102 @@ export function presetForCron(cron: string): string | null {
   return SCHEDULE_PRESETS.find((preset) => preset.cron === normalized)?.id ?? null;
 }
 
+/**
+ * The point-and-click form of a schedule — the four shapes an operator can
+ * assemble without knowing cron.
+ *
+ * Deliberately a small closed set. Cron can express far more, and the *Custom*
+ * text input remains for anyone who needs it; what this type exists to do is
+ * make the common cases reachable without teaching five positional fields.
+ */
+export type CronBuilderValue =
+  | { frequency: 'hourly'; minute: number }
+  | { frequency: 'daily'; hour: number; minute: number }
+  | { frequency: 'weekly'; dayOfWeek: number; hour: number; minute: number }
+  | { frequency: 'monthly'; dayOfMonth: number; hour: number; minute: number };
+
+export type CronBuilderFrequency = CronBuilderValue['frequency'];
+
+export const CRON_BUILDER_FREQUENCIES = [
+  'hourly',
+  'daily',
+  'weekly',
+  'monthly',
+] as const satisfies readonly CronBuilderFrequency[];
+
+/** The expression a builder selection stands for. Always valid by construction. */
+export function cronFromBuilder(value: CronBuilderValue): string {
+  switch (value.frequency) {
+    case 'hourly':
+      return `${value.minute} * * * *`;
+    case 'daily':
+      return `${value.minute} ${value.hour} * * *`;
+    case 'weekly':
+      return `${value.minute} ${value.hour} * * ${value.dayOfWeek}`;
+    case 'monthly':
+      return `${value.minute} ${value.hour} ${value.dayOfMonth} * *`;
+  }
+}
+
+/** A plain integer field — no `*`, no list, no range, no step. */
+function exactField(field: string): number | null {
+  return /^\d+$/.test(field) ? Number(field) : null;
+}
+
+/**
+ * The builder selection an expression corresponds to, or `null` when the
+ * expression says something the four frequencies cannot.
+ *
+ * The `null` is the important half. `0 * /4 * * *` is a perfectly good schedule
+ * that no frequency here describes; reporting it as "hourly" would show the
+ * operator a dropdown they never chose and quadruple the run rate if they then
+ * saved. Anything with a step, a list, a range, a fixed month, or both a
+ * day-of-month and a day-of-week (which cron ORs together) is refused, and the
+ * caller keeps the operator on the raw expression instead.
+ */
+export function builderFromCron(cron: string): CronBuilderValue | null {
+  // Normalised before validating, not after: the grammar is anchored, so it
+  // rejects the padding a text input routinely carries, and this is fed
+  // straight from one.
+  const normalized = cron.trim().replace(/\s+/g, ' ');
+  if (!isValidCronExpression(normalized)) return null;
+  const [minuteField, hourField, domField, monthField, dowField] = normalized.split(' ') as [
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+
+  // A schedule that fires every minute is not one of the offered frequencies.
+  const minute = exactField(minuteField);
+  if (minute === null) return null;
+  if (monthField !== '*') return null;
+
+  const hour = exactField(hourField);
+  const dayOfMonth = exactField(domField);
+  const dayOfWeek = exactField(dowField);
+
+  const hasDom = domField !== '*';
+  const hasDow = dowField !== '*';
+  // Cron ORs these two, so a schedule constraining both is neither weekly nor
+  // monthly — it is a union no single frequency names.
+  if (hasDom && hasDow) return null;
+
+  if (hourField === '*') {
+    return hasDom || hasDow ? null : { frequency: 'hourly', minute };
+  }
+  if (hour === null) return null;
+
+  if (hasDow) {
+    return dayOfWeek === null ? null : { frequency: 'weekly', dayOfWeek, hour, minute };
+  }
+  if (hasDom) {
+    return dayOfMonth === null ? null : { frequency: 'monthly', dayOfMonth, hour, minute };
+  }
+  return { frequency: 'daily', hour, minute };
+}
+
 export function isValidTimezone(timezone: string): boolean {
   return timezoneSchema.safeParse(timezone).success && timezone.trim() !== '';
 }
