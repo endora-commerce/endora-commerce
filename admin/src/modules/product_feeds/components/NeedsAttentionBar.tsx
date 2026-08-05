@@ -33,18 +33,29 @@ export function NeedsAttentionBar(props: NeedsAttentionBarProps): ReactNode {
   const t = useTranslation('product_feeds');
   if (problems.length === 0) return null;
 
-  const affected = new Set(problems.map((problem) => problem.fieldId));
+  // A `template` problem belongs to the template as a whole. It anchors to the
+  // first field only so it has an id at all, so counting it as that column's
+  // problem — and offering a link to it — points the operator at the wrong
+  // control. State those separately, in their own words.
+  const templateProblems = problems.filter((problem) => problem.control === 'template');
+  const fieldProblems = problems.filter((problem) => problem.control !== 'template');
+  const affected = new Set(fieldProblems.map((problem) => problem.fieldId));
   const names = fields.filter((field) => affected.has(field.id));
 
   return (
     <Alert variant="destructive" className="mb-4">
       <AlertDescription className="flex flex-wrap items-center gap-2">
         <AlertTriangle size={14} aria-hidden="true" />
-        <span>
-          {affected.size === 1
-            ? t('builder.needsAttention.one')
-            : t('builder.needsAttention', { count: affected.size })}
-        </span>
+        {templateProblems.map((problem) => (
+          <span key={problem.messageKey}>{t(problem.messageKey, problem.params ?? {})}</span>
+        ))}
+        {affected.size > 0 ? (
+          <span>
+            {affected.size === 1
+              ? t('builder.needsAttention.one')
+              : t('builder.needsAttention', { count: affected.size })}
+          </span>
+        ) : null}
         {/* Clicking a name selects the field and moves focus to it — the fix is
             one click from the complaint, never a hunt through the list. */}
         {names.map((field) => (
