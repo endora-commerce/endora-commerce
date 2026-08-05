@@ -598,7 +598,13 @@ textarea.b2b-field {
   font-size: 12px; color: var(--fg-muted); margin-top: 4px;
 }
 
-/* Select (native, restyled) */
+/* Select (native, restyled).
+   MODIFIER ONLY — it strips the browser chrome and draws the chevron, but every
+   visible property (height, border, radius, background, focus ring) comes from
+   `.b2b-field`. Applied alone it yields a borderless control that reads as
+   plain text, so always pair the two: `class="b2b-field b2b-select"`.
+   React code should reach for the `Select` primitive instead
+   (`admin/src/components/ui/select.tsx`), which bundles both. */
 .b2b-select {
   appearance: none;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b636d' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
