@@ -32,6 +32,7 @@ import { TemplateFieldList } from './components/TemplateFieldList';
 import {
   PreviewCallToAction,
   TemplatePreviewController,
+  TemplatePreviewVerdict,
   type PreviewSelection,
 } from './components/TemplatePreviewController';
 
@@ -386,9 +387,6 @@ export function FeedTemplateEditorPage(): ReactNode {
             <TemplatePreviewController
               selection={previewSelection}
               onSelect={setPreviewSelection}
-              preview={preview}
-              loading={previewLoading}
-              error={previewError}
             />
             {/* FR-012 — the portability document, as a plain download. An
                 anchor rather than a fetch, so the filename comes from the
@@ -469,6 +467,17 @@ export function FeedTemplateEditorPage(): ReactNode {
         onToggleShowOnly={(): void => setShowOnlyProblems((only) => !only)}
         onFocusField={(fieldId): void => setSelectedFieldId(fieldId)}
       />
+
+      {/* The preview verdict belongs to the page body, not to the header's
+          action row — see TemplatePreviewVerdict. */}
+      <div className="mb-4 empty:mb-0">
+        <TemplatePreviewVerdict
+          selection={previewSelection}
+          preview={preview}
+          loading={previewLoading}
+          error={previewError}
+        />
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-3">
