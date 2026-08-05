@@ -30,12 +30,14 @@ export interface PreviewSelection {
   variantId?: string;
 }
 
+/**
+ * Controls only — no preview payload. Rendering the result from here is what
+ * put a banner inside the header's button row; `TemplatePreviewVerdict` below
+ * owns that half.
+ */
 export interface TemplatePreviewControllerProps {
   selection: PreviewSelection | null;
   onSelect: (selection: PreviewSelection | null) => void;
-  preview: TemplatePreview | null;
-  loading: boolean;
-  error: string | null;
   disabled?: boolean;
 }
 
@@ -50,7 +52,7 @@ function pickName(name: Record<string, string>, fallback: string): string {
 }
 
 export function TemplatePreviewController(props: TemplatePreviewControllerProps): ReactNode {
-  const { selection, onSelect, preview, loading, error, disabled = false } = props;
+  const { selection, onSelect, disabled = false } = props;
   const t = useTranslation('product_feeds');
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -86,32 +88,58 @@ export function TemplatePreviewController(props: TemplatePreviewControllerProps)
           }}
         />
       ) : null}
-
-      {/* The verdict, stated once at the top rather than left for the operator
-          to assemble from twenty-three rows (FR-072). */}
-      {selection && !loading && error === null && preview ? (
-        <Alert variant={preview.wouldEmitItem ? 'success' : 'destructive'} className="mt-3">
-          <AlertDescription className="flex items-center gap-2">
-            {preview.wouldEmitItem ? (
-              <Check size={14} aria-hidden="true" />
-            ) : (
-              <AlertTriangle size={14} aria-hidden="true" />
-            )}
-            {preview.wouldEmitItem
-              ? t('builder.preview.verdict.included')
-              : t('builder.preview.verdict.skipped', {
-                  reason: preview.skipReason ?? '',
-                })}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {selection && error !== null ? (
-        <Alert variant="destructive" className="mt-3">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
     </>
+  );
+}
+
+export interface TemplatePreviewVerdictProps {
+  selection: PreviewSelection | null;
+  preview: TemplatePreview | null;
+  loading: boolean;
+  error: string | null;
+}
+
+/**
+ * The verdict, stated once at the top rather than left for the operator to
+ * assemble from twenty-three rows (FR-072).
+ *
+ * Deliberately separate from the controller above. The controller lives in
+ * `PageHeader`'s `actions` slot, which is a `flex items-center` row of buttons;
+ * a full-width banner rendered from there becomes a flex item beside Save
+ * rather than a block under the header. So the control stays in the header and
+ * the result renders in the page body, where a banner is a banner.
+ */
+export function TemplatePreviewVerdict(props: TemplatePreviewVerdictProps): ReactNode {
+  const { selection, preview, loading, error } = props;
+  const t = useTranslation('product_feeds');
+
+  if (!selection) return null;
+
+  if (error !== null) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  // While a fresh preview is in flight the previous verdict describes a
+  // template that is no longer on screen, so show nothing rather than a lie.
+  if (loading || !preview) return null;
+
+  return (
+    <Alert variant={preview.wouldEmitItem ? 'success' : 'destructive'}>
+      <AlertDescription className="flex items-center gap-2">
+        {preview.wouldEmitItem ? (
+          <Check size={14} aria-hidden="true" />
+        ) : (
+          <AlertTriangle size={14} aria-hidden="true" />
+        )}
+        {preview.wouldEmitItem
+          ? t('builder.preview.verdict.included')
+          : t('builder.preview.verdict.skipped', { reason: preview.skipReason ?? '' })}
+      </AlertDescription>
+    </Alert>
   );
 }
 
