@@ -223,8 +223,29 @@ export function FeedTemplatesListPage(): ReactNode {
         </Alert>
       ) : null}
 
+      {/* The operator's own templates come first: they are the working set,
+          the ones they came here to edit. The platform's are a shelf to copy
+          from once, so they sit underneath. */}
+      <h2 className="mb-2 text-sm font-medium">{t('templates.mine')}</h2>
+      <div className="mb-6">
+        {loading ? (
+          <p className="b2b-help">{t('feeds.criteria.counting')}</p>
+        ) : mine.length === 0 ? (
+          <div className="b2b-empty">
+            <p className="b2b-empty__title">{t('templates.empty.mine.title')}</p>
+            <p className="b2b-empty__sub">{t('templates.empty.mine.subtitle')}</p>
+          </div>
+        ) : (
+          <ResponsiveTable
+            columns={columns}
+            data={mine}
+            keyExtractor={(row): string => row.id}
+          />
+        )}
+      </div>
+
       <h2 className="mb-2 text-sm font-medium">{t('templates.provided')}</h2>
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {system.map((template) => {
           const isSkeleton = template.fieldCount <= SKELETON_FIELD_CEILING;
           return (
@@ -272,22 +293,6 @@ export function FeedTemplatesListPage(): ReactNode {
           );
         })}
       </div>
-
-      <h2 className="mb-2 text-sm font-medium">{t('templates.mine')}</h2>
-      {loading ? (
-        <p className="b2b-help">{t('feeds.criteria.counting')}</p>
-      ) : mine.length === 0 ? (
-        <div className="b2b-empty">
-          <p className="b2b-empty__title">{t('templates.empty.mine.title')}</p>
-          <p className="b2b-empty__sub">{t('templates.empty.mine.subtitle')}</p>
-        </div>
-      ) : (
-        <ResponsiveTable
-          columns={columns}
-          data={mine}
-          keyExtractor={(row): string => row.id}
-        />
-      )}
     </div>
   );
 }
