@@ -55,6 +55,8 @@
   "appShell.nav.newOrder": "New order",
   "appShell.nav.orderStatuses": "Order statuses",
   "appShell.nav.quickOrder": "Quick order",
+  "orderEntry.tab.standard": "Standard order",
+  "orderEntry.tab.quick": "Quick order",
   "defaultPreferences.title": "Default ordering preferences",
   "defaultPreferences.description": "Default payment / delivery method and billing / shipping address applied when ordering. Leave a field empty to keep no default.",
   "defaultPreferences.paymentMethod": "Default payment method",
