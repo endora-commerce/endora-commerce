@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
 import { useTranslation } from '@/i18n/useTranslation';
 import { productFeedsClient, type ProductFeedDto } from './api';
+import { FeedSectionTabs } from './components/FeedSectionTabs';
 import { FeedStatusBadge } from './components/FeedStatusBadge';
 
 /**
@@ -177,21 +178,20 @@ export function ProductFeedsListPage(): ReactNode {
         title={t('page.title')}
         description={t('page.subtitle')}
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate('/product-feeds/templates')}>
-              {t('page.templates')}
-            </Button>
-            <Button
-              onClick={() => navigate('/product-feeds/new')}
-              disabled={!canWrite}
-              title={writeTitle}
-            >
-              <Plus size={16} aria-hidden="true" />
-              {t('page.newFeed')}
-            </Button>
-          </div>
+          // The Templates button is gone: it is a tab now, so the header keeps
+          // only the action that creates something.
+          <Button
+            onClick={() => navigate('/product-feeds/new')}
+            disabled={!canWrite}
+            title={writeTitle}
+          >
+            <Plus size={16} aria-hidden="true" />
+            {t('page.newFeed')}
+          </Button>
         }
       />
+
+      <FeedSectionTabs />
 
       {error && (
         <Alert variant="destructive" className="mb-4">
