@@ -130,6 +130,12 @@ import type {
   TaxonomyFetchResult,
   TaxonomySourceFetcherPort,
 } from '../../src/modules/product_feeds/services/taxonomy-source-fetcher.interface.js';
+import { pimErgonodeModule } from '../../src/modules/pim_ergonode/plugin.js';
+import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services/ergonode-client.port.js';
+import { ergonodeConfigurationType } from '../../src/modules/pim_ergonode/services/ergonode-credential.type.js';
+import type { ErgonodeMediaFetcherPort } from '../../src/modules/pim_ergonode/services/ergonode-media-fetcher.js';
+import { refusingErgonodeClient } from './scripted-ergonode-client.js';
+import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
 import { Asset } from '../../src/modules/assets_library/entities/asset.entity.js';
 import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
 import { configurationTypeRegistry } from '../../src/modules/credentials/services/registry-singleton.js';
@@ -150,6 +156,17 @@ import { registerCatalogAssetReferences } from '../../src/modules/catalog/servic
 import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
+// Feature 068 — the catalogue write surface the Ergonode connector imports through.
+import {
+  CatalogAdminService,
+  type CatalogEventBus,
+} from '../../src/modules/catalog/services/catalog-admin.service.js';
+import { CategoryAdminService } from '../../src/modules/catalog/services/category-admin.service.js';
+import { AttributeSetService } from '../../src/modules/catalog/services/attribute-set.service.js';
+import { GalleryService } from '../../src/modules/catalog/services/gallery.service.js';
+import { AttachmentService } from '../../src/modules/catalog/services/attachment.service.js';
+import { ProductLinkService } from '../../src/modules/catalog/services/product-link.service.js';
+import { GroupedService } from '../../src/modules/catalog/services/grouped.service.js';
 import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
 import { collectRegisteredSettingsManifests } from '../../src/modules/settings/services/registered-settings-manifests.js';
@@ -205,6 +222,20 @@ export interface BackendServerOptions {
    */
   taxonomySourceFetcher?: TaxonomySourceFetcherPort;
   /**
+   * Feature 068 — the Ergonode source transport. Defaults to a client that
+   * THROWS on every stream read, so a test that forgets to script the source
+   * fails loudly instead of reaching a customer's PIM; `pim_ergonode` tests pass
+   * a `ScriptedErgonodeClient` holding their fixtures.
+   */
+  ergonodeClient?: ErgonodeClientPort;
+  /**
+   * Feature 068 / US5 — the byte source for imported media. Defaults to a
+   * fetcher that has nothing scripted and therefore answers `not_found`, so a
+   * test never opens a socket; the media tests pass a
+   * `ScriptedErgonodeMediaFetcher` holding their files.
+   */
+  ergonodeMediaFetcher?: ErgonodeMediaFetcherPort;
+  /**
    * Feature 060 — contribute API interceptor registrations before the server
    * seals the registry on ready. Contract tests use this to register fixture
    * interceptors against real module endpoints.
@@ -236,6 +267,8 @@ export interface BackendServerHandle {
   ksef: ReturnType<typeof ksefModule>['handle'];
   /** Feature 067 — Product Feed handle (feeds, generation, runs, token cache). */
   productFeeds: ReturnType<typeof productFeedsModule>['handle'];
+  /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
+  pimErgonode: ReturnType<typeof pimErgonodeModule>['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: ReturnType<typeof pwaModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
@@ -342,6 +375,24 @@ function testAnyLabel(name: unknown): string {
 }
 
 const SEEDED_TABLES = [
+  // Feature 068 — Ergonode PIM. Truncated explicitly because nothing cascades
+  // here: `ergonode_product_links` hangs off products, but the connection, its
+  // cursors, mappings, runs and issues have no path from any table below, so
+  // without this a connection created by one test file is still enabled for the
+  // next one. Listed children-first for a deterministic cascade.
+  'ergonode_import_issues',
+  'ergonode_field_protections',
+  'ergonode_media_links',
+  'ergonode_product_links',
+  'ergonode_price_bindings',
+  'ergonode_category_mappings',
+  'ergonode_attribute_mappings',
+  'ergonode_stream_cursors',
+  // Both run tables reference each other (`current_run_id` / `connection_id`),
+  // so they truncate together in one statement — which is what `truncate ... ,
+  // ... cascade` already does.
+  'ergonode_import_runs',
+  'ergonode_connections',
   // Feature 058 — credentials. Platform-global; truncate so each test starts clean.
   'credential_configurations',
   // Feature 055 — custom fields. Options cascade from definitions.
@@ -1353,6 +1404,13 @@ export async function setupBackendServer(
   if (!configurationTypeRegistry.isRegistered(emailAdapterConfigurationType.code)) {
     configurationTypeRegistry.register(emailAdapterConfigurationType);
   }
+  // Feature 068 — this harness MIRRORS `composition.ts` rather than importing
+  // it, so a descriptor registered only there is absent for an injected
+  // request. Without this line every `pim_ergonode` connection write resolves
+  // to an inert configuration type and fails with a misleading error.
+  if (!configurationTypeRegistry.isRegistered(ergonodeConfigurationType.code)) {
+    configurationTypeRegistry.register(ergonodeConfigurationType);
+  }
   const credentials = credentialsModule({
     emFactory: em,
     settings: settings.handle.settingsService,
@@ -1938,6 +1996,58 @@ export async function setupBackendServer(
   modules.push(productFeeds.plugin);
   await productFeeds.handle.reconcileTemplates();
 
+  // Feature 068 — Ergonode PIM. Deliberately NO `redis` and NO `runWorkers`,
+  // for the same reason product_feeds above has neither: one fork per test file
+  // cannot afford a BullMQ connection per module. Integration tests drive the
+  // import pipeline directly rather than through a job.
+  //
+  // The catalogue write surface is constructed here exactly as production
+  // composition builds it, so what a test exercises is the path a real import
+  // takes — Command Bus, channel binding and all.
+  const pimErgonode = pimErgonodeModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+    commandBus,
+    eventBus,
+    credentials: credentials.handle.service,
+    catalogAdmin: new CatalogAdminService(
+      em,
+      eventBus as unknown as CatalogEventBus,
+      auditLogService,
+      salesChannels.handle.membershipService,
+      commandBus,
+      catalogAttributeReadService,
+      customFields.handle.definitionService,
+    ),
+    categoryAdmin: new CategoryAdminService(
+      em,
+      salesChannels.handle.membershipService,
+      commandBus,
+      customFields.handle.valueService,
+    ),
+    attributeSets: new AttributeSetService(em, commandBus, catalogAttributeReadService),
+    gallery: new GalleryService(em, commandBus),
+    attachments: new AttachmentService(em, commandBus),
+    productLinks: new ProductLinkService(em, commandBus),
+    grouped: new GroupedService(em, commandBus),
+    assets: assetsLibrary.handle.service,
+    priceLists: priceLists.handle.priceListService,
+    currencies: i18n.handle.currencyService,
+    languageService: i18n.handle.languageService,
+    adminNotificationService: handleFeature026.adminNotificationService,
+    settings: settings.handle.settingsService,
+    // The egress seam. The default REFUSES every stream read rather than
+    // answering empty: an empty source is a plausible fixture, so a silent
+    // default would let a test that forgot to script the source pass while
+    // importing nothing.
+    ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
+    // The byte egress. The real fetcher opens sockets; an empty scripted one
+    // answers `not_found` for everything, which is a failure a test can see
+    // rather than an outbound connection it cannot.
+    mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
+  });
+  modules.push(pimErgonode.plugin);
+
   // Feature 047 — Transactional Emails.
   emailDefaultsRegistry.register('order_confirmation', {
     defaultSubject: ORDER_CONFIRMATION_DEFAULT.defaultSubject,
@@ -2221,6 +2331,7 @@ export async function setupBackendServer(
     invoices: invoices.handle,
     ksef: ksef.handle,
     productFeeds: productFeeds.handle,
+    pimErgonode: pimErgonode.handle,
     pwa: pwa.handle,
     permissionService,
     permissionCatalogueService,

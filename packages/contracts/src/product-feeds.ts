@@ -986,7 +986,7 @@ export const feedRunIssueSchema = z.object({
   reason: feedRunIssueReasonSchema,
   productId: uuidSchema.nullable(),
   variantId: uuidSchema.nullable(),
-  sku: z.string().max(64).nullable(),
+  sku: z.string().max(255).nullable(),
   outputName: z.string().max(128).nullable(),
   detail: z.string().max(255).nullable(),
 });

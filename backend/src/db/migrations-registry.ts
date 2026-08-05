@@ -71,6 +71,8 @@ import { Migration20260611T140412CatalogProductPackagingUnits } from '../modules
 import { Migration20260718T060659CatalogBulkOperationRevertState } from '../modules/catalog/migrations/20260718T060659_catalog_bulk_operation_revert_state.js';
 import { Migration20260718T200343CatalogCategoryCustomFieldValues } from '../modules/catalog/migrations/20260718T200343_catalog_category_custom_field_values.js';
 import { Migration20260723T230401CatalogAttributesOnCustomFields } from '../modules/catalog/migrations/20260723T230401_catalog_attributes_on_custom_fields.js';
+import { Migration20260804T152604CatalogWidenProductSku } from '../modules/catalog/migrations/20260804T152604_catalog_widen_product_sku.js';
+import { Migration20260804T160244CatalogCategoryActivation } from '../modules/catalog/migrations/20260804T160244_catalog_category_activation.js';
 
 // ── cms ───────────────────────────────────────────────────────────────────
 import { Migration20260425T162418CmsPagesInit } from '../modules/cms/migrations/20260425T162418_cms_pages_init.js';
@@ -175,6 +177,9 @@ import { Migration20260801T100943PayuInit } from '../modules/payu/migrations/202
 // ── autopay ───────────────────────────────────────────────────────────────
 import { Migration20260803T065409AutopayInit } from '../modules/autopay/migrations/20260803T065409_autopay_init.js';
 
+// ── pim_ergonode ──────────────────────────────────────────────────────────
+import { Migration20260804T190439PimErgonodeInit } from '../modules/pim_ergonode/migrations/20260804T190439_pim_ergonode_init.js';
+
 // ── price_lists ───────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '../modules/price_lists/migrations/20260426T075235_price_lists_pricing_init.js';
 import { Migration20260504T125655PriceListsEngine } from '../modules/price_lists/migrations/20260504T125655_price_lists_engine.js';
@@ -184,6 +189,7 @@ import { Migration20260802T073547ProductFeedsInit } from '../modules/product_fee
 import { Migration20260802T073627ProductFeedsRuns } from '../modules/product_feeds/migrations/20260802T073627_product_feeds_runs.js';
 import { Migration20260802T110630ProductFeedsTaxonomies } from '../modules/product_feeds/migrations/20260802T110630_product_feeds_taxonomies.js';
 import { Migration20260803T060153ProductFeedsTaxonomyRefresh } from '../modules/product_feeds/migrations/20260803T060153_product_feeds_taxonomy_refresh.js';
+import { Migration20260804T152741ProductFeedsWidenIssueSku } from '../modules/product_feeds/migrations/20260804T152741_product_feeds_widen_issue_sku.js';
 
 // ── promotions ────────────────────────────────────────────────────────────
 import { Migration20260505T074605PromotionsCriteria } from '../modules/promotions/migrations/20260505T074605_promotions_criteria.js';
@@ -305,6 +311,8 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('catalog', Migration20260718T060659CatalogBulkOperationRevertState),
   migration('catalog', Migration20260718T200343CatalogCategoryCustomFieldValues),
   migration('catalog', Migration20260723T230401CatalogAttributesOnCustomFields),
+  migration('catalog', Migration20260804T152604CatalogWidenProductSku),
+  migration('catalog', Migration20260804T160244CatalogCategoryActivation),
 
   // ── cms ───────────────────────────────────────────────────────────────────
   migration('cms', Migration20260425T162418CmsPagesInit),
@@ -415,6 +423,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── autopay ───────────────────────────────────────────────────────────────
   migration('autopay', Migration20260803T065409AutopayInit),
 
+  // ── pim_ergonode ──────────────────────────────────────────────────────────
+  migration('pim_ergonode', Migration20260804T190439PimErgonodeInit),
+
   // ── price_lists ───────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),
   migration('price_lists', Migration20260504T125655PriceListsEngine),
@@ -424,6 +435,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('product_feeds', Migration20260802T073627ProductFeedsRuns),
   migration('product_feeds', Migration20260802T110630ProductFeedsTaxonomies),
   migration('product_feeds', Migration20260803T060153ProductFeedsTaxonomyRefresh),
+  migration('product_feeds', Migration20260804T152741ProductFeedsWidenIssueSku),
 
   // ── promotions ────────────────────────────────────────────────────────────
   migration('promotions', Migration20260505T074605PromotionsCriteria),

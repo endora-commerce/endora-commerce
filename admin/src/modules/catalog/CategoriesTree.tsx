@@ -1,7 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, EyeOff } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,7 @@ import {
   buildCategoryTree,
   flattenCategoryTree,
   pickCategoryDisplayName,
+  type CategoryTreePickerCategory,
 } from '@/components/category-tree-picker/category-tree-utils';
 import {
   Table,
@@ -34,6 +36,8 @@ interface AdminCategory {
   slug: string;
   sortOrder: number;
   mainImageAssetId?: string | null;
+  /** Feature 068 — false hides the category (and its branch) from the storefront. */
+  isActive: boolean;
 }
 
 export function CategoriesTree(): ReactNode {
@@ -132,8 +136,28 @@ export function CategoriesTree(): ReactNode {
     [refresh, categories, t],
   );
 
+  // Feature 068 — activation toggle. Deactivating hides the category and its
+  // whole branch from the storefront; the admin tree keeps showing it.
+  const handleToggleActive = useCallback(
+    async (id: string, next: boolean): Promise<void> => {
+      try {
+        await apiClient.patch<{ data: AdminCategory }>(
+          `/api/v1/admin/catalog/categories/${id}`,
+          { isActive: next },
+        );
+        setInfo(
+          next ? t('categories.success.activated') : t('categories.success.deactivated'),
+        );
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.update'));
+      }
+    },
+    [refresh, t],
+  );
+
   const handleDelete = useCallback(
-    async (cat: AdminCategory): Promise<void> => {
+    async (cat: CategoryTreePickerCategory): Promise<void> => {
       if (!confirm(t('categories.deleteConfirm', { name: label(cat.name, cat.slug) }))) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/catalog/categories/${cat.id}`);
@@ -191,14 +215,18 @@ export function CategoriesTree(): ReactNode {
                   <TableHead>{t('categories.column.category')}</TableHead>
                   <TableHead>{t('categories.column.slug')}</TableHead>
                   <TableHead>{t('categories.column.sort')}</TableHead>
+                  <TableHead>{t('categories.column.status')}</TableHead>
                   <TableHead>{t('categories.column.mainImage')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {flattenCategoryTree(tree).map(({ category: c, depth }) => (
+                {flattenCategoryTree(tree).map(({ category: c, depth }) => {
+                  const record = categoryById.get(c.id);
+                  const isActive = record?.isActive ?? true;
+                  return (
                   <Fragment key={c.id}>
-                    <TableRow>
+                    <TableRow className={isActive ? undefined : 'opacity-60'}>
                       <TableCell style={{ paddingLeft: depth * 24 + 8 }}>
                         {editing === c.id ? (
                           <EditForm
@@ -208,11 +236,26 @@ export function CategoriesTree(): ReactNode {
                             onSubmit={(input): void => void handleUpdate(c.id, input)}
                           />
                         ) : (
-                          <span className="font-medium">{label(c.name, c.slug)}</span>
+                          <span
+                            className={
+                              isActive
+                                ? 'font-medium'
+                                : 'font-medium text-muted-foreground line-through'
+                            }
+                          >
+                            {label(c.name, c.slug)}
+                          </span>
                         )}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{c.slug}</TableCell>
                       <TableCell>{c.sortOrder}</TableCell>
+                      <TableCell>
+                        <Badge variant={isActive ? 'success' : 'secondary'}>
+                          {isActive
+                            ? t('categories.status.active')
+                            : t('categories.status.inactive')}
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <CategoryMainImage
                           mainImageAssetId={categoryById.get(c.id)?.mainImageAssetId ?? null}
@@ -255,6 +298,18 @@ export function CategoriesTree(): ReactNode {
                               {t('categories.action.newChild')}
                             </Button>
                             <Button
+                              variant="outline"
+                              size="sm"
+                              type="button"
+                              aria-pressed={!isActive}
+                              onClick={(): void => void handleToggleActive(c.id, !isActive)}
+                            >
+                              {isActive ? <EyeOff /> : <Eye />}
+                              {isActive
+                                ? t('categories.action.deactivate')
+                                : t('categories.action.activate')}
+                            </Button>
+                            <Button
                               variant="destructive"
                               size="sm"
                               type="button"
@@ -269,7 +324,7 @@ export function CategoriesTree(): ReactNode {
                     </TableRow>
                     {createUnderId === c.id ? (
                       <TableRow>
-                        <TableCell colSpan={4} style={{ paddingLeft: depth * 24 + 32 }}>
+                        <TableCell colSpan={6} style={{ paddingLeft: depth * 24 + 32 }}>
                           <CreateForm
                             parentLabel={label(c.name, c.slug)}
                             onCancel={(): void => setCreateUnderId(null)}
@@ -281,7 +336,8 @@ export function CategoriesTree(): ReactNode {
                       </TableRow>
                     ) : null}
                   </Fragment>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -356,7 +412,7 @@ function EditForm({
   onSubmit,
   onCancel,
 }: {
-  category: AdminCategory;
+  category: CategoryTreePickerCategory;
   categories: AdminCategory[];
   onSubmit: (input: {
     slug: string;

@@ -32,6 +32,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   PercentDiamond,
+  PlugZap,
   Receipt,
   ReceiptText,
   Scale,
@@ -135,6 +136,28 @@ const NAV: NavSection[] = [
         labelKey: 'appShell.nav.assetsLibrary',
         icon: ImageIcon,
         requiredPermission: 'assets.read',
+      },
+      // Feature 068 — the Ergonode PIM connector sits in Catalog rather than
+      // Channels: it is where catalogue content comes *from*, and the three
+      // surfaces it writes (products, attributes, categories) are its
+      // neighbours here.
+      {
+        to: '/pim-ergonode',
+        labelKey: 'appShell.nav.pimErgonode',
+        icon: PlugZap,
+        requiredPermission: 'pim_ergonode:read',
+      },
+      {
+        to: '/pim-ergonode/attribute-mappings',
+        labelKey: 'appShell.nav.pimErgonodeAttributeMappings',
+        icon: Tag,
+        requiredPermission: 'pim_ergonode:read',
+      },
+      {
+        to: '/pim-ergonode/category-mappings',
+        labelKey: 'appShell.nav.pimErgonodeCategoryMappings',
+        icon: Layers,
+        requiredPermission: 'pim_ergonode:read',
       },
       // A feed publishes the catalogue, so it belongs beside the catalogue
       // rather than under Channels. Templates are a view of the same surface
@@ -465,6 +488,33 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/catalog\/attachment-types\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.attachmentTypes', href: null },
+  ] },
+  // Feature 068 — Ergonode PIM. Deepest trail first: `/runs/:id` before
+  // `/runs`, so the more specific pattern is the one that matches.
+  { test: /^\/pim-ergonode\/runs\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimErgonode', href: '/pim-ergonode' },
+    { labelKey: 'appShell.nav.pimErgonodeRuns', href: '/pim-ergonode/runs' },
+    { labelKey: 'appShell.crumb.importRun', href: null },
+  ] },
+  { test: /^\/pim-ergonode\/runs\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimErgonode', href: '/pim-ergonode' },
+    { labelKey: 'appShell.nav.pimErgonodeRuns', href: null },
+  ] },
+  { test: /^\/pim-ergonode\/attribute-mappings\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimErgonode', href: '/pim-ergonode' },
+    { labelKey: 'appShell.nav.pimErgonodeAttributeMappings', href: null },
+  ] },
+  { test: /^\/pim-ergonode\/category-mappings\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimErgonode', href: '/pim-ergonode' },
+    { labelKey: 'appShell.nav.pimErgonodeCategoryMappings', href: null },
+  ] },
+  { test: /^\/pim-ergonode\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimErgonode', href: null },
   ] },
   { test: /^\/product-feeds\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/product-feeds' },

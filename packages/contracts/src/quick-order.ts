@@ -65,11 +65,11 @@ export type QuickOrderImportRequest = z.infer<typeof quickOrderImportRequestSche
 
 export const recognizedQuickOrderItemSchema = z.object({
   line: z.number().int().positive(),
-  sku: z.string().min(1).max(64),
+  sku: z.string().min(1).max(255),
   productId: uuidSchema,
   variantId: uuidSchema.nullable(),
   /** Resolved variant SKU when a variant was matched from attribute columns. */
-  resolvedVariantSku: z.string().max(64).nullable().optional(),
+  resolvedVariantSku: z.string().max(255).nullable().optional(),
   quantity: z.number().int().positive(),
   /** Other source lines merged into this one (duplicate SKU, summed qty). */
   mergedFromLines: z.array(z.number().int().positive()).optional(),

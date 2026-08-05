@@ -3,7 +3,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { ERROR_CODES, type CreateCategoryRequest } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { CommandBus } from '../../../commands/index.js';
+import type { EventBase, EventBus } from '../../../events/bus.js';
+import type { CommandBus, CommandEvent } from '../../../commands/index.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import {
   CustomFieldValidationError,
@@ -17,6 +18,38 @@ interface CategoryWrite {
   before: Record<string, unknown> | null;
   after: Record<string, unknown> | null;
   skipAudit?: boolean;
+  /**
+   * Feature 068 — domain event dispatched once the write commits (dropped on
+   * rollback), in the shape the Command Bus expects.
+   */
+  event?: CommandEvent;
+}
+
+/**
+ * Feature 068 — events this service publishes.
+ *
+ * `category.updated.v1` carries the changed category id. The search module
+ * subscribes to it and re-indexes every product in the affected subtree,
+ * because a category's slug and its activation state are both projected onto
+ * the product documents (`categorySlugs`) that back the storefront PLP.
+ */
+export interface CategoryEvents extends Record<string, EventBase> {
+  'category.updated.v1': EventBase & { categoryId: string };
+}
+
+export type CategoryEventBus = EventBus<CategoryEvents>;
+
+function categoryUpdatedEvent(
+  categoryId: string,
+): CommandEvent<CategoryEvents['category.updated.v1']> {
+  return {
+    eventName: 'category.updated.v1',
+    payload: {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      categoryId,
+    },
+  };
 }
 
 /**
@@ -40,6 +73,11 @@ export interface UpdateCategoryInput {
   mainImageAssetId?: string | null;
   /** Feature 055 — custom-field values (validated + merged against definitions on write). */
   customFieldValues?: Record<string, unknown>;
+  /**
+   * Feature 068 — activation switch. `false` hides the category from every
+   * customer-facing read while the admin tree keeps listing it.
+   */
+  isActive?: boolean;
 }
 
 export class CategoryAdminService {
@@ -57,6 +95,12 @@ export class CategoryAdminService {
     private readonly commandBus?: CommandBus,
     /** Feature 055 — validates + merges custom-field values on category write. */
     private readonly customFieldValues?: CustomFieldValueService,
+    /**
+     * Feature 068 — publishes `category.updated.v1`. Only consulted on the
+     * bus-less fallback path: when a Command Bus is injected it dispatches the
+     * command's event itself, on commit.
+     */
+    private readonly events?: CategoryEventBus,
   ) {}
 
   /** Validate + merge a custom-field patch, mapping validation errors to HTTP 422. */
@@ -91,12 +135,17 @@ export class CategoryAdminService {
     write: (em: EntityManager) => Promise<CategoryWrite>,
   ): Promise<Category> {
     if (this.commandBus) {
+      // The event is declared per run, so `event()` can hand the bus whatever
+      // the closure produced. Captured here rather than on the entity because
+      // the bus dispatches it after the transaction commits.
+      let declared: CommandEvent | undefined;
       return this.commandBus.run({
         action,
         objectType: 'category',
         objectId,
         run: async ({ em }) => {
           const w = await write(em);
+          declared = w.event;
           return {
             result: w.result,
             before: w.before,
@@ -104,11 +153,18 @@ export class CategoryAdminService {
             ...(w.skipAudit ? { skipAudit: true } : {}),
           };
         },
+        event: () => declared,
       });
     }
     const em = this.emFactory();
     const w = await write(em);
     await em.flush(); // no-op when the closure already flushed (create/update)
+    if (w.event) {
+      this.events?.emit(
+        w.event.eventName as keyof CategoryEvents & string,
+        w.event.payload as CategoryEvents[keyof CategoryEvents & string],
+      );
+    }
     return w.result;
   }
 
@@ -133,6 +189,8 @@ export class CategoryAdminService {
         name: input.name,
         slug: input.slug,
         sortOrder: input.sortOrder ?? 0,
+        // Feature 068 — omitted means active (the column default).
+        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       });
       try {
         await em.flush();
@@ -154,6 +212,7 @@ export class CategoryAdminService {
           slug: created.slug,
           parentCategoryId: created.parentCategoryId ?? null,
           sortOrder: created.sortOrder,
+          isActive: created.isActive,
         },
       };
     });
@@ -174,6 +233,7 @@ export class CategoryAdminService {
         slug: cat.slug,
         parentCategoryId: cat.parentCategoryId ?? null,
         sortOrder: cat.sortOrder,
+        isActive: cat.isActive,
       };
       if (input.parentCategoryId !== undefined) {
         if (input.parentCategoryId !== null) {
@@ -185,6 +245,7 @@ export class CategoryAdminService {
       if (input.name !== undefined) cat.name = input.name;
       if (input.slug !== undefined) cat.slug = input.slug;
       if (input.sortOrder !== undefined) cat.sortOrder = input.sortOrder;
+      if (input.isActive !== undefined) cat.isActive = input.isActive;
       if (input.mainImageAssetId !== undefined) cat.mainImageAssetId = input.mainImageAssetId;
       if (input.customFieldValues !== undefined) {
         cat.customFieldValues = await this.#mergeCustomFields(cat.customFieldValues ?? {}, input.customFieldValues);
@@ -209,7 +270,12 @@ export class CategoryAdminService {
           slug: cat.slug,
           parentCategoryId: cat.parentCategoryId ?? null,
           sortOrder: cat.sortOrder,
+          isActive: cat.isActive,
         },
+        // Feature 068 — the subtree's products carry this category's slug and
+        // (through the activation flag) their reachability, so every update
+        // has to reach the search index.
+        event: categoryUpdatedEvent(cat.id),
       };
     });
   }

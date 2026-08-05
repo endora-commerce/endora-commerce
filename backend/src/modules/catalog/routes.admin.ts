@@ -970,6 +970,7 @@ export async function registerCatalogAdminRoutes(
           ...(body.name !== undefined ? { name: body.name } : {}),
           ...(body.slug !== undefined ? { slug: body.slug } : {}),
           ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
+          ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
           ...(body.mainImageAssetId !== undefined
             ? { mainImageAssetId: body.mainImageAssetId }
             : {}),
@@ -1830,6 +1831,9 @@ function serializeAdminCategory(c: Category) {
     name: c.name,
     slug: c.slug,
     sortOrder: c.sortOrder,
+    // Feature 068 — the admin tree lists inactive categories too, so the
+    // operator can see (and undo) what is hidden from customers.
+    isActive: c.isActive,
     mainImageAssetId: c.mainImageAssetId ?? null,
     customFieldValues: c.customFieldValues ?? {},
     createdAt: c.createdAt.toISOString(),

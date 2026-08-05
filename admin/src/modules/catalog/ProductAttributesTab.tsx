@@ -7,6 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSelect } from '@/components/ui/multi-select';
+// Feature 068 / US4 — the Ergonode overwrite-protection control. Renders `null`
+// unless an Ergonode connection is enabled (FR-058), so no condition is needed
+// here; it also decides on its own whether the attribute takes one toggle or one
+// per language (FR-052).
+import { ErgonodeAttributeValueProtection } from '../pim_ergonode/components/FieldProtectionToggle';
 
 /**
  * Feature: product Attributes tab.
@@ -34,6 +39,8 @@ interface SetAttribute {
   label: Record<string, string>;
   valueType: ValueType;
   position: number;
+  /** Feature 023 — the value is stored per language, one slot per active locale. */
+  languageScoped: boolean;
 }
 
 interface AttributeOption {
@@ -52,12 +59,19 @@ function pickLabel(label: Record<string, string>, fallback: string): string {
 }
 
 export interface ProductAttributesTabProps {
+  /**
+   * Only for the Ergonode protection control (FR-052 asks for it per attribute
+   * value); absent while the product is still being created, which is also when
+   * there is nothing to protect.
+   */
+  productId?: string | null | undefined;
   attributeSetId: string;
   values: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
 }
 
 export function ProductAttributesTab({
+  productId,
   attributeSetId,
   values,
   onChange,
@@ -147,6 +161,7 @@ export function ProductAttributesTab({
             value={values[attr.key]}
             onChange={(v): void => onChange(attr.key, v)}
             noneLabel={t('productEditor.attributes.selectNone')}
+            productId={productId}
           />
         ))}
       </div>
@@ -160,12 +175,14 @@ function AttributeField({
   value,
   onChange,
   noneLabel,
+  productId,
 }: {
   attr: SetAttribute;
   options: AttributeOption[];
   value: unknown;
   onChange: (value: unknown) => void;
   noneLabel: string;
+  productId: string | null | undefined;
 }): ReactNode {
   const label = pickLabel(attr.label, attr.key);
   const inputId = `attr-${attr.id}`;
@@ -260,9 +277,26 @@ function AttributeField({
       break;
   }
 
+  // Feature 068 / US4 — one control per attribute value, because that is the
+  // granularity FR-052 asks for: an operator curates *this* value, not "the
+  // attributes". A language-scoped value is curated one language at a time, and
+  // the control below renders itself accordingly.
+  const protection = (
+    <ErgonodeAttributeValueProtection
+      productId={productId}
+      attributeKey={attr.key}
+      languageScoped={attr.languageScoped === true}
+    />
+  );
+
   // The boolean control renders its own inline label.
   if (attr.valueType === 'boolean') {
-    return <div>{control}</div>;
+    return (
+      <div>
+        {control}
+        {protection}
+      </div>
+    );
   }
 
   return (
@@ -271,6 +305,7 @@ function AttributeField({
         {label} <span className="b2b-mono" style={{ opacity: 0.6 }}>({attr.key})</span>
       </Label>
       {control}
+      {protection}
     </div>
   );
 }

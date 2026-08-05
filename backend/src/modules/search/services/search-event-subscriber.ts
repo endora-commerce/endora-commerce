@@ -22,6 +22,9 @@ import {
  *   - `product.archived.v1` → deleteProduct
  *   - `product.deleted.v1`  → deleteProduct
  *   - `attribute.updated.v1` → refreshAttributeSettings
+ *   - `category.updated.v1` → reindexCategorySubtree (feature 068: the
+ *      category's slug and activation state are projected onto every product
+ *      document under it, so a rename or a deactivation has to reach the index)
  *
  * Feature 006 / T027 also attaches the LLM-augmented-search reactor:
  *
@@ -49,6 +52,7 @@ interface CatalogEvents extends Record<string, EventBase> {
     isSearchable: boolean;
     isFilterable: boolean;
   };
+  'category.updated.v1': EventBase & { categoryId: string };
   'settings.value_changed': EventBase & {
     settingCode: string;
     salesChannelIds: string[];
@@ -130,6 +134,15 @@ export class SearchEventSubscriber {
           await indexer.deleteProduct(emFactory(), payload.productId);
         } catch (err) {
           log(err, 'product.deleted.v1');
+        }
+      }),
+    );
+    this.unsubscribers.push(
+      eventBus.on('category.updated.v1', async (payload) => {
+        try {
+          await indexer.reindexCategorySubtree(emFactory(), payload.categoryId);
+        } catch (err) {
+          log(err, 'category.updated.v1');
         }
       }),
     );

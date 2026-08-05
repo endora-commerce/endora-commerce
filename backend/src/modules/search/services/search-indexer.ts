@@ -114,10 +114,13 @@ export class SearchIndexer {
     const categoryRows = await em
       .getConnection()
       .execute<Array<{ product_id: string; category_id: string; slug: string }>>(
+        // Feature 068 — an inactive category must not survive in the indexed
+        // `categorySlugs`, or it keeps working as a storefront PLP filter.
         `select pc.product_id, pc.category_id, c.slug
            from product_categories pc
            join categories c on c.id = pc.category_id
-          where pc.product_id in (${productIds.length === 0 ? 'null' : productIds.map(() => '?').join(',')})`,
+          where c.is_active = true
+            and pc.product_id in (${productIds.length === 0 ? 'null' : productIds.map(() => '?').join(',')})`,
         productIds,
       );
     const categoriesByProduct = new Map<string, Array<{ id: string; slug: string }>>();
@@ -209,10 +212,12 @@ export class SearchIndexer {
     const categoryRows = await em
       .getConnection()
       .execute<Array<{ category_id: string; slug: string }>>(
+        // Feature 068 — same activation filter as the full reindex.
         `select pc.category_id, c.slug
            from product_categories pc
            join categories c on c.id = pc.category_id
-          where pc.product_id = ?`,
+          where c.is_active = true
+            and pc.product_id = ?`,
         [productId],
       );
     const categories = categoryRows.map((r) => ({ id: r.category_id, slug: r.slug }));
@@ -247,6 +252,36 @@ export class SearchIndexer {
       touched.push(channel.code);
     }
     return touched;
+  }
+
+  /**
+   * Feature 068 — re-index every product assigned to a category or any of its
+   * descendants. Called on `category.updated.v1`: a renamed or deactivated
+   * category changes the `categorySlugs` projection of its products, and a
+   * stale projection keeps a hidden category working as a PLP filter.
+   *
+   * The subtree is walked in one recursive query rather than per level, and
+   * the product set is de-duplicated because a product may sit in several
+   * branches. Returns the number of products re-indexed.
+   */
+  async reindexCategorySubtree(em: EntityManager, categoryId: string): Promise<number> {
+    const rows = await em
+      .getConnection()
+      .execute<Array<{ product_id: string }>>(
+        `with recursive subtree as (
+             select id from categories where id = ?
+              union all
+             select c.id from categories c join subtree s on c.parent_category_id = s.id
+           )
+           select distinct pc.product_id
+             from product_categories pc
+             join subtree s on s.id = pc.category_id`,
+        [categoryId],
+      );
+    for (const row of rows) {
+      await this.upsertProduct(em, row.product_id);
+    }
+    return rows.length;
   }
 
   /**

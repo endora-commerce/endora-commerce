@@ -209,6 +209,16 @@ import { FeedTaxonomy } from '../modules/product_feeds/entities/feed-taxonomy.en
 import { FeedTaxonomyNode } from '../modules/product_feeds/entities/feed-taxonomy-node.entity.js';
 import { FeedTaxonomyMapping } from '../modules/product_feeds/entities/feed-taxonomy-mapping.entity.js';
 import { FeedTaxonomyCheck } from '../modules/product_feeds/entities/feed-taxonomy-check.entity.js';
+import { ErgonodeConnection } from '../modules/pim_ergonode/entities/ergonode-connection.entity.js';
+import { ErgonodeStreamCursor } from '../modules/pim_ergonode/entities/ergonode-stream-cursor.entity.js';
+import { ErgonodeAttributeMapping } from '../modules/pim_ergonode/entities/ergonode-attribute-mapping.entity.js';
+import { ErgonodeCategoryMapping } from '../modules/pim_ergonode/entities/ergonode-category-mapping.entity.js';
+import { ErgonodePriceBinding } from '../modules/pim_ergonode/entities/ergonode-price-binding.entity.js';
+import { ErgonodeProductLink } from '../modules/pim_ergonode/entities/ergonode-product-link.entity.js';
+import { ErgonodeMediaLink } from '../modules/pim_ergonode/entities/ergonode-media-link.entity.js';
+import { ErgonodeFieldProtection } from '../modules/pim_ergonode/entities/ergonode-field-protection.entity.js';
+import { ErgonodeImportRun } from '../modules/pim_ergonode/entities/ergonode-import-run.entity.js';
+import { ErgonodeImportIssue } from '../modules/pim_ergonode/entities/ergonode-import-issue.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -390,6 +400,17 @@ export const ALL_ENTITIES = [
   FeedTaxonomyNode,
   FeedTaxonomyMapping,
   FeedTaxonomyCheck,
+  // pim_ergonode (feature 068)
+  ErgonodeConnection,
+  ErgonodeStreamCursor,
+  ErgonodeAttributeMapping,
+  ErgonodeCategoryMapping,
+  ErgonodePriceBinding,
+  ErgonodeProductLink,
+  ErgonodeMediaLink,
+  ErgonodeFieldProtection,
+  ErgonodeImportRun,
+  ErgonodeImportIssue,
   // search analytics ingest (feature 006 / US3)
   SearchPhraseRecord,
   // comparisons (feature 007)

@@ -178,7 +178,7 @@ export type ProductPriceTier = z.infer<typeof productPriceTierSchema>;
 
 export const productSummarySchema = z.object({
   id: uuidSchema,
-  sku: z.string().min(1).max(64),
+  sku: z.string().min(1).max(255),
   type: productTypeSchema,
   name: z.string(),
   slug: z.string(),
@@ -205,7 +205,7 @@ export type ProductSummary = z.infer<typeof productSummarySchema>;
 
 export const productVariantSchema = z.object({
   id: uuidSchema,
-  sku: z.string().min(1).max(64),
+  sku: z.string().min(1).max(255),
   variantAttributeValues: z.record(z.string(), z.unknown()),
   priceOverride: z.number().finite().nullable(),
   stockLevel: z.number().int().nullable(),
@@ -544,7 +544,7 @@ export type FilterDefinition = z.infer<typeof filterDefinitionSchema>;
 // `.partial()` it. The cross-field rule for virtual download fields is
 // applied as a separate refine on the create variant below.
 const baseProductRequestObject = z.object({
-  sku: z.string().min(1).max(64),
+  sku: z.string().min(1).max(255),
   type: productTypeSchema,
   name: multilingualStringSchema,
   description: multilingualStringSchema,
@@ -848,7 +848,7 @@ export const bulkOperationResponseSchema = z.object({ data: bulkOperationSchema 
 export type BulkOperationResponse = z.infer<typeof bulkOperationResponseSchema>;
 
 export const createVariantRequestSchema = z.object({
-  sku: z.string().min(1).max(64),
+  sku: z.string().min(1).max(255),
   variantAttributeValues: z.record(z.string(), z.unknown()),
   priceOverride: z.number().finite().optional(),
   stockLevel: z.number().int().nonnegative().optional(),
@@ -1078,6 +1078,13 @@ export const createCategoryRequestSchema = z.object({
     .max(160)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'must be kebab-case'),
   sortOrder: z.number().int().optional(),
+  /**
+   * Feature 068 — activation switch. Omitted means active: a category created
+   * by an administrator is visible unless they say otherwise. Integrations
+   * that discover categories (e.g. the Ergonode importer) pass `false` so a
+   * first import never exposes a source hierarchy to customers.
+   */
+  isActive: z.boolean().optional(),
 });
 export type CreateCategoryRequest = z.infer<typeof createCategoryRequestSchema>;
 
@@ -1092,6 +1099,12 @@ export const updateCategoryRequestSchema = z
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'must be kebab-case')
       .optional(),
     sortOrder: z.number().int().optional(),
+    /**
+     * Feature 068 — activation switch. `false` hides the category from every
+     * customer-facing read; the admin tree keeps listing it so it can be
+     * re-enabled.
+     */
+    isActive: z.boolean().optional(),
     /** Feature 013 / US5 — Library Asset rendered as the category's main image. */
     mainImageAssetId: uuidSchema.nullable().optional(),
     /** Feature 055 — custom-field values for this category (validated on write). */
@@ -1152,6 +1165,12 @@ export const attributeSetAssignedAttributeSchema = z.object({
   label: multilingualStringSchema,
   valueType: attributeValueTypeSchema,
   position: z.number().int().nonnegative(),
+  /**
+   * Feature 023 — the attribute's value is keyed by language, so the product
+   * editor renders it (and anything scoped to it, such as feature 068's
+   * overwrite protection) per language rather than once for the attribute.
+   */
+  languageScoped: z.boolean(),
 });
 export type AttributeSetAssignedAttribute = z.infer<typeof attributeSetAssignedAttributeSchema>;
 

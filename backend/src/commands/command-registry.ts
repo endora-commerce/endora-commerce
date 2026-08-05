@@ -331,8 +331,56 @@ export const COMMAND_REGISTRY = {
     reversible: false,
     description: 'Start a check for a newer provider taxonomy revision',
   },
+  // Ergonode PIM integration configuration writes (feature 068). The catalogue
+  // writes the import performs are audited by catalog's own Commands; these are
+  // the module's own decisions — which instance it talks to, where each source
+  // attribute or category lands, which prices it may write, and which fields it
+  // must leave alone. Import-loop internals (cursor advancement, heartbeats, run
+  // finalisation, reaper releases) are machine transitions and carry explicit
+  // `command-coverage-ignore` justifications instead.
+  'pim_ergonode.connection.upsert': {
+    reversible: false,
+    description: 'Create or update the Ergonode connection',
+  },
+  // A *manual* import is an operator decision and is audited. A scheduled tick
+  // is not: it has no acting administrator, and auditing every tick would add a
+  // row per schedule interval forever while saying nothing an operator asked.
+  // The scheduled path keeps its `command-coverage-ignore` at the call site.
+  'pim_ergonode.import.start': {
+    reversible: false,
+    description: 'Start an Ergonode import by hand',
+  },
+  'pim_ergonode.connection.delete': {
+    reversible: false,
+    description: 'Delete the Ergonode connection',
+  },
+  'pim_ergonode.attribute_mapping.set': {
+    reversible: false,
+    description: 'Set the mapping decision for an Ergonode attribute',
+  },
+  'pim_ergonode.category_mapping.set': {
+    reversible: false,
+    description: 'Bind or unbind an Ergonode category to a shop category',
+  },
+  'pim_ergonode.price_binding.create': {
+    reversible: false,
+    description: 'Bind an Ergonode price attribute to a price list and currency',
+  },
+  'pim_ergonode.price_binding.delete': {
+    reversible: false,
+    description: 'Remove an Ergonode price binding',
+  },
+  'pim_ergonode.field_protection.set': {
+    reversible: false,
+    description: 'Replace the set of product fields protected from the Ergonode import',
+  },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
+  // Feature 068 — product create/delete join the bus. They used to audit by
+  // hand after commit, and only when the caller passed an audit context, so a
+  // background importer's products were written with no audit row at all.
+  'product.create': { reversible: false, description: 'Create a product' },
+  'product.delete': { reversible: false, description: 'Soft-delete a product' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
   // conversion so the coverage check and undo affordance recognize them.
   'product.bulk_update': { reversible: true, description: 'Queued bulk edit of products' },

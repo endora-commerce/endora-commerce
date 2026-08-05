@@ -118,7 +118,9 @@ export class SitemapGeneratorService {
     const categories = memberIds.categories.size
       ? await em.find(
           Category,
-          { id: { $in: [...memberIds.categories] }, deletedAt: null },
+          // Feature 068 — a deactivated category is not a customer-reachable
+          // URL, so it must not be advertised to crawlers.
+          { id: { $in: [...memberIds.categories] }, deletedAt: null, isActive: true },
           { orderBy: { sortOrder: 'asc' } },
         )
       : [];

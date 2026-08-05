@@ -39,6 +39,7 @@ describe('permission inventory (SC-001)', () => {
     // +2 for feature 065 PayU (payu:read, payu:write).
     // +2 for feature 067 Product Feed (product_feeds:read, product_feeds:write).
     // +2 for feature 067 Autopay (autopay:read, autopay:write).
-    expect(assignable.size).toBe(69);
+    // +2 for feature 068 Ergonode PIM (pim_ergonode:read, pim_ergonode:write).
+    expect(assignable.size).toBe(71);
   });
 });

@@ -8,6 +8,7 @@ import type {
 } from '../custom_fields/services/custom-field-value.service.js';
 import { BULK_OPERATION_TYPES } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
+import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import { defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
 import {
   createBulkOperationQueue,
@@ -28,7 +29,10 @@ import {
   BulkOperationService,
   type SearchReindexRunner,
 } from './services/bulk-operation.service.js';
-import { CategoryAdminService } from './services/category-admin.service.js';
+import {
+  CategoryAdminService,
+  type CategoryEventBus,
+} from './services/category-admin.service.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
 import { GalleryService } from './services/gallery.service.js';
 import { AttachmentService } from './services/attachment.service.js';
@@ -282,7 +286,25 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.salesChannelMembership,
       options.commandBus,
       options.customFieldValues,
+      options.eventBus as CategoryEventBus,
     );
+
+    // Feature 068 — the storefront serves the category tree from a fetch cache
+    // tagged `catalog:categories` with a 5-minute TTL. An activation toggle has
+    // to be visible immediately, so flush the tag on every category write.
+    // A no-op unless STOREFRONT_BASE_URL and REVALIDATE_SECRET are configured.
+    const categoryRevalidator = new StorefrontRevalidator({
+      baseUrl: process.env['STOREFRONT_BASE_URL'],
+      secret: process.env['REVALIDATE_SECRET'],
+    });
+    categoryRevalidator.setLogger(app.log);
+    const unsubscribeCategoryRevalidation = (options.eventBus as CategoryEventBus).on(
+      'category.updated.v1',
+      () => {
+        void categoryRevalidator.revalidate(['catalog:categories']);
+      },
+    );
+    app.addHook('onClose', async () => unsubscribeCategoryRevalidation());
     const attributeSetService = new AttributeSetService(
       options.emFactory,
       options.commandBus,

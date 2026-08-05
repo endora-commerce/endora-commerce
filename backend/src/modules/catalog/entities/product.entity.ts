@@ -36,7 +36,7 @@ export class Product {
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
 
-  @Property({ type: 'string', length: 64 })
+  @Property({ type: 'string', length: 255 })
   @Unique()
   sku!: string;
 

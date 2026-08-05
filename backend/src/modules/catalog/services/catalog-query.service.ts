@@ -291,7 +291,13 @@ export class CatalogQueryService {
       [product.id],
     );
     const categoryIds = categoryRows.map((r) => r.category_id);
-    const categories = await em.find(Category, { id: { $in: categoryIds } });
+    // Feature 068 — the PDP breadcrumb/category list is customer-facing: skip
+    // deactivated categories, and deleted ones (never filtered here before).
+    const categories = await em.find(Category, {
+      id: { $in: categoryIds },
+      deletedAt: null,
+      isActive: true,
+    });
 
     // Assets
     const assetRows = await em.getConnection().execute<{ asset_id: string; position: number }[]>(
@@ -723,7 +729,14 @@ export class CatalogQueryService {
   async getCategoryTree(ctx: CatalogQueryContext): Promise<CategoryNode[]> {
     const em = this.emFactory();
     const channel = ctx.resolvedChannel;
-    const rows = await em.find(Category, { deletedAt: null }, { orderBy: { sortOrder: 'asc' } });
+    // Feature 068 — an inactive category is invisible to customers, and so is
+    // everything under it: its children never reach `build()` because only
+    // roots seed the walk.
+    const rows = await em.find(
+      Category,
+      { deletedAt: null, isActive: true },
+      { orderBy: { sortOrder: 'asc' } },
+    );
 
     // Directly-assigned, channel-visible products per category.
     const directSets = await this.directProductSetsByCategory(em, channel);
@@ -1217,14 +1230,24 @@ export class CatalogQueryService {
     em: EntityManager,
     categorySlug: string,
   ): Promise<Set<string>> {
-    const root = await em.findOne(Category, { slug: categorySlug, deletedAt: null });
+    // Feature 068 — an inactive category narrows to nothing, and an inactive
+    // branch contributes no products to an active ancestor.
+    const root = await em.findOne(Category, {
+      slug: categorySlug,
+      deletedAt: null,
+      isActive: true,
+    });
     if (!root) return new Set();
 
     // Collect descendant ids (BFS).
     const all: string[] = [root.id];
     let frontier: string[] = [root.id];
     while (frontier.length > 0) {
-      const children = await em.find(Category, { parentCategoryId: { $in: frontier }, deletedAt: null });
+      const children = await em.find(Category, {
+        parentCategoryId: { $in: frontier },
+        deletedAt: null,
+        isActive: true,
+      });
       const nextIds = children.map((c) => c.id);
       all.push(...nextIds);
       frontier = nextIds;
