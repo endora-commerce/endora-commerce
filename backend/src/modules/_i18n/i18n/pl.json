@@ -55,6 +55,8 @@
   "appShell.nav.newOrder": "Nowe zamówienie",
   "appShell.nav.orderStatuses": "Statusy zamówień",
   "appShell.nav.quickOrder": "Szybkie zamówienie",
+  "orderEntry.tab.standard": "Zamówienie standardowe",
+  "orderEntry.tab.quick": "Szybkie zamówienie",
   "defaultPreferences.title": "Domyślne preferencje zamówień",
   "defaultPreferences.description": "Domyślna metoda płatności / dostawy oraz adres rozliczeniowy / wysyłki stosowane przy składaniu zamówienia. Pozostaw pole puste, aby nie ustawiać wartości domyślnej.",
   "defaultPreferences.paymentMethod": "Domyślna metoda płatności",

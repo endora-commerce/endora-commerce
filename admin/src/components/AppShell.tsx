@@ -108,8 +108,10 @@ const NAV: NavSection[] = [
     labelKey: 'appShell.section.sales',
     items: [
       { to: '/orders', labelKey: 'appShell.nav.orders', icon: ClipboardCheck },
+      // Quick order is not a second destination — it is the other way of
+      // getting lines into the same order, so it lives behind a tab on the
+      // order-entry page rather than on its own sidebar row.
       { to: '/orders/new', labelKey: 'appShell.nav.newOrder', icon: ClipboardCheck },
-      { to: '/orders/quick-order', labelKey: 'appShell.nav.quickOrder', icon: ClipboardCheck },
       { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck },
       { to: '/returns', labelKey: 'appShell.nav.returns', icon: Package, requiredPermission: 'returns:read' },
       { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText },
