@@ -330,9 +330,13 @@ function renderItem(
   if (outputFormat === 'xml') {
     return new XmlFeedSerializer({ title: '', link: '', description: '' }).item(emitted);
   }
+  // An XLSX preview is rendered tab-separated on purpose. The preview answers
+  // "which value lands in which column", and that layout is identical; the
+  // alternative is showing the operator a fragment of a ZIP archive, which
+  // answers nothing. The real file is still a genuine workbook.
   const serializer = new DelimitedFeedSerializer({
     columns: fields.map((field) => field.outputName),
-    delimiter: outputFormat === 'tsv' ? '\t' : ',',
+    delimiter: outputFormat === 'csv' ? ',' : '\t',
   });
   return `${serializer.begin()}${serializer.item(emitted)}`;
 }
