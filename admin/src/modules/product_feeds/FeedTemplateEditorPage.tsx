@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Plus, Search } from 'lucide-react';
-import type { FeedFieldSourceCatalogue, FeedFieldSourceKind } from '@b2b/contracts';
+import {
+  feedOutputFormatSchema,
+  isTabularFeedFormat,
+  type FeedFieldSourceCatalogue,
+  type FeedFieldSourceKind,
+  type FeedOutputFormat,
+} from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { PageHeader } from '@/components/ui/page-header';
 import { useViewportTier } from '@/components/hooks/useViewportTier';
 import { useAuth } from '@/lib/auth';
@@ -59,8 +66,15 @@ import {
 
 const PREVIEW_DEBOUNCE_MS = 400;
 
-/** Sources a delimited file cannot express in one column. */
-const CSV_UNSUPPORTED: FeedFieldSourceKind[] = ['additional_image_link'];
+/**
+ * Sources no one-cell-per-field format can express.
+ *
+ * A repeated element is an XML shape. CSV, TSV, TXT and XLSX all lay one item
+ * across fixed columns, so a field that resolves to a list has nowhere to go —
+ * the constraint is about the row model, not about the delimiter, which is why
+ * the workbook format is subject to it too.
+ */
+const TABULAR_UNSUPPORTED: FeedFieldSourceKind[] = ['additional_image_link'];
 
 export function FeedTemplateEditorPage(): ReactNode {
   const { templateId } = useParams<{ templateId: string }>();
@@ -145,7 +159,7 @@ export function FeedTemplateEditorPage(): ReactNode {
       itemGranularity: draft.itemGranularity,
       taxonomyProviderCode: draft.taxonomyProviderCode,
       unsupportedSourceKinds: new Set(
-        draft.outputFormat === 'xml' ? [] : CSV_UNSUPPORTED,
+        isTabularFeedFormat(draft.outputFormat) ? TABULAR_UNSUPPORTED : [],
       ),
       knownSourceKeys,
       providerLabel: providerLabel(draft.providerCode),
@@ -482,9 +496,12 @@ export function FeedTemplateEditorPage(): ReactNode {
         />
       </div>
 
-      {/* The name and description were sent on every save but had no control,
-          so renaming a template meant duplicating it. They sit above the field
-          list because they describe the template, not any one column. */}
+      {/* What the template *is*, as opposed to what it carries: name,
+          description and output format all describe the whole template rather
+          than any one column, so they share one card above the field list.
+          None of the three had a control before — a rename meant duplicating
+          the template, and the format was fixed at creation, which meant an
+          operator who needed a marketplace's flat file rebuilt everything. */}
       <div className="b2b-card mb-4 p-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
@@ -519,6 +536,27 @@ export function FeedTemplateEditorPage(): ReactNode {
             <p id="template-description-hint" className="b2b-help">
               {t('builder.description.hint')}
             </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="template-output-format">{t('builder.settings.outputFormat')}</Label>
+            <Select
+              id="template-output-format"
+              value={draft.outputFormat}
+              disabled={readOnly}
+              title={readOnly ? (disabledTitle ?? t('templates.systemTemplate.notice')) : undefined}
+              onChange={(event): void =>
+                patchDraft({ outputFormat: event.target.value as FeedOutputFormat })
+              }
+            >
+              {feedOutputFormatSchema.options.map((format) => (
+                <option key={format} value={format}>
+                  {t(`builder.outputFormat.${format}`)}
+                </option>
+              ))}
+            </Select>
+            {/* Changing the format re-runs validation immediately, which is
+                what surfaces a field the new format cannot carry. */}
+            <p className="b2b-help">{t('builder.outputFormat.hint')}</p>
           </div>
         </div>
       </div>

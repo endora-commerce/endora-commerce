@@ -20,9 +20,43 @@ function tsv(columns: string[]): DelimitedFeedSerializer {
   return new DelimitedFeedSerializer({ columns, delimiter: '\t' });
 }
 
+function txt(columns: string[]): DelimitedFeedSerializer {
+  return new DelimitedFeedSerializer({ columns, delimiter: '\t', flavour: 'txt' });
+}
+
 function fields(pairs: Record<string, string>): FeedItemField[] {
   return Object.entries(pairs).map(([name, value]) => ({ name, value }));
 }
+
+describe('DelimitedFeedSerializer — the txt flavour', () => {
+  /**
+   * `.txt` exists because several marketplace importers accept a tab-separated
+   * upload only under that extension. It is the same bytes as TSV; if it ever
+   * stops being, a feed that used to import will start failing silently.
+   */
+  it('writes bytes identical to TSV', () => {
+    const columns = ['id', 'title', 'price'];
+    const row = fields({ id: 'SKU-1', title: 'A shirt', price: '19.99' });
+    expect(txt(columns).begin()).toBe(tsv(columns).begin());
+    expect(txt(columns).item(row)).toBe(tsv(columns).item(row));
+  });
+
+  it('strips embedded tabs and newlines exactly as TSV does', () => {
+    const row = fields({ id: 'SKU-1', title: 'Two\tparts\nsplit' });
+    expect(txt(['id', 'title']).item(row)).toBe(tsv(['id', 'title']).item(row));
+  });
+
+  it('differs from TSV only in extension and media type', () => {
+    expect(txt(['id']).fileExtension).toBe('txt');
+    expect(txt(['id']).contentType).toBe('text/plain; charset=utf-8');
+  });
+
+  it('leaves the delimiter-implied default untouched for existing callers', () => {
+    // Callers that pass no flavour must keep the behaviour they had.
+    expect(tsv(['id']).fileExtension).toBe('tsv');
+    expect(csv(['id']).fileExtension).toBe('csv');
+  });
+});
 
 describe('DelimitedFeedSerializer — header row', () => {
   it('writes the declared columns, in order, as the first row', () => {

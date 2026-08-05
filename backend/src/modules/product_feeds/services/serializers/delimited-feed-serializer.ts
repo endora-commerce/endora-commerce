@@ -26,10 +26,31 @@ export type FeedDelimiter = ',' | '\t';
 /** CRLF is what RFC 4180 specifies and what every marketplace importer expects. */
 const ROW_TERMINATOR = '\r\n';
 
+/**
+ * Which of the three delimited files this is.
+ *
+ * `txt` is byte-for-byte a `tsv`; only the extension and the media type differ.
+ * That distinction is not cosmetic — several marketplace importers accept a
+ * tab-separated upload only when it arrives as `.txt`, and asking an operator
+ * to rename a downloaded file is asking them to know why.
+ */
+export type DelimitedFlavour = 'csv' | 'tsv' | 'txt';
+
+const FLAVOUR_MEDIA_TYPE: Record<DelimitedFlavour, string> = {
+  csv: 'text/csv; charset=utf-8',
+  tsv: 'text/tab-separated-values; charset=utf-8',
+  txt: 'text/plain; charset=utf-8',
+};
+
 export interface DelimitedFeedSerializerOptions {
   /** The template's ordered output names — the header row and the cell order. */
   columns: readonly string[];
   delimiter: FeedDelimiter;
+  /**
+   * Extension and media type to advertise. Defaults to the one implied by the
+   * delimiter, so existing callers keep their behaviour exactly.
+   */
+  flavour?: DelimitedFlavour;
 }
 
 export class DelimitedFeedSerializer implements FeedSerializer {
@@ -42,11 +63,10 @@ export class DelimitedFeedSerializer implements FeedSerializer {
   constructor(options: DelimitedFeedSerializerOptions) {
     this.columns = options.columns;
     this.delimiter = options.delimiter;
-    const isTsv = options.delimiter === '\t';
-    this.contentType = isTsv
-      ? 'text/tab-separated-values; charset=utf-8'
-      : 'text/csv; charset=utf-8';
-    this.fileExtension = isTsv ? 'tsv' : 'csv';
+    const flavour: DelimitedFlavour =
+      options.flavour ?? (options.delimiter === '\t' ? 'tsv' : 'csv');
+    this.contentType = FLAVOUR_MEDIA_TYPE[flavour];
+    this.fileExtension = flavour;
   }
 
   begin(): string {
