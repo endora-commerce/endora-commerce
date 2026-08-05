@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
-import { Readable, Transform } from 'node:stream';
-import type { FeedItemField, FeedSerializer } from './serializer.interface.js';
+import { PassThrough, Readable, Transform } from 'node:stream';
+import {
+  isStreamingSerializer,
+  type AnyFeedSerializer,
+  type FeedItemField,
+} from './serializer.interface.js';
 
 /**
  * The streaming core of feed generation — feature 067 / FR-034, research §R4.
@@ -18,15 +22,30 @@ import type { FeedItemField, FeedSerializer } from './serializer.interface.js';
  * emitting a byte, so that number would equal the item count.
  */
 export function createFeedReadable(
-  serializer: FeedSerializer,
+  serializer: AnyFeedSerializer,
   source: AsyncIterable<readonly FeedItemField[]>,
 ): Readable {
+  if (isStreamingSerializer(serializer)) {
+    // A container format writes itself. `PassThrough` is what turns its sink
+    // back into the `Readable` the storage adapter expects, and it is also what
+    // carries back-pressure the other way: the writer stalls when the consumer
+    // stops reading, so the document never accumulates here either.
+    const sink = new PassThrough();
+    void serializer
+      .writeTo(sink, source)
+      .catch((err: unknown) => sink.destroy(err instanceof Error ? err : new Error(String(err))));
+    return sink;
+  }
+  // Bound to a const so the narrowing above survives into the generator: a
+  // parameter is mutable, so TypeScript discards its narrowed type inside a
+  // nested function.
+  const chunked = serializer;
   async function* generate(): AsyncGenerator<string> {
-    yield serializer.begin();
+    yield chunked.begin();
     for await (const fields of source) {
-      yield serializer.item(fields);
+      yield chunked.item(fields);
     }
-    yield serializer.end();
+    yield chunked.end();
   }
   return Readable.from(generate());
 }

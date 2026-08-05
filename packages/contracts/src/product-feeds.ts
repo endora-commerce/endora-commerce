@@ -42,8 +42,27 @@ export type FeedProviderCode = z.infer<typeof feedProviderCodeSchema>;
 export const taxonomyProviderCodeSchema = z.enum(['google_merchant', 'meta']);
 export type TaxonomyProviderCode = z.infer<typeof taxonomyProviderCodeSchema>;
 
-export const feedOutputFormatSchema = z.enum(['xml', 'csv', 'tsv']);
+/**
+ * What the generated file is.
+ *
+ * `txt` is tab-separated like `tsv` and differs only in extension and media
+ * type — several marketplace importers (Google Merchant's own flat file among
+ * them) accept nothing else, and renaming the file is exactly the kind of step
+ * an operator should not have to know about.
+ *
+ * `xlsx` is the real Office Open XML workbook, not a spreadsheet-flavoured
+ * text file. The legacy binary `.xls` (BIFF8) is deliberately absent: it is
+ * superseded, and nothing in this stack can write it.
+ */
+export const feedOutputFormatSchema = z.enum(['xml', 'csv', 'tsv', 'txt', 'xlsx']);
 export type FeedOutputFormat = z.infer<typeof feedOutputFormatSchema>;
+
+/** Formats that lay one item per row across fixed columns (everything but XML). */
+export const TABULAR_FEED_FORMATS = ['csv', 'tsv', 'txt', 'xlsx'] as const satisfies readonly FeedOutputFormat[];
+
+export function isTabularFeedFormat(format: FeedOutputFormat): boolean {
+  return (TABULAR_FEED_FORMATS as readonly string[]).includes(format);
+}
 
 export const feedItemGranularitySchema = z.enum(['product', 'variant']);
 export type FeedItemGranularity = z.infer<typeof feedItemGranularitySchema>;

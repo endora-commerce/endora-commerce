@@ -31,8 +31,9 @@ import {
 } from './taxonomy-mapping-resolver.js';
 import { createFeedReadable, measureStream } from './serializers/feed-stream.js';
 import { DelimitedFeedSerializer } from './serializers/delimited-feed-serializer.js';
+import { XlsxFeedSerializer } from './serializers/xlsx-feed-serializer.js';
 import { XmlFeedSerializer } from './serializers/xml-feed-serializer.js';
-import type { FeedItemField, FeedSerializer } from './serializers/serializer.interface.js';
+import type { AnyFeedSerializer, FeedItemField } from './serializers/serializer.interface.js';
 
 /**
  * The generation pipeline — feature 067 / FR-034–FR-039, FR-060.
@@ -481,18 +482,25 @@ export class FeedGenerationService {
       );
   }
 
-  private buildSerializer(prepared: PreparedRun): FeedSerializer {
-    if (prepared.outputFormat === 'xml') {
-      return new XmlFeedSerializer({
-        title: prepared.channelName,
-        link: prepared.context.storefrontOrigin,
-        description: prepared.feed.name,
-      });
+  private buildSerializer(prepared: PreparedRun): AnyFeedSerializer {
+    const columns = prepared.fields.map((f) => f.outputName);
+    switch (prepared.outputFormat) {
+      case 'xml':
+        return new XmlFeedSerializer({
+          title: prepared.channelName,
+          link: prepared.context.storefrontOrigin,
+          description: prepared.feed.name,
+        });
+      case 'xlsx':
+        return new XlsxFeedSerializer({ columns });
+      case 'tsv':
+        return new DelimitedFeedSerializer({ columns, delimiter: '\t', flavour: 'tsv' });
+      case 'txt':
+        // Tab-separated like TSV; only the extension and media type differ.
+        return new DelimitedFeedSerializer({ columns, delimiter: '\t', flavour: 'txt' });
+      case 'csv':
+        return new DelimitedFeedSerializer({ columns, delimiter: ',', flavour: 'csv' });
     }
-    return new DelimitedFeedSerializer({
-      columns: prepared.fields.map((f) => f.outputName),
-      delimiter: prepared.outputFormat === 'tsv' ? '\t' : ',',
-    });
   }
 
   // -------------------------------------------------------------------------
