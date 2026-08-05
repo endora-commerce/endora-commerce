@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Download, MoreVertical, Play, Plus, Trash2 } from 'lucide-react';
+import { Download, MoreVertical, Play, Plus, Rss, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
@@ -160,7 +160,9 @@ export function ProductFeedsListPage(): ReactNode {
         <div className="flex flex-col gap-0.5">
           <span>{row.nextRunAt ? formatDateTime(row.nextRunAt) : t('feeds.table.manualOnly')}</span>
           {row.scheduleTooTightWarning && (
-            <span className="text-xs text-amber-700">{t('feeds.table.scheduleTooTight')}</span>
+            <span className="text-xs" style={{ color: 'var(--warn)' }}>
+              {t('feeds.table.scheduleTooTight')}
+            </span>
           )}
         </div>
       ),
@@ -204,7 +206,7 @@ export function ProductFeedsListPage(): ReactNode {
 
       {feeds === null && !error ? (
         <div
-          className="rounded-lg border p-8 text-center text-sm text-muted-foreground"
+          className="b2b-card p-8 text-center text-sm text-muted-foreground"
           aria-busy="true"
           aria-live="polite"
         >
@@ -216,15 +218,19 @@ export function ProductFeedsListPage(): ReactNode {
           data={feeds ?? []}
           keyExtractor={(row) => row.id}
           emptyState={
-            <div className="rounded-lg border border-dashed p-8 text-center">
-              <p className="font-medium">{t('feeds.empty.title')}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{t('feeds.empty.subtitle')}</p>
+            <div className="b2b-empty">
+              <div className="b2b-empty__icon">
+                <Rss size={20} aria-hidden="true" />
+              </div>
+              <div className="b2b-empty__title">{t('feeds.empty.title')}</div>
+              <div className="b2b-empty__sub">{t('feeds.empty.subtitle')}</div>
               <Button
-                className="mt-4"
+                className="mt-2"
                 onClick={() => navigate('/product-feeds/new')}
                 disabled={!canWrite}
                 title={writeTitle}
               >
+                <Plus size={16} aria-hidden="true" />
                 {t('page.newFeed')}
               </Button>
             </div>
