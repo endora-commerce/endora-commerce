@@ -173,6 +173,8 @@
   "appShell.nav.quoteRequests": "Zapytania ofertowe",
   "appShell.nav.invoices": "Faktury",
   "appShell.nav.invoiceTemplates": "Szablony faktur",
+  "invoiceTabs.invoices": "Faktury",
+  "invoiceTabs.templates": "Szablony faktur",
   "appShell.nav.products": "Produkty",
   "appShell.nav.categories": "Kategorie",
   "appShell.nav.attributes": "Atrybuty",

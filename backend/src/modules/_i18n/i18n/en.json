@@ -173,6 +173,8 @@
   "appShell.nav.quoteRequests": "Quote requests",
   "appShell.nav.invoices": "Invoices",
   "appShell.nav.invoiceTemplates": "Invoice templates",
+  "invoiceTabs.invoices": "Invoices",
+  "invoiceTabs.templates": "Invoice templates",
   "appShell.nav.products": "Products",
   "appShell.nav.categories": "Categories",
   "appShell.nav.attributes": "Attributes",
