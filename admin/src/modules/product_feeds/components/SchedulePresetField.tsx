@@ -7,6 +7,7 @@ import {
 } from '@b2b/contracts';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**
@@ -108,9 +109,8 @@ export function SchedulePresetField(props: SchedulePresetFieldProps): ReactNode 
     <div className="flex flex-col gap-4" title={props.disabledTitle}>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="feed-schedule-preset">{t('feeds.schedule.preset')}</Label>
-        <select
+        <Select
           id="feed-schedule-preset"
-          className="b2b-select"
           value={mode}
           disabled={disabled}
           title={props.disabledTitle}
@@ -123,15 +123,14 @@ export function SchedulePresetField(props: SchedulePresetFieldProps): ReactNode 
             </option>
           ))}
           <option value={CUSTOM}>{t('feeds.schedule.preset.custom')}</option>
-        </select>
+        </Select>
       </div>
 
       {mode !== NEVER && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="feed-schedule-timezone">{t('feeds.schedule.timezone')}</Label>
-          <select
+          <Select
             id="feed-schedule-timezone"
-            className="b2b-select"
             value={timezone}
             disabled={disabled}
             title={props.disabledTitle}
@@ -147,7 +146,7 @@ export function SchedulePresetField(props: SchedulePresetFieldProps): ReactNode 
                 {zone}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
 

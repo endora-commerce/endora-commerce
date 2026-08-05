@@ -8,6 +8,7 @@ import type {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { TemplatePreviewField } from '../api';
 import type { DraftField, FieldProblem } from '../template-draft';
@@ -205,9 +206,8 @@ export function TemplateFieldInspector(props: TemplateFieldInspectorProps): Reac
         {advancedOpen ? (
           <div className="mt-2 flex flex-col gap-2">
             <Label htmlFor={`${errorId}-transform`}>{t('builder.inspector.transform')}</Label>
-            <select
+            <Select
               id={`${errorId}-transform`}
-              className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
               value={field.transform ?? 'none'}
               disabled={disabled}
               onChange={(event): void =>
@@ -224,7 +224,7 @@ export function TemplateFieldInspector(props: TemplateFieldInspectorProps): Reac
                   {t(`builder.inspector.transform.${transform}`)}
                 </option>
               ))}
-            </select>
+            </Select>
             {field.transform === 'truncate' ? (
               <>
                 <Label htmlFor={`${errorId}-transform-arg`}>
