@@ -99,6 +99,9 @@ import { FeedTemplateImportPage } from './modules/product_feeds/FeedTemplateImpo
 import { FeedRunDetailPage } from './modules/product_feeds/FeedRunDetailPage.js';
 import { CategoryMappingPage } from './modules/product_feeds/CategoryMappingPage.js';
 import { TaxonomyRevisionsPage } from './modules/product_feeds/TaxonomyRevisionsPage.js';
+import { ErgonodeConnectionPage } from './modules/pim_ergonode/ErgonodeConnectionPage.js';
+import { ErgonodeRunsPage } from './modules/pim_ergonode/ErgonodeRunsPage.js';
+import { ErgonodeRunDetailPage } from './modules/pim_ergonode/ErgonodeRunDetailPage.js';
 import { InvoiceTemplateEditor } from './modules/invoices/templates/InvoiceTemplateEditor.js';
 import { TaxesPage } from './modules/taxes/TaxesPage.js';
 import { PromotionsPage } from './modules/promotions/PromotionsPage.js';
@@ -252,6 +255,16 @@ export function App(): ReactNode {
           element={<FeedRunDetailPage />}
         />
         <Route path="/product-feeds/:feedId" element={<ProductFeedDetailPage />} />
+        {/* Feature 068 — Ergonode PIM (US1). Literal segments first, the
+            parametric run route last, so a future `/pim-ergonode/:something`
+            cannot swallow its siblings the way the feed routes once did.
+            `/pim-ergonode/attribute-mappings` (US2) and
+            `/pim-ergonode/category-mappings` (US3) belong in this block, above
+            the parametric route — the module manifest already advertises both
+            in the command palette. */}
+        <Route path="/pim-ergonode" element={<ErgonodeConnectionPage />} />
+        <Route path="/pim-ergonode/runs" element={<ErgonodeRunsPage />} />
+        <Route path="/pim-ergonode/runs/:runId" element={<ErgonodeRunDetailPage />} />
         <Route path="/taxes" element={<TaxesPage />} />
         <Route path="/promotions" element={<PromotionsPage />} />
         <Route path="/promotions/new" element={<PromotionEditPage />} />

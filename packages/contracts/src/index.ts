@@ -127,3 +127,4 @@ export * from './custom-fields.js';
 export * from './credentials.js';
 export * from './ksef.js';
 export * from './product-feeds.js';
+export * from './pim-ergonode.js';

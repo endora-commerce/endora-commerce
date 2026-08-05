@@ -91,6 +91,13 @@ const VIRTUAL_ATTRIBUTE_VALUE_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Feature 068 — the width of `products.sku` / `product_variants.sku` and the
+ * cap the create and update contracts enforce. Nothing may write a longer
+ * identifier, derived or otherwise.
+ */
+const SKU_MAX_LENGTH = 255;
+
+/**
  * Catalog write-path service (admin write surface).
  * Every mutation emits a typed event on the shared bus so the search indexer
  * (T067) and webhook bridge (Phase 2 T037) can react.
@@ -154,12 +161,12 @@ export class CatalogAdminService {
   }
 
   /**
-   * Feature 061 — run an attribute/option Command through the bus (audited)
-   * or, in bus-less fixtures, directly on a transactional em (no audit — same
+   * Feature 061 — run a catalog Command through the bus (audited) or, in
+   * bus-less fixtures, directly on a transactional em (no audit — same
    * fallback contract as {@link #auditedWrite}). The domain event declared on
    * the command is emitted either way (on commit only).
    */
-  async #runAttributeCommand<T>(command: Command<T>): Promise<T> {
+  async #runCommand<T>(command: Command<T>): Promise<T> {
     if (this.commandBus) {
       return this.commandBus.run(command);
     }
@@ -199,11 +206,20 @@ export class CatalogAdminService {
     this.enqueueSearchReindex = fn;
   }
 
+  /**
+   * Feature 068 — product creation runs as the `product.create` Command, so the
+   * audit entry, the domain event and the row commit or roll back as one unit
+   * (Principle XIII). This closed the gap that made every worker-created product
+   * unaudited: the audit used to be a hand-written post-commit call that only
+   * fired when the caller supplied `auditCtx`, which no background caller has.
+   *
+   * `_auditCtx` is retained so the long-standing admin call site keeps compiling;
+   * the actor is now derived server-side from the ambient TenantContext.
+   */
   async createProduct(
     req: CreateProductRequest,
-    auditCtx?: AdminAuditContext,
+    _auditCtx?: AdminAuditContext,
   ): Promise<Product> {
-    const em = this.emFactory();
     // Feature 002 (T047): cross-field validation for virtual download
     // fields. Zod's .refine() catches most cases at the boundary; the
     // service-level guard is the belt-and-braces backstop for any
@@ -220,38 +236,13 @@ export class CatalogAdminService {
       }
       throw err;
     }
-    const slug = this.slugify(this.anyValue(req.name) || req.sku);
-    const product = em.create(Product, {
-      sku: req.sku,
-      slug,
-      type: req.type,
-      status: 'draft',
-      name: req.name,
-      description: req.description,
-      stockMode: req.stockMode ?? null,
-      visibility: req.visibility,
-      attributeValues: req.attributeValues as Record<string, unknown>,
-      allowedOrganizationIds: req.allowedOrganizationIds ?? [],
-      // Feature 002 (T034): use the requested AttributeSet, else fall
-      // back to the entity's compile-time default (system Default Set).
-      ...(req.attributeSetId ? { attributeSetId: req.attributeSetId } : {}),
-      // Feature 002 (T047): persist virtual download fields when set.
-      ...(req.downloadAssetId !== undefined
-        ? { downloadAssetId: req.downloadAssetId }
-        : {}),
-      ...(req.downloadUrl !== undefined ? { downloadUrl: req.downloadUrl } : {}),
-    });
-    // Feature 002 (T023): the keys in `attributeValues` MUST belong to
-    // the Product's AttributeSet. The entity defaults `attributeSetId`
-    // to the system Default Set; future API surface revisions will let
-    // the admin pick a custom Set explicitly. See data-model.md §1.1.
-    await this.assertAttributeValueKeysAllowed(
-      em,
-      product.attributeSetId,
-      req.attributeValues as Record<string, unknown>,
-    );
+
+    // The id is allocated up front so the Command can name its audit target
+    // before the row exists (same shape as `duplicateProduct`).
+    const productId = randomUUID();
+    let product: Product;
     try {
-      await em.persistAndFlush(product);
+      product = await this.#runCommand(this.#createProductCommand(productId, req));
     } catch (err) {
       if (err instanceof UniqueConstraintViolationException) {
         throw new HttpError(409, ERROR_CODES.SKU_ALREADY_EXISTS, `SKU "${req.sku}" already exists.`);
@@ -260,43 +251,80 @@ export class CatalogAdminService {
     }
 
     // Feature 005 / FR-011 — bind to Default unless this product was
-    // already given memberships through some other path.
+    // already given memberships through some other path. Stays OUTSIDE the
+    // Command: the membership service writes on its own em, which cannot see
+    // the product row until the Command's transaction has committed.
     if (this.salesChannelMembership) {
       await this.salesChannelMembership.bindToDefaultIfEmpty('product', product.id);
     }
 
-    this.events.emit('product.created.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      productId: product.id,
-      sku: product.sku,
-    });
-    // Feature 024 — audit `product.create` so the dashboard's Recent
-    // Activity card surfaces newly-created products. Fires after the
-    // entity is committed; rolled-back creates therefore never produce
-    // an audit row.
-    if (this.auditLog && auditCtx) {
-      await this.auditLog.record({
-        actorAdminUserId: auditCtx.actorAdminUserId,
-        ...(auditCtx.impersonatedCustomerAccountId !== undefined
-          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
-          : {}),
-        action: 'product.create',
-        objectType: 'product',
-        objectId: product.id,
-        stateAfter: {
-          sku: product.sku,
-          name: { ...product.name },
-          status: product.status,
-          visibility: product.visibility,
-          stockMode: product.stockMode,
-        },
-        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
-        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
-        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
-      });
-    }
     return product;
+  }
+
+  #createProductCommand(productId: string, req: CreateProductRequest): Command<Product> {
+    return {
+      action: 'product.create',
+      objectType: 'product',
+      objectId: productId,
+      run: async ({ em }) => {
+        // Feature 068 — `products.slug` is `@Unique()`, so the derived slug has
+        // to be allocated against the live table. Without this, two products
+        // sharing a name collided on the slug index and the catch above
+        // mislabelled the failure `SKU_ALREADY_EXISTS`.
+        const slug = await this.allocateUniqueSlug(em, this.anyValue(req.name) || req.sku);
+        const product = em.create(Product, {
+          id: productId,
+          sku: req.sku,
+          slug,
+          type: req.type,
+          status: 'draft',
+          name: req.name,
+          description: req.description,
+          stockMode: req.stockMode ?? null,
+          visibility: req.visibility,
+          attributeValues: req.attributeValues as Record<string, unknown>,
+          allowedOrganizationIds: req.allowedOrganizationIds ?? [],
+          // Feature 002 (T034): use the requested AttributeSet, else fall
+          // back to the entity's compile-time default (system Default Set).
+          ...(req.attributeSetId ? { attributeSetId: req.attributeSetId } : {}),
+          // Feature 002 (T047): persist virtual download fields when set.
+          ...(req.downloadAssetId !== undefined
+            ? { downloadAssetId: req.downloadAssetId }
+            : {}),
+          ...(req.downloadUrl !== undefined ? { downloadUrl: req.downloadUrl } : {}),
+        });
+        // Feature 002 (T023): the keys in `attributeValues` MUST belong to
+        // the Product's AttributeSet. The entity defaults `attributeSetId`
+        // to the system Default Set; future API surface revisions will let
+        // the admin pick a custom Set explicitly. See data-model.md §1.1.
+        await this.assertAttributeValueKeysAllowed(
+          em,
+          product.attributeSetId,
+          req.attributeValues as Record<string, unknown>,
+        );
+        em.persist(product);
+        await em.flush();
+        return {
+          result: product,
+          after: {
+            sku: product.sku,
+            name: { ...product.name },
+            status: product.status,
+            visibility: product.visibility,
+            stockMode: product.stockMode,
+          },
+        };
+      },
+      event: (product) => ({
+        eventName: 'product.created.v1',
+        payload: {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          productId: product.id,
+          sku: product.sku,
+        },
+      }),
+    };
   }
 
   async updateProduct(
@@ -406,7 +434,11 @@ export class CatalogAdminService {
     // invoices stay stable.
     if (req.sku !== undefined && req.sku.trim() !== product.sku) {
       const trimmed = req.sku.trim();
-      if (trimmed.length === 0 || trimmed.length > 160) {
+      // Feature 068 — 255 is the width of `products.sku` and the cap the
+      // create contract enforces. This guard used to read 160 while the
+      // column held 64, so a 100-character rename passed validation and then
+      // failed at the database; all three now agree.
+      if (trimmed.length === 0 || trimmed.length > 255) {
         throw new HttpError(
           400,
           ERROR_CODES.VALIDATION_FAILED,
@@ -831,17 +863,22 @@ export class CatalogAdminService {
    * `-copy-2`, `-copy-3`, … until both Product and ProductVariant tables
    * are clear (SKUs share a global namespace per `createVariant`).
    * Bounded by 1000 attempts so a pathological collision can't hang.
+   *
+   * Feature 068 — the result must fit `SKU_MAX_LENGTH`. It is the *base* that
+   * gets shortened to make room, never the suffix: cutting the suffix would
+   * collapse every attempt onto the same string, so a long-SKU product could
+   * never be duplicated at all.
    */
   private async allocateCopySku(em: EntityManager, baseSku: string): Promise<string> {
-    const root = `${baseSku}-copy`;
     for (let i = 0; i < 1000; i += 1) {
-      const candidate = i === 0 ? root : `${root}-${i + 1}`;
-      const trimmed = candidate.slice(0, 64);
-      const productHit = await em.findOne(Product, { sku: trimmed });
+      const suffix = i === 0 ? '-copy' : `-copy-${i + 1}`;
+      const base = baseSku.slice(0, SKU_MAX_LENGTH - suffix.length);
+      const candidate = `${base}${suffix}`;
+      const productHit = await em.findOne(Product, { sku: candidate });
       if (productHit) continue;
-      const variantHit = await em.findOne(ProductVariant, { sku: trimmed });
+      const variantHit = await em.findOne(ProductVariant, { sku: candidate });
       if (variantHit) continue;
-      return trimmed;
+      return candidate;
     }
     throw new HttpError(
       409,
@@ -851,7 +888,20 @@ export class CatalogAdminService {
   }
 
   private async allocateCopySlug(em: EntityManager, baseSlug: string): Promise<string> {
-    const root = this.slugify(`${baseSlug}-copy`);
+    return this.allocateUniqueSlug(em, `${baseSlug}-copy`);
+  }
+
+  /**
+   * Find a free slug derived from `source`: the slugified value itself, then
+   * `-2`, `-3`, … until `products.slug` (which is `@Unique()`) is clear.
+   * Bounded by 1000 attempts so a pathological collision can't hang.
+   *
+   * Feature 068 — used by the create path as well as the duplication path; a
+   * name collision on create used to reach the database and be reported as a
+   * SKU conflict.
+   */
+  private async allocateUniqueSlug(em: EntityManager, source: string): Promise<string> {
+    const root = this.slugify(source);
     for (let i = 0; i < 1000; i += 1) {
       const candidate = i === 0 ? root : this.slugify(`${root}-${i + 1}`);
       const hit = await em.findOne(Product, { slug: candidate });
@@ -860,7 +910,7 @@ export class CatalogAdminService {
     throw new HttpError(
       409,
       ERROR_CODES.VALIDATION_FAILED,
-      `Could not allocate a unique slug derived from "${baseSlug}".`,
+      `Could not allocate a unique slug derived from "${source}".`,
     );
   }
 
@@ -920,45 +970,52 @@ export class CatalogAdminService {
     }
   }
 
-  async deleteProduct(id: string, auditCtx?: AdminAuditContext): Promise<void> {
-    const em = this.emFactory();
-    const product = await em.findOne(Product, { id, deletedAt: null });
-    if (!product) {
-      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
-    }
-    await this.assertProductDeletable(em, id);
-    const stateBefore = {
-      status: product.status,
-      sku: product.sku,
-      name: { ...product.name },
-      deletedAt: product.deletedAt ?? null,
-    };
-    product.deletedAt = new Date();
-    await em.flush();
-    this.events.emit('product.deleted.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      productId: product.id,
-    });
-    if (this.auditLog && auditCtx) {
-      await this.auditLog.record({
-        actorAdminUserId: auditCtx.actorAdminUserId,
-        ...(auditCtx.impersonatedCustomerAccountId !== undefined
-          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
-          : {}),
-        action: 'product.delete',
-        objectType: 'product',
-        objectId: product.id,
-        stateBefore,
-        stateAfter: {
-          ...stateBefore,
-          deletedAt: product.deletedAt?.toISOString() ?? null,
+  /**
+   * Feature 068 — soft-delete runs as the `product.delete` Command: the write,
+   * the audit entry and `product.deleted.v1` share one transaction. `_auditCtx`
+   * is retained for the existing admin call site; the actor is server-derived.
+   */
+  async deleteProduct(id: string, _auditCtx?: AdminAuditContext): Promise<void> {
+    await this.#runCommand(this.#deleteProductCommand(id));
+  }
+
+  #deleteProductCommand(id: string): Command<{ id: string }> {
+    return {
+      action: 'product.delete',
+      objectType: 'product',
+      objectId: id,
+      run: async ({ em }) => {
+        const product = await em.findOne(Product, { id, deletedAt: null });
+        if (!product) {
+          throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+        }
+        await this.assertProductDeletable(em, id);
+        const stateBefore = {
+          status: product.status,
+          sku: product.sku,
+          name: { ...product.name },
+          deletedAt: product.deletedAt ?? null,
+        };
+        product.deletedAt = new Date();
+        await em.flush();
+        return {
+          result: { id: product.id },
+          before: stateBefore,
+          after: {
+            ...stateBefore,
+            deletedAt: product.deletedAt?.toISOString() ?? null,
+          },
+        };
+      },
+      event: (result) => ({
+        eventName: 'product.deleted.v1',
+        payload: {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          productId: result.id,
         },
-        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
-        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
-        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
-      });
-    }
+      }),
+    };
   }
 
   // ------------------------------------------------------------------
@@ -972,7 +1029,7 @@ export class CatalogAdminService {
     const existing = await read.listAll();
     const nextSortOrder = existing.length;
     const extensionId = randomUUID();
-    await this.#runAttributeCommand(
+    await this.#runCommand(
       createAttributeCommand(this.#attributeCommandDeps(), req, {
         extensionId,
         sortOrder: nextSortOrder,
@@ -1013,7 +1070,7 @@ export class CatalogAdminService {
     // flip apart from a save that left it untouched (only a real change
     // warrants a full reindex).
     const previousIsSearchable = attr.isSearchable;
-    await this.#runAttributeCommand(
+    await this.#runCommand(
       updateAttributeCommand(this.#attributeCommandDeps(), attr.id, req),
     );
     await this.#requireCustomFields().publishInvalidate('product');
@@ -1411,7 +1468,7 @@ export class CatalogAdminService {
     },
   ): Promise<AttributeOptionResult> {
     const attr = await this.getAttributeByIdOrKey(attributeIdOrKey);
-    const result = await this.#runAttributeCommand(
+    const result = await this.#runCommand(
       createAttributeOptionCommand(
         this.#attributeCommandDeps(),
         this.#optionCommandTarget(attr),
@@ -1433,7 +1490,7 @@ export class CatalogAdminService {
     },
   ): Promise<AttributeOptionResult> {
     const attr = await this.#attributeByOptionId(optionId);
-    const result = await this.#runAttributeCommand(
+    const result = await this.#runCommand(
       updateAttributeOptionCommand(
         this.#attributeCommandDeps(),
         this.#optionCommandTarget(attr),
@@ -1448,7 +1505,7 @@ export class CatalogAdminService {
   /** Feature 012 / US4 — remove one option. Refused while products carry it (FR-025). */
   async removeAttributeOption(optionId: string): Promise<void> {
     const attr = await this.#attributeByOptionId(optionId);
-    await this.#runAttributeCommand(
+    await this.#runCommand(
       deleteAttributeOptionCommand(
         this.#attributeCommandDeps(),
         this.#optionCommandTarget(attr),
@@ -1509,7 +1566,7 @@ export class CatalogAdminService {
    */
   async deleteAttribute(idOrKey: string): Promise<void> {
     const attr = await this.getAttributeByIdOrKey(idOrKey);
-    await this.#runAttributeCommand(
+    await this.#runCommand(
       deleteAttributeCommand(this.#attributeCommandDeps(), {
         idOrKey,
         extensionId: attr.id,

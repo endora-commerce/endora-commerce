@@ -20,6 +20,7 @@ export class Category {
     | 'metaTitleOverride'
     | 'metaDescriptionOverride'
     | 'deletedAt'
+    | 'isActive'
     | 'inventoryThresholdHigh'
     | 'inventoryThresholdMedium'
     | 'inventoryThresholdLow'
@@ -60,6 +61,13 @@ export class Category {
 
   @Property({ type: 'datetime', nullable: true })
   deletedAt?: Date | null;
+
+  // Feature 068 — activation switch. `false` hides the category from every
+  // customer-facing read (tree, PLP narrowing, PDP projection, megamenu,
+  // search index, sitemap, meta tags) while leaving it in the admin tree.
+  // Orthogonal to `deletedAt` (removed) and to sales-channel membership.
+  @Property({ type: 'boolean' })
+  isActive: boolean = true;
 
   // Inventory module (feature 010) — display-band thresholds at the
   // category level. The threshold-resolver consults these BEFORE

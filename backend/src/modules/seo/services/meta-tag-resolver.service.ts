@@ -158,7 +158,13 @@ export class MetaTagResolverService {
       return { product };
     }
     if (entityType === 'category') {
-      const category = await em.findOne(Category, { id: entityId });
+      // Feature 068 — meta tags describe a page a customer can reach: a
+      // deactivated (or deleted, never filtered here before) category has none.
+      const category = await em.findOne(Category, {
+        id: entityId,
+        isActive: true,
+        deletedAt: null,
+      });
       if (!category) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Category ${entityId} not found.`);
       }

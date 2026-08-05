@@ -59,6 +59,8 @@ import { manifest as credentialsManifest } from '../credentials/manifest.js';
 // Feature 059 — KSeF (Krajowy System e-Faktur invoice integration).
 import { manifest as ksefManifest } from '../ksef/manifest.js';
 import { manifest as productFeedsManifest } from '../product_feeds/manifest.js';
+// Feature 068 — Ergonode PIM integration.
+import { manifest as pimErgonodeManifest } from '../pim_ergonode/manifest.js';
 // Pass C retrofit — manifest backfills for every remaining legacy module.
 // These predate the lifecycle system; the manifest is the static record
 // required for the module to be considered active. A module on disk that
@@ -192,6 +194,8 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: ksefManifest, filePath: pathFor('ksef') },
   // Feature 067 — Product Feed.
   { manifest: productFeedsManifest, filePath: pathFor('product_feeds') },
+  // Feature 068 — Ergonode PIM integration.
+  { manifest: pimErgonodeManifest, filePath: pathFor('pim_ergonode') },
   // Pass C retrofit — every remaining legacy module gets a manifest so
   // none of them are treated as inactive. Sort: alphabetical by id.
   { manifest: addressesManifest, filePath: pathFor('addresses') },

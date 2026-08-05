@@ -136,6 +136,7 @@ import { credentialsModule } from './modules/credentials/plugin.js';
 import { configurationTypeRegistry } from './modules/credentials/services/registry-singleton.js';
 import { llmConfigurationType } from './modules/credentials/types/llm.type.js';
 import { emailAdapterConfigurationType } from './modules/credentials/types/email-adapter.type.js';
+import { ergonodeConfigurationType } from './modules/pim_ergonode/services/ergonode-credential.type.js';
 // Feature 046 — Progressive Web App.
 import { pwaModule } from './modules/pwa/plugin.js';
 // Feature 047 — Transactional Emails.
@@ -212,6 +213,18 @@ import { registerCmsAssetReferences } from './modules/cms/services/asset-referen
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import { CatalogAttributeReadService } from './modules/catalog/services/catalog-attribute-read.service.js';
+// Feature 068 — the catalogue write surface the Ergonode connector imports through.
+import {
+  CatalogAdminService,
+  type CatalogEventBus,
+} from './modules/catalog/services/catalog-admin.service.js';
+import { CategoryAdminService } from './modules/catalog/services/category-admin.service.js';
+import { AttributeSetService } from './modules/catalog/services/attribute-set.service.js';
+import { GalleryService } from './modules/catalog/services/gallery.service.js';
+import { AttachmentService } from './modules/catalog/services/attachment.service.js';
+import { ProductLinkService } from './modules/catalog/services/product-link.service.js';
+import { GroupedService } from './modules/catalog/services/grouped.service.js';
+import { pimErgonodeModule } from './modules/pim_ergonode/plugin.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
 import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
@@ -716,6 +729,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // types are registered here at boot.
   configurationTypeRegistry.register(llmConfigurationType);
   configurationTypeRegistry.register(emailAdapterConfigurationType);
+  configurationTypeRegistry.register(ergonodeConfigurationType);
   const credentials = credentialsModule({
     emFactory: em,
     // US2 — the delete-integrity guard reaches settings only through this port
@@ -1787,8 +1801,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     storefrontDeps: {
       resolveCategoryUrl: async (categoryId) => {
+        // Feature 068 — a megamenu item pointing at a deactivated (or deleted)
+        // category resolves to null, which drops the item from the menu.
         const rows = (await em().getConnection().execute(
-          'select slug from categories where id = ? limit 1',
+          'select slug from categories where id = ? and is_active = true and deleted_at is null limit 1',
           [categoryId],
         )) as Array<{ slug: string }>;
         return rows[0]?.slug ? `/c/${rows[0].slug}` : null;
@@ -2397,6 +2413,58 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       );
     });
   }
+
+  // Feature 068 — Ergonode PIM integration. A read-only inbound connector that
+  // walks Ergonode's cursor-based change streams and keeps the catalogue in step
+  // with them.
+  //
+  // Every catalogue write goes through catalog's own services, so an imported
+  // product is audited, channel-bound and tenant-guarded by exactly the code an
+  // administrator's edit runs through (Principle XIII). Those services are
+  // constructed here rather than shared, for the same reason `product_feeds`
+  // gets its own `CatalogQueryService`: they are this module's documented
+  // cross-module ports (Principle I), and sharing one instance between two
+  // unrelated consumers would make a wiring change to one a silent change to the
+  // other.
+  const pimErgonode = pimErgonodeModule({
+    emFactory: em,
+    requireAdmin,
+    commandBus,
+    eventBus,
+    credentials: credentials.handle.service,
+    catalogAdmin: new CatalogAdminService(
+      em,
+      eventBus as unknown as CatalogEventBus,
+      auditLogService,
+      salesChannels.handle.membershipService,
+      commandBus,
+      catalogAttributeReadService,
+      customFields.handle.definitionService,
+    ),
+    categoryAdmin: new CategoryAdminService(
+      em,
+      salesChannels.handle.membershipService,
+      commandBus,
+      customFields.handle.valueService,
+    ),
+    attributeSets: new AttributeSetService(em, commandBus, catalogAttributeReadService),
+    gallery: new GalleryService(em, commandBus),
+    attachments: new AttachmentService(em, commandBus),
+    productLinks: new ProductLinkService(em, commandBus),
+    grouped: new GroupedService(em, commandBus),
+    assets: assetsLibrary.handle.service,
+    priceLists: priceLists.handle.priceListService,
+    currencies: i18n.handle.currencyService,
+    languageService: i18n.handle.languageService,
+    adminNotificationService: adminNotifications.handle.adminNotificationService,
+    settings: settings.handle.settingsService,
+    redis,
+    // Principle X — the import and reaper consumers run co-located unless
+    // BACKEND_ROLE=api, in which case only the separate `pnpm worker` process
+    // owns them.
+    runWorkers,
+  });
+  modules.push(pimErgonode.plugin);
 
   // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
   // through the OrderReturnContextPort (Principle I); settings drive the

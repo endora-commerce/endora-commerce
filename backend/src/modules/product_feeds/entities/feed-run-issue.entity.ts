@@ -46,7 +46,7 @@ export class FeedRunIssue {
   variantId?: string | null;
 
   /** Snapshot, so the issue stays readable after a rename. */
-  @Property({ type: 'varchar', length: 64, fieldName: 'sku', nullable: true })
+  @Property({ type: 'varchar', length: 255, fieldName: 'sku', nullable: true })
   sku?: string | null;
 
   /** The offending template field, when the reason is field-specific. */
