@@ -58,6 +58,9 @@ export const FEED_RUN_FAILED_NOTIFICATION_KIND = 'product_feed.run_failed';
  */
 export const TAXONOMY_NOT_FOUND_NOTIFICATION_KIND = 'product_feed.taxonomy_not_found';
 
+/** Feature 070 / AS-3 — a delivery that used up its attempts and stopped. */
+export const FEED_DELIVERY_EXHAUSTED_NOTIFICATION_KIND = 'product_feed.delivery_exhausted';
+
 export class FailedRunNotifier {
   constructor(private readonly deps: FailedRunNotifierDeps) {}
 
@@ -102,6 +105,71 @@ export class FailedRunNotifier {
       });
       return false;
     }
+  }
+
+  /**
+   * Feature 070 / AS-3 — a delivery that exhausted its bounded attempts.
+   *
+   * Reuses this class's transition discipline for the same reason the taxonomy
+   * notification does: a feed on a fifteen-minute schedule whose partner
+   * decommissioned their SFTP host would otherwise ring the bell ninety-six
+   * times a day about a fact that has not changed. An entry is written only when
+   * the previous *non-test* attempt was not already a failure — a delivery that
+   * recovers and breaks again notifies again, because that is new information.
+   *
+   * The body says the published file is unaffected, because it is: the pull URL
+   * kept serving throughout, and an operator who reads "delivery failed" without
+   * that sentence will treat a partner integration problem as an outage.
+   */
+  async notifyDeliveryExhausted(input: {
+    feedId: string;
+    runId: string | null;
+    failureReason: string | null;
+    failureDetail: string | null;
+  }): Promise<boolean> {
+    try {
+      const em = this.deps.emFactory();
+      const feed = await em.findOne(ProductFeed, { id: input.feedId });
+      if (!feed) return false;
+      if (await this.deliveryAlreadyReported(em, input.feedId)) return false;
+
+      await this.deps.notifications.record({
+        audience: 'all_admins',
+        kind: FEED_DELIVERY_EXHAUSTED_NOTIFICATION_KIND,
+        subjectType: 'product_feed',
+        subjectId: input.feedId,
+        title: `Product feed "${feed.name}" could not be delivered`,
+        body: `${input.failureDetail ?? input.failureReason ?? 'The delivery failed.'} The generated file is published and its link keeps working; only the push to the configured server failed.`,
+        linkPath: `/product-feeds/${input.feedId}`,
+      });
+      return true;
+    } catch (err) {
+      this.deps.logWarn?.('product_feeds: delivery notification could not be recorded', {
+        productFeedId: input.feedId,
+        error: String(err),
+      });
+      return false;
+    }
+  }
+
+  /**
+   * True when the delivery attempt before the one that just exhausted had
+   * already failed — the same "notify on the transition" rule, read off the
+   * attempt history. Test attempts are excluded: an operator pressing "Test
+   * Connection" is not evidence about whether scheduled delivery works.
+   */
+  private async deliveryAlreadyReported(em: EntityManager, feedId: string): Promise<boolean> {
+    const rows = (await em.getConnection().execute(
+      `select "status" from "product_feed_delivery_attempts"
+        where "product_feed_id" = ? and "is_test" = false
+        order by "started_at" desc, "id" desc
+        limit 2`,
+      [feedId],
+      'all',
+      em.getTransactionContext(),
+    )) as Array<{ status: string }>;
+    // rows[0] is the attempt that just failed; rows[1] is the state before it.
+    return rows[1]?.status === 'failed';
   }
 
   /**

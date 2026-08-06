@@ -209,6 +209,8 @@ import { FeedTaxonomy } from '../modules/product_feeds/entities/feed-taxonomy.en
 import { FeedTaxonomyNode } from '../modules/product_feeds/entities/feed-taxonomy-node.entity.js';
 import { FeedTaxonomyMapping } from '../modules/product_feeds/entities/feed-taxonomy-mapping.entity.js';
 import { FeedTaxonomyCheck } from '../modules/product_feeds/entities/feed-taxonomy-check.entity.js';
+import { FeedDelivery } from '../modules/product_feeds/entities/feed-delivery.entity.js';
+import { FeedDeliveryAttempt } from '../modules/product_feeds/entities/feed-delivery-attempt.entity.js';
 import { ErgonodeConnection } from '../modules/pim_ergonode/entities/ergonode-connection.entity.js';
 import { ErgonodeStreamCursor } from '../modules/pim_ergonode/entities/ergonode-stream-cursor.entity.js';
 import { ErgonodeAttributeMapping } from '../modules/pim_ergonode/entities/ergonode-attribute-mapping.entity.js';
@@ -400,6 +402,9 @@ export const ALL_ENTITIES = [
   FeedTaxonomyNode,
   FeedTaxonomyMapping,
   FeedTaxonomyCheck,
+  // product_feeds delivery (feature 070)
+  FeedDelivery,
+  FeedDeliveryAttempt,
   // pim_ergonode (feature 068)
   ErgonodeConnection,
   ErgonodeStreamCursor,

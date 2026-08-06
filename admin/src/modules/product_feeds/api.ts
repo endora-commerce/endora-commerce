@@ -1,5 +1,8 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  FeedDeliveryAttempt,
+  FeedDeliveryConfig,
+  FeedDeliveryFailureReason,
   FeedFieldSourceCatalogue,
   FeedFieldSourceKind,
   FeedFieldTransform,
@@ -11,6 +14,7 @@ import type {
   FeedPricePresentation,
   ProductSelectionRule,
   TaxonomyProviderCode,
+  UpsertFeedDeliveryRequest,
 } from '@b2b/contracts';
 
 /**
@@ -475,3 +479,53 @@ export function slugify(value: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 160);
 }
+
+// ---------------------------------------------------------------------------
+// Delivery (feature 070)
+// ---------------------------------------------------------------------------
+
+/**
+ * The delivery surface, split out from `productFeedsClient` because it is a
+ * separable capability: a deployment wired without the credentials module has
+ * no delivery routes at all, and the screen has to render that as "unavailable"
+ * rather than as a broken tab.
+ *
+ * The DTO types come from `@b2b/contracts` — every secret on them is already a
+ * boolean, so there is nothing here to be careful about beyond not inventing a
+ * field the server does not send.
+ */
+export const feedDeliveryClient = {
+  /** `null` data means this feed has no delivery configured, which is a state. */
+  get(feedId: string): Promise<{ data: FeedDeliveryConfig | null }> {
+    return apiClient.get<{ data: FeedDeliveryConfig | null }>(`${BASE}/${feedId}/delivery`);
+  },
+
+  save(
+    feedId: string,
+    body: UpsertFeedDeliveryRequest,
+  ): Promise<{ data: FeedDeliveryConfig }> {
+    return apiClient.put<{ data: FeedDeliveryConfig }>(`${BASE}/${feedId}/delivery`, body);
+  },
+
+  remove(feedId: string): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/${feedId}/delivery`);
+  },
+
+  /** FR-106. Rate-limited server-side; a 429 is the expected refusal. */
+  test(feedId: string): Promise<{
+    data: {
+      ok: boolean;
+      failureReason: FeedDeliveryFailureReason | null;
+      failureDetail: string | null;
+      attempt: FeedDeliveryAttempt;
+    };
+  }> {
+    return apiClient.post(`${BASE}/${feedId}/delivery/test`, {});
+  },
+
+  listAttempts(feedId: string, limit = 20): Promise<{ data: FeedDeliveryAttempt[] }> {
+    return apiClient.get<{ data: FeedDeliveryAttempt[] }>(
+      `${BASE}/${feedId}/delivery/attempts?limit=${limit}`,
+    );
+  },
+};

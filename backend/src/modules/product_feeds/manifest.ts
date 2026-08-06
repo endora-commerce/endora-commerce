@@ -120,6 +120,27 @@ export const productFeedsSettingsManifest = defineModuleSettingsManifest({
       valueType: 'number',
       defaultValue: 1000,
     },
+    // Feature 070 — delivery. Both are operator policy, unlike the egress and
+    // timeout limits in `FEED_DELIVERY_LIMITS`, which are safety floors and
+    // therefore deliberately not settings.
+    {
+      code: PRODUCT_FEED_SETTING_CODES.DELIVERY_MAX_ATTEMPTS,
+      name: 'Delivery attempts per generated file',
+      description:
+        'How many times to try pushing a generated file to the configured server before giving up and notifying an administrator. Attempts are spaced out with an increasing delay. The published link keeps working either way.',
+      groupCode: 'product_feeds',
+      valueType: 'number',
+      defaultValue: 5,
+    },
+    {
+      code: PRODUCT_FEED_SETTING_CODES.DELIVERY_TEST_RATE_LIMIT_PER_HOUR,
+      name: 'Delivery connection tests per hour',
+      description:
+        'Ceiling on how often the "Test connection" button may contact a delivery target, per feed. Set to 0 to remove the limit.',
+      groupCode: 'product_feeds',
+      valueType: 'number',
+      defaultValue: 20,
+    },
 
     // -----------------------------------------------------------------------
     // Group `product_feeds_taxonomy` — revision refresh (FR-086 – FR-099).
@@ -211,6 +232,11 @@ export const manifest = defineModuleManifest({
     'admin_users',
     'assets_library',
     'catalog',
+    // A service dependency, not an FK-driven one (feature 070): every secret a
+    // delivery target needs is stored through the credentials module, and
+    // `product_feed_deliveries.credential_code` is a pointer by stable code
+    // rather than a foreign key — the shape `pim_ergonode` already carries.
+    'credentials',
     'custom_fields',
     'languages',
     'price_lists',

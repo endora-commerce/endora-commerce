@@ -125,6 +125,28 @@ export type FailedRunNotifierPort = (input: {
   failureDetail: string | null;
 }) => Promise<unknown>;
 
+/**
+ * Push the published artefact to the feed's delivery target — feature 070,
+ * FR-102.
+ *
+ * A third optional port on the same seam as `enforceRetention` and
+ * `notifyFailedRun`, invoked on **exactly one branch**: after a run has
+ * published successfully. That placement is FR-102 itself — a failed, empty or
+ * skipped run must not deliver, because the previously published file is the one
+ * still being served and re-sending it would tell the partner something changed
+ * when nothing did.
+ *
+ * The port only *enqueues*: the transfer is somebody else's server and a
+ * multi-megabyte upload, so it runs in its own queue with its own retries
+ * (Principle X). That is also what keeps FR-103 true — a delivery that fails
+ * cannot fail the run, because by the time it is attempted the run is finished.
+ */
+export type ArtefactDeliveryPort = (input: {
+  feedId: string;
+  runId: string;
+  artefactId: string;
+}) => Promise<unknown>;
+
 export interface FeedGenerationDeps {
   emFactory: () => EntityManager;
   selection: ProductSelectionService;
@@ -134,6 +156,8 @@ export interface FeedGenerationDeps {
   enforceRetention?: ArtefactRetentionPort;
   /** FR-056 — raised by the worker, never by a route. */
   notifyFailedRun?: FailedRunNotifierPort;
+  /** FR-102 — enqueued after a successful publish, never on any other branch. */
+  deliverArtefact?: ArtefactDeliveryPort;
   resolver: ItemFieldResolverPort;
   settings: FeedSettingsReader;
   resolveNamedListPrice: NamedListPriceResolver;
@@ -325,6 +349,17 @@ export class FeedGenerationService {
         // the artefact it just published is already excluded by the time the
         // sweep reads the feed row.
         await this.deps.enforceRetention?.(feedId, artefactId);
+        // FR-102 — and delivery, on this branch alone. Enqueue only: the upload
+        // is somebody else's server, so it never runs inside the generation job
+        // (Principle X), and a delivery failure therefore cannot reach the run
+        // that has already published (FR-103).
+        //
+        // Deliberately swallowed: an unreachable Redis must not turn a published
+        // run into a failed one. The operator sees a feed with no delivery
+        // attempt, which is the truth.
+        await this.deps
+          .deliverArtefact?.({ feedId, runId, artefactId })
+          .catch(() => undefined);
         return finished;
       }
 

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import { z } from 'zod';
-import { PRODUCT_FEED_SETTING_CODES } from '@b2b/contracts';
+import { FEED_DELIVERY_LIMITS, PRODUCT_FEED_SETTING_CODES } from '@b2b/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModulePlugin } from '../../http/server.js';
 import { defineModuleRoutes } from '../_lifecycle/plugin-helpers.js';
@@ -81,6 +81,16 @@ import {
   registerProductFeedsAdminRoutes,
   type RequireAdminFactory,
 } from './routes.admin.js';
+import { registerProductFeedsDeliveryRoutes } from './routes.delivery.js';
+import type { CredentialsService } from '../credentials/services/credentials.service.js';
+import { DeliveryConfigService } from './services/delivery/delivery-config.service.js';
+import { DeliveryService } from './services/delivery/delivery.service.js';
+import type { FeedDeliveryAdapter } from './services/delivery/delivery-adapter.interface.js';
+import { HttpDeliveryAdapter } from './services/delivery/adapters/http-delivery-adapter.js';
+import { SftpDeliveryAdapter } from './services/delivery/adapters/sftp-delivery-adapter.js';
+import { FtpDeliveryAdapter } from './services/delivery/adapters/ftp-delivery-adapter.js';
+import { createFeedDeliveryQueue } from './services/queues/feed-delivery-queue.js';
+import { registerFeedDeliveryWorker } from './workers/feed-delivery-worker.js';
 import { registerProductFeedsPublicRoutes } from './routes.public.js';
 import { registerProductFeedsTemplateRoutes } from './routes.templates.js';
 import { registerProductFeedsTaxonomyRoutes } from './routes.taxonomies.js';
@@ -225,6 +235,20 @@ export interface ProductFeedsModuleOptions {
   artefactStore?: ArtefactStorePort;
   /** Override the item field resolver (overlay seam, Principle XV). */
   itemFieldResolver?: ItemFieldResolverPort;
+  /**
+   * The credentials module, which owns every secret a delivery target needs
+   * (feature 070 / FR-107). Optional: without it the module behaves exactly as
+   * it did before delivery existed — no delivery routes, no delivery worker,
+   * and a feed that is fetched rather than pushed.
+   */
+  credentials?: CredentialsService;
+  /**
+   * The delivery transports. Defaults to the three shipped adapters; an overlay
+   * replaces or extends the map to speak a partner's bespoke protocol with
+   * `tsc` as the contract gate (Principle XV). Tests inject stubs so **no test
+   * in this repository opens a socket**.
+   */
+  deliveryAdapters?: Map<FeedDeliveryAdapter['protocol'], FeedDeliveryAdapter>;
   /** Root of the bundled taxonomy files. Tests point it at a small fixture. */
   taxonomyDataRoot?: string;
   /**
@@ -253,6 +277,15 @@ export interface ProductFeedsModuleHandle {
   schedules: FeedScheduleReconciler;
   /** Criteria compilation and match counting — the preview surface (FR-028). */
   selection: ProductSelectionService;
+  /**
+   * Feed delivery (feature 070). Null on a deployment wired without the
+   * credentials module — delivery cannot store a password without it, and
+   * storing one anywhere else is what FR-107 forbids.
+   */
+  delivery: {
+    config: DeliveryConfigService;
+    service: DeliveryService;
+  } | null;
   tokenCache: FeedTokenCache;
   taxonomies: TaxonomyMappingService;
   taxonomyReconciler: TaxonomyReconcilerService;
@@ -457,6 +490,45 @@ export function productFeedsModule(
       })
     : null;
 
+  // -------------------------------------------------------------------------
+  // Delivery (feature 070)
+  //
+  // Present iff the credentials module is wired: every secret a target needs
+  // lives there (FR-107), and a delivery configuration that could not store a
+  // password would be a screen that silently loses one. A deployment without it
+  // behaves exactly as it did before delivery existed.
+  // -------------------------------------------------------------------------
+  const deliveryAdapters: Map<FeedDeliveryAdapter['protocol'], FeedDeliveryAdapter> =
+    options.deliveryAdapters ??
+    new Map<FeedDeliveryAdapter['protocol'], FeedDeliveryAdapter>([
+      ['http', new HttpDeliveryAdapter()],
+      ['sftp', new SftpDeliveryAdapter()],
+      ['ftp', new FtpDeliveryAdapter()],
+    ]);
+
+  const deliveryConfig = options.credentials
+    ? new DeliveryConfigService({
+        emFactory: options.emFactory,
+        commandBus: options.commandBus,
+        credentials: options.credentials,
+      })
+    : null;
+
+  const deliveryService = deliveryConfig
+    ? new DeliveryService({
+        emFactory: options.emFactory,
+        config: deliveryConfig,
+        artefactStore,
+        adapters: deliveryAdapters,
+        testRateLimitPerHour: () =>
+          settings.getNumber(
+            PRODUCT_FEED_SETTING_CODES.DELIVERY_TEST_RATE_LIMIT_PER_HOUR,
+            FEED_DELIVERY_LIMITS.DEFAULT_TEST_RATE_LIMIT_PER_HOUR,
+          ),
+        logWarn: warn,
+      })
+    : null;
+
   const generation = new FeedGenerationService({
     emFactory: options.emFactory,
     selection,
@@ -466,6 +538,40 @@ export function productFeedsModule(
       retention.enforce(feedId, 'feed', protectedArtefactId),
     ...(failedRunNotifier
       ? { notifyFailedRun: (input) => failedRunNotifier.notify(input) }
+      : {}),
+    // FR-102 — the port exists whenever delivery does; whether anything is
+    // actually sent is the feed's own configuration, resolved downstream.
+    //
+    // With Redis this only enqueues, which is what keeps the upload out of the
+    // generation job (Principle X) and its retries away from the published run
+    // (FR-103). **Without Redis it delivers inline**, because the alternative is
+    // a deployment where an operator configures a target, sees no error, and is
+    // never delivered to. That path is safe by construction: `deliver()` never
+    // throws, and the caller swallows anyway — the run is finished and
+    // published before either branch runs.
+    ...(deliveryService
+      ? {
+          deliverArtefact: async ({ feedId, runId, artefactId }) => {
+            if (deliveryQueue) {
+              await deliveryQueue.add('deliver', {
+                productFeedId: feedId,
+                feedRunId: runId,
+                feedArtefactId: artefactId,
+              });
+              return;
+            }
+            await deliveryService.deliver({
+              feedId,
+              runId,
+              artefactId,
+              attempt: 1,
+              // One attempt: with no queue there is nothing to schedule a
+              // retry on, and pretending otherwise would record an attempt
+              // count that never happens.
+              maxAttempts: 1,
+            });
+          },
+        }
       : {}),
     resolver: options.itemFieldResolver ?? new ItemFieldResolver(),
     settings,
@@ -627,6 +733,10 @@ export function productFeedsModule(
   const taxonomyRefreshQueue = options.redis
     ? createTaxonomyRefreshQueue(options.redis)
     : undefined;
+  // Delivery has a queue of its own so a failed upload and its retries can never
+  // reach the generation run that has already published (FR-103).
+  const deliveryQueue =
+    options.redis && deliveryService ? createFeedDeliveryQueue(options.redis) : undefined;
 
   // The real scheduler exists only where a queue does. Everywhere else the
   // no-op stands in, so no caller needs a null check and no test opens a
@@ -700,6 +810,7 @@ export function productFeedsModule(
   let worker: ReturnType<typeof createFeedGenerationWorker> | undefined;
   let reaperWorker: ReturnType<typeof createFeedReaperWorker> | undefined;
   let taxonomyRefreshWorker: ReturnType<typeof registerTaxonomyRefreshWorker> | undefined;
+  let deliveryWorker: ReturnType<typeof registerFeedDeliveryWorker> | undefined;
   if (options.redis && options.runWorkers) {
     worker = registerFeedGenerationWorker({
       redis: options.redis,
@@ -717,6 +828,23 @@ export function productFeedsModule(
       refresh: taxonomyRefresh,
       logWarn: warn,
     });
+    if (deliveryService) {
+      deliveryWorker = registerFeedDeliveryWorker({
+        redis: options.redis,
+        delivery: deliveryService,
+        maxAttempts: () =>
+          settings.getNumber(
+            PRODUCT_FEED_SETTING_CODES.DELIVERY_MAX_ATTEMPTS,
+            FEED_DELIVERY_LIMITS.DEFAULT_MAX_ATTEMPTS,
+          ),
+        // AS-3 — an exhausted delivery reaches the operator through the same
+        // path a failed run does, rather than sitting silently in a table.
+        ...(failedRunNotifier
+          ? { notifyExhausted: (input) => failedRunNotifier.notifyDeliveryExhausted(input) }
+          : {}),
+        logWarn: warn,
+      });
+    }
   }
 
   const handle: ProductFeedsModuleHandle = {
@@ -731,6 +859,10 @@ export function productFeedsModule(
     retention,
     schedules,
     selection,
+    delivery:
+      deliveryConfig && deliveryService
+        ? { config: deliveryConfig, service: deliveryService }
+        : null,
     tokenCache,
     taxonomies,
     taxonomyReconciler,
@@ -768,6 +900,13 @@ export function productFeedsModule(
         await queue.add('generate', { productFeedId, feedRunId });
       },
     });
+    if (deliveryConfig && deliveryService) {
+      await registerProductFeedsDeliveryRoutes(app, {
+        requireAdmin: options.requireAdmin,
+        config: deliveryConfig,
+        delivery: deliveryService,
+      });
+    }
     await registerProductFeedsTemplateRoutes(app, {
       requireAdmin: options.requireAdmin,
       templates,
@@ -799,9 +938,11 @@ export function productFeedsModule(
       await worker?.close().catch(() => undefined);
       await reaperWorker?.close().catch(() => undefined);
       await taxonomyRefreshWorker?.close().catch(() => undefined);
+      await deliveryWorker?.close().catch(() => undefined);
       await queue?.close().catch(() => undefined);
       await reaperQueue?.close().catch(() => undefined);
       await taxonomyRefreshQueue?.close().catch(() => undefined);
+      await deliveryQueue?.close().catch(() => undefined);
     },
   };
 }

@@ -96,6 +96,19 @@ export function classifyAddress(rawAddress: string): AddressClass {
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
   if (mapped?.[1]) return classifyAddress(mapped[1]);
 
+  // The same mapping in its **hex** form. `new URL()` normalises
+  // `[::ffff:169.254.169.254]` to `[::ffff:a9fe:a9fe]`, so a guard that knows
+  // only the dotted form above accepts the metadata endpoint the moment the
+  // address arrives through a URL rather than from a resolver.
+  const mappedHex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(address);
+  if (mappedHex?.[1] && mappedHex[2]) {
+    const high = Number.parseInt(mappedHex[1], 16);
+    const low = Number.parseInt(mappedHex[2], 16);
+    return classifyAddress(
+      `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`,
+    );
+  }
+
   const octets = ipv4Octets(address);
   if (octets) {
     const [a = 0, b = 0] = octets;
