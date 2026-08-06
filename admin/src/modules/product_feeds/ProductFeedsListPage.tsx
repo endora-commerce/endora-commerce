@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Download, MoreVertical, Play, Plus, Rss, Trash2 } from 'lucide-react';
+import { Download, Play, Plus, Rss, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ResponsiveTable';
+import {
+  RowActionMenu,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+} from '@/components/RowActionMenu';
 import { useAuth } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -40,7 +45,6 @@ export function ProductFeedsListPage(): ReactNode {
   const [feeds, setFeeds] = useState<ProductFeedDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
@@ -90,7 +94,6 @@ export function ProductFeedsListPage(): ReactNode {
       await load();
     } finally {
       setBusyId(null);
-      setOpenMenuId(null);
     }
   };
 
@@ -243,7 +246,9 @@ export function ProductFeedsListPage(): ReactNode {
                 </div>
               }
               renderActions={(row) => (
-                <div className="relative flex items-center justify-end gap-1">
+                // No `relative` any more: the menu is portalled out of the
+                // table, so there is no absolutely-positioned child to contain.
+                <div className="flex items-center justify-end gap-1">
                   <Button
                     size="sm"
                     variant="outline"
@@ -254,56 +259,42 @@ export function ProductFeedsListPage(): ReactNode {
                     <Play size={14} aria-hidden="true" />
                     {t('feeds.action.generate')}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    aria-haspopup="menu"
-                    aria-expanded={openMenuId === row.id}
-                    aria-label={t('feeds.action.open')}
-                    onClick={() => setOpenMenuId(openMenuId === row.id ? null : row.id)}
-                  >
-                    <MoreVertical size={16} aria-hidden="true" />
-                  </Button>
-                  {openMenuId === row.id && (
-                    <div
-                      role="menu"
-                      className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border bg-popover p-1 shadow-md"
+                  {/* Named per row: "More" repeated down a column tells a
+                      screen-reader user nothing about which feed it acts on. */}
+                  <RowActionMenu label={t('feeds.action.more', { name: row.name })}>
+                    <RowActionMenuItem asChild>
+                      <Link to={`/product-feeds/${row.id}`}>{t('feeds.action.open')}</Link>
+                    </RowActionMenuItem>
+                    <RowActionMenuItem
+                      asChild={canWrite && Boolean(row.publishedArtefactId)}
+                      disabled={!canWrite || !row.publishedArtefactId}
+                      title={writeTitle}
                     >
-                      <Link
-                        role="menuitem"
-                        to={`/product-feeds/${row.id}`}
-                        className="block rounded px-2 py-1.5 text-sm hover:bg-accent"
-                        onClick={() => setOpenMenuId(null)}
-                      >
-                        {t('feeds.action.open')}
-                      </Link>
-                      <a
-                        role="menuitem"
-                        href={productFeedsClient.artefactUrl(row.id)}
-                        className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent ${
-                          canWrite && row.publishedArtefactId ? '' : 'pointer-events-none opacity-50'
-                        }`}
-                        title={writeTitle}
-                      >
-                        <Download size={14} aria-hidden="true" />
-                        {t('feeds.action.download')}
-                      </a>
-                      {/* Delete last, after a separator — it is the only irreversible
-                          entry in this menu. */}
-                      <div className="my-1 h-px bg-border" role="separator" />
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-destructive hover:bg-accent disabled:opacity-50"
-                        onClick={() => void remove(row)}
-                        disabled={!canWrite || busyId === row.id}
-                        title={writeTitle}
-                      >
-                        <Trash2 size={14} aria-hidden="true" />
-                        {t('feeds.action.delete')}
-                      </button>
-                    </div>
-                  )}
+                      {canWrite && row.publishedArtefactId ? (
+                        <a href={productFeedsClient.artefactUrl(row.id)}>
+                          <Download size={14} aria-hidden="true" />
+                          {t('feeds.action.download')}
+                        </a>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <Download size={14} aria-hidden="true" />
+                          {t('feeds.action.download')}
+                        </span>
+                      )}
+                    </RowActionMenuItem>
+                    {/* Delete last, after a separator — it is the only
+                        irreversible entry in this menu. */}
+                    <RowActionMenuSeparator />
+                    <RowActionMenuItem
+                      destructive
+                      onSelect={() => void remove(row)}
+                      disabled={!canWrite || busyId === row.id}
+                      title={writeTitle}
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                      {t('feeds.action.delete')}
+                    </RowActionMenuItem>
+                  </RowActionMenu>
                 </div>
               )}
             />

@@ -81,6 +81,7 @@ const FEED = {
     rotatedAt: '2026-08-01T10:00:00.000Z',
     revokedAt: null,
     url: null,
+    urlIsLive: false,
   },
   lastRun: null,
   nextRunAt: null,
