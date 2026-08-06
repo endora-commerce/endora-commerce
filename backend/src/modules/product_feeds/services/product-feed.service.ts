@@ -17,6 +17,7 @@ import { FeedTemplate } from '../entities/feed-template.entity.js';
 import { FeedTemplateField } from '../entities/feed-template-field.entity.js';
 import { ProductFeed } from '../entities/product-feed.entity.js';
 import { isValidCronExpression, isValidTimezone } from './cron-expression.js';
+import { decryptFeedToken } from './token-secret-codec.js';
 import {
   makeCreateFeedCommand,
   makeDeleteFeedCommand,
@@ -49,6 +50,13 @@ export interface ProductFeedServiceDeps {
   commandBus: CommandBus;
   /** Absolute origin the public feed URL is built on; empty ⇒ a path-only URL. */
   publicBaseUrl: string;
+  /**
+   * `SETTINGS_SECRET_ENCRYPTION_KEY`, so a newly issued token can be stored
+   * recoverably and its link shown again. Undefined on a deployment that has
+   * not provisioned the key — tokens still issue, their link is just shown
+   * once and masked afterwards.
+   */
+  tokenEncryptionKey?: string | undefined;
 }
 
 /** Thrown as `400 VALIDATION_FAILED`, naming the offending field (contract §2). */
@@ -66,6 +74,18 @@ export class ProductFeedService {
   publicUrlFor(_feed: ProductFeed, token: string): string {
     const base = this.deps.publicBaseUrl.replace(/\/+$/, '');
     return `${base}/api/v1/public/product-feeds/${token}`;
+  }
+
+  /**
+   * The feed's plaintext token, or null when it is not recoverable.
+   *
+   * Only ever called while building the admin DTO — never on the public
+   * request path, which compares hashes and must not depend on an encryption
+   * key being present.
+   */
+  revealTokenFor(feed: ProductFeed): string | null {
+    if (feed.tokenHash == null || feed.tokenRevokedAt != null) return null;
+    return decryptFeedToken(feed.tokenSecret, this.deps.tokenEncryptionKey);
   }
 
   async getOrFail(feedId: string): Promise<ProductFeed> {
@@ -166,7 +186,9 @@ export class ProductFeedService {
   async create(request: CreateProductFeedRequest): Promise<CreatedFeed> {
     const values = toWriteValues(request);
     await this.validateBindings(values);
-    return this.deps.commandBus.run(makeCreateFeedCommand(values));
+    return this.deps.commandBus.run(
+      makeCreateFeedCommand(values, this.deps.tokenEncryptionKey),
+    );
   }
 
   async update(feedId: string, request: UpdateProductFeedRequest): Promise<ProductFeed> {
@@ -191,7 +213,8 @@ export class ProductFeedService {
         slug: request.slug,
         ...(request.languageCode !== undefined ? { languageCode: request.languageCode } : {}),
         ...(request.currencyCode !== undefined ? { currencyCode: request.currencyCode } : {}),
-      }),
+      },
+      this.deps.tokenEncryptionKey),
     );
   }
 
@@ -202,7 +225,9 @@ export class ProductFeedService {
 
   async rotateToken(feedId: string): Promise<RotatedToken> {
     await this.getOrFail(feedId);
-    return this.deps.commandBus.run(makeRotateTokenCommand(feedId));
+    return this.deps.commandBus.run(
+      makeRotateTokenCommand(feedId, this.deps.tokenEncryptionKey),
+    );
   }
 
   async revokeToken(

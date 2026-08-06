@@ -39,8 +39,18 @@ export interface FeedTokenView {
   prefix: string | null;
   rotatedAt: string | null;
   revokedAt: string | null;
-  /** Masked form for display; the full link is only returned when issued. */
+  /**
+   * The feed's absolute public URL, or null when revoked. It is the real,
+   * working link whenever {@link urlIsLive} is true; otherwise it is a masked
+   * display form built from the prefix.
+   */
   url: string | null;
+  /**
+   * False for tokens issued before the plaintext became recoverable, and on a
+   * deployment with no encryption key. The card must not offer to copy a URL
+   * that would 404.
+   */
+  urlIsLive: boolean;
 }
 
 export interface FeedRunSummary {

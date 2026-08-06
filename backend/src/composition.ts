@@ -2353,7 +2353,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     languageService: i18n.handle.languageService,
     adminNotificationService: adminNotifications.handle.adminNotificationService,
     settings: settings.handle.settingsService,
-    publicBaseUrl: process.env['PUBLIC_API_BASE_URL'] ?? '',
+    // A feed URL exists to be pasted into Merchant Center, so a path-only one
+    // is useless to the operator who copies it. `PUBLIC_API_BASE_URL` is the
+    // deployment's answer; the local backend origin is the honest fallback,
+    // because this is an API route on this process — not a storefront page.
+    publicBaseUrl:
+      process.env['PUBLIC_API_BASE_URL'] ??
+      `http://localhost:${process.env['PORT'] ?? '3001'}`,
+    tokenEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
     redis,
     // Principle X — the generation and reaper consumers run co-located unless
     // BACKEND_ROLE=api, in which case only the separate `pnpm worker` process

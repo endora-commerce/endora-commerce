@@ -110,7 +110,7 @@ describe('product feeds — admin CRUD [contract]', () => {
     }
   });
 
-  it('creates a feed and returns the plaintext token exactly once (FR-046)', async () => {
+  it('creates a feed and keeps its link readable afterwards (FR-046)', async () => {
     const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/product-feeds',
@@ -129,17 +129,22 @@ describe('product feeds — admin CRUD [contract]', () => {
     expect(body.data.feed['name']).toBe('Created feed');
     expect(body.data.feed['enabled']).toBe(true);
 
-    // Reading it back never re-reveals the plaintext.
+    // Reading it back DOES return the link again. This inverts the original
+    // FR-046 reading, deliberately: the token is now stored encrypted at rest
+    // (`product_feeds.token_secret`) precisely so the operator can re-copy the
+    // URL a provider needs. Show-once left them rotating — which breaks every
+    // provider already fetching — or keeping the link in a spreadsheet.
     const read = await h.app.inject({
       method: 'GET',
       url: `/api/v1/admin/product-feeds/${String(body.data.feed['id'])}`,
       ...ADMIN,
     });
     expect(read.statusCode).toBe(200);
-    expect(read.body).not.toContain(body.data.issuedToken.token);
     const token = (read.json() as { data: { token: Record<string, unknown> } }).data.token;
     expect(token['prefix']).toBe(body.data.issuedToken.prefix);
     expect(token['revokedAt']).toBeNull();
+    expect(token['urlIsLive']).toBe(true);
+    expect(token['url']).toBe(body.data.issuedToken.url);
   });
 
   it('returns the documented list row in one call (FR-055)', async () => {
