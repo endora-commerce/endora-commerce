@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { Download, Play } from 'lucide-react';
+import { Download, History, Play } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ResponsiveTable';
 import { useAuth } from '@/lib/auth';
@@ -257,17 +258,27 @@ export function ProductFeedDetailPage(): ReactNode {
       )}
 
       {tab === 'runs' && (
-        <ResponsiveTable
-          columns={runColumns}
-          data={runs}
-          keyExtractor={(row) => row.id}
-          emptyState={
-            <div className="rounded-lg border border-dashed p-8 text-center">
-              <p className="font-medium">{t('feeds.runs.empty.title')}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{t('feeds.runs.empty.subtitle')}</p>
-            </div>
-          }
-        />
+        // Same card surface as every other admin list, and the same `.b2b-empty`
+        // block the feed list uses — the hand-rolled dashed box was a third
+        // empty-state design in one module.
+        <Card>
+          <CardContent className="pt-6">
+            <ResponsiveTable
+              columns={runColumns}
+              data={runs}
+              keyExtractor={(row) => row.id}
+              emptyState={
+                <div className="b2b-empty">
+                  <div className="b2b-empty__icon">
+                    <History size={20} aria-hidden="true" />
+                  </div>
+                  <div className="b2b-empty__title">{t('feeds.runs.empty.title')}</div>
+                  <div className="b2b-empty__sub">{t('feeds.runs.empty.subtitle')}</div>
+                </div>
+              }
+            />
+          </CardContent>
+        </Card>
       )}
 
       {tab === 'settings' && <FeedSettingsForm feed={feed} onSaved={setFeed} />}

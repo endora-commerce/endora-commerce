@@ -143,6 +143,94 @@ describe('RuleBuilder', () => {
       });
     });
 
+    /**
+     * The value picker used to be a raw `<select multiple>`: a fixed-height
+     * scrolling box whose only way to pick a second option is ctrl-click — a
+     * control most people have never been taught, with no search, no visible
+     * selection summary and no way back once you mis-click. Categories and
+     * product types are exactly the long lists that makes worst.
+     *
+     * It is now the admin's own `MultiSelect`, which every other filter surface
+     * already uses (Principle IX): a trigger summarising the selection, a
+     * checkbox panel, and a diacritic-insensitive search.
+     */
+    describe('the value picker for a field with a known option set', () => {
+      const OPTIONS = {
+        category: [
+          { value: 'c1', label: 'Śruby' },
+          { value: 'c2', label: 'Wiertła' },
+          { value: 'c3', label: 'Rękawice' },
+        ],
+      };
+
+      function renderPicker(values: string[], onChange = vi.fn()): typeof onChange {
+        render(
+          <RuleBuilder
+            value={{
+              kind: 'condition',
+              field: { kind: 'builtin', key: 'category' },
+              op: 'in',
+              values,
+            }}
+            onChange={onChange}
+            builtinFields={PRODUCT_FIELDS}
+            fieldOptions={OPTIONS}
+          />,
+        );
+        return onChange;
+      }
+
+      it('is not a native multi-select box any more', () => {
+        const { container } = render(
+          <RuleBuilder
+            value={{
+              kind: 'condition',
+              field: { kind: 'builtin', key: 'category' },
+              op: 'in',
+              values: [],
+            }}
+            onChange={vi.fn()}
+            builtinFields={PRODUCT_FIELDS}
+            fieldOptions={OPTIONS}
+          />,
+        );
+        expect(container.querySelector('select[multiple]')).toBeNull();
+      });
+
+      it('summarises the current selection on the trigger', () => {
+        renderPicker(['c1', 'c2']);
+        const trigger = screen.getByRole('button', { name: /value/i });
+        expect(trigger.textContent).toContain('2');
+      });
+
+      it('adds a value by clicking it, keeping the ones already chosen', async () => {
+        const onChange = renderPicker(['c1']);
+        await userEvent.click(screen.getByRole('button', { name: /value/i }));
+        await userEvent.click(await screen.findByText('Wiertła'));
+
+        const next = onChange.mock.calls[0]![0] as StructuralRule;
+        expect(next).toMatchObject({ values: ['c1', 'c2'] });
+      });
+
+      it('removes a value by clicking it again — no ctrl-click required', async () => {
+        const onChange = renderPicker(['c1', 'c2']);
+        await userEvent.click(screen.getByRole('button', { name: /value/i }));
+        await userEvent.click(await screen.findByText('Śruby'));
+
+        const next = onChange.mock.calls[0]![0] as StructuralRule;
+        expect(next).toMatchObject({ values: ['c2'] });
+      });
+
+      it('filters the options, ignoring diacritics', async () => {
+        renderPicker([]);
+        await userEvent.click(screen.getByRole('button', { name: /value/i }));
+        await userEvent.type(screen.getByRole('textbox', { name: /search/i }), 'reka');
+
+        expect(await screen.findByText('Rękawice')).toBeTruthy();
+        expect(screen.queryByText('Wiertła')).toBeNull();
+      });
+    });
+
     it('keeps a caller’s field kind when it is not in the catalogue at all', () => {
       // A rule saved before a field was removed must still render rather than
       // crash — the operator has to be able to see and fix it.

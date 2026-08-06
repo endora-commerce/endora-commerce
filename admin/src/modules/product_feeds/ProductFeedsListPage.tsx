@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Download, Play, Plus, Rss, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ResponsiveTable';
 import {
@@ -216,79 +217,89 @@ export function ProductFeedsListPage(): ReactNode {
           {t('feeds.table.status')}…
         </div>
       ) : (
-        <ResponsiveTable
-          columns={columns}
-          data={feeds ?? []}
-          keyExtractor={(row) => row.id}
-          emptyState={
-            <div className="b2b-empty">
-              <div className="b2b-empty__icon">
-                <Rss size={20} aria-hidden="true" />
-              </div>
-              <div className="b2b-empty__title">{t('feeds.empty.title')}</div>
-              <div className="b2b-empty__sub">{t('feeds.empty.subtitle')}</div>
-              <Button
-                className="mt-2"
-                onClick={() => navigate('/product-feeds/new')}
-                disabled={!canWrite}
-                title={writeTitle}
-              >
-                <Plus size={16} aria-hidden="true" />
-                {t('page.newFeed')}
-              </Button>
-            </div>
-          }
-          renderActions={(row) => (
-            <div className="flex items-center justify-end gap-1">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void generate(row)}
-                disabled={!canWrite || row.isRunning || !row.enabled || busyId === row.id}
-                title={writeTitle}
-              >
-                <Play size={14} aria-hidden="true" />
-                {t('feeds.action.generate')}
-              </Button>
-              {/* Named per row: "More" repeated down a column tells a
-                  screen-reader user nothing about which feed it acts on. */}
-              <RowActionMenu label={t('feeds.action.more', { name: row.name })}>
-                <RowActionMenuItem asChild>
-                  <Link to={`/product-feeds/${row.id}`}>{t('feeds.action.open')}</Link>
-                </RowActionMenuItem>
-                <RowActionMenuItem
-                  asChild={canWrite && Boolean(row.publishedArtefactId)}
-                  disabled={!canWrite || !row.publishedArtefactId}
-                  title={writeTitle}
-                >
-                  {canWrite && row.publishedArtefactId ? (
-                    <a href={productFeedsClient.artefactUrl(row.id)}>
-                      <Download size={14} aria-hidden="true" />
-                      {t('feeds.action.download')}
-                    </a>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <Download size={14} aria-hidden="true" />
-                      {t('feeds.action.download')}
-                    </span>
-                  )}
-                </RowActionMenuItem>
-                {/* Delete last, after a separator — it is the only irreversible
-                    entry in this menu. */}
-                <RowActionMenuSeparator />
-                <RowActionMenuItem
-                  destructive
-                  onSelect={() => void remove(row)}
-                  disabled={!canWrite || busyId === row.id}
-                  title={writeTitle}
-                >
-                  <Trash2 size={14} aria-hidden="true" />
-                  {t('feeds.action.delete')}
-                </RowActionMenuItem>
-              </RowActionMenu>
-            </div>
-          )}
-        />
+        // Card + CardContent is what every other admin list uses (Orders,
+        // Customers, Returns…). Bare, the table read as a different product —
+        // and a bounded region is what makes the rows one group in the first
+        // place (Law of Common Region).
+        <Card>
+          <CardContent className="pt-6">
+            <ResponsiveTable
+              columns={columns}
+              data={feeds ?? []}
+              keyExtractor={(row) => row.id}
+              emptyState={
+                <div className="b2b-empty">
+                  <div className="b2b-empty__icon">
+                    <Rss size={20} aria-hidden="true" />
+                  </div>
+                  <div className="b2b-empty__title">{t('feeds.empty.title')}</div>
+                  <div className="b2b-empty__sub">{t('feeds.empty.subtitle')}</div>
+                  <Button
+                    className="mt-2"
+                    onClick={() => navigate('/product-feeds/new')}
+                    disabled={!canWrite}
+                    title={writeTitle}
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                    {t('page.newFeed')}
+                  </Button>
+                </div>
+              }
+              renderActions={(row) => (
+                // No `relative` any more: the menu is portalled out of the
+                // table, so there is no absolutely-positioned child to contain.
+                <div className="flex items-center justify-end gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void generate(row)}
+                    disabled={!canWrite || row.isRunning || !row.enabled || busyId === row.id}
+                    title={writeTitle}
+                  >
+                    <Play size={14} aria-hidden="true" />
+                    {t('feeds.action.generate')}
+                  </Button>
+                  {/* Named per row: "More" repeated down a column tells a
+                      screen-reader user nothing about which feed it acts on. */}
+                  <RowActionMenu label={t('feeds.action.more', { name: row.name })}>
+                    <RowActionMenuItem asChild>
+                      <Link to={`/product-feeds/${row.id}`}>{t('feeds.action.open')}</Link>
+                    </RowActionMenuItem>
+                    <RowActionMenuItem
+                      asChild={canWrite && Boolean(row.publishedArtefactId)}
+                      disabled={!canWrite || !row.publishedArtefactId}
+                      title={writeTitle}
+                    >
+                      {canWrite && row.publishedArtefactId ? (
+                        <a href={productFeedsClient.artefactUrl(row.id)}>
+                          <Download size={14} aria-hidden="true" />
+                          {t('feeds.action.download')}
+                        </a>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <Download size={14} aria-hidden="true" />
+                          {t('feeds.action.download')}
+                        </span>
+                      )}
+                    </RowActionMenuItem>
+                    {/* Delete last, after a separator — it is the only
+                        irreversible entry in this menu. */}
+                    <RowActionMenuSeparator />
+                    <RowActionMenuItem
+                      destructive
+                      onSelect={() => void remove(row)}
+                      disabled={!canWrite || busyId === row.id}
+                      title={writeTitle}
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                      {t('feeds.action.delete')}
+                    </RowActionMenuItem>
+                  </RowActionMenu>
+                </div>
+              )}
+            />
+          </CardContent>
+        </Card>
       )}
     </div>
   );

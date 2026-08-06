@@ -141,22 +141,15 @@ const NAV: NavSection[] = [
       // Channels: it is where catalogue content comes *from*, and the three
       // surfaces it writes (products, attributes, categories) are its
       // neighbours here.
+      //
+      // One row, not three: attribute and category mapping are the other two
+      // views of this same integration and are reached through the tab strip on
+      // its page. Three sidebar rows for one connector read as three
+      // destinations and pushed everything below them two lines down.
       {
         to: '/pim-ergonode',
         labelKey: 'appShell.nav.pimErgonode',
         icon: PlugZap,
-        requiredPermission: 'pim_ergonode:read',
-      },
-      {
-        to: '/pim-ergonode/attribute-mappings',
-        labelKey: 'appShell.nav.pimErgonodeAttributeMappings',
-        icon: Tag,
-        requiredPermission: 'pim_ergonode:read',
-      },
-      {
-        to: '/pim-ergonode/category-mappings',
-        labelKey: 'appShell.nav.pimErgonodeCategoryMappings',
-        icon: Layers,
         requiredPermission: 'pim_ergonode:read',
       },
       // A feed publishes the catalogue, so it belongs beside the catalogue

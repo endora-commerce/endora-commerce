@@ -210,6 +210,12 @@ export interface ProductFeedsModuleOptions {
   settings: ProductFeedsSettingsReader;
   /** Origin the public feed URL is built on (`PUBLIC_API_BASE_URL`). */
   publicBaseUrl: string;
+  /**
+   * `SETTINGS_SECRET_ENCRYPTION_KEY`. Lets a newly issued feed token be stored
+   * recoverably so the admin can show its link again. Optional: without it the
+   * module behaves exactly as it did before — the link is shown once.
+   */
+  tokenEncryptionKey?: string | undefined;
   redis?: Redis;
   /** Start this module's BullMQ consumer here (`BACKEND_ROLE !== 'api'`). */
   runWorkers?: boolean;
@@ -557,6 +563,7 @@ export function productFeedsModule(
     emFactory: options.emFactory,
     commandBus: options.commandBus,
     publicBaseUrl: options.publicBaseUrl,
+    tokenEncryptionKey: options.tokenEncryptionKey,
   });
 
   /**

@@ -198,12 +198,23 @@ hours, at minute 0") and the next occurrence is always shown.
 
 ### The link, and rotating it
 
-The public URL contains a random token. Only its hash is stored, so the URL cannot be recovered from
-the database — copy it when you need it.
+The public URL contains a random token. The **Feed link** card shows it in full whenever the feed
+has a live token, with a copy button, so you can re-copy it every time a provider is reconfigured.
 
+Two things are stored: the token's hash, which is the only thing the public endpoint compares
+against, and the token itself encrypted at rest under `SETTINGS_SECRET_ENCRYPTION_KEY` — the same
+key the settings and credential secrets already use. The encrypted copy is read only when an
+administrator opens the feed, never on a public request.
+
+Anyone holding the link can read the file, which contains your prices. Treat it as a credential:
+share it with the provider that needs it, and rotate if it leaks.
+
+- On a deployment with **no `SETTINGS_SECRET_ENCRYPTION_KEY`**, and for links issued before this
+  platform version, the card shows only the beginning of the token. Rotate to get one you can copy.
 - **Rotate** issues a new URL and invalidates the old one **immediately**, with no grace period. Any
   provider still configured with the old URL stops receiving updates until you paste the new one.
-- **Revoke** leaves the feed with no public URL at all. The administrator download keeps working.
+- **Revoke** leaves the feed with no public URL at all, and drops the stored copy of the token along
+  with its hash. The administrator download keeps working.
 - The URL serves `Cache-Control: private` and supports `If-None-Match`, so a provider's revalidation
   is cheap.
 - The endpoint is rate limited (default 60 requests/minute); providers fetch a few times a day.

@@ -1982,7 +1982,14 @@ export async function setupBackendServer(
     // feature-026 wiring block above, which exposes it on this handle.
     adminNotificationService: handleFeature026.adminNotificationService,
     settings: settings.handle.settingsService,
-    publicBaseUrl: '',
+    publicBaseUrl: 'http://feeds.test.local',
+    // Tests deliberately do not load `backend/.env`, so a deterministic key is
+    // supplied here rather than read from the environment: several suites set
+    // and `delete` `SETTINGS_SECRET_ENCRYPTION_KEY` around themselves, and
+    // files share a fork, so depending on it would make this module's
+    // behaviour depend on test ordering. A literal keeps the feed's
+    // re-readable link exercising the real cipher in every run.
+    tokenEncryptionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
     // Deliberately a path that does not exist: no test may read the shipped
     // ~1.5 MB taxonomy files. The taxonomy tests construct their own
     // reconciler pointed at a small fixture instead.

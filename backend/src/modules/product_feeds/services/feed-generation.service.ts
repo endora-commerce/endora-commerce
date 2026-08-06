@@ -365,6 +365,9 @@ export class FeedGenerationService {
       } else if (err instanceof UnboundTemplateError) {
         failureCode = 'unbound_template_fields';
         failureDetail = err.message;
+      } else if (err instanceof StorefrontUrlUnconfiguredError) {
+        failureCode = 'storefront_url_unconfigured';
+        failureDetail = err.message;
       } else {
         failureCode = 'internal_error';
         failureDetail = err instanceof Error ? err.message : String(err);
@@ -426,6 +429,18 @@ export class FeedGenerationService {
       channel.id,
       process.env['STOREFRONT_BASE_URL'] ?? '',
     );
+
+    // A required `link` field cannot resolve without an origin, so every single
+    // item would be skipped as `missing_required_field` and the run would die
+    // on the skip threshold — describing the symptom once per product instead
+    // of naming the one value that has to change. This is a configuration
+    // failure and is reported as one (FR-029).
+    const originDependentRequired = fieldRows
+      .filter((f) => f.sourceKind === 'link' && f.providerRequired)
+      .map((f) => f.outputName);
+    if (storefrontOrigin.trim() === '' && originDependentRequired.length > 0) {
+      throw new StorefrontUrlUnconfiguredError(channel.code, originDependentRequired);
+    }
 
     const languages = await this.deps.listActiveLanguages();
     const fallbacks = buildLanguageChain(feed.languageCode, languages);
@@ -763,6 +778,25 @@ class UnboundTemplateError extends Error {
   constructor(public readonly outputNames: string[]) {
     super(`Template fields are not bound to anything: ${outputNames.join(', ')}.`);
     this.name = 'UnboundTemplateError';
+  }
+}
+
+/**
+ * Raised before the catalogue is walked, so the operator gets the setting to
+ * change rather than one skipped-item row per product.
+ */
+class StorefrontUrlUnconfiguredError extends Error {
+  constructor(
+    public readonly channelCode: string,
+    public readonly outputNames: string[],
+  ) {
+    super(
+      `Required ${outputNames.length === 1 ? 'field' : 'fields'} ${outputNames.join(', ')} ` +
+        `${outputNames.length === 1 ? 'builds' : 'build'} a product link, but sales channel ` +
+        `"${channelCode}" has no storefront URL. Set "${STOREFRONT_URL_SETTING}" for that ` +
+        `channel, or the STOREFRONT_BASE_URL environment variable.`,
+    );
+    this.name = 'StorefrontUrlUnconfiguredError';
   }
 }
 

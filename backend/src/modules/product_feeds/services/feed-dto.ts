@@ -27,11 +27,18 @@ export interface FeedDtoTokenView {
   rotatedAt: string | null;
   revokedAt: string | null;
   url: string | null;
+  /**
+   * Whether `url` carries the real, working link rather than the masked form.
+   * False for tokens issued before the token became recoverable, and on a
+   * deployment with no encryption key — the admin then keeps the old
+   * "rotate to get a new one" copy instead of offering a link that 404s.
+   */
+  urlIsLive: boolean;
 }
 
 export function toFeedDto(
   row: ProductFeedRow,
-  feeds: Pick<ProductFeedService, 'publicUrlFor'>,
+  feeds: Pick<ProductFeedService, 'publicUrlFor' | 'revealTokenFor'>,
 ): Record<string, unknown> {
   const feed = row.feed;
   return {
@@ -69,17 +76,32 @@ export function toFeedDto(
 
 function tokenView(
   feed: ProductFeed,
-  feeds: Pick<ProductFeedService, 'publicUrlFor'>,
+  feeds: Pick<ProductFeedService, 'publicUrlFor' | 'revealTokenFor'>,
 ): FeedDtoTokenView {
-  // The URL is built from the PREFIX-bearing row only when a live token exists.
-  // The plaintext is not recoverable, so the admin shows the URL it was given
-  // at issue time; the detail view shows a masked form built from the prefix.
   const live = feed.tokenHash != null && feed.tokenRevokedAt == null;
+  if (!live || !feed.tokenPrefix) {
+    return {
+      prefix: feed.tokenPrefix ?? null,
+      rotatedAt: feed.tokenRotatedAt ? feed.tokenRotatedAt.toISOString() : null,
+      revokedAt: feed.tokenRevokedAt ? feed.tokenRevokedAt.toISOString() : null,
+      url: null,
+      urlIsLive: false,
+    };
+  }
+
+  // The plaintext is recoverable now (it is stored encrypted at rest), so the
+  // admin gets the real link — the one the operator has to paste into Merchant
+  // Center, and re-paste every time a provider is reconfigured. Where it is
+  // NOT recoverable — a token issued before the column existed, or no
+  // encryption key on this deployment — the masked form is still the honest
+  // answer, and `urlIsLive` is what tells the two apart.
+  const plaintext = feeds.revealTokenFor(feed);
   return {
-    prefix: feed.tokenPrefix ?? null,
+    prefix: feed.tokenPrefix,
     rotatedAt: feed.tokenRotatedAt ? feed.tokenRotatedAt.toISOString() : null,
     revokedAt: feed.tokenRevokedAt ? feed.tokenRevokedAt.toISOString() : null,
-    url: live && feed.tokenPrefix ? feeds.publicUrlFor(feed, `${feed.tokenPrefix}…`) : null,
+    url: feeds.publicUrlFor(feed, plaintext ?? `${feed.tokenPrefix}…`),
+    urlIsLive: plaintext !== null,
   };
 }
 
