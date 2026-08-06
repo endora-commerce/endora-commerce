@@ -839,12 +839,20 @@ export const feedTemplatePreviewResponseSchema = dataEnvelope(
 // ---------------------------------------------------------------------------
 
 export const productFeedTokenSchema = z.object({
-  /** Non-secret display fragment. The plaintext is returned ONCE, on create/rotate. */
+  /** Non-secret display fragment. */
   prefix: z.string().max(12).nullable(),
   rotatedAt: isoDateTimeSchema.nullable(),
   revokedAt: isoDateTimeSchema.nullable(),
-  /** Fully-qualified public URL, or null when revoked (FR-047). */
+  /**
+   * Fully-qualified public URL, or null when revoked (FR-047).
+   *
+   * Carries the working link when {@link urlIsLive} is true. When it is false
+   * the token predates recoverable storage (or this deployment has no
+   * encryption key) and the URL is a masked, non-working display form.
+   */
   url: z.string().url().nullable(),
+  /** Whether `url` is the real link rather than the masked form. */
+  urlIsLive: z.boolean(),
 });
 
 export const productFeedRunSummarySchema = z.object({

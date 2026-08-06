@@ -92,6 +92,17 @@ export class ProductFeed {
   @Property({ type: 'varchar', length: 12, fieldName: 'token_prefix', nullable: true })
   tokenPrefix?: string | null;
 
+  /**
+   * The plaintext token, encrypted at rest (AES-256-GCM under
+   * `SETTINGS_SECRET_ENCRYPTION_KEY`), so the admin can show the link again
+   * instead of forcing a rotation that breaks every provider already fetching
+   * it. Never read on the public request path — `tokenHash` is what authorizes.
+   * Null for tokens issued before this column existed, and on a deployment with
+   * no encryption key; both fall back to the masked display.
+   */
+  @Property({ type: 'json', fieldName: 'token_secret', nullable: true })
+  tokenSecret?: unknown | null;
+
   @Property({ type: 'datetime', fieldName: 'token_rotated_at', nullable: true })
   tokenRotatedAt?: Date | null;
 

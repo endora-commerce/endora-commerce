@@ -50,6 +50,16 @@ export function FeedLinkCard(props: FeedLinkCardProps): ReactNode {
   const published = feed.publishedArtefactId !== null;
   const revoked = feed.token.revokedAt !== null;
 
+  /**
+   * The link to show, or null when there is no working one to show.
+   *
+   * A feed URL's whole job is to be pasted into Merchant Center, re-pasted
+   * when a provider is reconfigured, and checked when one stops fetching.
+   * Showing it once left the operator choosing between rotating — which breaks
+   * every provider already on the old link — and keeping it in a spreadsheet.
+   */
+  const readableUrl = issuedToken?.url ?? (feed.token.urlIsLive ? feed.token.url : null);
+
   const copy = async (value: string): Promise<void> => {
     await navigator.clipboard.writeText(value);
     setCopied(true);
@@ -100,20 +110,29 @@ export function FeedLinkCard(props: FeedLinkCardProps): ReactNode {
         {published && !revoked && (
           <>
             <p className="text-sm text-muted-foreground">{t('feeds.link.ready.body')}</p>
-            {issuedToken ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <code className="b2b-code flex-1 truncate rounded border px-2 py-1.5 text-xs">
-                    {issuedToken.url}
-                  </code>
-                  <Button size="sm" variant="outline" onClick={() => void copy(issuedToken.url)}>
-                    <Copy size={14} aria-hidden="true" />
-                    {copied ? t('feeds.link.copied') : t('feeds.link.copy')}
-                  </Button>
-                </div>
-                <p className="text-xs text-amber-600">{t('feeds.link.shownOnce')}</p>
-              </>
+            {/* The link is stored encrypted at rest, so it can be shown again
+                rather than once. `issuedToken` still wins when present: it is
+                the freshest value on the navigation that just created or
+                rotated the token, before the feed has been re-fetched. */}
+            {readableUrl !== null ? (
+              <div className="flex items-center gap-2">
+                <code className="b2b-code flex-1 truncate rounded border px-2 py-1.5 text-xs">
+                  {readableUrl}
+                </code>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  aria-label={t('feeds.link.copy')}
+                  onClick={() => void copy(readableUrl)}
+                >
+                  <Copy size={14} aria-hidden="true" />
+                  {copied ? t('feeds.link.copied') : t('feeds.link.copy')}
+                </Button>
+              </div>
             ) : (
+              // Issued before the token became recoverable, or no encryption key
+              // on this deployment. Showing a masked form is the honest answer;
+              // offering to copy it would send the operator to paste a 404.
               <p className="text-sm text-muted-foreground">
                 <code className="b2b-code">…{feed.token.prefix ?? ''}…</code>{' '}
                 {t('feeds.link.masked')}

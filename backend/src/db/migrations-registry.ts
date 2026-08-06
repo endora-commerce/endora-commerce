@@ -190,6 +190,7 @@ import { Migration20260802T073627ProductFeedsRuns } from '../modules/product_fee
 import { Migration20260802T110630ProductFeedsTaxonomies } from '../modules/product_feeds/migrations/20260802T110630_product_feeds_taxonomies.js';
 import { Migration20260803T060153ProductFeedsTaxonomyRefresh } from '../modules/product_feeds/migrations/20260803T060153_product_feeds_taxonomy_refresh.js';
 import { Migration20260804T152741ProductFeedsWidenIssueSku } from '../modules/product_feeds/migrations/20260804T152741_product_feeds_widen_issue_sku.js';
+import { Migration20260806T105956ProductFeedsFeedTokenSecret } from '../modules/product_feeds/migrations/20260806T105956_product_feeds_feed_token_secret.js';
 
 // ── promotions ────────────────────────────────────────────────────────────
 import { Migration20260505T074605PromotionsCriteria } from '../modules/promotions/migrations/20260505T074605_promotions_criteria.js';
@@ -436,6 +437,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('product_feeds', Migration20260802T110630ProductFeedsTaxonomies),
   migration('product_feeds', Migration20260803T060153ProductFeedsTaxonomyRefresh),
   migration('product_feeds', Migration20260804T152741ProductFeedsWidenIssueSku),
+  migration('product_feeds', Migration20260806T105956ProductFeedsFeedTokenSecret),
 
   // ── promotions ────────────────────────────────────────────────────────────
   migration('promotions', Migration20260505T074605PromotionsCriteria),
