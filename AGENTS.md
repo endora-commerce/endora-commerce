@@ -83,6 +83,12 @@ replacement. Non-negotiable ones are marked **(NN)**.
   where the requirement is "add a field".
 - **XV. Untouched core & per-deployment overlay** — see "Overlay modules" below.
 - **XVI. Module discoverability in the command palette** — see the checklist below.
+- **XVII. Operator-toggleable modules (NN)** — every module is switchable on/off from the
+  Settings module through one manifest-declared control backed by the lifecycle registry's
+  single authoritative enabled-state. A disabled module behaves as if never installed —
+  business logic, API, Admin UI and Storefront — its own enable control being the one
+  exception. Disable is non-destructive and reversible; non-disableable modules declare
+  that in their manifest; dependencies fail closed. See the checklist below.
 
 ## Required checklists for a new backend module
 
@@ -126,6 +132,32 @@ is not enough.
 6. **CI** — `pnpm --filter backend exec vitest run test/unit/_i18n/registered-bundles-shape.test.ts`
    verifies that every registered module's on-disk bundles load and that every manifest action
    key resolves in every shipped language.
+
+### Module enable/disable (Principle XVII)
+
+Every module must be switchable off by an operator and must then behave as if it were never
+installed. The gating wrappers already exist in `backend/src/modules/_lifecycle/`
+(`defineModuleRoutes`, `defineModuleWorker`, `subscribeForModule`, `requireModuleEnabled`)
+— only 10 of 67 modules currently use them, so assume the module you are touching does not.
+
+1. **Routes** — wrap the module's route registration in `defineModuleRoutes('<id>', …)` so
+   gating holds at the registration seam for every route the module owns, including later
+   ones. Never gate per handler.
+2. **Workers and subscribers** — register BullMQ workers through `defineModuleWorker` and
+   EventBus subscriptions through `subscribeForModule`, so both stop when the module is off.
+3. **Cross-module calls** — service entry points reachable from another module call
+   `requireModuleEnabled('<id>')`, so a caller gets the explicit 503 envelope
+   (`ERROR_CODES.MODULE_DISABLED`) instead of a half-executed operation.
+4. **Manifest** — declare the module's enable/disable control, and, if the platform genuinely
+   cannot run without the module, declare it non-disableable with a reason. Never hard-code
+   an exception list in the admin app.
+5. **Admin and Storefront** — a disabled module contributes no sidebar entry, palette action,
+   widget, tab or settings group, and no storefront element. Both frontends resolve this from
+   the server's enabled-set; do not hard-code the surfaces.
+6. **Tests** — ship a disabled-state test proving API rejection, admin absence and storefront
+   absence while off, and full restoration on re-enable.
+
+Disabling is **not** uninstalling: it drops no data, bundles, permissions or schema.
 
 ### Migrations (feature 065)
 
