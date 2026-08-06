@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Download, MoreVertical, Play, Plus, Rss, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ResponsiveTable';
 import { useAuth } from '@/lib/auth';
@@ -213,93 +214,101 @@ export function ProductFeedsListPage(): ReactNode {
           {t('feeds.table.status')}…
         </div>
       ) : (
-        <ResponsiveTable
-          columns={columns}
-          data={feeds ?? []}
-          keyExtractor={(row) => row.id}
-          emptyState={
-            <div className="b2b-empty">
-              <div className="b2b-empty__icon">
-                <Rss size={20} aria-hidden="true" />
-              </div>
-              <div className="b2b-empty__title">{t('feeds.empty.title')}</div>
-              <div className="b2b-empty__sub">{t('feeds.empty.subtitle')}</div>
-              <Button
-                className="mt-2"
-                onClick={() => navigate('/product-feeds/new')}
-                disabled={!canWrite}
-                title={writeTitle}
-              >
-                <Plus size={16} aria-hidden="true" />
-                {t('page.newFeed')}
-              </Button>
-            </div>
-          }
-          renderActions={(row) => (
-            <div className="relative flex items-center justify-end gap-1">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void generate(row)}
-                disabled={!canWrite || row.isRunning || !row.enabled || busyId === row.id}
-                title={writeTitle}
-              >
-                <Play size={14} aria-hidden="true" />
-                {t('feeds.action.generate')}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-haspopup="menu"
-                aria-expanded={openMenuId === row.id}
-                aria-label={t('feeds.action.open')}
-                onClick={() => setOpenMenuId(openMenuId === row.id ? null : row.id)}
-              >
-                <MoreVertical size={16} aria-hidden="true" />
-              </Button>
-              {openMenuId === row.id && (
-                <div
-                  role="menu"
-                  className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border bg-popover p-1 shadow-md"
-                >
-                  <Link
-                    role="menuitem"
-                    to={`/product-feeds/${row.id}`}
-                    className="block rounded px-2 py-1.5 text-sm hover:bg-accent"
-                    onClick={() => setOpenMenuId(null)}
-                  >
-                    {t('feeds.action.open')}
-                  </Link>
-                  <a
-                    role="menuitem"
-                    href={productFeedsClient.artefactUrl(row.id)}
-                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent ${
-                      canWrite && row.publishedArtefactId ? '' : 'pointer-events-none opacity-50'
-                    }`}
+        // Card + CardContent is what every other admin list uses (Orders,
+        // Customers, Returns…). Bare, the table read as a different product —
+        // and a bounded region is what makes the rows one group in the first
+        // place (Law of Common Region).
+        <Card>
+          <CardContent className="pt-6">
+            <ResponsiveTable
+              columns={columns}
+              data={feeds ?? []}
+              keyExtractor={(row) => row.id}
+              emptyState={
+                <div className="b2b-empty">
+                  <div className="b2b-empty__icon">
+                    <Rss size={20} aria-hidden="true" />
+                  </div>
+                  <div className="b2b-empty__title">{t('feeds.empty.title')}</div>
+                  <div className="b2b-empty__sub">{t('feeds.empty.subtitle')}</div>
+                  <Button
+                    className="mt-2"
+                    onClick={() => navigate('/product-feeds/new')}
+                    disabled={!canWrite}
                     title={writeTitle}
                   >
-                    <Download size={14} aria-hidden="true" />
-                    {t('feeds.action.download')}
-                  </a>
-                  {/* Delete last, after a separator — it is the only irreversible
-                      entry in this menu. */}
-                  <div className="my-1 h-px bg-border" role="separator" />
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-destructive hover:bg-accent disabled:opacity-50"
-                    onClick={() => void remove(row)}
-                    disabled={!canWrite || busyId === row.id}
+                    <Plus size={16} aria-hidden="true" />
+                    {t('page.newFeed')}
+                  </Button>
+                </div>
+              }
+              renderActions={(row) => (
+                <div className="relative flex items-center justify-end gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void generate(row)}
+                    disabled={!canWrite || row.isRunning || !row.enabled || busyId === row.id}
                     title={writeTitle}
                   >
-                    <Trash2 size={14} aria-hidden="true" />
-                    {t('feeds.action.delete')}
-                  </button>
+                    <Play size={14} aria-hidden="true" />
+                    {t('feeds.action.generate')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-haspopup="menu"
+                    aria-expanded={openMenuId === row.id}
+                    aria-label={t('feeds.action.open')}
+                    onClick={() => setOpenMenuId(openMenuId === row.id ? null : row.id)}
+                  >
+                    <MoreVertical size={16} aria-hidden="true" />
+                  </Button>
+                  {openMenuId === row.id && (
+                    <div
+                      role="menu"
+                      className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border bg-popover p-1 shadow-md"
+                    >
+                      <Link
+                        role="menuitem"
+                        to={`/product-feeds/${row.id}`}
+                        className="block rounded px-2 py-1.5 text-sm hover:bg-accent"
+                        onClick={() => setOpenMenuId(null)}
+                      >
+                        {t('feeds.action.open')}
+                      </Link>
+                      <a
+                        role="menuitem"
+                        href={productFeedsClient.artefactUrl(row.id)}
+                        className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent ${
+                          canWrite && row.publishedArtefactId ? '' : 'pointer-events-none opacity-50'
+                        }`}
+                        title={writeTitle}
+                      >
+                        <Download size={14} aria-hidden="true" />
+                        {t('feeds.action.download')}
+                      </a>
+                      {/* Delete last, after a separator — it is the only irreversible
+                          entry in this menu. */}
+                      <div className="my-1 h-px bg-border" role="separator" />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-destructive hover:bg-accent disabled:opacity-50"
+                        onClick={() => void remove(row)}
+                        disabled={!canWrite || busyId === row.id}
+                        title={writeTitle}
+                      >
+                        <Trash2 size={14} aria-hidden="true" />
+                        {t('feeds.action.delete')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
-        />
+            />
+          </CardContent>
+        </Card>
       )}
     </div>
   );

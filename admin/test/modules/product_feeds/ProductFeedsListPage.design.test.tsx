@@ -124,6 +124,30 @@ describe('ProductFeedsListPage — design-system alignment', () => {
     expect(busy.className).not.toMatch(/\brounded-lg border\b/);
   });
 
+  it('puts the feed table on the same card surface every other admin list uses', async () => {
+    list.mockResolvedValue({ data: [feed()] });
+    renderPage();
+    const table = await waitFor(() => {
+      const found = document.querySelector('table');
+      expect(found).not.toBeNull();
+      return found!;
+    });
+
+    // Orders, Customers, Returns and the rest all render their table inside
+    // `<Card><CardContent>`. This one sat bare on the page background, which is
+    // the whole reason it read as a different product.
+    const card = table.closest('.rounded-lg.border.bg-card');
+    expect(card).not.toBeNull();
+  });
+
+  it('keeps the empty state on that same card surface', async () => {
+    list.mockResolvedValue({ data: [] });
+    renderPage();
+    await waitFor(() => expect(screen.getByText('feeds.empty.title')).toBeTruthy());
+    const empty = document.querySelector('.b2b-empty');
+    expect(empty?.closest('.rounded-lg.border.bg-card')).not.toBeNull();
+  });
+
   it('colours the too-tight schedule warning from the --warn token', async () => {
     list.mockResolvedValue({ data: [feed({ scheduleTooTightWarning: true })] });
     renderPage();
