@@ -238,11 +238,18 @@ export function FeedTemplatesListPage(): ReactNode {
             <p className="b2b-empty__sub">{t('templates.empty.mine.subtitle')}</p>
           </div>
         ) : (
-          <ResponsiveTable
-            columns={columns}
-            data={mine}
-            keyExtractor={(row): string => row.id}
-          />
+          // The platform's templates below are already cards; the operator's
+          // own were the one surface on this screen sitting on bare page
+          // background.
+          <Card>
+            <CardContent className="pt-6">
+              <ResponsiveTable
+                columns={columns}
+                data={mine}
+                keyExtractor={(row): string => row.id}
+              />
+            </CardContent>
+          </Card>
         )}
       </div>
 
