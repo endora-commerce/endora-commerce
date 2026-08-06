@@ -315,6 +315,14 @@ export const PromotionEditPage = (): ReactNode => {
               onChange={setRule}
               attributeFields={attributeFields}
               fieldOptions={fieldOptions}
+              // This screen has option sets too (payment and delivery methods),
+              // so it gets the same value picker — and its copy translated
+              // rather than the component's English fallback.
+              labels={{
+                valuesPlaceholder: t('ruleBuilder.values.placeholder'),
+                valuesLabel: t('ruleBuilder.values.label'),
+                valuesSearchPlaceholder: t('ruleBuilder.values.search'),
+              }}
             />
           </CardContent>
         </Card>
