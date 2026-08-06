@@ -83,6 +83,13 @@ replacement. Non-negotiable ones are marked **(NN)**.
   where the requirement is "add a field".
 - **XV. Untouched core & per-deployment overlay** — see "Overlay modules" below.
 - **XVI. Module discoverability in the command palette** — see the checklist below.
+- **XVII. Operator-toggleable modules (NN)** — presence is the conjunction of **two
+  orthogonal axes**: platform availability (lifecycle registry, deployment-owned, CLI) and
+  operator activation (a manifest-declared Setting in the Settings module, business-owned,
+  Admin UI). Neither overwrites the other. A module that is off behaves as if never
+  installed — business logic, API, Admin UI and Storefront — its own activation control
+  being the one exception. Off is non-destructive and reversible; non-deactivatable modules
+  declare that in their manifest; dependencies fail closed. See the checklist below.
 
 ## Required checklists for a new backend module
 
@@ -126,6 +133,48 @@ is not enough.
 6. **CI** — `pnpm --filter backend exec vitest run test/unit/_i18n/registered-bundles-shape.test.ts`
    verifies that every registered module's on-disk bundles load and that every manifest action
    key resolves in every shipped language.
+
+### Module enable/disable (Principle XVII)
+
+A module's presence is the **conjunction of two orthogonal axes** — do not conflate them:
+
+| Axis | Stored in | Owned by | Changed via | Answers |
+| --- | --- | --- | --- | --- |
+| **Platform availability** | lifecycle registry (`module_registrations`) | deployment operator | CLI / deployment tooling | is this module installed and wired here? |
+| **Operator activation** | a Setting in the `settings` module | business operator | Admin UI | does this client want this capability? |
+
+Effective presence = **both true**. Gate on the effective state, fail closed if either is off.
+An activation write must not touch the registry, and a platform disable → enable cycle must
+preserve the operator's activation choice.
+
+The gating wrappers exist in `backend/src/modules/_lifecycle/` (`defineModuleRoutes`,
+`defineModuleWorker`, `subscribeForModule`, `requireModuleEnabled`) but today resolve only
+the platform axis via `registryCache.isEnabled` — extend them to the effective state rather
+than adding a parallel check. Only 10 of 67 modules use them at all, so assume the module you
+are touching does not.
+
+1. **Routes** — wrap the module's route registration in `defineModuleRoutes('<id>', …)` so
+   gating holds at the registration seam for every route the module owns, including later
+   ones. Never gate per handler.
+2. **Workers and subscribers** — register BullMQ workers through `defineModuleWorker` and
+   EventBus subscriptions through `subscribeForModule`, so both stop when the module is off.
+3. **Cross-module calls** — service entry points reachable from another module call
+   `requireModuleEnabled('<id>')`, so a caller gets the explicit 503 envelope
+   (`ERROR_CODES.MODULE_DISABLED`) instead of a half-executed operation.
+4. **Manifest** — declare the module's activation control and its default, and, if the
+   platform genuinely cannot run without the module, declare it non-deactivatable with a
+   reason. Never hard-code an exception list in the admin app.
+5. **Admin and Storefront** — a module that is off contributes no sidebar entry, palette
+   action, widget, tab, settings group or editable configuration, and no storefront element.
+   Both frontends resolve this from the server's effective enabled-set; do not hard-code the
+   surfaces. A platform-unavailable module renders as absent or blocked-with-a-reason, never
+   as merely "switched off".
+6. **Tests** — ship an off-state test proving API rejection, admin absence, non-editable
+   configuration and storefront absence while off, plus full restoration — and cover the
+   deactivated-while-platform-available case specifically.
+
+Switching a module off is **not** uninstalling: it drops no data, configuration, bundles,
+permissions or schema.
 
 ### Migrations (feature 065)
 
