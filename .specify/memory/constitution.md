@@ -7,22 +7,35 @@ Disabled-Means-Absent) — is added. The platform is modular by Principle I, and
 feature 018 already built the enable/disable machinery (`module_registrations`,
 the registry cache, and the `defineModuleRoutes` / `defineModuleWorker` /
 `subscribeForModule` / `requireModuleEnabled` gating wrappers). What was missing
-was the *obligation* to use it and an operator-facing way to reach it, and the
-resulting half-adoption is worse than no toggle at all: only 10 of 67 backend
-modules route their HTTP surface through the gating wrapper; the Admin UI
-sidebar, the command palette and the storefront resolve nothing from the
-enabled-set; and enable/disable is CLI-only, with the admin HTTP write surface
-explicitly deferred in feature 018. An operator who disables a module today
-still sees its sidebar entry, its palette actions and its storefront blocks,
-and most of its API keeps answering. The principle makes the contract binding:
-every module exposes exactly one enable/disable toggle in the Settings module,
-backed by the one authoritative enabled-state record; a disabled module behaves
-as if it were not installed across business logic, API, Admin UI and Storefront
-UI, with its own toggle as the single deliberate exception; disable is
-non-destructive and reversible; modules the platform cannot run without declare
-themselves non-disableable in their manifest rather than being silently
-special-cased; and dependency conflicts fail closed. A new principle is added
-(not a redefinition or removal), so the versioning policy mandates a MINOR bump.
+was a **second, business-owned axis** on top of it, plus the obligation to gate
+and any frontend awareness. The resulting half-adoption is worse than no toggle
+at all: only 10 of 67 backend modules route their HTTP surface through the
+gating wrapper; the Admin UI sidebar, the command palette and the storefront
+resolve nothing from the enabled-set; and enable/disable is CLI-only, with the
+admin HTTP write surface explicitly deferred in feature 018. A module switched
+off today still shows its sidebar entry, its palette actions and its storefront
+blocks, and most of its API keeps answering.
+
+The principle makes the contract binding on **two orthogonal axes** —
+**platform availability** (the lifecycle registry; owned by whoever operates the
+deployment, changed via CLI) and **operator activation** (a Setting in the
+Settings module; owned by the business operator, changed from the Admin UI) —
+whose **conjunction** is the effective state every gating seam resolves. The
+axes are deliberately NOT collapsed: a platform-level disable → enable cycle
+must not silently reactivate a capability the business switched off, and a
+Settings write must not override a platform lockout. Beyond that: every module
+exposes exactly one manifest-declared activation control; a module that is off
+behaves as if it were not installed across business logic, API, Admin UI and
+Storefront UI, with its own activation control the single deliberate exception
+(its configuration surface included in what disappears); off is non-destructive
+and reversible, preserving data *and* configuration; modules the platform cannot
+run without declare themselves non-deactivatable in their manifest rather than
+being silently special-cased; and dependency conflicts fail closed on and across
+both axes. The driving case is an installed integration a client does not want —
+e.g. `pim_ergonode` — which an operator must be able to switch off from the
+Admin UI so it leaves the sidebar and stops synchronising, with no deployment
+change. A new principle is added (not a redefinition or removal), so the
+versioning policy mandates a MINOR bump.
 
 Modified principles:
   - (none renamed/redefined)
@@ -48,17 +61,24 @@ Templates / artifacts requiring alignment:
        (CLAUDE.md is a pointer to AGENTS.md and needs no edit.)
 
 Deferred items / TODOs:
-  - Principle XVII mandates two mechanisms that do NOT yet exist and must be
-    built by the implementing feature: (a) the per-module enable/disable
-    toggle in the Settings module admin surface, replacing the CLI-only path
-    deferred in feature 018 (`specs/018-module-lifecycle/contracts/
-    admin-http.md` E-2); and (b) an enabled-set the Admin UI and Storefront
-    resolve from the server so both can hide a disabled module's surfaces.
-    It also mandates a manifest field for declaring a module non-disableable
-    (`ModuleManifestSchema` in `packages/contracts/src/modules.ts` has no such
-    field today) and a CI check for gating-wrapper coverage. The gating
-    wrappers themselves already exist; the principle makes their use
-    mandatory and names the surfaces that currently ignore the enabled-state.
+  - Principle XVII mandates mechanisms that do NOT yet exist and must be built
+    by the implementing feature: (a) the **operator-activation axis** itself —
+    a per-module on/off Setting in the Settings module admin surface, distinct
+    from and not mutating the lifecycle registry (the CLI-only path deferred
+    in feature 018, `specs/018-module-lifecycle/contracts/admin-http.md` E-2,
+    covers only the platform axis); (b) an **effective**-state resolver
+    (platform availability AND operator activation) that every gating seam and
+    both frontends read, plus a server-exposed effective enabled-set so the
+    Admin UI and Storefront can hide a module's surfaces; (c) manifest fields
+    for the activation control, its default, and for declaring a module
+    non-deactivatable (`ModuleManifestSchema` in
+    `packages/contracts/src/modules.ts` has none of these today); and (d) a CI
+    check for gating-wrapper coverage. The gating wrappers themselves already
+    exist but resolve only the platform axis — `registryCache.isEnabled` in
+    `backend/src/modules/_lifecycle/` — so they must be extended to the
+    effective state rather than duplicated. The principle also makes their use
+    mandatory and names the surfaces that currently ignore module state
+    entirely (admin sidebar, command palette, storefront).
 
   (History) 3.8.0 → 3.9.0 added Principle XVI + quality gate #15 (module
     discoverability in the admin command palette).
@@ -701,26 +721,46 @@ do. Introduced after the `credentials` / `google_analytics` / `newsletter` palet
 ### XVII. Operator-Toggleable Modules & Disabled-Means-Absent (NON-NEGOTIABLE)
 
 Principle I makes modules detachable in the codebase; this principle makes them detachable **at
-runtime, by an operator, without a deploy**. Every module MUST be switchable on and off from the
-Settings module, and a module that is off MUST behave as though it were **never installed** — across
-business logic, the API, the Admin UI and the Storefront UI alike. The following are binding for
-every module:
+runtime, by a business operator, without a deploy**. Every module MUST be switchable on and off from
+the Settings module, and a module that is off MUST behave as though it were **never installed** —
+across business logic, the API, the Admin UI and the Storefront UI alike. The following are binding
+for every module:
 
+- **Two orthogonal axes, one effective state.** Whether a module is present is decided by **two
+  independent states with different owners**, and they MUST NOT be collapsed into one:
+  - **Platform availability** — the module lifecycle registry's installed / enabled state (feature
+    `018`, `module_registrations`). Owned by whoever operates the **deployment**, changed through
+    the lifecycle path (CLI / deployment tooling). It answers *"is this module's code installed,
+    migrated and wired in this deployment?"*
+  - **Operator activation** — the module's own on/off Setting in the Settings module. Owned by the
+    **business operator**, changed from the Admin UI. It answers *"does this client want to use this
+    capability?"*
+
+  A module is **effectively present only when both are true**. Every gating seam — routes, workers,
+  subscribers, interceptors, cross-module calls, Admin UI, Storefront — MUST resolve this
+  **effective** state, never one axis alone, and MUST fail closed when either axis is off or
+  unresolved.
+- **Neither axis overwrites the other.** Toggling activation MUST NOT mutate the lifecycle registry,
+  and a lifecycle disable → enable cycle (maintenance, incident, redeploy, upgrade) MUST **preserve
+  the operator's activation choice** rather than silently switching the capability back on. An
+  operator who deactivated a module MUST find it still deactivated after platform-level work; a
+  platform operator who disabled a module MUST NOT have that decision undone by a Settings write.
 - **One toggle, in Settings, declared by the module.** Every module MUST expose exactly **one**
-  operator-facing enable/disable control in the Settings module's admin surface. The control MUST be
-  declared by the owning module (its manifest), never by adding a row to a shared hand-maintained
-  list — the same registry discipline Principle XVI applies to palette entries and Principle XV to
-  overlay registration. An operator MUST be able to reach it without CLI access. Overlay modules
-  (Principle XV) declare their toggle exactly as core modules do.
-- **One authoritative enabled-state.** The Settings toggle is an **operator surface over the module
-  lifecycle registry's enabled-state**, not a second source of truth. There MUST be exactly one
-  record of record for whether a module is on, and it MUST be impossible for a settings value and
-  the registry to disagree. Flipping the toggle MUST run the lifecycle enable / disable transition
-  (a sensitive write — Principle XIII: a Command, audited, actor from the ambient TenantContext), and
-  the new state MUST take effect in **every running process** — API instances and separable workers
-  (Principle X) — without a redeploy.
-- **Disabled means absent on all four surfaces.** A disabled module MUST NOT be observable as an
-  installed capability:
+  activation control in the Settings module's admin surface. The control MUST be declared by the
+  owning module (its manifest), never by adding a row to a shared hand-maintained list — the same
+  registry discipline Principle XVI applies to palette entries and Principle XV to overlay
+  registration. An operator MUST be able to reach it without CLI access. Overlay modules (Principle
+  XV) declare their control exactly as core modules do. Flipping it is a sensitive write (Principle
+  XIII: a Command, audited, actor from the ambient TenantContext) and MUST take effect in **every
+  running process** — API instances and separable workers (Principle X) — without a redeploy.
+- **The two axes read differently to an operator.** The Admin UI MUST NOT present a
+  platform-unavailable module as merely "switched off". A module that is **installed but
+  deactivated** shows an actionable control the operator can switch back on. A module that is
+  **not available at platform level** MUST either not appear at all (never installed in this
+  deployment) or appear as **blocked with the reason stated** — never as a control that looks
+  actionable and silently fails.
+- **Off means absent on all four surfaces.** A module that is not effectively present MUST NOT be
+  observable as an installed capability:
   - **Business logic** — its services, event subscribers, queue consumers, scheduled jobs, API
     interceptors and command handlers MUST NOT run. A cross-module caller MUST receive the explicit
     module-disabled error, never a silently degraded or half-executed call.
@@ -732,65 +772,91 @@ every module:
     no tab, no nav link, and no settings group of its own.
   - **Storefront UI** — no rendered blocks, sections, nav entries, or any other element the module
     contributes.
-  Absence MUST be **resolved from the enabled-state at runtime** — both frontends read the
-  enabled-set from the server and hide accordingly. Hard-coding a module's surfaces as
+  Absence MUST be **resolved from the effective state at runtime** — both frontends read the
+  effective enabled-set from the server and hide accordingly. Hard-coding a module's surfaces as
   conditionally-present in the frontends is not compliance.
-- **The single exception: its own toggle.** The **only** thing that MAY remain visible for a
-  disabled module is its own enable/disable control in Settings, so an operator can turn it back on.
-  A disabled module that leaves anything else visible — one sidebar link, one palette action, one
-  storefront block — violates this principle.
-- **Disable is not uninstall: non-destructive and reversible.** Disabling MUST NOT drop tables,
-  delete rows, remove translation bundles, unregister permissions, or revert migrations; that is
-  what hard uninstall is for. Re-enabling MUST restore the module's full surface with its data
-  intact, with no manual repair step.
-- **Non-disableable modules are declared, never special-cased.** A module the platform cannot
-  function without MUST declare itself non-disableable **in its own manifest**, and its control MUST
-  render as **locked with a stated reason** — never silently absent, and never present-but-ignored.
-  The set MUST be minimal and justified: a module belongs in it only if disabling it would leave the
-  platform unable to authenticate an operator, resolve tenancy, or re-enable anything (the lifecycle
-  subsystem and the Settings surface itself being the obvious members). Hard-coding an exception
-  list in the admin app instead of declaring it per module is prohibited.
-- **Dependencies fail closed.** Disabling a module that enabled modules depend on (per manifest
-  `dependencies`, transitively) MUST be **refused with the blocking dependents named**, and enabling
-  a module whose dependencies are disabled MUST be refused or require an explicit, confirmed
-  cascade. The platform MUST NOT come to rest in a state where an enabled module depends on a
-  disabled one.
-- **No implicit fall-open.** A gating seam MUST resolve the module's state from the registry. A
-  module with no registration row MUST be reconciled to an **explicit** state at boot rather than
-  being treated as enabled by the absence of a record, so "enabled" is always something the platform
+- **The single exception: its own activation control.** The **only** thing that MAY remain visible
+  for a deactivated module is its own on/off control in Settings, so an operator can turn it back
+  on. A module that is off but leaves anything else visible — one sidebar link, one palette action,
+  one storefront block, one configurable field — violates this principle. In particular, a
+  deactivated module's **own configuration surface MUST NOT be editable**; only its activation is.
+- **Off is not uninstall: non-destructive and reversible.** Deactivating MUST NOT drop tables,
+  delete rows, remove translation bundles, unregister permissions, revert migrations, or discard the
+  module's configuration; that is what hard uninstall is for. Reactivating MUST restore the module's
+  full surface with its data and settings intact, with no manual repair step.
+- **Non-deactivatable modules are declared, never special-cased.** A module the platform cannot
+  function without MUST declare itself non-deactivatable **in its own manifest**, and its control
+  MUST render as **locked with a stated reason** — never silently absent, and never
+  present-but-ignored. The set MUST be minimal and justified: a module belongs in it only if
+  switching it off would leave the platform unable to authenticate an operator, resolve tenancy, or
+  switch anything back on (the lifecycle subsystem and the Settings surface itself being the obvious
+  members). Hard-coding an exception list in the admin app instead of declaring it per module is
+  prohibited.
+- **Dependencies fail closed.** Switching off a module that effectively-present modules depend on
+  (per manifest `dependencies`, transitively) MUST be **refused with the blocking dependents
+  named**, and switching one on whose dependencies are off MUST be refused or require an explicit,
+  confirmed cascade. The platform MUST NOT come to rest in a state where a present module depends on
+  an absent one. This holds on both axes and across them — an activated module whose platform
+  availability is gone is absent, not half-working.
+- **No implicit fall-open on either axis.** A gating seam MUST resolve both states explicitly. A
+  module with no registration row MUST be reconciled to an **explicit** platform state at boot, and
+  a module with no stored activation value MUST resolve to its **manifest-declared default**, rather
+  than either being treated as on by the absence of a record. "On" is always something the platform
   asserted, never something it assumed.
 - **Structural coverage, CI-enforced, with tests.** Every module MUST route its HTTP surface, its
   queue consumers and its event subscriptions through the platform's module-gating wrappers; a CI
   check MUST fail the build for a module that ships routes, workers or subscribers which bypass
-  them. Every module MUST ship a **disabled-state test** proving its API rejects, its admin surface
-  is absent, and its storefront contribution is absent while it is off — and that re-enabling
-  restores all three.
+  them. Every module MUST ship an **off-state test** proving its API rejects, its admin surface is
+  absent, its configuration is not editable and its storefront contribution is absent while it is
+  off — and that switching it back on restores all of them. Coverage MUST include the
+  **deactivated-while-platform-available** case specifically, since that is the axis an operator
+  actually drives.
 
 **Rationale**: A modular platform whose modules cannot actually be turned off is modular only on
-paper. Clients run different subsets of this product — a deployment with no blog, no KSeF, no
-marketing pixels — and today the only way to remove a capability is to not deploy the code, which
-contradicts the one-codebase-many-deployments posture Principle XV establishes. The machinery is
-already here: feature `018-module-lifecycle` built `module_registrations`, the registry cache, and
-the `defineModuleRoutes` / `defineModuleWorker` / `subscribeForModule` / `requireModuleEnabled`
-wrappers. What it did not build was an obligation or an operator surface, and the half-adopted
-result is *worse than no toggle*: only 10 of 67 backend modules gate their routes, the sidebar, the
-command palette and the storefront resolve nothing from the enabled-set, and enable/disable is
-CLI-only because the admin write surface was explicitly deferred. An operator who disables a module
-therefore gets a state that lies to them — the module reads "off" while its sidebar entry, its
-palette actions and its storefront blocks keep working and most of its API keeps answering. That is
-precisely the drift a constitutional principle exists to stop, and it is a correctness and security
-concern, not a cosmetic one: a surface an operator believes they switched off is a surface nobody is
-watching. Mandating a single authoritative state with one operator-facing toggle converts "the
-module is disabled somewhere in the registry" into "the module is gone," and the four-surface rule
-names every place the illusion currently leaks. The carve-outs keep the rule from being a foot-gun:
-without declared non-disableable modules an operator can disable Settings and lose the ability to
-re-enable anything, and without fail-closed dependency handling disabling one module silently breaks
-its dependents. Disable stays non-destructive so the toggle is a safe, reversible operator action
-rather than a data-loss risk — hard uninstall remains the destructive path. The principle composes
-with the guards already in place instead of adding a mechanism: the transition is a Command
-(Principle XIII), workers pause through the separable entrypoint (Principle X), palette entries
-vanish through the same manifest declarations (Principle XVI), and overlay modules participate
-identically (Principle XV).
+paper. The driving case is an integration a client simply does not want: the Ergonode PIM module
+(`pim_ergonode`) is installed, migrated and wired, but this client does not use Ergonode. They must
+be able to switch it off from the Admin UI and have it *gone* — out of the sidebar, its
+synchronisation not running, its API not answering — without anyone touching a deployment. Today the
+only way to remove a capability is to not deploy the code, which contradicts the
+one-codebase-many-deployments posture Principle XV establishes.
+
+**Why two axes rather than one.** "Installed in this deployment" and "wanted by this client" are
+different questions, with different owners and different lifetimes, and collapsing them into a
+single flag breaks both. If the Settings toggle were merely a view over the lifecycle registry, then
+every platform-level disable → enable cycle — maintenance, an incident, an upgrade, a redeploy —
+would silently reactivate a capability the business had deliberately switched off, and the operator
+would discover it by finding Ergonode syncing again. Conversely a business-level write would be able
+to override a platform operator's deliberate lockout. Two states, one **effective** result computed
+as their conjunction, keeps each decision owned by the person who made it and makes the composition
+fail closed: whichever axis says "off" wins, and neither erases the other's intent. It also gives
+the Admin UI something honest to render — "installed but switched off, here is the switch" is a
+different message from "not available in this deployment," and conflating them produces a control
+that looks actionable and silently does nothing.
+
+The machinery for the platform axis already exists: feature `018-module-lifecycle` built
+`module_registrations`, the registry cache, and the `defineModuleRoutes` / `defineModuleWorker` /
+`subscribeForModule` / `requireModuleEnabled` wrappers. What it did not build was the operator axis,
+an obligation to gate, or any frontend awareness — and the half-adopted result is *worse than no
+toggle*: only 10 of 67 backend modules gate their routes, the sidebar, the command palette and the
+storefront resolve nothing from the enabled-set, and enable/disable is CLI-only because the admin
+write surface was explicitly deferred. A module switched off therefore reads as off while its
+sidebar entry, its palette actions and its storefront blocks keep working and most of its API keeps
+answering. That is precisely the drift a constitutional principle exists to stop, and it is a
+correctness and security concern, not a cosmetic one: a surface an operator believes they switched
+off is a surface nobody is watching, and a synchronisation nobody believes is running is a
+synchronisation nobody is auditing. The four-surface rule names every place the illusion currently
+leaks, and resolving it from the effective state converts "the module is off somewhere" into "the
+module is gone."
+
+The carve-outs keep the rule from being a foot-gun: without declared non-deactivatable modules an
+operator can switch off Settings and lose the ability to switch anything back on, and without
+fail-closed dependency handling switching off one module silently breaks its dependents. Off stays
+non-destructive — data *and* configuration survive — so the toggle is a safe, reversible business
+decision rather than a data-loss risk; hard uninstall remains the destructive path. The principle
+composes with the guards already in place instead of adding a mechanism: the activation write is a
+Command (Principle XIII), workers pause through the separable entrypoint (Principle X), palette
+entries vanish through the same manifest declarations (Principle XVI), and overlay modules
+participate identically (Principle XV).
 
 ## Technology Stack
 
@@ -990,24 +1056,31 @@ Every change MUST pass the following sixteen gates before merge:
     when its route was removed). Exhaustive route dumps are a violation too — declare the landing
     surface plus the operator actions that earn a keystroke (Principle IV).
 16. **Module enable/disable completeness** — reviewers MUST reject any change that violates
-    Principle XVII: a module that ships without exactly one enable/disable control in the Settings
-    module, or whose control is registered in a shared hand-maintained list instead of the owning
-    module's manifest; a toggle that becomes a second source of truth able to disagree with the
-    lifecycle registry's enabled-state, or a transition that is not an audited Command (Principle
-    XIII) taking effect across API and worker processes without a redeploy; a disabled module that
-    remains observable on any of the four surfaces — running services / subscribers / consumers /
-    interceptors, an answering route, an Admin UI sidebar entry, palette action, widget or settings
-    group, or a Storefront element — with its own enable control the single permitted exception; a
-    frontend that hard-codes a module's surfaces instead of resolving the enabled-set from the
-    server; a disable path that destroys data, bundles, permissions or schema (that is hard
-    uninstall) or that cannot be reversed by re-enabling; a non-disableable module hard-coded in
-    the admin app rather than declared in its manifest with a stated reason, or declared without
-    justification; a disable that leaves an enabled module depending on a disabled one (blocking
-    dependents MUST be named and the operation refused, and enabling against disabled dependencies
-    MUST be refused or an explicit confirmed cascade); a gating seam that treats a missing
-    registration row as enabled; or a module whose routes, workers or event subscriptions bypass
-    the platform's gating wrappers, or that ships without a disabled-state test covering API
-    rejection, admin absence, storefront absence and restoration on re-enable.
+    Principle XVII: a gating seam that resolves only one of the two axes (platform availability from
+    the lifecycle registry, operator activation from the Settings control) instead of the effective
+    conjunction, or that fails open when either is off or unresolved; an activation write that
+    mutates the lifecycle registry, or a lifecycle disable → enable cycle that discards the
+    operator's activation choice (neither axis may overwrite the other); a module that ships without
+    exactly one activation control in the Settings module, or whose control is registered in a
+    shared hand-maintained list instead of the owning module's manifest; an activation transition
+    that is not an audited Command (Principle XIII) taking effect across API and worker processes
+    without a redeploy; an Admin UI that renders a platform-unavailable module as merely "switched
+    off" rather than absent or blocked-with-a-reason; a module that is off yet remains observable on
+    any of the four surfaces — running services / subscribers / consumers / interceptors, an
+    answering route, an Admin UI sidebar entry, palette action, widget or settings group, an editable
+    configuration surface, or a Storefront element — with its own activation control the single
+    permitted exception; a frontend that hard-codes a module's surfaces instead of resolving the
+    effective enabled-set from the server; an off path that destroys data, configuration, bundles,
+    permissions or schema (that is hard uninstall) or that cannot be reversed by switching back on;
+    a non-deactivatable module hard-coded in the admin app rather than declared in its manifest with
+    a stated reason, or declared without justification; an operation that leaves a present module
+    depending on an absent one (blocking dependents MUST be named and the operation refused, and
+    switching on against absent dependencies MUST be refused or an explicit confirmed cascade); a
+    gating seam that treats a missing registration row or a missing activation value as "on" instead
+    of resolving an explicit state / the manifest default; or a module whose routes, workers or event
+    subscriptions bypass the platform's gating wrappers, or that ships without an off-state test
+    covering API rejection, admin absence, non-editable configuration, storefront absence and
+    restoration — including the deactivated-while-platform-available case.
 
 Code review MUST explicitly verify each of the above. "LGTM" without
 evidence of checking the gates is not an approval.

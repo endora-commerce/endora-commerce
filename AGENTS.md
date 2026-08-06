@@ -83,12 +83,13 @@ replacement. Non-negotiable ones are marked **(NN)**.
   where the requirement is "add a field".
 - **XV. Untouched core & per-deployment overlay** — see "Overlay modules" below.
 - **XVI. Module discoverability in the command palette** — see the checklist below.
-- **XVII. Operator-toggleable modules (NN)** — every module is switchable on/off from the
-  Settings module through one manifest-declared control backed by the lifecycle registry's
-  single authoritative enabled-state. A disabled module behaves as if never installed —
-  business logic, API, Admin UI and Storefront — its own enable control being the one
-  exception. Disable is non-destructive and reversible; non-disableable modules declare
-  that in their manifest; dependencies fail closed. See the checklist below.
+- **XVII. Operator-toggleable modules (NN)** — presence is the conjunction of **two
+  orthogonal axes**: platform availability (lifecycle registry, deployment-owned, CLI) and
+  operator activation (a manifest-declared Setting in the Settings module, business-owned,
+  Admin UI). Neither overwrites the other. A module that is off behaves as if never
+  installed — business logic, API, Admin UI and Storefront — its own activation control
+  being the one exception. Off is non-destructive and reversible; non-deactivatable modules
+  declare that in their manifest; dependencies fail closed. See the checklist below.
 
 ## Required checklists for a new backend module
 
@@ -135,10 +136,22 @@ is not enough.
 
 ### Module enable/disable (Principle XVII)
 
-Every module must be switchable off by an operator and must then behave as if it were never
-installed. The gating wrappers already exist in `backend/src/modules/_lifecycle/`
-(`defineModuleRoutes`, `defineModuleWorker`, `subscribeForModule`, `requireModuleEnabled`)
-— only 10 of 67 modules currently use them, so assume the module you are touching does not.
+A module's presence is the **conjunction of two orthogonal axes** — do not conflate them:
+
+| Axis | Stored in | Owned by | Changed via | Answers |
+| --- | --- | --- | --- | --- |
+| **Platform availability** | lifecycle registry (`module_registrations`) | deployment operator | CLI / deployment tooling | is this module installed and wired here? |
+| **Operator activation** | a Setting in the `settings` module | business operator | Admin UI | does this client want this capability? |
+
+Effective presence = **both true**. Gate on the effective state, fail closed if either is off.
+An activation write must not touch the registry, and a platform disable → enable cycle must
+preserve the operator's activation choice.
+
+The gating wrappers exist in `backend/src/modules/_lifecycle/` (`defineModuleRoutes`,
+`defineModuleWorker`, `subscribeForModule`, `requireModuleEnabled`) but today resolve only
+the platform axis via `registryCache.isEnabled` — extend them to the effective state rather
+than adding a parallel check. Only 10 of 67 modules use them at all, so assume the module you
+are touching does not.
 
 1. **Routes** — wrap the module's route registration in `defineModuleRoutes('<id>', …)` so
    gating holds at the registration seam for every route the module owns, including later
@@ -148,16 +161,20 @@ installed. The gating wrappers already exist in `backend/src/modules/_lifecycle/
 3. **Cross-module calls** — service entry points reachable from another module call
    `requireModuleEnabled('<id>')`, so a caller gets the explicit 503 envelope
    (`ERROR_CODES.MODULE_DISABLED`) instead of a half-executed operation.
-4. **Manifest** — declare the module's enable/disable control, and, if the platform genuinely
-   cannot run without the module, declare it non-disableable with a reason. Never hard-code
-   an exception list in the admin app.
-5. **Admin and Storefront** — a disabled module contributes no sidebar entry, palette action,
-   widget, tab or settings group, and no storefront element. Both frontends resolve this from
-   the server's enabled-set; do not hard-code the surfaces.
-6. **Tests** — ship a disabled-state test proving API rejection, admin absence and storefront
-   absence while off, and full restoration on re-enable.
+4. **Manifest** — declare the module's activation control and its default, and, if the
+   platform genuinely cannot run without the module, declare it non-deactivatable with a
+   reason. Never hard-code an exception list in the admin app.
+5. **Admin and Storefront** — a module that is off contributes no sidebar entry, palette
+   action, widget, tab, settings group or editable configuration, and no storefront element.
+   Both frontends resolve this from the server's effective enabled-set; do not hard-code the
+   surfaces. A platform-unavailable module renders as absent or blocked-with-a-reason, never
+   as merely "switched off".
+6. **Tests** — ship an off-state test proving API rejection, admin absence, non-editable
+   configuration and storefront absence while off, plus full restoration — and cover the
+   deactivated-while-platform-available case specifically.
 
-Disabling is **not** uninstalling: it drops no data, bundles, permissions or schema.
+Switching a module off is **not** uninstalling: it drops no data, configuration, bundles,
+permissions or schema.
 
 ### Migrations (feature 065)
 
