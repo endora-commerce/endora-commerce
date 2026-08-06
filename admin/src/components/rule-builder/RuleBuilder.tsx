@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { Select } from '@/components/ui/select';
 import type { PromotionRule } from '@b2b/contracts';
 
@@ -78,6 +79,12 @@ export interface RuleBuilderLabels {
   attributeGroup?: string;
   /** The sentence shown on the `all` node. */
   matchAll?: string;
+  /** Trigger text for the value picker while nothing is chosen. */
+  valuesPlaceholder?: string;
+  /** Accessible name for the value picker's trigger. */
+  valuesLabel?: string;
+  /** Placeholder inside the value picker's search box. */
+  valuesSearchPlaceholder?: string;
 }
 
 const BUILTIN_FIELDS: RuleBuilderBuiltinField[] = [
@@ -100,6 +107,9 @@ const DEFAULT_LABELS: Required<RuleBuilderLabels> = {
   builtinGroup: 'Cart & relationship',
   attributeGroup: 'Attributes',
   matchAll: 'Matches all carts.',
+  valuesPlaceholder: 'Any value',
+  valuesLabel: 'Value',
+  valuesSearchPlaceholder: 'Search…',
 };
 
 const ATTRIBUTE_OPS: string[] = ['eq', 'neq', 'in', 'notIn', 'between'];
@@ -417,24 +427,24 @@ function ConditionRow({
         ))}
       </Select>
       {options ? (
-        <select
-          multiple
-          className="h-20 w-48 rounded-md border border-input bg-transparent px-2 py-1 text-sm"
+        // Not a native `<select multiple>`: its only way to pick a second
+        // option is ctrl-click, which most people have never been taught, and
+        // one stray click silently drops everything already selected. It also
+        // has no search — and categories, the field this is used for most, are
+        // exactly the long list that makes worst. `MultiSelect` is the same
+        // control every other filter surface in the admin uses (Principle IX).
+        <MultiSelect
+          className="w-48"
+          options={options}
+          selected={condition.values.map(String)}
+          onChange={(next) => onChange({ ...condition, values: next })}
+          placeholder={labels.valuesPlaceholder}
+          ariaLabel={labels.valuesLabel}
           disabled={disabled}
-          value={condition.values.map(String)}
-          onChange={(e) =>
-            onChange({
-              ...condition,
-              values: Array.from(e.target.selectedOptions).map((o) => o.value),
-            })
-          }
-        >
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          // Worth it wherever the set can be long; harmless when it is short.
+          searchable
+          searchPlaceholder={labels.valuesSearchPlaceholder}
+        />
       ) : (
         <Input
           className="w-48"
