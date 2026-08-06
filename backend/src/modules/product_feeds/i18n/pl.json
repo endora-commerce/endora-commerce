@@ -34,6 +34,7 @@
   "feeds.action.open": "Otwórz",
   "feeds.action.duplicate": "Duplikuj",
   "feeds.action.delete": "Usuń",
+  "feeds.action.more": "Więcej akcji dla {name}",
   "feeds.action.download": "Pobierz plik",
   "feeds.state.disabled": "Wyłączony",
   "feeds.state.running": "Generowanie…",
