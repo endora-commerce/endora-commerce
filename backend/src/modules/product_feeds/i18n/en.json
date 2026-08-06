@@ -140,6 +140,7 @@
   "runs.failed.previousServed": "Your previous file is still being served, so your campaigns keep running.",
   "runs.issues.empty": "Nothing was left out. Every product made it into the file.",
   "runs.failure.channel_unavailable": "This feed's sales channel is missing or inactive.",
+  "runs.failure.storefront_url_unconfigured": "This feed builds product links, but its sales channel has no storefront URL. Set \"Storefront URL\" for that channel in Settings.",
   "runs.failure.price_list_unavailable": "This feed's price list is missing.",
   "runs.failure.language_unavailable": "This feed's language is no longer active.",
   "runs.failure.unbound_template_fields": "The template has fields that are not bound to anything.",

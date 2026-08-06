@@ -147,6 +147,14 @@ export const feedRunFailureCodeSchema = z.enum([
   'unbound_template_fields',
   'unknown_attribute',
   'channel_unavailable',
+  /**
+   * The template binds a required field to the platform `link` source, but the
+   * feed's sales channel has no storefront origin — `sales_channels.storefront_url`
+   * is empty and `STOREFRONT_BASE_URL` is unset. Without it every item loses its
+   * link and is skipped, so the run names the setting instead of reporting the
+   * symptom once per product.
+   */
+  'storefront_url_unconfigured',
   'price_list_unavailable',
   'language_unavailable',
   'skip_threshold_exceeded',
