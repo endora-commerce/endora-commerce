@@ -9,9 +9,10 @@ The `product_feeds` module (feature `067`) turns the catalogue of one sales chan
 marketplace flat file — publishes it at a **stable, tokenised URL** the provider fetches
 anonymously, and regenerates it on a per-feed schedule.
 
-Delivery in this version is **pull only**: the provider fetches the URL, or an administrator
-downloads the file. There is no FTP/SFTP upload, no e-mail delivery and no marketplace API
-integration.
+Feeds leave the platform two ways. **Pull** is the original one and still the default: the
+provider fetches the tokenised URL, or an administrator downloads the file. **Push** arrived with
+feature `070` — each successful run can also send its file to a partner's server over SFTP, FTP or
+HTTP. The two are independent, so a feed can do both.
 
 ## For operators
 
@@ -280,6 +281,60 @@ Under **Settings → Product feeds**:
 
 ---
 
+### Delivering a feed to a partner's server
+
+Google and Meta fetch the link themselves, so most feeds need nothing here. Marketplaces and ERP
+integrations usually want the opposite: the file dropped on a server they poll. That is what the
+feed's **Delivery** tab configures.
+
+A feed carries **at most one** delivery target, and delivery is switched on and off independently
+of the target — so you can configure a partner now and start sending next week, or stop sending
+without losing the settings.
+
+| Protocol | What it does | Fields |
+| --- | --- | --- |
+| **SFTP** | Uploads over SSH. The one to prefer. | Host, port, user, password **or** private key, directory |
+| **FTP** | Uploads over FTP, asking for FTPS first. | Host, port, user, password, directory |
+| **HTTP Server / API / GraphQL** | `POST`s the file to a URL. | Request URL, headers |
+
+The last three are **one mechanism with three names**. The partner's documentation may call their
+endpoint an API or a GraphQL endpoint; the platform sends the same request either way, and the
+choice only changes the label on your screen.
+
+#### When delivery happens
+
+After a run **publishes successfully**, and only then. A failed run, an empty run, or a run skipped
+because the previous one was still going sends nothing — the file the partner already has is still
+the current one, and re-sending it would announce a change that did not happen.
+
+If the upload fails, the run stays successful and the published link keeps working. The delivery is
+retried a few times with a growing delay; if it still fails, it stops and an administrator is
+notified. Every attempt — successful or not — is listed under the tab, with the reason.
+
+#### Secrets
+
+Passwords, private keys and any header whose name says it carries a token (`Authorization`,
+`X-Api-Key` and the like) are stored encrypted and are **never shown again**. A stored secret
+appears as `[redacted]`, and leaving it that way keeps it — so editing a directory path cannot
+silently erase your password.
+
+#### Two refusals worth knowing about
+
+- **`http://` is refused for the HTTP protocols.** The authenticating header travels with the
+  request, so the address must be `https://`.
+- **Private and internal addresses are refused**, including `169.254.169.254` and anything on your
+  own network. The feed carries your whole priced catalogue; the platform will only send it
+  somewhere reachable from the public internet.
+
+FTP itself is plaintext by design. The platform asks every FTP server for TLS and only falls back
+to plain FTP if it refuses, but if the partner offers SFTP, choose SFTP.
+
+#### Test connection
+
+**Test connection** proves the target is reachable and the credentials work, without sending a
+feed. On SFTP and FTP it writes and immediately removes one tiny file, because a directory you
+cannot write to is the failure a connect-only test would miss. It is rate-limited per feed.
+
 ## For engineers
 
 ### Shape
@@ -330,6 +385,46 @@ Four properties this pipeline is responsible for:
 The residual memory growth above is not the items: it is the channel's membership id list, which is
 materialised before paging (about 90 bytes per product in the channel). That is O(the channel), not
 O(the feed).
+
+### Delivery (feature 070)
+
+Delivery is a **post-publication side effect**, wired on the same seam as retention and the
+failed-run notification: `deliverArtefact` is an optional port on `FeedGenerationDeps`, invoked on
+the publishing branch and nowhere else. That placement is the requirement — a run that did not
+publish must not deliver — and it is also what keeps a delivery failure away from the run, which
+has already finished by the time the upload is attempted.
+
+```
+run publishes  →  deliverArtefact?(feedId, runId, artefactId)   [port, optional]
+                    → enqueue on product_feeds.deliver          (Principle X)
+                      → resolve config + secrets
+                        → adapter.send(stream, target)          [transport SPI]
+                          → record attempt
+```
+
+With no Redis the port delivers **inline** instead of enqueueing. A single-process deployment
+otherwise lets an operator configure a target, see no error, and never be delivered to.
+
+Two tables, both owned by the module: `product_feed_deliveries` (one row per feed, enforced by a
+unique index) and `product_feed_delivery_attempts` (append-only, bounded per feed).
+
+**No secret column exists.** `credential_code` points at a `credentials`-module configuration, which
+owns encryption at rest and masking on read; the split between secret and non-secret headers is
+made by `isSecretDeliveryHeader` in the contracts package, deliberately by rule rather than by an
+operator checkbox. `credentials` is therefore a *service* dependency in the manifest, not an
+FK-driven one.
+
+The transport SPI (`services/delivery/delivery-adapter.interface.ts`) takes a `Readable`, never a
+`Buffer`, for the same reason the serializers do — and it is the overlay seam for a partner's
+bespoke protocol. `HttpDeliveryAdapter` reuses the address rules in `taxonomy-source-url.ts` rather
+than copying them: two SSRF guards in one module is one guard that gets fixed and one that does not.
+
+Nothing recorded on an attempt is a credential. `target` is a redacted display form, and every
+failure message goes through `delivery-redaction.ts`, which is **value-driven** — it is handed the
+exact secrets in play and removes those strings, rather than guessing what a password looks like.
+
+The test harness injects adapters that refuse every send, for the same reason it injects a taxonomy
+fetcher that cannot fetch: no test in this repository may upload a priced catalogue anywhere.
 
 ### Channel scoping (Principle XII)
 
@@ -430,7 +525,8 @@ harness also points the taxonomy reconciler at a non-existent directory, so only
 
 ### Deliberately out of scope in this version
 
-- Push delivery of any kind (FTP/SFTP, e-mail, Amazon SP-API, eBay, Allegro).
+- E-mail delivery, and marketplace-specific APIs (Amazon SP-API, eBay, Allegro). Push delivery
+  covers SFTP, FTP and HTTP only — see **Delivery** above.
 - Incremental, supplemental or delta feeds — every run regenerates the whole file.
 - Multiple countries or currencies in one file; duplicate the feed instead.
 - A runtime taxonomy download.

@@ -130,6 +130,12 @@ import type {
   TaxonomyFetchResult,
   TaxonomySourceFetcherPort,
 } from '../../src/modules/product_feeds/services/taxonomy-source-fetcher.interface.js';
+import { feedDeliveryConfigurationType } from '../../src/modules/product_feeds/services/delivery/delivery-credential.type.js';
+import {
+  FeedDeliveryError,
+  type FeedDeliveryAdapter,
+} from '../../src/modules/product_feeds/services/delivery/delivery-adapter.interface.js';
+import type { FeedDeliveryProtocol } from '@b2b/contracts';
 import { pimErgonodeModule } from '../../src/modules/pim_ergonode/plugin.js';
 import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services/ergonode-client.port.js';
 import { ergonodeConfigurationType } from '../../src/modules/pim_ergonode/services/ergonode-credential.type.js';
@@ -221,6 +227,13 @@ export interface BackendServerOptions {
    * pass their own fixture-serving stub.
    */
   taxonomySourceFetcher?: TaxonomySourceFetcherPort;
+  /**
+   * Feature 070 — the delivery transports. Defaults to adapters that REFUSE
+   * every send and every check, for the same reason the taxonomy fetcher does:
+   * a code path that starts uploading a priced catalogue to somebody's server
+   * without a test opting in has to fail loudly, not quietly succeed.
+   */
+  feedDeliveryAdapters?: Map<FeedDeliveryProtocol, FeedDeliveryAdapter>;
   /**
    * Feature 068 — the Ergonode source transport. Defaults to a client that
    * THROWS on every stream read, so a test that forgets to script the source
@@ -358,6 +371,36 @@ function refusingTaxonomyFetcher(): TaxonomySourceFetcherPort {
       };
     },
   };
+}
+
+/**
+ * Feature 070 — the delivery transport half of the same precaution.
+ *
+ * Every adapter refuses, with a reason that names the harness rather than a
+ * network condition, so a test that reaches a transport without scripting one
+ * reads as a configuration mistake instead of as a flaky partner server.
+ */
+function refusingDeliveryAdapters(): Map<FeedDeliveryProtocol, FeedDeliveryAdapter> {
+  const refuse = (protocol: FeedDeliveryProtocol): FeedDeliveryAdapter => ({
+    protocol,
+    async send(): Promise<void> {
+      throw new FeedDeliveryError(
+        'connection_failed',
+        'No delivery transport is configured in the test harness.',
+      );
+    },
+    async check(): Promise<void> {
+      throw new FeedDeliveryError(
+        'connection_failed',
+        'No delivery transport is configured in the test harness.',
+      );
+    },
+  });
+  return new Map<FeedDeliveryProtocol, FeedDeliveryAdapter>([
+    ['sftp', refuse('sftp')],
+    ['ftp', refuse('ftp')],
+    ['http', refuse('http')],
+  ]);
 }
 
 function hashTestPassword(): Promise<string> {
@@ -1411,6 +1454,11 @@ export async function setupBackendServer(
   if (!configurationTypeRegistry.isRegistered(ergonodeConfigurationType.code)) {
     configurationTypeRegistry.register(ergonodeConfigurationType);
   }
+  // Feature 070 — same reason: without this the delivery configuration's
+  // password resolves to an inert type and every write fails misleadingly.
+  if (!configurationTypeRegistry.isRegistered(feedDeliveryConfigurationType.code)) {
+    configurationTypeRegistry.register(feedDeliveryConfigurationType);
+  }
   const credentials = credentialsModule({
     emFactory: em,
     settings: settings.handle.settingsService,
@@ -1999,6 +2047,10 @@ export async function setupBackendServer(
     // code path that starts fetching without a test opting in shows up as a
     // failed check rather than as a real download.
     taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
+    // Feature 070 — every delivery secret lives in the credentials module
+    // (FR-107), so delivery exists only where that module is wired.
+    credentials: credentials.handle.service,
+    deliveryAdapters: options.feedDeliveryAdapters ?? refusingDeliveryAdapters(),
   });
   modules.push(productFeeds.plugin);
   await productFeeds.handle.reconcileTemplates();

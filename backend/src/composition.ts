@@ -137,6 +137,7 @@ import { configurationTypeRegistry } from './modules/credentials/services/regist
 import { llmConfigurationType } from './modules/credentials/types/llm.type.js';
 import { emailAdapterConfigurationType } from './modules/credentials/types/email-adapter.type.js';
 import { ergonodeConfigurationType } from './modules/pim_ergonode/services/ergonode-credential.type.js';
+import { feedDeliveryConfigurationType } from './modules/product_feeds/services/delivery/delivery-credential.type.js';
 // Feature 046 — Progressive Web App.
 import { pwaModule } from './modules/pwa/plugin.js';
 // Feature 047 — Transactional Emails.
@@ -730,6 +731,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   configurationTypeRegistry.register(llmConfigurationType);
   configurationTypeRegistry.register(emailAdapterConfigurationType);
   configurationTypeRegistry.register(ergonodeConfigurationType);
+  configurationTypeRegistry.register(feedDeliveryConfigurationType);
   const credentials = credentialsModule({
     emFactory: em,
     // US2 — the delete-integrity guard reaches settings only through this port
@@ -2309,6 +2311,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     salesChannelMembership: salesChannels.handle.membershipService,
     pricingService: priceLists.handle.pricingService,
     taxService: taxes.handle.taxService,
+    // Feature 070 — every secret a delivery target needs is stored through the
+    // credentials module (FR-107); this module holds only the pointer.
+    credentials: credentials.handle.service,
     resolveAvailability: async (productIds, salesChannelId) => {
       const candidateWarehouseIds =
         await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);

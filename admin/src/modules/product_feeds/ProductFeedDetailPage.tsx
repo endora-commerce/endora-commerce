@@ -15,11 +15,12 @@ import {
   type IssuedFeedToken,
   type ProductFeedDto,
 } from './api';
+import { FeedDeliveryPanel } from './components/FeedDeliveryPanel';
 import { FeedLinkCard } from './components/FeedLinkCard';
 import { FeedSettingsForm } from './components/FeedSettingsForm';
 import { FeedStatusBadge } from './components/FeedStatusBadge';
 
-type Tab = 'overview' | 'runs' | 'settings';
+type Tab = 'overview' | 'runs' | 'delivery' | 'settings';
 
 const POLL_INTERVAL_MS = 5_000;
 
@@ -231,7 +232,7 @@ export function ProductFeedDetailPage(): ReactNode {
 
       <div className="b2b-tabs-scroll mb-4">
         <div className="b2b-tabs" role="tablist">
-          {(['overview', 'runs', 'settings'] as const).map((id) => (
+          {(['overview', 'runs', 'delivery', 'settings'] as const).map((id) => (
             <button
               key={id}
               type="button"
@@ -280,6 +281,9 @@ export function ProductFeedDetailPage(): ReactNode {
           </CardContent>
         </Card>
       )}
+
+      {/* Feature 070 — where this feed is pushed, and whether the partner got it. */}
+      {tab === 'delivery' && <FeedDeliveryPanel feedId={feed.id} />}
 
       {tab === 'settings' && <FeedSettingsForm feed={feed} onSaved={setFeed} />}
     </div>
