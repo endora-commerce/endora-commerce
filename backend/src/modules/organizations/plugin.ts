@@ -31,9 +31,9 @@ import { registerOrganizationsAdminRoutes } from './routes.admin.js';
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
-import type { RequireAdminAnyFactory } from '../../http/require-admin-any.js';
+import type { RequireAdminAnyFactory } from '../../kernel/ports/require-admin.js';
 import type { DictionaryValidator } from '@b2b/contracts';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the organizations + customer_accounts + addresses

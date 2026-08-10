@@ -6,8 +6,8 @@ import { ApiKeyService, type AuthenticatedApiKey } from './services/api-key-serv
 import { WebhookService } from '../webhooks/services/webhook-service.js';
 import { registerApiKeysAdminRoutes } from './routes.js';
 import { registerWebhooksAdminRoutes } from '../webhooks/routes.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the US7 surface — API keys + webhooks.

@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import webpush from 'web-push';
 import { z } from 'zod';
 import {
@@ -16,10 +16,7 @@ import type { PwaConfigResolver } from './services/pwa-config-resolver.js';
 import { PwaIconInvalid, type PwaIconService } from './services/pwa-icon-service.js';
 import type { PushSubscriptionService } from './services/push-subscription-service.js';
 import type { PushMessageService } from './services/push-message-service.js';
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface AdminAuditContext {
   actorAdminUserId: string | null;

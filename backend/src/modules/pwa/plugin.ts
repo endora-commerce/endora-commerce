@@ -23,9 +23,9 @@ import {
 import {
   registerPwaAdminRoutes,
   type AdminAuditContext,
-  type RequireAdminFactory,
   type SettingsWritePort,
 } from './routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 const BoolSchema = z.boolean();
 

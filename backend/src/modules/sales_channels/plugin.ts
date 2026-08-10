@@ -4,7 +4,6 @@ import type Redis from 'ioredis';
 import type { DictionaryValidator } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
-import type { RequireAdminFactory } from '../settings/plugin.js';
 import {
   SalesChannelsCache,
   type CachedChannel,
@@ -22,6 +21,7 @@ import {
 } from './services/sales-channels.service.js';
 import { registerSalesChannelResolverMiddleware } from './middleware/sales-channel-resolver.js';
 import { registerSalesChannelsAdminRoutes } from './routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the sales-channels module — feature 005 / T018.

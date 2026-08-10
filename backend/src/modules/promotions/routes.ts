@@ -17,8 +17,8 @@ import type { Promotion } from './entities/promotion.entity.js';
 import type { PromotionCoupon } from './entities/promotion-coupon.entity.js';
 import type { PromotionRuleEntity } from './entities/promotion-rule.entity.js';
 import { PROMOTION_PERMISSIONS } from './manifest.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface PromotionRoutesDeps {
   promotionService: PromotionService;

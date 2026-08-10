@@ -20,7 +20,6 @@ import {
   type SuggestionPricingEnricher,
 } from './routes.public.js';
 import { registerSearchAdminRoutes } from './routes.admin.js';
-import type { RequireAdminFactory } from '../settings/plugin.js';
 import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
 import type {
   AdminAuditContext,
@@ -28,6 +27,7 @@ import type {
 } from '../settings/services/settings-admin.service.js';
 import type { SettingsService } from '../settings/services/settings.service.js';
 import { SEARCH_SETTING_CODES } from './manifest.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the search module — feature 006.

@@ -20,7 +20,6 @@ import type { ModulePlugin } from '../http/server.js';
 import type { EventBus } from '../events/bus.js';
 import type { CommandBus } from '../commands/index.js';
 import type { AuditLogService } from '../modules/audit_logs/services/audit-log-service.js';
-import type { RequireAdminFactory } from '../modules/catalog/routes.admin.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import {
   activeOverlayModulesRoot,
@@ -28,6 +27,7 @@ import {
   selectedDeployment,
 } from './overlay-roots.js';
 import { indexCore, resolveOverlay, scanOverlay } from './resolve-overlay.js';
+import type { RequireAdminFactory } from '../kernel/ports/require-admin.js';
 
 const RUNNING_FROM_DIST = import.meta.url.includes('/dist/');
 

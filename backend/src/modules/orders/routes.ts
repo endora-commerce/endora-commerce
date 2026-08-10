@@ -44,7 +44,6 @@ import { OrderAppliedPromotion } from './entities/order-applied-promotion.entity
 import { Invoice } from '../invoices/entities/invoice.entity.js';
 import { Asset } from '../assets_library/entities/asset.entity.js';
 import { buildBulkInvoicesPdf, buildMinimalInvoicePdf } from '../invoices/services/invoice-pdf.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
 import type { PricingService } from '../price_lists/services/pricing-service.js';
 import { Product } from '../catalog/entities/product.entity.js';
@@ -53,6 +52,7 @@ import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js
 import { DeliveryMethod } from '../delivery_methods/entities/delivery-method.entity.js';
 import { PaymentMethod } from '../payment_methods/entities/payment-method.entity.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface OrdersDeps {
   orderService: OrderService;

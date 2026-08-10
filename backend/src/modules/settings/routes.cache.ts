@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { ClearCacheRequestSchema } from '@b2b/contracts';
-import type { RequireAdminFactory } from './plugin.js';
 import type { CacheAdminService } from './services/cache-admin.service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin cache-maintenance routes — lets an operator flush selected Redis cache

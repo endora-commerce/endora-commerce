@@ -70,7 +70,7 @@ import { ShipmentService } from '../shipments/services/shipment-service.js';
 import { ReceiveShipmentHandler } from '../shipments/services/receive-shipment-handler.js';
 import type { ShippingEventBus } from '../shipments/services/events.js';
 import { registerShipmentsRoutes } from '../shipments/routes.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the commerce surface — carts + orders + invoice

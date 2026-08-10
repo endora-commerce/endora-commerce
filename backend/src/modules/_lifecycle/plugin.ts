@@ -17,7 +17,6 @@ import type { LoadedManifestRegistry } from './services/manifest-loader.js';
 import {
   registerLifecycleAdminRoutes,
   registerModulePresenceRoutes,
-  type RequireAdminFactory,
 } from './routes.admin.js';
 import { registerModulePresenceStorefrontRoutes } from './routes.storefront.js';
 import { ModuleRegistration } from './entities/module-registration.entity.js';
@@ -25,6 +24,7 @@ import { resumeWorkersFor } from './plugin-helpers.js';
 import { findInactiveModules } from './registered-manifests.js';
 import type { CommandBus } from '../../commands/index.js';
 import { publishStateChanged } from './services/registry-cache.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface LifecycleModuleDeps {
   orm: MikroORM;

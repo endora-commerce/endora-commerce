@@ -16,13 +16,13 @@ import type { PriceListService } from './services/price-list-service.js';
 import type { PricingService } from './services/pricing-service.js';
 import { CustomerGroup } from './entities/customer-group.entity.js';
 import type { PriceList } from './entities/price-list.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
 import { Category } from '../catalog/entities/category.entity.js';
 import { Organization } from '../organizations/entities/organization.entity.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface PricingRoutesDeps {
   customerGroupService: CustomerGroupService;

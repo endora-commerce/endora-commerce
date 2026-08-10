@@ -7,7 +7,7 @@
 // plugin continues to register its routes for one release; it will be
 // retired in the cleanup PR after the new admin surface is complete.
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { CmsColorPaletteEntry } from '@b2b/contracts';
@@ -24,10 +24,7 @@ import { CmsHookService } from './services/cms-hook-service.js';
 import { CmsCache, type CmsCacheOptions } from './services/cms-cache.js';
 import { registerCmsAdminRoutes } from './routes.admin.js';
 import { registerCmsStorefrontRoutes } from './routes.storefront.js';
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface ColorPaletteAuditContext {
   actorAdminUserId: string | null;

@@ -24,10 +24,7 @@ import { registerMfaSelfServiceRoutes } from './routes.self-service.js';
 import { registerMfaAdminRoutes } from './routes.admin.js';
 import { registerMfaOrgRoutes } from './routes.org.js';
 import { registerMfaOAuthRoutes } from './routes.oauth.js';
-
-type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * MFA module composition root (feature 042).

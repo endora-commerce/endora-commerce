@@ -9,8 +9,8 @@ import {
 } from './services/credentials.service.js';
 import {
   registerCredentialsAdminRoutes,
-  type RequireAdminFactory,
 } from './routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the credentials module — feature 058.

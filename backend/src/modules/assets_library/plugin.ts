@@ -1,6 +1,6 @@
 // Assets Library — Fastify plugin / composition root for the module.
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import fastifyMultipart from '@fastify/multipart';
 
@@ -15,10 +15,7 @@ import { Setting } from '../settings/entities/setting.entity.js';
 import { SettingValue } from '../settings/entities/setting-value.entity.js';
 import { registerAssetsLibraryAdminRoutes } from './routes.admin.js';
 import { registerAssetsLibraryPublicRoutes } from './routes.public.js';
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface AssetsLibraryModuleOptions {
   emFactory: () => EntityManager;

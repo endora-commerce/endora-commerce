@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DictionaryValidator } from '@b2b/contracts';
 import type Redis from 'ioredis';
@@ -26,6 +26,7 @@ import { registerSettingsProductCardButtonsRoutes } from './routes.product-card-
 import { ProductCardButtonsResolver } from './services/product-card-buttons-resolver.js';
 import { registerSettingsSpeculationRulesRoutes } from './routes.speculation-rules.js';
 import { SpeculationRulesResolver } from './services/speculation-rules-resolver.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the settings module — feature 004.
@@ -40,10 +41,6 @@ import { SpeculationRulesResolver } from './services/speculation-rules-resolver.
  * Boot-time manifest reconciliation runs from `composition.ts` directly
  * (T024); this plugin does not touch it.
  */
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 export interface SettingsModuleOptions {
   emFactory: () => EntityManager;

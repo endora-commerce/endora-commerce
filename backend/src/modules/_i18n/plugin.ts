@@ -7,9 +7,9 @@ import { I18nService } from './services/i18n-service.js';
 import { BundleLoadError } from './services/bundle-loader.js';
 import {
   registerI18nAdminRoutes,
-  type RequireAdminFactory,
 } from './routes.admin.js';
 import type { FastifyRequest } from 'fastify';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin UI i18n module composition root — feature 019.

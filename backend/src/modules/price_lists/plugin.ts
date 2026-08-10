@@ -7,9 +7,9 @@ import { PriceListStatusWorker } from './services/price-list-status-worker.js';
 import { PricingCache } from './services/pricing-cache.js';
 import { registerPricingRoutes } from './routes.js';
 import { registerStorefrontPricingRoutes } from './routes.storefront.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 const STATUS_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 

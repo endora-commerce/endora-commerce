@@ -5,7 +5,7 @@ import {
 } from '@b2b/contracts';
 import type { MetaTagResolverService } from './services/meta-tag-resolver.service.js';
 import type { SitemapGeneratorService } from './services/sitemap-generator.service.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface SeoRoutesDeps {
   metaResolver: MetaTagResolverService;

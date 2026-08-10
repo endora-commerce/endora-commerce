@@ -26,7 +26,7 @@ import {
   registerQuoteRequestsAdminRoutes,
   type AdminContextResolver,
 } from './routes.admin.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface QuoteRequestsModuleOptions {
   emFactory: () => EntityManager;

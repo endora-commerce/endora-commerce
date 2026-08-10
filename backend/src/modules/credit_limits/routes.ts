@@ -12,7 +12,7 @@ import type { CreditLimitService } from './services/credit-limit-service.js';
 import type { CreditLimit } from './entities/credit-limit.entity.js';
 import type { CreditLimitReservation } from './entities/credit-limit-reservation.entity.js';
 import { Organization } from '../organizations/entities/organization.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface CreditLimitsDeps {
   creditLimitService: CreditLimitService;

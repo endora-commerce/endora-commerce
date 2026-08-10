@@ -4,7 +4,7 @@
 // seed reconcilers on first plugin invocation (idempotent), and exposes
 // the module handle so other modules + tests can call into it.
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DictionaryValidator } from '@b2b/contracts';
 import type Redis from 'ioredis';
@@ -26,10 +26,7 @@ import { registerBlogAdminRoutes } from './routes.admin.js';
 import { defineModuleRoutes } from '../_lifecycle/plugin-helpers.js';
 import { registerBlogStorefrontRoutes } from './routes.storefront.js';
 import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface BlogModuleOptions {
   emFactory: () => EntityManager;

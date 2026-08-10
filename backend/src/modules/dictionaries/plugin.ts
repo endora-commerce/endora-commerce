@@ -4,7 +4,7 @@
 // validator, seed reconciler) can hang implementations on a stable handle.
 // Real wiring lands in Phase 2 (T011, T013) and the user-story phases.
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { DictionaryValidator as DictionaryValidatorPort } from '@b2b/contracts';
@@ -24,10 +24,7 @@ import { registerDictionaryAdminRoutes } from './routes.admin.js';
 import { registerDictionaryStorefrontRoutes } from './routes.storefront.js';
 import { LanguageService } from '../languages/services/language-service.js';
 import { CurrencyService } from '../currencies/services/currency-service.js';
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface DictionariesModuleOptions {
   emFactory: () => EntityManager;

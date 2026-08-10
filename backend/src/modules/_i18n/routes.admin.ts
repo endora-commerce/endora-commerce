@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   GetBundlesResponseSchema,
@@ -12,6 +12,7 @@ import {
 } from '@b2b/contracts';
 import type { I18nService } from './services/i18n-service.js';
 import type { AdminUserService } from '../admin_users/services/admin-user-service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin UI i18n HTTP surface — feature 019 / contracts/admin-http.md.
@@ -23,10 +24,6 @@ import type { AdminUserService } from '../admin_users/services/admin-user-servic
  * authenticated admin may call them; no per-permission grant is
  * required (FR-004).
  */
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 export interface I18nAdminDeps {
   i18nService: I18nService;

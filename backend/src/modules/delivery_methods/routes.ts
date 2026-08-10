@@ -3,7 +3,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, deliveryMethodUpsertSchema } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { DeliveryMethod } from './entities/delivery-method.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import type { ShippingAdapterRegistry } from './services/shipping-adapter-registry.js';
 import type { ShippingMethodEligibilityService } from './services/shipping-method-eligibility.js';
@@ -11,6 +10,7 @@ import {
   OrderStatusRegistryError,
   type OrderStatusRegistry,
 } from './services/order-status-registry.port.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Delivery-method catalog routes (feature 035 — adapter framework).

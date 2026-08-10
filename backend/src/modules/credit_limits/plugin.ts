@@ -5,7 +5,7 @@ import type { CommandBus } from '../../commands/index.js';
 import { CreditLimitService, type CreditLimitEventBus } from './services/credit-limit-service.js';
 import type { OrganizationInheritanceService } from '../organizations/services/organization-inheritance-service.js';
 import { registerCreditLimitsRoutes } from './routes.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface CreditLimitsModuleOptions {
   emFactory: () => EntityManager;

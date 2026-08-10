@@ -15,7 +15,7 @@ import { registerAdminUsersAdminRoutes } from './routes.admin.js';
 import { registerAuditLogAdminRoutes } from '../audit_logs/routes.admin.js';
 import { registerRecentActivityRoutes } from '../audit_logs/routes.admin.recent-activity.js';
 import { RecentActivityService } from '../audit_logs/services/recent-activity-service.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface AdminModuleOptions {
   emFactory: () => EntityManager;

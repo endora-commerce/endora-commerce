@@ -12,13 +12,13 @@ import {
   putCmsColorPaletteRequestSchema,
   putCmsPageContentRequestSchema,
 } from '@b2b/contracts';
-import type { RequireAdminFactory } from './plugin.js';
 import type { ColorPaletteAuditContext, ColorPaletteWriter } from './plugin.js';
 import type { CmsPageService } from './services/cms-page-service.js';
 import type { PageBuilderRegistry } from './services/page-builder-registry.js';
 import type { CmsBlockService } from './services/cms-block-service.js';
 import type { CmsHookService } from './services/cms-hook-service.js';
 import type { CmsTemplateService } from './services/cms-template-service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export async function registerCmsAdminRoutes(
   app: FastifyInstance,

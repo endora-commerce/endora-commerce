@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { AuditLogService } from './services/audit-log-service.js';
 import type { AuditLogEntry } from './entities/audit-log-entry.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin Audit Log query route (T195 / FR-084).

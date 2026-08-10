@@ -1,4 +1,4 @@
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
 import { z } from 'zod';
@@ -28,7 +28,7 @@ import { AuditLogService } from './modules/audit_logs/services/audit-log-service
 import { PermissionService } from './modules/admin_roles/services/permission-service.js';
 import { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
 import { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
-import { createRequireAdminAny } from './http/require-admin-any.js';
+import { createRequireAdmin, createRequireAdminAny } from './modules/auth/require-admin.js';
 import {
   registryCache,
   STATE_CHANGED_CHANNEL,
@@ -345,25 +345,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }
   };
 
-  const requireAdmin =
-    (permission?: string) =>
-    async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
-      promoteAdminActor(request);
-      if (request.actor.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      if (!permission) return;
-      const ok = await permissionService.hasPermission(request.actor.adminUserId, permission);
-      if (!ok) {
-        throw new HttpError(
-          403,
-          ERROR_CODES.FORBIDDEN,
-          `Missing permission: ${permission}.`,
-        );
-      }
-    };
-
-  const requireAdminAny = createRequireAdminAny(permissionService);
+  // Feature 072, T011/T012 — one guard implementation, owned by `auth` and
+  // shared with the test harness. It used to be declared inline here while the
+  // harness ran its own copy that read a different request property and took
+  // `permissionService` as optional.
+  const requireAdmin = createRequireAdmin({ permissionService });
+  const requireAdminAny = createRequireAdminAny({ permissionService });
 
   /**
    * Resolver for routes that require an authenticated Customer **with** an

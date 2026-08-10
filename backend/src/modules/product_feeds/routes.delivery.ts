@@ -2,9 +2,10 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { listQuerySchema, upsertFeedDeliveryRequestSchema } from '@b2b/contracts';
 import { PRODUCT_FEEDS_READ_PERMISSION, PRODUCT_FEEDS_WRITE_PERMISSION } from './manifest.js';
-import { parseOrThrow, type RequireAdminFactory } from './routes.admin.js';
+import { parseOrThrow } from './routes.admin.js';
 import type { DeliveryConfigService } from './services/delivery/delivery-config.service.js';
 import type { DeliveryService } from './services/delivery/delivery.service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Delivery admin surface — feature 070.

@@ -12,7 +12,6 @@ import {
   upsertTranslationRequestSchema,
   upsertLanguageCountryRequestSchema,
 } from '@b2b/contracts';
-import type { RequireAdminFactory } from './plugin.js';
 import { DICTIONARY_PERMISSIONS } from './manifest.js';
 import type {
   CountryService} from './services/country-service.js';
@@ -29,6 +28,7 @@ import type { LanguageService } from '../languages/services/language-service.js'
 import type { CurrencyService } from '../currencies/services/currency-service.js';
 import type { Language } from '../languages/entities/language.entity.js';
 import type { Currency } from '../currencies/entities/currency.entity.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface DictionaryAdminRoutesDeps {
   emFactory: () => EntityManager;

@@ -1,5 +1,5 @@
 import { Readable } from 'node:stream';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import {
@@ -27,6 +27,7 @@ import {
 } from './services/product-selection.service.js';
 import { toFeedDto, toRunDto } from './services/feed-dto.js';
 import { artefactFilename } from './services/artefact-filename.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin HTTP surface for the Product Feed module — feature 067
@@ -59,10 +60,6 @@ import { artefactFilename } from './services/artefact-filename.js';
  * Every async handler `return`s its reply. `inject()` masks a missing return;
  * over a real socket the same handler crash-loops with `ERR_HTTP_HEADERS_SENT`.
  */
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 export interface ProductFeedsAdminRoutesDeps {
   requireAdmin: RequireAdminFactory;

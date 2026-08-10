@@ -49,7 +49,7 @@ import type { LanguageService } from '../languages/services/language-service.js'
 import type { AdminNotificationService } from '../admin_notifications/services/admin-notification-service.js';
 import type { Mailer } from '../email/services/mailer.js';
 import { registerCatalogPublicRoutes } from './routes.public.js';
-import { registerCatalogAdminRoutes, type RequireAdminFactory } from './routes.admin.js';
+import { registerCatalogAdminRoutes } from './routes.admin.js';
 import { registerCatalogApiKeyRoutes } from './routes.api-key.js';
 import { registerCatalogExternalRoutes } from './routes.external.js';
 import {
@@ -57,6 +57,7 @@ import {
   type ResolveAvailabilityPort,
 } from './services/catalog-org-price-decorator.js';
 import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the catalog module. Wires the ORM's per-request EM into

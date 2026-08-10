@@ -8,7 +8,7 @@ import {
   rfqStatusSchema,
 } from '@b2b/contracts';
 import type { RfqAdminService, AdminContext, AdminAssignmentScope } from './services/rfq-admin-service.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface AdminContextResolver {
   (request: FastifyRequest): Promise<AdminContext>;

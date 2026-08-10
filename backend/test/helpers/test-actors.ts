@@ -1,11 +1,18 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
-import type { RequireAdminFactory } from '../../src/modules/catalog/routes.admin.js';
 import type { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
+import type {
+  RequireAdminAnyFactory,
+  RequireAdminFactory,
+} from '../../src/kernel/ports/require-admin.js';
+import {
+  createRequireAdmin,
+  createRequireAdminAny,
+} from '../../src/modules/auth/require-admin.js';
 
 /**
  * Test-only auth wiring. The US1 contract and integration tests identify the
@@ -260,45 +267,30 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
   });
 }
 
+/**
+ * Feature 072, T011 — the harness and production now run the SAME admin guard.
+ *
+ * They used to run two. Production read `request.actor`, called
+ * `promoteAdminActor` and checked `permissionService.hasPermission`; this file
+ * read `request.testActor` and took `permissionService` as **optional**, so
+ * omitting it silently disabled every permission check across 205 call sites in
+ * 60 modules. All 28 wiring sites in `test-server.ts` happened to pass one, so
+ * the checks did run — but nothing made them, and the two guards still differed
+ * in what they read and in whether an admin session riding alongside a customer
+ * session was promoted.
+ *
+ * These wrappers stay so `test-server.ts` reads as before; `permissionService`
+ * is now **required**. The actor lookup works because `registerTestAuth` mirrors
+ * every resolved actor onto `request.actor` as well as `request.testActor`.
+ */
 export function requireTestAdminAny(
   permissionService: PermissionService,
-): (codes: readonly string[]) => ReturnType<RequireAdminFactory> {
-  return (codes) => async (request) => {
-    if (request.testActor?.kind !== 'admin') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-    }
-    for (const code of codes) {
-      if (await permissionService.hasPermission(request.testActor.adminUserId, code)) {
-        return;
-      }
-    }
-    throw new HttpError(
-      403,
-      ERROR_CODES.FORBIDDEN,
-      `Missing permission: one of ${codes.join(', ')}.`,
-    );
-  };
+): RequireAdminAnyFactory {
+  return createRequireAdminAny({ permissionService });
 }
 
-export function requireTestAdmin(permissionService?: PermissionService): RequireAdminFactory {
-  return (permission?: string) => async (request) => {
-    if (request.testActor?.kind !== 'admin') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-    }
-    if (permission && permissionService) {
-      const ok = await permissionService.hasPermission(
-        request.testActor.adminUserId,
-        permission,
-      );
-      if (!ok) {
-        throw new HttpError(
-          403,
-          ERROR_CODES.FORBIDDEN,
-          `Missing permission: ${permission}.`,
-        );
-      }
-    }
-  };
+export function requireTestAdmin(permissionService: PermissionService): RequireAdminFactory {
+  return createRequireAdmin({ permissionService });
 }
 
 export function requireTestCustomer() {

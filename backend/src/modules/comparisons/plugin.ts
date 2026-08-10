@@ -11,7 +11,7 @@ import { ComparisonPdfRenderer } from './services/comparison-pdf-renderer.js';
 import { registerComparisonsPublicRoutes } from './routes.public.js';
 import { registerComparisonsShareRoutes } from './routes.share.js';
 import { registerComparisonsAdminRoutes } from './routes.admin.js';
-import type { RequireAdminFactory } from '../settings/plugin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the comparisons module — feature 007.

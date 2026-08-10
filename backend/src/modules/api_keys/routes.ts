@@ -2,8 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { createApiKeyRequestSchema } from '@b2b/contracts';
 import type { ApiKeyService } from './services/api-key-service.js';
 import type { ApiKey } from './entities/api-key.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import { testAdminUserId } from '../../http/test-actor-carrier.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface ApiKeysAdminDeps {
   apiKeyService: ApiKeyService;

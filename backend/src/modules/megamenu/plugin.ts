@@ -1,6 +1,6 @@
 // Megamenu module plugin — feature 015 / T018, expanded by T027 + T029.
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { DictionaryValidator } from '@b2b/contracts';
@@ -16,10 +16,7 @@ import {
 import type { TargetValidatorDeps } from './services/target-validator.js';
 import { registerMegamenuAdminRoutes } from './routes.admin.js';
 import { registerMegamenuStorefrontRoutes } from './routes.storefront.js';
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface MegamenuModuleOptions {
   emFactory: () => EntityManager;
