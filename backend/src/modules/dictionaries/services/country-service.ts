@@ -12,7 +12,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Country } from '../entities/country.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 export interface CreateCountryInput {
   code: string;

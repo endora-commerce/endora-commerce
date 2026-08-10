@@ -9,7 +9,7 @@ import {
   googleTaxonomyFile,
   ScriptedTaxonomyFetcher,
 } from '../../helpers/taxonomy-fixtures.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { FeedTaxonomy } from '../../../src/modules/product_feeds/entities/feed-taxonomy.entity.js';
 import { FeedTaxonomyMapping } from '../../../src/modules/product_feeds/entities/feed-taxonomy-mapping.entity.js';

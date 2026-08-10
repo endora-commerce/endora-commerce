@@ -6,7 +6,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { MfaSubjectRef } from '../auth/services/mfa-login-port.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
 

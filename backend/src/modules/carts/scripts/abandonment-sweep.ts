@@ -27,7 +27,7 @@
 
 import { z } from 'zod';
 import { initOrm, closeOrm } from '../../../db/index.js';
-import { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { SettingsService } from '../../settings/services/settings.service.js';
 import { CartAuditService } from '../services/cart-audit-service.js';
 import { CartAbandonmentWorker } from '../services/cart-abandonment-worker.js';

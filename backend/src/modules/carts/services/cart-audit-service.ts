@@ -4,7 +4,7 @@ import type {
   CartAuditAction,
   CartAuditActorType,
 } from '../entities/cart-audit-entry.entity.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * Single writer for cart audit landings (feature 027 §R10). Every call

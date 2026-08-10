@@ -3,7 +3,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import type { ReturnDeliveryMethodDto } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnDeliveryMethod } from '../entities/return-delivery-method.entity.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';

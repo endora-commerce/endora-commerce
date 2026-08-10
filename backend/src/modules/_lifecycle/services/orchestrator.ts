@@ -12,7 +12,7 @@ import type {
 import { ManifestReconciler } from '../../settings/services/manifest-reconciler.js';
 import { Setting } from '../../settings/entities/setting.entity.js';
 import { SettingGroup } from '../../settings/entities/setting-group.entity.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { ModuleRegistration } from '../entities/module-registration.entity.js';
 import {
   acquireLifecycleLock,

@@ -7,7 +7,7 @@ import {
 import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
 import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
 import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
 
 /**

@@ -10,7 +10,7 @@ import {
   CatalogAdminService,
   type CatalogEventBus,
 } from '../../../src/modules/catalog/services/catalog-admin.service.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 

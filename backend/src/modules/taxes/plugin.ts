@@ -4,7 +4,7 @@ import { TaxService } from './services/tax-service.js';
 import { registerTaxRoutes } from './routes.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import type { DictionaryValidator } from '@b2b/contracts';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface TaxesModuleOptions {

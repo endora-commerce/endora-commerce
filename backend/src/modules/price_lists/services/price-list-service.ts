@@ -13,7 +13,7 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { Setting } from '../../settings/entities/setting.entity.js';
 import { SettingValue } from '../../settings/entities/setting-value.entity.js';
 import { randomUUID } from 'crypto';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { Command, CommandBus } from '../../../commands/index.js';
 import type { PriceListsAuditContext } from '../plugin.js';
 

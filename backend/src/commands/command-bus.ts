@@ -1,5 +1,5 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../modules/audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../kernel/audit/audit-log-service.js';
 import { forkScopedEm } from '../tenancy/index.js';
 import type { EventBus } from '../events/bus.js';
 import { resolveCommandActor } from './actor.js';

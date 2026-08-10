@@ -9,7 +9,7 @@ import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actor
 import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
 
 /**

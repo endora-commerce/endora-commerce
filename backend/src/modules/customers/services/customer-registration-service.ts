@@ -3,7 +3,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword } from '../../auth/services/password-hasher.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { SessionService } from '../../auth/services/session-service.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { PersonalOrganizationService } from '../../organizations/services/personal-organization-service.js';

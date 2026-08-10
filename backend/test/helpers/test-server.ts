@@ -21,7 +21,7 @@ import { initOrm, closeOrm } from '../../src/db/index.js';
 import { EventBus } from '../../src/events/bus.js';
 import { CommandBus } from '../../src/commands/index.js';
 import { SessionService } from '../../src/modules/auth/services/session-service.js';
-import { AuditLogService } from '../../src/modules/audit_logs/services/audit-log-service.js';
+import { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
 import { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
 import { PermissionCatalogueService } from '../../src/modules/admin_roles/services/permission-catalogue.service.js';
 import { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';

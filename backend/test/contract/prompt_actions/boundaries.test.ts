@@ -7,7 +7,7 @@ import {
 import { ScriptedLlm, seedPromptActionsSettings } from '../../helpers/prompt-actions.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { PromptActionRequest } from '../../../src/modules/prompt_actions/entities/prompt-action-request.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { DEFAULT_WAREHOUSE_ID } from '../../../src/modules/inventory/entities/warehouse.entity.js';

@@ -10,7 +10,7 @@ import {
 } from '../entities/warehouse.entity.js';
 import { WarehouseChannelAssignment } from '../entities/warehouse-channel-assignment.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { InventoryAuditContext } from '../plugin.js';
 
 export interface WarehouseContact {

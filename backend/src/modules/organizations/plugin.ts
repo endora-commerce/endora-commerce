@@ -21,7 +21,7 @@ import { RoleService } from '../customer_accounts/services/role-service.js';
 import { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
 import { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
 import { ConsoleMailer, type Mailer } from '../email/services/mailer.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
 import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
 import { registerOrganizationsStorefrontRoutes } from './routes.storefront.js';

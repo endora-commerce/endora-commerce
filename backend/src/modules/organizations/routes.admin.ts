@@ -33,7 +33,7 @@ import {
   type OrganizationEventBus,
 } from './services/registration-service.js';
 import type { RoleService } from '../customer_accounts/services/role-service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type {
   OrganizationModerationService} from './services/organization-moderation-service.js';
 import {

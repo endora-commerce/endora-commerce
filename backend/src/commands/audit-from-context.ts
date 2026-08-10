@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../modules/audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../kernel/audit/audit-log-service.js';
 import { actorFromContext } from './actor.js';
 import { getTenantContext } from '../tenancy/index.js';
 

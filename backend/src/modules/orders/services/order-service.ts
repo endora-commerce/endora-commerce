@@ -42,7 +42,7 @@ export interface PromotionPort {
   ): Promise<void>;
 }
 import { Organization } from '../../organizations/entities/organization.entity.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { actorFromContext } from '../../../commands/index.js';
 import { getTenantContext } from '../../../tenancy/index.js';
 import { Address } from '../../addresses/entities/address.entity.js';

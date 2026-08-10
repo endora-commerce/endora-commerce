@@ -3,7 +3,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Currency } from '../entities/currency.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * CurrencyService — admin CRUD over the currencies pool.

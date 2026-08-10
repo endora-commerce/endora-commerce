@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../../http/error-envelope.js';
 import { randomUUID } from 'crypto';
 import type { EventBus } from '../../../events/bus.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { InventoryAuditContext } from '../plugin.js';
 
 export interface InventoryAdjustedEvent {

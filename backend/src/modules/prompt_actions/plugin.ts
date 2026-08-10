@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { InterpreterService } from './services/interpreter.service.js';
 import { PlanExecutorService } from './services/plan-executor.service.js';
 import {

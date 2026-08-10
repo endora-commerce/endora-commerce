@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DictionaryValidator } from '@b2b/contracts';
 import type Redis from 'ioredis';
 import type { EventBus } from '../../events/bus.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import {
   SettingsAdminService,
   type AdminAuditContext,

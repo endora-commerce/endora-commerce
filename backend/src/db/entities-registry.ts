@@ -27,7 +27,7 @@ import { AutopayPaymentMethodRule } from '../modules/autopay/entities/autopay-pa
 import { AutopayPaymentMethodOrgDisable } from '../modules/autopay/entities/autopay-payment-method-org-disable.entity.js';
 import { CustomFieldDefinition } from '../modules/custom_fields/entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../modules/custom_fields/entities/custom-field-option.entity.js';
-import { AuditLogEntry } from '../modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../kernel/audit/audit-log-entry.entity.js';
 import { Asset } from '../modules/assets_library/entities/asset.entity.js';
 import { AssetFolder } from '../modules/assets_library/entities/asset-folder.entity.js';
 import { Product } from '../modules/catalog/entities/product.entity.js';

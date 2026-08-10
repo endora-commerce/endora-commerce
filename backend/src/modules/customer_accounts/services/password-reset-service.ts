@@ -6,7 +6,7 @@ import { hashPassword } from '../../auth/services/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { PasswordResetToken } from '../entities/password-reset-token.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * Password reset flow (FR-045 / T119).

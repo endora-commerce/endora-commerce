@@ -7,7 +7,7 @@ import { PriceListStatusWorker } from './services/price-list-status-worker.js';
 import { PricingCache } from './services/pricing-cache.js';
 import { registerPricingRoutes } from './routes.js';
 import { registerStorefrontPricingRoutes } from './routes.storefront.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 

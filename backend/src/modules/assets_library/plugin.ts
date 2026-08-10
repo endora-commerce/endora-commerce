@@ -9,7 +9,7 @@ import { AssetsLibraryService } from './services/assets-library.service.js';
 import { FoldersService } from './services/folders.service.js';
 import { AssetReferenceRegistry } from './services/reference-registry.js';
 import { HmacSigner } from './services/hmac.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { createSettingsView } from './services/storage/settings-view.js';
 import { Setting } from '../settings/entities/setting.entity.js';
 import { SettingValue } from '../settings/entities/setting-value.entity.js';

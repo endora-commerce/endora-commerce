@@ -1,7 +1,7 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { ModulePlugin } from '../../http/server.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import {
   ModuleLifecycleOrchestrator,
   type OrchestratorDeps,

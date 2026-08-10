@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { mfaOrgPolicyRequestSchema } from '@b2b/contracts';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
 
 /**

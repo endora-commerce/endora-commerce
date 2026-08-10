@@ -6,7 +6,7 @@ import { ApiKeyService, type AuthenticatedApiKey } from './services/api-key-serv
 import { WebhookService } from '../webhooks/services/webhook-service.js';
 import { registerApiKeysAdminRoutes } from './routes.js';
 import { registerWebhooksAdminRoutes } from '../webhooks/routes.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**

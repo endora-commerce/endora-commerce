@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
 import { Address } from '../../../src/modules/addresses/entities/address.entity.js';
 

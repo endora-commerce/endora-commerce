@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, valueSchemaForType, type SettingValueType } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EventBus } from '../../../events/bus.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { SettingGroup } from '../entities/setting-group.entity.js';
 import { Setting } from '../entities/setting.entity.js';
 import { SettingValue } from '../entities/setting-value.entity.js';

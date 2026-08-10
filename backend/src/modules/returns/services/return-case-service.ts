@@ -8,7 +8,7 @@ import type {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { ReturnCaseComment } from '../entities/return-case-comment.entity.js';

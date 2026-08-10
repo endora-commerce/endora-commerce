@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { SALES_CHANNEL_AUDIT_ACTIONS } from '@b2b/contracts';
 import { SalesChannel } from '../entities/sales-channel.entity.js';
 

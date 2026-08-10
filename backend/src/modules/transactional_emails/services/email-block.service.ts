@@ -19,7 +19,7 @@ import { EMAIL_SAFE_COMPONENT_NAMES } from '@b2b/email-components/schema/compone
 import { walkUnknownComponents } from '@b2b/email-components/tree/walk-embeds';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { EmailBlock } from '../entities/email-block.entity.js';
 import { EmailBlockSalesChannel } from '../entities/email-block-sales-channel.entity.js';
 

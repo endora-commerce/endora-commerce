@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { actorFromContext } from '../../../commands/index.js';
 import { getTenantContext } from '../../../tenancy/index.js';
 import { Warehouse } from '../entities/warehouse.entity.js';

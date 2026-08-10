@@ -3,7 +3,7 @@ import type { ModulePlugin } from '../../http/server.js';
 import type { SessionService } from '../auth/services/session-service.js';
 import type { OrderListService } from '../orders/services/order-list-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';

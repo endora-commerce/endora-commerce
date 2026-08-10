@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import type { AuditLogService } from './services/audit-log-service.js';
-import type { AuditLogEntry } from './entities/audit-log-entry.entity.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditLogEntry } from '../../kernel/audit/audit-log-entry.entity.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**

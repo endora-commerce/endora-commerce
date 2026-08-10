@@ -6,7 +6,7 @@ import type { ModulePlugin } from '../../http/server.js';
 import type { Order } from '../orders/entities/order.entity.js';
 import { Invoice } from './entities/invoice.entity.js';
 import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
 import type { LoadAssetImage } from './pdf-components/embed-logo-images.js';
 import { InvoiceNumberGenerator, createSettingsPatternResolver } from './services/invoice-number-generator.js';

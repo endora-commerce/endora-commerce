@@ -6,7 +6,7 @@ import type { SessionService } from '../../auth/services/session-service.js';
 import type { MfaLoginPort } from '../../auth/services/mfa-login-port.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * AdminAuthService (T186; two-step login added in feature 042). login →

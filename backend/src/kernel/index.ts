@@ -36,6 +36,12 @@ export {
 } from './scope.js';
 
 export {
+  AuditLogService,
+  type RecordAuditInput,
+} from './audit/audit-log-service.js';
+export { AuditLogEntry } from './audit/audit-log-entry.entity.js';
+
+export {
   type AdminPermissionChecker,
   type RequireAdminAnyFactory,
   type RequireAdminFactory,

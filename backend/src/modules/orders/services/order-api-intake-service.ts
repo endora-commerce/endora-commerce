@@ -10,7 +10,7 @@ import type { SalesChannelMembershipService } from '../../sales_channels/service
 import type { PricingService } from '../../price_lists/services/pricing-service.js';
 import type { CartService } from '../../carts/services/cart-service.js';
 import type { AddressService } from '../../addresses/services/address-service.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderPlacementIntent } from '../entities/order-placement-intent.entity.js';
 import type { OrderService } from './order-service.js';

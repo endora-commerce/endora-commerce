@@ -24,7 +24,7 @@ import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-ten
 import { withSystemScope } from './tenancy/escape-hatch.js';
 import { authPlugin, promoteAdminActor } from './modules/auth/plugin.js';
 import { SessionService } from './modules/auth/services/session-service.js';
-import { AuditLogService } from './modules/audit_logs/services/audit-log-service.js';
+import { AuditLogService } from './kernel/audit/audit-log-service.js';
 import { PermissionService } from './modules/admin_roles/services/permission-service.js';
 import { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
 import { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';

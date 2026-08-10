@@ -9,7 +9,7 @@ import {
   InvoiceNumberGenerator,
   createSettingsPatternResolver,
 } from '../../../src/modules/invoices/services/invoice-number-generator.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
 
 const CH = 'a0a0a0a0-0000-4000-8000-000000000001';

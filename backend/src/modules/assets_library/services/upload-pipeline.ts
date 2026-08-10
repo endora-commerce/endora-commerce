@@ -22,7 +22,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { Asset } from '../entities/asset.entity.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { AdapterRegistry } from './storage/adapter-registry.js';
 import type { AssetVisibility } from './storage/storage-adapter.js';
 

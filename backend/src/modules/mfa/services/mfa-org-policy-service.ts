@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { MfaOrganizationPolicy } from '../entities/mfa-organization-policy.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * Per-organization 2FA enforcement (feature 042, US3, FR-014). Owned by the

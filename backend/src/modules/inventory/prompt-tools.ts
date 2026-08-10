@@ -7,7 +7,7 @@ import {
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
 import type { EventBus } from '../../events/bus.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { StockLevel } from './entities/stock-level.entity.js';
 import { Warehouse } from './entities/warehouse.entity.js';

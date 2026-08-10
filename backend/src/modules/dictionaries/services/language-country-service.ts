@@ -15,7 +15,7 @@ import { LanguageCountry } from '../entities/language-country.entity.js';
 import { Language } from '../../languages/entities/language.entity.js';
 import { Country } from '../entities/country.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 export class LanguageCountryService {
   constructor(

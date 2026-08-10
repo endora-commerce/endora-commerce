@@ -15,7 +15,7 @@ import {
   createBulkOperationWorker,
   BULK_OPERATION_JOB_NAME,
 } from './services/bulk-operation-queue.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import {

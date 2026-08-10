@@ -19,7 +19,7 @@ import type { ModuleManifest } from '@b2b/contracts';
 import type { ModulePlugin } from '../http/server.js';
 import type { EventBus } from '../events/bus.js';
 import type { CommandBus } from '../commands/index.js';
-import type { AuditLogService } from '../modules/audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../kernel/audit/audit-log-service.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import {
   activeOverlayModulesRoot,

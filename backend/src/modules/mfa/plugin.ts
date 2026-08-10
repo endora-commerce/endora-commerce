@@ -4,7 +4,7 @@ import type Redis from 'ioredis';
 import type { ModulePlugin } from '../../http/server.js';
 import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
 import type { SessionService } from '../auth/services/session-service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { ChallengeStore } from './services/challenge-store.js';
 import {
   MfaPolicyResolver,

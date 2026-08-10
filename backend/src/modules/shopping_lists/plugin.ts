@@ -19,7 +19,7 @@ import { registerQuickOrderOneClickRoutes } from '../quick_order/routes.one-clic
 import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
 import { OneClickService } from '../quick_order/services/one-click-service.js';
 import type { OrderService } from '../orders/services/order-service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { Warehouse } from '../entities/warehouse.entity.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { InventoryAuditContext } from '../plugin.js';
 
 export interface CsvImportInput {

@@ -7,7 +7,7 @@ import {
   type SitemapSettingsPort,
 } from './services/sitemap-generator.service.js';
 import { registerSeoRoutes } from './routes.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface SeoModuleOptions {

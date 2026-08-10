@@ -53,7 +53,7 @@ import type { ProductEditorPreferencesService } from './services/product-editor-
 import type { ProductValueResolverService } from './services/product-value-resolver.service.js';
 import type { ProductOverridesService } from './services/product-overrides.service.js';
 import { productValueOverridesPatchRequestSchema } from '@b2b/contracts';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ProductVariant } from './entities/product-variant.entity.js';
 import type { Product } from './entities/product.entity.js';
 import type { CatalogAttributeView } from './services/catalog-attribute-read.service.js';

@@ -4,7 +4,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
 import { Address } from '../../addresses/entities/address.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * CustomerAddressService — the personal address book (feature 040, US2).
