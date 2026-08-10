@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AwilixResolutionError, InjectionMode, asClass, asValue } from 'awilix';
+import { AwilixResolutionError, InjectionMode, asClass } from 'awilix';
 import type { MikroORM } from '@mikro-orm/postgresql';
 import {
   createRootContainer,
