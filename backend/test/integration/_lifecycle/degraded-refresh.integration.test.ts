@@ -4,8 +4,11 @@ import {
   FALLBACK_TTL_MS,
   ModuleRegistryCache,
 } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { ModuleEffectiveState } from '../../../src/modules/_lifecycle/services/effective-state.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ModuleRegistration } from '../../../src/modules/_lifecycle/entities/module-registration.entity.js';
+import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
+import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
 
 /**
  * Feature 073 / research R-2b — the degraded-mode refresh.
@@ -26,14 +29,28 @@ import { ModuleRegistration } from '../../../src/modules/_lifecycle/entities/mod
 
 const MODULE_ID = 'fixture_degraded';
 
+/**
+ * One MikroORM instance for the whole file. `setupTestDb()` boots its own
+ * connection pool on every call, and this feature's own baseline shows the
+ * suite running out of PostgreSQL connections — so a second one here would be
+ * the very regression SC-010 exists to catch.
+ */
+let db: TestDb;
+
+beforeAll(async () => {
+  db = await setupTestDb();
+}, 60_000);
+
+afterAll(async () => {
+  await db.close();
+});
+
 describe('ModuleRegistryCache — degraded-mode refresh without a publish (integration)', () => {
-  let db: TestDb;
   let publisher: Redis;
   let subscriberRedis: Redis;
   let cache: ModuleRegistryCache;
 
   beforeAll(async () => {
-    db = await setupTestDb();
     const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
     publisher = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
     subscriberRedis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
@@ -64,7 +81,6 @@ describe('ModuleRegistryCache — degraded-mode refresh without a publish (integ
     await db.orm.em.fork().nativeDelete(ModuleRegistration, { moduleId: MODULE_ID });
     publisher.disconnect();
     subscriberRedis.disconnect();
-    await db.close();
   });
 
   it('recovers a correct enabled-set after the subscriber drops, with no publish', async () => {
@@ -97,5 +113,111 @@ describe('ModuleRegistryCache — degraded-mode refresh without a publish (integ
 
     // A successful refresh clears the degraded flag again.
     expect(cache.isDegraded()).toBe(false);
+  }, 30_000);
+});
+
+/**
+ * The activation axis against a real database.
+ *
+ * Every other test of the resolver fakes the EntityManager, so this is the one
+ * place the actual SQL runs: `Setting` is a `@GlobalEntity()`, and the refresh
+ * happens at boot with no ambient TenantContext, which is exactly the shape
+ * that the tenancy guard would reject if the classification were wrong.
+ *
+ * Co-located with the degraded test rather than given its own file on purpose:
+ * both need a real `TestDb`, and the measured baseline leaves no connection
+ * headroom for another one (`specs/073-lifecycle-gating-completion/baseline.md`).
+ */
+describe('ModuleRegistryCache — activation axis against PostgreSQL (integration)', () => {
+  const MODULE = 'fixture_activated';
+  const CODE = 'fixture_activated.activation';
+
+  beforeAll(async () => {
+    const em = db.orm.em.fork();
+    await em.nativeDelete(ModuleRegistration, { moduleId: MODULE });
+    em.create(ModuleRegistration, {
+      moduleId: MODULE,
+      state: 'installed',
+      version: '1.0.0',
+      installedAt: new Date(),
+      lastStateChangeAt: new Date(),
+      lastInstallFailedAt: null,
+      lastInstallError: null,
+    });
+    await em.flush();
+  }, 60_000);
+
+  afterAll(async () => {
+    const em = db.orm.em.fork();
+    await em.nativeDelete(Setting, { code: CODE });
+    await em.nativeDelete(SettingGroup, { code: 'fixture_activation_group' });
+    await em.nativeDelete(ModuleRegistration, { moduleId: MODULE });
+  });
+
+  async function seedActivationSetting(globalValue: unknown, defaultValue: unknown): Promise<void> {
+    const em = db.orm.em.fork();
+    await em.nativeDelete(Setting, { code: CODE });
+    let group = await em.findOne(SettingGroup, { code: 'fixture_activation_group' });
+    if (!group) {
+      group = em.create(SettingGroup, {
+        code: 'fixture_activation_group',
+        name: 'Fixture activation',
+        isSystemProtected: false,
+        ownerModule: MODULE,
+      });
+    }
+    em.create(Setting, {
+      code: CODE,
+      name: 'Fixture activation',
+      group,
+      valueType: 'boolean',
+      defaultValue,
+      globalValue,
+      ownerModule: MODULE,
+    });
+    await em.flush();
+  }
+
+  it('resolves the stored activation with no tenant context, and the platform axis stays independent', async () => {
+    await seedActivationSetting(false, true);
+
+    const cache = new ModuleRegistryCache();
+    cache.setActivationDeclarations([
+      { moduleId: MODULE, settingCode: CODE, default: true, nonDeactivatableReason: null },
+    ]);
+    const state = new ModuleEffectiveState(cache);
+    await cache.refreshFromDb(() => db.orm.em.fork() as never);
+
+    // Platform available, operator switched it off.
+    expect(cache.isEnabled(MODULE)).toBe(true);
+    expect(state.isPresent(MODULE)).toBe(false);
+    expect(state.presence(MODULE)).toMatchObject({
+      platformAvailable: true,
+      platformState: 'installed',
+      operatorActivated: false,
+      deactivatable: true,
+    });
+
+    // The operator switches it back on. Nothing about the platform axis moved.
+    await seedActivationSetting(true, true);
+    await cache.refreshFromDb(() => db.orm.em.fork() as never);
+    expect(state.isPresent(MODULE)).toBe(true);
+    expect(cache.platformStateOf(MODULE)).toBe('installed');
+  }, 30_000);
+
+  it('falls back to default_value, and fails closed on a non-boolean', async () => {
+    const cache = new ModuleRegistryCache();
+    cache.setActivationDeclarations([
+      { moduleId: MODULE, settingCode: CODE, default: true, nonDeactivatableReason: null },
+    ]);
+    const state = new ModuleEffectiveState(cache);
+
+    await seedActivationSetting(null, true);
+    await cache.refreshFromDb(() => db.orm.em.fork() as never);
+    expect(state.isPresent(MODULE)).toBe(true);
+
+    await seedActivationSetting(null, 'yes');
+    await cache.refreshFromDb(() => db.orm.em.fork() as never);
+    expect(state.isPresent(MODULE)).toBe(false);
   }, 30_000);
 });
