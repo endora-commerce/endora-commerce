@@ -154,5 +154,16 @@
   "editor.placeholder.secretSet": "Value is set — enter a new value to replace it",
   "editor.placeholder.secretUnset": "Enter the secret value",
   "editor.secretIsSet": "Secret value is set (write-only, never displayed)",
-  "editor.secretNotSet": "No secret value set"
+  "editor.secretNotSet": "No secret value set",
+  "activation.title": "Module",
+  "activation.on": "Enabled",
+  "activation.off": "Disabled",
+  "activation.enable": "Switch on",
+  "activation.disable": "Switch off",
+  "activation.locked": "This module cannot be switched off.",
+  "activation.hint": "Switching the module off removes its screens, its API and its background work. Nothing is deleted — its data and configuration are preserved and return exactly as they were when you switch it back on.",
+  "activation.confirmDisable": "Switch \"{name}\" off? Its screens, API and background work stop. No data or configuration is deleted, and switching it back on restores everything.",
+  "activation.failed": "The module could not be switched. {message}",
+  "editor.readOnly": "Read-only",
+  "editor.readOnlyReason": "The module that owns this setting is switched off. Its stored value is preserved and becomes editable again when the module is switched on."
 }

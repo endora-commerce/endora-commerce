@@ -25,6 +25,7 @@ import { settingsClient } from '../api/settings-client';
 import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { ConflictBanner } from '../components/ConflictBanner';
+import { ActivationControlRow } from '../components/ActivationControlRow';
 import {
   SettingRowEditor,
   computeVersion,
@@ -213,6 +214,7 @@ export function SettingsPage(): ReactNode {
     (group: SettingGroupDto): number => {
       let n = 0;
       for (const s of group.settings) {
+        if (!isSaveable(s)) continue;
         const d = drafts[s.code];
         if (d && isDraftDirty(d)) n += 1;
       }
@@ -225,6 +227,12 @@ export function SettingsPage(): ReactNode {
     const out: SettingDto[] = [];
     for (const g of groups) {
       for (const s of g.settings) {
+        // Feature 073: a row belonging to a switched-off module, and a module's
+        // activation control, are both excluded from the batch — the first
+        // because the server refuses it, the second because it has its own
+        // audited endpoint. Counting them would put a "save 1 change" bar on
+        // screen for a write that can never happen.
+        if (!isSaveable(s)) continue;
         const d = drafts[s.code];
         if (d && isDraftDirty(d)) out.push(s);
       }
@@ -498,16 +506,25 @@ export function SettingsPage(): ReactNode {
                                   }}
                                 />
                               )}
-                              <SettingRowEditor
-                                setting={s}
-                                draft={draft}
-                                channelContext={channelContext}
-                                isCopied={copiedCode === s.code}
-                                resetting={resettingCode === s.code}
-                                onChange={(patch) => patchDraft(s.code, patch)}
-                                onCopyCode={() => void onCopyCode(s.code)}
-                                onReset={() => void resetSetting(s.code)}
-                              />
+                              {s.activationControl === true ? (
+                                // Constitution XVII's single exception: this row
+                                // stays writable while its module is off, and it
+                                // writes through the audited activation Command
+                                // rather than the settings batch.
+                                <ActivationControlRow setting={s} onError={setError} />
+                              ) : (
+                                <SettingRowEditor
+                                  setting={s}
+                                  draft={draft}
+                                  channelContext={channelContext}
+                                  isCopied={copiedCode === s.code}
+                                  resetting={resettingCode === s.code}
+                                  readOnly={s.editable === false}
+                                  onChange={(patch) => patchDraft(s.code, patch)}
+                                  onCopyCode={() => void onCopyCode(s.code)}
+                                  onReset={() => void resetSetting(s.code)}
+                                />
+                              )}
                             </div>
                           );
                         })}
@@ -552,6 +569,19 @@ export function SettingsPage(): ReactNode {
       )}
     </>
   );
+}
+
+/**
+ * Feature 073 — can the generic batch save touch this row?
+ *
+ * Two rows it must not: one whose module is switched off (the server refuses
+ * it, FR-033) and a module's activation control (the audited Command owns it,
+ * FR-009). `editable`/`activationControl` are optional on the wire so an older
+ * backend keeps working; absent means "ordinary setting", which is the
+ * pre-073 behaviour.
+ */
+function isSaveable(setting: SettingDto): boolean {
+  return setting.editable !== false && setting.activationControl !== true;
 }
 
 function baselineDraft(

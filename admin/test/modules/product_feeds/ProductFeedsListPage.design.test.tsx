@@ -4,6 +4,23 @@ import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import type { ProductFeedDto } from '../../../src/modules/product_feeds/api';
 
+// Feature 073 — every admin surface resolves its own presence from the module
+// projection. These cases are about layout and routing, not about presence, so
+// the projection is stubbed as "everything is here"; the filtering itself is
+// covered in AppShell.module-presence.test.tsx.
+vi.mock('@/lib/module-presence', () => ({
+  useModulePresence: () => ({
+    modules: [],
+    isPresent: () => true,
+    presenceOf: () => undefined,
+    isLoading: false,
+    error: null,
+    refresh: async () => {},
+  }),
+  setModuleActivation: vi.fn(),
+  getModulePresence: vi.fn(),
+}));
+
 /**
  * The feed list hand-rolled its surfaces (`rounded-lg border p-8`) instead of
  * reaching for `.b2b-card` / `.b2b-empty`, so it read as a different product
