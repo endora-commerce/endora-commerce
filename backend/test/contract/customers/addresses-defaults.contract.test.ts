@@ -3,7 +3,7 @@ import {
   setupBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { manifest as customersManifest } from '../../../src/modules/customers/manifest.js';
 
 /**

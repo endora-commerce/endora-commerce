@@ -1,8 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { z } from 'zod';
-import { Setting } from '../entities/setting.entity.js';
-import { SettingValue } from '../entities/setting-value.entity.js';
-import type { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import { Setting } from './setting.entity.js';
+import { SettingValue } from './setting-value.entity.js';
+import type { SalesChannel } from '../sales-channels/sales-channel.entity.js';
 import type { SettingsCache } from './settings-cache.js';
 import { decryptSecretValue, isSecretEnvelope } from './secret-value-codec.js';
 

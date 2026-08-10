@@ -6,12 +6,12 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
-} from '../../../src/modules/settings/services/settings.service.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
+} from '../../../src/kernel/settings/settings.service.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**

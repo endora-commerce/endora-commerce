@@ -8,7 +8,7 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { CatalogQueryService } from '../../catalog/services/catalog-query.service.js';
 import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { Comparison } from '../entities/comparison.entity.js';
 import { ComparisonProduct } from '../entities/comparison-product.entity.js';
 import type { ShareTokenGenerator } from './share-token-generator.js';

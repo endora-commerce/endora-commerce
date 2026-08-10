@@ -68,6 +68,35 @@ export {
 } from './sales-channels/default-channel-reconciler.js';
 
 export {
+  Setting,
+  SETTING_VALUE_TYPES,
+  type SettingValueTypeDb,
+} from './settings/setting.entity.js';
+export { SettingGroup } from './settings/setting-group.entity.js';
+export { SettingValue } from './settings/setting-value.entity.js';
+export {
+  SettingsService,
+  SettingNotRegistered,
+  SettingOutOfScopeForChannel,
+  SettingValueShapeMismatch,
+} from './settings/settings.service.js';
+export { SettingsCache } from './settings/settings-cache.js';
+export {
+  attachSettingsCacheInvalidator,
+  type SettingsCacheInvalidatorHandle,
+} from './settings/settings-cache-invalidator.js';
+export {
+  encryptSecretValue,
+  decryptSecretValue,
+  isSecretEnvelope,
+  type SecretEnvelope,
+} from './settings/secret-value-codec.js';
+export {
+  ManifestReconciler,
+  type ReconciliationResult,
+} from './settings/manifest-reconciler.js';
+
+export {
   type AdminPermissionChecker,
   type RequireAdminAnyFactory,
   type RequireAdminFactory,

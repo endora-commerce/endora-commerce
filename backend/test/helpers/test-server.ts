@@ -181,7 +181,7 @@ import { AttachmentService } from '../../src/modules/catalog/services/attachment
 import { ProductLinkService } from '../../src/modules/catalog/services/product-link.service.js';
 import { GroupedService } from '../../src/modules/catalog/services/grouped.service.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
-import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
 import { collectRegisteredSettingsManifests } from '../../src/modules/settings/services/registered-settings-manifests.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import type { Mailer } from '../../src/modules/email/services/mailer.js';

@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Mailer } from '../../email/services/mailer.js';
 import type { EventBus } from '../../../events/bus.js';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { z } from 'zod';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';

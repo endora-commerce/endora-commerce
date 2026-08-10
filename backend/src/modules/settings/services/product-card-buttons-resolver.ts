@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { SettingsService } from './settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 
 const ADD_TO_CART_CODE = 'storefront.product_card.show_add_to_cart';
 const ADD_TO_SHOPPING_LIST_CODE = 'storefront.product_card.show_add_to_shopping_list';

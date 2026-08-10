@@ -182,7 +182,18 @@ describe('fk drift — the kernel edge (feature 072)', () => {
   });
 
   it('claims the tables of the entities the kernel absorbed', () => {
-    expect(graph.owners.get('audit_log_entries')).toBe(KERNEL_OWNER);
+    // T016, T019 and T018 respectively. If any of these reads as its old module
+    // the ownership map has drifted from the entity tree, and every foreign key
+    // pointing at it is misattributed.
+    for (const table of [
+      'audit_log_entries',
+      'sales_channels',
+      'settings',
+      'setting_groups',
+      'setting_values',
+    ]) {
+      expect(graph.owners.get(table), `${table} should be kernel-owned`).toBe(KERNEL_OWNER);
+    }
   });
 });
 

@@ -7,9 +7,9 @@ import {
   ManifestReconciler,
   ManifestSchemaInvalid,
   SettingCodeConflict,
-} from '../../../src/modules/settings/services/manifest-reconciler.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
-import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
+} from '../../../src/kernel/settings/manifest-reconciler.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
 import { settingsManifest } from '../../../src/modules/settings/manifest.js';
 
 /**

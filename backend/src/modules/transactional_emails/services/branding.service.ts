@@ -8,7 +8,7 @@
 
 import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import type {
   AdminAuditContext,
   SettingsAdminService,

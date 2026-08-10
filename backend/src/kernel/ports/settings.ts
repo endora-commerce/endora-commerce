@@ -16,8 +16,8 @@ import type { z } from 'zod';
  *    locked, channel-subset-aware admin write. It carries an `AdminAuditContext`
  *    and the module-activation policy, so it is module-owned by D-32 and stays
  *    on the module's own surface.
- *  - `settings/services/manifest-reconciler.ts` — kernel-internal once relocated,
- *    and a component does not reach itself through a port.
+ *  - `kernel/settings/manifest-reconciler.ts` — kernel-internal since T018, and
+ *    a component does not reach itself through a port.
  *
  * Inventing a third, portable write shape would be a speculative abstraction
  * with no caller. When a cross-module write appears, it goes here.

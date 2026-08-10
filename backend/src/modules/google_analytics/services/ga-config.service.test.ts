@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GOOGLE_ANALYTICS_SETTING_CODES } from '@b2b/contracts';
 import { GaConfigService } from './ga-config.service.js';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 
 /**
  * Fake SettingsService — resolves from a per-code map; unknown codes throw

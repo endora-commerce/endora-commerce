@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@b2b/contracts';
-import type { SettingsService } from '../settings/services/settings.service.js';
+import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import type { SettingsAdminService } from '../settings/services/settings-admin.service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { Mailer } from '../email/services/mailer.js';

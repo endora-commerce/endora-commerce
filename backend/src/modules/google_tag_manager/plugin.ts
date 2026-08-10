@@ -2,7 +2,7 @@ import type Redis from 'ioredis';
 import type { ModulePlugin } from '../../http/server.js';
 import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import { defineModuleRoutes, defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
-import type { SettingsService } from '../settings/services/settings.service.js';
+import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { GtmConfigService } from './services/gtm-config.service.js';
 import { createGtmRelayQueue, createGtmRelayWorker } from './services/ss-relay-queue.js';
 import { makeEnqueuer, makeProcessor } from './services/ss-relay.service.js';

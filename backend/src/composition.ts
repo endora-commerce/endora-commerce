@@ -120,7 +120,7 @@ import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
 import { promotionsModule } from './modules/promotions/plugin.js';
 import { settingsModule } from './modules/settings/plugin.js';
-import { ManifestReconciler } from './modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
 import { salesChannelsModule } from './modules/sales_channels/plugin.js';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
 import { searchModule } from './modules/search/plugin.js';

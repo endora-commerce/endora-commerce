@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../../events/bus.js';
 import { z } from 'zod';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { InventoryThreshold } from '../entities/inventory-threshold.entity.js';
 import { INVENTORY_SETTING_CODES } from '../manifest.js';
 

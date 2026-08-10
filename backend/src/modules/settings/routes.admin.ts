@@ -8,10 +8,10 @@ import {
   SettingsListQuerySchema,
 } from '@b2b/contracts';
 import type { SettingsAdminService, AdminAuditContext } from './services/settings-admin.service.js';
-import type { Setting } from './entities/setting.entity.js';
-import type { SettingGroup } from './entities/setting-group.entity.js';
-import type { SettingValue } from './entities/setting-value.entity.js';
-import { secretValueIsSet } from './services/secret-value-codec.js';
+import type { Setting } from '../../kernel/settings/setting.entity.js';
+import type { SettingGroup } from '../../kernel/settings/setting-group.entity.js';
+import type { SettingValue } from '../../kernel/settings/setting-value.entity.js';
+import { secretValueIsSet } from '../../kernel/settings/secret-value-codec.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**

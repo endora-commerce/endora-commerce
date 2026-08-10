@@ -4,7 +4,7 @@ import {
   setupBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
+import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
 
 /**
  * T032 — Contract test: group CRUD endpoints. Covers create, rename,

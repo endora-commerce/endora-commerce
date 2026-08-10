@@ -9,9 +9,9 @@ import type {
   ModuleListItem,
   ModuleListItemFlag,
 } from '@b2b/contracts';
-import { ManifestReconciler } from '../../settings/services/manifest-reconciler.js';
-import { Setting } from '../../settings/entities/setting.entity.js';
-import { SettingGroup } from '../../settings/entities/setting-group.entity.js';
+import { ManifestReconciler } from '../../../kernel/settings/manifest-reconciler.js';
+import { Setting } from '../../../kernel/settings/setting.entity.js';
+import { SettingGroup } from '../../../kernel/settings/setting-group.entity.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { ModuleRegistration } from '../entities/module-registration.entity.js';
 import {

@@ -20,7 +20,7 @@ import { resolveThresholds } from './services/threshold-resolver.js';
 import { InventoryThreshold } from './entities/inventory-threshold.entity.js';
 import { Category } from '../catalog/entities/category.entity.js';
 import { INVENTORY_SETTING_CODES } from './manifest.js';
-import type { SettingsService } from '../settings/services/settings.service.js';
+import type { SettingsService } from '../../kernel/settings/settings.service.js';
 
 export interface InventoryRoutesDeps {
   emFactory: () => EntityManager;

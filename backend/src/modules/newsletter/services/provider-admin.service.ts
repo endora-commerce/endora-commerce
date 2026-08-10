@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { NEWSLETTER_SETTING_CODES, type ProviderConfig, type PutProviderRequest } from '@b2b/contracts';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import type { AdminAuditContext } from './provider-admin.types.js';
 import type { NewsletterProviderRegistry } from './provider/provider-registry.js';
 

@@ -5,7 +5,7 @@ import {
   type LinkedInStorefrontConfig,
   type LinkedInStorefrontMapping,
 } from '@b2b/contracts';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 
 /**
  * Loader for a channel's enabled conversion mappings in the storefront shape.

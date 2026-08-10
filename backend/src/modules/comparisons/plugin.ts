@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
 import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
-import type { SettingsService } from '../settings/services/settings.service.js';
+import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { ShareTokenGenerator } from './services/share-token-generator.js';
 import { ComparableAttributeProjection } from './services/comparable-attribute-projection.js';
 import { ComparisonService } from './services/comparison-service.js';

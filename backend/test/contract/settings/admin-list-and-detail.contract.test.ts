@@ -4,8 +4,8 @@ import {
   setupBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 
 /**
  * T029 — Contract test: GET /api/v1/admin/settings + GET /:code.

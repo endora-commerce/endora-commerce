@@ -8,8 +8,8 @@ import {
 } from '../../helpers/test-server.js';
 import { Asset } from '../../../src/modules/assets_library/entities/asset.entity.js';
 import { HardDeleteAssetWorker } from '../../../src/modules/assets_library/jobs/hard-delete-asset.job.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
-import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**

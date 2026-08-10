@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { META_ADS_SETTING_CODES } from '@b2b/contracts';
 import { MetaConfigService } from '../../../src/modules/meta_ads/services/meta-config.service.js';
-import type { SettingsService } from '../../../src/modules/settings/services/settings.service.js';
+import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 
 /** The kill switch and the fail-safe read path (FR-003, FR-004, FR-013). */
 

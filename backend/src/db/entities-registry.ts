@@ -178,9 +178,9 @@ import { PromotionUsage } from '../modules/promotions/entities/promotion-usage.e
 import { PromotionUsageCounter } from '../modules/promotions/entities/promotion-usage-counter.entity.js';
 import { ShoppingList } from '../modules/shopping_lists/entities/shopping-list.entity.js';
 import { ShoppingListItem } from '../modules/shopping_lists/entities/shopping-list-item.entity.js';
-import { SettingGroup } from '../modules/settings/entities/setting-group.entity.js';
-import { Setting } from '../modules/settings/entities/setting.entity.js';
-import { SettingValue } from '../modules/settings/entities/setting-value.entity.js';
+import { SettingGroup } from '../kernel/settings/setting-group.entity.js';
+import { Setting } from '../kernel/settings/setting.entity.js';
+import { SettingValue } from '../kernel/settings/setting-value.entity.js';
 import { SearchPhraseRecord } from '../modules/search/entities/search-phrase-record.entity.js';
 import { Comparison } from '../modules/comparisons/entities/comparison.entity.js';
 import { ComparisonProduct } from '../modules/comparisons/entities/comparison-product.entity.js';

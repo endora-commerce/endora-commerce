@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HomepageResolver } from '../../../src/modules/settings/services/homepage-resolver.js';
-import type { SettingsService, SettingsReadResult } from '../../../src/modules/settings/services/settings.service.js';
+import type { SettingsService, SettingsReadResult } from '../../../src/kernel/settings/settings.service.js';
 
 function fakeEmFactory(channelId: string | null) {
   const conn = { execute: async () => (channelId ? [{ id: channelId }] : []) };

@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { SettingsService } from './settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 
 const ENABLED_CODE = 'storefront.speculation_rules.enabled';
 const EAGERNESS_CODE = 'storefront.speculation_rules.eagerness';

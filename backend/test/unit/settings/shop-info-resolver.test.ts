@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ShopInfoResolver } from '../../../src/modules/settings/services/shop-info-resolver.js';
-import type { SettingsService, SettingsReadResult } from '../../../src/modules/settings/services/settings.service.js';
+import type { SettingsService, SettingsReadResult } from '../../../src/kernel/settings/settings.service.js';
 
 /**
  * Unit test for the shop-info mapping. Uses fakes for the EntityManager

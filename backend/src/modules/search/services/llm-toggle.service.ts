@@ -5,7 +5,7 @@ import type {
   AdminAuditContext,
   SettingsAdminService,
 } from '../../settings/services/settings-admin.service.js';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { SEARCH_SETTING_CODES } from '../manifest.js';
 import {

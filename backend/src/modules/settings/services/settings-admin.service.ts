@@ -3,11 +3,11 @@ import { ERROR_CODES, valueSchemaForType, type SettingValueType } from '@b2b/con
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EventBus } from '../../../events/bus.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import { SettingGroup } from '../entities/setting-group.entity.js';
-import { Setting } from '../entities/setting.entity.js';
-import { SettingValue } from '../entities/setting-value.entity.js';
+import { SettingGroup } from '../../../kernel/settings/setting-group.entity.js';
+import { Setting } from '../../../kernel/settings/setting.entity.js';
+import { SettingValue } from '../../../kernel/settings/setting-value.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import { SecretKeyMissing, SecretKeyInvalid, encryptSecretValue } from './secret-value-codec.js';
+import { SecretKeyMissing, SecretKeyInvalid, encryptSecretValue } from '../../../kernel/settings/secret-value-codec.js';
 
 /**
  * SettingsAdminService — feature 004 / US2 (T034).
