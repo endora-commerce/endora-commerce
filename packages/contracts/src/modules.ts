@@ -12,7 +12,7 @@
 // runtime exports as a separate step.
 
 import { z } from 'zod';
-import { ModuleSettingsManifestSchema } from './settings.js';
+import { ModuleSettingsManifestSchema, settingCodeRe } from './settings.js';
 import { ModuleActionsManifestSchema } from './admin-actions.js';
 import { modulePermissionDeclarationSchema } from './admin.js';
 import { transactionalEmailManifestEntrySchema } from './transactional-emails.js';
@@ -57,6 +57,42 @@ export const ModuleI18nManifestSchema = z.object({
 });
 export type ModuleI18nManifest = z.infer<typeof ModuleI18nManifestSchema>;
 
+/**
+ * Operator-activation declaration — feature 073, Constitution XVII.
+ *
+ * The second of the two orthogonal presence axes. Platform availability lives
+ * in `module_registrations` and is owned by whoever operates the deployment;
+ * this block declares the *business* operator's control, which is an ordinary
+ * `Setting` row reconciled from the manifest.
+ *
+ * It sits beside `license`, never inside it: `license` is the build-time
+ * entitlement axis and is inert by design, and conflating the two would make a
+ * runtime toggle look like a licensing decision.
+ *
+ * Exactly one of the two forms is valid — enforced in `defineModuleManifest`
+ * rather than by the schema, because a Zod union of two non-strict objects
+ * accepts a value carrying both.
+ */
+export const ModuleActivationSchema = z.union([
+  z.object({
+    /**
+     * The Setting that holds the operator's choice. Declared rather than
+     * derived so a module that already ships an ad-hoc control (`blog.enabled`
+     * and friends) can adopt it instead of growing a second switch.
+     */
+    settingCode: z.string().regex(settingCodeRe),
+    /** Applies when the operator has never chosen. Asserted, never assumed. */
+    default: z.boolean(),
+  }),
+  z.object({
+    /** The platform cannot run without this module. */
+    nonDeactivatable: z.literal(true),
+    /** Operator-facing sentence rendered next to the locked control. */
+    reason: z.string().min(1).max(200),
+  }),
+]);
+export type ModuleActivation = z.infer<typeof ModuleActivationSchema>;
+
 export const ModuleManifestSchema = z.object({
   id: z.string().regex(moduleIdRe),
   name: z.string().min(1).max(120),
@@ -64,6 +100,13 @@ export const ModuleManifestSchema = z.object({
   version: z.string().regex(moduleVersionRe),
   dependencies: z.array(z.string().regex(moduleIdRe)).default([]),
   license: ModuleLicenseTierSchema.optional(),
+  /**
+   * Operator-activation control (feature 073). Optional only while the
+   * conversion sweep is in flight: `check-module-gating` requires it as soon
+   * as a module's seams are converted, so a converted module without it fails
+   * CI rather than resolving to an implicit "on".
+   */
+  activation: ModuleActivationSchema.optional(),
   /**
    * Per-module settings declaration consumed by the existing feature 004
    * `ManifestReconciler`. When present, its `moduleCode` MUST equal the
