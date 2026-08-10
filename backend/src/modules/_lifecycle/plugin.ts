@@ -16,11 +16,15 @@ import { buildStaticRegistry } from './services/static-registry.js';
 import type { LoadedManifestRegistry } from './services/manifest-loader.js';
 import {
   registerLifecycleAdminRoutes,
+  registerModulePresenceRoutes,
   type RequireAdminFactory,
 } from './routes.admin.js';
+import { registerModulePresenceStorefrontRoutes } from './routes.storefront.js';
 import { ModuleRegistration } from './entities/module-registration.entity.js';
 import { resumeWorkersFor } from './plugin-helpers.js';
 import { findInactiveModules } from './registered-manifests.js';
+import type { CommandBus } from '../../commands/index.js';
+import { publishStateChanged } from './services/registry-cache.js';
 
 export interface LifecycleModuleDeps {
   orm: MikroORM;
@@ -49,6 +53,18 @@ export interface LifecycleModuleDeps {
    * leaves rows in place; visibility is gated by the registry-state join.
    */
   adminActionsReconciler?: OrchestratorDeps['adminActionsReconciler'];
+  /**
+   * Feature 073 — the operator-activation write path. Optional: without it the
+   * presence projection still serves, because rendering a correct navigation
+   * must not depend on being able to change it.
+   */
+  commandBus?: CommandBus;
+  /**
+   * Drops the storefront's `modules:presence` cache entry after a flip, so a
+   * toggle is visible on the next storefront request without a rebuild
+   * (FR-036). Best-effort by contract — see `StorefrontRevalidator`.
+   */
+  revalidateStorefront?: (tags: string[]) => Promise<void>;
 }
 
 export interface LifecycleModuleHandle {
@@ -128,6 +144,29 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
       orchestrator,
       requireAdmin: deps.requireAdmin,
     });
+    // Feature 073 — the presence projections and the activation write. Both
+    // reads sit outside `defineModuleRoutes`: `_lifecycle` is non-deactivatable,
+    // and gating the surface that tells the frontends what is present on the
+    // state it reports would be circular.
+    registerModulePresenceRoutes(app, {
+      requireAdmin: deps.requireAdmin,
+      ...(deps.commandBus
+        ? {
+            activation: {
+              commandBus: deps.commandBus,
+              propagation: {
+                // The writing process refreshes itself rather than waiting on
+                // its own pub/sub round trip, so the very next request it
+                // serves already sees the new state.
+                refreshLocalState: () => registryCache.refreshFromDb(deps.emFactory),
+                publishStateChanged: (payload) => publishStateChanged(deps.redis, payload),
+                revalidateStorefront: deps.revalidateStorefront ?? (async () => undefined),
+              },
+            },
+          }
+        : {}),
+    });
+    registerModulePresenceStorefrontRoutes(app);
   };
 
   return {

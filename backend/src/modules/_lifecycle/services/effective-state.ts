@@ -33,6 +33,27 @@ export interface EffectiveModuleState {
   presence(moduleId: string): ModulePresenceState | undefined;
   all(): readonly ModulePresenceState[];
   isDegraded(): boolean;
+  /**
+   * The module whose activation control is stored under `settingCode`, or
+   * `undefined` when the code is an ordinary setting. The settings write path
+   * asks this so an activation code cannot be flipped through the generic
+   * screen, bypassing the audited Command (FR-009).
+   */
+  activationControlOwner(settingCode: string): string | undefined;
+  /** The Setting that holds `moduleId`'s activation, if it declares one. */
+  activationSettingCode(moduleId: string): string | null;
+  /**
+   * Tri-state presence, for the callers that must tell "this module is absent"
+   * from "this is not a module at all".
+   *
+   * `isPresent` collapses both into `false`, which is right for a gating seam:
+   * an unknown id gets nothing. It is wrong for a caller that classifies
+   * *existing rows* by their owner — a `settings` row may be owned by a
+   * hand-created group or by a string that was never a module id, and locking
+   * those rows as "belonging to a switched-off module" would take an operator's
+   * configuration away for a module that does not exist.
+   */
+  presenceOf(moduleId: string): boolean | undefined;
 }
 
 export class ModuleEffectiveState implements EffectiveModuleState {
@@ -76,6 +97,20 @@ export class ModuleEffectiveState implements EffectiveModuleState {
 
   isDegraded(): boolean {
     return this.cache.isDegraded();
+  }
+
+  activationControlOwner(settingCode: string): string | undefined {
+    return this.cache.activationDeclarationByCode(settingCode)?.moduleId;
+  }
+
+  activationSettingCode(moduleId: string): string | null {
+    return this.cache.activationDeclaration(moduleId)?.settingCode ?? null;
+  }
+
+  presenceOf(moduleId: string): boolean | undefined {
+    const presence = this.presence(moduleId);
+    if (!presence) return undefined;
+    return presence.platformAvailable && presence.operatorActivated;
   }
 
   /**

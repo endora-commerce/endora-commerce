@@ -71,6 +71,18 @@ export class ModuleRegistryCache {
   }
 
   /**
+   * The module that declares `settingCode` as its activation control, if any.
+   * Used by the settings write guards: an activation code has exactly one
+   * legitimate door, and it is not `PUT /settings/:code/value` (FR-009).
+   */
+  activationDeclarationByCode(settingCode: string): ModuleActivationDeclaration | undefined {
+    for (const declaration of this.declarations.values()) {
+      if (declaration.settingCode === settingCode) return declaration;
+    }
+    return undefined;
+  }
+
+  /**
    * Install the activation declarations distilled from the manifests. Kept as
    * plain data so the hot path never imports the manifest graph. Refreshing
    * without them resolves the platform axis only, which is exactly the
@@ -142,6 +154,24 @@ export class ModuleRegistryCache {
     for (const id of opts?.deactivated ?? []) {
       this.activation.set(id, false);
     }
+  }
+
+  /**
+   * Test seam — re-resolve the **operator** axis from the database, leaving the
+   * seeded platform axis alone.
+   *
+   * The shared test harness never populates `module_registrations`; it seeds
+   * the enabled-set directly through `__setEnabledForTesting`. A full
+   * `refreshFromDb` there would find an empty registry table and take every
+   * gated route down mid-run, so a test that has just written an activation
+   * value needs this narrower refresh to observe it.
+   *
+   * Production never calls it: a partial refresh is exactly how the two axes
+   * would drift apart in a process that missed a notification, which is why
+   * `refreshFromDb` rebuilds both together.
+   */
+  async __refreshActivationForTesting(em: () => EntityManager): Promise<void> {
+    this.activation = await resolveActivation(em(), [...this.declarations.values()]);
   }
 
   /** True when the pub/sub side is unhealthy and the cache is TTL-refreshing. */

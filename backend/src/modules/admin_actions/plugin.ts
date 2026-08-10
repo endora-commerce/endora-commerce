@@ -39,6 +39,12 @@ export interface AdminActionsModuleDeps {
   requireAdmin: RequireAdminFactory;
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
   log?: { info(msg: string): void; warn(msg: string): void };
+  /**
+   * Feature 073 — the operator presence axis, passed straight through to the
+   * service. See `AdminActionsServiceDeps.isModuleActivated` for why it is
+   * injected rather than read from the lifecycle singleton.
+   */
+  isModuleActivated?: (moduleId: string) => boolean;
 }
 
 export interface AdminActionsModuleHandle {
@@ -69,6 +75,7 @@ export function adminActionsModule(deps: AdminActionsModuleDeps): AdminActionsMo
     i18nService: deps.i18nService,
     permissionService: deps.permissionService,
     ...(deps.redisSubscriber ? { redisSubscriber: deps.redisSubscriber } : {}),
+    ...(deps.isModuleActivated ? { isModuleActivated: deps.isModuleActivated } : {}),
     log,
   });
 

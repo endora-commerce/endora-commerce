@@ -30,6 +30,44 @@ export interface AdminAuditContext {
   requestId?: string | null;
 }
 
+/**
+ * The effective-state surface this module needs — feature 073, Constitution
+ * XVII. Injected rather than imported so `settings` keeps no edge into the
+ * lifecycle service graph; `_lifecycle` already depends on this module's
+ * `Setting` entity, and reversing that edge in code would make the direction of
+ * the dependency a matter of which file you happened to open.
+ */
+export interface ModulePresencePort {
+  /**
+   * Platform availability AND operator activation, resolved in memory.
+   * `undefined` when the platform has never heard of this owner — a
+   * hand-created group, a legacy row, a fixture. Those are not modules whose
+   * presence anybody can toggle, and treating them as absent would take an
+   * operator's configuration away for a module that does not exist.
+   */
+  presenceOf(moduleId: string): boolean | undefined;
+  /** The module whose activation control this code holds, if any. */
+  activationControlOwner(settingCode: string): string | undefined;
+}
+
+/** One setting, plus what feature 073 says an operator may do with it. */
+export interface ClassifiedSetting {
+  setting: Setting;
+  values: SettingValue[];
+  /**
+   * `false` when the owning module is not effectively present. The value is
+   * still readable — off is not uninstall — but every write is refused
+   * (FR-033).
+   */
+  editable: boolean;
+  /**
+   * This setting IS its module's activation control: the single exception that
+   * stays writable while the module is off, and the one setting this service
+   * refuses outright (the audited Command owns it).
+   */
+  activationControl: boolean;
+}
+
 export interface SetValueResult {
   setting: Setting;
   affectedChannelIds: string[];
@@ -43,7 +81,70 @@ export class SettingsAdminService {
     private readonly auditLogService?: AuditLogService,
     /** Base64 32-byte key for `secret` settings (feature 043, FR-021). */
     private readonly secretEncryptionKey?: string,
+    /**
+     * Feature 073. Absent in a composition with no lifecycle (unit tests):
+     * every setting then classifies as editable, which is the pre-073
+     * behaviour rather than a fall-open — there is no activation axis to
+     * resolve at all.
+     */
+    private readonly presence?: ModulePresencePort,
   ) {}
+
+  // ------------------------------------------------------------------------
+  // Feature 073 — presence classification (Constitution XVII)
+  // ------------------------------------------------------------------------
+
+  /**
+   * Classify one setting against the effective state of the module that owns
+   * it. Per setting, not per group: a disabled module's activation control must
+   * stay visible and writable (Constitution XVII's single exception), so its
+   * group stays non-empty and a group-level filter would render the whole
+   * group — every knob of a module that is supposed to be gone.
+   */
+  private classify(setting: Setting): { editable: boolean; activationControl: boolean } {
+    if (!this.presence) return { editable: true, activationControl: false };
+    const activationControl =
+      this.presence.activationControlOwner(setting.code) === setting.ownerModule;
+    if (activationControl) {
+      // The one way back. An operator who switched a module off must be able to
+      // switch it on again, so this row never goes read-only.
+      return { editable: true, activationControl: true };
+    }
+    // `undefined` ⇒ the owner is not a module the platform manages, so nothing
+    // about it is switched off and the row keeps its pre-073 behaviour.
+    return {
+      editable: this.presence.presenceOf(setting.ownerModule) ?? true,
+      activationControl: false,
+    };
+  }
+
+  /**
+   * Refuse a write the classification says is not available.
+   *
+   * Two distinct refusals, because they mean different things to an operator:
+   * an activation code has a *different* door (the audited Command), while an
+   * absent module's ordinary setting has *no* door until the module is back.
+   */
+  private assertWritable(setting: Setting): void {
+    const { editable, activationControl } = this.classify(setting);
+    if (activationControl) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.MODULE_ACTIVATION_PROTECTED,
+        `"${setting.code}" is the activation control for module "${setting.ownerModule}". ` +
+          `Change it through POST /api/v1/admin/modules/${setting.ownerModule}/activation, ` +
+          `which audits the change.`,
+      );
+    }
+    if (!editable) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.MODULE_SETTING_READ_ONLY,
+        `Module "${setting.ownerModule}" is switched off, so "${setting.code}" cannot be changed. ` +
+          `Its stored value is preserved and becomes editable again when the module is switched on.`,
+      );
+    }
+  }
 
   // ------------------------------------------------------------------------
   // Read paths
@@ -52,7 +153,7 @@ export class SettingsAdminService {
   async listGroups(filter?: { groupCode?: string }): Promise<{
     groups: Array<{
       group: SettingGroup;
-      settings: Array<{ setting: Setting; values: SettingValue[] }>;
+      settings: ClassifiedSetting[];
     }>;
   }> {
     const em = this.emFactory();
@@ -63,7 +164,7 @@ export class SettingsAdminService {
     });
     const out: Array<{
       group: SettingGroup;
-      settings: Array<{ setting: Setting; values: SettingValue[] }>;
+      settings: ClassifiedSetting[];
     }> = [];
     for (const group of groups) {
       const settings = await em.find(
@@ -77,14 +178,17 @@ export class SettingsAdminService {
       // genuinely empty group is preserved so group management still lists it.
       const visible = settings.filter((s) => !s.hidden);
       if (visible.length === 0 && settings.length > 0) continue;
-      const settingsWithValues: Array<{ setting: Setting; values: SettingValue[] }> = [];
+      const settingsWithValues: ClassifiedSetting[] = [];
       for (const setting of visible) {
         const values = await em.find(
           SettingValue,
           { setting },
           { populate: ['salesChannel'] },
         );
-        settingsWithValues.push({ setting, values });
+        // Feature 073: classified, never dropped. An absent module's stored
+        // configuration stays readable (off is not uninstall) and the admin
+        // renders it read-only from these flags.
+        settingsWithValues.push({ setting, values, ...this.classify(setting) });
       }
       out.push({ group, settings: settingsWithValues });
     }
@@ -95,6 +199,8 @@ export class SettingsAdminService {
     setting: Setting;
     values: SettingValue[];
     version: string;
+    editable: boolean;
+    activationControl: boolean;
   }> {
     const em = this.emFactory();
     const setting = await em.findOne(
@@ -114,7 +220,12 @@ export class SettingsAdminService {
       { setting },
       { populate: ['salesChannel'] },
     );
-    return { setting, values, version: this.computeSettingVersion(setting, values) };
+    return {
+      setting,
+      values,
+      version: this.computeSettingVersion(setting, values),
+      ...this.classify(setting),
+    };
   }
 
   // ------------------------------------------------------------------------
@@ -137,6 +248,22 @@ export class SettingsAdminService {
     expectedVersion: string | null,
     actor: AdminAuditContext,
   ): Promise<SetValueResult> {
+    // Feature 073 / FR-009, Constitution XII. Refused here as well as in
+    // `setValue`, and refused *before* the empty-subset check: activation is
+    // platform-wide, and a per-channel override against an activation code
+    // would make module presence channel-dependent through the back door — the
+    // one thing a hot-path check that is deliberately not channel-aware cannot
+    // survive. Without this, the subset path permits a write against any
+    // registered setting.
+    const owner = this.presence?.activationControlOwner(code);
+    if (owner) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.MODULE_ACTIVATION_PROTECTED,
+        `"${code}" is the activation control for module "${owner}". Activation is ` +
+          `platform-wide and cannot be set per sales channel.`,
+      );
+    }
     if (channelCodes.length === 0) {
       throw new HttpError(
         400,
@@ -170,6 +297,11 @@ export class SettingsAdminService {
         `Setting "${code}" is not registered.`,
       );
     }
+
+    // Feature 073 — the two write refusals, before any validation: an
+    // activation code has a different door, and an absent module's ordinary
+    // settings have none until it is back (FR-009, FR-033).
+    this.assertWritable(setting);
 
     // Validate the incoming value against the declared type.
     const schema = valueSchemaForType(setting.valueType as SettingValueType);
@@ -363,6 +495,11 @@ export class SettingsAdminService {
         `Setting "${code}" is not registered.`,
       );
     }
+
+    // A reset is a write. FR-033 says an absent module's configuration is
+    // non-editable, and clearing an operator's stored value is the most
+    // destructive edit of all.
+    this.assertWritable(setting);
 
     let resetChannelIds: string[] = [];
     let globalValueCleared = false;
