@@ -9,7 +9,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Product } from '../../catalog/entities/product.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { FeedTemplate } from '../entities/feed-template.entity.js';
 import { FeedTemplateField } from '../entities/feed-template-field.entity.js';
 import { ProductFeed } from '../entities/product-feed.entity.js';

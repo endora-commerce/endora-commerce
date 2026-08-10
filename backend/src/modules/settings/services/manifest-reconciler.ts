@@ -7,7 +7,7 @@ import {
 } from '@b2b/contracts';
 import { SettingGroup } from '../entities/setting-group.entity.js';
 import { Setting } from '../entities/setting.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * Manifest reconciler — feature 004 / US1 (T023).

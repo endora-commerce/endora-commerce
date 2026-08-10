@@ -12,7 +12,7 @@ import { ThresholdAdminService } from './services/threshold-admin-service.js';
 import { LowStockAlertService, type InventoryTemplateEmailPort } from './services/low-stock-alert-service.js';
 import { registerInventoryRoutes } from './routes.js';
 import { registerInventoryAdminRoutes } from './routes.admin.js';
-import type { SalesChannelResolverService } from '../sales_channels/services/sales-channel-resolver.service.js';
+import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
 import type { SettingsService } from '../settings/services/settings.service.js';
 import { ConsoleMailer, type Mailer } from '../email/services/mailer.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';

@@ -3,7 +3,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { SalesChannelsService } from '../../../src/modules/sales_channels/services/sales-channels.service.js';
-import { DefaultChannelReconciler } from '../../../src/modules/sales_channels/services/default-channel-reconciler.js';
+import { DefaultChannelReconciler } from '../../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 
 /**
@@ -32,7 +32,7 @@ describe('Default channel is undeletable / undeactivatable (T023)', () => {
     const em = db.em();
     await new DefaultChannelReconciler(() => em).run();
     const found = await em.findOneOrFail(
-      (await import('../../../src/modules/sales_channels/entities/sales-channel.entity.js'))
+      (await import('../../../src/kernel/sales-channels/sales-channel.entity.js'))
         .SalesChannel,
       { systemDefault: true },
     );

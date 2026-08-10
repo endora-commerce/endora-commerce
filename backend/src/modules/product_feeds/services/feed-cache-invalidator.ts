@@ -123,7 +123,7 @@ export interface CacheEventBus {
 
 /**
  * Subscribes the cache to the module's own events. Modelled on
- * `sales_channels/services/sales-channels-cache-invalidator.ts`, including the
+ * `kernel/sales-channels/sales-channels-cache-invalidator.ts`, including the
  * returned `dispose()` so a test can tear down deterministically.
  */
 export function attachFeedCacheInvalidator(

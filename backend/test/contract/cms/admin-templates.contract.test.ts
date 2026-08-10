@@ -5,7 +5,7 @@ import {
   setupBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 describe('admin CMS Templates contract (T077)', () => {
   let h: BackendServerHandle;

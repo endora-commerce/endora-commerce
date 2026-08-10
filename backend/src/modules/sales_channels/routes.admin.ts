@@ -12,8 +12,8 @@ import type {
   AdminAuditContext,
   SalesChannelsService,
 } from './services/sales-channels.service.js';
-import type { SalesChannelMembershipService } from './services/sales-channel-membership.service.js';
-import type { SalesChannel } from './entities/sales-channel.entity.js';
+import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**

@@ -112,19 +112,29 @@ export const ACKNOWLEDGED_FK_EDGES: readonly AcknowledgedFkEdge[] = [
       'before an optional commercial module is not a root',
   },
 
-  // ── Rule 2 — sales_channels owns the membership bridges ─────────────────
+  // ── Rule 1 — the kernel is the platform root (feature 072, D-32) ─────────
   {
-    from: 'sales_channels',
+    from: 'kernel',
     to: 'assets_library',
     via: ['sales_channels → assets'],
     reason:
-      'A channel logo is presentation metadata on the channel row. The bridge ' +
-      'owner does not depend on the asset library; the library is a platform root.',
-    rule: 'bridge-owner',
+      'Feature 072 T019 moved the SalesChannel entity into the kernel, which ' +
+      'made the pre-existing `sales_channels.logo_asset_id → assets` foreign key ' +
+      'a kernel → module edge. It is a nullable presentation column with ' +
+      '`on delete set null`: dropping the assets_library module leaves the ' +
+      'channel row intact, so the kernel does not *depend* on the module in the ' +
+      'install-time sense the manifest graph models. D-32 counted ORM relations ' +
+      'only and did not see this edge, because `logoAssetId` is a scalar ' +
+      '@Property, not a @ManyToOne. Retiring it means dropping the constraint in ' +
+      'a core migration — a schema change, tracked separately from the ' +
+      'relocation.',
+    rule: 'platform-root',
     cycle:
-      'no cycle on its own — dropped because declaring it inverts the ' +
-      'bridge-ownership direction',
+      'no cycle — the kernel appears in no manifest and can never be named in a ' +
+      '`dependencies` array, so the edge is undeclarable rather than undeclared',
   },
+
+  // ── Rule 2 — sales_channels owns the membership bridges ─────────────────
   {
     from: 'sales_channels',
     to: 'catalog',
@@ -216,20 +226,8 @@ export const ACKNOWLEDGED_FK_EDGES: readonly AcknowledgedFkEdge[] = [
       'bridge-ownership direction',
   },
 
-  // ── Rule 1 — settings is a platform root ────────────────────────────────
-  {
-    from: 'settings',
-    to: 'sales_channels',
-    via: [
-      'setting_group_sales_channels → sales_channels',
-      'setting_sales_channels → sales_channels',
-      'setting_values → sales_channels',
-    ],
-    reason:
-      'The per-channel scope columns are optional: a setting value with a null ' +
-      'sales_channel_id is the global value. settings is the platform root every ' +
-      'module — sales_channels included — installs on top of.',
-    rule: 'platform-root',
-    cycle: 'settings → sales_channels → settings',
-  },
+  // The `settings → sales_channels` entry that stood here until feature 072
+  // T019 is gone: `sales_channels` is a kernel-owned table now, so the three
+  // foreign keys it covered became settings → kernel, which needs no
+  // declaration at all (the kernel has no manifest to name).
 ];

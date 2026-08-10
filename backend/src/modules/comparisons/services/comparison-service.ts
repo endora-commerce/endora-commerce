@@ -5,7 +5,7 @@ import type {
   ComparisonDisplayMode,
 } from '@b2b/contracts';
 import { Product } from '../../catalog/entities/product.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { CatalogQueryService } from '../../catalog/services/catalog-query.service.js';
 import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
 import type { SettingsService } from '../../settings/services/settings.service.js';

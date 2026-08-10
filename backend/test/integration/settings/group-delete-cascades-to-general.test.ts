@@ -6,7 +6,7 @@ import { settingsManifest } from '../../../src/modules/settings/manifest.js';
 import { SettingsAdminService } from '../../../src/modules/settings/services/settings-admin.service.js';
 import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
 import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { EventBus } from '../../../src/events/bus.js';
 
 /**

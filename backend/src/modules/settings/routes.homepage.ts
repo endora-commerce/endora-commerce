@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { HomepageResolver } from './services/homepage-resolver.js';
 
 /**

@@ -5,7 +5,7 @@ import type {
   ComparisonAdminListQuery,
 } from '@b2b/contracts';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Comparison } from '../entities/comparison.entity.js';
 import {
   ComparisonNotFoundError,

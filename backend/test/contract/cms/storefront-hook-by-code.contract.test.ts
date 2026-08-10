@@ -4,7 +4,7 @@ import {
   setupBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 describe('CMS storefront hook by code contract (T068)', () => {
   let h: BackendServerHandle;

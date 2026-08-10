@@ -4,7 +4,7 @@ import {
   setupBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 describe('admin Megamenu bindings + activation contract (T023)', () => {
   let h: BackendServerHandle;

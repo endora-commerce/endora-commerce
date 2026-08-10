@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { catalogBulkPriceRequestSchema, ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { CatalogQueryService } from './services/catalog-query.service.js';
 import type { CatalogOrgPriceDecorator } from './services/catalog-org-price-decorator.js';
 

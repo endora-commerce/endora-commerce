@@ -4,7 +4,7 @@ import { PriceList } from '../../../src/modules/price_lists/entities/price-list.
 import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,

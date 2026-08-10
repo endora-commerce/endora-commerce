@@ -13,7 +13,7 @@ import type {
   AdminAuditContext,
   SettingsAdminService,
 } from '../../settings/services/settings-admin.service.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { TRANSACTIONAL_EMAILS_SETTING_CODES } from '../manifest.js';
 
 export interface ResolvedBranding {

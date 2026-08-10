@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Product } from '../../catalog/entities/product.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListProduct } from '../entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';

@@ -4,7 +4,7 @@ import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { ProductVariant } from '../../catalog/entities/product-variant.entity.js';
 import { Category } from '../../catalog/entities/category.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { FeedRun } from '../entities/feed-run.entity.js';
 import { FeedArtefact } from '../entities/feed-artefact.entity.js';
 import { FeedTemplate } from '../entities/feed-template.entity.js';

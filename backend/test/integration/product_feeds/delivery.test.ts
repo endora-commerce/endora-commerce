@@ -8,7 +8,7 @@ import {
 } from '../../helpers/test-server.js';
 import { FeedDeliveryAttempt } from '../../../src/modules/product_feeds/entities/feed-delivery-attempt.entity.js';
 import { ProductFeed } from '../../../src/modules/product_feeds/entities/product-feed.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import {
   FeedDeliveryError,
   type FeedDeliveryAdapter,

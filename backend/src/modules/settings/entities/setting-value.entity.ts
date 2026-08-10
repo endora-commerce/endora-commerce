@@ -10,7 +10,7 @@ import {
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import { Setting } from './setting.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * SettingValue — feature 004 / data-model.md.

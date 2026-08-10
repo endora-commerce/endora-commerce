@@ -27,7 +27,7 @@ import {
   BULK_OPERATION_JOB_NAME,
   createBulkOperationQueue,
 } from './services/bulk-operation-queue.js';
-import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
+import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type {
   PromptActionTool,
   ToolContext,

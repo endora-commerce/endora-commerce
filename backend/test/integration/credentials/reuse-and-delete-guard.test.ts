@@ -8,7 +8,7 @@ import {
 import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
 import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
 import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * Feature 058 US2 (T037) — one configuration referenced by two settings [real DB].

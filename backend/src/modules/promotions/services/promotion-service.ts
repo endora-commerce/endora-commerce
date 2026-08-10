@@ -14,7 +14,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
-import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
+import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';

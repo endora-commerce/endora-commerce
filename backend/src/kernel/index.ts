@@ -41,6 +41,32 @@ export {
 } from './audit/audit-log-service.js';
 export { AuditLogEntry } from './audit/audit-log-entry.entity.js';
 
+export { SalesChannel } from './sales-channels/sales-channel.entity.js';
+export {
+  SalesChannelsCache,
+  toCachedChannel,
+  type CachedChannel,
+} from './sales-channels/sales-channels-cache.js';
+export {
+  attachSalesChannelsCacheInvalidator,
+  type SalesChannelsCacheInvalidatorHandle,
+} from './sales-channels/sales-channels-cache-invalidator.js';
+export {
+  SalesChannelResolverService,
+  parseHostMap,
+  type ResolverError,
+} from './sales-channels/sales-channel-resolver.service.js';
+export {
+  SalesChannelMembershipService,
+  type MembershipMutationOptions,
+  type MembershipMutationResult,
+} from './sales-channels/sales-channel-membership.service.js';
+export { registerSalesChannelResolverMiddleware } from './sales-channels/sales-channel-resolver.middleware.js';
+export {
+  DefaultChannelReconciler,
+  type DefaultChannelReconciliationResult,
+} from './sales-channels/default-channel-reconciler.js';
+
 export {
   type AdminPermissionChecker,
   type RequireAdminAnyFactory,

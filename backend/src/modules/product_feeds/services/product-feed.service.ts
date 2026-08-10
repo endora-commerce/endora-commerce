@@ -10,7 +10,7 @@ import type { CommandBus } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Language } from '../../languages/entities/language.entity.js';
 import { PriceList } from '../../price_lists/entities/price-list.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { FeedArtefact } from '../entities/feed-artefact.entity.js';
 import { FeedRun } from '../entities/feed-run.entity.js';
 import { FeedTemplate } from '../entities/feed-template.entity.js';

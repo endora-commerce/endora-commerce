@@ -6,7 +6,7 @@ import {
   comparisonSetDisplayModeInputSchema,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import {
   ComparisonFullError,
   ComparisonNotFoundError,

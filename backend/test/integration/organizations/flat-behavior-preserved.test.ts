@@ -10,7 +10,7 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { OrganizationSalesRepAssignment } from '../../../src/modules/organizations/entities/organization-sales-rep-assignment.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { CustomerGroup } from '../../../src/modules/price_lists/entities/customer-group.entity.js';
 import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
 import { OrganizationInheritanceService } from '../../../src/modules/organizations/services/organization-inheritance-service.js';

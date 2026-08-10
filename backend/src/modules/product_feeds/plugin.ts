@@ -9,10 +9,10 @@ import { defineModuleRoutes } from '../_lifecycle/plugin-helpers.js';
 import type { AdminNotificationService } from '../admin_notifications/services/admin-notification-service.js';
 import type { CustomFieldDefinitionService } from '../custom_fields/services/custom-field-definition.service.js';
 import { Product } from '../catalog/entities/product.entity.js';
-import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import type { LanguageService } from '../languages/services/language-service.js';
 import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
-import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
+import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { TaxService } from '../taxes/services/tax-service.js';
 import {
   ArtefactStore,

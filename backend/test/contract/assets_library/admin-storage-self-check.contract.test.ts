@@ -8,7 +8,7 @@ import {
 } from '../../helpers/test-server.js';
 import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
 import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * T073 — Contract test: storage self-check + state endpoints.

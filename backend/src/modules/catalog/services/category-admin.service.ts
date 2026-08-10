@@ -5,7 +5,7 @@ import { ERROR_CODES, type CreateCategoryRequest } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import type { CommandBus, CommandEvent } from '../../../commands/index.js';
-import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
+import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
 import {
   CustomFieldValidationError,
   type CustomFieldValueService,

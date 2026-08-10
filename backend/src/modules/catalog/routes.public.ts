@@ -11,7 +11,7 @@ import {
   SearchBackendUnavailable,
   type SearchQueryService,
 } from '../search/services/search-query.service.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 
 /**
  * Public catalog routes (US1 read surface).

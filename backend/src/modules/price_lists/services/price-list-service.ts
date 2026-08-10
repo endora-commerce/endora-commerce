@@ -7,7 +7,7 @@ import { PriceListPriceBracket } from '../entities/price-list-price-bracket.enti
 import { PriceDisplayModeOverride } from '../entities/price-display-mode-override.entity.js';
 import { CustomerGroup } from '../entities/customer-group.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Category } from '../../catalog/entities/category.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { Setting } from '../../settings/entities/setting.entity.js';

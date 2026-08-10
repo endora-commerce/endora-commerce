@@ -1,4 +1,4 @@
-import type { EventBus } from '../../../events/bus.js';
+import type { EventBus } from '../../events/bus.js';
 import type { SalesChannelsCache } from './sales-channels-cache.js';
 
 /**

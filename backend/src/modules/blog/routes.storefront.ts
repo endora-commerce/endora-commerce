@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@b2b/contracts';
 import { z } from 'zod';
 import { HttpError } from '../../http/error-envelope.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { BlogStorefrontResolver } from './services/blog-storefront-resolver.js';
 
 const bySlugQuerySchema = z.object({

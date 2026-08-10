@@ -9,7 +9,8 @@ import { analyzeSource } from '../../../scripts/check-channel-resolution.js';
 describe('check-channel-resolution / analyzeSource', () => {
   const SURFACE = 'modules/catalog/routes.public.ts';
   const NON_SURFACE = 'modules/catalog/services/some-other.service.ts';
-  const RESOLVER = 'modules/sales_channels/middleware/sales-channel-resolver.ts';
+  const RESOLVER = 'modules/sales_channels/services/sales-channels.service.ts';
+  const KERNEL_RESOLVER = 'kernel/sales-channels/sales-channel-resolver.middleware.ts';
 
   it('flags a raw x-sales-channel header read (global scope)', () => {
     const v = analyzeSource(
@@ -64,5 +65,24 @@ describe('check-channel-resolution / analyzeSource', () => {
       RESOLVER,
     );
     expect(v).toHaveLength(0);
+  });
+
+  it('never flags the relocated kernel resolver (feature 072 T019)', () => {
+    const v = analyzeSource(
+      `const h = request.headers['x-sales-channel']; const ch = await em.findOne(SalesChannel, { code });`,
+      KERNEL_RESOLVER,
+    );
+    expect(v).toHaveLength(0);
+  });
+
+  it('still flags a raw channel-header read elsewhere in the kernel', () => {
+    // The exemption is the resolver's directory, not the kernel as a whole:
+    // moving the resolver in must not turn the kernel into a blind spot.
+    const v = analyzeSource(
+      `const h = request.headers['x-sales-channel'];`,
+      'kernel/scope.ts',
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0]!.kind).toBe('raw-channel-header');
   });
 });

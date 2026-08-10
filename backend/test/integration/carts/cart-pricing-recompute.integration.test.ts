@@ -1,7 +1,7 @@
 import Redis from 'ioredis';
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { CartRecomputeCache } from '../../../src/modules/carts/services/cart-recompute-cache.js';
 import { CartPricingRecompute } from '../../../src/modules/carts/services/cart-pricing-recompute.js';

@@ -4,7 +4,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
 import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
 import { Language } from '../../../src/modules/languages/entities/language.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { MegamenuService } from '../../../src/modules/megamenu/services/megamenu-service.js';
 
 describe('Megamenu dictionary boundary', () => {

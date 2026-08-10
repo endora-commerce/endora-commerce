@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
 import { setupBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 describe('admin Blog Related Posts contract (T074)', () => {
   let h: BackendServerHandle;

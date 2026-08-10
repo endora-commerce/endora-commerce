@@ -9,7 +9,7 @@ import {
 import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
 import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
 import { Asset } from '../../../src/modules/assets_library/entities/asset.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * T035 — Contract test: POST /api/v1/admin/assets (multipart upload).

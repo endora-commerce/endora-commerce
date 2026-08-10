@@ -6,7 +6,7 @@ import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js
 import { SettingGroup } from '../entities/setting-group.entity.js';
 import { Setting } from '../entities/setting.entity.js';
 import { SettingValue } from '../entities/setting-value.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { SecretKeyMissing, SecretKeyInvalid, encryptSecretValue } from './secret-value-codec.js';
 
 /**

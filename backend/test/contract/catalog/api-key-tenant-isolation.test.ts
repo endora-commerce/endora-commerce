@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
