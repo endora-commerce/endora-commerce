@@ -128,3 +128,4 @@ export * from './credentials.js';
 export * from './ksef.js';
 export * from './product-feeds.js';
 export * from './pim-ergonode.js';
+export * from './kernel.js';

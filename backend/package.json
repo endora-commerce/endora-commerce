@@ -68,6 +68,7 @@
     "@mikro-orm/migrations": "^6.6.13",
     "@mikro-orm/postgresql": "^6.6.13",
     "argon2": "^0.44.0",
+    "awilix": "^13.0.5",
     "basic-ftp": "^6.2.0",
     "bullmq": "^5.76.1",
     "exceljs": "^4.4.0",
