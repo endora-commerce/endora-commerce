@@ -141,6 +141,55 @@ export const ModuleManifestSchema = z.object({
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 
 /**
+ * The three cross-field activation rules (feature 073,
+ * `contracts/module-activation-manifest.md`). They live here rather than in
+ * the schema because a Zod union of two non-strict objects accepts a value
+ * carrying both forms, and because the resulting message has to name the
+ * module the author is looking at.
+ */
+function assertActivationRules(id: string, activation: unknown): void {
+  const block = activation as Record<string, unknown>;
+  const declaresControl =
+    typeof block['settingCode'] === 'string' && typeof block['default'] === 'boolean';
+  const declaresNonDeactivatable =
+    block['nonDeactivatable'] === true &&
+    typeof block['reason'] === 'string' &&
+    block['reason'].length > 0;
+
+  // 1. Exactly one form.
+  if (declaresControl === declaresNonDeactivatable) {
+    throw new Error(
+      `[contracts/modules] manifest "${id}" must declare exactly one activation ` +
+        `form: either { settingCode, default } or { nonDeactivatable: true, reason }.`,
+    );
+  }
+
+  // 2. An `_`-prefixed id is platform-internal by convention (`moduleIdRe`);
+  //    this makes the convention enforceable.
+  if (id.startsWith('_') && !declaresNonDeactivatable) {
+    throw new Error(
+      `[contracts/modules] manifest "${id}" is platform-internal (leading "_") ` +
+        `and MUST declare activation as { nonDeactivatable: true, reason }.`,
+    );
+  }
+
+  // 3. The control belongs to the declaring module. Adopting an existing
+  //    ad-hoc control (FR-014) is allowed precisely because every such code
+  //    — `blog.enabled`, `prompt_actions.enabled`, `ksef.integration.enabled` —
+  //    already sits under its own module's namespace.
+  if (declaresControl) {
+    const code = block['settingCode'] as string;
+    if (code !== id && !code.startsWith(`${id}.`)) {
+      throw new Error(
+        `[contracts/modules] manifest "${id}" declares activation setting ` +
+          `"${code}", which is outside the module's own namespace ` +
+          `("${id}" or "${id}.*").`,
+      );
+    }
+  }
+}
+
+/**
  * Identity-with-validation helper for module authors. Modules export a
  * single `manifest` constant via this helper so TypeScript inference is
  * preserved and the loader can ingest the validated payload directly.
@@ -159,6 +208,9 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
       `[contracts/modules] manifest "${m.id}" carries a settings ` +
         `manifest with moduleCode "${m.settings.moduleCode}" (must match).`,
     );
+  }
+  if (m.activation !== undefined) {
+    assertActivationRules(m.id, m.activation);
   }
   return ModuleManifestSchema.parse(m);
 }
