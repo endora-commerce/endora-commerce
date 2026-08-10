@@ -50,7 +50,11 @@ export const manifest = defineModuleManifest({
   // The remaining five (assets_library, delivery_methods, organizations,
   // payment_methods, taxes) close no cycle but are dropped by the same rule: a
   // bridge owner declaring what it bridges inverts the ownership direction.
-  // All nine are recorded in test/unit/db/acknowledged-fk-edges.ts.
+  // Eight are recorded in test/unit/db/acknowledged-fk-edges.ts; the ninth,
+  // `sales_channels.logo_asset_id → assets`, is recorded there as
+  // `kernel → assets_library` because feature 072 T019 moved the SalesChannel
+  // entity — and with it the ownership of the `sales_channels` table — into the
+  // kernel. The nine bridge tables stay owned by this module.
   //
   // Forward-looking convention: a new bridge table for module X is owned by X's
   // migration, so X → sales_channels covers it and no new exception is needed.

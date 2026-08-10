@@ -196,12 +196,15 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // Rule 1 (platform root) — specs/065-manifest-aware-migrations/research.md §R9.
   // `setting_values.sales_channel_id`, `setting_sales_channels` and
-  // `setting_group_sales_channels` foreign-key `sales_channels`, but the edge
-  // is deliberately NOT declared: settings is a platform root that every other
-  // module (including sales_channels itself) installs on top of. Declaring it
-  // would cycle: settings → sales_channels → settings. The scope columns are
-  // optional — a setting with a null sales_channel_id is the global value.
-  // Recorded in test/unit/db/acknowledged-fk-edges.ts.
+  // `setting_group_sales_channels` foreign-key `sales_channels`, and the edge is
+  // deliberately not declared: settings is a platform root that every other
+  // module (including sales_channels itself) installs on top of, and declaring
+  // it would cycle settings → sales_channels → settings.
+  //
+  // Since feature 072 (T018/T019) all four of those tables are kernel-owned, so
+  // the edge no longer crosses a module boundary at all and the acknowledged
+  // entry in test/unit/db/acknowledged-fk-edges.ts has been removed. The
+  // reasoning is kept because it is why this module still declares nothing.
   dependencies: [],
   settings,
   i18n: { bundlesDir: 'i18n' },
