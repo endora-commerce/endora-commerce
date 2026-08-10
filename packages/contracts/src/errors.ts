@@ -300,6 +300,25 @@ export const ERROR_CODES = {
   // Module Lifecycle (feature 018)
   MODULE_DISABLED: 'MODULE_DISABLED',
 
+  // Module Lifecycle (feature 073 — operator activation)
+  /** No manifest and no registry row answer to this module id. */
+  MODULE_NOT_FOUND: 'MODULE_NOT_FOUND',
+  /**
+   * The module declared itself non-deactivatable, or declares no activation
+   * control at all — either way there is nothing an operator may switch.
+   */
+  MODULE_NOT_DEACTIVATABLE: 'MODULE_NOT_DEACTIVATABLE',
+  /**
+   * An ordinary settings write targeted a module's activation control. The
+   * audited `module.activation.set` Command is the only door (FR-007, FR-009).
+   */
+  MODULE_ACTIVATION_PROTECTED: 'MODULE_ACTIVATION_PROTECTED',
+  /**
+   * A configuration write targeted a module that is not effectively present.
+   * Reads still show the stored value; writes are refused (FR-033).
+   */
+  MODULE_SETTING_READ_ONLY: 'MODULE_SETTING_READ_ONLY',
+
   // Catalog (feature 022 — Products Bulk Edit)
   BULK_TOO_LARGE: 'BULK_TOO_LARGE',
   ATTRIBUTE_NOT_MASS_EDITABLE: 'ATTRIBUTE_NOT_MASS_EDITABLE',

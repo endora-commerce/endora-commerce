@@ -383,6 +383,22 @@ export type StorefrontModulePresenceResponse = z.infer<
   typeof StorefrontModulePresenceResponseSchema
 >;
 
+/**
+ * `POST /api/v1/admin/modules/:id/activation` — the operator axis, and the
+ * only door to it. The ordinary settings write path refuses an activation
+ * code, so this endpoint's audited Command is where every flip is recorded.
+ */
+export const ModuleActivationRequestSchema = z.object({
+  active: z.boolean(),
+});
+export type ModuleActivationRequest = z.infer<typeof ModuleActivationRequestSchema>;
+
+/** The module's presence *after* the flip, so no client recomputes it. */
+export const ModuleActivationResponseSchema = z.object({
+  module: ModulePresenceSchema,
+});
+export type ModuleActivationResponse = z.infer<typeof ModuleActivationResponseSchema>;
+
 // ---- Feature 060 — API interceptor diagnostics (read-only admin) ----------
 
 /**

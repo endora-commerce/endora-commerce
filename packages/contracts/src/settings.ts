@@ -223,6 +223,21 @@ export const SettingDtoSchema = z.object({
    * returned by the detail endpoint.
    */
   version: z.iso.datetime(),
+  /**
+   * Feature 073 — `false` when the owning module is not effectively present.
+   * The value is still read (off is not uninstall: the stored configuration
+   * survives), but every write against it is refused (FR-033). Classified per
+   * setting rather than per group because the module's own activation control
+   * stays writable while it is off, so a group-level filter would either hide
+   * the control or render the whole group.
+   */
+  editable: z.boolean().optional(),
+  /**
+   * Feature 073 — this setting **is** its module's activation control: the
+   * single exception that stays writable while the module is off, and the one
+   * setting the ordinary write path refuses (the audited Command owns it).
+   */
+  activationControl: z.boolean().optional(),
 });
 export type SettingDto = z.infer<typeof SettingDtoSchema>;
 
