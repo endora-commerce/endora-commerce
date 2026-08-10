@@ -11,6 +11,7 @@ import type {
 import {
   registryCache
 } from './services/registry-cache.js';
+import { activationDeclarationsFrom } from './services/activation-resolver.js';
 import { buildStaticRegistry } from './services/static-registry.js';
 import type { LoadedManifestRegistry } from './services/manifest-loader.js';
 import {
@@ -101,6 +102,12 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
       redis: deps.redis,
       redisSubscriber: deps.redisSubscriber,
       em: deps.emFactory,
+      // Feature 073 — the operator-activation axis. Declarations come from the
+      // loaded manifests, so there is no hand-maintained list: a module that
+      // declares no control is governed by the platform axis alone.
+      activationDeclarations: activationDeclarationsFrom(
+        [...deps.registry.modules.values()].map((entry) => entry.manifest),
+      ),
     });
 
     // Resume any BullMQ workers that registered *before* this plugin warmed
