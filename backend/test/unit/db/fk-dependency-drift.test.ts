@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { deriveFkGraph, type FkEdge } from '../../helpers/fk-graph.js';
+import { deriveFkGraph, KERNEL_OWNER, type FkEdge } from '../../helpers/fk-graph.js';
 import { TABLE_OWNER_OVERRIDES } from './table-owner-overrides.js';
 import { ACKNOWLEDGED_FK_EDGES, type AcknowledgedFkEdge } from './acknowledged-fk-edges.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
@@ -66,6 +66,12 @@ function findViolations(
   const allowed = new Set(acknowledged.map((edge) => `${edge.from}|${edge.to}`));
   const messages: string[] = [];
   for (const edge of edges) {
+    // Feature 072 — a foreign key into the kernel needs no declaration. The
+    // kernel has no manifest and cannot appear in a `dependencies` array, and
+    // every deployment has it by definition. The reverse edge, kernel → module,
+    // is a real violation and is reported: it is the same rule
+    // `scripts/check-kernel-boundary.ts` enforces for ORM relations.
+    if (edge.to === KERNEL_OWNER) continue;
     if (closureOf(edge.from, dependencies).has(edge.to)) continue;
     if (allowed.has(`${edge.from}|${edge.to}`)) continue;
     messages.push(violationMessage(edge, `backend/src/modules/${edge.from}/manifest.ts`));
@@ -145,6 +151,38 @@ describe('fk drift — V3 failure-message contract (FR-042)', () => {
     expect(message).toContain('module "api_keys"');
     expect(message).toContain("add 'api_keys' to `dependencies` in orders/manifest.ts");
     expect(message).toContain('acknowledged-fk-edges.ts');
+  });
+});
+
+describe('fk drift — the kernel edge (feature 072)', () => {
+  it('accepts a foreign key from a module into the kernel with nothing declared', () => {
+    // The kernel has no manifest, so it can never appear in a `dependencies`
+    // array; requiring a declaration would make the edge undeclarable rather
+    // than declared.
+    const edge: FkEdge = {
+      from: 'search',
+      to: KERNEL_OWNER,
+      count: 1,
+      via: ['search_phrase_records → sales_channels'],
+    };
+    expect(findViolations([edge], new Map([['search', []]]), [])).toEqual([]);
+  });
+
+  it('still reports a foreign key from the kernel into a module', () => {
+    // A kernel that depends on a removable module is not a kernel. Same rule as
+    // scripts/check-kernel-boundary.ts, applied to foreign keys rather than to
+    // ORM relations.
+    const edge: FkEdge = {
+      from: KERNEL_OWNER,
+      to: 'catalog',
+      count: 1,
+      via: ['audit_log_entries → products'],
+    };
+    expect(findViolations([edge], new Map([['catalog', []]]), [])).toHaveLength(1);
+  });
+
+  it('claims the tables of the entities the kernel absorbed', () => {
+    expect(graph.owners.get('audit_log_entries')).toBe(KERNEL_OWNER);
   });
 });
 
