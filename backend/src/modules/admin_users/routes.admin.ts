@@ -11,7 +11,7 @@ import type { PermissionService } from '../admin_roles/services/permission-servi
 import type { PermissionCatalogueService } from '../admin_roles/services/permission-catalogue.service.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
 import type { AdminRole } from '../admin_roles/entities/admin-role.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin user + role CRUD (T193 / FR-080..FR-083). All gated by

@@ -8,13 +8,13 @@ import {
 } from '@b2b/contracts';
 import { z } from 'zod';
 import { HttpError } from '../../http/error-envelope.js';
-import type { RequireAdminFactory } from '../settings/plugin.js';
 import type {
   AdminAuditContext,
   SalesChannelsService,
 } from './services/sales-channels.service.js';
 import type { SalesChannelMembershipService } from './services/sales-channel-membership.service.js';
 import type { SalesChannel } from './entities/sales-channel.entity.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin HTTP surface — feature 005 / US2 (T034).

@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { AuditLogEntry } from '../entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from './audit-log-entry.entity.js';
 
 /**
  * Append-only audit log writer. Every sensitive operation (FR-084) calls `record()`

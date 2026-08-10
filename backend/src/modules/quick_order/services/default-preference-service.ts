@@ -12,7 +12,7 @@ import { PaymentMethod } from '../../payment_methods/entities/payment-method.ent
 import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.entity.js';
 import { Address } from '../../addresses/entities/address.entity.js';
 import { CustomerAddress } from '../../customers/entities/customer-address.entity.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { OrganizationRestrictionService } from '../../organizations/services/organization-restriction-service.js';
 import { QuickOrderDefaultPreference } from '../entities/quick-order-default-preference.entity.js';
 import { canManagePreference, type PreferenceActor } from './default-preference-authz.js';

@@ -20,7 +20,7 @@ import type { ThresholdAdminService } from './services/threshold-admin-service.j
 import type { LowStockAlertService } from './services/low-stock-alert-service.js';
 import type { AvailabilityNotificationService } from './services/availability-notification-service.js';
 import type { CsvStockImporter } from './services/csv-stock-importer.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Inventory admin routes — feature 010 (US1 + US2).

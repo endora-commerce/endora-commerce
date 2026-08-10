@@ -1,14 +1,11 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   GetAdminActionsQuerySchema,
   GetAdminActionsResponseSchema,
   type GetAdminActionsResponse,
 } from '@b2b/contracts';
 import type { AdminActionsService } from './services/admin-actions-service.js';
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface AdminActionsRouteDeps {
   adminActionsService: AdminActionsService;

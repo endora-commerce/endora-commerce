@@ -83,6 +83,14 @@ function listTsFilesRecursive(path: string): string[] {
 }
 
 /** Rule 1 of contract §2.1 — the module whose entities/ declares the tableName. */
+/**
+ * The owner id for a table declared by a kernel entity (feature 072). The
+ * kernel is not a module: it has no manifest and cannot appear in a
+ * `dependencies` array, which is exactly why a foreign key into it needs no
+ * declaration — every deployment has the kernel by definition.
+ */
+export const KERNEL_OWNER = 'kernel';
+
 function collectEntityOwners(sourceRoot: string): Map<string, string> {
   const owners = new Map<string, string>();
   for (const moduleId of listDirectories(join(sourceRoot, 'modules'))) {
@@ -91,6 +99,16 @@ function collectEntityOwners(sourceRoot: string): Map<string, string> {
       for (const match of source.matchAll(ENTITY_TABLE_RE)) {
         owners.set(match[1]!, moduleId);
       }
+    }
+  }
+  // Feature 072 — entities the kernel absorbed under D-32. Their tables are
+  // still created by core migrations; what changed is who owns the class, and
+  // the ownership map must follow or the table reads as unclaimed.
+  for (const file of listTsFilesRecursive(join(sourceRoot, KERNEL_OWNER))) {
+    if (!file.endsWith('.entity.ts')) continue;
+    const source = readFileSync(file, 'utf8');
+    for (const match of source.matchAll(ENTITY_TABLE_RE)) {
+      owners.set(match[1]!, KERNEL_OWNER);
     }
   }
   return owners;

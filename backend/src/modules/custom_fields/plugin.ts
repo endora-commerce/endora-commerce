@@ -2,11 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { CommandBus } from '../../commands/index.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import { CustomFieldDefinitionsCache } from './services/custom-field-definitions-cache.js';
 import { CustomFieldDefinitionService } from './services/custom-field-definition.service.js';
 import { CustomFieldValueService } from './services/custom-field-value.service.js';
 import { registerCustomFieldsAdminRoutes } from './routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface CustomFieldsModuleOptions {
   emFactory: () => EntityManager;

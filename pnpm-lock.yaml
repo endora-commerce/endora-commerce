@@ -204,6 +204,9 @@ importers:
       argon2:
         specifier: ^0.44.0
         version: 0.44.0
+      awilix:
+        specifier: ^13.0.5
+        version: 13.0.5
       basic-ftp:
         specifier: ^6.2.0
         version: 6.2.0
@@ -5069,6 +5072,10 @@ packages:
 
   avvio@9.2.0:
     resolution: {integrity: sha512-2t/sy01ArdHHE0vRH5Hsay+RtCZt3dLPji7W7/MMOCEgze5b7SNDC4j5H6FnVgPkI1MTNFGzHdHrVXDDl7QSSQ==}
+
+  awilix@13.0.5:
+    resolution: {integrity: sha512-ORtca6suBdYA1FyTzqHEZDvEuUwo3lPDDBRm7GrzHgi6STESzJKdBtpqfTzObdMj1NGQUWX6k26E3EbQaGJX5Q==}
+    engines: {node: '>=20.0.0'}
 
   aws-sdk-client-mock@4.1.0:
     resolution: {integrity: sha512-h/tOYTkXEsAcV3//6C1/7U4ifSpKyJvb6auveAepqqNJl6TdZaPFEtKjBQNf8UxQdDP850knB2i/whq4zlsxJw==}
@@ -16078,6 +16085,10 @@ snapshots:
     dependencies:
       '@fastify/error': 4.2.0
       fastq: 1.20.1
+
+  awilix@13.0.5:
+    dependencies:
+      fast-glob: 3.3.3
 
   aws-sdk-client-mock@4.1.0:
     dependencies:

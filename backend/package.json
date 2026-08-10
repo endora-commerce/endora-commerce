@@ -46,6 +46,7 @@
     "i18n:reload": "tsx --env-file-if-exists=.env src/modules/_i18n/scripts/reload.ts",
     "i18n:hardcoded": "tsx scripts/i18n-hardcoded-strings.ts",
     "channel:resolution": "tsx scripts/check-channel-resolution.ts",
+    "check:kernel-boundary": "tsx scripts/check-kernel-boundary.ts",
     "check:command-coverage": "tsx scripts/check-command-coverage.ts"
   },
   "dependencies": {
@@ -68,6 +69,7 @@
     "@mikro-orm/migrations": "^6.6.13",
     "@mikro-orm/postgresql": "^6.6.13",
     "argon2": "^0.44.0",
+    "awilix": "^13.0.5",
     "basic-ftp": "^6.2.0",
     "bullmq": "^5.76.1",
     "exceljs": "^4.4.0",

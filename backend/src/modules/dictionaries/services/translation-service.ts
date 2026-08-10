@@ -6,7 +6,7 @@ import { Language } from '../../languages/entities/language.entity.js';
 import { Country } from '../entities/country.entity.js';
 import { DictionaryTranslation } from '../entities/dictionary-translation.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 export interface UpsertTranslationInput {
   entryType: DictionaryEntryType;

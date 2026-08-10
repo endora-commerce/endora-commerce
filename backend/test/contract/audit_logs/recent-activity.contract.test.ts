@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { RECENT_ACTIVITY_ACTIONS } from '../../../src/modules/audit_logs/action-catalog.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
 /**
  * Feature 024 / T004 — Contract test for

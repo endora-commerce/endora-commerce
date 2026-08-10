@@ -1,12 +1,9 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { mfaResetBulkRequestSchema, mfaOrgPolicyRequestSchema } from '@b2b/contracts';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
-
-type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin MFA management endpoints (feature 042). 2FA reset is a Platform-Admin

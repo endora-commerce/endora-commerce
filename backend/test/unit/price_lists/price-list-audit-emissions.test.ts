@@ -8,7 +8,7 @@ import {
   SEED_PRODUCT_101_ID,
   SEED_PRODUCT_102_ID,
 } from '../../helpers/seed-catalog.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
 const adminCookie = { b2b_session: 'stub-admin-session' };
 

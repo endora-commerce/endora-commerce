@@ -3,7 +3,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, paymentMethodUpsertSchema } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { PaymentMethod } from './entities/payment-method.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import type { PaymentAdapterRegistry } from './services/payment-adapter-registry.js';
 import type { PaymentMethodEligibilityService } from './services/payment-method-eligibility.js';
@@ -11,6 +10,7 @@ import {
   OrderStatusRegistryError,
   type OrderStatusRegistry,
 } from './services/order-status-registry.port.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Public read endpoint: list active payment methods (storefront checkout).

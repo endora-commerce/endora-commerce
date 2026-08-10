@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ImportExportService } from './services/import-export-service.js';
 import { registerImportExportRoutes } from './routes.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface ImportExportModuleOptions {
   emFactory: () => EntityManager;

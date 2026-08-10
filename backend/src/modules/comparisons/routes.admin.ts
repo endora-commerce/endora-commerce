@@ -4,9 +4,9 @@ import {
   comparisonAdminListQuerySchema,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import type { RequireAdminFactory } from '../settings/plugin.js';
 import { ComparisonNotFoundError } from './services/comparison-service.js';
 import type { ComparisonAdminService } from './services/comparison-admin.service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin HTTP surface — feature 007 / US5 / T064.

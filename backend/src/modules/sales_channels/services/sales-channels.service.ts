@@ -10,7 +10,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { EventBus } from '../../../events/bus.js';
 import { SalesChannel } from '../entities/sales-channel.entity.js';
 import type { SalesChannelsCache } from './sales-channels-cache.js';

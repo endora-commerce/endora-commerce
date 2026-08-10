@@ -8,9 +8,9 @@ import {
 import { HttpError } from '../../http/error-envelope.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import { OrganizationSalesRepAssignment } from '../organizations/entities/organization-sales-rep-assignment.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { DefaultPreferenceService } from './services/default-preference-service.js';
 import { canManagePreference, type PreferenceActor } from './services/default-preference-authz.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin default-preferences routes (feature 039, FR-018). A platform admin

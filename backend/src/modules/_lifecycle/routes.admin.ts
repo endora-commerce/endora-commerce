@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import {
   AdminModulePresenceResponseSchema,
   ModuleActivationRequestSchema,
@@ -22,6 +22,7 @@ import {
   propagateActivationChange,
   type ActivationPropagation,
 } from './commands/activation.commands.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Read-only admin surface for the lifecycle subsystem (feature 018 / E-1).
@@ -48,10 +49,6 @@ function toPresenceDto(state: ModulePresenceState): ModulePresence {
     nonDeactivatableReason: state.nonDeactivatableReason,
   };
 }
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 export interface LifecycleAdminDeps {
   orchestrator: ModuleLifecycleOrchestrator;

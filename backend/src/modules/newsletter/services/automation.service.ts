@@ -11,7 +11,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { NewsletterAutomation } from '../entities/newsletter-automation.entity.js';
 import { NewsletterAutomationRun } from '../entities/newsletter-automation-run.entity.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';

@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { Order } from '../entities/order.entity.js';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 import {

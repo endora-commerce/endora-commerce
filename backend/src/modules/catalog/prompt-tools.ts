@@ -16,7 +16,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import { HttpError } from '../../http/error-envelope.js';
 import type { EventBus } from '../../events/bus.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { Category } from './entities/category.entity.js';
 import { Product } from './entities/product.entity.js';
 import { CatalogAdminService, type CatalogEventBus } from './services/catalog-admin.service.js';

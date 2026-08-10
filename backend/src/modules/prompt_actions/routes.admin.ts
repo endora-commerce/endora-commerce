@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   ClarifyRequestSchema,
   ERROR_CODES,
@@ -11,6 +11,7 @@ import { PROMPT_ACTIONS_USE_PERMISSION } from './manifest.js';
 import type { PromptActionRequest } from './entities/prompt-action-request.entity.js';
 import type { PromptRequestService, OperatorContext } from './services/prompt-request.service.js';
 import type { LlmProviderFactory } from './services/llm/provider-factory.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin HTTP surface — feature 043 (contracts/prompt-actions-api.md).
@@ -28,10 +29,6 @@ import type { LlmProviderFactory } from './services/llm/provider-factory.js';
  * planned operation is additionally re-checked against its own permission
  * inside the executor (FR-007).
  */
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 export interface PromptActionsRoutesDeps {
   requestService: PromptRequestService;

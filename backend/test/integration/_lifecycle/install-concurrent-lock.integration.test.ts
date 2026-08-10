@@ -5,7 +5,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../../../src/modules/_lifecycle/services/orchestrator.js';
 import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
 import { ModuleRegistration } from '../../../src/modules/_lifecycle/entities/module-registration.entity.js';
-import { AuditLogService } from '../../../src/modules/audit_logs/services/audit-log-service.js';
+import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { LOCK_KEY } from '../../../src/modules/_lifecycle/services/lock.js';
 import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
 

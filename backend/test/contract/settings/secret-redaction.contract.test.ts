@@ -9,7 +9,7 @@ import { ManifestReconciler } from '../../../src/modules/settings/services/manif
 import { SettingsAdminService } from '../../../src/modules/settings/services/settings-admin.service.js';
 import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
 import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { isSecretEnvelope } from '../../../src/modules/settings/services/secret-value-codec.js';
 import { z } from 'zod';
 

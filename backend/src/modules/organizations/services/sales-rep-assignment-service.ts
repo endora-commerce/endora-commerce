@@ -4,7 +4,7 @@ import { Organization } from '../entities/organization.entity.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ERROR_CODES } from '@b2b/contracts';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { OrganizationTreeService } from './organization-tree-service.js';
 
 /**

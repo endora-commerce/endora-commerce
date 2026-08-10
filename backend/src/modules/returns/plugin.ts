@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type { EventBus } from '../../events/bus.js';
 import type { SettingsService } from '../settings/services/settings.service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { RETURNS_SETTING_CODES } from './manifest.js';
 import { ReturnStatusGraphService } from './services/return-status-graph-service.js';
 import { ReturnTransitionService } from './services/return-transition-service.js';

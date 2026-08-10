@@ -26,7 +26,7 @@ import { renderEmailText } from '@b2b/email-components/render/render-email-text'
 import { renderDirectives } from '@b2b/email-components/directives/directive-engine';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { Mailer } from '../../email/services/mailer.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { TransactionalEmail } from '../entities/transactional-email.entity.js';
 import { TransactionalEmailContent } from '../entities/transactional-email-content.entity.js';
 import type { ContentResolver} from './content-resolver.js';

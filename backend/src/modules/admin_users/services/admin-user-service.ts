@@ -6,7 +6,7 @@ import { hashPassword } from '../../auth/services/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import { AdminRole } from '../../admin_roles/entities/admin-role.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * AdminUserService (T193 / FR-080..FR-083). Backs the admin panel's

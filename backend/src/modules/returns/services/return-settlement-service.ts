@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { SettlementPrefill, SettlementRequest, SettlementResult } from '@b2b/contracts';
 import type { EventBus } from '../../../events/bus.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';

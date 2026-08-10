@@ -9,7 +9,7 @@ import { CustomerAccount } from '../../customer_accounts/entities/customer-accou
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
 import type { Mailer } from '../../email/services/mailer.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { buildInvitationEmail } from '../email-templates/invitation.js';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
 import {

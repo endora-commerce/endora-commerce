@@ -8,9 +8,9 @@ import { AdminActionsReconciler } from './services/admin-actions-reconciler.js';
 import { AdminActionsService } from './services/admin-actions-service.js';
 import {
   registerAdminActionsRoutes,
-  type RequireAdminFactory,
 } from './routes.admin.js';
 import type { FastifyRequest } from 'fastify';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin Actions module composition root — feature 020.

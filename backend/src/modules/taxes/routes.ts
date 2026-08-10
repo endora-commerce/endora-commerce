@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { taxResolutionInputSchema, upsertTaxRequestSchema } from '@b2b/contracts';
 import type { TaxService } from './services/tax-service.js';
 import type { Tax } from './entities/tax.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface TaxRoutesDeps {
   taxService: TaxService;

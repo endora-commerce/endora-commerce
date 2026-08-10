@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import { RfqService, type RfqEventBus } from './services/rfq-service.js';
 import { createQuoteRequestBusinessIdGenerator } from './services/quote-request-business-id-generator.js';
@@ -26,7 +26,7 @@ import {
   registerQuoteRequestsAdminRoutes,
   type AdminContextResolver,
 } from './routes.admin.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface QuoteRequestsModuleOptions {
   emFactory: () => EntityManager;

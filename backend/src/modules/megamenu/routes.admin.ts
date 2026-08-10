@@ -6,9 +6,9 @@ import {
   patchMegamenuRequestSchema,
   putItemsRequestSchema,
 } from '@b2b/contracts';
-import type { RequireAdminFactory } from './plugin.js';
 import type { MegamenuService } from './services/megamenu-service.js';
 import type { MegamenuItemService } from './services/megamenu-item-service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export async function registerMegamenuAdminRoutes(
   app: FastifyInstance,

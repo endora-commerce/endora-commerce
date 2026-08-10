@@ -26,15 +26,14 @@ import {
 } from '../custom_fields/services/custom-field-value.service.js';
 import { Organization } from './entities/organization.entity.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
-import type { RequireAdminAnyFactory } from '../../http/require-admin-any.js';
+import type { RequireAdminAnyFactory } from '../../kernel/ports/require-admin.js';
 import type { InvitationService } from './services/invitation-service.js';
 import {
   emitCustomerAccountCreated,
   type OrganizationEventBus,
 } from './services/registration-service.js';
 import type { RoleService } from '../customer_accounts/services/role-service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type {
   OrganizationModerationService} from './services/organization-moderation-service.js';
 import {
@@ -61,6 +60,7 @@ import {
 } from './schemas/organization.js';
 import { hashPassword } from '../auth/services/password-hasher.js';
 import { normalizeOrganizationName } from './services/normalize-name.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin /admin/organizations — platform staff operations (003).

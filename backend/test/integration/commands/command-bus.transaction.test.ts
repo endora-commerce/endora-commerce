@@ -5,8 +5,8 @@ import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
 import { CommandBus } from '../../../src/commands/command-bus.js';
 import type { Command } from '../../../src/commands/command.js';
 import { EventBus, type EventBase } from '../../../src/events/bus.js';
-import { AuditLogService } from '../../../src/modules/audit_logs/services/audit-log-service.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { BulkOperation } from '../../../src/modules/catalog/entities/bulk-operation.entity.js';
 
 /**

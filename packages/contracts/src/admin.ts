@@ -138,7 +138,11 @@ export const PERMISSION_CATALOGUE = [
   // the removal of the `integrations` module; renaming it would need a data
   // migration on every admin role's permission list.
   { code: 'integrations:manage', module: 'api_keys', label: 'Manage API keys + webhooks' },
-  { code: 'audit_log:read', module: 'audit_log', label: 'View audit log' },
+  // Feature 072, T017 — the module id is `audit_logs`. It said `audit_log`,
+  // which matches no module, so the role matrix grouped this permission under a
+  // phantom module. The CODE keeps its historical spelling: it is persisted in
+  // every admin role's permission list and renaming it would need a data migration.
+  { code: 'audit_log:read', module: 'audit_logs', label: 'View audit log' },
   { code: 'admin_users:manage', module: 'admin_users', label: 'Manage admin users + roles' },
   { code: 'credit_limits:manage', module: 'credit_limits', label: 'Grant + adjust credit limits' },
   { code: 'customers:manage', module: 'customers', label: 'Manage customer organizations' },

@@ -4,7 +4,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Webhook } from '../entities/webhook.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { WebhookDelivery } from '../entities/webhook-delivery.entity.js';
 import { subscriptionReceivesOrganization } from './event-bridge.js';
 

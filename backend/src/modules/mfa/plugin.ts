@@ -4,7 +4,7 @@ import type Redis from 'ioredis';
 import type { ModulePlugin } from '../../http/server.js';
 import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
 import type { SessionService } from '../auth/services/session-service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { ChallengeStore } from './services/challenge-store.js';
 import {
   MfaPolicyResolver,
@@ -24,10 +24,7 @@ import { registerMfaSelfServiceRoutes } from './routes.self-service.js';
 import { registerMfaAdminRoutes } from './routes.admin.js';
 import { registerMfaOrgRoutes } from './routes.org.js';
 import { registerMfaOAuthRoutes } from './routes.oauth.js';
-
-type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * MFA module composition root (feature 042).

@@ -5,7 +5,7 @@ import { OrganizationPaymentMethodLink } from '../entities/organization-payment-
 import { OrganizationDeliveryMethodLink } from '../entities/organization-delivery-method-link.entity.js';
 import { OrganizationWarehouseLink } from '../entities/organization-warehouse-link.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 export interface AllowLists {
   paymentMethodIds: string[];

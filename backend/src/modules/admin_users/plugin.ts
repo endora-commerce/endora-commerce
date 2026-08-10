@@ -8,14 +8,14 @@ import { AdminUserService } from './services/admin-user-service.js';
 import { AdminRoleService } from '../admin_roles/services/admin-role-service.js';
 import type { PermissionService } from '../admin_roles/services/permission-service.js';
 import type { PermissionCatalogueService } from '../admin_roles/services/permission-catalogue.service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { registerAdminPublicRoutes } from './routes.public.js';
 import { registerImpersonationRoutes } from './routes.impersonation.js';
 import { registerAdminUsersAdminRoutes } from './routes.admin.js';
 import { registerAuditLogAdminRoutes } from '../audit_logs/routes.admin.js';
 import { registerRecentActivityRoutes } from '../audit_logs/routes.admin.recent-activity.js';
 import { RecentActivityService } from '../audit_logs/services/recent-activity-service.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface AdminModuleOptions {
   emFactory: () => EntityManager;

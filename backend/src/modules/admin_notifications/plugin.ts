@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AdminNotificationService } from './services/admin-notification-service.js';
 import { registerAdminNotificationsRoutes } from './routes.admin.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the admin_notifications module.

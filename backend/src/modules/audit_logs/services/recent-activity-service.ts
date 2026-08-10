@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { AuditLogEntry } from '../entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../kernel/audit/audit-log-entry.entity.js';
 import {
   RECENT_ACTIVITY_ACTIONS,
   moduleForAction,

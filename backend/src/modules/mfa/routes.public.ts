@@ -7,7 +7,7 @@ import {
 import { HttpError } from '../../http/error-envelope.js';
 import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { SessionService } from '../auth/services/session-service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { MfaLoginService } from './services/mfa-login-service.js';
 import type { ChallengeStore } from './services/challenge-store.js';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';

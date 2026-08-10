@@ -4,8 +4,8 @@ import { LanguageService } from './services/language-service.js';
 import { LocaleService } from './services/locale-service.js';
 import { CurrencyService } from '../currencies/services/currency-service.js';
 import { registerI18nRoutes } from './routes.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface I18nModuleOptions {
   emFactory: () => EntityManager;

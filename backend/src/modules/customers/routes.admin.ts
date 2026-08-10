@@ -24,7 +24,7 @@ import type { CustomerPresenceService } from './services/customer-presence-servi
 import type { CustomerAddressService } from './services/customer-address-service.js';
 import type { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
 import type { Mailer } from '../email/services/mailer.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import {
   serializeCustomerAddress,
   serializeOrganizationAddress,

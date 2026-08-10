@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   ConfigurationListQuerySchema,
   CreateConfigurationSchema,
@@ -8,6 +8,7 @@ import {
 import { HttpError } from '../../http/error-envelope.js';
 import { CREDENTIALS_READ_PERMISSION, CREDENTIALS_WRITE_PERMISSION } from './manifest.js';
 import type { CredentialsService } from './services/credentials.service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin HTTP surface for the credentials module — feature 058
@@ -24,10 +25,6 @@ import type { CredentialsService } from './services/credentials.service.js';
  * Reads gated by `credentials:read`, writes by `credentials:write`. Secrets are
  * masked on every read; only the server-side `resolve` (US2) decrypts.
  */
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 export interface CredentialsRoutesDeps {
   service: CredentialsService;

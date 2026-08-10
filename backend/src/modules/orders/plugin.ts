@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CartService } from '../carts/services/cart-service.js';
 import { CartUpsellService } from '../carts/services/cart-upsell-service.js';
@@ -70,7 +70,7 @@ import { ShipmentService } from '../shipments/services/shipment-service.js';
 import { ReceiveShipmentHandler } from '../shipments/services/receive-shipment-handler.js';
 import type { ShippingEventBus } from '../shipments/services/events.js';
 import { registerShipmentsRoutes } from '../shipments/routes.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the commerce surface — carts + orders + invoice

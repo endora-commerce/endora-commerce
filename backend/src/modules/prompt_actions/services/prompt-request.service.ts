@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, PROMPT_ACTION_PLAN_TTL_MINUTES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { PromptActionRequest } from '../entities/prompt-action-request.entity.js';
 import type { InterpreterService, StoredConversation } from './interpreter.service.js';
 import { PermissionRevoked, type PlanExecutorService } from './plan-executor.service.js';

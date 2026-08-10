@@ -79,7 +79,6 @@ import {
 import { reconcilePredefinedTemplates } from './seeds/predefined-templates.js';
 import {
   registerProductFeedsAdminRoutes,
-  type RequireAdminFactory,
 } from './routes.admin.js';
 import { registerProductFeedsDeliveryRoutes } from './routes.delivery.js';
 import type { CredentialsService } from '../credentials/services/credentials.service.js';
@@ -111,6 +110,7 @@ import {
   DEFAULT_TAXONOMY_FETCH_CRON,
   DEFAULT_TAXONOMY_SOURCE_URLS,
 } from './manifest.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the Product Feed module — feature 067.

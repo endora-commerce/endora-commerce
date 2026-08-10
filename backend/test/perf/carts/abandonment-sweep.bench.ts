@@ -3,7 +3,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
 import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
-import { AuditLogService } from '../../../src/modules/audit_logs/services/audit-log-service.js';
+import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { CartAuditService } from '../../../src/modules/carts/services/cart-audit-service.js';
 import { CartAbandonmentWorker } from '../../../src/modules/carts/services/cart-abandonment-worker.js';
 

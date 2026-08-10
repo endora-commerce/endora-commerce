@@ -7,7 +7,7 @@ import type { LanguageService } from './services/language-service.js';
 import type { CurrencyService } from '../currencies/services/currency-service.js';
 import type { Language } from './entities/language.entity.js';
 import type { Currency } from '../currencies/entities/currency.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface I18nRoutesDeps {
   languageService: LanguageService;

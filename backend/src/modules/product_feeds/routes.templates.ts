@@ -7,7 +7,7 @@ import {
   updateFeedTemplateRequestSchema,
 } from '@b2b/contracts';
 import { PRODUCT_FEEDS_READ_PERMISSION, PRODUCT_FEEDS_WRITE_PERMISSION } from './manifest.js';
-import { parseOrThrow, type RequireAdminFactory } from './routes.admin.js';
+import { parseOrThrow } from './routes.admin.js';
 import type { FeedTemplateService, TemplateView } from './services/feed-template.service.js';
 import {
   parseImportRequest,
@@ -18,6 +18,7 @@ import {
   type ProductFieldDefinition,
 } from './services/field-source-catalogue.js';
 import type { TemplatePreviewService } from './services/template-preview.service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Feed template admin surface — feature 067 (contracts/admin-templates.md §1).

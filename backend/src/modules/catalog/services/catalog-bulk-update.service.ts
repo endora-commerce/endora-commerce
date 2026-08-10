@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type BulkUpdateProductsRequest } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import type { CatalogAdminService} from './catalog-admin.service.js';
 import { type AdminAuditContext } from './catalog-admin.service.js';

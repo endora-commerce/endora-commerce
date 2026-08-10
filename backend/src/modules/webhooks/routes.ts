@@ -3,8 +3,8 @@ import { createWebhookRequestSchema, updateWebhookRequestSchema } from '@b2b/con
 import type { WebhookService } from './services/webhook-service.js';
 import type { Webhook } from './entities/webhook.entity.js';
 import type { WebhookDelivery } from './entities/webhook-delivery.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import { testAdminUserId } from '../../http/test-actor-carrier.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface WebhooksAdminDeps {
   webhookService: WebhookService;

@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Mailer } from '../../email/services/mailer.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';
 import { NewsletterSubscriberTag } from '../entities/newsletter-subscriber-tag.entity.js';

@@ -14,7 +14,7 @@ import { Organization } from '../entities/organization.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * Registration flow (T117, FR-040).

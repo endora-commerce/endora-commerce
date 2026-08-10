@@ -7,7 +7,7 @@ import { CustomerAccount } from '../../customer_accounts/entities/customer-accou
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
 import type { OrganizationEventBus } from './registration-service.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * Email verification flow (T118).

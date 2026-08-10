@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ImportExportService } from './services/import-export-service.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface ImportExportRoutesDeps {
   service: ImportExportService;

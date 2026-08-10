@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { LlmToggleRequestSchema } from '@b2b/contracts';
-import type { RequireAdminFactory } from '../settings/plugin.js';
 import type { AdminAuditContext } from '../settings/services/settings-admin.service.js';
 import type { LlmToggleService } from './services/llm-toggle.service.js';
 import type { SearchReindexWorker } from './services/search-reindex-worker.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin HTTP surface — feature 006 / US2 (T025).

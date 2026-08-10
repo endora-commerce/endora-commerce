@@ -21,7 +21,7 @@ import { RoleService } from '../customer_accounts/services/role-service.js';
 import { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
 import { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
 import { ConsoleMailer, type Mailer } from '../email/services/mailer.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
 import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
 import { registerOrganizationsStorefrontRoutes } from './routes.storefront.js';
@@ -31,9 +31,9 @@ import { registerOrganizationsAdminRoutes } from './routes.admin.js';
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
-import type { RequireAdminAnyFactory } from '../../http/require-admin-any.js';
+import type { RequireAdminAnyFactory } from '../../kernel/ports/require-admin.js';
 import type { DictionaryValidator } from '@b2b/contracts';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the organizations + customer_accounts + addresses

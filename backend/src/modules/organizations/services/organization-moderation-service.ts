@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { OptimisticLockError } from '@mikro-orm/core';
 import { Organization, type OrganizationStatus } from '../entities/organization.entity.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { Mailer } from '../../email/services/mailer.js';
 import type { OrganizationEventBus } from './registration-service.js';
 

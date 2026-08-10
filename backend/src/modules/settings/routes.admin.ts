@@ -7,12 +7,12 @@ import {
   SetValueRequestSchema,
   SettingsListQuerySchema,
 } from '@b2b/contracts';
-import type { RequireAdminFactory } from './plugin.js';
 import type { SettingsAdminService, AdminAuditContext } from './services/settings-admin.service.js';
 import type { Setting } from './entities/setting.entity.js';
 import type { SettingGroup } from './entities/setting-group.entity.js';
 import type { SettingValue } from './entities/setting-value.entity.js';
 import { secretValueIsSet } from './services/secret-value-codec.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin HTTP surface — feature 004 / US2 (T035).

@@ -2,11 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import { ERROR_CODES, assignSalesRepRequestSchema } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import { AdminUser } from '../admin_users/entities/admin-user.entity.js';
 import { Organization } from './entities/organization.entity.js';
 import { QuoteRequest } from '../quote_requests/entities/quote-request.entity.js';
 import type { SalesRepAssignmentService } from './services/sales-rep-assignment-service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Sales-rep ↔ organization assignment routes (feature 008 / T077).
