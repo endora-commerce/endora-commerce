@@ -3,7 +3,7 @@ import type { Worker } from 'bullmq';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModulePlugin } from '../../http/server.js';
-import { registryCache } from './services/registry-cache.js';
+import { effectiveState } from './services/effective-state.js';
 
 /**
  * Thrown when service-to-service code calls into a disabled module's
@@ -23,18 +23,22 @@ export class ModuleDisabledError extends HttpError {
 
 /**
  * Programmatic gate. Throw from anywhere outside an HTTP request when
- * a disabled module's logic should not run. Surfaces consistently as
+ * an absent module's logic should not run. Surfaces consistently as
  * the same 503 envelope when reached from a route handler.
+ *
+ * "Absent" is the **effective** state — platform availability AND operator
+ * activation (Constitution XVII). A caller never learns there are two axes;
+ * it learns the module is not there.
  */
 export function requireModuleEnabled(moduleId: string): void {
-  if (!registryCache.isEnabled(moduleId)) {
+  if (!effectiveState.isPresent(moduleId)) {
     throw new ModuleDisabledError(moduleId);
   }
 }
 
 /**
  * Wrap a Fastify plugin so every route registered inside it is gated on
- * the module's enabled state. Disabled module → 503 with
+ * the module's effective state. Absent module → 503 with
  * `Retry-After: 60`; enabled module → handler runs normally.
  *
  * Use it at the top of every module's `routes.admin.ts` /
@@ -57,7 +61,7 @@ export function defineModuleRoutes(
   return async (app: FastifyInstance) => {
     await app.register(async (scoped) => {
       scoped.addHook('onRequest', async (_request, reply) => {
-        if (!registryCache.isEnabled(moduleId)) {
+        if (!effectiveState.isPresent(moduleId)) {
           reply.header('Retry-After', '60');
           throw new ModuleDisabledError(moduleId);
         }
@@ -135,7 +139,7 @@ function attachWorkerLogging(moduleId: string, worker: Worker, logger: WorkerLog
 }
 
 /**
- * Wrap a BullMQ Worker so it pauses when its module is disabled.
+ * Wrap a BullMQ Worker so it pauses when its module is absent.
  *
  * The wrapper attaches the worker to a per-module registry that the
  * orchestrator iterates on disable/enable. The returned worker is the
@@ -156,7 +160,7 @@ export function defineModuleWorker<W extends Worker>(
     attachWorkerLogging(moduleId, worker, options.logger);
   }
   // If the module is currently disabled at registration time, start paused.
-  if (!registryCache.isEnabled(moduleId)) {
+  if (!effectiveState.isPresent(moduleId)) {
     void worker.pause();
   }
   return worker;
@@ -178,7 +182,7 @@ export async function resumeWorkersFor(moduleId: string): Promise<void> {
 
 /**
  * Wrap an EventBus subscription so the handler is a no-op when the
- * owning module is disabled. Mirrors `EventBus.on(eventName, handler)`'s
+ * owning module is absent. Mirrors `EventBus.on(eventName, handler)`'s
  * unsubscribe-returning shape.
  */
 export function subscribeForModule<E, P>(
@@ -188,7 +192,7 @@ export function subscribeForModule<E, P>(
   handler: (payload: P) => void | Promise<void>,
 ): () => void {
   const wrapped = async (payload: P): Promise<void> => {
-    if (!registryCache.isEnabled(moduleId)) return;
+    if (!effectiveState.isPresent(moduleId)) return;
     await handler(payload);
   };
   return bus.on(event, wrapped);

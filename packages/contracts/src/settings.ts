@@ -59,7 +59,12 @@ export function valueSchemaForType(t: SettingValueType): z.ZodType<unknown> {
 // ---------------------------------------------------------------------------
 
 const groupCodeRe = /^[a-z][a-z0-9_]{0,118}[a-z0-9]$/;
-const settingCodeRe = /^[a-z][a-z0-9_][a-z0-9_.]*[a-z0-9]$/;
+/**
+ * Setting code shape. Exported because feature 073's module activation block
+ * (`ModuleActivationSchema` in `modules.ts`) declares the code of an ordinary
+ * Setting row and must validate it identically.
+ */
+export const settingCodeRe = /^[a-z][a-z0-9_][a-z0-9_.]*[a-z0-9]$/;
 const moduleCodeRe = /^[a-z][a-z0-9_]{0,118}[a-z0-9]$/;
 
 export const GroupManifestEntrySchema = z.object({

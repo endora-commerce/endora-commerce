@@ -53,7 +53,8 @@ describe('Admin roles CRUD', () => {
     // +2 for feature 067 Product Feed (product_feeds:read, product_feeds:write).
     // +2 for feature 067 Autopay (autopay:read, autopay:write).
     // +2 for feature 068 Ergonode PIM (pim_ergonode:read, pim_ergonode:write).
-    expect(body.data.length).toBe(71);
+    // +1 for feature 073 module activation (platform.modules.activate).
+    expect(body.data.length).toBe(72);
     expect(body.data.some((p) => p.code === 'promotions:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'stripe:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'tpay:write')).toBe(true);

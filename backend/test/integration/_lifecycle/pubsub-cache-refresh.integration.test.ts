@@ -51,6 +51,10 @@ describe('ModuleRegistryCache — pub/sub refresh between processes (integration
   }, 60_000);
 
   afterAll(async () => {
+    // Feature 073 — a dropped subscriber arms a degraded-mode refresh timer.
+    // Disconnecting below fires `'end'`, so the timer must be stopped or it
+    // outlives this file and polls a closed ORM for the rest of the fork.
+    cacheB.stopFallbackRefresh();
     await db.orm.em.fork().nativeDelete(ModuleRegistration, { moduleId: 'fixture_pubsub' });
     publisher.disconnect();
     subscriberRedis.disconnect();

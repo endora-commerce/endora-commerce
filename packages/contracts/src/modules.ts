@@ -12,7 +12,7 @@
 // runtime exports as a separate step.
 
 import { z } from 'zod';
-import { ModuleSettingsManifestSchema } from './settings.js';
+import { ModuleSettingsManifestSchema, settingCodeRe } from './settings.js';
 import { ModuleActionsManifestSchema } from './admin-actions.js';
 import { modulePermissionDeclarationSchema } from './admin.js';
 import { transactionalEmailManifestEntrySchema } from './transactional-emails.js';
@@ -57,6 +57,42 @@ export const ModuleI18nManifestSchema = z.object({
 });
 export type ModuleI18nManifest = z.infer<typeof ModuleI18nManifestSchema>;
 
+/**
+ * Operator-activation declaration — feature 073, Constitution XVII.
+ *
+ * The second of the two orthogonal presence axes. Platform availability lives
+ * in `module_registrations` and is owned by whoever operates the deployment;
+ * this block declares the *business* operator's control, which is an ordinary
+ * `Setting` row reconciled from the manifest.
+ *
+ * It sits beside `license`, never inside it: `license` is the build-time
+ * entitlement axis and is inert by design, and conflating the two would make a
+ * runtime toggle look like a licensing decision.
+ *
+ * Exactly one of the two forms is valid — enforced in `defineModuleManifest`
+ * rather than by the schema, because a Zod union of two non-strict objects
+ * accepts a value carrying both.
+ */
+export const ModuleActivationSchema = z.union([
+  z.object({
+    /**
+     * The Setting that holds the operator's choice. Declared rather than
+     * derived so a module that already ships an ad-hoc control (`blog.enabled`
+     * and friends) can adopt it instead of growing a second switch.
+     */
+    settingCode: z.string().regex(settingCodeRe),
+    /** Applies when the operator has never chosen. Asserted, never assumed. */
+    default: z.boolean(),
+  }),
+  z.object({
+    /** The platform cannot run without this module. */
+    nonDeactivatable: z.literal(true),
+    /** Operator-facing sentence rendered next to the locked control. */
+    reason: z.string().min(1).max(200),
+  }),
+]);
+export type ModuleActivation = z.infer<typeof ModuleActivationSchema>;
+
 export const ModuleManifestSchema = z.object({
   id: z.string().regex(moduleIdRe),
   name: z.string().min(1).max(120),
@@ -64,6 +100,13 @@ export const ModuleManifestSchema = z.object({
   version: z.string().regex(moduleVersionRe),
   dependencies: z.array(z.string().regex(moduleIdRe)).default([]),
   license: ModuleLicenseTierSchema.optional(),
+  /**
+   * Operator-activation control (feature 073). Optional only while the
+   * conversion sweep is in flight: `check-module-gating` requires it as soon
+   * as a module's seams are converted, so a converted module without it fails
+   * CI rather than resolving to an implicit "on".
+   */
+  activation: ModuleActivationSchema.optional(),
   /**
    * Per-module settings declaration consumed by the existing feature 004
    * `ManifestReconciler`. When present, its `moduleCode` MUST equal the
@@ -98,6 +141,55 @@ export const ModuleManifestSchema = z.object({
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 
 /**
+ * The three cross-field activation rules (feature 073,
+ * `contracts/module-activation-manifest.md`). They live here rather than in
+ * the schema because a Zod union of two non-strict objects accepts a value
+ * carrying both forms, and because the resulting message has to name the
+ * module the author is looking at.
+ */
+function assertActivationRules(id: string, activation: unknown): void {
+  const block = activation as Record<string, unknown>;
+  const declaresControl =
+    typeof block['settingCode'] === 'string' && typeof block['default'] === 'boolean';
+  const declaresNonDeactivatable =
+    block['nonDeactivatable'] === true &&
+    typeof block['reason'] === 'string' &&
+    block['reason'].length > 0;
+
+  // 1. Exactly one form.
+  if (declaresControl === declaresNonDeactivatable) {
+    throw new Error(
+      `[contracts/modules] manifest "${id}" must declare exactly one activation ` +
+        `form: either { settingCode, default } or { nonDeactivatable: true, reason }.`,
+    );
+  }
+
+  // 2. An `_`-prefixed id is platform-internal by convention (`moduleIdRe`);
+  //    this makes the convention enforceable.
+  if (id.startsWith('_') && !declaresNonDeactivatable) {
+    throw new Error(
+      `[contracts/modules] manifest "${id}" is platform-internal (leading "_") ` +
+        `and MUST declare activation as { nonDeactivatable: true, reason }.`,
+    );
+  }
+
+  // 3. The control belongs to the declaring module. Adopting an existing
+  //    ad-hoc control (FR-014) is allowed precisely because every such code
+  //    — `blog.enabled`, `prompt_actions.enabled`, `ksef.integration.enabled` —
+  //    already sits under its own module's namespace.
+  if (declaresControl) {
+    const code = block['settingCode'] as string;
+    if (code !== id && !code.startsWith(`${id}.`)) {
+      throw new Error(
+        `[contracts/modules] manifest "${id}" declares activation setting ` +
+          `"${code}", which is outside the module's own namespace ` +
+          `("${id}" or "${id}.*").`,
+      );
+    }
+  }
+}
+
+/**
  * Identity-with-validation helper for module authors. Modules export a
  * single `manifest` constant via this helper so TypeScript inference is
  * preserved and the loader can ingest the validated payload directly.
@@ -116,6 +208,9 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
       `[contracts/modules] manifest "${m.id}" carries a settings ` +
         `manifest with moduleCode "${m.settings.moduleCode}" (must match).`,
     );
+  }
+  if (m.activation !== undefined) {
+    assertActivationRules(m.id, m.activation);
   }
   return ModuleManifestSchema.parse(m);
 }
@@ -234,6 +329,59 @@ export const ModuleListQuerySchema = z.object({
   flag: z.enum(['orphan', 'pending-upgrade']).optional(),
 });
 export type ModuleListQuery = z.infer<typeof ModuleListQuerySchema>;
+
+// ---------------------------------------------------------------------------
+// Feature 073 — module presence projections
+// ---------------------------------------------------------------------------
+
+/**
+ * One module's presence as the server computed it. `present` is the
+ * conjunction of the two axes, precomputed server-side: neither frontend
+ * recombines them, which is what makes "off means absent" one decision rather
+ * than two implementations that can disagree.
+ *
+ * The axes stay separately visible because Constitution XVII requires the
+ * Admin UI to render them differently — *installed but switched off* shows an
+ * actionable control, *not available at platform level* shows absent or
+ * blocked-with-a-reason.
+ */
+export const ModulePresenceSchema = z.object({
+  id: z.string().regex(moduleIdRe),
+  /** platformAvailable && operatorActivated. */
+  present: z.boolean(),
+  platformState: RegistryStateSchema.or(z.literal('not-installed')),
+  /** The operator axis alone. */
+  activated: z.boolean(),
+  deactivatable: z.boolean(),
+  /** The module's own declared reason, rendered next to the locked control. */
+  nonDeactivatableReason: z.string().nullable(),
+});
+export type ModulePresence = z.infer<typeof ModulePresenceSchema>;
+
+/** `GET /api/v1/admin/module-presence` — every admin, no permission code. */
+export const AdminModulePresenceResponseSchema = z.object({
+  modules: z.array(ModulePresenceSchema),
+});
+export type AdminModulePresenceResponse = z.infer<
+  typeof AdminModulePresenceResponseSchema
+>;
+
+/** The storefront needs no axis detail — only whether to render at all. */
+export const StorefrontModulePresenceSchema = z.object({
+  id: z.string().regex(moduleIdRe),
+  present: z.boolean(),
+});
+export type StorefrontModulePresence = z.infer<
+  typeof StorefrontModulePresenceSchema
+>;
+
+/** `GET /api/v1/storefront/module-presence` — public, tag `modules:presence`. */
+export const StorefrontModulePresenceResponseSchema = z.object({
+  modules: z.array(StorefrontModulePresenceSchema),
+});
+export type StorefrontModulePresenceResponse = z.infer<
+  typeof StorefrontModulePresenceResponseSchema
+>;
 
 // ---- Feature 060 — API interceptor diagnostics (read-only admin) ----------
 

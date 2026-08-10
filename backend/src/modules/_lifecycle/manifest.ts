@@ -19,5 +19,10 @@ export const manifest = defineModuleManifest({
       module: 'module_lifecycle',
       label: 'View module lifecycle status',
     },
+    {
+      code: 'platform.modules.activate',
+      module: 'module_lifecycle',
+      label: 'Switch modules on and off',
+    },
   ],
 });

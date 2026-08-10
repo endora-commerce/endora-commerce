@@ -374,6 +374,13 @@ export const COMMAND_REGISTRY = {
     reversible: false,
     description: 'Replace the set of product fields protected from the Ergonode import',
   },
+  // Feature 073 — the operator-activation flip. Reversible: switching a module
+  // off preserves its data, configuration, bundles, permissions and schema, so
+  // the undo is switching it back on.
+  'module.activation.set': {
+    reversible: true,
+    description: "Switch a module's operator activation on or off",
+  },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Feature 068 — product create/delete join the bus. They used to audit by
