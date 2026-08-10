@@ -1,6 +1,7 @@
 import { cookies, headers } from 'next/headers';
 import type { I18nConfigResponse } from '@b2b/contracts';
 import { getI18nConfig } from './api/i18n';
+import { getModulePresence, type ModulePresenceSet } from './api/module-presence';
 import { resolveLocale } from './i18n/locale';
 import type { RequestContext } from './api/client';
 
@@ -20,10 +21,20 @@ export interface ServerContext {
   /** Buyer-selected display currency (from the `currency` cookie), or undefined. */
   currency: string | undefined;
   ctx: RequestContext;
+  /**
+   * The effective enabled-set (feature 073). A page renders a module's
+   * contribution only when this says the module is there; it never infers
+   * absence from the module's API answering 503, because nearly every
+   * storefront fetch already swallows errors into defaults and would keep
+   * rendering an empty surface.
+   */
+  modules: ModulePresenceSet;
 }
 
 export async function getServerContext(input?: { langOverride?: string | null }): Promise<ServerContext> {
-  const config = await getI18nConfig();
+  // Both resolve on every page. Fetched together rather than in sequence so
+  // adding presence costs no extra round-trip latency (Constitution VII).
+  const [config, modules] = await Promise.all([getI18nConfig(), getModulePresence()]);
   const h = await headers();
   const jar = await cookies();
   const acceptLanguage = h.get('accept-language');
@@ -46,6 +57,7 @@ export async function getServerContext(input?: { langOverride?: string | null })
     config,
     locale,
     currency,
+    modules,
     ctx: {
       ...(salesChannelCode !== undefined ? { salesChannelCode } : {}),
       locale,

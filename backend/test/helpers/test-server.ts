@@ -3,7 +3,14 @@ import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import Redis from 'ioredis';
 import { buildServer, type ModulePlugin } from '../../src/http/server.js';
 import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
-import { registerApiInterceptorAdminRoutes } from '../../src/modules/_lifecycle/routes.admin.js';
+import {
+  registerApiInterceptorAdminRoutes,
+  registerModulePresenceRoutes,
+} from '../../src/modules/_lifecycle/routes.admin.js';
+import { registerModulePresenceStorefrontRoutes } from '../../src/modules/_lifecycle/routes.storefront.js';
+import { publishStateChanged } from '../../src/modules/_lifecycle/services/registry-cache.js';
+import { activationDeclarationsFrom } from '../../src/modules/_lifecycle/services/activation-resolver.js';
+import { effectiveState } from '../../src/modules/_lifecycle/services/effective-state.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { runInTenantContext, type TenantContext } from '../../src/tenancy/tenant-context.js';
 import {
@@ -1317,6 +1324,12 @@ export async function setupBackendServer(
       ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
       : {}),
     dictionaryValidator: dictionaries.handle.validator,
+    // Feature 073 — mirrors composition.ts: the effective-state reader that
+    // classifies each setting and refuses writes an absent module owns.
+    modulePresence: {
+      presenceOf: (moduleId) => effectiveState.presenceOf(moduleId),
+      activationControlOwner: (code) => effectiveState.activationControlOwner(code),
+    },
     resolveAdminAuditContext: (request) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
@@ -1435,6 +1448,9 @@ export async function setupBackendServer(
           ? request.testActor.adminUserId
           : TEST_ADMIN_ID,
     }),
+    // Feature 073 — mirrors composition.ts: the palette's operator axis.
+    isModuleActivated: (moduleId) =>
+      effectiveState.presence(moduleId)?.operatorActivated ?? true,
   });
   modules.push(adminActions.plugin);
 
@@ -2326,6 +2342,27 @@ export async function setupBackendServer(
       registry: apiInterceptors,
       requireAdmin: requireTestAdmin(permissionService),
     });
+    // Feature 073 — the presence projections and the activation write. The
+    // harness does not boot the lifecycle orchestrator (it seeds the registry
+    // cache directly below), but every module's off-state test asserts against
+    // the admin projection, so these three routes have to exist here.
+    //
+    // Local refresh is deliberately the *cache seam* rather than a database
+    // read: the harness never populates `module_registrations`, so refreshing
+    // from the database would blank the seeded enabled-set and take every
+    // gated route down mid-run.
+    registerModulePresenceRoutes(app, {
+      requireAdmin: requireTestAdmin(permissionService),
+      activation: {
+        commandBus,
+        propagation: {
+          refreshLocalState: () => registryCache.__refreshActivationForTesting(em),
+          publishStateChanged: (payload) => publishStateChanged(redis, payload),
+          revalidateStorefront: async () => undefined,
+        },
+      },
+    });
+    registerModulePresenceStorefrontRoutes(app);
   });
   options.configureInterceptors?.(apiInterceptors);
 
@@ -2372,6 +2409,13 @@ export async function setupBackendServer(
   // (e.g. the entire `blog` surface) 503s with MODULE_DISABLED, and the
   // permission catalogue would report zero enabled modules. Lifecycle tests
   // that need a specific module disabled override this within their own setup.
+  // Feature 073 — install the activation declarations the manifests carry.
+  // Production does this inside `registryCache.start()`; without it the
+  // operator axis has nothing to resolve, the settings write guards never fire
+  // and the activation endpoint reports every module as having no control.
+  registryCache.setActivationDeclarations(
+    activationDeclarationsFrom(REGISTERED_MANIFESTS.map((e) => e.manifest)),
+  );
   registryCache.__setEnabledForTesting(REGISTERED_MANIFESTS.map((e) => e.manifest.id));
   permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
   await app.ready();

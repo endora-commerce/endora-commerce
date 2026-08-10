@@ -154,5 +154,16 @@
   "editor.placeholder.secretSet": "Wartość jest ustawiona — wpisz nową, aby ją zastąpić",
   "editor.placeholder.secretUnset": "Wpisz wartość sekretu",
   "editor.secretIsSet": "Sekret jest ustawiony (tylko do zapisu, nigdy nie jest wyświetlany)",
-  "editor.secretNotSet": "Sekret nie jest ustawiony"
+  "editor.secretNotSet": "Sekret nie jest ustawiony",
+  "activation.title": "Moduł",
+  "activation.on": "Włączony",
+  "activation.off": "Wyłączony",
+  "activation.enable": "Włącz",
+  "activation.disable": "Wyłącz",
+  "activation.locked": "Tego modułu nie można wyłączyć.",
+  "activation.hint": "Wyłączenie modułu usuwa jego ekrany, API i zadania w tle. Nic nie jest usuwane — dane i konfiguracja są zachowane i wracają w takim samym stanie po ponownym włączeniu.",
+  "activation.confirmDisable": "Wyłączyć „{name}”? Jego ekrany, API i zadania w tle przestaną działać. Żadne dane ani konfiguracja nie zostaną usunięte, a ponowne włączenie przywróci wszystko.",
+  "activation.failed": "Nie udało się przełączyć modułu. {message}",
+  "editor.readOnly": "Tylko do odczytu",
+  "editor.readOnlyReason": "Moduł, do którego należy to ustawienie, jest wyłączony. Zapisana wartość jest zachowana i będzie ponownie edytowalna po włączeniu modułu."
 }

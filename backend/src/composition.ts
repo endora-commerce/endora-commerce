@@ -33,6 +33,8 @@ import {
   registryCache,
   STATE_CHANGED_CHANNEL,
 } from './modules/_lifecycle/services/registry-cache.js';
+import { effectiveState } from './modules/_lifecycle/services/effective-state.js';
+import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 import { catalogModule } from './modules/catalog/plugin.js';
 import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
@@ -700,6 +702,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
       : {}),
     dictionaryValidator: dictionaries.handle.validator,
+    // Feature 073 — the effective-state reader. Passed as a port rather than
+    // imported inside the module so the dependency direction stays declared
+    // here: `_lifecycle` reads this module's `Setting` rows, and this module
+    // reads nothing of `_lifecycle`'s.
+    modulePresence: {
+      presenceOf: (moduleId) => effectiveState.presenceOf(moduleId),
+      activationControlOwner: (code) => effectiveState.activationControlOwner(code),
+    },
     resolveAdminAuditContext: (request) => {
       if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
       return { actorAdminUserId: request.actor.adminUserId };
@@ -2950,6 +2960,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     redisSubscriber,
     requireAdmin,
     resolveAdminContext: adminContextResolver,
+    // Feature 073 — the palette's Actions group already filters on the
+    // platform axis in SQL; this adds the operator's. Without it the palette
+    // keeps offering a deactivated module's actions, which lead to a 503.
+    isModuleActivated: (moduleId) =>
+      effectiveState.presence(moduleId)?.operatorActivated ?? true,
   });
 
   const lifecycle = lifecycleModuleFromStaticEntries(
@@ -2968,6 +2983,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // orchestrator so module:install and module:uninstall --hard keep
       // module_actions aligned with the lifecycle.
       adminActionsReconciler: adminActions.handle.reconciler,
+      // Feature 073: the operator-activation write runs through the Command
+      // Bus, and a committed flip drops the storefront's presence cache so a
+      // toggle is visible on the next request without a rebuild.
+      commandBus,
+      revalidateStorefront: (tags) =>
+        new StorefrontRevalidator({
+          baseUrl: process.env['STOREFRONT_BASE_URL'],
+          secret: process.env['REVALIDATE_SECRET'],
+        }).revalidate(tags),
     },
     resolvedRegistry.map((e) => ({
       manifest: e.manifest,

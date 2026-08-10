@@ -4,6 +4,7 @@ import type {
   BlogTagByCodeResponse,
 } from '@b2b/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
+import { isModuleDisabled } from './module-absence';
 
 export type {
   BlogBySlugResponse,
@@ -29,6 +30,11 @@ export async function getBlogIndex(
     return res.data;
   } catch (err) {
     if (err instanceof StorefrontApiError && err.status === 404) return null;
+    // Feature 073 — a switched-off `blog` is an absence, not an error. Before
+    // this, every non-404 was rethrown, so gating the module produced a render
+    // error on any page that links the blog rather than the module quietly
+    // disappearing.
+    if (isModuleDisabled(err)) return null;
     throw err;
   }
 }

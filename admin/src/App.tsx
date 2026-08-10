@@ -9,6 +9,7 @@ import { TranslationProvider } from './i18n/TranslationProvider.js';
 import { useTranslation } from './i18n/useTranslation.js';
 import { appBootstrapCopy } from './i18n/preauth-login-copy.js';
 import { AdminActionsProvider } from './lib/admin-actions/AdminActionsProvider.js';
+import { ModulePresenceProvider } from './lib/module-presence';
 import { AppLanguageContext } from './i18n/app-language-context.js';
 import type { SupportedAdminLanguage } from './i18n/types.js';
 import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
@@ -183,6 +184,7 @@ export function App(): ReactNode {
   return (
     <TranslationProvider language={language}>
       <AppLanguageContext.Provider value={{ language, setLanguage }}>
+        <ModulePresenceProvider>
         <AdminActionsProvider language={language}>
         {/* Auto sign-out after the configured inactivity window (default 60 min). */}
         <IdleLogout />
@@ -356,6 +358,7 @@ export function App(): ReactNode {
           </Route>
         </Routes>
         </AdminActionsProvider>
+        </ModulePresenceProvider>
       </AppLanguageContext.Provider>
     </TranslationProvider>
   );

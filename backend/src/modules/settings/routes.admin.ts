@@ -64,7 +64,22 @@ export async function registerSettingsAdminRoutes(
     reply.header('etag', `"${version}"`);
   }
 
-  function serializeSetting(setting: Setting, values: SettingValue[]): Record<string, unknown> {
+  /**
+   * Feature 073 — the presence classification the service computed. Passed
+   * through rather than recomputed: `present` is decided in exactly one place
+   * so two implementations cannot disagree. Defaults to editable for the two
+   * call sites that have no classification (group CRUD echoes).
+   */
+  interface SettingClassification {
+    editable: boolean;
+    activationControl: boolean;
+  }
+
+  function serializeSetting(
+    setting: Setting,
+    values: SettingValue[],
+    classification: SettingClassification = { editable: true, activationControl: false },
+  ): Record<string, unknown> {
     // Secret settings are write-only (feature 043, FR-021): every read
     // replaces stored values with null + isSet indicators. The plaintext (or
     // its ciphertext envelope) never leaves the backend through this API.
@@ -90,12 +105,19 @@ export async function registerSettingsAdminRoutes(
         updatedAt: v.updatedAt.toISOString(),
       })),
       version: adminService.computeSettingVersion(setting, values),
+      editable: classification.editable,
+      activationControl: classification.activationControl,
     };
   }
 
   function serializeGroup(
     group: SettingGroup,
-    settings: Array<{ setting: Setting; values: SettingValue[] }>,
+    settings: Array<{
+      setting: Setting;
+      values: SettingValue[];
+      editable: boolean;
+      activationControl: boolean;
+    }>,
   ): Record<string, unknown> {
     return {
       id: group.id,
@@ -104,7 +126,12 @@ export async function registerSettingsAdminRoutes(
       isSystemProtected: group.isSystemProtected,
       ownerModule: group.ownerModule,
       salesChannelCodes: group.salesChannels.getItems().map((c) => c.code),
-      settings: settings.map((s) => serializeSetting(s.setting, s.values)),
+      settings: settings.map((s) =>
+        serializeSetting(s.setting, s.values, {
+          editable: s.editable,
+          activationControl: s.activationControl,
+        }),
+      ),
     };
   }
 
@@ -127,11 +154,10 @@ export async function registerSettingsAdminRoutes(
     '/api/v1/admin/settings/:code',
     { preHandler: requireAdmin('settings:read') },
     async (request, reply) => {
-      const { setting, values, version } = await adminService.getSettingByCode(
-        request.params.code,
-      );
+      const { setting, values, version, editable, activationControl } =
+        await adminService.getSettingByCode(request.params.code);
       setEtag(reply, version);
-      return serializeSetting(setting, values);
+      return serializeSetting(setting, values, { editable, activationControl });
     },
   );
 
@@ -168,7 +194,10 @@ export async function registerSettingsAdminRoutes(
       setEtag(reply, result.newVersion);
       // Refresh full detail for the response.
       const detail = await adminService.getSettingByCode(request.params.code);
-      return serializeSetting(detail.setting, detail.values);
+      return serializeSetting(detail.setting, detail.values, {
+        editable: detail.editable,
+        activationControl: detail.activationControl,
+      });
     },
   );
 
@@ -188,7 +217,10 @@ export async function registerSettingsAdminRoutes(
       );
       setEtag(reply, result.newVersion);
       const detail = await adminService.getSettingByCode(request.params.code);
-      return serializeSetting(detail.setting, detail.values);
+      return serializeSetting(detail.setting, detail.values, {
+        editable: detail.editable,
+        activationControl: detail.activationControl,
+      });
     },
   );
 

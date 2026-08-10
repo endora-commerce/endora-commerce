@@ -22,6 +22,23 @@ vi.mock('@/lib/auth', () => ({
   }),
 }));
 
+// Feature 073 — every admin surface resolves its own presence from the module
+// projection. These cases are about layout and routing, not about presence, so
+// the projection is stubbed as "everything is here"; the filtering itself is
+// covered in AppShell.module-presence.test.tsx.
+vi.mock('@/lib/module-presence', () => ({
+  useModulePresence: () => ({
+    modules: [],
+    isPresent: () => true,
+    presenceOf: () => undefined,
+    isLoading: false,
+    error: null,
+    refresh: async () => {},
+  }),
+  setModuleActivation: vi.fn(),
+  getModulePresence: vi.fn(),
+}));
+
 vi.mock('@/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));

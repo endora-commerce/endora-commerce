@@ -4,7 +4,11 @@ import type { DictionaryValidator } from '@b2b/contracts';
 import type Redis from 'ioredis';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
-import { SettingsAdminService, type AdminAuditContext } from './services/settings-admin.service.js';
+import {
+  SettingsAdminService,
+  type AdminAuditContext,
+  type ModulePresencePort,
+} from './services/settings-admin.service.js';
 import { SettingsCache } from './services/settings-cache.js';
 import { SettingsService } from './services/settings.service.js';
 import {
@@ -58,6 +62,12 @@ export interface SettingsModuleOptions {
    * reads keep working.
    */
   secretEncryptionKey?: string;
+  /**
+   * Feature 073 — the effective-state reader used to classify each setting and
+   * to refuse writes an absent module owns (Constitution XVII, FR-033).
+   * Injected so this module keeps no edge into the lifecycle service graph.
+   */
+  modulePresence?: ModulePresencePort;
 }
 
 export interface SettingsModuleHandle {
@@ -85,6 +95,7 @@ export function settingsModule(
     options.eventBus,
     options.auditLogService,
     options.secretEncryptionKey,
+    options.modulePresence,
   );
 
   const cache = options.redis ? new SettingsCache(options.redis) : undefined;
