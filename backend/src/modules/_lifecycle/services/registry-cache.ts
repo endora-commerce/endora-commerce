@@ -43,6 +43,7 @@ export class ModuleRegistryCache {
   private subscriber: Redis | null = null;
   private degraded = false;
   private fallbackTimer: NodeJS.Timeout | null = null;
+  private fallbackStopped = false;
 
   isEnabled(moduleId: string): boolean {
     return this.enabled.has(moduleId);
@@ -177,6 +178,10 @@ export class ModuleRegistryCache {
    */
   private enterDegradedMode(em: () => EntityManager): void {
     this.degraded = true;
+    // A disconnecting ioredis client keeps emitting `'end'` while it retries,
+    // so without this an explicitly stopped cache re-arms itself and outlives
+    // its owner — polling a closed EntityManager for the rest of the process.
+    if (this.fallbackStopped) return;
     if (this.fallbackTimer) return;
     this.fallbackTimer = setInterval(() => {
       void this.refreshFromDb(em).catch((err) => {
@@ -201,8 +206,13 @@ export class ModuleRegistryCache {
     }
   }
 
-  /** Stop the degraded-mode timer. Used by tests and by process shutdown. */
+  /**
+   * Stop the degraded-mode timer for good. Used by tests and by process
+   * shutdown: after this the cache will not re-arm, so tearing down the
+   * database behind it produces no background noise.
+   */
   stopFallbackRefresh(): void {
+    this.fallbackStopped = true;
     if (this.fallbackTimer) {
       clearInterval(this.fallbackTimer);
       this.fallbackTimer = null;
