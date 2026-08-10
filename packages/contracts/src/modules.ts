@@ -330,6 +330,59 @@ export const ModuleListQuerySchema = z.object({
 });
 export type ModuleListQuery = z.infer<typeof ModuleListQuerySchema>;
 
+// ---------------------------------------------------------------------------
+// Feature 073 — module presence projections
+// ---------------------------------------------------------------------------
+
+/**
+ * One module's presence as the server computed it. `present` is the
+ * conjunction of the two axes, precomputed server-side: neither frontend
+ * recombines them, which is what makes "off means absent" one decision rather
+ * than two implementations that can disagree.
+ *
+ * The axes stay separately visible because Constitution XVII requires the
+ * Admin UI to render them differently — *installed but switched off* shows an
+ * actionable control, *not available at platform level* shows absent or
+ * blocked-with-a-reason.
+ */
+export const ModulePresenceSchema = z.object({
+  id: z.string().regex(moduleIdRe),
+  /** platformAvailable && operatorActivated. */
+  present: z.boolean(),
+  platformState: RegistryStateSchema.or(z.literal('not-installed')),
+  /** The operator axis alone. */
+  activated: z.boolean(),
+  deactivatable: z.boolean(),
+  /** The module's own declared reason, rendered next to the locked control. */
+  nonDeactivatableReason: z.string().nullable(),
+});
+export type ModulePresence = z.infer<typeof ModulePresenceSchema>;
+
+/** `GET /api/v1/admin/module-presence` — every admin, no permission code. */
+export const AdminModulePresenceResponseSchema = z.object({
+  modules: z.array(ModulePresenceSchema),
+});
+export type AdminModulePresenceResponse = z.infer<
+  typeof AdminModulePresenceResponseSchema
+>;
+
+/** The storefront needs no axis detail — only whether to render at all. */
+export const StorefrontModulePresenceSchema = z.object({
+  id: z.string().regex(moduleIdRe),
+  present: z.boolean(),
+});
+export type StorefrontModulePresence = z.infer<
+  typeof StorefrontModulePresenceSchema
+>;
+
+/** `GET /api/v1/storefront/module-presence` — public, tag `modules:presence`. */
+export const StorefrontModulePresenceResponseSchema = z.object({
+  modules: z.array(StorefrontModulePresenceSchema),
+});
+export type StorefrontModulePresenceResponse = z.infer<
+  typeof StorefrontModulePresenceResponseSchema
+>;
+
 // ---- Feature 060 — API interceptor diagnostics (read-only admin) ----------
 
 /**

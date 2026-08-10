@@ -1555,6 +1555,7 @@
   "adminRoles.permission.megamenu.read": "View megamenu",
   "adminRoles.permission.megamenu.write": "Edit megamenu",
   "adminRoles.permission.platform.modules.read": "View module lifecycle",
+  "adminRoles.permission.platform.modules.activate": "Switch modules on and off",
   "apiKeys.status.active": "Active",
   "apiKeys.status.revoked": "Revoked",
   "webhooks.status.active": "Active",
