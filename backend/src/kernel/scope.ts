@@ -160,25 +160,66 @@ export function openPlatformScopeCount(): number {
 }
 
 /**
- * Run `run` inside a fresh resolution scope with `tenant` as the ambient tenant
- * context. The scope is disposed when `run` settles — on success, on error and
- * on abort.
+ * Build the scope object.
+ *
+ * A separate function so its closures capture **only** these parameters. In one
+ * lexical scope V8 gives every closure the same context object, so a `dispose`
+ * defined next to the caller's `run` retains `run` — and through it the Fastify
+ * `request` and `reply` of that request. Since the scope is what lives in the
+ * `AsyncLocalStorage` store, and a store is retained for as long as any async
+ * resource created inside it is alive, that turned one pooled connection into a
+ * pinned request. Measured over `test/integration/catalog`: 1598 MB of post-GC
+ * live set with the shared context, 1000 MB with it split out, against 881 MB
+ * for the pre-kernel hook.
  */
-export async function enterPlatformScope<T>(
+function createPlatformScope(
+  root: KernelContainer,
   tenant: TenantContext,
-  run: (scope: PlatformScope) => T | Promise<T>,
-  opts: EnterPlatformScopeOptions = {},
-): Promise<T> {
-  const root = opts.container ?? getRootContainer();
-  const child = root.createScope<KernelCradle>();
-
+  opts: EnterPlatformScopeOptions,
+): PlatformScope {
   let channel = opts.channel ?? null;
   const requestMeta = opts.requestMeta ?? null;
+
+  /**
+   * The awilix child, created on **first resolution** rather than on entry.
+   *
+   * Same reasoning as above, one step further: a request that resolves nothing
+   * from the cradle — which is every request until the modules are converted in
+   * Phase 4 — should not pin a container, its registration closures and its
+   * cradle proxy for as long as the store lives. Awilix itself is not the cost:
+   * 100 000 create → register → dispose cycles in isolation hold flat at 5 MB.
+   */
+  let child: KernelContainer | undefined;
+  const resolutionScope = (): KernelContainer => {
+    if (child) return child;
+    child = root.createScope<KernelCradle>();
+    // Per-scope values. `salesChannel` is the registration that lets the 49
+    // `getResolvedChannel(request)` call sites stop threading `request`.
+    //
+    // `asFunction(...).scoped()` rather than `asValue(...)` deliberately: awilix
+    // marks an `asValue` registration `isLeakSafe`, so a **singleton** could
+    // capture the first request's channel and hold it for the life of the
+    // process — a Constitution XII violation with no test to catch it. A scoped
+    // resolver is not leak-safe, so strict mode refuses that capture at the
+    // resolution that makes it.
+    //
+    // The resolver reads `scope.channel` rather than closing over the value, so
+    // a registration resolved before the channel hook ran does not pin `null` —
+    // awilix caches the resolution, not the slot.
+    child.register({
+      salesChannel: asFunction(() => scope.channel).scoped(),
+      requestMeta: asFunction(() => requestMeta).scoped(),
+      platformScope: asFunction(() => scope).scoped(),
+    });
+    return child;
+  };
 
   let disposed = false;
   openScopes += 1;
   const scope: PlatformScope = {
-    cradle: child.cradle,
+    get cradle(): KernelCradle {
+      return resolutionScope().cradle;
+    },
     tenant,
     entryPoint: opts.entryPoint ?? 'http',
     get channel(): ResolvedChannel | null {
@@ -192,28 +233,23 @@ export async function enterPlatformScope<T>(
       if (disposed) return;
       disposed = true;
       openScopes -= 1;
-      await child.dispose();
+      if (child) await child.dispose();
     },
   };
+  return scope;
+}
 
-  // Per-scope values. `salesChannel` is the registration that lets the 49
-  // `getResolvedChannel(request)` call sites stop threading `request`.
-  //
-  // `asFunction(...).scoped()` rather than `asValue(...)` deliberately: awilix
-  // marks an `asValue` registration `isLeakSafe`, so a **singleton** could
-  // capture the first request's channel and hold it for the life of the
-  // process — a Constitution XII violation with no test to catch it. A scoped
-  // resolver is not leak-safe, so strict mode refuses that capture at the
-  // resolution that makes it.
-  //
-  // The resolver reads `scope.channel` rather than closing over the value, so a
-  // registration resolved before the channel hook ran does not pin `null` —
-  // awilix caches the resolution, not the slot.
-  child.register({
-    salesChannel: asFunction(() => scope.channel).scoped(),
-    requestMeta: asFunction(() => requestMeta).scoped(),
-    platformScope: asFunction(() => scope).scoped(),
-  });
+/**
+ * Run `run` inside a fresh resolution scope with `tenant` as the ambient tenant
+ * context. The scope is disposed when `run` settles — on success, on error and
+ * on abort.
+ */
+export async function enterPlatformScope<T>(
+  tenant: TenantContext,
+  run: (scope: PlatformScope) => T | Promise<T>,
+  opts: EnterPlatformScopeOptions = {},
+): Promise<T> {
+  const scope = createPlatformScope(opts.container ?? getRootContainer(), tenant, opts);
 
   // The ALS run is the OUTERMOST wrapper of the work — see rule 2 above. The
   // scope store nests inside the tenant store and is entered synchronously, so
