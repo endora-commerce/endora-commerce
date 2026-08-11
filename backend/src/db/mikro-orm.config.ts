@@ -4,8 +4,7 @@ import { PluralizingNamingStrategy } from './pluralizing-naming-strategy.js';
 import { ALL_ENTITIES } from './entities-registry.js';
 import { DISCOVERED_MANIFESTS } from '../modules/_lifecycle/manifest-index.generated.js';
 import { MIGRATION_REGISTRY } from './migrations-registry.js';
-import { orderMigrations } from './migration-order.js';
-import { FROZEN_THROUGH, LEGACY_MIGRATION_RENAMES } from './legacy-migration-names.js';
+import { orderMigrations, UNCORRECTED_THROUGH } from './migration-order.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -41,14 +40,13 @@ const moduleDependencies = new Map<string, readonly string[]>([
   ...DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
 ]);
 
-// Throws at import time on a cycle, a duplicate timestamp, an unknown module id
-// or a frozen-prefix divergence — a loud, actionable boot failure by design.
+// Throws at import time on a cycle, a duplicate timestamp or an unknown module
+// id — a loud, actionable boot failure by design.
 const migrationsList = orderMigrations({
   entries: MIGRATION_REGISTRY,
   moduleDependencies,
-  frozenThrough: FROZEN_THROUGH,
+  uncorrectedThrough: UNCORRECTED_THROUGH,
   correctionHorizonDays: CORRECTION_HORIZON_DAYS,
-  frozenOrder: LEGACY_MIGRATION_RENAMES.map((rename) => rename.name),
 });
 
 export default defineConfig({

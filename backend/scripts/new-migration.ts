@@ -2,7 +2,7 @@
 import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { FROZEN_THROUGH } from '../src/db/legacy-migration-names.js';
+import { UNCORRECTED_THROUGH } from '../src/db/migration-order.js';
 
 /**
  * Scaffolds a migration file in its owning module's `migrations/` directory.
@@ -106,10 +106,11 @@ export function parseStamp(stamp: string): Date {
  * Advances by whole seconds until the stamp is free anywhere in the tree.
  *
  * `after` is a floor the result must strictly exceed. The CLI passes
- * `FROZEN_THROUGH`: everything at or before it is order-frozen against the
- * recorded legacy execution order, so a new migration landing inside that block
- * would fail the frozen-prefix assertion at config-build time. Clamping here
- * turns a confusing boot error into a stamp one second past the boundary.
+ * `UNCORRECTED_THROUGH`: everything at or before it is emitted in plain
+ * chronological order and is never dependency-corrected, so a new migration
+ * landing inside that block would silently opt out of the correction its
+ * module's `dependencies` are supposed to buy it. Clamping here keeps every
+ * new migration in the corrected region.
  */
 export function nextFreeStamp(from: Date, taken: ReadonlySet<string>, after?: string): string {
   const cursor = new Date(from.getTime());
@@ -266,7 +267,7 @@ function main(): void {
   }
 
   validateModuleId(args.module, knownModuleIds());
-  const stamp = nextFreeStamp(new Date(), takenStamps(), FROZEN_THROUGH);
+  const stamp = nextFreeStamp(new Date(), takenStamps(), UNCORRECTED_THROUGH);
   const scaffold = buildScaffold({ moduleId: args.module, slug: args.name, stamp });
 
   const absolutePath = resolve(backendRoot, scaffold.relativePath);

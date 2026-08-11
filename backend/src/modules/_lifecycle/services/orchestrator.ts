@@ -27,7 +27,6 @@ import {
   resumeWorkersFor,
 } from '../plugin-helpers.js';
 import type { LoadedManifestRegistry } from './manifest-loader.js';
-import { getMigrator } from '../../../db/migrator.js';
 import { MIGRATION_REGISTRY } from '../../../db/migrations-registry.js';
 
 // ---------------------------------------------------------------------------
@@ -42,9 +41,8 @@ export interface OrchestratorDeps {
   /** The loaded manifest registry — built once at boot or per CLI run. */
   registry: LoadedManifestRegistry;
   /**
-   * How a migrator is obtained. Defaults to `getMigrator` from
-   * src/db/migrator.ts, which runs the legacy-name pre-flight (feature 065)
-   * before anything computes pending work. Tests inject a stub here.
+   * How a migrator is obtained. Defaults to the ORM's own accessor; tests
+   * inject a stub here so a revert can be observed without touching schema.
    */
   migratorFor?: (orm: MikroORM) => Promise<IMigrator>;
   /** Optional logger (Fastify request-logger compatible). Defaults to console. */
@@ -819,7 +817,7 @@ export class ModuleLifecycleOrchestrator {
   }
 
   private async migrator(): Promise<IMigrator> {
-    const accessor = this.deps.migratorFor ?? getMigrator;
+    const accessor = this.deps.migratorFor ?? (async (orm: MikroORM) => orm.getMigrator());
     return accessor(this.deps.orm);
   }
 
