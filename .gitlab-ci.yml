@@ -72,6 +72,11 @@ quality:
     # Feature 072 (FR-032) — no module imports the container library. Modules see
     # only `ModuleContext`, so the container stays swappable behind that seam.
     - pnpm --filter backend run check:container-imports
+    # Documentation code blocks are quotations, not paraphrases. The quickstarts
+    # are copied by every module conversion, so a stale snippet is a defect
+    # scheduled for mass production — six were found across three batches before
+    # this check existed.
+    - pnpm --filter backend run check:doc-snippets
     # Feature 057 (FR-006/SC-003) — the manifest index + override manifest
     # regenerate deterministically for the bare-core build; `overlay:check`
     # regenerates and fails on ANY drift (identical inputs ⇒ identical artifact).
