@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { defineModuleSettingsManifest } from '@b2b/contracts';
 import {
@@ -32,6 +32,20 @@ describe('SettingsService cache invalidation (T047)', () => {
           {
             code: 'us3_cache.url',
             name: 'URL',
+            valueType: 'string',
+            defaultValue: 'https://default.example',
+          },
+          // The invalidation-failure tests need their own codes: the per-process
+          // LRU is not reset between tests, only the Redis namespace is.
+          {
+            code: 'us3_cache.raced_url',
+            name: 'Raced URL',
+            valueType: 'string',
+            defaultValue: 'https://default.example',
+          },
+          {
+            code: 'us3_cache.unreachable_url',
+            name: 'Unreachable URL',
             valueType: 'string',
             defaultValue: 'https://default.example',
           },
@@ -91,6 +105,67 @@ describe('SettingsService cache invalidation (T047)', () => {
       z.string(),
     );
     expect(second).toBe('https://chosen.example');
+  });
+
+  it('does not serve the pre-write value to a read that races the invalidation', async () => {
+    const channel = await h.em().findOneOrFail(SalesChannel, { code: 'pl_retail' });
+
+    expect(
+      await h.settings.settingsService.get('us3_cache.raced_url', channel.id, z.string()),
+    ).toBe('https://default.example');
+
+    await h.settings.adminService.setValueForSubset(
+      'us3_cache.raced_url',
+      ['pl_retail'],
+      'https://raced.example',
+      null,
+      { actorAdminUserId: null },
+    );
+
+    // Deliberately NO `flushAsyncDispatch()`: this is the shape that made
+    // `test/integration/mfa/customer-oauth.test.ts` flaky. The invalidation is
+    // still on the wire, so the LRU is already dropped while Redis still holds
+    // the pre-write value — the read must not be served from either layer.
+    expect(
+      await h.settings.settingsService.get('us3_cache.raced_url', channel.id, z.string()),
+    ).toBe('https://raced.example');
+  });
+
+  it('does not serve the pre-write value when the Redis drop fails', async () => {
+    const channel = await h.em().findOneOrFail(SalesChannel, { code: 'pl_retail' });
+
+    expect(
+      await h.settings.settingsService.get('us3_cache.unreachable_url', channel.id, z.string()),
+    ).toBe('https://default.example');
+
+    // The exact failure the flaky run logged: `event handler threw ...
+    // Error: Connection is closed.` The shared layer keeps the stale value.
+    const del = vi
+      .spyOn(h.redis, 'del')
+      .mockRejectedValue(new Error('Connection is closed.'));
+    try {
+      await h.settings.adminService.setValueForSubset(
+        'us3_cache.unreachable_url',
+        ['pl_retail'],
+        'https://unreachable-redis.example',
+        null,
+        { actorAdminUserId: null },
+      );
+      await flushAsyncDispatch();
+
+      expect(
+        await h.settings.settingsService.get('us3_cache.unreachable_url', channel.id, z.string()),
+      ).toBe('https://unreachable-redis.example');
+    } finally {
+      del.mockRestore();
+    }
+
+    // Once Redis answers again the cache heals itself instead of staying
+    // bypassed for the process lifetime.
+    expect(
+      await h.settings.settingsService.get('us3_cache.unreachable_url', channel.id, z.string()),
+    ).toBe('https://unreachable-redis.example');
+    expect(await h.redis.keys('settings:v1:us3_cache.unreachable_url:*')).not.toHaveLength(0);
   });
 
   it('caches the "not registered" outcome and invalidates it on subsequent group changes', async () => {
