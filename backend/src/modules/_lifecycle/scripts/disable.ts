@@ -129,4 +129,4 @@ function mapError(err: unknown, asJson: boolean): number {
   return 70;
 }
 
-void enterSystemScope('cli: disable a module', main).then((code) => process.exit(code));
+void enterSystemScope('cli: disable a module', main, { entryPoint: 'cli' }).then((code) => process.exit(code));

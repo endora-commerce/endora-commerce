@@ -217,8 +217,10 @@ export class ModuleRegistryCache {
     this.fallbackTimer = setInterval(() => {
       // Feature 072 (T034) — the degraded refresh reads `module_registrations`
       // from a timer, with no caller to inherit a context from.
-      void enterSystemScope('_lifecycle: degraded registry refresh', () =>
-        this.refreshFromDb(em),
+      void enterSystemScope(
+        '_lifecycle: degraded registry refresh',
+        () => this.refreshFromDb(em),
+        { entryPoint: 'interval' },
       ).catch((err) => {
         console.warn(
           `[module-lifecycle] degraded refresh failed: ${

@@ -124,4 +124,4 @@ async function main(): Promise<number> {
   }
 }
 
-void enterSystemScope('cli: module status', main).then((code) => process.exit(code));
+void enterSystemScope('cli: module status', main, { entryPoint: 'cli' }).then((code) => process.exit(code));

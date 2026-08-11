@@ -69,7 +69,7 @@ export async function backfillQuoteChannel(): Promise<BackfillResult> {
 // CLI entrypoint when invoked via `tsx`.
 const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
-  enterSystemScope('cli: backfill quote sales channels', backfillQuoteChannel)
+  enterSystemScope('cli: backfill quote sales channels', backfillQuoteChannel, { entryPoint: 'cli' })
     .then((result) => {
        
       console.warn(

@@ -88,7 +88,7 @@ export async function runAbandonmentSweep(): Promise<SweepResult> {
 // CLI entrypoint when invoked via `tsx`.
 const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
-  enterSystemScope('cli: cart abandonment sweep', runAbandonmentSweep)
+  enterSystemScope('cli: cart abandonment sweep', runAbandonmentSweep, { entryPoint: 'cli' })
     .then((result) => {
        
       console.warn(

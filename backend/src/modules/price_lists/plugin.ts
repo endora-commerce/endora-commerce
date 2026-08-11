@@ -116,7 +116,9 @@ export function priceListsModule(options: PriceListsModuleOptions): {
           // opens here and not inside `sweep()`: the same method is reachable
           // from an admin route (`routes.ts`), where it already runs inside the
           // request's scope and must not open a second one.
-          enterSystemScope('price_lists: status sweep', () => statusWorker.sweep())
+          enterSystemScope('price_lists: status sweep', () => statusWorker.sweep(), {
+            entryPoint: 'interval',
+          })
             .then((result) => {
               if (result.scheduledToActive > 0 || result.activeToExpired > 0) {
                 app.log.info(

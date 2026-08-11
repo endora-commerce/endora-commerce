@@ -135,7 +135,7 @@ async function main(): Promise<void> {
   }
 }
 
-void enterSystemScope('cli: create an admin user', main).catch((err: unknown) => {
+void enterSystemScope('cli: create an admin user', main, { entryPoint: 'cli' }).catch((err: unknown) => {
   console.error('admin:create failed', err);
   process.exit(1);
 });

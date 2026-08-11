@@ -193,6 +193,6 @@ function mapError(err: unknown, asJson: boolean): number {
   return 70;
 }
 
-void enterSystemScope('cli: install a module', main).then((code) => {
+void enterSystemScope('cli: install a module', main, { entryPoint: 'cli' }).then((code) => {
   process.exit(code);
 });

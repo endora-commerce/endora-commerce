@@ -62,7 +62,7 @@ async function main(): Promise<number> {
   }
 }
 
-enterSystemScope('cli: clear the settings cache', main)
+enterSystemScope('cli: clear the settings cache', main, { entryPoint: 'cli' })
   .then((code) => process.exit(code))
   .catch((err: unknown) => {
     process.stderr.write(`cache:clear failed: ${String(err)}\n`);

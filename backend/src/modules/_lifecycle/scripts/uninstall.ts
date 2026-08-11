@@ -189,6 +189,6 @@ function mapError(err: unknown, asJson: boolean): number {
   return 70;
 }
 
-void enterSystemScope('cli: uninstall a module', main).then((code) => {
+void enterSystemScope('cli: uninstall a module', main, { entryPoint: 'cli' }).then((code) => {
   process.exit(code);
 });

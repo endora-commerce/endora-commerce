@@ -192,6 +192,12 @@ function createPlatformScope(
   let child: KernelContainer | undefined;
   const resolutionScope = (): KernelContainer => {
     if (child) return child;
+    if (disposed) {
+      // A resolution after disposal would create a child nothing will ever
+      // dispose. It means work outlived its scope — fail loudly rather than
+      // hand back a container that leaks.
+      throw new Error('This platform scope is disposed; it can no longer resolve.');
+    }
     child = root.createScope<KernelCradle>();
     // Per-scope values. `salesChannel` is the registration that lets the 49
     // `getResolvedChannel(request)` call sites stop threading `request`.

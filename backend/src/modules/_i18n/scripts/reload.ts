@@ -40,7 +40,7 @@ async function main(): Promise<void> {
   }
 }
 
-void enterSystemScope('cli: reload i18n bundles', main).catch((err: unknown) => {
+void enterSystemScope('cli: reload i18n bundles', main, { entryPoint: 'cli' }).catch((err: unknown) => {
   process.stderr.write(`${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`);
   process.exit(2);
 });

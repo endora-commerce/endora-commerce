@@ -115,4 +115,4 @@ function mapError(err: unknown, asJson: boolean): number {
   return 70;
 }
 
-void enterSystemScope('cli: enable a module', main).then((code) => process.exit(code));
+void enterSystemScope('cli: enable a module', main, { entryPoint: 'cli' }).then((code) => process.exit(code));

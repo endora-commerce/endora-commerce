@@ -104,7 +104,7 @@ function printTable(snapshot: { capturedAt: string; modules: ReadonlyArray<{ mod
   }
 }
 
-void enterSystemScope('cli: i18n coverage snapshot', main).catch((err: unknown) => {
+void enterSystemScope('cli: i18n coverage snapshot', main, { entryPoint: 'cli' }).catch((err: unknown) => {
   process.stderr.write(`${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`);
   process.exit(2);
 });

@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   await closeOrm();
 }
 
-enterSystemScope('cli: search reindex', main).catch((err) => {
+enterSystemScope('cli: search reindex', main, { entryPoint: 'cli' }).catch((err) => {
   console.error('search:reindex failed:', err);
   process.exit(1);
 });
