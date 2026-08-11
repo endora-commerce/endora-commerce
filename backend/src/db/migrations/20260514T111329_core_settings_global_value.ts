@@ -18,8 +18,13 @@ import { Migration } from '@mikro-orm/migrations';
  * admin who legitimately wants a literal JSON null at the global tier still
  * needs the per-channel route; this is an accepted edge case (see
  * specs/004-settings-module/data-model.md once it's updated).
+ *
+ * Filed under `core` since feature 072 T020. The kernel owns the tables this
+ * migration writes to, and a hard uninstall reverts by registry `moduleId`, so
+ * leaving it under `settings` made `modules:uninstall --hard settings` drop
+ * kernel schema.
  */
-export class Migration20260514T111329SettingsGlobalValue extends Migration {
+export class Migration20260514T111329CoreSettingsGlobalValue extends Migration {
   override async up(): Promise<void> {
     this.addSql(
       'alter table "settings" add column "global_value" jsonb null;',

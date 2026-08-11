@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { getMigrator } from '../../../src/db/migrator.js';
 
 /**
  * T011 (feature 061) — SC-001 parity test for migration
@@ -172,7 +171,7 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
     // a fully-migrated shared DB the latest executed migration is usually not
     // 102. Step down through anything newer first, then revert 102 itself —
     // but refuse to ever down() a migration OLDER than 102.
-    const migrator = await getMigrator(db.orm);
+    const migrator = db.orm.getMigrator();
     for (;;) {
       const latest = await latestExecutedMigration();
       const stamp = /^Migration(\d{8}T\d{6})/.exec(latest ?? '')?.[1] ?? '';
@@ -254,14 +253,14 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
 
   afterAll(async () => {
     // Whatever happened above, leave the DB fully migrated for other files.
-    await (await getMigrator(db.orm)).up();
+    await db.orm.getMigrator().up();
     await db.close();
   });
 
   it('re-applies migration 102 over legacy fixtures with full parity (SC-001)', async () => {
     await revert102();
     await seedLegacyFixtures();
-    await (await getMigrator(db.orm)).up();
+    await db.orm.getMigrator().up();
 
     // --- Definitions: one per legacy attribute, content preserved.
     const defs = await conn().execute<
@@ -475,7 +474,7 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
       [randomUUID()],
     );
 
-    await expect((await getMigrator(db.orm)).up()).rejects.toThrow(/reserved|collid/i);
+    await expect(db.orm.getMigrator().up()).rejects.toThrow(/reserved|collid/i);
 
     // Atomic: still legacy shape, nothing partially migrated.
     const cols = await conn().execute<Array<{ column_name: string }>>(
@@ -491,7 +490,7 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
     // Clean up the offending row; re-apply so the suite continues migrated.
     // (up() also re-applies any post-102 migrations stepped down by revert102.)
     await conn().execute(`delete from "product_attributes" where "key" = 'name'`);
-    await (await getMigrator(db.orm)).up();
+    await db.orm.getMigrator().up();
     const executed = await conn().execute<Array<{ name: string }>>(
       `select "name" from "mikro_orm_migrations"`,
     );

@@ -5,14 +5,11 @@ import { fileURLToPath } from 'node:url';
 import {
   MigrationOrderError,
   orderMigrations,
+  UNCORRECTED_THROUGH as REAL_UNCORRECTED_THROUGH,
   type MigrationClass,
   type MigrationRegistryEntry,
 } from '../../../src/db/migration-order.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.js';
-import {
-  FROZEN_THROUGH as REAL_FROZEN_THROUGH,
-  LEGACY_MIGRATION_RENAMES,
-} from '../../../src/db/legacy-migration-names.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
 
 /**
@@ -24,7 +21,7 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
  * database, still no ORM bootstrap.
  */
 
-const FROZEN_THROUGH = '20260801T000000';
+const UNCORRECTED_THROUGH = '20260801T000000';
 const HORIZON_DAYS = 45;
 
 /** Builds a class whose `.name` is exactly the supplied migration name. */
@@ -61,14 +58,12 @@ function names(entries: readonly MigrationRegistryEntry[]): string[] {
 function run(
   entries: readonly MigrationRegistryEntry[],
   moduleDependencies: ReadonlyMap<string, readonly string[]>,
-  frozenOrder?: readonly string[],
 ): string[] {
   return orderMigrations({
     entries,
     moduleDependencies,
-    frozenThrough: FROZEN_THROUGH,
+    uncorrectedThrough: UNCORRECTED_THROUGH,
     correctionHorizonDays: HORIZON_DAYS,
-    ...(frozenOrder ? { frozenOrder } : {}),
   }).map((m) => m.name);
 }
 
@@ -190,45 +185,35 @@ describe('orderMigrations — I4 minimality', () => {
   });
 });
 
-describe('orderMigrations — I5 frozen prefix', () => {
-  const frozenOrders = entry('orders', '20260701T090000', 'legacy_a');
-  const frozenCatalog = entry('catalog', '20260702T090000', 'legacy_b');
+describe('orderMigrations — I5 uncorrected prefix', () => {
+  const oldOrders = entry('orders', '20260701T090000', 'legacy_a');
+  const oldCatalog = entry('catalog', '20260702T090000', 'legacy_b');
   const openCatalog = entry('catalog', '20260901T090000', 'open_a');
   const openOrders = entry('orders', '20260805T090000', 'open_b');
 
-  it('emits the frozen block first, in timestamp order, uncorrected', () => {
-    const emitted = run([openCatalog, frozenCatalog, openOrders, frozenOrders], CHAIN);
+  it('emits the pre-watermark block first, in timestamp order, uncorrected', () => {
+    const emitted = run([openCatalog, oldCatalog, openOrders, oldOrders], CHAIN);
 
-    expect(emitted.slice(0, 2)).toEqual([frozenOrders.cls.name, frozenCatalog.cls.name]);
+    expect(emitted.slice(0, 2)).toEqual([oldOrders.cls.name, oldCatalog.cls.name]);
     // The open entries are corrected among themselves but never enter the prefix.
     expect(emitted.slice(2)).toEqual([openCatalog.cls.name, openOrders.cls.name]);
   });
 
-  it('accepts a matching frozenOrder', () => {
-    const frozenOrder = [frozenOrders.cls.name, frozenCatalog.cls.name];
-    expect(() => run([openCatalog, frozenCatalog, frozenOrders], CHAIN, frozenOrder)).not.toThrow();
-  });
+  it('splits on the timestamp alone — renaming a class changes nothing', () => {
+    // Feature 072 retired the frozen rename map: the prefix is a position, not
+    // a set of names. Moving a migration between groups renames its class
+    // (`Migration…SettingsInit` → `Migration…CoreSettingsInit`) and that must
+    // stay a pure no-op for the emitted order.
+    const before = run([openCatalog, oldCatalog, openOrders, oldOrders], CHAIN);
 
-  it('throws frozen-boundary when the frozen prefix diverges from frozenOrder', () => {
-    const frozenOrder = [frozenCatalog.cls.name, frozenOrders.cls.name];
-    let thrown: unknown;
-    try {
-      run([frozenCatalog, frozenOrders], CHAIN, frozenOrder);
-    } catch (error) {
-      thrown = error;
-    }
-    expect(thrown).toBeInstanceOf(MigrationOrderError);
-    expect((thrown as MigrationOrderError).code).toBe('frozen-boundary');
-    expect((thrown as MigrationOrderError).message).toContain(frozenOrders.cls.name);
-    expect((thrown as MigrationOrderError).message).toContain(frozenCatalog.cls.name);
-    expect((thrown as MigrationOrderError).message).toContain('index 0');
-  });
+    const renamedOldOrders: MigrationRegistryEntry = {
+      moduleId: 'core',
+      cls: migrationClass('Migration20260701T090000CoreLegacyA'),
+    };
+    const after = run([openCatalog, oldCatalog, openOrders, renamedOldOrders], CHAIN);
 
-  it('throws frozen-boundary when a frozen entry is missing from frozenOrder', () => {
-    const frozenOrder = [frozenOrders.cls.name];
-    expect(() => run([frozenCatalog, frozenOrders], CHAIN, frozenOrder)).toThrow(
-      MigrationOrderError,
-    );
+    expect(after[0]).toBe(renamedOldOrders.cls.name);
+    expect(after.slice(1)).toEqual(before.slice(1));
   });
 });
 
@@ -401,9 +386,16 @@ function runReal(entries: readonly MigrationRegistryEntry[]): string[] {
   return orderMigrations({
     entries,
     moduleDependencies: REAL_MODULE_DEPENDENCIES,
-    frozenThrough: REAL_FROZEN_THROUGH,
+    uncorrectedThrough: REAL_UNCORRECTED_THROUGH,
     correctionHorizonDays: HORIZON_DAYS,
   }).map((m) => m.name);
+}
+
+/** The registry's pre-watermark entries, in the order the prefix must emit. */
+function realChronologicalPrefix(): string[] {
+  return MIGRATION_REGISTRY.map((registryEntry) => registryEntry.cls.name)
+    .filter((name) => name.slice('Migration'.length, 'Migration'.length + 15) <= REAL_UNCORRECTED_THROUGH)
+    .sort();
 }
 
 describe('orderMigrations — I10 real registry', () => {
@@ -415,7 +407,7 @@ describe('orderMigrations — I10 real registry', () => {
     const ordered = orderMigrations({
       entries: MIGRATION_REGISTRY,
       moduleDependencies: REAL_MODULE_DEPENDENCIES,
-      frozenThrough: REAL_FROZEN_THROUGH,
+      uncorrectedThrough: REAL_UNCORRECTED_THROUGH,
       correctionHorizonDays: HORIZON_DAYS,
     });
 
@@ -426,23 +418,13 @@ describe('orderMigrations — I10 real registry', () => {
     expect(new Set(ordered.map((m) => m.name)).size).toBe(MIGRATION_REGISTRY.length);
   });
 
-  it('reproduces the frozen legacy order as its prefix', () => {
-    const expectedPrefix = LEGACY_MIGRATION_RENAMES.map((rename) => rename.name);
+  it('emits every pre-watermark migration first, in plain chronological order', () => {
+    const expectedPrefix = realChronologicalPrefix();
     const emitted = runReal(MIGRATION_REGISTRY);
 
+    // Non-trivial: the pre-065 block is the bulk of the registry.
+    expect(expectedPrefix.length).toBeGreaterThan(100);
     expect(emitted.slice(0, expectedPrefix.length)).toEqual(expectedPrefix);
-  });
-
-  it('accepts the frozen order as an explicit assertion input', () => {
-    expect(() =>
-      orderMigrations({
-        entries: MIGRATION_REGISTRY,
-        moduleDependencies: REAL_MODULE_DEPENDENCIES,
-        frozenThrough: REAL_FROZEN_THROUGH,
-        correctionHorizonDays: HORIZON_DAYS,
-        frozenOrder: LEGACY_MIGRATION_RENAMES.map((rename) => rename.name),
-      }),
-    ).not.toThrow();
   });
 });
 
@@ -472,8 +454,8 @@ describe('orderMigrations — the concurrent-branch hazard, against the real gra
     );
   });
 
-  it('leaves the frozen prefix untouched in both cases', () => {
-    const expectedPrefix = LEGACY_MIGRATION_RENAMES.map((rename) => rename.name);
+  it('leaves the uncorrected prefix untouched in both cases', () => {
+    const expectedPrefix = realChronologicalPrefix();
     const catalogEntry = entry('catalog', '20260812T090000', 'product_column');
     const emitted = runReal([...MIGRATION_REGISTRY, ordersEntry, catalogEntry]);
 

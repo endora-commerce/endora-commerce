@@ -198,8 +198,20 @@ number", never pick a number, never edit an execution list.
 4. **Cross-module FK ⇒ declare the dependency.** A new foreign key to another module's table
    requires that module in your manifest's `dependencies` (transitively), or
    `pnpm --filter backend exec vitest run test/unit/db/fk-dependency-drift.test.ts` fails.
-5. **Never edit** `backend/src/db/legacy-migration-names.ts` — it is the frozen rename map
-   that keeps deployed databases from re-running 112 migrations.
+5. **Renaming an applied migration class costs a database rebuild.** Since feature 072 there
+   is no frozen name map and nothing in the repository forbids the rename — but
+   `mikro_orm_migrations` stores the **class name**, so every database that already ran the
+   migration under its old name will see the new name as pending and try to re-apply it.
+   Rename only when moving a migration between groups is genuinely required (as feature 072
+   T020 did), and ship the rename with a note telling every developer to rebuild:
+   `DATABASE_URL=…/b2b_test pnpm --filter backend run db:fresh` plus
+   `pnpm --filter backend run db:reset` for the dev database.
+6. **Never scaffold a migration stamped at or before `UNCORRECTED_THROUGH`**
+   (`20260801T000000`, `backend/src/db/migration-order.ts`). Everything at or before it is
+   the pre-065 block: it is emitted in plain chronological order and is **not**
+   dependency-corrected, so a migration landing there silently loses the ordering its
+   manifest `dependencies` are supposed to buy it. `migration:new` clamps the stamp for you;
+   do not hand-write one below the watermark.
 
 Full guide: `docs/docs/architecture/migrations.md`; contracts under
 `specs/065-manifest-aware-migrations/contracts/`.
@@ -261,8 +273,8 @@ ship new schema as tables owned by the overlay module. See
   (Principle VIII).
 - **Commits**: never add `Co-Authored-By: Claude` or any other AI/LLM trailer. Branch off
   `master` and deliver through a merge request — never commit straight to `master`.
-- **Do not touch**: generated files, another module's migrations, `legacy-migration-names.ts`,
-  or the auto-generated appendix at the bottom of this file.
+- **Do not touch**: generated files, another module's migrations, or the auto-generated
+  appendix at the bottom of this file.
 
 Specs written before 2026-07-31 refer to the checklists above as "the CLAUDE.md new-module
 rules" — same rules, they simply moved here.

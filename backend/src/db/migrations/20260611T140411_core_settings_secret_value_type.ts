@@ -14,8 +14,13 @@ import { Migration } from '@mikro-orm/migrations';
  *    manifest. The stored value itself needs no rewrite: a legacy plaintext
  *    string keeps resolving via the codec's passthrough and is re-encrypted
  *    on the next admin write.
+ *
+ * Filed under `core` since feature 072 T020. The kernel owns the tables this
+ * migration writes to, and a hard uninstall reverts by registry `moduleId`, so
+ * leaving it under `settings` made `modules:uninstall --hard settings` drop
+ * kernel schema.
  */
-export class Migration20260611T140411SettingsSecretValueType extends Migration {
+export class Migration20260611T140411CoreSettingsSecretValueType extends Migration {
   override async up(): Promise<void> {
     this.addSql(`alter type "setting_value_type" rename to "setting_value_type_old";`);
     this.addSql(`

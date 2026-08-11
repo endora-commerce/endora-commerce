@@ -10,6 +10,9 @@ import type { MigrationObject } from '@mikro-orm/core';
  * specs/065-manifest-aware-migrations/contracts/ordering-algorithm.md; the
  * migration naming rule it parses is specified in
  * specs/065-manifest-aware-migrations/contracts/naming-convention.md.
+ * Feature 072 retired that contract's `frozenOrder` input, its
+ * `frozen-boundary` error code and the rename map behind them: no migration
+ * class name is fixed any more, only the emitted order of the pre-065 block.
  *
  * Accepted limitation (contract §4): a migration added later, inside the
  * correction horizon, MAY change the relative order of two migrations that
@@ -38,7 +41,6 @@ export type MigrationOrderErrorCode =
   | 'duplicate-timestamp'
   | 'unknown-module'
   | 'module-cycle'
-  | 'frozen-boundary'
   | 'unresolvable-order';
 
 export class MigrationOrderError extends Error {
@@ -51,20 +53,36 @@ export class MigrationOrderError extends Error {
   }
 }
 
+/**
+ * Everything at or before this UTC stamp is emitted in plain chronological
+ * order and is never dependency-corrected.
+ *
+ * These migrations predate feature 065: they were written, and applied, in the
+ * hand-maintained array order of the pre-065 `migrationsList`, and their
+ * modules' `dependencies` arrays do not describe the order they actually need.
+ * Correcting them produces an order a fresh database cannot apply — measured,
+ * not assumed: with the watermark removed, `db:fresh` fails at
+ * `Migration20260505T102206AssetsLibraryInit` with `relation "cms_pages" does
+ * not exist`, because the correction pulls `assets_library` ahead of `cms`.
+ *
+ * It is a **position** watermark only. Migration class names are free to
+ * change: renaming one — as feature 072 T020 did when it moved the kernel's
+ * migrations into the core group — changes nothing here.
+ *
+ * `scripts/new-migration.ts` clamps every scaffolded stamp past this
+ * watermark, so no new migration ever lands in the uncorrected block.
+ */
+export const UNCORRECTED_THROUGH = '20260801T000000';
+
 export interface OrderMigrationsInput {
   /** Registry entries. Order is irrelevant. */
   entries: readonly MigrationRegistryEntry[];
   /** moduleId → directly declared dependency ids. Must contain every entry's moduleId. */
   moduleDependencies: ReadonlyMap<string, readonly string[]>;
-  /** Everything at or before this 'YYYYMMDDTHHmmss' stamp is order-frozen. */
-  frozenThrough: string;
+  /** Everything at or before this 'YYYYMMDDTHHmmss' stamp keeps chronological order. */
+  uncorrectedThrough: string;
   /** A dependency inversion is corrected only within this many days. */
   correctionHorizonDays: number;
-  /**
-   * The frozen legacy order, as names, in historical execution order. When
-   * provided, the emitted frozen prefix is asserted to equal it exactly.
-   */
-  frozenOrder?: readonly string[];
 }
 
 /** The cross-cutting pseudo-module owning src/db/migrations/. */
@@ -252,24 +270,6 @@ function buildClosures(
   return closures;
 }
 
-/** Step 5 — the frozen prefix must reproduce the recorded historical order. */
-function assertFrozenOrder(frozen: readonly ParsedMigration[], expected: readonly string[]): void {
-  const length = Math.max(frozen.length, expected.length);
-  for (let index = 0; index < length; index += 1) {
-    const actualName = frozen[index]?.name ?? '<none>';
-    const expectedName = expected[index] ?? '<none>';
-    if (actualName !== expectedName) {
-      throw new MigrationOrderError(
-        'frozen-boundary',
-        `[migration-order] the frozen migration prefix diverges from the ` +
-          `recorded historical order at index ${index}: resolved "${actualName}", ` +
-          `expected "${expectedName}". src/db/legacy-migration-names.ts is frozen — ` +
-          `a new migration must be timestamped after FROZEN_THROUGH.`,
-      );
-    }
-  }
-}
-
 /** Steps 6-7 — edge construction over the open set, then a stable topological sort. */
 function orderOpen(
   open: readonly ParsedMigration[],
@@ -345,7 +345,7 @@ function orderOpen(
 }
 
 export function orderMigrations(input: OrderMigrationsInput): MigrationObject[] {
-  const { entries, moduleDependencies, frozenThrough, correctionHorizonDays, frozenOrder } = input;
+  const { entries, moduleDependencies, uncorrectedThrough, correctionHorizonDays } = input;
 
   const parsed = parseEntries(entries, moduleDependencies);
   assertAcyclic(moduleDependencies);
@@ -354,14 +354,15 @@ export function orderMigrations(input: OrderMigrationsInput): MigrationObject[] 
   // Step 4 — base order. Timestamps are unique, so this is a total order.
   const base = [...parsed].sort((left, right) => (left.timestamp < right.timestamp ? -1 : 1));
 
-  // Step 5 — split at the frozen boundary.
-  const frozen = base.filter((migration) => migration.timestamp <= frozenThrough);
-  const open = base.filter((migration) => migration.timestamp > frozenThrough);
-  if (frozenOrder) assertFrozenOrder(frozen, frozenOrder);
+  // Step 5 — split at the correction watermark. The prefix keeps the
+  // chronological order it was written and applied in; only the suffix is
+  // dependency-corrected. Names play no part: the split is by timestamp.
+  const uncorrected = base.filter((migration) => migration.timestamp <= uncorrectedThrough);
+  const open = base.filter((migration) => migration.timestamp > uncorrectedThrough);
 
   const openOrdered = orderOpen(open, closures, correctionHorizonDays * MS_PER_DAY);
 
-  return [...frozen, ...openOrdered].map((migration) => ({
+  return [...uncorrected, ...openOrdered].map((migration) => ({
     name: migration.name,
     class: migration.cls,
   }));

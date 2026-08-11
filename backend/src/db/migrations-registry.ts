@@ -16,6 +16,12 @@
  * "fix" an ordering surprise by moving a line here; bump the timestamp or fix
  * the manifest `dependencies`.
  *
+ * The `moduleId` is load-bearing beyond ordering: a hard uninstall reverts
+ * exactly the migrations registered under the module being removed
+ * (`_lifecycle/services/orchestrator.ts`). File a migration under the module
+ * that owns the **tables it writes to**, which for kernel-owned tables is
+ * `core` — test/unit/db/kernel-migration-ownership.test.ts enforces it.
+ *
  * Naming and registration rules:
  * specs/065-manifest-aware-migrations/contracts/naming-convention.md.
  * Add one with: pnpm --filter backend run migration:new -- --module <id> --name <slug>
@@ -82,10 +88,19 @@ import { Migration20260505T130214CmsInit } from '../modules/cms/migrations/20260
 import { Migration20260501T185834ComparisonsInit } from '../modules/comparisons/migrations/20260501T185834_comparisons_init.js';
 
 // ── core ──────────────────────────────────────────────────────────────────
+// The settings and sales-channel migrations live here because the kernel owns
+// those tables (feature 072 T018-T020), not the modules of the same name.
 import { Migration20260424T165847CoreFoundationInit } from './migrations/20260424T165847_core_foundation_init.js';
 import { Migration20260425T050720CoreCommerceInit } from './migrations/20260425T050720_core_commerce_init.js';
+import { Migration20260430T101450CoreSettingsInit } from './migrations/20260430T101450_core_settings_init.js';
+import { Migration20260430T170044CoreSalesChannelsPromote } from './migrations/20260430T170044_core_sales_channels_promote.js';
 import { Migration20260506T200657CoreModuleLifecycleInit } from './migrations/20260506T200657_core_module_lifecycle_init.js';
+import { Migration20260514T111329CoreSettingsGlobalValue } from './migrations/20260514T111329_core_settings_global_value.js';
+import { Migration20260611T140411CoreSettingsSecretValueType } from './migrations/20260611T140411_core_settings_secret_value_type.js';
+import { Migration20260611T140419CoreSettingsEnumOptions } from './migrations/20260611T140419_core_settings_enum_options.js';
+import { Migration20260629T090100CoreSettingsHiddenFlag } from './migrations/20260629T090100_core_settings_hidden_flag.js';
 import { Migration20260717T134752CoreTenantScopeIndexes } from './migrations/20260717T134752_core_tenant_scope_indexes.js';
+import { Migration20260721T011510CoreSettingsCredentialRefValueType } from './migrations/20260721T011510_core_settings_credential_ref_value_type.js';
 
 // ── credentials ───────────────────────────────────────────────────────────
 import { Migration20260721T011509CredentialsInit } from '../modules/credentials/migrations/20260721T011509_credentials_init.js';
@@ -217,22 +232,11 @@ import { Migration20260718T200342QuoteRequestsQuoteRequestCustomFieldValues } fr
 // ── returns ───────────────────────────────────────────────────────────────
 import { Migration20260625T144227ReturnsInit } from '../modules/returns/migrations/20260625T144227_returns_init.js';
 
-// ── sales_channels ────────────────────────────────────────────────────────
-import { Migration20260430T170044SalesChannelsPromote } from '../modules/sales_channels/migrations/20260430T170044_sales_channels_promote.js';
-
 // ── search ────────────────────────────────────────────────────────────────
 import { Migration20260501T123145SearchPhraseRecordsInit } from '../modules/search/migrations/20260501T123145_search_phrase_records_init.js';
 
 // ── seo ───────────────────────────────────────────────────────────────────
 import { Migration20260425T154404SeoInit } from '../modules/seo/migrations/20260425T154404_seo_init.js';
-
-// ── settings ──────────────────────────────────────────────────────────────
-import { Migration20260430T101450SettingsInit } from '../modules/settings/migrations/20260430T101450_settings_init.js';
-import { Migration20260514T111329SettingsGlobalValue } from '../modules/settings/migrations/20260514T111329_settings_global_value.js';
-import { Migration20260611T140411SettingsSecretValueType } from '../modules/settings/migrations/20260611T140411_settings_secret_value_type.js';
-import { Migration20260611T140419SettingsEnumOptions } from '../modules/settings/migrations/20260611T140419_settings_enum_options.js';
-import { Migration20260629T090100SettingsHiddenFlag } from '../modules/settings/migrations/20260629T090100_settings_hidden_flag.js';
-import { Migration20260721T011510SettingsCredentialRefValueType } from '../modules/settings/migrations/20260721T011510_settings_credential_ref_value_type.js';
 
 // ── shopping_lists ────────────────────────────────────────────────────────
 import { Migration20260426T135443ShoppingListsInit } from '../modules/shopping_lists/migrations/20260426T135443_shopping_lists_init.js';
@@ -326,8 +330,15 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── core ──────────────────────────────────────────────────────────────────
   migration('core', Migration20260424T165847CoreFoundationInit),
   migration('core', Migration20260425T050720CoreCommerceInit),
+  migration('core', Migration20260430T101450CoreSettingsInit),
+  migration('core', Migration20260430T170044CoreSalesChannelsPromote),
   migration('core', Migration20260506T200657CoreModuleLifecycleInit),
+  migration('core', Migration20260514T111329CoreSettingsGlobalValue),
+  migration('core', Migration20260611T140411CoreSettingsSecretValueType),
+  migration('core', Migration20260611T140419CoreSettingsEnumOptions),
+  migration('core', Migration20260629T090100CoreSettingsHiddenFlag),
   migration('core', Migration20260717T134752CoreTenantScopeIndexes),
+  migration('core', Migration20260721T011510CoreSettingsCredentialRefValueType),
 
   // ── credentials ───────────────────────────────────────────────────────────
   migration('credentials', Migration20260721T011509CredentialsInit),
@@ -465,22 +476,11 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── returns ───────────────────────────────────────────────────────────────
   migration('returns', Migration20260625T144227ReturnsInit),
 
-  // ── sales_channels ────────────────────────────────────────────────────────
-  migration('sales_channels', Migration20260430T170044SalesChannelsPromote),
-
   // ── search ────────────────────────────────────────────────────────────────
   migration('search', Migration20260501T123145SearchPhraseRecordsInit),
 
   // ── seo ───────────────────────────────────────────────────────────────────
   migration('seo', Migration20260425T154404SeoInit),
-
-  // ── settings ──────────────────────────────────────────────────────────────
-  migration('settings', Migration20260430T101450SettingsInit),
-  migration('settings', Migration20260514T111329SettingsGlobalValue),
-  migration('settings', Migration20260611T140411SettingsSecretValueType),
-  migration('settings', Migration20260611T140419SettingsEnumOptions),
-  migration('settings', Migration20260629T090100SettingsHiddenFlag),
-  migration('settings', Migration20260721T011510SettingsCredentialRefValueType),
 
   // ── shopping_lists ────────────────────────────────────────────────────────
   migration('shopping_lists', Migration20260426T135443ShoppingListsInit),

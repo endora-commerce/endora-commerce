@@ -108,9 +108,9 @@ describe('nextFreeStamp — collision advance', () => {
     );
   });
 
-  it('never emits a stamp inside the frozen block', () => {
-    // A clock reading before FROZEN_THROUGH would otherwise produce a stamp
-    // that fails the frozen-prefix assertion at config-build time.
+  it('never emits a stamp inside the uncorrected block', () => {
+    // A clock reading before UNCORRECTED_THROUGH would otherwise produce a
+    // stamp that silently opts the migration out of dependency correction.
     expect(
       nextFreeStamp(new Date(Date.UTC(2026, 6, 30, 16, 18, 18)), new Set(), '20260801T000000'),
     ).toBe('20260801T000001');

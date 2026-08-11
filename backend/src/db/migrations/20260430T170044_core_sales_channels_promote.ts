@@ -44,8 +44,13 @@ import { Migration } from '@mikro-orm/migrations';
  *
  * The down() reverses every up() step; the legacy columns are not
  * touched.
+ *
+ * Filed under `core` since feature 072 T020. The kernel owns the tables this
+ * migration writes to, and a hard uninstall reverts by registry `moduleId`, so
+ * leaving it under `sales_channels` made `modules:uninstall --hard sales_channels` drop
+ * kernel schema.
  */
-export class Migration20260430T170044SalesChannelsPromote extends Migration {
+export class Migration20260430T170044CoreSalesChannelsPromote extends Migration {
   override async up(): Promise<void> {
     // -- 1. Identity columns ------------------------------------------------
     this.addSql(

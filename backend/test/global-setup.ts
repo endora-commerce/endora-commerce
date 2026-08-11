@@ -65,13 +65,9 @@ async function ensureDatabaseExists(testUrl: string): Promise<void> {
 
 async function applyMigrations(): Promise<void> {
   const { initOrm, closeOrm } = await import('../src/db/index.js');
-  const { getMigrator } = await import('../src/db/migrator.js');
   const orm = await initOrm();
   try {
-    // getMigrator runs the legacy-name pre-flight (feature 065) before pending
-    // work is computed, so a test database migrated under the old naming
-    // scheme is not asked to re-apply its 112 executed migrations.
-    const migrator = await getMigrator(orm);
+    const migrator = orm.getMigrator();
     const applied = await migrator.up();
     if (applied.length > 0) {
       process.stdout.write(`[test-setup] applied ${applied.length} migration(s)\n`);

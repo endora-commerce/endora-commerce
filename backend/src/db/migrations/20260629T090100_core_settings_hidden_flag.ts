@@ -8,8 +8,13 @@ import { Migration } from '@mikro-orm/migrations';
  * managed only through its owning module's dedicated UI (e.g. the PWA settings
  * page), while remaining fully readable/writable by code. Purely additive —
  * existing rows default to visible, so no backfill is required.
+ *
+ * Filed under `core` since feature 072 T020. The kernel owns the tables this
+ * migration writes to, and a hard uninstall reverts by registry `moduleId`, so
+ * leaving it under `settings` made `modules:uninstall --hard settings` drop
+ * kernel schema.
  */
-export class Migration20260629T090100SettingsHiddenFlag extends Migration {
+export class Migration20260629T090100CoreSettingsHiddenFlag extends Migration {
   override async up(): Promise<void> {
     this.addSql(`alter table "settings" add column "hidden" boolean not null default false;`);
   }

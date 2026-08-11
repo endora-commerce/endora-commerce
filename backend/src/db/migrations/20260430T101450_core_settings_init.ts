@@ -13,8 +13,13 @@ import { Migration } from '@mikro-orm/migrations';
  *
  * The migration is purely structural; the `general` group and any other
  * built-in entries arrive via the boot-time manifest reconciler (R-1).
+ *
+ * Filed under `core` since feature 072 T020. The kernel owns the tables this
+ * migration writes to, and a hard uninstall reverts by registry `moduleId`, so
+ * leaving it under `settings` made `modules:uninstall --hard settings` drop
+ * kernel schema.
  */
-export class Migration20260430T101450SettingsInit extends Migration {
+export class Migration20260430T101450CoreSettingsInit extends Migration {
   override async up(): Promise<void> {
     this.addSql(`
       create type "setting_value_type" as enum

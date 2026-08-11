@@ -38,7 +38,7 @@ function order(moduleDependencies: ReadonlyMap<string, readonly string[]>): stri
   return orderMigrations({
     entries: PROBE,
     moduleDependencies,
-    frozenThrough: '20260801T000000',
+    uncorrectedThrough: '20260801T000000',
     correctionHorizonDays: 45,
   }).map((migration) => migration.name);
 }
