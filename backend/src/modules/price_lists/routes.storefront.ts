@@ -38,7 +38,7 @@ export async function registerStorefrontPricingRoutes(
         return { error: { code: 'NOT_FOUND', message: 'Product not found.' } };
       }
       // Feature 053 / FR-002: read the channel resolved once by the canonical
-      // middleware (`request.salesChannel`) — no header re-parse, no re-query.
+      // middleware (`getResolvedChannel()`) — no header re-parse, no re-query.
       const channel = getResolvedChannel(request);
       const mode = await priceListService.resolveDisplayMode({
         productId: product.id,

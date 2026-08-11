@@ -249,7 +249,7 @@ through the AssetByteFetcher.
 | --- | --- | --- |
 | Reads | Catalog products and `is_comparable` flag | `CatalogQueryService.comparableAttributeKeys()` + entity reads via the EM |
 | Reads | `compare.max_products` | `SettingsService.get(...)` — same shape Search uses |
-| Reads | Sales channel context (currency, public flag) | `request.salesChannel` from the resolver middleware |
+| Reads | Sales channel context (currency, public flag) | `getResolvedChannel()` — the channel the resolver middleware put on the request scope |
 | Reads | Customer email for the admin list | `CustomerAccount` entity — read-only join |
 | Writes | None outside its own two tables | — |
 

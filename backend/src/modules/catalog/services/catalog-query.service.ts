@@ -72,7 +72,7 @@ export interface CatalogResolvedChannel {
 }
 
 export interface CatalogQueryContext {
-  /** The request's resolved sales channel (from `request.salesChannel`). */
+  /** The request's resolved sales channel (from `getResolvedChannel()`). */
   resolvedChannel: CatalogResolvedChannel;
   /**
    * Language preference — BCP-47. Used to pick the right string out of the

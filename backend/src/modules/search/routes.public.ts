@@ -35,7 +35,7 @@ import type { SearchPhraseRecorder } from './services/search-phrase-recorder.ser
  *                      (FR-015).
  *
  * Sales-channel scoping mirrors the catalog public routes: the channel
- * is resolved from `request.salesChannel` (set by the resolver
+ * is resolved from the request scope (filled by the resolver
  * middleware) with a header fallback for the contract-level read in
  * `readContext`.
  */

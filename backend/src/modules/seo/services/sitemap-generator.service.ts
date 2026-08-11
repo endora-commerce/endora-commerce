@@ -22,7 +22,7 @@ import { SitemapCache } from '../entities/sitemap-cache.entity.js';
  *
  * Cache: one row per channel in `sitemap_cache`, keyed by the channel
  * `code` (varchar(32)). Regenerate is per-channel; the public route
- * resolves the channel from `request.salesChannel` and serves that row.
+ * resolves the channel from the request scope and serves that row.
  *
  * Anonymous-visible only: products with `visibility != 'public'` and
  * archived/deleted rows are excluded so we don't leak internal SKUs into
