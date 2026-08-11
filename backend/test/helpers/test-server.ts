@@ -14,6 +14,10 @@ import { effectiveState } from '../../src/modules/_lifecycle/services/effective-
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { type TenantContext } from '../../src/tenancy/tenant-context.js';
 import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js';
+// Feature 072 — the generated module list, walked in the same two passes the
+// production root walks it in (`src/composition-passes.ts`).
+import { MODULES } from '../../src/composition.generated.js';
+import { earlyPassModules, latePassModules } from '../../src/composition-passes.js';
 import {
   composeModules,
   createRegistrationOwnership,
@@ -65,18 +69,11 @@ import type {
 } from '../../src/modules/organizations/services/vat-validator-port.js';
 import { OrgRegistrationNotifier } from '../../src/modules/organizations/services/org-registration-notifier.js';
 import type { OrganizationEventBus } from '../../src/modules/organizations/services/registration-service.js';
-// Feature 072 (T079) — `email` composes through the kernel here too. The five
-// hand-rolled `new ConsoleMailer()` fallbacks this replaced were the reason a
-// conversion of `composition.ts` alone would have proved nothing: every
-// mail-sending suite runs against this root.
-import * as emailBackend from '../../src/modules/email/backend.js';
-import { manifest as emailManifest } from '../../src/modules/email/manifest.js';
+// Feature 072 (T079) — `email` composes through the kernel here too, from the
+// generated list. The five hand-rolled `new ConsoleMailer()` fallbacks this
+// replaced were the reason a conversion of `composition.ts` alone would have
+// proved nothing: every mail-sending suite runs against this root.
 import type { EmailCradle } from '../../src/modules/email/backend.js';
-// Feature 072 (T080) — and `health_checks`, whose route this root never had:
-// `/api/v1/_health` was registered by an inline plugin in `composition.ts`, so
-// the endpoint orchestrators depend on had no test until it became a module.
-import * as healthChecksBackend from '../../src/modules/health_checks/backend.js';
-import { manifest as healthChecksManifest } from '../../src/modules/health_checks/manifest.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
@@ -136,11 +133,9 @@ import { cmsModule } from '../../src/modules/cms/plugin.js';
 import { megamenuModule } from '../../src/modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/services/cms-references.js';
-// Feature 072 — blog composes through the kernel here too, from the same entry
-// point production uses. The harness is a second composition root, so a module
-// left hand-wired here would keep passing against wiring nobody changed.
-import * as blogBackend from '../../src/modules/blog/backend.js';
-import { manifest as blogManifest } from '../../src/modules/blog/manifest.js';
+// Feature 072 — the harness is a second composition root, so a module left
+// hand-wired here would keep passing against wiring nobody changed. It composes
+// the same generated list production does; only the host values differ.
 import type { BlogCradle } from '../../src/modules/blog/backend.js';
 import { dictionariesModule } from '../../src/modules/dictionaries/plugin.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
@@ -675,32 +670,18 @@ export async function setupBackendServer(
   // Feature 054 — mirror production: the Command Bus is the audited write path.
   const commandBus = new CommandBus(orm, auditLogService, eventBus);
 
-  // Feature 072 — wave 0 of the module sweep, composed exactly as
-  // `composition.ts` composes it and at the same point in the boot order:
+  // Feature 072 — the early pass of the generated module list, composed exactly
+  // as `composition.ts` composes it and at the same point in the boot order:
   // ahead of the hand-wired remainder, which reads what it registers.
   registerValues(container, { redis });
-  const wave0Modules = composeModules(
-    [
-      {
-        id: emailManifest.id,
-        version: emailManifest.version,
-        registerModule: emailBackend.registerModule,
-      },
-      {
-        id: healthChecksManifest.id,
-        version: healthChecksManifest.version,
-        registerModule: healthChecksBackend.registerModule,
-      },
-    ],
-    {
-      container,
-      eventBus,
-      log: { info: () => {}, warn: () => {}, error: () => {} },
-      interceptorRegistry: apiInterceptors,
-      ownership: registrationOwnership,
-    },
-  );
-  await wave0Modules.runBootHooks();
+  const earlyModules = composeModules(earlyPassModules(MODULES), {
+    container,
+    eventBus,
+    log: { info: () => {}, warn: () => {}, error: () => {} },
+    interceptorRegistry: apiInterceptors,
+    ownership: registrationOwnership,
+  });
+  await earlyModules.runBootHooks();
 
   // The mailer the `email` module registered. `injectedMailer` is the same
   // instance unless a test supplied its own — the one seam that stays, because
@@ -999,9 +980,9 @@ export async function setupBackendServer(
   const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
 
   const modules: ModulePlugin[] = [
-    // Feature 072 — wave 0's route contribution, ahead of the auth plugin for
-    // the same reason production keeps it there.
-    ...wave0Modules.sink.plugins,
+    // Feature 072 — the early pass's route contribution, ahead of the auth
+    // plugin for the same reason production keeps it there.
+    ...earlyModules.sink.plugins,
     async (app) => {
       registerTestAuth(app, {
         sessionService,
@@ -1782,9 +1763,9 @@ export async function setupBackendServer(
   registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
   if (megamenu.handle.cache) await megamenu.handle.cache.invalidateAll();
 
-  // Feature 016 — Blog, composed through the kernel exactly as `composition.ts`
-  // does it (T040). The host names below are the only thing this root knows
-  // about it; everything else lives in `modules/blog/backend.ts`.
+  // Feature 072 — the late pass of the generated module list, at the same point
+  // in the boot order `composition.ts` composes it. The host names below are the
+  // only thing this root knows about those modules.
   registerValues(container, {
     requireAdmin: requireTestAdmin(permissionService),
     // `redis` is registered further up, where the client is created.
@@ -1793,24 +1774,15 @@ export async function setupBackendServer(
     dictionaryValidator: dictionaries.handle.validator,
     blogStorefrontDeps: undefined,
   });
-  const kernelModules = composeModules(
-    [
-      {
-        id: blogManifest.id,
-        version: blogManifest.version,
-        registerModule: blogBackend.registerModule,
-      },
-    ],
-    {
-      container,
-      eventBus,
-      log: { info: () => {}, warn: () => {}, error: () => {} },
-      interceptorRegistry: apiInterceptors,
-      ownership: registrationOwnership,
-    },
-  );
-  modules.push(...kernelModules.sink.plugins);
-  await kernelModules.runBootHooks();
+  const lateModules = composeModules(latePassModules(MODULES), {
+    container,
+    eventBus,
+    log: { info: () => {}, warn: () => {}, error: () => {} },
+    interceptorRegistry: apiInterceptors,
+    ownership: registrationOwnership,
+  });
+  modules.push(...lateModules.sink.plugins);
+  await lateModules.runBootHooks();
   const blogCradle = container.cradle as unknown as BlogCradle;
   if (blogCradle.blogCacheService) await blogCradle.blogCacheService.invalidateAll();
 

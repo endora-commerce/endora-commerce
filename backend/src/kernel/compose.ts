@@ -3,6 +3,8 @@ import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { KernelContainer } from './container.js';
 import { enterSystemScope } from './scope.js';
 import {
+  DuplicateRegistrationError,
+  EagerResolutionError,
   createModuleContext,
   createModuleRegistrationSink,
   createRegistrationOwnership,
@@ -32,6 +34,40 @@ import {
  *     throws or — worse — succeeds today and breaks when the topological order
  *     changes for an unrelated reason.
  */
+
+/**
+ * A module failed while the composer was running it (T053).
+ *
+ * The composer is the only place that knows *which* module is executing, so it
+ * is the only place that can say so. Without this, a boot failure reads
+ * `AwilixResolutionError: Could not resolve 'assetReferenceRegistry'` — a name,
+ * with no indication of which of the modules wanted it — and the operator's
+ * first move is to grep for a string that appears in six files.
+ *
+ * The kernel's own composition errors ({@link DuplicateRegistrationError},
+ * {@link EagerResolutionError}) already name the module (and, for a collision,
+ * both of them), so they propagate untouched rather than being wrapped twice.
+ */
+export class ModuleCompositionError extends Error {
+  constructor(
+    readonly moduleId: string,
+    readonly phase: 'register' | 'boot',
+    readonly cause: unknown,
+  ) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    super(
+      phase === 'register'
+        ? `[kernel] module '${moduleId}' failed while registering: ${detail}`
+        : `[kernel] module '${moduleId}' failed in its boot hook: ${detail}`,
+    );
+    this.name = 'ModuleCompositionError';
+  }
+}
+
+/** Both already carry the module id; wrapping them would only bury it. */
+function alreadyNamesTheModule(error: unknown): boolean {
+  return error instanceof DuplicateRegistrationError || error instanceof EagerResolutionError;
+}
 
 /** What the composer knows about one module. Nothing else about it is reachable. */
 export interface ModuleEntry {
@@ -101,7 +137,12 @@ export function composeModules(
           : {}),
       });
 
-      entry.registerModule(ctx);
+      try {
+        entry.registerModule(ctx);
+      } catch (err) {
+        if (alreadyNamesTheModule(err)) throw err;
+        throw new ModuleCompositionError(entry.id, 'register', err);
+      }
 
       combined.plugins.push(...sink.plugins);
       combined.workers.push(...sink.workers);
@@ -122,7 +163,12 @@ export function composeModules(
         await enterSystemScope(
           `boot: ${moduleId}`,
           async () => {
-            await hook();
+            try {
+              await hook();
+            } catch (err) {
+              if (alreadyNamesTheModule(err)) throw err;
+              throw new ModuleCompositionError(moduleId, 'boot', err);
+            }
           },
           // Branch the scope off the container these modules registered into,
           // not off the process-wide default. `ctx.cradle()` resolves through

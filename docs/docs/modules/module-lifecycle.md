@@ -203,28 +203,19 @@ The `<YYYYMMDDTHHmmss>` prefix is a UTC timestamp, not a sequence number; the cl
 
 ### 4. Register the module
 
-Add an entry to `backend/src/modules/_lifecycle/registered-manifests.ts`:
-
-```typescript
-import { manifest as couponsManifest, installHook as couponsInstall, uninstallHook as couponsUninstall } from '../coupons/manifest.js';
-
-export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
-  // …
-  {
-    manifest: couponsManifest,
-    installHook: couponsInstall,
-    uninstallHook: couponsUninstall,
-  },
-];
-```
-
-Run the index generator (also wired into `pnpm build`):
+There is nothing to hand-edit. `backend/src/modules/_lifecycle/registered-manifests.ts` is
+**generated** (feature 072): every module directory that exports a lifecycle-shape
+`manifest.ts` is discovered by the tree walk, together with its optional `installHook` /
+`uninstallHook` exports. Regenerate and commit the result:
 
 ```bash
-pnpm --filter backend run manifest-index:generate
+pnpm --filter backend run composer:generate
 ```
 
-The parity test (`test/unit/_lifecycle/manifest-index-parity.test.ts`) catches drift if you forget this step.
+Both generators are also wired into `pnpm --filter backend run build`, and
+`pnpm --filter backend run overlay:check` fails the build when a committed artefact is stale
+with respect to the tree — which is the one drift that is still possible now that the array
+is the walk.
 
 ### 5. Wire the routes through the gating wrapper
 
