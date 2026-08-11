@@ -19,7 +19,18 @@ export default mergeConfig(
       // test files in parallel would race on truncate+seed — pin to a single
       // fork so they execute serially inside one worker.
       pool: 'forks',
-      poolOptions: { forks: { singleFork: true } },
+      poolOptions: {
+        forks: {
+          singleFork: true,
+          // `--expose-gc` is what makes `test/integration/kernel/heap-ceiling.test.ts`
+          // possible: a post-GC `heapUsed` reading separates live data from
+          // garbage, and without a forced GC the number is noise. It lives here
+          // rather than in the `test` script so a targeted run, a CI shard and an
+          // IDE run all measure the same thing. V8 exposes the function; it does
+          // not change how the heap is managed.
+          execArgv: ['--expose-gc'],
+        },
+      },
       fileParallelism: false,
       hookTimeout: 30_000,
       testTimeout: 30_000,
