@@ -345,6 +345,14 @@ are class names, so hard-uninstall silently reverted **nothing** and only logged
 a module owns no registered migration, the orchestrator logs a warning and reverts
 nothing — hard-uninstall then relies on the module's `uninstallHook`.
 
+That makes the registry `moduleId` load-bearing beyond ordering: **file a migration
+under the module that owns the tables it writes to.** Until feature `072` T020 the
+settings and sales-channel migrations were still filed under their modules although the
+kernel owns those tables, so `modules:uninstall --hard settings` dropped `settings`,
+`setting_groups` and `setting_values`. `backend/test/unit/db/kernel-migration-ownership.test.ts`
+now fails the build when a module-owned migration writes to a kernel-owned table; both
+sets are derived (from the entity tree and from each migration's SQL), never enumerated.
+
 ---
 
 Full design, contracts and rationale: `specs/065-manifest-aware-migrations/` —
