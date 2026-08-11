@@ -23,6 +23,14 @@ import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-ten
 import { withSystemScope } from './tenancy/escape-hatch.js';
 import { enterSystemScope } from './kernel/scope.js';
 import { registerRequestScopeHook } from './kernel/request-scope-hook.js';
+import {
+  composeModules,
+  createRootContainer,
+  createRegistrationOwnership,
+  registerOrm,
+  registerValues,
+  setRootContainer,
+} from './kernel/index.js';
 import { authPlugin, promoteAdminActor } from './modules/auth/plugin.js';
 import { SessionService } from './modules/auth/services/session-service.js';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
@@ -115,7 +123,10 @@ import { CMS_PAGE_BUILDER_SETTING_CODES } from './modules/cms/manifest.js';
 import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
-import { blogModule } from './modules/blog/plugin.js';
+// Feature 072 — the first module composed through the kernel: one
+// `registerModule`, no wiring here. `composeModules` runs it.
+import * as blogBackend from './modules/blog/backend.js';
+import { manifest as blogManifest } from './modules/blog/manifest.js';
 import { dictionariesModule } from './modules/dictionaries/plugin.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
@@ -286,6 +297,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `test/integration/tenancy/fault-injection.test.ts`). The seam is inert until
   // an entity is classified (@OrgScoped/@CustomerScoped attach the filters).
   const em = (): EntityManager => forkScopedEm(orm);
+
+  // Feature 072 — the kernel container. It is installed as the process root so
+  // every `enterPlatformScope` (the request hook, workers, CLI scripts) branches
+  // a child off *this* graph rather than off an empty default. Modules composed
+  // through `composeModules` register into it; everything still hand-wired below
+  // is unaffected until its own conversion lands.
+  const container = createRootContainer();
+  setRootContainer(container);
+  registerOrm(container, orm);
+  // One ledger for the whole boot, so two modules composed in different
+  // `composeModules` calls still collide loudly on a shared registration name.
+  const registrationOwnership = createRegistrationOwnership();
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
@@ -1866,24 +1889,51 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // deletion via the CMS module's reference registry.
   registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
 
-  // Feature 016 — Blog module. Wires the cache + settings resolver +
-  // asset-reference descriptors. Real admin/storefront routes land in
-  // user-story phases (Phase 3+); the plugin currently runs the seed
-  // reconcilers (Default Category + Blog Manager + Content Manager) on
-  // first registration so the platform boots in a usable state.
-  const blog = blogModule({
-    emFactory: em,
+  // Feature 016 — Blog module, converted to feature 072's `registerModule`
+  // contract (T040). There is no blog wiring here any more: the names below are
+  // host values *any* module may resolve — each one a port its owning module
+  // will register itself once converted — and `blog` declares the rest of itself
+  // in `modules/blog/backend.ts`.
+  //
+  // The host names are registered where the values become available, which is
+  // why this sits at the same point in the boot order the factory call did —
+  // after `DefaultChannelReconciler`, so blog's boot hook attaches the Default
+  // category to a channel that already exists.
+  registerValues(container, {
     requireAdmin,
     redis,
-    eventBus,
-    settings: {
-      get: (code, salesChannelId, schema) =>
-        settings.handle.settingsService.get(code, salesChannelId, schema),
-    },
+    // The kernel's `SettingsService` already implements the read port; the
+    // adapter object this replaces existed only to narrow it.
+    settingsReadPort: settings.handle.settingsService,
     assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
     dictionaryValidator: dictionaries.handle.validator,
+    // Blog ships no storefront ports today — the factory defaulted this to `{}`
+    // and neither composition root ever passed one.
+    blogStorefrontDeps: undefined,
   });
-  modules.push(blog.plugin);
+  const kernelModules = composeModules(
+    [
+      {
+        id: blogManifest.id,
+        version: blogManifest.version,
+        registerModule: blogBackend.registerModule,
+      },
+    ],
+    {
+      container,
+      eventBus,
+      // Composition runs before `buildServer`, so there is no `app.log` yet.
+      // `console` satisfies the logger shape; T053's boot-failure work is where
+      // the structured logger arrives.
+      log: console,
+      interceptorRegistry: apiInterceptors,
+      ownership: registrationOwnership,
+    },
+  );
+  modules.push(...kernelModules.sink.plugins);
+  // The explicit boot phase (FR-021): registration stays lazy, and the work
+  // that genuinely has to run at boot runs here, in its own system scope.
+  await kernelModules.runBootHooks();
 
   // Feature 017 — Dictionary module. Boot reconciler populates the
   // ISO 3166-1 country catalogue, the major-currency seed metadata,

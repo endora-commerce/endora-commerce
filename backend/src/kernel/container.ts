@@ -82,6 +82,25 @@ export function registerOrm(container: KernelContainer, orm: MikroORM): void {
   });
 }
 
+/**
+ * Register plain values a composition root already owns — the Redis client, the
+ * `requireAdmin` factory, a port implementation a not-yet-converted module
+ * exposes through its handle.
+ *
+ * It exists so a composition root spells the container's vocabulary without
+ * importing `awilix` either. Modules are *forbidden* to import it
+ * (`scripts/check-container-imports.ts`); a root importing it would still be
+ * one more file to touch the day the container is swapped.
+ */
+export function registerValues(
+  container: KernelContainer,
+  values: Readonly<Record<string, unknown>>,
+): void {
+  for (const [name, value] of Object.entries(values)) {
+    container.register({ [name]: asValue(value) });
+  }
+}
+
 let currentRoot: KernelContainer | undefined;
 
 /**

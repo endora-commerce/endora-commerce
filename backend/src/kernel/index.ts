@@ -10,6 +10,7 @@
 export {
   createRootContainer,
   registerOrm,
+  registerValues,
   getRootContainer,
   setRootContainer,
   disposeRootContainer,
@@ -21,13 +22,25 @@ export {
 export {
   createModuleContext,
   createModuleRegistrationSink,
+  createRegistrationOwnership,
+  DuplicateRegistrationError,
+  EagerResolutionError,
+  type ModuleBootHook,
   type ModuleContext,
   type ModuleContextOptions,
   type ModuleLifecycleLogger,
   type ModuleRegistrationSink,
   type Registration,
   type RegistrationBuilder,
+  type RegistrationOwnership,
 } from './module-context.js';
+
+export {
+  composeModules,
+  type ComposedModules,
+  type ComposeModulesOptions,
+  type ModuleEntry,
+} from './compose.js';
 
 export {
   enterPlatformScope,
