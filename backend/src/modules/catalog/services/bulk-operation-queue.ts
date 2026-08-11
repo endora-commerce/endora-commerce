@@ -1,4 +1,5 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
+import { enterSystemScope } from '../../../kernel/scope.js';
 import type Redis from 'ioredis';
 
 /**
@@ -58,5 +59,12 @@ export function createBulkOperationWorker(
     concurrency: 2,
     ...overrides,
   };
-  return new Worker<BulkOperationJobData>(BULK_OPERATION_QUEUE_NAME, processor, options);
+  // Feature 072 (T033) — the job establishes its own scope. A bulk operation
+  // writes through the Command Bus, which derives its actor from the ambient
+  // context, so "no context" was never a safe state here.
+  return new Worker<BulkOperationJobData>(
+    BULK_OPERATION_QUEUE_NAME,
+    (job) => enterSystemScope('catalog: bulk operation', () => processor(job)),
+    options,
+  );
 }

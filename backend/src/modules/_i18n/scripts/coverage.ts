@@ -4,6 +4,7 @@ import {
   SUPPORTED_ADMIN_LANGUAGES,
   type SupportedAdminLanguage,
 } from '@b2b/contracts';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 /**
  * `pnpm --filter backend run i18n:coverage [flags]` — feature 021.
@@ -103,7 +104,7 @@ function printTable(snapshot: { capturedAt: string; modules: ReadonlyArray<{ mod
   }
 }
 
-void main().catch((err: unknown) => {
+void enterSystemScope('cli: i18n coverage snapshot', main).catch((err: unknown) => {
   process.stderr.write(`${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`);
   process.exit(2);
 });

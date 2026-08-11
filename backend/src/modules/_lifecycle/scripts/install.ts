@@ -6,6 +6,7 @@ import { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../services/orchestrator.js';
 import { buildStaticRegistry } from '../services/static-registry.js';
 import { REGISTERED_MANIFESTS } from '../registered-manifests.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 /**
  * `pnpm --filter backend run module:install <module-id> [--dry-run] [--json]`
@@ -192,6 +193,6 @@ function mapError(err: unknown, asJson: boolean): number {
   return 70;
 }
 
-void main().then((code) => {
+void enterSystemScope('cli: install a module', main).then((code) => {
   process.exit(code);
 });

@@ -1,6 +1,6 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
 import type Redis from 'ioredis';
-import { withSystemScope } from '../../../../tenancy/escape-hatch.js';
+import { enterSystemScope } from '../../../../kernel/scope.js';
 
 /**
  * BullMQ queues for the Product Feed module (feature 067, Principle X).
@@ -66,7 +66,7 @@ export function createFeedGenerationWorker(
   return new Worker<FeedGenerationJobData>(
     FEED_GENERATION_QUEUE,
     (job) =>
-      withSystemScope(`product_feeds: generate feed ${job.data.productFeedId}`, () =>
+      enterSystemScope(`product_feeds: generate feed ${job.data.productFeedId}`, () =>
         processor(job),
       ),
     { connection: redis, concurrency: 2, ...overrides },
@@ -91,7 +91,7 @@ export function createFeedReaperWorker(
 ): Worker<FeedReaperJobData> {
   return new Worker<FeedReaperJobData>(
     FEED_REAPER_QUEUE,
-    (job) => withSystemScope('product_feeds: release stale run claims', () => processor(job)),
+    (job) => enterSystemScope('product_feeds: release stale run claims', () => processor(job)),
     { connection: redis, concurrency: 1, ...overrides },
   );
 }

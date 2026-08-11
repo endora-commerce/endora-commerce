@@ -18,11 +18,21 @@ export interface EscapeHatchAuditRecord {
 
 export type EscapeHatchAuditSink = (record: EscapeHatchAuditRecord) => void;
 
-// Default sink: structured stderr line. Composition may replace it with one that
-// writes to AuditLogService (FR-013).
+/**
+ * Default sink: one structured line on **stderr**. Composition may replace it
+ * with one that writes to AuditLogService (FR-013).
+ *
+ * stderr and not stdout, since feature 072 (T035): the CLI scripts now open
+ * their scope through `enterSystemScope`, which reports here, and several of
+ * them (`module:install --json` and friends) treat stdout as a machine-readable
+ * data channel. An audit line printed there is not a log entry, it is corrupt
+ * output. Nothing consumes this on stdout — in the server both streams land in
+ * the same log.
+ */
 let auditSink: EscapeHatchAuditSink = (record) => {
-  // eslint-disable-next-line no-console -- operational audit line; replaced in composition.
-  console.info(JSON.stringify({ level: 'info', msg: 'tenant.escape_hatch', ...record }));
+  process.stderr.write(
+    `${JSON.stringify({ level: 'info', msg: 'tenant.escape_hatch', ...record })}\n`,
+  );
 };
 
 /** Wire the escape hatch to a real audit sink (e.g. AuditLogService). */

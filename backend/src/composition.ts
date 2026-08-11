@@ -276,10 +276,15 @@ function anyLabel(name: unknown): string {
 
 export async function composeApp(): Promise<ComposeAppHandle> {
   const orm = await initOrm();
-  // Feature 050 — the single EM-injection seam. `forkScopedEm` stamps tenant
-  // filter params from the ambient TenantContext on every fork. It is inert until
-  // an entity is classified (@OrgScoped/@CustomerScoped attach the filters), so
-  // this change is behaviorally neutral for unclassified entities.
+  // Feature 050 — the single EM-injection seam. `forkScopedEm` is a bare
+  // `orm.em.fork()`: it stamps NOTHING, because the tenant filters read the
+  // ambient TenantContext from AsyncLocalStorage **when the query is built**
+  // (`tenancy/filters.ts`), not when the manager is forked. That is what makes
+  // the EntityManager stateless with respect to tenancy, and it is the property
+  // the whole request seam rests on — a fork taken in one context and used in
+  // another is scoped by the context it is *used* in (feature 072, T038; see
+  // `test/integration/tenancy/fault-injection.test.ts`). The seam is inert until
+  // an entity is classified (@OrgScoped/@CustomerScoped attach the filters).
   const em = (): EntityManager => forkScopedEm(orm);
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';

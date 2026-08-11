@@ -1,4 +1,5 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
+import { enterSystemScope } from '../../../kernel/scope.js';
 import type Redis from 'ioredis';
 import type { GtmCollectRequest, GtmPageContext } from '@b2b/contracts';
 
@@ -75,5 +76,11 @@ export function createGtmRelayWorker(
     concurrency: 8,
     ...overrides,
   };
-  return new Worker<GtmRelayJobData>(GTM_RELAY_QUEUE_NAME, processor, options);
+  // Feature 072 (T033) — the job establishes its own scope; it established
+  // nothing before.
+  return new Worker<GtmRelayJobData>(
+    GTM_RELAY_QUEUE_NAME,
+    (job) => enterSystemScope('google_tag_manager: server-side relay', () => processor(job)),
+    options,
+  );
 }
