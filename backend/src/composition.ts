@@ -12,7 +12,10 @@ import { ERROR_CODES, cmsColorPaletteSchema } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
 import { ApiInterceptorRegistry } from './http/interceptors/index.js';
-import { registerHealthRoutes } from './modules/health_checks/routes.js';
+// Feature 072 (T080) — `health_checks` had no factory at all: this file used to
+// own the liveness route and its three probes inline. Both are the module's now.
+import * as healthChecksBackend from './modules/health_checks/backend.js';
+import { manifest as healthChecksManifest } from './modules/health_checks/manifest.js';
 import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
 import { EventBus } from './events/bus.js';
@@ -64,9 +67,13 @@ import {
   notificationRecipientsSchema,
 } from './modules/organizations/schemas/settings.js';
 import { ORGANIZATIONS_SETTING_CODES } from './modules/organizations/manifest.js';
-import { ConsoleMailer } from './modules/email/services/mailer.js';
-import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
-import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
+// Feature 072 (T079) — `email` is composed through the kernel. The driver
+// decision that used to sit in this file is one registration in its
+// `backend.ts`; what stays here is the pure URL helper, which is a function,
+// not a service.
+import * as emailBackend from './modules/email/backend.js';
+import type { EmailCradle } from './modules/email/backend.js';
+import { manifest as emailManifest } from './modules/email/manifest.js';
 import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
 import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
@@ -372,6 +379,43 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const apiInterceptors = new ApiInterceptorRegistry({
     isModuleEnabled: (moduleId) => registryCache.isEnabled(moduleId),
   });
+
+  // Feature 072 — wave 0 of the module sweep: the modules with fan-out 0, which
+  // nothing in this file constructs on their behalf any more. They are composed
+  // here, ahead of the hand-wired remainder, because what they register is read
+  // by it — `emailMailer` by six senders below.
+  //
+  // A second `composeModules` call rather than one at the end: the ownership
+  // ledger is shared, so a name registered twice still collides naming both
+  // modules, and boot order stays where each value becomes available.
+  //
+  // `redis` is registered here rather than beside `blog` further down because
+  // `health_checks` pings it: a host name belongs where the value first exists,
+  // and the client has existed since the top of this function.
+  registerValues(container, { redis });
+  const wave0Modules = composeModules(
+    [
+      {
+        id: emailManifest.id,
+        version: emailManifest.version,
+        registerModule: emailBackend.registerModule,
+      },
+      {
+        id: healthChecksManifest.id,
+        version: healthChecksManifest.version,
+        registerModule: healthChecksBackend.registerModule,
+      },
+    ],
+    {
+      container,
+      eventBus,
+      // Composition runs before `buildServer`, so there is no `app.log` yet.
+      log: console,
+      interceptorRegistry: apiInterceptors,
+      ownership: registrationOwnership,
+    },
+  );
+  await wave0Modules.runBootHooks();
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
@@ -941,10 +985,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // prompt-action status tools.
   let orderTransitionServiceForPrompts: OrderTransitionService | null = null;
 
-  const organizationsSmtpUrl = resolveSmtpUrlFromEnv();
-  const organizationsMailer = organizationsSmtpUrl
-    ? new SmtpMailer(organizationsSmtpUrl)
-    : new ConsoleMailer();
+  // Feature 072 (T079) — the platform mailer, resolved from the container the
+  // `email` module registered it into. Six senders share it, which is why it
+  // was never really "the organizations mailer" and is not named one now.
+  const platformMailer = (container.cradle as unknown as EmailCradle).emailMailer;
 
   // Forward-reference for the onLogin hook below — the comparisons module
   // is constructed further down (it depends on services declared after
@@ -1041,7 +1085,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     em,
     auditLogService,
     eventBus as unknown as OrganizationEventBus,
-    organizationsMailer,
+    platformMailer,
     resolveModerationMode,
   );
 
@@ -1053,7 +1097,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const orgRegistrationNotifier = new OrgRegistrationNotifier({
     emFactory: em,
     adminNotificationService: adminNotifications.handle.adminNotificationService,
-    mailer: organizationsMailer,
+    mailer: platformMailer,
     resolveRecipients: resolveRegistrationRecipients,
     templateEmail: makeOrgTemplateEmail({
       getSender: () => transactionalEmailSender,
@@ -1172,26 +1216,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     await organizationModerationService.handleNewlyRegistered(orgId);
   });
 
-  // Liveness/readiness endpoint (`/api/v1/_health`). The health_checks module
-  // ships the route factory but never wired it in — register it here with live
-  // pings to Postgres/Redis/Meilisearch. Orchestrators (compose healthcheck)
-  // depend on this returning 200; without it the route 404s and the backend
-  // container is reported unhealthy forever.
-  const healthPlugin: ModulePlugin = async (app) => {
-    await registerHealthRoutes(app, {
-      pingDatabase: async () => {
-        await orm.em.getConnection().execute('select 1');
-        return true;
-      },
-      pingRedis: async () => (await redis.ping()) === 'PONG',
-      pingMeilisearch: async () => {
-        const base = process.env['MEILISEARCH_URL'] ?? 'http://localhost:7700';
-        const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2000) });
-        return res.ok;
-      },
-    });
-  };
-
   // Feature 047 — late-bound transactional-email sender. commerceModule (and
   // other owning modules) read it via a getter; the transactional_emails module
   // sets it through exposeSender once built.
@@ -1260,7 +1284,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
 
   const modules: ModulePlugin[] = [
-    healthPlugin,
+    // Feature 072 — wave 0's route contribution: `health_checks`. It stays
+    // ahead of the auth plugin for the reason the inline `healthPlugin` did:
+    // Fastify binds a route's hook chain when the route is registered, so a
+    // liveness probe registered first is one no later `onRequest` hook can
+    // start authenticating.
+    ...wave0Modules.sink.plugins,
     authModulePlugin,
     tenantContextModulePlugin,
     admin.plugin,
@@ -1283,7 +1312,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       eventBus,
       auditLogService,
       customFieldValues: customFields.handle.valueService,
-      mailer: organizationsMailer,
+      mailer: platformMailer,
       // Feature 047 — late-bound; set once the transactional_emails module builds.
       getTransactionalEmailSender: () => transactionalEmailSender,
       creditLimit: creditLimits.handle.creditLimitService,
@@ -1558,7 +1587,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireAdmin,
       requireAdminAny,
       resolveCustomerContext: customerResolver,
-      mailer: organizationsMailer,
+      mailer: platformMailer,
       getTransactionalEmailSender: () => transactionalEmailSender,
       resolveScopeSalesChannelId,
       resolveSalesChannelLanguage,
@@ -1622,7 +1651,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
       adminNotificationService: adminNotifications.handle.adminNotificationService,
-      mailer: organizationsMailer,
+      mailer: platformMailer,
       // Principle X — durable BullMQ queue for bulk operations. The consumer
       // (BullMQ worker) runs co-located here unless BACKEND_ROLE=api, in which
       // case it runs only in the separate `pnpm worker` process.
@@ -1908,7 +1937,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // category to a channel that already exists.
   registerValues(container, {
     requireAdmin,
-    redis,
+    // `redis` is registered further up, where the client is created.
     // The kernel's `SettingsService` already implements the read port; the
     // adapter object this replaces existed only to narrow it.
     settingsReadPort: settings.handle.settingsService,
@@ -2204,7 +2233,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     organizationRestrictionService,
     requireAdmin,
     vatValidator: new ViesClient(),
-    mailer: organizationsMailer,
+    mailer: platformMailer,
     storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     resolveDeletionRetentionDays: async () => {
       try {
@@ -2583,7 +2612,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
-        organizationsMailer,
+        platformMailer,
         async (customerAccountId) =>
           (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
         {
@@ -2759,7 +2788,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireAdmin,
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       manifests: resolvedRegistry.map((e) => e.manifest),
-      mailer: organizationsMailer,
+      mailer: platformMailer,
       auditLog: auditLogService,
       settingsAdmin: settings.handle.adminService,
       resolveAssetUrl: async (assetId) => {
@@ -2811,7 +2840,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerAccountId,
       loadCustomerEmail: async (customerAccountId) =>
         (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
-      mailer: organizationsMailer,
+      mailer: platformMailer,
       auditLog: auditLogService,
       emitEvent: (name, payload) =>
         eventBus.emit(name, {
