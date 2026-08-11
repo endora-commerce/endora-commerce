@@ -15,4 +15,15 @@ export const manifest = defineModuleManifest({
     'Liveness/readiness HTTP endpoints consumed by orchestrators.',
   version: '1.0.0',
   dependencies: [],
+  // Feature 072 (T080) / Constitution XVII — converting this module put
+  // `/api/v1/_health` behind `defineModuleRoutes`, which the inline plugin in
+  // `composition.ts` was not. The operator axis is therefore declared closed:
+  // a container whose liveness probe answers 503 is restarted by its
+  // orchestrator, so "switched off" would read as "permanently unhealthy".
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Orchestrators use the liveness endpoint to decide whether this container ' +
+      'is healthy; without it the deployment restarts in a loop.',
+  },
 });

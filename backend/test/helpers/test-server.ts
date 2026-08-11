@@ -65,7 +65,18 @@ import type {
 } from '../../src/modules/organizations/services/vat-validator-port.js';
 import { OrgRegistrationNotifier } from '../../src/modules/organizations/services/org-registration-notifier.js';
 import type { OrganizationEventBus } from '../../src/modules/organizations/services/registration-service.js';
-import { ConsoleMailer } from '../../src/modules/email/services/mailer.js';
+// Feature 072 (T079) — `email` composes through the kernel here too. The five
+// hand-rolled `new ConsoleMailer()` fallbacks this replaced were the reason a
+// conversion of `composition.ts` alone would have proved nothing: every
+// mail-sending suite runs against this root.
+import * as emailBackend from '../../src/modules/email/backend.js';
+import { manifest as emailManifest } from '../../src/modules/email/manifest.js';
+import type { EmailCradle } from '../../src/modules/email/backend.js';
+// Feature 072 (T080) — and `health_checks`, whose route this root never had:
+// `/api/v1/_health` was registered by an inline plugin in `composition.ts`, so
+// the endpoint orchestrators depend on had no test until it became a module.
+import * as healthChecksBackend from '../../src/modules/health_checks/backend.js';
+import { manifest as healthChecksManifest } from '../../src/modules/health_checks/manifest.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
@@ -664,6 +675,40 @@ export async function setupBackendServer(
   // Feature 054 — mirror production: the Command Bus is the audited write path.
   const commandBus = new CommandBus(orm, auditLogService, eventBus);
 
+  // Feature 072 — wave 0 of the module sweep, composed exactly as
+  // `composition.ts` composes it and at the same point in the boot order:
+  // ahead of the hand-wired remainder, which reads what it registers.
+  registerValues(container, { redis });
+  const wave0Modules = composeModules(
+    [
+      {
+        id: emailManifest.id,
+        version: emailManifest.version,
+        registerModule: emailBackend.registerModule,
+      },
+      {
+        id: healthChecksManifest.id,
+        version: healthChecksManifest.version,
+        registerModule: healthChecksBackend.registerModule,
+      },
+    ],
+    {
+      container,
+      eventBus,
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+      interceptorRegistry: apiInterceptors,
+      ownership: registrationOwnership,
+    },
+  );
+  await wave0Modules.runBootHooks();
+
+  // The mailer the `email` module registered. `injectedMailer` is the same
+  // instance unless a test supplied its own — the one seam that stays, because
+  // asserting on sent mail needs a handle on the sender, and the modules that
+  // take it are not converted yet.
+  const emailMailer = (container.cradle as unknown as EmailCradle).emailMailer;
+  const injectedMailer = options.organizationsMailer ?? emailMailer;
+
   // CartService is exposed by the commerce module so the login handler in
   // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
@@ -954,6 +999,9 @@ export async function setupBackendServer(
   const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
 
   const modules: ModulePlugin[] = [
+    // Feature 072 — wave 0's route contribution, ahead of the auth plugin for
+    // the same reason production keeps it there.
+    ...wave0Modules.sink.plugins,
     async (app) => {
       registerTestAuth(app, {
         sessionService,
@@ -1160,7 +1208,6 @@ export async function setupBackendServer(
     // passed in. Subscribes the registration notifier + auto-approve
     // handler to the same event bus.
     ...(() => {
-      const moderationMailer = options.organizationsMailer ?? new ConsoleMailer();
       const adminNotifications = adminNotificationsModule({
         emFactory: em,
         requireAdmin: requireTestAdmin(permissionService),
@@ -1169,7 +1216,7 @@ export async function setupBackendServer(
         em,
         auditLogService,
         eventBus as unknown as OrganizationEventBus,
-        moderationMailer,
+        injectedMailer,
         async () => 'manual',
       );
       const resolveScopeSalesChannelId = async (): Promise<string | null> =>
@@ -1179,7 +1226,7 @@ export async function setupBackendServer(
       const orgRegistrationNotifier = new OrgRegistrationNotifier({
         emFactory: em,
         adminNotificationService: adminNotifications.handle.adminNotificationService,
-        mailer: moderationMailer,
+        mailer: injectedMailer,
         resolveRecipients: async () => [],
         templateEmail: makeOrgTemplateEmail({
           getSender: () => transactionalEmailSender,
@@ -1247,7 +1294,7 @@ export async function setupBackendServer(
           customFieldValues: customFields.handle.valueService,
           exposeTestProbe: true,
           dictionaryValidator: dictionaries.handle.validator,
-          mailer: moderationMailer,
+          mailer: injectedMailer,
           storefrontBaseUrl: 'http://localhost:3000',
           onLogin: async (ctx) => {
             let result: Record<string, unknown> = {};
@@ -1740,7 +1787,7 @@ export async function setupBackendServer(
   // about it; everything else lives in `modules/blog/backend.ts`.
   registerValues(container, {
     requireAdmin: requireTestAdmin(permissionService),
-    redis,
+    // `redis` is registered further up, where the client is created.
     settingsReadPort: settings.handle.settingsService,
     assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
     dictionaryValidator: dictionaries.handle.validator,
@@ -1903,7 +1950,7 @@ export async function setupBackendServer(
     auditLogService,
     organizationRestrictionService: sharedRestrictionService,
     requireAdmin: requireTestAdmin(permissionService),
-    mailer: new ConsoleMailer(),
+    mailer: emailMailer,
     storefrontBaseUrl: 'http://localhost:3000',
     resolveDeletionRetentionDays: async () => 365,
     resolvePresenceFreshnessMinutes: async () => 10,
@@ -1958,7 +2005,7 @@ export async function setupBackendServer(
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
-        options.organizationsMailer ?? new ConsoleMailer(),
+        injectedMailer,
         async (cid) => (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
         {
           getTransactionalEmailSender: () => transactionalEmailSender,
@@ -2244,7 +2291,7 @@ export async function setupBackendServer(
       resolveAdminUserId: (req) =>
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
       manifests: REGISTERED_MANIFESTS.map((e) => e.manifest),
-      mailer: options.organizationsMailer ?? new ConsoleMailer(),
+      mailer: injectedMailer,
       auditLog: auditLogService,
       settingsAdmin: settings.handle.adminService,
       exposeSender: (sender) => {
@@ -2273,7 +2320,7 @@ export async function setupBackendServer(
         req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : '',
       loadCustomerEmail: async (customerAccountId) =>
         (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
-      mailer: options.organizationsMailer ?? new ConsoleMailer(),
+      mailer: injectedMailer,
       auditLog: auditLogService,
       emitEvent: (name, payload) =>
         eventBus.emit(name, {
