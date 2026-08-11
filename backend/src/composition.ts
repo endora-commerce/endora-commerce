@@ -12,10 +12,6 @@ import { ERROR_CODES, cmsColorPaletteSchema } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
 import { ApiInterceptorRegistry } from './http/interceptors/index.js';
-// Feature 072 (T080) — `health_checks` had no factory at all: this file used to
-// own the liveness route and its three probes inline. Both are the module's now.
-import * as healthChecksBackend from './modules/health_checks/backend.js';
-import { manifest as healthChecksManifest } from './modules/health_checks/manifest.js';
 import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
 import { EventBus } from './events/bus.js';
@@ -26,6 +22,10 @@ import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-ten
 import { withSystemScope } from './tenancy/escape-hatch.js';
 import { enterSystemScope } from './kernel/scope.js';
 import { registerRequestScopeHook } from './kernel/request-scope-hook.js';
+// Feature 072 — the generated module list and how a root still walks it in two
+// passes while the hand-wired remainder sits between them.
+import { MODULES } from './composition.generated.js';
+import { earlyPassModules, latePassModules } from './composition-passes.js';
 import {
   composeModules,
   createRootContainer,
@@ -70,10 +70,8 @@ import { ORGANIZATIONS_SETTING_CODES } from './modules/organizations/manifest.js
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
 // `backend.ts`; what stays here is the pure URL helper, which is a function,
-// not a service.
-import * as emailBackend from './modules/email/backend.js';
+// not a service, and the cradle shape the senders below resolve through.
 import type { EmailCradle } from './modules/email/backend.js';
-import { manifest as emailManifest } from './modules/email/manifest.js';
 import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
 import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
@@ -129,10 +127,6 @@ import { CMS_PAGE_BUILDER_SETTING_CODES } from './modules/cms/manifest.js';
 import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
-// Feature 072 — the first module composed through the kernel: one
-// `registerModule`, no wiring here. `composeModules` runs it.
-import * as blogBackend from './modules/blog/backend.js';
-import { manifest as blogManifest } from './modules/blog/manifest.js';
 import { dictionariesModule } from './modules/dictionaries/plugin.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
@@ -380,42 +374,31 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     isModuleEnabled: (moduleId) => registryCache.isEnabled(moduleId),
   });
 
-  // Feature 072 — wave 0 of the module sweep: the modules with fan-out 0, which
-  // nothing in this file constructs on their behalf any more. They are composed
-  // here, ahead of the hand-wired remainder, because what they register is read
-  // by it — `emailMailer` by six senders below.
+  // Feature 072 — the early pass of the **generated** module list
+  // (`composition.generated.ts`). Nothing about these modules is named here any
+  // more: the list is a walk of the tree, so adding a module is adding a folder
+  // and removing one is deleting it.
   //
-  // A second `composeModules` call rather than one at the end: the ownership
-  // ledger is shared, so a name registered twice still collides naming both
-  // modules, and boot order stays where each value becomes available.
+  // They are composed ahead of the hand-wired remainder because what they
+  // register is read by it — `emailMailer` by six senders below — and because
+  // `health_checks` must contribute its routes before the auth plugin. See
+  // `composition-passes.ts` for why there are two passes at all; both share one
+  // ownership ledger, so a name registered twice still collides naming both
+  // modules.
   //
-  // `redis` is registered here rather than beside `blog` further down because
+  // `redis` is registered here rather than beside the late pass because
   // `health_checks` pings it: a host name belongs where the value first exists,
   // and the client has existed since the top of this function.
   registerValues(container, { redis });
-  const wave0Modules = composeModules(
-    [
-      {
-        id: emailManifest.id,
-        version: emailManifest.version,
-        registerModule: emailBackend.registerModule,
-      },
-      {
-        id: healthChecksManifest.id,
-        version: healthChecksManifest.version,
-        registerModule: healthChecksBackend.registerModule,
-      },
-    ],
-    {
-      container,
-      eventBus,
-      // Composition runs before `buildServer`, so there is no `app.log` yet.
-      log: console,
-      interceptorRegistry: apiInterceptors,
-      ownership: registrationOwnership,
-    },
-  );
-  await wave0Modules.runBootHooks();
+  const earlyModules = composeModules(earlyPassModules(MODULES), {
+    container,
+    eventBus,
+    // Composition runs before `buildServer`, so there is no `app.log` yet.
+    log: console,
+    interceptorRegistry: apiInterceptors,
+    ownership: registrationOwnership,
+  });
+  await earlyModules.runBootHooks();
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
@@ -1284,12 +1267,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
 
   const modules: ModulePlugin[] = [
-    // Feature 072 — wave 0's route contribution: `health_checks`. It stays
-    // ahead of the auth plugin for the reason the inline `healthPlugin` did:
-    // Fastify binds a route's hook chain when the route is registered, so a
-    // liveness probe registered first is one no later `onRequest` hook can
+    // Feature 072 — the early pass's route contribution: `health_checks`. It
+    // stays ahead of the auth plugin for the reason the inline `healthPlugin`
+    // did: Fastify binds a route's hook chain when the route is registered, so
+    // a liveness probe registered first is one no later `onRequest` hook can
     // start authenticating.
-    ...wave0Modules.sink.plugins,
+    ...earlyModules.sink.plugins,
     authModulePlugin,
     tenantContextModulePlugin,
     admin.plugin,
@@ -1925,16 +1908,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // deletion via the CMS module's reference registry.
   registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
 
-  // Feature 016 — Blog module, converted to feature 072's `registerModule`
-  // contract (T040). There is no blog wiring here any more: the names below are
-  // host values *any* module may resolve — each one a port its owning module
-  // will register itself once converted — and `blog` declares the rest of itself
-  // in `modules/blog/backend.ts`.
+  // Feature 072 — the late pass of the generated module list. No converted
+  // module is named here: what this root still owns are the **host values** any
+  // module may resolve — each one a port its owning module will register itself
+  // once converted.
   //
   // The host names are registered where the values become available, which is
-  // why this sits at the same point in the boot order the factory call did —
-  // after `DefaultChannelReconciler`, so blog's boot hook attaches the Default
-  // category to a channel that already exists.
+  // why this sits at the same point in the boot order the hand-written blog
+  // factory call did — after `DefaultChannelReconciler`, so blog's boot hook
+  // attaches the Default category to a channel that already exists.
   registerValues(container, {
     requireAdmin,
     // `redis` is registered further up, where the client is created.
@@ -1947,29 +1929,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // and neither composition root ever passed one.
     blogStorefrontDeps: undefined,
   });
-  const kernelModules = composeModules(
-    [
-      {
-        id: blogManifest.id,
-        version: blogManifest.version,
-        registerModule: blogBackend.registerModule,
-      },
-    ],
-    {
-      container,
-      eventBus,
-      // Composition runs before `buildServer`, so there is no `app.log` yet.
-      // `console` satisfies the logger shape; T053's boot-failure work is where
-      // the structured logger arrives.
-      log: console,
-      interceptorRegistry: apiInterceptors,
-      ownership: registrationOwnership,
-    },
-  );
-  modules.push(...kernelModules.sink.plugins);
+  const lateModules = composeModules(latePassModules(MODULES), {
+    container,
+    eventBus,
+    // Composition runs before `buildServer`, so there is no `app.log` yet.
+    log: console,
+    interceptorRegistry: apiInterceptors,
+    ownership: registrationOwnership,
+  });
+  modules.push(...lateModules.sink.plugins);
   // The explicit boot phase (FR-021): registration stays lazy, and the work
   // that genuinely has to run at boot runs here, in its own system scope.
-  await kernelModules.runBootHooks();
+  await lateModules.runBootHooks();
 
   // Feature 017 — Dictionary module. Boot reconciler populates the
   // ISO 3166-1 country catalogue, the major-currency seed metadata,

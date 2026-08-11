@@ -37,6 +37,7 @@ export {
 
 export {
   composeModules,
+  ModuleCompositionError,
   type ComposedModules,
   type ComposeModulesOptions,
   type ModuleEntry,

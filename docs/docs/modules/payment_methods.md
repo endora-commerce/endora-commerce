@@ -77,8 +77,9 @@ module's configurable registry later with no change here.
 ### Build your own payment-method module
 
 1. Create a backend module (`backend/src/modules/<your_module>/`) with a
-   `manifest.ts` declaring `dependencies: ['payment_methods']`, and register
-   the manifest in `_lifecycle/registered-manifests.ts`.
+   `manifest.ts` declaring `dependencies: ['payment_methods']`, then run
+   `pnpm --filter backend run composer:generate` so the generated manifest
+   registry picks it up.
 2. Implement `PaymentAdapter`: set `adapterKey`, `type`, the three
    `validateUse*` (return `true` if unconstrained), `onStorefrontOrderCreated`
    (return a `redirect` / `awaiting_transfer` / `none`), and

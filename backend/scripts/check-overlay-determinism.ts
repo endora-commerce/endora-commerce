@@ -10,6 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { renderManifestIndex } from './generate-manifest-index.js';
 import { renderOverrideManifest } from './generate-override-manifest.js';
+import { renderComposer, renderRegisteredManifests } from './generate-composer.js';
 
 function check(label: string, outputPath: string, expected: string): boolean {
   let onDisk: string;
@@ -24,7 +25,8 @@ function check(label: string, outputPath: string, expected: string): boolean {
       `[overlay:check] ${label}: committed file is STALE at ${outputPath}\n` +
         `  Regenerate and commit:\n` +
         `    pnpm --filter backend run manifest-index:generate\n` +
-        `    pnpm --filter backend run overlay:manifest\n`,
+        `    pnpm --filter backend run overlay:manifest\n` +
+        `    pnpm --filter backend run composer:generate\n`,
     );
     return false;
   }
@@ -32,15 +34,22 @@ function check(label: string, outputPath: string, expected: string): boolean {
   return true;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const mi = renderManifestIndex();
   const om = renderOverrideManifest();
+  // Feature 072 — the composer and the manifest registry are generated from the
+  // same tree walk and committed the same way, so they are checked here rather
+  // than in a second script with the same shape.
+  const composer = await renderComposer();
+  const registry = renderRegisteredManifests();
   const ok = [
     check('manifest-index', mi.outputPath, mi.content),
     check('override-manifest (core)', om.outputPath, om.content),
+    check('composition.generated', composer.outputPath, composer.content),
+    check('registered-manifests', registry.outputPath, registry.content),
   ].every(Boolean);
   if (!ok) process.exit(1);
-  process.stdout.write('[overlay:check] all overlay artifacts deterministic ✓\n');
+  process.stdout.write('[overlay:check] all generated artifacts deterministic ✓\n');
 }
 
-main();
+await main();
