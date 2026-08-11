@@ -66,9 +66,22 @@ export interface ComposerNode {
   readonly manifestImportPath: string;
 }
 
-/** A module is *converted* when it ships a `backend.ts` exporting `registerModule`. */
+/**
+ * A module is *converted* when it ships a `backend.ts` exporting
+ * `registerModule`. A `backend.ts` that exports no such thing is a mistake, not
+ * a module that opted out — and it is reported rather than skipped, because a
+ * skipped module composes nothing and the first symptom is a 404 in a suite
+ * nobody connects to this file.
+ */
 function exposesRegisterModule(filePath: string): boolean {
-  return /export\s+function\s+registerModule\s*\(/.test(readFileSync(filePath, 'utf8'));
+  const source = readFileSync(filePath, 'utf8');
+  if (/export\s+(?:function|const|let|async\s+function)\s+registerModule\b/.test(source)) {
+    return true;
+  }
+  throw new Error(
+    `[composer] ${filePath} exports no 'registerModule'. A module's backend.ts is its entry ` +
+      `point (see modules/blog/backend.ts); rename or remove the file if it is not one.`,
+  );
 }
 
 function directoriesIn(root: string): string[] {
@@ -103,7 +116,8 @@ function discoverConverted(): DiscoveredConverted[] {
   const byId = new Map<string, DiscoveredConverted>();
   for (const id of directoriesIn(modulesRoot)) {
     const backend = join(modulesRoot, id, 'backend.ts');
-    if (!existsSync(backend) || !exposesRegisterModule(backend)) continue;
+    if (!existsSync(backend)) continue;
+    exposesRegisterModule(backend);
     byId.set(id, {
       id,
       isOverlay: false,
@@ -116,7 +130,8 @@ function discoverConverted(): DiscoveredConverted[] {
   if (overlay) {
     for (const id of directoriesIn(overlay.root)) {
       const backend = join(overlay.root, id, 'backend.ts');
-      if (!existsSync(backend) || !exposesRegisterModule(backend)) continue;
+      if (!existsSync(backend)) continue;
+      exposesRegisterModule(backend);
       byId.set(id, {
         id,
         isOverlay: true,
