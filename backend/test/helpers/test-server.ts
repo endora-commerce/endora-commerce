@@ -15,6 +15,14 @@ import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { type TenantContext } from '../../src/tenancy/tenant-context.js';
 import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js';
 import {
+  composeModules,
+  createRegistrationOwnership,
+  createRootContainer,
+  registerOrm,
+  registerValues,
+  type KernelContainer,
+} from '../../src/kernel/index.js';
+import {
   resolveTenantContext,
   systemTenantContext,
 } from '../../src/tenancy/resolve-tenant-context.js';
@@ -117,7 +125,12 @@ import { cmsModule } from '../../src/modules/cms/plugin.js';
 import { megamenuModule } from '../../src/modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/services/cms-references.js';
-import { blogModule } from '../../src/modules/blog/plugin.js';
+// Feature 072 — blog composes through the kernel here too, from the same entry
+// point production uses. The harness is a second composition root, so a module
+// left hand-wired here would keep passing against wiring nobody changed.
+import * as blogBackend from '../../src/modules/blog/backend.js';
+import { manifest as blogManifest } from '../../src/modules/blog/manifest.js';
+import type { BlogCradle } from '../../src/modules/blog/backend.js';
 import { dictionariesModule } from '../../src/modules/dictionaries/plugin.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import { taxesModule } from '../../src/modules/taxes/plugin.js';
@@ -307,8 +320,18 @@ export interface BackendServerHandle {
   cms: ReturnType<typeof cmsModule>['handle'];
   /** Feature 015 — Megamenu module handle (reference registry, cache). */
   megamenu: ReturnType<typeof megamenuModule>['handle'];
-  /** Feature 016 — Blog module handle (cache, settings resolver, reconcile). */
-  blog: ReturnType<typeof blogModule>['handle'];
+  /**
+   * Feature 016 — Blog services, resolved out of the kernel container (feature
+   * 072). Not a module handle any more: `blog` declares itself through
+   * `registerModule`, so this is a projection of the container for the tests
+   * that reach past HTTP.
+   */
+  blog: {
+    cache: BlogCradle['blogCacheService'];
+    storefrontResolver: BlogCradle['blogStorefrontResolver'];
+  };
+  /** Feature 072 — the composed kernel container, disposed at teardown. */
+  container: KernelContainer;
   /** Feature 017 — Dictionary module handle (cache + future validator). */
   dictionaries: ReturnType<typeof dictionariesModule>['handle'];
   /** Feature 021 — error-envelope i18n bridge. */
@@ -545,6 +568,23 @@ export async function setupBackendServer(
   // Feature 050 — mirror the production seam: forks stamp tenant filter params
   // from the ambient TenantContext (established per request by the hook below).
   const em = (): EntityManager => forkScopedEm(orm);
+
+  // Feature 072 — the kernel container, built exactly as `composition.ts` does
+  // it, including *not* installing it as the process root (see the note there).
+  // `teardownBackendServer` disposes it.
+  const container = createRootContainer();
+  registerOrm(container, orm);
+  const registrationOwnership = createRegistrationOwnership();
+
+  // Feature 060 — API interceptor registry, mirroring composition.ts wiring.
+  // Fixture registrations arrive via `options.configureInterceptors`; the
+  // registry is sealed (after boot validation) inside app.ready(). Constructed
+  // here rather than beside its admin routes because `composeModules` hands it
+  // to every module that declares an interceptor, and production builds it
+  // early for the same reason.
+  const apiInterceptors = new ApiInterceptorRegistry({
+    isModuleEnabled: (moduleId) => registryCache.isEnabled(moduleId),
+  });
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
@@ -1695,24 +1735,37 @@ export async function setupBackendServer(
   registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
   if (megamenu.handle.cache) await megamenu.handle.cache.invalidateAll();
 
-  // Feature 016 — Blog module. Wires the cache + settings resolver +
-  // asset-reference descriptors. Plugin runs the seed reconcilers
-  // (Default Category + Blog Manager + Content Manager) on first
-  // registration so contract tests start in a usable state.
-  const blog = blogModule({
-    emFactory: em,
+  // Feature 016 — Blog, composed through the kernel exactly as `composition.ts`
+  // does it (T040). The host names below are the only thing this root knows
+  // about it; everything else lives in `modules/blog/backend.ts`.
+  registerValues(container, {
     requireAdmin: requireTestAdmin(permissionService),
     redis,
-    eventBus,
-    settings: {
-      get: (code, salesChannelId, schema) =>
-        settings.handle.settingsService.get(code, salesChannelId, schema),
-    },
+    settingsReadPort: settings.handle.settingsService,
     assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
     dictionaryValidator: dictionaries.handle.validator,
+    blogStorefrontDeps: undefined,
   });
-  modules.push(blog.plugin);
-  if (blog.handle.cache) await blog.handle.cache.invalidateAll();
+  const kernelModules = composeModules(
+    [
+      {
+        id: blogManifest.id,
+        version: blogManifest.version,
+        registerModule: blogBackend.registerModule,
+      },
+    ],
+    {
+      container,
+      eventBus,
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+      interceptorRegistry: apiInterceptors,
+      ownership: registrationOwnership,
+    },
+  );
+  modules.push(...kernelModules.sink.plugins);
+  await kernelModules.runBootHooks();
+  const blogCradle = container.cradle as unknown as BlogCradle;
+  if (blogCradle.blogCacheService) await blogCradle.blogCacheService.invalidateAll();
 
   modules.push(dictionaries.plugin);
   if (dictionaries.handle.cache) await dictionaries.handle.cache.invalidateAll();
@@ -2330,12 +2383,6 @@ export async function setupBackendServer(
 
   if (options.extraModules) modules.push(...options.extraModules);
 
-  // Feature 060 — API interceptor registry, mirroring composition.ts wiring.
-  // Fixture registrations arrive via `options.configureInterceptors`; the
-  // registry is sealed (after boot validation) inside app.ready().
-  const apiInterceptors = new ApiInterceptorRegistry({
-    isModuleEnabled: (moduleId) => registryCache.isEnabled(moduleId),
-  });
   modules.push(async (app) => {
     registerApiInterceptorAdminRoutes(app, {
       registry: apiInterceptors,
@@ -2445,7 +2492,11 @@ export async function setupBackendServer(
     assetsLibrary: assetsLibrary.handle,
     cms: cms.handle,
     megamenu: megamenu.handle,
-    blog: blog.handle,
+    blog: {
+      cache: blogCradle.blogCacheService,
+      storefrontResolver: blogCradle.blogStorefrontResolver,
+    },
+    container,
     dictionaries: dictionaries.handle,
     adminI18n: adminI18n.handle,
     promotions: promotions.handle,
@@ -2485,6 +2536,9 @@ function customerResolver(request: FastifyRequest): {
 
 export async function teardownBackendServer(h: BackendServerHandle): Promise<void> {
   await h.app.close();
+  // Feature 072 — runs every registration's disposer and drops the resolution
+  // cache, so a file's composed services do not outlive its server.
+  await h.container.dispose();
   h.redis.disconnect();
   await closeOrm();
 }

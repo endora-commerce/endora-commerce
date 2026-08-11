@@ -34,7 +34,8 @@ import type { KernelContainer, KernelCradle } from './container.js';
  * `subscribe` are wrapped in the `_lifecycle` helpers here, so a module cannot
  * forget to wrap and cannot gate per handler.
  *
- * Modules never import `awilix`; a static check enforces it (T041).
+ * Modules never import `awilix`; `scripts/check-container-imports.ts` enforces
+ * it, so the container stays swappable behind this seam.
  */
 
 /** Structured logger a module gets for composition-time messages. */
@@ -53,6 +54,84 @@ export type Registration<T = unknown> = Resolver<T>;
 /** The lifetime-selecting builder returned by `ctx.asClass` / `ctx.asFunction`. */
 export type RegistrationBuilder<T> = BuildResolver<T> & DisposableResolver<T>;
 
+/**
+ * A module's explicit boot phase (FR-021).
+ *
+ * Registration is lazy: a service nothing resolves is never constructed. Some
+ * work genuinely has to run at boot anyway — pushing a descriptor into another
+ * module's registry, seeding a system row, validating a cipher key — and it
+ * needs to resolve things, which registration may not do. So it is a named
+ * phase that runs **after every module has registered**, each hook inside its
+ * own `enterSystemScope`, rather than a side effect smuggled into a factory or
+ * into route attachment (where a `BACKEND_ROLE=worker` process would never
+ * reach it).
+ */
+export type ModuleBootHook = () => void | Promise<void>;
+
+/**
+ * Which module owns which registration name (T042).
+ *
+ * A name is owned by exactly one module. Two modules registering the same name
+ * is not "the later one wins" — it is a platform whose behaviour depends on
+ * registration order, and the bug it produces is unfindable because both
+ * modules look correct in isolation. Changing another module's registration is
+ * `ctx.di.decorate`, which is a different, deliberate act and is not routed
+ * through this ledger.
+ */
+export interface RegistrationOwnership {
+  /** @throws {DuplicateRegistrationError} when another module already owns `name`. */
+  claim(name: string, moduleId: string): void;
+  ownerOf(name: string): string | undefined;
+}
+
+/** Two modules registered the same name. Names both, never just the loser. */
+export class DuplicateRegistrationError extends Error {
+  constructor(
+    readonly registrationName: string,
+    readonly owner: string,
+    readonly claimant: string,
+  ) {
+    super(
+      `[kernel] modules '${owner}' and '${claimant}' both register '${registrationName}'. ` +
+        `A registration name is owned by exactly one module — otherwise which ` +
+        `implementation the platform runs depends on registration order. To change ` +
+        `another module's registration, decorate it: ctx.di.decorate('${registrationName}', …).`,
+    );
+    this.name = 'DuplicateRegistrationError';
+  }
+}
+
+/** A module resolved something while it was still registering (T043). */
+export class EagerResolutionError extends Error {
+  constructor(
+    readonly moduleId: string,
+    readonly registrationName: string,
+  ) {
+    super(
+      `[kernel] module '${moduleId}' resolved '${registrationName}' while registering. ` +
+        `Registration declares; it never resolves — at registration time the modules ` +
+        `after this one have not registered yet, so an eager resolution silently depends ` +
+        `on registration order. Move the resolution into the closure that uses it: a ` +
+        `route registrar, a worker processor, a subscriber, or ctx.onBoot().`,
+    );
+    this.name = 'EagerResolutionError';
+  }
+}
+
+export function createRegistrationOwnership(): RegistrationOwnership {
+  const owners = new Map<string, string>();
+  return {
+    claim(name, moduleId) {
+      const owner = owners.get(name);
+      if (owner !== undefined && owner !== moduleId) {
+        throw new DuplicateRegistrationError(name, owner, moduleId);
+      }
+      owners.set(name, moduleId);
+    },
+    ownerOf: (name) => owners.get(name),
+  };
+}
+
 export interface ModuleContext {
   readonly module: { readonly id: string; readonly version: string };
 
@@ -67,8 +146,43 @@ export interface ModuleContext {
   };
 
   asClass<T>(ctor: Constructor<T>): RegistrationBuilder<T>;
-  asFunction<T>(fn: (cradle: KernelCradle) => T): RegistrationBuilder<T>;
+  /**
+   * `C` is the cradle shape **this factory needs**, declared by the module and
+   * defaulted to the kernel's. Annotate the parameter and it is inferred:
+   *
+   * ```ts
+   * ctx.asFunction(({ emFactory, blogCacheService }: BlogCradle) => …)
+   * ```
+   *
+   * Widening it to `KernelCradle` would make every dependency `unknown` at the
+   * one place where naming the dependency is the point of the exercise.
+   */
+  asFunction<T, C = KernelCradle>(fn: (cradle: C) => T): RegistrationBuilder<T>;
   asValue<T>(value: T): Registration<T>;
+
+  /**
+   * The resolution surface, for **deferred** use only — inside a route
+   * registrar, a worker processor, a subscriber or an `onBoot` hook. Reading a
+   * name from it while `registerModule` is still running throws
+   * {@link EagerResolutionError} (T043).
+   *
+   * Two things about it are load-bearing:
+   *
+   *  - **It resolves through the container this module registered into**, and
+   *    never through the ambient request scope. That makes what a name resolves
+   *    to a property of the composition rather than of where the call happens,
+   *    and it is why the module's registrations must be `singleton()` or
+   *    `transient()`. Per-request state is read through its own accessor —
+   *    `getResolvedChannel()` for the sales channel, `getTenantContext()` for
+   *    tenancy — not through this cradle. Resolving `scoped()` registrations
+   *    from a module belongs to Phase 5, where the generated composer owns the
+   *    whole boot and one container is unambiguously *the* root.
+   *  - **`C` is asserted by the caller**, because the container is the runtime
+   *    authority and an unknown name throws rather than yielding `undefined`.
+   *    Declaring the narrow shape a module needs is the port rule of
+   *    `contracts/module-context.md` spelled in types.
+   */
+  cradle<C extends object = KernelCradle>(): C;
 
   /** Wrapped in `defineModuleRoutes(module.id, …)` — gating holds at the registration seam. */
   routes(register: (app: FastifyInstance) => Promise<void> | void): void;
@@ -93,6 +207,16 @@ export interface ModuleContext {
   onInstall(hook: ModuleInstallHook): void;
   onUninstall(hook: ModuleUninstallHook): void;
 
+  /**
+   * The explicit boot phase (FR-021). Runs once every module has registered,
+   * inside `enterSystemScope('boot: <module id>')`, so it may resolve.
+   *
+   * Not the same thing as `onInstall`: install runs once in the orchestrator's
+   * transaction when the module is installed; this runs on every boot of every
+   * process, including `BACKEND_ROLE=worker`.
+   */
+  onBoot(hook: ModuleBootHook): void;
+
   readonly log: ModuleLifecycleLogger;
 }
 
@@ -106,10 +230,18 @@ export interface ModuleRegistrationSink {
   readonly unsubscribes: Array<() => void>;
   readonly installHooks: ModuleInstallHook[];
   readonly uninstallHooks: ModuleUninstallHook[];
+  readonly bootHooks: ModuleBootHook[];
 }
 
 export function createModuleRegistrationSink(): ModuleRegistrationSink {
-  return { plugins: [], workers: [], unsubscribes: [], installHooks: [], uninstallHooks: [] };
+  return {
+    plugins: [],
+    workers: [],
+    unsubscribes: [],
+    installHooks: [],
+    uninstallHooks: [],
+    bootHooks: [],
+  };
 }
 
 export interface ModuleContextOptions {
@@ -120,17 +252,50 @@ export interface ModuleContextOptions {
   readonly log: ModuleLifecycleLogger;
   /** Absent in composition roots that mount no interceptor surface (unit tests). */
   readonly interceptorRegistry?: ApiInterceptorRegistry;
+  /**
+   * Shared across every module of one composition, so a name registered twice
+   * is caught naming both modules (T042). Absent for a hand-built context — a
+   * single module cannot collide with itself.
+   */
+  readonly ownership?: RegistrationOwnership;
+  /**
+   * Whether `registerModule` is still running for this composition. While it
+   * is, `ctx.cradle()` refuses to resolve (T043). Defaults to "no", so a
+   * context built by hand in a unit test resolves freely.
+   */
+  readonly isRegistering?: () => boolean;
 }
 
 export function createModuleContext(options: ModuleContextOptions): ModuleContext {
-  const { module, container, eventBus, sink, log, interceptorRegistry } = options;
+  const { module, container, eventBus, sink, log, interceptorRegistry, ownership } = options;
+  const isRegistering = options.isRegistering ?? ((): boolean => false);
   let decorationDepth = 0;
+
+  /**
+   * One proxy per context, over this module's own container. It is stable
+   * across calls so a module that captures `ctx.cradle()` during registration
+   * still hits the phase guard when it later reads a name off the captured
+   * object.
+   */
+  const cradleProxy = new Proxy(Object.create(null) as Record<string, unknown>, {
+    get(_target, property): unknown {
+      // A symbol here is the runtime probing the object (`Symbol.toPrimitive`,
+      // `then` on an accidental await); no registration can carry that name.
+      if (typeof property === 'symbol') return undefined;
+      if (isRegistering()) throw new EagerResolutionError(module.id, property);
+      return container.cradle[property];
+    },
+    has(_target, property): boolean {
+      return typeof property === 'string' && container.hasRegistration(property);
+    },
+  });
 
   return {
     module,
 
     di: {
       register(registrations) {
+        for (const name of Object.keys(registrations)) ownership?.claim(name, module.id);
         container.register(registrations);
       },
 
@@ -161,9 +326,11 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
     },
 
     asClass: <T,>(ctor: Constructor<T>): RegistrationBuilder<T> => asClass(ctor),
-    asFunction: <T,>(fn: (cradle: KernelCradle) => T): RegistrationBuilder<T> =>
+    asFunction: <T, C = KernelCradle>(fn: (cradle: C) => T): RegistrationBuilder<T> =>
       asFunction(fn as (...args: unknown[]) => T),
     asValue: <T,>(value: T): Registration<T> => asValue(value) as Registration<T>,
+
+    cradle: <C extends object = KernelCradle,>(): C => cradleProxy as C,
 
     routes(register) {
       sink.plugins.push(defineModuleRoutes(module.id, register));
@@ -197,6 +364,10 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
 
     onUninstall(hook) {
       sink.uninstallHooks.push(hook);
+    },
+
+    onBoot(hook) {
+      sink.bootHooks.push(hook);
     },
 
     log,

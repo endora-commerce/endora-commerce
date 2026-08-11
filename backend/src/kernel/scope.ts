@@ -189,16 +189,33 @@ function createPlatformScope(
    * cradle proxy for as long as the store lives. Awilix itself is not the cost:
    * 100 000 create → register → dispose cycles in isolation hold flat at 5 MB.
    */
+  /**
+   * The root, held in a variable rather than used through the parameter so
+   * `dispose` can **drop it**.
+   *
+   * Not a micro-optimisation — it is the difference between the suite finishing
+   * and dying. Once modules register into the root (feature 072 Phase 4), the
+   * root reaches an entire composition: the ORM and its metadata, the Redis
+   * client, every module service and cache. A scope is what lives in the
+   * `AsyncLocalStorage` store, and a store stays reachable for as long as any
+   * async resource created inside it does — so a single retained store pinned a
+   * whole composed application. Measured: with the root captured for the life of
+   * the scope, the full suite died with `JavaScript heap out of memory` at file
+   * **78** of 928; with it released on disposal it runs to completion. Before
+   * Phase 4 the same retention was free, because the process root was empty.
+   */
+  let rootRef: KernelContainer | undefined = root;
+
   let child: KernelContainer | undefined;
   const resolutionScope = (): KernelContainer => {
     if (child) return child;
-    if (disposed) {
+    if (!rootRef) {
       // A resolution after disposal would create a child nothing will ever
       // dispose. It means work outlived its scope — fail loudly rather than
       // hand back a container that leaks.
       throw new Error('This platform scope is disposed; it can no longer resolve.');
     }
-    child = root.createScope<KernelCradle>();
+    child = rootRef.createScope<KernelCradle>();
     // Per-scope values. `salesChannel` is the registration that lets the 49
     // `getResolvedChannel(request)` call sites stop threading `request`.
     //
@@ -239,7 +256,12 @@ function createPlatformScope(
       if (disposed) return;
       disposed = true;
       openScopes -= 1;
-      if (child) await child.dispose();
+      const resolved = child;
+      // Drop both references before awaiting, so a store that outlives this
+      // scope holds neither the child nor the composed root (see `rootRef`).
+      child = undefined;
+      rootRef = undefined;
+      if (resolved) await resolved.dispose();
     },
   };
   return scope;

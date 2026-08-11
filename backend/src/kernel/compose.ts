@@ -1,0 +1,138 @@
+import type { EventBus } from '../events/bus.js';
+import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
+import type { KernelContainer } from './container.js';
+import { enterSystemScope } from './scope.js';
+import {
+  createModuleContext,
+  createModuleRegistrationSink,
+  createRegistrationOwnership,
+  type ModuleBootHook,
+  type ModuleContext,
+  type ModuleLifecycleLogger,
+  type ModuleRegistrationSink,
+  type RegistrationOwnership,
+} from './module-context.js';
+
+/**
+ * The composition seam (feature 072, T042/T043).
+ *
+ * `registerModule` is what a module writes; this is what runs it. Everything a
+ * composition root needs to know about a module is the three fields of
+ * {@link ModuleEntry} — which is what makes the list generatable in Phase 5,
+ * and what makes removing a module a deletion rather than an archaeology
+ * exercise.
+ *
+ * Two invariants are enforced here rather than left to review, because both
+ * fail silently otherwise:
+ *
+ *  1. **One owner per registration name.** Otherwise which implementation the
+ *     platform runs depends on the order the composer happens to emit.
+ *  2. **Registration resolves nothing.** At the moment a module registers, the
+ *     modules after it have not registered yet, so an eager resolution either
+ *     throws or — worse — succeeds today and breaks when the topological order
+ *     changes for an unrelated reason.
+ */
+
+/** What the composer knows about one module. Nothing else about it is reachable. */
+export interface ModuleEntry {
+  /** The manifest id. Injected here, never hard-coded inside the module (FR-031). */
+  readonly id: string;
+  /** The manifest version. */
+  readonly version: string;
+  readonly registerModule: (ctx: ModuleContext) => void;
+}
+
+export interface ComposeModulesOptions {
+  readonly container: KernelContainer;
+  readonly eventBus: EventBus;
+  readonly log: ModuleLifecycleLogger;
+  /** Absent in composition roots that mount no interceptor surface. */
+  readonly interceptorRegistry?: ApiInterceptorRegistry | undefined;
+  /**
+   * Share one ledger across several `composeModules` calls — which is what a
+   * root does while modules are converted one batch at a time, so a converted
+   * module still collides with a converted module composed in another call.
+   */
+  readonly ownership?: RegistrationOwnership | undefined;
+}
+
+export interface ComposedModules {
+  /** Everything the modules contributed, in registration order. */
+  readonly sink: ModuleRegistrationSink;
+  /** Which module registered `name`, for diagnostics and for the duplicate report. */
+  ownerOf(name: string): string | undefined;
+  /**
+   * Run the explicit boot phase (FR-021): every module's `onBoot` hook, in
+   * registration order, each inside its own `enterSystemScope`.
+   *
+   * A boot hook is the one place a module may do composition-time work that
+   * resolves — so it runs after **every** module has registered, and never as a
+   * side effect of route attachment, which a `BACKEND_ROLE=worker` process
+   * would never reach.
+   */
+  runBootHooks(): Promise<void>;
+}
+
+export function composeModules(
+  entries: readonly ModuleEntry[],
+  options: ComposeModulesOptions,
+): ComposedModules {
+  const combined = createModuleRegistrationSink();
+  const ownership = options.ownership ?? createRegistrationOwnership();
+  const bootHooks: Array<{ moduleId: string; hook: ModuleBootHook }> = [];
+
+  // Read by every context this call creates, so the phase guard covers the
+  // whole pass rather than one module at a time: module A resolving something
+  // module B registers is exactly the order-dependence being forbidden.
+  let registering = true;
+  try {
+    for (const entry of entries) {
+      const sink = createModuleRegistrationSink();
+      const ctx = createModuleContext({
+        module: { id: entry.id, version: entry.version },
+        container: options.container,
+        eventBus: options.eventBus,
+        sink,
+        log: options.log,
+        ownership,
+        isRegistering: () => registering,
+        ...(options.interceptorRegistry
+          ? { interceptorRegistry: options.interceptorRegistry }
+          : {}),
+      });
+
+      entry.registerModule(ctx);
+
+      combined.plugins.push(...sink.plugins);
+      combined.workers.push(...sink.workers);
+      combined.unsubscribes.push(...sink.unsubscribes);
+      combined.installHooks.push(...sink.installHooks);
+      combined.uninstallHooks.push(...sink.uninstallHooks);
+      for (const hook of sink.bootHooks) bootHooks.push({ moduleId: entry.id, hook });
+    }
+  } finally {
+    registering = false;
+  }
+
+  return {
+    sink: combined,
+    ownerOf: (name) => ownership.ownerOf(name),
+    async runBootHooks(): Promise<void> {
+      for (const { moduleId, hook } of bootHooks) {
+        await enterSystemScope(
+          `boot: ${moduleId}`,
+          async () => {
+            await hook();
+          },
+          // Branch the scope off the container these modules registered into,
+          // not off the process-wide default. `ctx.cradle()` resolves through
+          // the ambient scope when there is one, so a boot hook opened against
+          // the wrong root would fail to resolve the module's own services —
+          // in a composition root that never called `setRootContainer`, which
+          // is every unit test that composes its own container.
+          { entryPoint: 'boot', container: options.container },
+        );
+      }
+    },
+  };
+}

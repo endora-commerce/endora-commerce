@@ -62,6 +62,21 @@ quality:
     # (all 45 modules migrated), so `--strict` build-breaks on ANY finding in ANY
     # module — a new unaudited write anywhere fails CI (no silent regression).
     - pnpm --filter backend run check:command-coverage -- --strict
+    # Feature 072 (D-32) — a module may declare an ORM relation into the kernel,
+    # never into another module; the kernel relates into neither. The allow-list
+    # is an empty ratchet.
+    - pnpm --filter backend run check:kernel-boundary
+    # Feature 072 (FR-020) — every non-HTTP entry point (CLI script, BullMQ
+    # consumer, interval sweep) establishes a scope explicitly.
+    - pnpm --filter backend run check:entry-scope
+    # Feature 072 (FR-032) — no module imports the container library. Modules see
+    # only `ModuleContext`, so the container stays swappable behind that seam.
+    - pnpm --filter backend run check:container-imports
+    # Documentation code blocks are quotations, not paraphrases. The quickstarts
+    # are copied by every module conversion, so a stale snippet is a defect
+    # scheduled for mass production — six were found across three batches before
+    # this check existed.
+    - pnpm --filter backend run check:doc-snippets
     # Feature 057 (FR-006/SC-003) — the manifest index + override manifest
     # regenerate deterministically for the bare-core build; `overlay:check`
     # regenerates and fails on ANY drift (identical inputs ⇒ identical artifact).
