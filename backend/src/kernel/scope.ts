@@ -1,6 +1,9 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { asFunction } from 'awilix';
-import type { RequestMeta } from '@b2b/contracts';
+import type { RequestMeta, ScopeEntryPointKind } from '@b2b/contracts';
 import { runWithTenantContext, type TenantContext } from '../tenancy/tenant-context.js';
+import { systemTenantContext } from '../tenancy/resolve-tenant-context.js';
+import { recordEscapeHatchAudit } from '../tenancy/escape-hatch.js';
 import type { ResolvedChannel } from './ports/sales-channel.js';
 import { getRootContainer, type KernelContainer, type KernelCradle } from './container.js';
 
@@ -96,18 +99,64 @@ export interface PlatformScope {
    * substitute for `getTenantContext()`, which is what the ORM filter uses.
    */
   readonly tenant: TenantContext;
-  /** The resolved sales channel; absent outside HTTP. */
+  /** Which class of entry point opened this scope. */
+  readonly entryPoint: ScopeEntryPointKind;
+  /** The resolved sales channel; `null` until resolved, and outside HTTP forever. */
   readonly channel: ResolvedChannel | null;
   /** Correlation id and client info; absent outside HTTP. */
   readonly requestMeta: RequestMeta | null;
+  /**
+   * Fill the channel slot. HTTP only, and called exactly once, by the
+   * sales-channel resolver hook.
+   *
+   * **Why the slot is mutable at all** — a correction to `contracts/request-scope.md`,
+   * which reads as though the channel is known when the scope opens. It is not:
+   * the hook order is auth → tenant → channel (see above), so the scope is
+   * already open when the resolver runs, and the resolver *must* run after
+   * tenancy because its refusal path writes an audit row. The alternatives are
+   * reordering the hooks (forbidden — the ordering is load-bearing) or opening a
+   * second scope for the channel (its disposal would no longer coincide with the
+   * store's lifetime, which rule 2 forbids).
+   */
+  setChannel(channel: ResolvedChannel): void;
   dispose(): Promise<void>;
 }
 
 export interface EnterPlatformScopeOptions {
   readonly channel?: ResolvedChannel | undefined;
   readonly requestMeta?: RequestMeta | undefined;
+  /** Which class of entry point this is. Defaults to `'http'`. */
+  readonly entryPoint?: ScopeEntryPointKind | undefined;
   /** Root to branch from. Defaults to the process-wide root container. */
   readonly container?: KernelContainer | undefined;
+}
+
+/**
+ * The ambient scope of the current execution.
+ *
+ * A second `AsyncLocalStorage`, deliberately: the awilix child container is not
+ * reachable from a Fastify request, and the one value that has to be readable
+ * from arbitrary depth — the resolved sales channel — is read at 49 call sites
+ * that receive neither the cradle nor the scope. Tenancy still travels in its
+ * own store (`tenancy/tenant-context.ts`) and is never mirrored here, because a
+ * second copy of the tenant context is a second source of truth.
+ */
+const scopeStorage = new AsyncLocalStorage<PlatformScope>();
+
+/** The scope of the current execution, or `undefined` outside one. */
+export function getCurrentPlatformScope(): PlatformScope | undefined {
+  return scopeStorage.getStore();
+}
+
+let openScopes = 0;
+
+/**
+ * How many scopes are currently open. Diagnostics only — the leak test asserts
+ * it returns to its pre-request value after success, error and client abort
+ * (FR-015).
+ */
+export function openPlatformScopeCount(): number {
+  return openScopes;
 }
 
 /**
@@ -123,18 +172,26 @@ export async function enterPlatformScope<T>(
   const root = opts.container ?? getRootContainer();
   const child = root.createScope<KernelCradle>();
 
-  const channel = opts.channel ?? null;
+  let channel = opts.channel ?? null;
   const requestMeta = opts.requestMeta ?? null;
 
   let disposed = false;
+  openScopes += 1;
   const scope: PlatformScope = {
     cradle: child.cradle,
     tenant,
-    channel,
+    entryPoint: opts.entryPoint ?? 'http',
+    get channel(): ResolvedChannel | null {
+      return channel;
+    },
     requestMeta,
+    setChannel(resolved: ResolvedChannel): void {
+      channel = resolved;
+    },
     async dispose(): Promise<void> {
       if (disposed) return;
       disposed = true;
+      openScopes -= 1;
       await child.dispose();
     },
   };
@@ -148,18 +205,50 @@ export async function enterPlatformScope<T>(
   // process — a Constitution XII violation with no test to catch it. A scoped
   // resolver is not leak-safe, so strict mode refuses that capture at the
   // resolution that makes it.
+  //
+  // The resolver reads `scope.channel` rather than closing over the value, so a
+  // registration resolved before the channel hook ran does not pin `null` —
+  // awilix caches the resolution, not the slot.
   child.register({
-    salesChannel: asFunction(() => channel).scoped(),
+    salesChannel: asFunction(() => scope.channel).scoped(),
     requestMeta: asFunction(() => requestMeta).scoped(),
     platformScope: asFunction(() => scope).scoped(),
   });
 
-  // The ALS run is the OUTERMOST wrapper of the work — see rule 2 above.
-  return runWithTenantContext(tenant, async () => {
-    try {
-      return await run(scope);
-    } finally {
-      await scope.dispose();
-    }
+  // The ALS run is the OUTERMOST wrapper of the work — see rule 2 above. The
+  // scope store nests inside the tenant store and is entered synchronously, so
+  // both reach the handler through the same continuation chain.
+  return runWithTenantContext(tenant, async () =>
+    scopeStorage.run(scope, async () => {
+      try {
+        return await run(scope);
+      } finally {
+        await scope.dispose();
+      }
+    }),
+  );
+}
+
+/**
+ * Open a scope that crosses every organisation, for an execution that has no
+ * caller to derive tenancy from: a worker job, a CLI script, a boot reconciler
+ * or an interval sweep.
+ *
+ * The difference from `withSystemScope` is which question it answers.
+ * `withSystemScope` **widens an execution that already has a context** (a
+ * request handler that must read across organisations); this **starts** one, and
+ * is therefore also where the resolution scope is created. Both emit the same
+ * escape-hatch audit record, so `reason` stays mandatory and the cross-org
+ * access stays observable.
+ */
+export function enterSystemScope<T>(
+  reason: string,
+  run: (scope: PlatformScope) => T | Promise<T>,
+  opts: Omit<EnterPlatformScopeOptions, 'channel'> = {},
+): Promise<T> {
+  recordEscapeHatchAudit({ scope: 'system', reason });
+  return enterPlatformScope(systemTenantContext(reason), run, {
+    entryPoint: 'worker',
+    ...opts,
   });
 }

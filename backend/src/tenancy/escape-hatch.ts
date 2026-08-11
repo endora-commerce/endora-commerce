@@ -36,6 +36,19 @@ function requireReason(reason: string): void {
   }
 }
 
+/**
+ * Emit one escape-hatch audit record without entering a context.
+ *
+ * The kernel's `enterSystemScope` (feature 072) *starts* an execution that
+ * crosses organisations, where `withSystemScope` widens one that already exists.
+ * Both are cross-org access and both have to be observable, so the entry point
+ * reports through the same sink instead of growing a second, quieter one.
+ */
+export function recordEscapeHatchAudit(record: EscapeHatchAuditRecord): void {
+  requireReason(record.reason);
+  auditSink(record);
+}
+
 /** Run `fn` crossing ALL organizations (reporting, reconciliation, migrations). */
 export function withSystemScope<T>(reason: string, fn: () => Promise<T>): Promise<T> {
   requireReason(reason);

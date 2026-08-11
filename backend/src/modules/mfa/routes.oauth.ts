@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { randomBytes } from 'crypto';
 import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { SessionService } from '../auth/services/session-service.js';
+import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { ChallengeStore } from './services/challenge-store.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
 import type { SocialIdentityService } from './services/social-identity-service.js';
@@ -66,10 +67,7 @@ function registerStart(app: FastifyInstance, deps: MfaOAuthDeps, surface: Surfac
       const provider = parseProvider(request.params.provider);
       if (!provider) return reply.redirect(loginRedirect(deps, surface, 'Unknown sign-in provider.'));
 
-      const salesChannelId =
-        surface === 'customer'
-          ? (request as { salesChannel?: { id: string } }).salesChannel?.id ?? null
-          : null;
+      const salesChannelId = surface === 'customer' ? (currentSalesChannel()?.id ?? null) : null;
 
       const policy = await deps.policyResolver.resolve(
         { subjectType: surface, subjectId: '' },

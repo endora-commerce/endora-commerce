@@ -8,6 +8,7 @@ import {
   type CartMergeOutcome,
   type CartMergeOutcomePublic,
 } from '@b2b/contracts';
+import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { RegistrationService } from './services/registration-service.js';
 import type { EmailVerificationService } from './services/email-verification-service.js';
 import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
@@ -134,8 +135,7 @@ export async function registerOrganizationsPublicRoutes(
     { schema: { body: customerLoginRequestSchema } },
     async (request, reply) => {
       const body = customerLoginRequestSchema.parse(request.body);
-      const channelId =
-        (request as { salesChannel?: { id: string } }).salesChannel?.id ?? null;
+      const channelId = currentSalesChannel()?.id ?? null;
       const result = await customerAuthService.login({
         email: body.email,
         password: body.password,

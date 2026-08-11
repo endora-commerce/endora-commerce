@@ -12,7 +12,8 @@ import { publishStateChanged } from '../../src/modules/_lifecycle/services/regis
 import { activationDeclarationsFrom } from '../../src/modules/_lifecycle/services/activation-resolver.js';
 import { effectiveState } from '../../src/modules/_lifecycle/services/effective-state.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
-import { runInTenantContext, type TenantContext } from '../../src/tenancy/tenant-context.js';
+import { type TenantContext } from '../../src/tenancy/tenant-context.js';
+import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js';
 import {
   resolveTenantContext,
   systemTenantContext,
@@ -965,12 +966,10 @@ export async function setupBackendServer(
         }
         return systemTenantContext(`test-actor:${actor?.kind ?? 'anonymous'}`);
       };
-      app.addHook('onRequest', (request: FastifyRequest, _reply, done) => {
-        buildContext(request).then(
-          (ctx) => runInTenantContext(ctx, () => done()),
-          (err: unknown) => done(err as Error),
-        );
-      });
+      // Feature 072 (T027) — the harness goes through the SAME hook factory as
+      // the production composition root. Two hand-written copies is how the
+      // request seam gets a leak that no test can see.
+      await registerRequestScopeHook(app, { buildTenantContext: buildContext });
     },
     admin.plugin,
     creditLimits.plugin,
