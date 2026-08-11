@@ -12,8 +12,13 @@ import { Migration } from '@mikro-orm/migrations';
  * 2. Adds the nullable `settings.configuration_type` column — the configuration
  *    type a `credential_ref` setting is constrained to (upserted by the
  *    reconciler from the manifest entry's `configurationType`).
+ *
+ * Filed under `core` since feature 072 T020. The kernel owns the tables this
+ * migration writes to, and a hard uninstall reverts by registry `moduleId`, so
+ * leaving it under `settings` made `modules:uninstall --hard settings` drop
+ * kernel schema.
  */
-export class Migration20260721T011510SettingsCredentialRefValueType extends Migration {
+export class Migration20260721T011510CoreSettingsCredentialRefValueType extends Migration {
   override async up(): Promise<void> {
     this.addSql(`alter type "setting_value_type" rename to "setting_value_type_old";`);
     this.addSql(`
