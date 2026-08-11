@@ -29,7 +29,6 @@ import {
   createRegistrationOwnership,
   registerOrm,
   registerValues,
-  setRootContainer,
 } from './kernel/index.js';
 import { authPlugin, promoteAdminActor } from './modules/auth/plugin.js';
 import { SessionService } from './modules/auth/services/session-service.js';
@@ -298,13 +297,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // an entity is classified (@OrgScoped/@CustomerScoped attach the filters).
   const em = (): EntityManager => forkScopedEm(orm);
 
-  // Feature 072 — the kernel container. It is installed as the process root so
-  // every `enterPlatformScope` (the request hook, workers, CLI scripts) branches
-  // a child off *this* graph rather than off an empty default. Modules composed
-  // through `composeModules` register into it; everything still hand-wired below
-  // is unaffected until its own conversion lands.
+  // Feature 072 — the kernel container. Modules composed through
+  // `composeModules` register into it; everything still hand-wired below is
+  // unaffected until its own conversion lands.
+  //
+  // It is deliberately **not** installed as the process root yet
+  // (`setRootContainer`). Doing so makes every `enterPlatformScope` branch a
+  // child off this graph, and a scope is what lives in an `AsyncLocalStorage`
+  // store — so every retained store starts pinning a whole composed
+  // application. Measured on this branch: the full backend suite died with
+  // `JavaScript heap out of memory` at file 78 of 928 with the root installed
+  // and runs to completion without it, on a tree that is otherwise identical.
+  // `ctx.cradle()` therefore resolves through this container directly, and
+  // installing the root belongs to Phase 5, where the generated composer owns
+  // the whole boot instead of sharing it with 3000 lines of hand wiring.
   const container = createRootContainer();
-  setRootContainer(container);
   registerOrm(container, orm);
   // One ledger for the whole boot, so two modules composed in different
   // `composeModules` calls still collide loudly on a shared registration name.

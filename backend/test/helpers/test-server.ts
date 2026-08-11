@@ -20,7 +20,6 @@ import {
   createRootContainer,
   registerOrm,
   registerValues,
-  setRootContainer,
   type KernelContainer,
 } from '../../src/kernel/index.js';
 import {
@@ -570,12 +569,10 @@ export async function setupBackendServer(
   // from the ambient TenantContext (established per request by the hook below).
   const em = (): EntityManager => forkScopedEm(orm);
 
-  // Feature 072 — the kernel container, installed as the process root exactly
-  // as `composition.ts` does. `setupBackendServer` runs once per test file in
-  // one fork, so each file replaces the previous root; `teardownBackendServer`
-  // disposes it.
+  // Feature 072 — the kernel container, built exactly as `composition.ts` does
+  // it, including *not* installing it as the process root (see the note there).
+  // `teardownBackendServer` disposes it.
   const container = createRootContainer();
-  setRootContainer(container);
   registerOrm(container, orm);
   const registrationOwnership = createRegistrationOwnership();
 

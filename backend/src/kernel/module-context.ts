@@ -23,7 +23,6 @@ import {
   type WorkerLogger,
 } from '../modules/_lifecycle/plugin-helpers.js';
 import type { KernelContainer, KernelCradle } from './container.js';
-import { getCurrentPlatformScope } from './scope.js';
 
 /**
  * `ModuleContext` — the only kernel surface a module sees (feature 072).
@@ -169,13 +168,15 @@ export interface ModuleContext {
    *
    * Two things about it are load-bearing:
    *
-   *  - **It follows the ambient scope.** Inside a request (or any
-   *    `enterPlatformScope`) it resolves through that scope's child container,
-   *    so a `scoped()` registration — the resolved sales channel, anything
-   *    per-request — yields the current request's value. Outside one it
-   *    resolves through the root. A closure that captures a value at route
-   *    attachment therefore captures a **singleton**; if the registration is
-   *    scoped, resolve inside the handler, not around it.
+   *  - **It resolves through the container this module registered into**, and
+   *    never through the ambient request scope. That makes what a name resolves
+   *    to a property of the composition rather than of where the call happens,
+   *    and it is why the module's registrations must be `singleton()` or
+   *    `transient()`. Per-request state is read through its own accessor —
+   *    `getResolvedChannel()` for the sales channel, `getTenantContext()` for
+   *    tenancy — not through this cradle. Resolving `scoped()` registrations
+   *    from a module belongs to Phase 5, where the generated composer owns the
+   *    whole boot and one container is unambiguously *the* root.
    *  - **`C` is asserted by the caller**, because the container is the runtime
    *    authority and an unknown name throws rather than yielding `undefined`.
    *    Declaring the narrow shape a module needs is the port rule of
@@ -271,10 +272,10 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
   let decorationDepth = 0;
 
   /**
-   * One proxy per context, resolving through the ambient scope when there is
-   * one. It is stable across calls so a module that captures `ctx.cradle()`
-   * during registration still hits the phase guard when it later reads a name
-   * off the captured object.
+   * One proxy per context, over this module's own container. It is stable
+   * across calls so a module that captures `ctx.cradle()` during registration
+   * still hits the phase guard when it later reads a name off the captured
+   * object.
    */
   const cradleProxy = new Proxy(Object.create(null) as Record<string, unknown>, {
     get(_target, property): unknown {
@@ -282,7 +283,7 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
       // `then` on an accidental await); no registration can carry that name.
       if (typeof property === 'symbol') return undefined;
       if (isRegistering()) throw new EagerResolutionError(module.id, property);
-      return (getCurrentPlatformScope()?.cradle ?? container.cradle)[property];
+      return container.cradle[property];
     },
     has(_target, property): boolean {
       return typeof property === 'string' && container.hasRegistration(property);
