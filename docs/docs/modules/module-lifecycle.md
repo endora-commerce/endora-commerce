@@ -4,7 +4,7 @@ title: Module Lifecycle
 
 # Module Lifecycle
 
-Platform-internal subsystem (feature 018) that turns every backend module into a first-class lifecycle citizen: declarative manifest, dependency graph, install / uninstall / enable / disable / status, persisted registry, transactional install with migration rollback, and a Redis-backed enabled-set cache that gates HTTP routes, BullMQ workers, and event subscribers without restarting the process.
+Platform-internal subsystem (feature 018) that turns every backend module into a first-class lifecycle citizen: declarative manifest, dependency graph, install / uninstall / enable / disable / status, persisted registry, transactional install with migration rollback, and a per-process enabled-set cache — refreshed over Redis pub/sub — that gates HTTP routes, BullMQ workers, and event subscribers without restarting the process.
 
 The subsystem itself lives at `backend/src/modules/_lifecycle/`. The leading underscore marks it as platform-internal (alongside `auth` and `example`); every other backend module opts in by exporting a `manifest` constant from its `manifest.ts`.
 

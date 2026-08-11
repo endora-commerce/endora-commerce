@@ -8,7 +8,6 @@ import {
   type ModuleActivationDeclaration,
 } from './activation-resolver.js';
 
-export const ENABLED_SET_KEY = 'b2b:module:enabled-set';
 export const STATE_CHANGED_CHANNEL = 'b2b:module:state-changed';
 export const FALLBACK_TTL_MS = 5_000;
 
@@ -104,7 +103,6 @@ export class ModuleRegistryCache {
    * the registry but do not re-subscribe.
    */
   async start(opts: {
-    redis: Redis;
     redisSubscriber: Redis;
     em: () => EntityManager;
     /** Activation declarations from the loaded manifests (feature 073). */
@@ -133,11 +131,12 @@ export class ModuleRegistryCache {
     this.subscriber.on('end', () => {
       this.enterDegradedMode(opts.em);
     });
-    // Mirror to Redis SET so other processes can warm-read on cold start.
-    await opts.redis.del(ENABLED_SET_KEY);
-    if (this.enabled.size > 0) {
-      await opts.redis.sadd(ENABLED_SET_KEY, ...this.enabled);
-    }
+    // No Redis mirror of the enabled set (feature 073, T140). One existed —
+    // `b2b:module:enabled-set` — written here and read by nothing: a cold start
+    // reads `module_registrations`, which is the authority, and every later
+    // refresh is triggered by the pub/sub notification above. A second copy of
+    // presence that nothing consults can only be a thing to keep in sync and a
+    // thing to mislead whoever finds it.
   }
 
   /**

@@ -44,7 +44,6 @@ describe('ModuleRegistryCache — pub/sub refresh between processes (integration
 
     cacheB = new ModuleRegistryCache();
     await cacheB.start({
-      redis: publisher,
       redisSubscriber: subscriberRedis,
       em: () => db.orm.em.fork() as never,
     });

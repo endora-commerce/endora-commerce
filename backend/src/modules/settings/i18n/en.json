@@ -34,8 +34,6 @@
   "cache.namespace.dictionaries.description": "Resolved dictionary registries and entries (countries, etc.).",
   "cache.namespace.carts.label": "Cart pricing",
   "cache.namespace.carts.description": "Cached cart re-pricing snapshots.",
-  "cache.namespace.modules.label": "Module registry",
-  "cache.namespace.modules.description": "Cached enabled-module set used by the lifecycle gate.",
   "page.title": "Settings",
   "page.description": "Per-sales-channel configuration grouped by section. Each setting is declared by a backend module; values can be applied to all channels or to a chosen subset.",
   "groups.page.title": "Setting groups",

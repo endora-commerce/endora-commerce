@@ -34,9 +34,18 @@ export async function registerSettingsCacheRoutes(
     }),
   );
 
+  // Per-route ceiling on top of the global one in `http/server.ts`. Clearing
+  // leaves both cache layers cold platform-wide, so every subsequent setting
+  // read goes to PostgreSQL until they refill — cheap queries, but the
+  // connection pool is the scarce resource, and it is what a repeated clear
+  // exhausts. A human pressing the button a few times while diagnosing stays
+  // well inside this; a script in a loop does not, which is the case worth
+  // stopping.
+  const rateLimit = { max: 6, timeWindow: '1 minute' };
+
   app.post(
     '/api/v1/admin/cache/clear',
-    { preHandler: requireAdmin('settings:write') },
+    { preHandler: requireAdmin('settings:write'), config: { rateLimit } },
     async (request) => {
       const body = ClearCacheRequestSchema.parse(request.body ?? {});
       const result = await cacheAdminService.clear(body.namespaces);

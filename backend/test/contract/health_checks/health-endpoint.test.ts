@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { healthResponseSchema } from '../../../src/modules/health_checks/routes.js';
+import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
 
 /**
  * Contract — `/api/v1/_health` (feature 072, T080; FR-130).
@@ -54,5 +55,42 @@ describe('health_checks — GET /api/v1/_health', () => {
     const allOk = body.checks.database && body.checks.redis && body.checks.meilisearch;
     expect(res.statusCode).toBe(allOk ? 200 : 503);
     expect(body.status).toBe(allOk ? 'ok' : 'degraded');
+  });
+
+  /**
+   * D-36b — the probe is never gated on module presence.
+   *
+   * Converting this module (feature 072, T080) put `/api/v1/_health` behind
+   * `defineModuleRoutes`, which the inline plugin it replaced was not. A
+   * liveness probe that answers 503 because its module is absent makes the
+   * orchestrator kill the container, restart it, get 503 again and repeat —
+   * and nothing stays up long enough to serve the surface that would switch
+   * the module back on. A surface that reports on the platform cannot be gated
+   * on a part of the platform without becoming circular.
+   */
+  describe('while the module is absent', () => {
+    const enabled = registryCache.enabledIds();
+
+    afterEach(() => {
+      registryCache.__setEnabledForTesting(enabled);
+    });
+
+    it('still answers the health envelope when the operator deactivated it', async () => {
+      registryCache.__setEnabledForTesting(enabled, { deactivated: ['health_checks'] });
+      const res = await h.app.inject({ method: 'GET', url: '/api/v1/_health' });
+      expect(healthResponseSchema.safeParse(res.json()).success, JSON.stringify(res.json())).toBe(
+        true,
+      );
+    });
+
+    it('still answers when the module is not available on this platform', async () => {
+      registryCache.__setEnabledForTesting(enabled.filter((id) => id !== 'health_checks'));
+      const res = await h.app.inject({ method: 'GET', url: '/api/v1/_health' });
+      const body = healthResponseSchema.safeParse(res.json());
+      expect(body.success, JSON.stringify(res.json())).toBe(true);
+      // Never the gate's answer: that 503 carries `Retry-After` and a
+      // MODULE_DISABLED envelope, which an orchestrator reads as "kill me".
+      expect(res.headers['retry-after']).toBeUndefined();
+    });
   });
 });

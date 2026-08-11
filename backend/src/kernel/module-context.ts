@@ -187,6 +187,26 @@ export interface ModuleContext {
   /** Wrapped in `defineModuleRoutes(module.id, …)` — gating holds at the registration seam. */
   routes(register: (app: FastifyInstance) => Promise<void> | void): void;
 
+  /**
+   * Routes registered **outside** the module gate (D-36b). The exemption is
+   * narrow and structural: a surface that *reports on the platform* cannot be
+   * gated on a part of the platform without becoming circular. `_lifecycle`
+   * already registers its presence projection this way by hand
+   * (`routes.admin.ts:102-107`); a liveness or readiness probe is the same
+   * shape, and the failure it prevents is unrecoverable — a probe answering
+   * 503 because its module is off makes the orchestrator restart the
+   * container, get 503 again, and repeat, so nothing stays up long enough to
+   * serve the surface that would switch the module back on.
+   *
+   * `reason` is required and non-empty because that is the whole difference
+   * between an exemption and a way around the gate: it appears in the code
+   * next to the routes it covers, so the next reader can judge it.
+   */
+  ungatedRoutes(
+    reason: string,
+    register: (app: FastifyInstance) => Promise<void> | void,
+  ): void;
+
   /** Wrapped in `defineModuleWorker(module.id, …)`. Takes a **constructed** `Worker`. */
   worker<W extends Worker>(worker: W, options?: DefineModuleWorkerOptions): W;
 
@@ -334,6 +354,26 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
 
     routes(register) {
       sink.plugins.push(defineModuleRoutes(module.id, register));
+    },
+
+    ungatedRoutes(reason, register) {
+      if (reason.trim().length === 0) {
+        throw new Error(
+          `[kernel] module '${module.id}' registered ungated routes without a reason. ` +
+            `Gating is the default; the exemption exists for surfaces that report on the ` +
+            `platform itself (liveness and readiness probes, module presence), which cannot ` +
+            `be gated on a part of the platform without becoming circular. State which one ` +
+            `this is, or use ctx.routes().`,
+        );
+      }
+      // The same encapsulated child context `defineModuleRoutes` uses, minus
+      // the `onRequest` gate — so the only difference between the two seams is
+      // the one this exemption is about.
+      sink.plugins.push(async (app: FastifyInstance) => {
+        await app.register(async (scoped) => {
+          await register(scoped);
+        });
+      });
     },
 
     worker(worker, workerOptions) {

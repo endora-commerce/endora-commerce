@@ -34,8 +34,6 @@
   "cache.namespace.dictionaries.description": "Rozwiązane rejestry i wpisy słowników (kraje itp.).",
   "cache.namespace.carts.label": "Wycena koszyka",
   "cache.namespace.carts.description": "Zbuforowane migawki przeliczeń koszyka.",
-  "cache.namespace.modules.label": "Rejestr modułów",
-  "cache.namespace.modules.description": "Zbuforowany zbiór włączonych modułów używany przez bramkę cyklu życia.",
   "page.title": "Ustawienia",
   "page.description": "Konfiguracja per kanał sprzedaży, pogrupowana w sekcje. Każde ustawienie jest deklarowane przez moduł backendu; wartości można stosować do wszystkich kanałów lub do wybranego podzbioru.",
   "groups.page.title": "Grupy ustawień",

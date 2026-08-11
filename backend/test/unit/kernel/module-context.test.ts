@@ -155,6 +155,49 @@ describe('ModuleContext — routes delegate to defineModuleRoutes', () => {
   });
 });
 
+/**
+ * D-36b. The gate is the default and every ordinary surface goes through it;
+ * the one exemption is a surface that *reports on the platform*, which cannot
+ * be gated on a part of the platform without becoming circular. `_lifecycle`
+ * already registers its presence projection outside the gate by hand
+ * (`routes.admin.ts:102-107`); a module that owns a probe needs the same, and
+ * has to state why.
+ */
+describe('ModuleContext — ungatedRoutes stays outside the gate', () => {
+  it('serves the route whether or not the module is present', async () => {
+    const { ctx, sink } = build();
+    ctx.ungatedRoutes(
+      'Liveness probe: an orchestrator restarts the container on a 503.',
+      async (app) => {
+        app.get('/api/v1/_fixture-health', async () => ({ ok: true }));
+      },
+    );
+    expect(sink.plugins).toHaveLength(1);
+
+    const app = Fastify();
+    registerErrorEnvelope(app);
+    await sink.plugins[0]!(app);
+    await app.ready();
+
+    registryCache.__setEnabledForTesting([MODULE_ID]);
+    expect((await app.inject({ method: 'GET', url: '/api/v1/_fixture-health' })).statusCode).toBe(
+      200,
+    );
+
+    registryCache.__setEnabledForTesting([]);
+    const absent = await app.inject({ method: 'GET', url: '/api/v1/_fixture-health' });
+    expect(absent.statusCode).toBe(200);
+    expect(absent.headers['retry-after']).toBeUndefined();
+
+    await app.close();
+  });
+
+  it('refuses an exemption that states no reason', () => {
+    const { ctx } = build();
+    expect(() => ctx.ungatedRoutes('  ', () => {})).toThrow(/fixture_kernel_module/);
+  });
+});
+
 describe('ModuleContext — worker delegates to defineModuleWorker', () => {
   it('returns the same instance and pauses it when the module is absent', () => {
     const { ctx, sink } = build();
