@@ -32,6 +32,7 @@ import { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { CartAuditService } from '../services/cart-audit-service.js';
 import { CartAbandonmentWorker } from '../services/cart-abandonment-worker.js';
 import { CARTS_SETTING_CODES } from '../manifest.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 interface SweepResult {
   abandonedCount: number;
@@ -87,7 +88,7 @@ export async function runAbandonmentSweep(): Promise<SweepResult> {
 // CLI entrypoint when invoked via `tsx`.
 const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
-  runAbandonmentSweep()
+  enterSystemScope('cli: cart abandonment sweep', runAbandonmentSweep, { entryPoint: 'cli' })
     .then((result) => {
        
       console.warn(

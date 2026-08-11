@@ -17,6 +17,7 @@
  */
 
 import { initOrm, closeOrm } from '../../../db/index.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 interface BackfillResult {
   systemDefaultId: string | null;
@@ -68,7 +69,7 @@ export async function backfillQuoteChannel(): Promise<BackfillResult> {
 // CLI entrypoint when invoked via `tsx`.
 const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
-  backfillQuoteChannel()
+  enterSystemScope('cli: backfill quote sales channels', backfillQuoteChannel, { entryPoint: 'cli' })
     .then((result) => {
        
       console.warn(

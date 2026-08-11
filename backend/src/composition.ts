@@ -17,11 +17,12 @@ import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
 import { EventBus } from './events/bus.js';
 import { CommandBus } from './commands/index.js';
-import fastifyPlugin from 'fastify-plugin';
 import { forkScopedEm } from './tenancy/scoped-em.js';
-import { runInTenantContext, type TenantContext } from './tenancy/tenant-context.js';
+import { type TenantContext } from './tenancy/tenant-context.js';
 import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-tenant-context.js';
 import { withSystemScope } from './tenancy/escape-hatch.js';
+import { enterSystemScope } from './kernel/scope.js';
+import { registerRequestScopeHook } from './kernel/request-scope-hook.js';
 import { authPlugin, promoteAdminActor } from './modules/auth/plugin.js';
 import { SessionService } from './modules/auth/services/session-service.js';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
@@ -275,10 +276,15 @@ function anyLabel(name: unknown): string {
 
 export async function composeApp(): Promise<ComposeAppHandle> {
   const orm = await initOrm();
-  // Feature 050 — the single EM-injection seam. `forkScopedEm` stamps tenant
-  // filter params from the ambient TenantContext on every fork. It is inert until
-  // an entity is classified (@OrgScoped/@CustomerScoped attach the filters), so
-  // this change is behaviorally neutral for unclassified entities.
+  // Feature 050 — the single EM-injection seam. `forkScopedEm` is a bare
+  // `orm.em.fork()`: it stamps NOTHING, because the tenant filters read the
+  // ambient TenantContext from AsyncLocalStorage **when the query is built**
+  // (`tenancy/filters.ts`), not when the manager is forked. That is what makes
+  // the EntityManager stateless with respect to tenancy, and it is the property
+  // the whole request seam rests on — a fork taken in one context and used in
+  // another is scoped by the context it is *used* in (feature 072, T038; see
+  // `test/integration/tenancy/fault-injection.test.ts`). The seam is inert until
+  // an entity is classified (@OrgScoped/@CustomerScoped attach the filters).
   const em = (): EntityManager => forkScopedEm(orm);
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
@@ -542,7 +548,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `salesChannels.handle.membershipService` in their composition. The
   // plugin itself (resolver middleware) is pushed into `modules` below.
   const salesChannelsReconciler = new DefaultChannelReconciler(em, auditLogService);
-  const salesChannelsReconciliation = await salesChannelsReconciler.run();
+  // Feature 072 (T036) — boot reconcilers establish their own scope. They ran
+  // with NO ambient tenant context before, and survived only because the rows
+  // they touch carry no automatic filter; that was an accident of entity
+  // classification, not a guarantee.
+  const salesChannelsReconciliation = await enterSystemScope(
+    'boot: reconcile the default sales channel',
+    () => salesChannelsReconciler.run(),
+    { entryPoint: 'boot' },
+  );
   if (salesChannelsReconciliation.action === 'warning' && salesChannelsReconciliation.warning) {
     console.warn(salesChannelsReconciliation.warning);
   }
@@ -552,7 +566,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // the seed runs BEFORE DefaultChannelReconciler creates the system channel
   // at boot. This reconciler catches up at runtime so US3 (channel→warehouse)
   // never sees a channel without at least one (default) assignment.
-  await new WarehouseChannelReconciler(em()).run();
+  await enterSystemScope(
+    'boot: reconcile channel warehouses',
+    () => new WarehouseChannelReconciler(em()).run(),
+    { entryPoint: 'boot' },
+  );
 
   // Feature 017 — construct the Dictionary module before its validator
   // consumers so the shared port can be threaded through their services.
@@ -584,7 +602,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Reconcile the 23 seeded Hook codes idempotently before HTTP starts.
   // The same logic also runs inside migration 035 so first boot has the
   // rows already; this call covers re-deploys when the seeded list grows.
-  await cms.handle.reconcile();
+  await enterSystemScope('boot: reconcile seeded CMS hooks', () => cms.handle.reconcile(), {
+    entryPoint: 'boot',
+  });
 
   // The Megamenu module is constructed later in this composition root —
   // after the assetsLibrary module is built — so its `storefrontDeps`
@@ -1149,64 +1169,57 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   let emailBrandingService: BrandingService | undefined;
 
   // Feature 050 — establish the ambient TenantContext for every request from the
-  // already-authenticated actor (never from request inputs). fp-wrapped and
-  // registered right after auth so its onRequest runs after `request.actor` is set
-  // and applies globally (mirrors the auth plugin). See specs/050-org-tenant-scoping/.
+  // already-authenticated actor (never from request inputs). Registered right
+  // after auth so its onRequest runs after `request.actor` is set and applies
+  // globally (mirrors the auth plugin). See specs/050-org-tenant-scoping/.
+  //
+  // Feature 072 (T027) — the same hook now also opens the request's resolution
+  // scope; `registerRequestScopeHook` owns the shape, shared with the test
+  // harness so the two cannot drift.
   const tenantContextModulePlugin: ModulePlugin = async (app) => {
-    await app.register(
-      fastifyPlugin(async (inner) => {
-        const buildContext = async (request: FastifyRequest): Promise<TenantContext> => {
-          const actor = request.actor;
-          if (actor.kind === 'customer') {
-            const orgId =
-              actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
-            // Feature 056 (T032) — a roll-up-enabled customer widens to its org
-            // subtree (server-derived). Absent the capability, stays single-org.
-            const rollupSubtree = await resolveCustomerRollupSubtreeIds(
-              em,
-              (id) => organizationTreeService.subtreeIds(id),
-              actor.customerAccountId,
-              orgId,
-            );
-            return resolveTenantContext({
-              kind: 'customer',
-              customerAccountId: actor.customerAccountId,
-              organizationId: orgId,
-              impersonatorAdminUserId: actor.impersonatorAdminUserId,
-              ...(rollupSubtree && rollupSubtree.length > 0
-                ? { rollupSubtreeOrganizationIds: rollupSubtree }
-                : {}),
-            });
-          }
-          if (actor.kind === 'admin') {
-            const scope = await resolveAdminOrdersScope(request);
-            return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
-          }
-          // Feature 062 — a BOUND api key pins the request to its organization +
-          // designated service account; an unbound key keeps the legacy trusted
-          // system scope (its only surface is the global-entity PIM path).
-          if (actor.kind === 'api_key') {
-            return resolveTenantContext({
-              kind: 'api_key',
-              apiKeyId: actor.apiKeyId,
-              organizationId: actor.organizationId ?? null,
-              customerAccountId: actor.customerAccountId ?? null,
-            });
-          }
-          // anonymous: trusted platform read scope. Guest-owned rows are
-          // scoped by their own token mechanism, not by the tenant filter.
-          return systemTenantContext(`actor:${actor.kind}`);
-        };
-        // Callback-style hook so the AsyncLocalStorage store propagates to the
-        // route handler (async `enterWith` would not). See runInTenantContext.
-        inner.addHook('onRequest', (request: FastifyRequest, _reply, done) => {
-          buildContext(request).then(
-            (ctx) => runInTenantContext(ctx, () => done()),
-            (err: unknown) => done(err as Error),
-          );
+    const buildContext = async (request: FastifyRequest): Promise<TenantContext> => {
+      const actor = request.actor;
+      if (actor.kind === 'customer') {
+        const orgId =
+          actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
+        // Feature 056 (T032) — a roll-up-enabled customer widens to its org
+        // subtree (server-derived). Absent the capability, stays single-org.
+        const rollupSubtree = await resolveCustomerRollupSubtreeIds(
+          em,
+          (id) => organizationTreeService.subtreeIds(id),
+          actor.customerAccountId,
+          orgId,
+        );
+        return resolveTenantContext({
+          kind: 'customer',
+          customerAccountId: actor.customerAccountId,
+          organizationId: orgId,
+          impersonatorAdminUserId: actor.impersonatorAdminUserId,
+          ...(rollupSubtree && rollupSubtree.length > 0
+            ? { rollupSubtreeOrganizationIds: rollupSubtree }
+            : {}),
         });
-      }),
-    );
+      }
+      if (actor.kind === 'admin') {
+        const scope = await resolveAdminOrdersScope(request);
+        return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
+      }
+      // Feature 062 — a BOUND api key pins the request to its organization +
+      // designated service account; an unbound key keeps the legacy trusted
+      // system scope (its only surface is the global-entity PIM path).
+      if (actor.kind === 'api_key') {
+        return resolveTenantContext({
+          kind: 'api_key',
+          apiKeyId: actor.apiKeyId,
+          organizationId: actor.organizationId ?? null,
+          customerAccountId: actor.customerAccountId ?? null,
+        });
+      }
+      // anonymous: trusted platform read scope. Guest-owned rows are
+      // scoped by their own token mechanism, not by the tenant filter.
+      return systemTenantContext(`actor:${actor.kind}`);
+    };
+    await registerRequestScopeHook(app, { buildTenantContext: buildContext });
   };
 
   // Feature 062 — read-only inventory accessors backing the external catalog
@@ -3064,7 +3077,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     collectRegisteredSettingsManifests();
   const reconcilerEm = em();
   const reconciler = new ManifestReconciler(reconcilerEm);
-  const reconciliation = await reconciler.apply(settingsManifests);
+  const reconciliation = await enterSystemScope(
+    'boot: reconcile module settings manifests',
+    () => reconciler.apply(settingsManifests),
+    { entryPoint: 'boot' },
+  );
   for (const m of reconciliation.perModule) {
     if (m.orphanSettings.length > 0 || m.orphanGroups.length > 0) {
       // Boot-time logging path; the Fastify logger is not yet available here.

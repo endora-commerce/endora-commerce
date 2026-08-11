@@ -1,7 +1,7 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
 import type Redis from 'ioredis';
 
-import { withSystemScope } from '../../../../tenancy/escape-hatch.js';
+import { enterSystemScope } from '../../../../kernel/scope.js';
 /**
  * BullMQ queues for newsletter dispatch (feature 048, Principle X). Durable,
  * Redis-backed, atomic-claim + idempotent handlers (the unique send-record row),
@@ -56,7 +56,7 @@ export function createCampaignPlanWorker(
   processor: Processor<CampaignPlanJobData>,
   overrides?: Partial<WorkerOptions>,
 ): Worker<CampaignPlanJobData> {
-  return new Worker<CampaignPlanJobData>(CAMPAIGN_PLAN_QUEUE, (job) => withSystemScope('newsletter campaign-plan', () => processor(job)), {
+  return new Worker<CampaignPlanJobData>(CAMPAIGN_PLAN_QUEUE, (job) => enterSystemScope('newsletter campaign-plan', () => processor(job)), {
     connection: redis,
     concurrency: 4,
     ...overrides,
@@ -70,7 +70,7 @@ export function createSendWorker(
   ratePerSecond: number,
   overrides?: Partial<WorkerOptions>,
 ): Worker<SendJobData> {
-  return new Worker<SendJobData>(SEND_QUEUE, (job) => withSystemScope('newsletter send', () => processor(job)), {
+  return new Worker<SendJobData>(SEND_QUEUE, (job) => enterSystemScope('newsletter send', () => processor(job)), {
     connection: redis,
     concurrency: 8,
     limiter: { max: Math.max(1, ratePerSecond), duration: 1_000 },
@@ -83,7 +83,7 @@ export function createAutomationStepWorker(
   processor: Processor<AutomationStepJobData>,
   overrides?: Partial<WorkerOptions>,
 ): Worker<AutomationStepJobData> {
-  return new Worker<AutomationStepJobData>(AUTOMATION_STEP_QUEUE, (job) => withSystemScope('newsletter automation-step', () => processor(job)), {
+  return new Worker<AutomationStepJobData>(AUTOMATION_STEP_QUEUE, (job) => enterSystemScope('newsletter automation-step', () => processor(job)), {
     connection: redis,
     concurrency: 4,
     ...overrides,

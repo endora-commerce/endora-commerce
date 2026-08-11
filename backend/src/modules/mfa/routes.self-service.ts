@@ -7,6 +7,7 @@ import {
 import { HttpError } from '../../http/error-envelope.js';
 import type { MfaSubjectRef } from '../auth/services/mfa-login-port.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
 
@@ -62,8 +63,7 @@ export async function registerMfaSelfServiceRoutes(
     const subject = subjectOf(request);
     // FR-001 — enrolment is only permitted when 2FA is enabled for the scope.
     const policy = await policyResolver.resolve(subject, {
-      salesChannelId:
-        (request as { salesChannel?: { id: string } }).salesChannel?.id ?? null,
+      salesChannelId: currentSalesChannel()?.id ?? null,
       organizationId: opts.resolveOrganizationId?.(request) ?? null,
     });
     if (!policy.totpEnabled) {
@@ -132,8 +132,7 @@ export async function registerMfaSelfServiceRoutes(
     const subject = subjectOf(request);
     const status = await enrolmentService.status(subject);
     const policy = await policyResolver.resolve(subject, {
-      salesChannelId:
-        (request as { salesChannel?: { id: string } }).salesChannel?.id ?? null,
+      salesChannelId: currentSalesChannel()?.id ?? null,
       organizationId: opts.resolveOrganizationId?.(request) ?? null,
     });
     return {

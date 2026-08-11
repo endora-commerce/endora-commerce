@@ -1,4 +1,5 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
+import { enterSystemScope } from '../../../kernel/scope.js';
 import type Redis from 'ioredis';
 
 /**
@@ -37,9 +38,17 @@ export function createPushDeliveryWorker(
   processor: Processor<PushDeliveryJobData>,
   overrides?: Partial<WorkerOptions>,
 ): Worker<PushDeliveryJobData> {
-  return new Worker<PushDeliveryJobData>(PUSH_DELIVERY_QUEUE_NAME, processor, {
-    connection: redis,
-    concurrency: 8,
-    ...overrides,
-  });
+  // Feature 072 (T033) — the scope moves here from inside the processor, so it
+  // sits at the entry point like every other queue in the tree; a processor
+  // called directly (a test, a future in-process caller) is no longer the only
+  // thing that decides whether a context exists.
+  return new Worker<PushDeliveryJobData>(
+    PUSH_DELIVERY_QUEUE_NAME,
+    (job) => enterSystemScope('pwa: push delivery', () => processor(job)),
+    {
+      connection: redis,
+      concurrency: 8,
+      ...overrides,
+    },
+  );
 }

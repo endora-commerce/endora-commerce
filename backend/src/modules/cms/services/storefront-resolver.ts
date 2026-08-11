@@ -33,7 +33,7 @@ type ChannelRow = {
 
 /**
  * The request's resolved sales channel, handed in by the route from the
- * canonical resolver (`request.salesChannel`) — feature 053 / FR-002. The
+ * canonical resolver, read via `getResolvedChannel()` — feature 053 / FR-002. The
  * service no longer re-resolves the channel from the raw header.
  */
 export type ResolvedChannel = {

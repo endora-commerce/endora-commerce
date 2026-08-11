@@ -1,7 +1,7 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
 import type Redis from 'ioredis';
 import { FEED_DELIVERY_LIMITS } from '@b2b/contracts';
-import { withSystemScope } from '../../../../tenancy/escape-hatch.js';
+import { enterSystemScope } from '../../../../kernel/scope.js';
 
 /**
  * The delivery queue — feature 070 / FR-103, FR-104, Principle X.
@@ -54,7 +54,7 @@ export function createFeedDeliveryWorker(
   return new Worker<FeedDeliveryJobData>(
     FEED_DELIVERY_QUEUE,
     (job) =>
-      withSystemScope(`product_feeds: deliver feed ${job.data.productFeedId}`, () =>
+      enterSystemScope(`product_feeds: deliver feed ${job.data.productFeedId}`, () =>
         processor(job),
       ),
     // Deliberately low: each job holds an open socket to somebody else's server

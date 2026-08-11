@@ -25,6 +25,7 @@ import { initOrm, closeOrm } from '../../../db/index.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import { AdminRole } from '../../admin_roles/entities/admin-role.entity.js';
 import { hashPassword } from '../../auth/services/password-hasher.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 interface ParsedArgs {
   email: string;
@@ -134,7 +135,7 @@ async function main(): Promise<void> {
   }
 }
 
-void main().catch((err: unknown) => {
+void enterSystemScope('cli: create an admin user', main, { entryPoint: 'cli' }).catch((err: unknown) => {
   console.error('admin:create failed', err);
   process.exit(1);
 });

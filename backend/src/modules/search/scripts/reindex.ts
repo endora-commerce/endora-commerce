@@ -14,6 +14,7 @@ import { SearchIndexer } from '../services/search-indexer.js';
 import { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
 import { CustomFieldDefinitionsCache } from '../../custom_fields/services/custom-field-definitions-cache.js';
 import { CustomFieldDefinitionService } from '../../custom_fields/services/custom-field-definition.service.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 async function main(): Promise<void> {
   const orm = await initOrm();
@@ -52,7 +53,7 @@ async function main(): Promise<void> {
   await closeOrm();
 }
 
-main().catch((err) => {
+enterSystemScope('cli: search reindex', main, { entryPoint: 'cli' }).catch((err) => {
   console.error('search:reindex failed:', err);
   process.exit(1);
 });

@@ -4,8 +4,10 @@
  * Locks the invariant established by feature 053: the current sales channel
  * for a request is resolved EXACTLY ONCE, by the canonical resolver
  * (`kernel/sales-channels/sales-channel-resolver.middleware.ts`, relocated from
- * the `sales_channels` module by feature 072 T019), and exposed as
- * `request.salesChannel`. No storefront-facing module may re-derive it.
+ * the `sales_channels` module by feature 072 T019), and exposed on the request
+ * scope, read through `getResolvedChannel()` / `currentSalesChannel()` (feature
+ * 072 T028 moved it off the `request.salesChannel` property). No
+ * storefront-facing module may re-derive it.
  *
  * Two static signals are flagged (TypeScript compiler API, no DB, no new
  * dependency — mirrors `check-entity-tenant-classification.ts`):
@@ -54,13 +56,13 @@ const CHANNEL_HEADERS = new Set(['x-sales-channel', 'x-sales-channel-id']);
 
 /**
  * Files still permitted to trip a signal during the rollout. Remove an entry
- * in the same change that redirects the file to `request.salesChannel`. Paths
+ * in the same change that redirects the file to `getResolvedChannel()`. Paths
  * are relative to `src/` with POSIX separators.
  */
-// Feature 053 complete: every storefront surface now reads request.salesChannel,
+// Feature 053 complete: every storefront surface now reads the resolved channel,
 // so the allow-list is empty and the check runs in --enforce mode in CI. Any new
 // entry here would be a regression to per-module resolution — don't add one;
-// redirect the offending module to request.salesChannel instead.
+// redirect the offending module to `getResolvedChannel()` instead.
 const ALLOW_LIST = new Set<string>([]);
 
 /**
@@ -122,7 +124,7 @@ export function analyzeSource(source: string, relPath: string): Violation[] {
         file: relPath,
         line: at(node),
         kind: 'raw-channel-header',
-        detail: `reads the '${node.text}' header — use request.salesChannel`,
+        detail: `reads the '${node.text}' header — use getResolvedChannel()`,
       });
     }
 
@@ -140,7 +142,7 @@ export function analyzeSource(source: string, relPath: string): Violation[] {
             file: relPath,
             line: at(node),
             kind: 'request-channel-reresolution',
-            detail: `${method}(SalesChannel, …) re-resolves the request channel — read request.salesChannel`,
+            detail: `${method}(SalesChannel, …) re-resolves the request channel — call getResolvedChannel()`,
           });
         }
       }
@@ -150,7 +152,7 @@ export function analyzeSource(source: string, relPath: string): Violation[] {
           file: relPath,
           line: at(node),
           kind: 'request-channel-reresolution',
-          detail: `raw 'from sales_channels' query re-resolves the request channel — read request.salesChannel`,
+          detail: `raw 'from sales_channels' query re-resolves the request channel — call getResolvedChannel()`,
         });
       }
     }
@@ -193,7 +195,7 @@ function main(): void {
   );
 
   if (blocking.length > 0) {
-    console.error('\nStorefront modules re-resolving the sales channel (read request.salesChannel instead):');
+    console.error('\nStorefront modules re-resolving the sales channel (call getResolvedChannel() instead):');
     for (const v of blocking) console.error(`  - ${v.file}:${v.line}  [${v.kind}] ${v.detail}`);
   }
   if (stale.length > 0) {

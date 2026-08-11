@@ -12,7 +12,10 @@ import {
   type SearchSuggestResponse,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import {
+  currentSalesChannel,
+  getResolvedChannel,
+} from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { ResolvedSearchChannel } from './services/search-query.service.js';
 import {
   QueryTooShort,
@@ -32,7 +35,7 @@ import type { SearchPhraseRecorder } from './services/search-phrase-recorder.ser
  *                      (FR-015).
  *
  * Sales-channel scoping mirrors the catalog public routes: the channel
- * is resolved from `request.salesChannel` (set by the resolver
+ * is resolved from the request scope (filled by the resolver
  * middleware) with a header fallback for the contract-level read in
  * `readContext`.
  */
@@ -99,11 +102,11 @@ export async function registerSearchPublicRoutes(
         );
       }
 
-      // The resolver middleware (sales_channels module) attaches
-      // `request.salesChannel`. Storefront paths fall back to the
-      // system-default channel; admin paths refuse with
-      // MISSING_SALES_CHANNEL_CONTEXT before reaching this handler.
-      const salesChannelId = request.salesChannel?.id;
+      // The resolver middleware (kernel) fills the request scope's channel
+      // slot. Storefront paths fall back to the system-default channel; admin
+      // paths refuse with MISSING_SALES_CHANNEL_CONTEXT before reaching this
+      // handler.
+      const salesChannelId = currentSalesChannel()?.id;
       if (!salesChannelId) {
         throw new HttpError(
           400,

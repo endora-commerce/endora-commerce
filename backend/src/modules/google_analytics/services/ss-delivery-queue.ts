@@ -1,4 +1,5 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
+import { enterSystemScope } from '../../../kernel/scope.js';
 import type Redis from 'ioredis';
 import type { GaCollectRequest } from '@b2b/contracts';
 
@@ -59,5 +60,11 @@ export function createGaDeliveryWorker(
     concurrency: 8,
     ...overrides,
   };
-  return new Worker<GaDeliveryJobData>(GA_DELIVERY_QUEUE_NAME, processor, options);
+  // Feature 072 (T033) — the job establishes its own scope; it established
+  // nothing before.
+  return new Worker<GaDeliveryJobData>(
+    GA_DELIVERY_QUEUE_NAME,
+    (job) => enterSystemScope('google_analytics: server-side delivery', () => processor(job)),
+    options,
+  );
 }

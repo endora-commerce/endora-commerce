@@ -31,9 +31,17 @@ export {
 
 export {
   enterPlatformScope,
+  enterSystemScope,
+  getCurrentPlatformScope,
+  openPlatformScopeCount,
   type EnterPlatformScopeOptions,
   type PlatformScope,
 } from './scope.js';
+
+export {
+  registerRequestScopeHook,
+  type RequestScopeHookOptions,
+} from './request-scope-hook.js';
 
 export {
   AuditLogService,
@@ -61,7 +69,11 @@ export {
   type MembershipMutationOptions,
   type MembershipMutationResult,
 } from './sales-channels/sales-channel-membership.service.js';
-export { registerSalesChannelResolverMiddleware } from './sales-channels/sales-channel-resolver.middleware.js';
+export {
+  registerSalesChannelResolverMiddleware,
+  getResolvedChannel,
+  currentSalesChannel,
+} from './sales-channels/sales-channel-resolver.middleware.js';
 export {
   DefaultChannelReconciler,
   type DefaultChannelReconciliationResult,

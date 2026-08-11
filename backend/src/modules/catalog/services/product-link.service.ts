@@ -254,7 +254,7 @@ export class ProductLinkService {
     const byId = new Map(targets.map((p) => [p.id, p]));
 
     // Feature 053 (FR-006 / Principle XII) — sales-channel visibility. The
-    // channel is resolved once upstream (`request.salesChannel`) and handed in;
+    // channel is resolved once upstream (`getResolvedChannel()`) and handed in;
     // the membership filter is ALWAYS applied, failing closed to an empty
     // visible set rather than leaking the full cross-channel target set.
     const channel = ctx.resolvedChannel;

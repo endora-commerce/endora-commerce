@@ -6,6 +6,7 @@ import {
 import type { MetaTagResolverService } from './services/meta-tag-resolver.service.js';
 import type { SitemapGeneratorService } from './services/sitemap-generator.service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 
 export interface SeoRoutesDeps {
   metaResolver: MetaTagResolverService;
@@ -21,12 +22,12 @@ export async function registerSeoRoutes(
 
   // -- Public sitemap -------------------------------------------------------
   //
-  // Resolves the channel from `request.salesChannel` (set by the
+  // Resolves the channel from the request scope (filled by the
   // SalesChannelResolverMiddleware via header / query / host map / system
   // default). Each channel has its own cache row; if the resolver did not
-  // attach a channel (e.g. middleware bypass in tests), we serve nothing.
-  app.get('/api/v1/catalog/sitemap.xml', { config: { streamingResponse: true } }, async (request, reply) => {
-    const channel = request.salesChannel;
+  // resolve a channel (e.g. middleware bypass in tests), we serve nothing.
+  app.get('/api/v1/catalog/sitemap.xml', { config: { streamingResponse: true } }, async (_request, reply) => {
+    const channel = currentSalesChannel();
     if (!channel) {
       reply
         .status(503)

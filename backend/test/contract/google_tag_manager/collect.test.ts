@@ -7,6 +7,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
+import { enterPlatformScope } from '../../../src/kernel/scope.js';
+import { systemTenantContext } from '../../../src/tenancy/resolve-tenant-context.js';
 import { registerGoogleTagManagerStorefrontRoutes } from '../../../src/modules/google_tag_manager/routes.storefront.js';
 import type { GtmConfigService } from '../../../src/modules/google_tag_manager/services/gtm-config.service.js';
 import type { GtmIngestContext } from '../../../src/modules/google_tag_manager/services/ss-relay-queue.js';
@@ -68,8 +70,19 @@ describe('Google Tag Manager module — relay ingest', () => {
     enqueued = [];
     app = Fastify();
     registerErrorEnvelope(app);
-    app.addHook('onRequest', async (request) => {
-      request.salesChannel = FAKE_CHANNEL;
+    // Feature 072 (T028) — the channel travels on the request scope now, so the
+    // stand-in for the resolver middleware opens one, exactly as the production
+    // tenant hook does.
+    app.addHook('onRequest', (_request, reply, done) => {
+      void enterPlatformScope(
+        systemTenantContext('gtm collect contract test'),
+        () =>
+          new Promise<void>((resolve) => {
+            reply.raw.once('close', resolve);
+            done();
+          }),
+        { channel: FAKE_CHANNEL },
+      );
     });
     await registerGoogleTagManagerStorefrontRoutes(app, {
       configService: {} as unknown as GtmConfigService,

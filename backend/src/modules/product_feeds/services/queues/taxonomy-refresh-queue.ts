@@ -1,6 +1,6 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
 import type Redis from 'ioredis';
-import { withSystemScope } from '../../../../tenancy/escape-hatch.js';
+import { enterSystemScope } from '../../../../kernel/scope.js';
 
 /**
  * The taxonomy-check queue — feature 067 / FR-089, research §R21.
@@ -52,7 +52,7 @@ export function createTaxonomyRefreshWorker(
   return new Worker<TaxonomyRefreshJobData>(
     TAXONOMY_REFRESH_QUEUE,
     (job) =>
-      withSystemScope(
+      enterSystemScope(
         `product_feeds: taxonomy check ${job.data.providerCode ?? 'all providers'}`,
         () => processor(job),
       ),

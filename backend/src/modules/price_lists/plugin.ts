@@ -10,6 +10,7 @@ import { registerStorefrontPricingRoutes } from './routes.storefront.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { enterSystemScope } from '../../kernel/scope.js';
 
 const STATUS_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -111,8 +112,13 @@ export function priceListsModule(options: PriceListsModuleOptions): {
 
       if (options.enableStatusSweeper !== false) {
         const handle = setInterval(() => {
-          statusWorker
-            .sweep()
+          // Feature 072 (T034) — the timer is the entry point, so the scope
+          // opens here and not inside `sweep()`: the same method is reachable
+          // from an admin route (`routes.ts`), where it already runs inside the
+          // request's scope and must not open a second one.
+          enterSystemScope('price_lists: status sweep', () => statusWorker.sweep(), {
+            entryPoint: 'interval',
+          })
             .then((result) => {
               if (result.scheduledToActive > 0 || result.activeToExpired > 0) {
                 app.log.info(

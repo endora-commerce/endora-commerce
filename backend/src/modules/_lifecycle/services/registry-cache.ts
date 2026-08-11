@@ -2,6 +2,7 @@ import type Redis from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { RegistryState } from '@b2b/contracts';
 import { ModuleRegistration } from '../entities/module-registration.entity.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 import {
   resolveActivation,
   type ModuleActivationDeclaration,
@@ -214,7 +215,13 @@ export class ModuleRegistryCache {
     if (this.fallbackStopped) return;
     if (this.fallbackTimer) return;
     this.fallbackTimer = setInterval(() => {
-      void this.refreshFromDb(em).catch((err) => {
+      // Feature 072 (T034) — the degraded refresh reads `module_registrations`
+      // from a timer, with no caller to inherit a context from.
+      void enterSystemScope(
+        '_lifecycle: degraded registry refresh',
+        () => this.refreshFromDb(em),
+        { entryPoint: 'interval' },
+      ).catch((err) => {
         console.warn(
           `[module-lifecycle] degraded refresh failed: ${
             err instanceof Error ? err.message : String(err)

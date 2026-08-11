@@ -26,7 +26,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
  * Module isolation (Constitution I):
  *   - Reads catalog through {@link CatalogQueryService}.
  *   - Reads settings through {@link SettingsService}.
- *   - Reads `request.salesChannel` via the sales-channels resolver.
+ *   - Reads the resolved channel via `getResolvedChannel()`.
  *   - Does NOT depend on the carts module — the storefront calls
  *     `/cart/items` directly from the comparison page (research.md R-9).
  */

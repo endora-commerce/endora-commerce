@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import { getCurrentPlatformScope } from '../scope.js';
 import type { CachedChannel } from './sales-channels-cache.js';
 import type { SalesChannelResolverService } from './sales-channel-resolver.service.js';
 import type { AuditLogService } from '../audit/audit-log-service.js';
@@ -8,9 +9,10 @@ import type { AuditLogService } from '../audit/audit-log-service.js';
 /**
  * Sales-channel resolver middleware — feature 005 / T015.
  *
- * Runs as a Fastify `onRequest` hook on every `/api/v1/*` request and
- * decorates `request.salesChannel` with the resolved channel (research
- * R-5).
+ * Runs as a Fastify `onRequest` hook on every `/api/v1/*` request and fills the
+ * request scope's channel slot with the resolved channel (research R-5;
+ * feature 072 T028 moved it off the `request.salesChannel` property, so a
+ * consumer no longer has to be handed the request to know its channel).
  *
  * Resolution order:
  *
@@ -38,12 +40,6 @@ import type { AuditLogService } from '../audit/audit-log-service.js';
  * are excluded by the {@link SHOULD_RESOLVE} predicate so liveness
  * probes do not depend on the channel registry being available.
  */
-
-declare module 'fastify' {
-  interface FastifyRequest {
-    salesChannel?: CachedChannel;
-  }
-}
 
 export interface SalesChannelResolverPluginOptions {
   resolver: SalesChannelResolverService;
@@ -156,7 +152,7 @@ export async function registerSalesChannelResolverMiddleware(
       if (!bound.active) {
         throw resolverErrorToHttp('inactive_sales_channel', bound.code);
       }
-      request.salesChannel = bound;
+      setResolvedChannel(bound);
       reply.header(ECHO_HEADER, bound.code);
       return;
     }
@@ -168,7 +164,7 @@ export async function registerSalesChannelResolverMiddleware(
       if (!result.ok) {
         throw resolverErrorToHttp(result.error, result.code);
       }
-      request.salesChannel = result.channel;
+      setResolvedChannel(result.channel);
       reply.header(ECHO_HEADER, result.channel.code);
       return;
     }
@@ -186,7 +182,7 @@ export async function registerSalesChannelResolverMiddleware(
         // signal.
         throw resolverErrorToHttp(result.error, result.code);
       }
-      request.salesChannel = result.channel;
+      setResolvedChannel(result.channel);
       reply.header(ECHO_HEADER, result.channel.code);
       return;
     }
@@ -212,7 +208,7 @@ export async function registerSalesChannelResolverMiddleware(
         'Sales channel registry is empty; default-channel reconciler did not run.',
       );
     }
-    request.salesChannel = fallback;
+    setResolvedChannel(fallback);
     reply.header(ECHO_HEADER, fallback.code);
   });
 }
@@ -242,14 +238,54 @@ function resolverErrorToHttp(
   );
 }
 
-/** Helper used by route handlers downstream. Throws if not resolved. */
-export function getResolvedChannel(request: FastifyRequest): CachedChannel {
-  if (!request.salesChannel) {
+/**
+ * Record the resolved channel on the current request scope (feature 072, T028).
+ *
+ * The scope is opened by the tenant hook, which runs *before* this one, so the
+ * slot is filled rather than passed in at construction — see `PlatformScope.setChannel`.
+ * No scope means the resolver was mounted without the request-scope hook, which
+ * is a composition error, not a request error: fail loudly here rather than let
+ * every downstream handler see "no channel".
+ */
+function setResolvedChannel(channel: CachedChannel): void {
+  const scope = getCurrentPlatformScope();
+  if (!scope) {
+    throw new HttpError(
+      500,
+      ERROR_CODES.INTERNAL,
+      'No request scope is open; the sales-channel resolver is mounted without the request-scope hook.',
+    );
+  }
+  scope.setChannel(channel);
+}
+
+/**
+ * The resolved channel for the current execution, or `null` when the resolver
+ * did not run on this path (`/api/v1/_health`, non-API routes) or there is no
+ * request scope at all.
+ *
+ * Takes no argument on purpose: the channel lives on the scope now, so a caller
+ * deep in a service no longer has to be threaded a `FastifyRequest` to read it.
+ */
+export function currentSalesChannel(): CachedChannel | null {
+  return getCurrentPlatformScope()?.channel ?? null;
+}
+
+/**
+ * Helper used by route handlers downstream. Throws if not resolved.
+ *
+ * The `request` parameter is retained so the 49 existing call sites keep
+ * compiling unchanged; it is no longer read. New code calls
+ * `getResolvedChannel()` or `currentSalesChannel()`.
+ */
+export function getResolvedChannel(_request?: FastifyRequest): CachedChannel {
+  const channel = currentSalesChannel();
+  if (!channel) {
     throw new HttpError(
       500,
       ERROR_CODES.INTERNAL,
       'Sales channel was not resolved; resolver middleware did not run on this path.',
     );
   }
-  return request.salesChannel;
+  return channel;
 }

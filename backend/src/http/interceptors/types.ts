@@ -25,8 +25,10 @@ export interface InterceptorRequestInfo {
   /** Child logger pre-bound with `{interceptorModule, interceptorId, phase}` attribution. */
   readonly log: FastifyBaseLogger;
   /**
-   * The underlying Fastify request — exposes `request.actor`,
-   * `request.salesChannel`, etc. where the composition decorates them.
+   * The underlying Fastify request — exposes `request.actor` and whatever else
+   * the composition decorates it with. The resolved sales channel is NOT among
+   * them since feature 072: it lives on the request scope, read through
+   * `getResolvedChannel()`.
    * Treat as read-only: interceptors adjust request data ONLY through the
    * pre-phase `body` mechanism, never by mutating the raw request.
    */

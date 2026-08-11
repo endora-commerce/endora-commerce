@@ -28,7 +28,7 @@ import { indexUidFor, type IndexedDocument } from './search-indexer.js';
 
 /**
  * The request's resolved sales channel (feature 053 / FR-002), handed in by the
- * route from `request.salesChannel`. The search service no longer re-resolves
+ * route via `getResolvedChannel()`. The search service no longer re-resolves
  * the channel from the raw header.
  */
 export interface ResolvedSearchChannel {
