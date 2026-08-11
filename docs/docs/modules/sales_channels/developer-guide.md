@@ -83,6 +83,8 @@ Use the constants — never hardcode the strings — so a future enum / type ren
 - `sales_channels.identity_changed` → drops one entry by code.
 - `sales_channels.lifecycle_changed` → drops one entry, or all entries when `invalidateAll: true` is set (used on hard delete).
 
+Both drop the shared Redis entry first and the local one second, with the key marked for the whole operation so a concurrent read cannot re-pin the pre-change channel — and so a failed Redis drop leaves reads falling through to PostgreSQL rather than being served the value the invalidation was meant to remove. The `EventBus` is in-process, so a second instance converges through the local layer's 30 s window instead.
+
 Membership lookups go through MikroORM directly (no cache layer); if you need them faster, add a Redis layer keyed by `(entityType, entityId)` with a short TTL — the hooks are already in place.
 
 ## Testing your channel-aware code
