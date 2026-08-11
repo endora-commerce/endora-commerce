@@ -302,16 +302,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `composeModules` register into it; everything still hand-wired below is
   // unaffected until its own conversion lands.
   //
-  // It is deliberately **not** installed as the process root yet
+  // It is deliberately **not** installed as the process root
   // (`setRootContainer`). Doing so makes every `enterPlatformScope` branch a
   // child off this graph, and a scope is what lives in an `AsyncLocalStorage`
   // store — so every retained store starts pinning a whole composed
-  // application. Measured on this branch: the full backend suite died with
-  // `JavaScript heap out of memory` at file 78 of 928 with the root installed
-  // and runs to completion without it, on a tree that is otherwise identical.
-  // `ctx.cradle()` therefore resolves through this container directly, and
-  // installing the root belongs to Phase 5, where the generated composer owns
-  // the whole boot instead of sharing it with 3000 lines of hand wiring.
+  // application. `ctx.cradle()` therefore resolves through this container
+  // directly, which is also the better contract while two roots exist: what a
+  // name resolves to is a property of the composition, not of where the call
+  // happens.
+  //
+  // Phase 4 measured the cost: the suite died with `JavaScript heap out of
+  // memory` at file 78 of 930 with the root installed. Phase 5 re-measured it
+  // on the generated composer — the condition its deferral was pinned to — and
+  // the answer did not move: file 72 of 930, 348 s, 5.1 GB. It could not have.
+  // Production composes one application per process; the **test harness
+  // composes 555 per run**, and that is what the retention scales with. The
+  // number to change is the number of live compositions, which belongs to the
+  // harness convergence (T070–T077), not to this file.
   const container = createRootContainer();
   registerOrm(container, orm);
   // One ledger for the whole boot, so two modules composed in different

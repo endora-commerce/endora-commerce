@@ -41,9 +41,11 @@ const registeredManifestsOutputPath = join(
 /**
  * The one ordering constraint that is a **construction** dependency rather than
  * a manifest one, and therefore cannot be derived: `integrationsModule`
- * (`api_keys`) is composed first because its API-key authenticator is injected
- * into the auth plugin (`composition.ts:493`, consumed by the auth wiring).
- * `api_keys`' manifest declares nothing about `auth` — it is one of the
+ * (`api_keys`) is constructed first so its API-key authenticator can be handed
+ * to the auth plugin — `composition.ts` builds it at the top of its module
+ * composition and reads `integrations.handle.apiKeyService.authenticate` as the
+ * plugin's `apiKeyResolver`. `api_keys`' manifest declares nothing about
+ * `auth`, so nothing derivable orders the two: it is one of the
  * imported-but-undeclared edges F3 is scoped to fix. Until it does, the
  * ordering is pinned here, in the open, instead of being an accident of the
  * order a hand-written file happened to call factories in.
