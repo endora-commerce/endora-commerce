@@ -2,7 +2,7 @@ import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
 import { Order } from '../entities/order.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { normalizeOrganizationName } from '../../organizations/services/normalize-name.js';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 

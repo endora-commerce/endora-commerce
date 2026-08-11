@@ -7,7 +7,7 @@ import type { TransactionalEmailSender } from '@b2b/contracts';
 import type { EventBus } from '../../../events/bus.js';
 import { Order } from '../../orders/entities/order.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 
 export interface ShipmentEmailNotifierDeps {
   emFactory: () => EntityManager;

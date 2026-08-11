@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import { Setting } from '../../settings/entities/setting.entity.js';
+import { Setting } from '../../../kernel/settings/setting.entity.js';
 import { effectiveState } from '../services/effective-state.js';
 import { registryCache } from '../services/registry-cache.js';
 

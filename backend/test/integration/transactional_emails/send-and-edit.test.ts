@@ -9,7 +9,7 @@ import { TransactionalEmailService } from '../../../src/modules/transactional_em
 import { ContentResolver } from '../../../src/modules/transactional_emails/services/content-resolver.js';
 import { BrandingService } from '../../../src/modules/transactional_emails/services/branding.service.js';
 import { EmbedResolver } from '../../../src/modules/transactional_emails/services/embed-resolver.js';
-import type { SettingsService } from '../../../src/modules/settings/services/settings.service.js';
+import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 
 const ADMIN_COOKIE = { b2b_admin_session: 'stub-admin-session' };
 const BASE = '/api/v1/admin/transactional-emails';

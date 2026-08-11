@@ -8,7 +8,7 @@ import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * Feature 067 / T079 — feed template CRUD contract (FR-001, FR-002, FR-006,

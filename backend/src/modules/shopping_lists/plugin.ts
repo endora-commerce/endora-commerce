@@ -5,7 +5,7 @@ import type { EventBus } from '../../events/bus.js';
 import { QUICK_ORDER_SETTING_CODES } from '../quick_order/manifest.js';
 import { CartService } from '../carts/services/cart-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
-import type { SettingsService } from '../settings/services/settings.service.js';
+import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { ShoppingListService } from './services/shopping-list-service.js';
 import { QuickOrderImportPipeline } from '../quick_order/services/import-pipeline.js';
 import { MikroOrmCatalogLookup } from '../quick_order/services/catalog-lookup.js';

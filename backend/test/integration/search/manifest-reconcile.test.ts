@@ -4,12 +4,12 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { searchManifest } from '../../../src/modules/search/manifest.js';
 import { settingsManifest } from '../../../src/modules/settings/manifest.js';
-import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
-import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
+import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
 import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
 
 /**

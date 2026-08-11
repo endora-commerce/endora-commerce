@@ -51,7 +51,7 @@ import { CartItem } from '../../carts/entities/cart-item.entity.js';
 import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.entity.js';
 import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
 import { OrderAppliedPromotion } from '../entities/order-applied-promotion.entity.js';

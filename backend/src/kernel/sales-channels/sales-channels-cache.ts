@@ -1,5 +1,5 @@
 import type Redis from 'ioredis';
-import type { SalesChannel } from '../entities/sales-channel.entity.js';
+import type { SalesChannel } from './sales-channel.entity.js';
 
 /**
  * SalesChannelsCache — feature 005 / T012.

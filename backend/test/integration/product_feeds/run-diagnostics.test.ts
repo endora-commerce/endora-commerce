@@ -7,7 +7,7 @@ import {
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { AdminNotification } from '../../../src/modules/admin_notifications/entities/admin-notification.entity.js';
 import { FeedRunIssue } from '../../../src/modules/product_feeds/entities/feed-run-issue.entity.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';

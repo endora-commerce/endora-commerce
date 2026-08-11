@@ -9,7 +9,7 @@ import { SearchIndexer, indexUidFor } from '../../../src/modules/search/services
 import { SearchEventSubscriber } from '../../../src/modules/search/services/search-event-subscriber.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Meilisearch } from 'meilisearch';
 
 /**

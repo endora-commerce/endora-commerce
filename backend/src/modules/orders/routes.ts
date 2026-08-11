@@ -48,7 +48,7 @@ import { OrganizationCannotTransactError } from '../organizations/services/organ
 import type { PricingService } from '../price_lists/services/pricing-service.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { Organization } from '../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import { DeliveryMethod } from '../delivery_methods/entities/delivery-method.entity.js';
 import { PaymentMethod } from '../payment_methods/entities/payment-method.entity.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';

@@ -7,7 +7,7 @@ import {
 import type { PwaConfigResolver } from './services/pwa-config-resolver.js';
 import type { PwaIconService } from './services/pwa-icon-service.js';
 import type { PushSubscriptionService } from './services/push-subscription-service.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 
 export interface PwaStorefrontRoutesDeps {
   configResolver: PwaConfigResolver;

@@ -7,19 +7,19 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import {
   SalesChannelsCache,
   type CachedChannel,
-} from './services/sales-channels-cache.js';
+} from '../../kernel/sales-channels/sales-channels-cache.js';
 import {
   attachSalesChannelsCacheInvalidator,
   type SalesChannelsCacheInvalidatorHandle,
-} from './services/sales-channels-cache-invalidator.js';
-import { DefaultChannelReconciler } from './services/default-channel-reconciler.js';
-import { SalesChannelResolverService } from './services/sales-channel-resolver.service.js';
-import { SalesChannelMembershipService } from './services/sales-channel-membership.service.js';
+} from '../../kernel/sales-channels/sales-channels-cache-invalidator.js';
+import { DefaultChannelReconciler } from '../../kernel/sales-channels/default-channel-reconciler.js';
+import { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
+import { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import {
   SalesChannelsService,
   type AdminAuditContext,
 } from './services/sales-channels.service.js';
-import { registerSalesChannelResolverMiddleware } from './middleware/sales-channel-resolver.js';
+import { registerSalesChannelResolverMiddleware } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import { registerSalesChannelsAdminRoutes } from './routes.admin.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 

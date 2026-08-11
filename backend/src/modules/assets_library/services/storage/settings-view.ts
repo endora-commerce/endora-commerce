@@ -7,8 +7,8 @@
 // adapter side trivially mockable in tests.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Setting } from '../../../settings/entities/setting.entity.js';
-import { SettingValue } from '../../../settings/entities/setting-value.entity.js';
+import { Setting } from '../../../../kernel/settings/setting.entity.js';
+import { SettingValue } from '../../../../kernel/settings/setting-value.entity.js';
 import type { AdapterSettingsView } from './adapter-registry.js';
 
 const ADAPTER_CODES = ['local', 's3', 'gcs'] as const;

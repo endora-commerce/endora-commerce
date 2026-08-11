@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
 import { issueFeedToken } from '../../../src/modules/product_feeds/services/feed-token.service.js';
 

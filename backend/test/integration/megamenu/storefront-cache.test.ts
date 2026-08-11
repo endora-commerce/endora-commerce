@@ -4,7 +4,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { MegamenuCache } from '../../../src/modules/megamenu/services/megamenu-cache.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * T083 — Storefront cache integration. Verifies:

@@ -21,7 +21,7 @@ import {
   SEED_CREDIT_LIMIT_PAYMENT_METHOD_ID,
 } from '../../helpers/seed-credit-limit.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';

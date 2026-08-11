@@ -3,7 +3,7 @@ import { Product } from '../../src/modules/catalog/entities/product.entity.js';
 import { Category } from '../../src/modules/catalog/entities/category.entity.js';
 import { AttributeSetAttribute } from '../../src/modules/catalog/entities/attribute-set-attribute.entity.js';
 import { createAttributeFixture } from '../../src/modules/catalog/seeds/attribute-fixtures.js';
-import { SalesChannel } from '../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 
 // Feature 061 — attribute fixtures create the product-host Custom Field
 // definition + catalog extension pair; re-export the helpers so test files

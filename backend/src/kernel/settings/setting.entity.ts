@@ -10,10 +10,10 @@ import {
   Property,
   Unique,
 } from '@mikro-orm/core';
-import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
+import { GlobalEntity } from '../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import { SettingGroup } from './setting-group.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../sales-channels/sales-channel.entity.js';
 
 export const SETTING_VALUE_TYPES = [
   'string',

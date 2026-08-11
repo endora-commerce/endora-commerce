@@ -1,7 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import Redis from 'ioredis';
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { CartRecomputeCache } from '../../../src/modules/carts/services/cart-recompute-cache.js';
 import { CartPricingRecompute } from '../../../src/modules/carts/services/cart-pricing-recompute.js';
@@ -33,18 +34,30 @@ describe('CartPricingRecompute — resolver call counts & write-back', () => {
     const tmpEm = db.orm.em.fork();
     const ch = await tmpEm.findOne(SalesChannel, { systemDefault: true });
     systemDefaultChannelId = ch?.id ?? '';
-    const products = await tmpEm.find(Product, {}, { limit: 1 });
-    if (products.length === 0) {
-      throw new Error('No products seeded; cannot run T021');
-    }
-    seedProductId = products[0]!.id;
 
     const url = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
     redis = new Redis(url, { maxRetriesPerRequest: null, lazyConnect: false });
   }, 60_000);
 
+  /**
+   * The product is created inside the per-test transaction and rolled back with
+   * it. It used to be whichever row `find(Product, {}, { limit: 1 })` happened to
+   * return, which made the file depend on committed leftovers from whatever ran
+   * before it — so the suite passed or failed on file ordering alone, and it
+   * failed the moment feature 072 moved an unrelated `.test.ts` inside `src/`.
+   */
   beforeEach(async () => {
-    await db.beginTx();
+    const em = await db.beginTx();
+    const product = em.create(Product, {
+      sku: `T021-${randomUUID().slice(0, 8)}`,
+      slug: `t021-${randomUUID().slice(0, 8)}`,
+      type: 'simple',
+      visibility: 'public',
+      name: { en: 'T021 fixture' },
+      description: { en: 'T021 fixture' },
+    });
+    await em.persistAndFlush(product);
+    seedProductId = product.id;
     await redis.del(CartRecomputeCache.keyFor(testCartId));
   });
 
@@ -53,7 +66,7 @@ describe('CartPricingRecompute — resolver call counts & write-back', () => {
   });
 
   afterAll(() => {
-    redis.disconnect();
+    redis?.disconnect();
   });
 
   it('resolves each line via PricingService on cold cache, then serves from cache', async () => {

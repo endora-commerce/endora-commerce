@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@b2b/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import type { CachedChannel } from '../services/sales-channels-cache.js';
-import type { SalesChannelResolverService } from '../services/sales-channel-resolver.service.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import { HttpError } from '../../http/error-envelope.js';
+import type { CachedChannel } from './sales-channels-cache.js';
+import type { SalesChannelResolverService } from './sales-channel-resolver.service.js';
+import type { AuditLogService } from '../audit/audit-log-service.js';
 
 /**
  * Sales-channel resolver middleware — feature 005 / T015.

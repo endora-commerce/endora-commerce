@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PriceListService } from './services/price-list-service.js';
 import type { PricingService } from './services/pricing-service.js';
 import { Product } from '../catalog/entities/product.entity.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 
 export interface StorefrontPricingRoutesDeps {
   priceListService: PriceListService;

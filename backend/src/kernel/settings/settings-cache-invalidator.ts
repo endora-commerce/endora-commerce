@@ -1,4 +1,4 @@
-import type { EventBus } from '../../../events/bus.js';
+import type { EventBus } from '../../events/bus.js';
 import type { SettingsCache } from './settings-cache.js';
 
 /**

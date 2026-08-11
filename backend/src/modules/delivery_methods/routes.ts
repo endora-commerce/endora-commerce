@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, deliveryMethodUpsertSchema } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { DeliveryMethod } from './entities/delivery-method.entity.js';
-import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
+import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { ShippingAdapterRegistry } from './services/shipping-adapter-registry.js';
 import type { ShippingMethodEligibilityService } from './services/shipping-method-eligibility.js';
 import {

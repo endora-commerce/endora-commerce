@@ -7,8 +7,8 @@ import {
 import { ModuleEffectiveState } from '../../../src/modules/_lifecycle/services/effective-state.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ModuleRegistration } from '../../../src/modules/_lifecycle/entities/module-registration.entity.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
-import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
 
 /**
  * Feature 073 / research R-2b — the degraded-mode refresh.

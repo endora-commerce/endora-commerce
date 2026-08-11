@@ -4,7 +4,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import type { Order } from '../entities/order.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 
 export async function sendOrderTransactionalEmail(
   em: EntityManager,

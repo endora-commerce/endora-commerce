@@ -8,9 +8,9 @@ import {
   Property,
   Unique,
 } from '@mikro-orm/core';
-import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
+import { GlobalEntity } from '../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../sales-channels/sales-channel.entity.js';
 
 /**
  * SettingGroup — feature 004 / data-model.md.

@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { salesChannelsManifest } from '../../../src/modules/sales_channels/manifest.js';
 import { settingsManifest } from '../../../src/modules/settings/manifest.js';
-import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
+import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 
 /**
  * T069 — `b2b modules install sales_channels` is idempotent.

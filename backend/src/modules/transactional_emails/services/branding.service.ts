@@ -8,12 +8,12 @@
 
 import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import type {
   AdminAuditContext,
   SettingsAdminService,
 } from '../../settings/services/settings-admin.service.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { TRANSACTIONAL_EMAILS_SETTING_CODES } from '../manifest.js';
 
 export interface ResolvedBranding {

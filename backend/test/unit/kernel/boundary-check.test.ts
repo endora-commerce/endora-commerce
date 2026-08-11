@@ -4,13 +4,19 @@ import {
   isPending,
   isViolation,
   ownerOf,
+  stalePending,
+  PENDING_RELOCATION,
 } from '../../../scripts/check-kernel-boundary.js';
 
 /**
- * The kernel boundary rule (feature 072, T021) is satisfied today by accident:
- * the tree contains exactly six ORM relations and four of them cross a module
- * boundary. So the check's own test has to prove it can go **red**, not merely
- * that it agrees with the current tree.
+ * The kernel boundary rule (feature 072, T021) is satisfied by construction now
+ * that T018/T019 have landed: every remaining cross-owner ORM relation points
+ * into the kernel. So the check's own test has to prove it can go **red**, not
+ * merely that it agrees with the current tree.
+ *
+ * `analyzeSource` resolves a relation target through the import that declares
+ * it, and skips a specifier that does not resolve to a file on disk — so these
+ * fixtures must name entities that really exist.
  */
 
 const ENTITY = (relation: string, imports: string): string => `
@@ -64,31 +70,32 @@ describe('isViolation', () => {
   });
 });
 
+/** A cross-module import that still resolves after the D-32 relocations. */
+const CATALOG_CATEGORY_IMPORT =
+  "import { Category } from '../../catalog/entities/category.entity.js';";
+
 describe('analyzeSource', () => {
   it('finds the relation target through the import that declares it', () => {
     const findings = analyzeSource(
       ENTITY(
-        '@ManyToOne(() => SalesChannel, { fieldName: "sales_channel_id" })',
-        "import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';",
+        '@ManyToOne(() => Category, { fieldName: "category_id" })',
+        CATALOG_CATEGORY_IMPORT,
       ),
       '/home/mzabielski/www/b2b-platform/backend/src/modules/search/entities/search-phrase-record.entity.ts',
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
       sourceOwner: 'search',
-      targetOwner: 'sales_channels',
+      targetOwner: 'catalog',
       decorator: 'ManyToOne',
-      targetName: 'SalesChannel',
+      targetName: 'Category',
     });
     expect(isViolation(findings[0]!)).toBe(true);
   });
 
   it('ignores a plain @Property — an FK column is not an ORM relation', () => {
     const findings = analyzeSource(
-      ENTITY(
-        '@Property({ type: "uuid" })',
-        "import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';",
-      ),
+      ENTITY('@Property({ type: "uuid" })', CATALOG_CATEGORY_IMPORT),
       '/home/mzabielski/www/b2b-platform/backend/src/modules/search/entities/x.entity.ts',
     );
     expect(findings).toEqual([]);
@@ -97,32 +104,35 @@ describe('analyzeSource', () => {
   it('reads the entity out of the object form too', () => {
     const findings = analyzeSource(
       ENTITY(
-        '@ManyToMany({ entity: () => SalesChannel, pivotTable: "sales_channel_settings" })',
-        "import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';",
+        '@ManyToMany({ entity: () => Category, pivotTable: "setting_categories" })',
+        CATALOG_CATEGORY_IMPORT,
       ),
       '/home/mzabielski/www/b2b-platform/backend/src/modules/settings/entities/setting.entity.ts',
     );
     expect(findings).toHaveLength(1);
-    expect(findings[0]?.targetOwner).toBe('sales_channels');
+    expect(findings[0]?.targetOwner).toBe('catalog');
+  });
+
+  it('allows the relocated settings → SalesChannel relations, now kernel-internal', () => {
+    const findings = analyzeSource(
+      ENTITY(
+        '@ManyToOne(() => SalesChannel, { fieldName: "sales_channel_id" })',
+        "import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';",
+      ),
+      '/home/mzabielski/www/b2b-platform/backend/src/modules/search/entities/search-phrase-record.entity.ts',
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.targetOwner).toBe('kernel');
+    expect(isViolation(findings[0]!)).toBe(false);
   });
 });
 
 describe('the pending-relocation ratchet', () => {
-  it('covers exactly the four relations T019 dissolves by moving SalesChannel', () => {
-    const pending = [
-      { sourceOwner: 'search', className: 'SearchPhraseRecord', property: 'salesChannel' },
-      { sourceOwner: 'settings', className: 'Setting', property: 'salesChannels' },
-      { sourceOwner: 'settings', className: 'SettingGroup', property: 'salesChannels' },
-      { sourceOwner: 'settings', className: 'SettingValue', property: 'salesChannel' },
-    ].map((f) => ({
-      ...f,
-      file: 'x',
-      decorator: 'ManyToOne',
-      targetName: 'SalesChannel',
-      targetOwner: 'sales_channels',
-    }));
-
-    for (const finding of pending) expect(isPending(finding)).toBe(true);
+  it('is empty — T018 and T019 dissolved every entry it carried', () => {
+    // The completion signal for D-32: the four SalesChannel relations became
+    // module→kernel (search) or kernel-internal (settings), so nothing is
+    // pending. A non-empty list here is a debt marker, never an exemption.
+    expect(PENDING_RELOCATION).toEqual([]);
   });
 
   it('does not cover a new cross-module relation', () => {
@@ -137,5 +147,9 @@ describe('the pending-relocation ratchet', () => {
         targetOwner: 'orders',
       }),
     ).toBe(false);
+  });
+
+  it('reports nothing stale while the list is empty', () => {
+    expect(stalePending([])).toEqual([]);
   });
 });

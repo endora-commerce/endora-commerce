@@ -7,7 +7,7 @@ import {
 } from '@b2b/contracts';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { ProductValueOverride } from '../../catalog/entities/product-value-override.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { SYSTEM_ATTRIBUTE_SCOPES } from '../../catalog/services/system-attribute-scopes.js';
 import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { defineModuleManifest, type ModuleManifest } from '@b2b/contracts';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import {
   activationDeclarationsFrom,
   resolveActivation,

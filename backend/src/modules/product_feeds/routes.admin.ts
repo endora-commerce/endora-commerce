@@ -12,7 +12,7 @@ import {
   updateProductFeedRequestSchema,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import { PRODUCT_FEEDS_READ_PERMISSION, PRODUCT_FEEDS_WRITE_PERMISSION } from './manifest.js';
 import { FeedArtefact } from './entities/feed-artefact.entity.js';
 import { FeedRun } from './entities/feed-run.entity.js';

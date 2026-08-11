@@ -13,7 +13,7 @@ import {
   SEED_PAYMENT_METHOD_ID,
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
 import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';

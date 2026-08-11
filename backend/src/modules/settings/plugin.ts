@@ -9,12 +9,12 @@ import {
   type AdminAuditContext,
   type ModulePresencePort,
 } from './services/settings-admin.service.js';
-import { SettingsCache } from './services/settings-cache.js';
-import { SettingsService } from './services/settings.service.js';
+import { SettingsCache } from '../../kernel/settings/settings-cache.js';
+import { SettingsService } from '../../kernel/settings/settings.service.js';
 import {
   attachSettingsCacheInvalidator,
   type SettingsCacheInvalidatorHandle,
-} from './services/settings-cache-invalidator.js';
+} from '../../kernel/settings/settings-cache-invalidator.js';
 import { registerSettingsAdminRoutes } from './routes.admin.js';
 import { registerSettingsStorefrontRoutes } from './routes.storefront.js';
 import { ShopInfoResolver } from './services/shop-info-resolver.js';

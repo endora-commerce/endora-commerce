@@ -11,7 +11,7 @@ import {
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import { CustomerGroup } from '../price_lists/entities/customer-group.entity.js';
 import { Organization } from '../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import type { PwaConfigResolver } from './services/pwa-config-resolver.js';
 import { PwaIconInvalid, type PwaIconService } from './services/pwa-icon-service.js';
 import type { PushSubscriptionService } from './services/push-subscription-service.js';

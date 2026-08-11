@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { HomepageConfig } from '@b2b/contracts';
-import type { SettingsService } from './settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 
 const HOMEPAGE_SETTING_CODE = 'homepage_cms_page_slug';
 

@@ -10,8 +10,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AvailabilityNotificationService } from './services/availability-notification-service.js';
 import type { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import type { StockLevelService } from './services/stock-level-service.js';
-import type { SalesChannelResolverService } from '../sales_channels/services/sales-channel-resolver.service.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { StockLevel } from './entities/stock-level.entity.js';
@@ -20,7 +20,7 @@ import { resolveThresholds } from './services/threshold-resolver.js';
 import { InventoryThreshold } from './entities/inventory-threshold.entity.js';
 import { Category } from '../catalog/entities/category.entity.js';
 import { INVENTORY_SETTING_CODES } from './manifest.js';
-import type { SettingsService } from '../settings/services/settings.service.js';
+import type { SettingsService } from '../../kernel/settings/settings.service.js';
 
 export interface InventoryRoutesDeps {
   emFactory: () => EntityManager;

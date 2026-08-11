@@ -5,7 +5,7 @@ import {
   gtmContainerIdSchema,
   type GtmStorefrontConfig,
 } from '@b2b/contracts';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 
 /**
  * Resolves the per-sales-channel Google Tag Manager configuration exposed to

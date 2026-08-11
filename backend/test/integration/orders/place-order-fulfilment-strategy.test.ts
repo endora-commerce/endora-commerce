@@ -21,7 +21,7 @@ import { WarehouseChannelAssignment } from '../../../src/modules/inventory/entit
 import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
 import { StockAllocation } from '../../../src/modules/inventory/entities/stock-allocation.entity.js';
 import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 

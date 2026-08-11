@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { ProductFeed } from '../../../src/modules/product_feeds/entities/product-feed.entity.js';
 import { FeedRun } from '../../../src/modules/product_feeds/entities/feed-run.entity.js';
 import { FeedArtefact } from '../../../src/modules/product_feeds/entities/feed-artefact.entity.js';

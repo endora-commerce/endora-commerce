@@ -48,7 +48,7 @@ import { GroupedItem } from '../modules/catalog/entities/grouped-item.entity.js'
 import { ProductPackagingUnit } from '../modules/catalog/entities/product-packaging-unit.entity.js';
 import { BundleSlot } from '../modules/catalog/entities/bundle-slot.entity.js';
 import { BundleSlotOption } from '../modules/catalog/entities/bundle-slot-option.entity.js';
-import { SalesChannel } from '../modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
 import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
 import { QuoteRequest } from '../modules/quote_requests/entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../modules/quote_requests/entities/quote-request-item.entity.js';
@@ -178,9 +178,9 @@ import { PromotionUsage } from '../modules/promotions/entities/promotion-usage.e
 import { PromotionUsageCounter } from '../modules/promotions/entities/promotion-usage-counter.entity.js';
 import { ShoppingList } from '../modules/shopping_lists/entities/shopping-list.entity.js';
 import { ShoppingListItem } from '../modules/shopping_lists/entities/shopping-list-item.entity.js';
-import { SettingGroup } from '../modules/settings/entities/setting-group.entity.js';
-import { Setting } from '../modules/settings/entities/setting.entity.js';
-import { SettingValue } from '../modules/settings/entities/setting-value.entity.js';
+import { SettingGroup } from '../kernel/settings/setting-group.entity.js';
+import { Setting } from '../kernel/settings/setting.entity.js';
+import { SettingValue } from '../kernel/settings/setting-value.entity.js';
 import { SearchPhraseRecord } from '../modules/search/entities/search-phrase-record.entity.js';
 import { Comparison } from '../modules/comparisons/entities/comparison.entity.js';
 import { ComparisonProduct } from '../modules/comparisons/entities/comparison-product.entity.js';

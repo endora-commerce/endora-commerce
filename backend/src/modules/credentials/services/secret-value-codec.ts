@@ -4,11 +4,15 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
  * Secret-value codec for credential-configuration secret fields (feature 058,
  * research §R4).
  *
- * This is a DELIBERATE, verbatim duplication of
- * `settings/services/secret-value-codec.ts`. Importing the settings module's
- * private codec across a module boundary would couple the two modules
- * (Principle I) and break independent removability; ~50 LOC of duplication is
- * the constitution-preferred trade (Principle IV). Both codecs read the SAME
+ * This is a verbatim duplication of the codec that used to live at
+ * `settings/services/secret-value-codec.ts`. The original justification —
+ * importing the settings module's private codec across a module boundary would
+ * couple the two modules (Principle I) and break independent removability — no
+ * longer holds: feature 072 T018 moved that codec into the kernel
+ * (`kernel/settings/secret-value-codec.ts`), and a module may import the kernel.
+ * The duplication is therefore now debt, not a trade; it is left in place here
+ * because collapsing it is a behaviour-carrying change, not part of the
+ * relocation. Both codecs read the SAME
  * env key `SETTINGS_SECRET_ENCRYPTION_KEY` (base64, 32 bytes) — no new secret to
  * provision — and produce self-describing envelopes, so a value written by one
  * decrypts under the other.

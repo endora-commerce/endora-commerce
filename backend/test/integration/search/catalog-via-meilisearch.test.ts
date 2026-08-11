@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * T068 — `GET /catalog/products` served from Meilisearch when the env

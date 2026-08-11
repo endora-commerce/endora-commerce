@@ -149,21 +149,20 @@ export function analyzeSource(source: string, file: string): RelationFinding[] {
 }
 
 /**
- * The relations that exist today and are waiting on a relocation, not on a
- * redesign. Every one of them points at `SalesChannel`, which T019 moves into
- * the kernel; the moment it lands all four become module→kernel, which is
- * permitted, and this list goes away with it.
+ * Relations that exist today and are waiting on a relocation, not on a
+ * redesign.
  *
- * It is a **ratchet, not an exemption**: the check fails if the list shrinks
- * without being edited, and fails on any relation not on it. Nothing can be
- * added here without saying so in a diff.
+ * **Empty, and it must stay that way.** The four entries this list carried
+ * between T021 and T019 all pointed at `SalesChannel`; T019 moved that entity
+ * into the kernel, so every one of them became module→kernel, which is
+ * permitted. An entry here is a debt marker with an owner and a task id, not a
+ * standing exemption.
+ *
+ * It is a **ratchet**: the check fails on a relation that is not on the list
+ * *and* on a list entry that no longer describes a relation, so neither adding
+ * one nor forgetting to remove one can happen silently.
  */
-const PENDING_RELOCATION: readonly string[] = [
-  'search.SearchPhraseRecord.salesChannel -> sales_channels',
-  'settings.Setting.salesChannels -> sales_channels',
-  'settings.SettingGroup.salesChannels -> sales_channels',
-  'settings.SettingValue.salesChannel -> sales_channels',
-];
+export const PENDING_RELOCATION: readonly string[] = [];
 
 export function findingKey(finding: RelationFinding): string {
   return `${finding.sourceOwner}.${finding.className}.${finding.property} -> ${finding.targetOwner}`;

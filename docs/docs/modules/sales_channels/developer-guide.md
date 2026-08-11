@@ -12,7 +12,7 @@ How a backend module integrates with the Sales Channels module: scoping queries 
 The resolver middleware decorates every request under `/api/v1/*` with `req.salesChannel` (a serialised `CachedChannel` view of the resolved row). Use the typed helper to keep the access pattern consistent:
 
 ```ts
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 
 app.get('/api/v1/storefront/products', async (request) => {
   const channel = getResolvedChannel(request);

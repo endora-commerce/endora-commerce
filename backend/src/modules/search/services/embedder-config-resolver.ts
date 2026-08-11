@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ResolveResult } from '@b2b/contracts';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { SEARCH_SETTING_CODES } from '../manifest.js';
 
 /** Narrow port over CredentialsService.resolve (feature 058, Principle I). */

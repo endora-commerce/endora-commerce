@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ShopInfo } from '@b2b/contracts';
-import type { SettingsService } from './settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 
 /**
  * Maps the `shop.*` settings to the public {@link ShopInfo} surface consumed

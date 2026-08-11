@@ -12,7 +12,7 @@ import { CartItem } from '../entities/cart-item.entity.js';
 import { CartAuditEntry } from '../entities/cart-audit-entry.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartSnapshot, PromotionApplication } from '@b2b/contracts';

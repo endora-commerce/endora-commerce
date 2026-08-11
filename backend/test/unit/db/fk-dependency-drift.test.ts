@@ -182,7 +182,18 @@ describe('fk drift — the kernel edge (feature 072)', () => {
   });
 
   it('claims the tables of the entities the kernel absorbed', () => {
-    expect(graph.owners.get('audit_log_entries')).toBe(KERNEL_OWNER);
+    // T016, T019 and T018 respectively. If any of these reads as its old module
+    // the ownership map has drifted from the entity tree, and every foreign key
+    // pointing at it is misattributed.
+    for (const table of [
+      'audit_log_entries',
+      'sales_channels',
+      'settings',
+      'setting_groups',
+      'setting_values',
+    ]) {
+      expect(graph.owners.get(table), `${table} should be kernel-owned`).toBe(KERNEL_OWNER);
+    }
   });
 });
 
@@ -283,10 +294,10 @@ describe('fk drift — allow-list minimality M1-M5 (V5-V9)', () => {
         `exception is dead weight — delete them: ${declared.join(', ')}`,
     ).toEqual([]);
 
-    // Mutation: once `settings` declares `sales_channels`, its entry must fail.
+    // Mutation: once `organizations` declares `inventory`, its entry must fail.
     const mutated = new Map(MANIFEST_DEPENDENCIES);
-    mutated.set('settings', ['sales_channels']);
-    expect(nowDeclared(ACKNOWLEDGED_FK_EDGES, mutated)).toContain('settings → sales_channels');
+    mutated.set('organizations', ['inventory']);
+    expect(nowDeclared(ACKNOWLEDGED_FK_EDGES, mutated)).toContain('organizations → inventory');
   });
 
   it('M3 — every entry carries a reason, a known rule and a cycle statement', () => {
@@ -322,18 +333,19 @@ describe('fk drift — allow-list minimality M1-M5 (V5-V9)', () => {
   it('M5 — the list stays at or below the SC-012 cap of 15', () => {
     expect(ACKNOWLEDGED_FK_EDGES.length).toBeLessThanOrEqual(15);
 
-    // Mutation: a 16th entry must be caught.
-    const overCap = [
-      ...ACKNOWLEDGED_FK_EDGES,
-      {
-        from: 'seo',
-        to: 'taxes',
-        via: ['nothing → nothing'],
-        reason: 'synthetic',
-        rule: 'platform-root' as const,
-        cycle: 'synthetic',
-      },
-    ];
+    // Mutation: a 16th entry must be caught. Padded to 16 explicitly — deriving
+    // the mutant from the real list only exceeded the cap while the real list
+    // happened to be full, so it stopped proving anything the moment feature
+    // 072 removed an entry.
+    const filler = (index: number): AcknowledgedFkEdge => ({
+      from: `synthetic_${index}`,
+      to: 'taxes',
+      via: ['nothing → nothing'],
+      reason: 'synthetic',
+      rule: 'platform-root',
+      cycle: 'synthetic',
+    });
+    const overCap = Array.from({ length: 16 }, (_, index) => filler(index));
     expect(overCap.length).toBeGreaterThan(15);
   });
 
@@ -342,7 +354,11 @@ describe('fk drift — allow-list minimality M1-M5 (V5-V9)', () => {
       counts[entry.rule] = (counts[entry.rule] ?? 0) + 1;
       return counts;
     }, {});
-    expect(byRule).toEqual({ 'tenancy-root': 5, 'bridge-owner': 9, 'platform-root': 1 });
+    // Feature 072 T019: `settings → sales_channels` (platform-root) and
+    // `sales_channels → assets_library` (bridge-owner) both dissolved when the
+    // `sales_channels` table became kernel-owned; the channel-logo foreign key
+    // reappeared as `kernel → assets_library` (platform-root).
+    expect(byRule).toEqual({ 'tenancy-root': 5, 'bridge-owner': 8, 'platform-root': 1 });
   });
 });
 

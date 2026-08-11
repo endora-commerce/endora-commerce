@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { Category } from '../../catalog/entities/category.entity.js';
 import { CmsPage } from '../../cms/entities/cms-page.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { SitemapCache } from '../entities/sitemap-cache.entity.js';
 
 /**

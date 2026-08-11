@@ -3,16 +3,17 @@
  *
  * Locks the invariant established by feature 053: the current sales channel
  * for a request is resolved EXACTLY ONCE, by the canonical resolver
- * (`sales_channels/middleware/sales-channel-resolver.ts`), and exposed as
+ * (`kernel/sales-channels/sales-channel-resolver.middleware.ts`, relocated from
+ * the `sales_channels` module by feature 072 T019), and exposed as
  * `request.salesChannel`. No storefront-facing module may re-derive it.
  *
  * Two static signals are flagged (TypeScript compiler API, no DB, no new
  * dependency — mirrors `check-entity-tenant-classification.ts`):
  *
  *  1. RAW CHANNEL HEADER READ — any string literal `x-sales-channel` or
- *     `x-sales-channel-id` anywhere under `src/modules/**` outside the
- *     `sales_channels` module. Legitimate code never reads these headers;
- *     only the resolver does. Global scope = strongest guard.
+ *     `x-sales-channel-id` anywhere under `src/modules/**` or `src/kernel/**`
+ *     outside the resolver's own directory. Legitimate code never reads these
+ *     headers; only the resolver does. Global scope = strongest guard.
  *
  *  2. REQUEST-CHANNEL RE-RESOLUTION — inside the storefront "surface" files
  *     (routes.public / routes.storefront / *storefront-resolver / the catalog
@@ -41,6 +42,12 @@ import ts from 'typescript';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 const MODULES_ROOT = join(SRC_ROOT, 'modules');
+/**
+ * Feature 072 T019 moved the resolver, its service and its cache into the
+ * kernel. The kernel is scanned too, or the one place the header may legally be
+ * read would be the one place nothing checks.
+ */
+const KERNEL_ROOT = join(SRC_ROOT, 'kernel');
 
 /** Header names that only the canonical resolver may read. */
 const CHANNEL_HEADERS = new Set(['x-sales-channel', 'x-sales-channel-id']);
@@ -56,9 +63,13 @@ const CHANNEL_HEADERS = new Set(['x-sales-channel', 'x-sales-channel-id']);
 // redirect the offending module to request.salesChannel instead.
 const ALLOW_LIST = new Set<string>([]);
 
-/** The `sales_channels` module owns resolution — never scanned. */
+/**
+ * Resolution is owned by the kernel's `sales-channels/` directory and by what
+ * is left of the `sales_channels` module (its admin CRUD service and routes,
+ * which legitimately query channels) — never scanned.
+ */
 function isResolverOwned(relPath: string): boolean {
-  return relPath.startsWith('modules/sales_channels/');
+  return relPath.startsWith('modules/sales_channels/') || relPath.startsWith('kernel/sales-channels/');
 }
 
 /** Storefront surfaces where re-resolving the request channel is forbidden. */
@@ -153,7 +164,7 @@ export function analyzeSource(source: string, relPath: string): Violation[] {
 function main(): void {
   const enforce = process.argv.includes('--enforce');
   const listMode = process.argv.includes('--list');
-  const files = walk(MODULES_ROOT);
+  const files = [...walk(MODULES_ROOT), ...walk(KERNEL_ROOT)];
 
   const all: Violation[] = [];
   for (const file of files) {

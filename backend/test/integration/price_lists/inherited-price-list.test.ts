@@ -9,7 +9,7 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { CustomerGroup } from '../../../src/modules/price_lists/entities/customer-group.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
 import { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
 import {

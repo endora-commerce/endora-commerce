@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PaymentAdapterType } from '@b2b/contracts';
 import { PaymentMethod } from '../entities/payment-method.entity.js';
-import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
+import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
 
 /**
  * PaymentMethodReconciler (feature 034, FR-002).

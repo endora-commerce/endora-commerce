@@ -7,7 +7,7 @@ import { CartItem } from '../entities/cart-item.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { ProductPackagingUnit } from '../../catalog/entities/product-packaging-unit.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { PricingService } from '../../price_lists/services/pricing-service.js';
 import type { CartApprovalService } from './cart-approval-service.js';
 import type { CartAuditService } from './cart-audit-service.js';

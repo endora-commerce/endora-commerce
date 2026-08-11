@@ -1,10 +1,10 @@
 import type { ChannelMemberEntityType } from '@b2b/contracts';
-import type { CachedChannel } from '../../modules/sales_channels/services/sales-channels-cache.js';
+import type { CachedChannel } from '../sales-channels/sales-channels-cache.js';
 import type {
   MembershipMutationOptions,
   MembershipMutationResult,
-} from '../../modules/sales_channels/services/sales-channel-membership.service.js';
-import type { SalesChannel } from '../../modules/sales_channels/entities/sales-channel.entity.js';
+} from '../sales-channels/sales-channel-membership.service.js';
+import type { SalesChannel } from '../sales-channels/sales-channel.entity.js';
 
 /**
  * Kernel port — sales-channel resolution and the membership/bridge accessors

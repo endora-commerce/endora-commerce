@@ -14,7 +14,7 @@ import {
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
 import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * Resolver perf bench (T102).

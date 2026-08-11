@@ -12,8 +12,8 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { EventBus } from '../../../events/bus.js';
-import { SalesChannel } from '../entities/sales-channel.entity.js';
-import type { SalesChannelsCache } from './sales-channels-cache.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import type { SalesChannelsCache } from '../../../kernel/sales-channels/sales-channels-cache.js';
 
 /**
  * SalesChannelsService — feature 005 / T017 (skeleton) + T035-T037 (US2).

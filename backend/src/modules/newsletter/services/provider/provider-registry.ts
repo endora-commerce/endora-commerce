@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
 import type { NewsletterSendProvider, ResolveResult } from '@b2b/contracts';
-import type { SettingsService } from '../../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../../kernel/settings/settings.service.js';
 import { ConsoleNewsletterProvider } from './console-provider.js';
 import { SmtpProvider } from './smtp-provider.js';
 

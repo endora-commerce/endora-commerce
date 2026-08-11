@@ -10,7 +10,7 @@ import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { FeedDelivery } from '../../../src/modules/product_feeds/entities/feed-delivery.entity.js';
 import { CredentialConfiguration } from '../../../src/modules/credentials/entities/credential-configuration.entity.js';
 

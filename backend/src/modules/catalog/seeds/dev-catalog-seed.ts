@@ -23,7 +23,7 @@ import { Product } from '../entities/product.entity.js';
 import { Category } from '../entities/category.entity.js';
 import { AttributeSetAttribute } from '../entities/attribute-set-attribute.entity.js';
 import { createAttributeFixture } from './attribute-fixtures.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Megamenu } from '../../megamenu/entities/megamenu.entity.js';
 import { MegamenuItem } from '../../megamenu/entities/megamenu-item.entity.js';
 import { MegamenuBinding } from '../../megamenu/entities/megamenu-binding.entity.js';

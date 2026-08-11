@@ -5,7 +5,7 @@ import { NewsletterOptInService } from '../../../src/modules/newsletter/services
 import { NewsletterContentService } from '../../../src/modules/newsletter/services/content.service.js';
 import { NewsletterAutomationService } from '../../../src/modules/newsletter/services/automation.service.js';
 import { InMemoryNewsletterProvider } from '../../../src/modules/newsletter/services/provider/console-provider.js';
-import type { SettingsService } from '../../../src/modules/settings/services/settings.service.js';
+import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
 import { NewsletterAutomationRun } from '../../../src/modules/newsletter/entities/newsletter-automation-run.entity.js';
 import type { AutomationStep } from '@b2b/contracts';

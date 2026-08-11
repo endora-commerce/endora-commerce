@@ -34,7 +34,7 @@ import {
   ProductTypeValidationError,
 } from './product-type-validations.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
+import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { Command, CommandBus } from '../../../commands/index.js';
 import type { CustomFieldDefinitionApplyApi } from '../../custom_fields/services/custom-field-definition.service.js';
 import type { CachedDefinition } from '../../custom_fields/services/custom-field-definitions-cache.js';

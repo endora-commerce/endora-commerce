@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { ProductLinkService } from '../../../src/modules/catalog/services/product-link.service.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * Feature 052 (US4) — PDP related/cross/up-sell products are always

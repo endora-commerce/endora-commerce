@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GOOGLE_TAG_MANAGER_SETTING_CODES } from '@b2b/contracts';
 import { googleTagManagerModule } from './plugin.js';
-import type { SettingsService } from '../settings/services/settings.service.js';
+import type { SettingsService } from '../../kernel/settings/settings.service.js';
 
 /**
  * FR-009 — a configuration change must reach the storefront without waiting for

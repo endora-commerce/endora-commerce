@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@b2b/contracts';
-import { Setting } from '../../settings/entities/setting.entity.js';
+import { Setting } from '../../../kernel/settings/setting.entity.js';
 
 /**
  * Operator activation — the second presence axis (feature 073, Constitution

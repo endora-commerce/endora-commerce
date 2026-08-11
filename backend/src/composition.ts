@@ -120,9 +120,9 @@ import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
 import { promotionsModule } from './modules/promotions/plugin.js';
 import { settingsModule } from './modules/settings/plugin.js';
-import { ManifestReconciler } from './modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
 import { salesChannelsModule } from './modules/sales_channels/plugin.js';
-import { DefaultChannelReconciler } from './modules/sales_channels/services/default-channel-reconciler.js';
+import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
 import { searchModule } from './modules/search/plugin.js';
 import { createSuggestionPricingEnricher } from './modules/search/services/suggestion-pricing-enricher.js';
 import { SearchIndexer } from './modules/search/services/search-indexer.js';
@@ -183,7 +183,7 @@ import { SHIPMENT_CREATED_DEFAULT } from './modules/shipments/email-templates/tr
 import { INVOICE_ISSUED_DEFAULT } from './modules/invoices/email-templates/invoice-issued.default.js';
 import { PaymentEmailNotifier } from './modules/payments/services/payment-email-notifier.js';
 import { ShipmentEmailNotifier } from './modules/shipments/services/shipment-email-notifier.js';
-import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
   catalogBulkProgressResolver,

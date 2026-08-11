@@ -17,7 +17,7 @@ import type { PricingService } from './services/pricing-service.js';
 import { CustomerGroup } from './entities/customer-group.entity.js';
 import type { PriceList } from './entities/price-list.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import { Category } from '../catalog/entities/category.entity.js';
 import { Organization } from '../organizations/entities/organization.entity.js';
 import { Product } from '../catalog/entities/product.entity.js';
