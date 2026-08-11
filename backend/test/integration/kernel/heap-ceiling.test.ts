@@ -43,32 +43,45 @@ import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.e
 const REQUESTS_PER_CYCLE = 1_000;
 
 /**
- * Measured 2026-08-11 on `fix/test-suite-health` (923 test files, kernel request
- * scope as merged in T026–T038), 16-CPU workstation, file run on its own:
+ * Measured 2026-08-11 on `fix/test-suite-health` (924 test files, kernel request
+ * scope as merged in T026–T038), 16-CPU workstation:
  *
- *   - retained per cycle: **2.3 MB**, and 2.3 MB at 500 requests per cycle too —
- *     it does not scale with the request count, which is the property being
- *     guarded;
- *   - absolute post-GC live set: **275 MB** (five consecutive runs: 275.0–275.2).
+ * | Run | Retained per cycle | Post-GC live set |
+ * | --- | --- | --- |
+ * | This file alone, five consecutive runs | **2.3 MB** (2.3–2.5) | **275 MB** (275.0–275.2) |
+ * | `test/integration/{catalog,kernel}`, 18 files | 2.2 MB | 404 MB |
+ * | Full suite, 924 files, this file at ~244 | **−235.7 MB** | **1228.7 MB** |
  *
- * Calibration, so the next reader can tell a real regression from drift: pinning
- * each request/reply pair in a module-level array — the exact shape of the
- * original leak — moves "retained per cycle" to 17.9 MB at 500 requests and
- * **24.4 MB** at 1 000. The 15 MB ceiling therefore sits 6.5× above the clean
- * value and well below the leak signal.
+ * Calibration, so the next reader can tell a regression from drift: pinning each
+ * request/reply pair in a module-level array — the exact shape of the original
+ * leak — moves "retained per cycle" to 17.9 MB at 500 requests and **24.4 MB**
+ * at 1 000, while the clean number stays at 2.3 MB at both counts. Not scaling
+ * with the request count is the property being guarded.
  *
- * The two ceilings are set on different principles:
+ * **The negative full-suite figure is not a measurement error, and it is why the
+ * two assertions are not interchangeable.** By file 244 the fork holds hundreds
+ * of files' worth of state, some of which only becomes collectible while this
+ * test is composing its own servers; the second GC then reclaims memory the
+ * first could not, and the delta goes strongly negative. So at full-suite scale
+ * the retention delta is a lower bound polluted by other files, sensitive to
+ * ±200 MB of noise — it cannot fail spuriously, but it cannot catch a 25 MB leak
+ * there either. Run this file on its own to use it as an instrument.
+ *
+ * The two ceilings are therefore set on different principles:
  *
  *   - `RETAINED_PER_CYCLE_CEILING_MB` is a regression bound on a number that is
- *     stable to ±0.2 MB. Phase 4 of feature 072 converts 66 modules into
- *     container registrations; those die with the container, so this number
- *     should stay flat. If it moves, that is the finding.
+ *     stable to ±0.2 MB **in an isolated run**. Phase 4 of feature 072 converts
+ *     66 modules into container registrations; those die with the container, so
+ *     this number should stay flat. If it moves, that is the finding.
  *   - `LIVE_SET_CEILING_MB` is a tripwire, not a bound. Its value depends on how
  *     many files ran before this one, and vitest's sequencer orders files by
  *     size, so the position is not stable enough to bound tightly. It is set
- *     below the 4 GB old-space limit that killed the run instead: the guard's
- *     job is to fail the build with a legible message rather than let the fork
- *     die at file 66 of 920 with no diagnosis.
+ *     with headroom to the *failure mode* — the 4 GB old-space limit that killed
+ *     the run — rather than to the measurement: the job is to fail the build
+ *     with a legible message instead of letting the fork die with
+ *     `FATAL ERROR: Ineffective mark-compacts near heap limit` and no diagnosis.
+ *     Note the limitation this shares with any file-resident guard: a leak steep
+ *     enough to exhaust the heap *before* file 244 still kills the run first.
  */
 const RETAINED_PER_CYCLE_CEILING_MB = 15;
 const LIVE_SET_CEILING_MB = 3_072;
