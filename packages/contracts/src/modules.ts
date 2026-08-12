@@ -361,6 +361,14 @@ export type ModulePresence = z.infer<typeof ModulePresenceSchema>;
 /** `GET /api/v1/admin/module-presence` — every admin, no permission code. */
 export const AdminModulePresenceResponseSchema = z.object({
   modules: z.array(ModulePresenceSchema),
+  /**
+   * The serving process is TTL-refreshing from PostgreSQL because its pub/sub
+   * link is unhealthy, so this projection may lag a flip made elsewhere by up
+   * to `FALLBACK_TTL_MS`. Reported rather than hidden: the platform screen has
+   * to be able to say "this is stale" instead of quietly showing an operator a
+   * state that is no longer true.
+   */
+  degraded: z.boolean(),
 });
 export type AdminModulePresenceResponse = z.infer<
   typeof AdminModulePresenceResponseSchema

@@ -39,6 +39,13 @@ export interface ModulePresenceContextValue {
   isPresent: (moduleId: string) => boolean;
   /** The full record, for a surface that must render the two axes differently. */
   presenceOf: (moduleId: string) => ModulePresence | undefined;
+  /**
+   * The serving process is TTL-refreshing because its pub/sub link is
+   * unhealthy, so this projection may lag a flip made elsewhere. Only the
+   * platform screen renders it — every other surface would only be able to
+   * report the staleness, not do anything about it.
+   */
+  degraded: boolean;
   isLoading: boolean;
   error: Error | null;
   refresh: () => Promise<void>;
@@ -55,6 +62,7 @@ export interface ModulePresenceProviderProps {
 export function ModulePresenceProvider(props: ModulePresenceProviderProps): ReactNode {
   const { initial, children } = props;
   const [modules, setModules] = useState<ModulePresence[]>(initial?.modules ?? []);
+  const [degraded, setDegraded] = useState(initial?.degraded ?? false);
   const [isLoading, setIsLoading] = useState(initial == null);
   const [error, setError] = useState<Error | null>(null);
   const [tick, setTick] = useState(0);
@@ -72,6 +80,7 @@ export function ModulePresenceProvider(props: ModulePresenceProviderProps): Reac
         const res = await getModulePresence();
         if (cancelled) return;
         setModules(res.modules);
+        setDegraded(res.degraded);
         setError(null);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err : new Error(String(err)));
@@ -100,11 +109,12 @@ export function ModulePresenceProvider(props: ModulePresenceProviderProps): Reac
       modules,
       isPresent: (moduleId: string): boolean => byId.get(moduleId)?.present ?? unresolved,
       presenceOf: (moduleId: string): ModulePresence | undefined => byId.get(moduleId),
+      degraded,
       isLoading,
       error,
       refresh,
     };
-  }, [modules, isLoading, error, refresh]);
+  }, [modules, degraded, isLoading, error, refresh]);
 
   return (
     <ModulePresenceContext.Provider value={value}>

@@ -1,0 +1,278 @@
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AlertTriangle, Lock } from 'lucide-react';
+import type { ModuleListItem, ModulePresence } from '@b2b/contracts';
+import { ApiError } from '@/lib/api-client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
+import { useModulePresence } from '@/lib/module-presence';
+import { listModules } from './api';
+
+/**
+ * `/platform/modules` — the platform's own view of its modules (feature 073,
+ * US5).
+ *
+ * It composes the two presence axes, which are deliberately never combined
+ * anywhere else in this app:
+ *
+ *  - the **platform axis** from `GET /api/v1/admin/modules` — is this module
+ *    installed on this deployment, at which version, with which dependency and
+ *    orphan flags. Changing it is deployment work and stays CLI-only;
+ *  - the **operator axis** from the effective presence projection — did the
+ *    business switch this capability on.
+ *
+ * Keeping them side by side is the point of the screen: "not installed here",
+ * "we turned it off" and "cannot be turned off" have to read differently
+ * (Constitution XVII), and each has a different person who can change it.
+ *
+ * The screen belongs to no module (D-36). Its backing routes are kernel
+ * resident, and its sidebar entry carries no `module` attribution — a surface
+ * that reports on module presence cannot be gated on module presence without
+ * becoming circular.
+ */
+
+/** One table row: the platform record plus whatever the projection knows. */
+interface ModuleRow {
+  item: ModuleListItem;
+  presence: ModulePresence | undefined;
+}
+
+type ActivationKind = 'on' | 'off' | 'locked' | 'unmanaged';
+
+/**
+ * Four operator-axis renderings, and the difference between the last two is
+ * the whole reason this is a function rather than a boolean.
+ *
+ * `deactivatable: false` **with** a reason is a module that declared itself
+ * non-deactivatable; the same flag **without** one is simply a module that has
+ * not declared an activation control yet. Reading the second as "locked" would
+ * tell an operator that a deliberate platform invariant exists where there is
+ * only an unconverted module.
+ */
+export function activationKindOf(presence: ModulePresence | undefined): ActivationKind {
+  if (!presence) return 'unmanaged';
+  if (!presence.deactivatable) {
+    return presence.nonDeactivatableReason ? 'locked' : 'unmanaged';
+  }
+  return presence.activated ? 'on' : 'off';
+}
+
+/** Whether the deployment offers this module at all. */
+export function isPlatformAvailable(row: ModuleRow): boolean {
+  const state = row.presence?.platformState ?? row.item.state;
+  return state === 'installed';
+}
+
+const STATE_LABEL_KEY: Record<ModuleListItem['state'], string> = {
+  installing: 'platform.modules.state.installing',
+  installed: 'platform.modules.state.installed',
+  disabled: 'platform.modules.state.disabled',
+  uninstalled: 'platform.modules.state.uninstalled',
+  'not-installed': 'platform.modules.state.notInstalled',
+};
+
+const FLAG_LABEL_KEY: Record<string, string> = {
+  orphan: 'platform.modules.flag.orphan',
+  'pending-upgrade': 'platform.modules.flag.pendingUpgrade',
+  'dep-missing': 'platform.modules.flag.depMissing',
+  'dep-disabled': 'platform.modules.flag.depDisabled',
+};
+
+export function ModulesPage(): ReactNode {
+  const t = useTranslation('core');
+  const { presenceOf, degraded } = useModulePresence();
+  const [items, setItems] = useState<ModuleListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    try {
+      const res = await listModules();
+      setItems(res.modules);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const rows = useMemo<ModuleRow[]>(
+    () => items.map((item) => ({ item, presence: presenceOf(item.id) })),
+    [items, presenceOf],
+  );
+
+  return (
+    <>
+      <PageHeader
+        title={t('platform.modules.title')}
+        description={t('platform.modules.description')}
+      />
+
+      {degraded && (
+        <Alert variant="warning" className="mb-4">
+          <AlertTriangle className="size-4" />
+          <AlertDescription>{t('platform.modules.degraded')}</AlertDescription>
+        </Alert>
+      )}
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <p className="mb-4 text-sm text-muted-foreground">{t('platform.modules.cliHint')}</p>
+
+      <Card>
+        <CardContent className="pt-6">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('platform.modules.column.module')}</TableHead>
+                <TableHead>{t('platform.modules.column.platform')}</TableHead>
+                <TableHead>{t('platform.modules.column.activation')}</TableHead>
+                <TableHead>{t('platform.modules.column.version')}</TableHead>
+                <TableHead>{t('platform.modules.column.flags')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <ModuleTableRow key={row.item.id} row={row} t={t} />
+              ))}
+              {!loading && rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-sm text-muted-foreground">
+                    {t('platform.modules.empty')}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+function ModuleTableRow({ row, t }: { row: ModuleRow; t: Translate }): ReactNode {
+  const { item, presence } = row;
+  const state = presence?.platformState ?? item.state;
+  const kind = activationKindOf(presence);
+  const drift =
+    item.version.registered !== null &&
+    item.version.onDisk !== null &&
+    item.version.registered !== item.version.onDisk;
+
+  return (
+    <TableRow data-module-id={item.id}>
+      <TableCell>
+        <div className="font-medium">{item.name}</div>
+        <div className="text-xs text-muted-foreground">{item.id}</div>
+        {item.description && (
+          <div className="mt-1 max-w-prose text-xs text-muted-foreground">
+            {item.description}
+          </div>
+        )}
+      </TableCell>
+      <TableCell>
+        <Badge variant={state === 'installed' ? 'success' : 'outline'}>
+          {t(STATE_LABEL_KEY[state])}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <ActivationCell presence={presence} kind={kind} available={isPlatformAvailable(row)} t={t} />
+      </TableCell>
+      <TableCell className="whitespace-nowrap text-xs">
+        {drift ? (
+          // The two numbers are data, not copy: they stay outside the
+          // translated string so no bundle can drop or reorder them.
+          <span className="text-amber-700">
+            {item.version.registered} → {item.version.onDisk}
+            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+              {t('platform.modules.versionDrift')}
+            </span>
+          </span>
+        ) : (
+          <span className="text-muted-foreground">
+            {item.version.onDisk ?? item.version.registered ?? '—'}
+          </span>
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-wrap gap-1">
+          {item.flags.map((flag) => (
+            <Badge key={flag} variant="warning">
+              {t(FLAG_LABEL_KEY[flag] ?? flag)}
+            </Badge>
+          ))}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/**
+ * The operator axis. A module the deployment does not offer renders neither
+ * "on" nor "off": that state is not the operator's doing and not theirs to
+ * undo, and showing it as switched off would invite them to look for a switch
+ * that is not on this screen.
+ */
+function ActivationCell({
+  presence,
+  kind,
+  available,
+  t,
+}: {
+  presence: ModulePresence | undefined;
+  kind: ActivationKind;
+  available: boolean;
+  t: Translate;
+}): ReactNode {
+  if (!available) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  if (kind === 'locked') {
+    return (
+      <div className="space-y-1">
+        <Badge variant="outline" className="gap-1">
+          <Lock className="size-3" aria-hidden="true" />
+          {t('platform.modules.activation.locked')}
+        </Badge>
+        <p className="max-w-prose text-xs text-muted-foreground">
+          {presence?.nonDeactivatableReason}
+        </p>
+      </div>
+    );
+  }
+  if (kind === 'unmanaged') {
+    return (
+      <span className="text-xs text-muted-foreground">
+        {t('platform.modules.activation.unmanaged')}
+      </span>
+    );
+  }
+  return (
+    <Badge variant={kind === 'on' ? 'success' : 'secondary'}>
+      {kind === 'on'
+        ? t('platform.modules.activation.on')
+        : t('platform.modules.activation.off')}
+    </Badge>
+  );
+}

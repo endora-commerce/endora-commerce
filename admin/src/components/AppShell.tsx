@@ -353,6 +353,17 @@ const NAV: NavSection[] = [
     key: 'system',
     labelKey: 'appShell.section.system',
     items: [
+      // `module: null`, deliberately (D-36). This is the screen that switches
+      // modules on and off; attributing it to a module would mean the surface
+      // could switch itself out of existence, and nothing would be left to
+      // switch it back. It is gated on a permission, never on presence.
+      {
+        to: '/platform/modules',
+        labelKey: 'appShell.nav.platformModules',
+        icon: Boxes,
+        requiredPermission: 'platform.modules.read',
+        module: null,
+      },
       { to: '/admin-users', labelKey: 'appShell.nav.users', icon: Users, module: 'admin_users' },
       { to: '/admin-roles', labelKey: 'appShell.nav.roles', icon: ShieldCheck, module: 'admin_roles' },
       // Bulk operations may span many domains (not just products), so the
@@ -843,6 +854,10 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/import-export\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },
     { labelKey: 'appShell.nav.importExport', href: null },
+  ] },
+  { test: /^\/platform\/modules\/?$/, build: () => [
+    { labelKey: 'appShell.section.system', href: '/admin-users' },
+    { labelKey: 'appShell.nav.platformModules', href: null },
   ] },
   { test: /^\/settings\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },

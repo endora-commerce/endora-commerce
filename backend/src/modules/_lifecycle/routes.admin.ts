@@ -121,6 +121,7 @@ export function registerModulePresenceRoutes(
     },
     async (): Promise<AdminModulePresenceResponse> => ({
       modules: effectiveState.all().map(toPresenceDto),
+      degraded: effectiveState.isDegraded(),
     }),
   );
 

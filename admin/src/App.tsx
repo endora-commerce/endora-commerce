@@ -129,6 +129,7 @@ import { StockImportWizard } from './modules/inventory/StockImportWizard.js';
 import { WarehousesList } from './modules/warehouses/WarehousesList.js';
 import { WarehouseEditor } from './modules/warehouses/WarehouseEditor.js';
 import { CreditLimitsPage } from './modules/credit_limits/CreditLimitsPage.js';
+import { ModulesPage as PlatformModulesPage } from './modules/platform/ModulesPage.js';
 import { SettingsPage } from './modules/settings/pages/SettingsPage.js';
 import { GroupsPage as SettingsGroupsPage } from './modules/settings/pages/GroupsPage.js';
 import { CachePage } from './modules/settings/pages/CachePage.js';
@@ -343,6 +344,7 @@ export function App(): ReactNode {
         <Route path="/blog/categories/new" element={<BlogCategoryEditor />} />
         <Route path="/blog/categories/:id" element={<BlogCategoryEditor />} />
         <Route path="/blog/tags" element={<BlogTagListPage />} />
+        <Route path="/platform/modules" element={<PlatformModulesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/groups" element={<SettingsGroupsPage />} />
         <Route path="/settings/cache" element={<CachePage />} />
