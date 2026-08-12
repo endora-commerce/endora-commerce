@@ -50,6 +50,9 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // to exist by then. It needs nothing but `emFactory`, the kernel audit writer
   // and a lazily-read invalidator, so composing it early costs nothing.
   'currencies',
+  // Both roots resolve `adminNotificationService` immediately after this pass
+  // and hand it to the four modules that write notifications.
+  'admin_notifications',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

@@ -103,6 +103,14 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // migration on purpose (feature 065). This is the residue shape the rest of
   // the sweep should be aiming at.
   analytics: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `admin_notifications` (wave 1). Its service type is still imported by both
+  // roots, which annotate what they resolve out of the container and hand to
+  // the four modules that write notifications. It leaves when those convert.
+  admin_notifications: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
 };
 
 function walk(dir: string, out: string[] = []): string[] {

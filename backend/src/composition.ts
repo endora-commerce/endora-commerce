@@ -1,3 +1,4 @@
+import type { AdminNotificationService } from './modules/admin_notifications/services/admin-notification-service.js';
 import { CURRENCY_CHANGED_EVENT } from './modules/currencies/backend.js';
 import type { CurrencyService } from './modules/currencies/services/currency-service.js';
 import type { FastifyRequest } from 'fastify';
@@ -54,7 +55,6 @@ import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 import { catalogModule } from './modules/catalog/plugin.js';
 import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
-import { adminNotificationsModule } from './modules/admin_notifications/plugin.js';
 import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
 import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
 import { OrganizationEffectivePriceListsService } from './modules/organizations/services/organization-effective-pricelists-service.js';
@@ -444,6 +444,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `languages` each built their own with different invalidators.
   const currencyService = (container.cradle as unknown as { currencyService: CurrencyService })
     .currencyService;
+
+  // Feature 072 (wave 1) — `admin_notifications` provides this as a port, so a
+  // cross-module write answers on its effective state rather than succeeding
+  // into a module the operator switched off.
+  const adminNotificationService = (
+    container.cradle as unknown as { adminNotificationService: AdminNotificationService }
+  ).adminNotificationService;
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
@@ -1052,10 +1059,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // and exposes the resulting transaction gate (assertOrganizationCanTransact)
   // for the carts / orders / quote_requests modules.
 
-  const adminNotifications = adminNotificationsModule({
-    emFactory: em,
-    requireAdmin,
-  });
 
   const platformSettingsChannelId = process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default';
 
@@ -1144,7 +1147,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
   const orgRegistrationNotifier = new OrgRegistrationNotifier({
     emFactory: em,
-    adminNotificationService: adminNotifications.handle.adminNotificationService,
+    adminNotificationService: adminNotificationService,
     mailer: platformMailer,
     resolveRecipients: resolveRegistrationRecipients,
     templateEmail: makeOrgTemplateEmail({
@@ -1697,7 +1700,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
-      adminNotificationService: adminNotifications.handle.adminNotificationService,
+      adminNotificationService: adminNotificationService,
       mailer: platformMailer,
       // Principle X — durable BullMQ queue for bulk operations. The consumer
       // (BullMQ worker) runs co-located here unless BACKEND_ROLE=api, in which
@@ -2079,7 +2082,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 026 — Admin notifications bell. The plugin only mounts read
   // routes; writes happen via the handle (consumed above by the
   // OrgRegistrationNotifier and by future modules that emit notifications).
-  modules.push(adminNotifications.plugin);
 
   // Feature 007 — Comparisons module. US1 wires the customer-facing CRUD
   // endpoints; US2/US4/US5 extend the plugin with share, PDF, and admin
@@ -2505,7 +2507,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     customFieldDefinitions: customFields.handle.definitionService,
     languageService: i18n.handle.languageService,
-    adminNotificationService: adminNotifications.handle.adminNotificationService,
+    adminNotificationService: adminNotificationService,
     settings: settings.handle.settingsService,
     // A feed URL exists to be pasted into Merchant Center, so a path-only one
     // is useless to the operator who copies it. `PUBLIC_API_BASE_URL` is the
@@ -2617,7 +2619,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     priceLists: priceLists.handle.priceListService,
     currencies: i18n.handle.currencyService,
     languageService: i18n.handle.languageService,
-    adminNotificationService: adminNotifications.handle.adminNotificationService,
+    adminNotificationService: adminNotificationService,
     settings: settings.handle.settingsService,
     redis,
     // Principle X — the import and reaper consumers run co-located unless

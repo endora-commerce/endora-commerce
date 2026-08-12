@@ -1,3 +1,4 @@
+import type { AdminNotificationService } from '../../src/modules/admin_notifications/services/admin-notification-service.js';
 import { CURRENCY_CHANGED_EVENT } from '../../src/modules/currencies/backend.js';
 import type { CurrencyService } from '../../src/modules/currencies/services/currency-service.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -59,7 +60,6 @@ import { i18nModule as adminI18nModule } from '../../src/modules/_i18n/plugin.js
 import { adminActionsModule } from '../../src/modules/admin_actions/plugin.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
-import { adminNotificationsModule } from '../../src/modules/admin_notifications/plugin.js';
 import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
 import { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
 import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
@@ -376,9 +376,7 @@ export interface BackendServerHandle {
   /** Feature 026 — moderation lifecycle, admin notifications, org context. */
   organizations: {
     moderationService: OrganizationModerationService;
-    adminNotificationService: ReturnType<
-      typeof adminNotificationsModule
-    >['handle']['adminNotificationService'];
+    adminNotificationService: AdminNotificationService;
     organizationContextService: OrganizationContextService;
     /** Feature 026 US4 — per-org allow-list service. */
     restrictionService: OrganizationRestrictionService;
@@ -764,6 +762,13 @@ export async function setupBackendServer(
   // `languages` each built their own with different invalidators.
   const currencyService = (container.cradle as unknown as { currencyService: CurrencyService })
     .currencyService;
+
+  // Feature 072 (wave 1) — `admin_notifications` provides this as a port, so a
+  // cross-module write answers on its effective state rather than succeeding
+  // into a module the operator switched off.
+  const adminNotificationService = (
+    container.cradle as unknown as { adminNotificationService: AdminNotificationService }
+  ).adminNotificationService;
   const requireAdminAny = requireTestAdminAny(permissionService);
   // The enabled-set accessor is wired here rather than with the seeding above,
   // because the catalogue it wires is `admin_roles`' registration and does not
@@ -1347,10 +1352,6 @@ export async function setupBackendServer(
     // passed in. Subscribes the registration notifier + auto-approve
     // handler to the same event bus.
     ...(() => {
-      const adminNotifications = adminNotificationsModule({
-        emFactory: em,
-        requireAdmin: requireTestAdmin(permissionService),
-      });
       const moderationService = new OrganizationModerationService(
         em,
         auditLogService,
@@ -1364,7 +1365,7 @@ export async function setupBackendServer(
         (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
       const orgRegistrationNotifier = new OrgRegistrationNotifier({
         emFactory: em,
-        adminNotificationService: adminNotifications.handle.adminNotificationService,
+        adminNotificationService: adminNotificationService,
         mailer: injectedMailer,
         resolveRecipients: async () => [],
         templateEmail: makeOrgTemplateEmail({
@@ -1406,12 +1407,11 @@ export async function setupBackendServer(
       // services directly.
       handleFeature026 = {
         moderationService,
-        adminNotificationService: adminNotifications.handle.adminNotificationService,
+        adminNotificationService: adminNotificationService,
         organizationContextService: new OrganizationContextService(em),
         restrictionService,
       };
       return [
-        adminNotifications.plugin,
         organizationsModule({
           emFactory: em,
           eventBus,
@@ -2693,9 +2693,7 @@ export async function setupBackendServer(
     catalogAttributeRead: catalogAttributeReadService,
     organizations: handleFeature026 ?? {
       moderationService: null as unknown as OrganizationModerationService,
-      adminNotificationService: null as unknown as ReturnType<
-        typeof adminNotificationsModule
-      >['handle']['adminNotificationService'],
+      adminNotificationService: null as unknown as AdminNotificationService,
       organizationContextService: null as unknown as OrganizationContextService,
       restrictionService: null as unknown as OrganizationRestrictionService,
     },
