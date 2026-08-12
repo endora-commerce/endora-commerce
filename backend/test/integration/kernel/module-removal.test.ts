@@ -111,6 +111,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `credentials` (wave 1). Beyond the two registries, `composition.ts` imports
+  // its service type and the four core configuration types it registers into
+  // the cross-module registry at boot — which is the root's job, not this
+  // module's, so that reference is expected to stay.
+  credentials: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
 };
 
 function walk(dir: string, out: string[] = []): string[] {

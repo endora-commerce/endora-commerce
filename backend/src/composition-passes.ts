@@ -53,6 +53,10 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // Both roots resolve `adminNotificationService` immediately after this pass
   // and hand it to the four modules that write notifications.
   'admin_notifications',
+  // `search`, `newsletter` and `prompt_actions` are hand-wired and take
+  // `credentialsService` as an argument, so it has to be registered before
+  // any of them is constructed.
+  'credentials',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

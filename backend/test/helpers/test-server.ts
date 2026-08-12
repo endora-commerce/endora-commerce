@@ -1,3 +1,5 @@
+import type { ConfigurationTypeRegistry } from '../../src/modules/credentials/services/configuration-type-registry.js';
+import type { CredentialsService } from '../../src/modules/credentials/services/credentials.service.js';
 import type { AdminNotificationService } from '../../src/modules/admin_notifications/services/admin-notification-service.js';
 import { CURRENCY_CHANGED_EVENT } from '../../src/modules/currencies/backend.js';
 import type { CurrencyService } from '../../src/modules/currencies/services/currency-service.js';
@@ -158,7 +160,6 @@ import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js'
 import { searchModule } from '../../src/modules/search/plugin.js';
 import { createSuggestionPricingEnricher } from '../../src/modules/search/services/suggestion-pricing-enricher.js';
 import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/modules/prompt_actions/plugin.js';
-import { credentialsModule } from '../../src/modules/credentials/plugin.js';
 import { ksefModule } from '../../src/modules/ksef/plugin.js';
 import { productFeedsModule } from '../../src/modules/product_feeds/plugin.js';
 import type {
@@ -325,7 +326,7 @@ export interface BackendServerHandle {
   /** Feature 043 — prompt assistant handle (registry + request service). */
   promptActions: ReturnType<typeof promptActionsModule>['handle'];
   /** Feature 058 — credentials handle (config-type registry + service). */
-  credentials: ReturnType<typeof credentialsModule>['handle'];
+  credentials: { service: CredentialsService; configurationTypeRegistry: ConfigurationTypeRegistry };
   /** Feature 047 — invoices handle (issuance service, PDF renderer, number generator). */
   invoices: ReturnType<typeof invoicesModule>['handle'];
   /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
@@ -726,6 +727,9 @@ export async function setupBackendServer(
     // Modules announce on it; `ctx.subscribe` receives on it. A module that
     // publishes needs it as a registration, not just as a composer option.
     eventBus,
+    // The audited write path (Principle XIII). A converted module resolves it
+    // like any other platform service.
+    commandBus,
     // Mirrors `composition.ts`: the resolved registry the permission catalogue
     // is built from, and the kernel's audit writer.
     resolvedModuleRegistry: REGISTERED_MANIFESTS,
@@ -1681,7 +1685,7 @@ export async function setupBackendServer(
 
   // Feature 058 — Credentials module. Instantiated before the consumer modules
   // (prompt_actions, search, newsletter) so they can receive
-  // `credentials.handle.service` for the `credential_ref` resolution path.
+  // `credentialsService` for the `credential_ref` resolution path.
   if (!configurationTypeRegistry.isRegistered(llmConfigurationType.code)) {
     configurationTypeRegistry.register(llmConfigurationType);
   }
@@ -1700,23 +1704,19 @@ export async function setupBackendServer(
   if (!configurationTypeRegistry.isRegistered(feedDeliveryConfigurationType.code)) {
     configurationTypeRegistry.register(feedDeliveryConfigurationType);
   }
-  const credentials = credentialsModule({
-    emFactory: em,
-    settings: settings.handle.settingsService,
-    permissionService,
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminContext: (request) => ({
+  // Feature 072 (wave 1) — mirrors `composition.ts`: the root supplies the
+  // registry and the admin-context resolver, the module owns the service.
+  registerValues(container, {
+    configurationTypeRegistry,
+    adminContextResolver: (request: FastifyRequest) => ({
       adminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
-    commandBus,
-    configurationTypeRegistry,
-    auditLogService,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
+    credentialsSettingsPort: settings.handle.settingsService,
   });
-  modules.push(credentials.plugin);
+  const credentialsService = (
+    container.cradle as unknown as { credentialsService: CredentialsService }
+  ).credentialsService;
 
   // Feature 043 — prompt assistant (mirrors composition.ts). Tool handlers
   // contributed by catalog/inventory; provider HTTP is injected by tests.
@@ -1742,7 +1742,7 @@ export async function setupBackendServer(
           : TEST_ADMIN_ID,
     }),
     auditLogService,
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
     ...(options.promptActionsLlmFetch !== undefined
       ? { llmFetch: options.promptActionsLlmFetch }
@@ -1967,7 +1967,7 @@ export async function setupBackendServer(
     catalogAttributeRead: catalogAttributeReadService,
     settingsService: settings.handle.settingsService,
     settingsAdminService: settings.handle.adminService,
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     requireAdmin: requireTestAdmin(permissionService),
     enrichSuggestionPricing: createSuggestionPricingEnricher({
       emFactory: em,
@@ -2293,7 +2293,7 @@ export async function setupBackendServer(
     taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
     // Feature 070 — every delivery secret lives in the credentials module
     // (FR-107), so delivery exists only where that module is wired.
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     deliveryAdapters: options.feedDeliveryAdapters ?? refusingDeliveryAdapters(),
   });
   modules.push(productFeeds.plugin);
@@ -2312,7 +2312,7 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
     commandBus,
     eventBus,
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     catalogAdmin: new CatalogAdminService(
       em,
       eventBus as unknown as CatalogEventBus,
@@ -2457,7 +2457,7 @@ export async function setupBackendServer(
           occurredAt: new Date().toISOString(),
           ...payload,
         }),
-      credentials: credentials.handle.service,
+      credentials: credentialsService,
     }),
   );
 
@@ -2664,7 +2664,7 @@ export async function setupBackendServer(
     sessionService,
     auditLogService,
     promptActions: promptActions.handle,
-    credentials: credentials.handle,
+    credentials: { service: credentialsService, configurationTypeRegistry },
     invoices: invoices.handle,
     ksef: ksef.handle,
     productFeeds: productFeeds.handle,

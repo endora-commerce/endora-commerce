@@ -1,3 +1,4 @@
+import type { CredentialsService } from './modules/credentials/services/credentials.service.js';
 import type { AdminNotificationService } from './modules/admin_notifications/services/admin-notification-service.js';
 import { CURRENCY_CHANGED_EVENT } from './modules/currencies/backend.js';
 import type { CurrencyService } from './modules/currencies/services/currency-service.js';
@@ -150,7 +151,6 @@ import { comparisonsModule } from './modules/comparisons/plugin.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
 import { promptActionsModule } from './modules/prompt_actions/plugin.js';
 // Feature 058 — Credentials (reusable credential configurations).
-import { credentialsModule } from './modules/credentials/plugin.js';
 import { configurationTypeRegistry } from './modules/credentials/services/registry-singleton.js';
 import { llmConfigurationType } from './modules/credentials/types/llm.type.js';
 import { emailAdapterConfigurationType } from './modules/credentials/types/email-adapter.type.js';
@@ -404,6 +404,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // Modules announce on it; `ctx.subscribe` receives on it. A module that
     // publishes needs it as a registration, not just as a composer option.
     eventBus,
+    // The audited write path (Principle XIII). A converted module resolves it
+    // like any other platform service.
+    commandBus,
     // The resolved registry — core manifests plus this deployment's overlay
     // modules. `admin_roles` builds the permission catalogue from it and cannot
     // see it itself: which modules a deployment ships is a composition-root
@@ -870,7 +873,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   // Feature 058 — Credentials module. Instantiated right after `settings` (its
   // only hard dependency) so that consumer modules constructed further down
-  // (search, newsletter, prompt_actions) can receive `credentials.handle.service`
+  // (search, newsletter, prompt_actions) can receive `credentialsService`
   // for the `credential_ref` resolution path (feature 058 Phase 8). The
   // configuration-type registry is the process-wide cross-module seam; core
   // types are registered here at boot.
@@ -878,23 +881,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   configurationTypeRegistry.register(emailAdapterConfigurationType);
   configurationTypeRegistry.register(ergonodeConfigurationType);
   configurationTypeRegistry.register(feedDeliveryConfigurationType);
-  const credentials = credentialsModule({
-    emFactory: em,
+  // Feature 072 (wave 1) — `credentials` owns its service; the root supplies
+  // the two inputs that are properties of the deployment rather than of the
+  // module: the cross-module configuration-type registry, and how an admin
+  // actor is resolved from a request.
+  registerValues(container, {
+    configurationTypeRegistry,
+    adminContextResolver,
     // US2 — the delete-integrity guard reaches settings only through this port
     // (Principle I): `SettingsService.listReferencesToConfiguration`.
-    settings: settings.handle.settingsService,
-    permissionService,
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-    commandBus,
-    configurationTypeRegistry,
-    auditLogService,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
+    credentialsSettingsPort: settings.handle.settingsService,
   });
-  // `credentials.plugin` is added to the `modules` array below (declared later);
-  // the handle is used by the consumer modules constructed above/below.
+  const credentialsService = (
+    container.cradle as unknown as { credentialsService: CredentialsService }
+  ).credentialsService;
 
   // Feature 042 — MFA module. Constructed here (after `settings`) so it can
   // read the per-scope MFA settings; its login port is bound to the late-bound
@@ -1345,7 +1345,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     tenantContextModulePlugin,
     admin.plugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
-    credentials.plugin,
     creditLimits.plugin,
     customFields.plugin,
     integrations.plugin,
@@ -2048,7 +2047,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     settingsAdminService: settings.handle.adminService,
     // Feature 058 — resolve `search.llm.embedder_credentials`; legacy embedder
     // settings remain the per-field fallback.
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     requireAdmin,
     // Typeahead suggestions carry the per-customer price-list resolution so
     // the popup shows the price the searching user would actually pay,
@@ -2464,7 +2463,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     taxService: taxes.handle.taxService,
     // Feature 070 — every secret a delivery target needs is stored through the
     // credentials module (FR-107); this module holds only the pointer.
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     resolveAvailability: async (productIds, salesChannelId) => {
       const candidateWarehouseIds =
         await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
@@ -2594,7 +2593,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     commandBus,
     eventBus,
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     catalogAdmin: new CatalogAdminService(
       em,
       eventBus as unknown as CatalogEventBus,
@@ -2907,7 +2906,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       runWorkers,
       // Feature 058 — resolve `newsletter.email_credentials` (email_adapter);
       // falls back to the legacy `newsletter.smtp.*` settings when unset.
-      credentials: credentials.handle.service,
+      credentials: credentialsService,
       resolveEmailBranding: async (salesChannelId) => {
         if (!emailBrandingService) {
           return { logoUrl: '', accentColor: '#1f2937' };
@@ -3181,7 +3180,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     auditLogService,
     // Feature 058 — resolve `prompt_actions.llm_credentials`; legacy settings
     // remain the fallback when no credential reference is configured.
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
   });
   // Feature 043 — per-module AI-assistant command registration.

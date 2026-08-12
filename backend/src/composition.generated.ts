@@ -30,12 +30,14 @@ import * as module3 from './modules/analytics/backend.js';
 import { manifest as manifest3 } from './modules/analytics/manifest.js';
 import * as module4 from './modules/blog/backend.js';
 import { manifest as manifest4 } from './modules/blog/manifest.js';
-import * as module5 from './modules/currencies/backend.js';
-import { manifest as manifest5 } from './modules/currencies/manifest.js';
-import * as module6 from './modules/email/backend.js';
-import { manifest as manifest6 } from './modules/email/manifest.js';
-import * as module7 from './modules/health_checks/backend.js';
-import { manifest as manifest7 } from './modules/health_checks/manifest.js';
+import * as module5 from './modules/credentials/backend.js';
+import { manifest as manifest5 } from './modules/credentials/manifest.js';
+import * as module6 from './modules/currencies/backend.js';
+import { manifest as manifest6 } from './modules/currencies/manifest.js';
+import * as module7 from './modules/email/backend.js';
+import { manifest as manifest7 } from './modules/email/manifest.js';
+import * as module8 from './modules/health_checks/backend.js';
+import { manifest as manifest8 } from './modules/health_checks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: 'admin_roles', version: manifest0.version, registerModule: module0.registerModule },
@@ -43,7 +45,8 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'admin_notifications', version: manifest2.version, registerModule: module2.registerModule },
   { id: 'analytics', version: manifest3.version, registerModule: module3.registerModule },
   { id: 'blog', version: manifest4.version, registerModule: module4.registerModule },
-  { id: 'currencies', version: manifest5.version, registerModule: module5.registerModule },
-  { id: 'email', version: manifest6.version, registerModule: module6.registerModule },
-  { id: 'health_checks', version: manifest7.version, registerModule: module7.registerModule },
+  { id: 'credentials', version: manifest5.version, registerModule: module5.registerModule },
+  { id: 'currencies', version: manifest6.version, registerModule: module6.registerModule },
+  { id: 'email', version: manifest7.version, registerModule: module7.registerModule },
+  { id: 'health_checks', version: manifest8.version, registerModule: module8.registerModule },
 ];
