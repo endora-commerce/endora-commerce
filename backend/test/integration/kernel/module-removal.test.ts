@@ -120,6 +120,18 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `prompt_actions` (wave 1) — the inverted case, and the reason this ledger
+  // is worth keeping. Its `composition.ts` reference is not a leftover of the
+  // conversion: three *other* modules contribute tools into the registry this
+  // one owns, and the root is where "which modules does this deployment ship"
+  // is known. So the root imports `PromptActionTool` to type the contributions
+  // and `PromptActionToolRegistry` to type what it resolves. Both stay until
+  // `catalog`, `inventory` and `orders` convert and contribute for themselves.
+  prompt_actions: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
 };
 
 function walk(dir: string, out: string[] = []): string[] {

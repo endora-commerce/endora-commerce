@@ -38,6 +38,8 @@ import * as module7 from './modules/email/backend.js';
 import { manifest as manifest7 } from './modules/email/manifest.js';
 import * as module8 from './modules/health_checks/backend.js';
 import { manifest as manifest8 } from './modules/health_checks/manifest.js';
+import * as module9 from './modules/prompt_actions/backend.js';
+import { manifest as manifest9 } from './modules/prompt_actions/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: 'admin_roles', version: manifest0.version, registerModule: module0.registerModule },
@@ -49,4 +51,5 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'currencies', version: manifest6.version, registerModule: module6.registerModule },
   { id: 'email', version: manifest7.version, registerModule: module7.registerModule },
   { id: 'health_checks', version: manifest8.version, registerModule: module8.registerModule },
+  { id: 'prompt_actions', version: manifest9.version, registerModule: module9.registerModule },
 ];

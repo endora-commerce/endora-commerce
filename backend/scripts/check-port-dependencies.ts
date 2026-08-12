@@ -73,6 +73,10 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // which modules a deployment ships, so the root creates and populates it.
   'configurationTypeRegistry',
   'credentialsSettingsPort',
+  // Which channel a global-scope settings read resolves against: the
+  // deployment's system-default channel, or its configured fallback. A
+  // property of the deployment, not of any module.
+  'settingsChannelResolver',
   'salesChannelResolutionPort',
   'salesChannelMembershipPort',
 ]);

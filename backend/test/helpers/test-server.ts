@@ -159,7 +159,11 @@ import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-pro
 import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
 import { searchModule } from '../../src/modules/search/plugin.js';
 import { createSuggestionPricingEnricher } from '../../src/modules/search/services/suggestion-pricing-enricher.js';
-import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/modules/prompt_actions/plugin.js';
+import type { PromptActionsCradle } from '../../src/modules/prompt_actions/backend.js';
+import type { PromptActionToolRegistry } from '../../src/modules/prompt_actions/services/tool-registry.js';
+import type { PromptRequestService } from '../../src/modules/prompt_actions/services/prompt-request.service.js';
+import type { LlmProviderFactory } from '../../src/modules/prompt_actions/services/llm/provider-factory.js';
+import type { FetchLike } from '../../src/modules/prompt_actions/services/llm/provider.js';
 import { ksefModule } from '../../src/modules/ksef/plugin.js';
 import { productFeedsModule } from '../../src/modules/product_feeds/plugin.js';
 import type {
@@ -251,7 +255,7 @@ export interface BackendServerOptions {
    */
   commerceMailer?: Mailer;
   /** Feature 043 — scripted LLM fetch + clock/TTL seams for prompt-action tests. */
-  promptActionsLlmFetch?: PromptActionsModuleOptions['llmFetch'];
+  promptActionsLlmFetch?: FetchLike;
   promptActionsNow?: () => Date;
   promptActionsTtlMinutes?: number;
   /** Feature 059 — stub KSeF API client for submission/credential tests. */
@@ -324,7 +328,11 @@ export interface BackendServerHandle {
   /** Feature 004 — exposes the universal getter and cache invalidator for tests. */
   settings: ReturnType<typeof settingsModule>['handle'];
   /** Feature 043 — prompt assistant handle (registry + request service). */
-  promptActions: ReturnType<typeof promptActionsModule>['handle'];
+  promptActions: {
+    registry: PromptActionToolRegistry;
+    requestService: PromptRequestService;
+    providerFactory: LlmProviderFactory;
+  };
   /** Feature 058 — credentials handle (config-type registry + service). */
   credentials: { service: CredentialsService; configurationTypeRegistry: ConfigurationTypeRegistry };
   /** Feature 047 — invoices handle (issuance service, PDF renderer, number generator). */
@@ -1718,49 +1726,6 @@ export async function setupBackendServer(
     container.cradle as unknown as { credentialsService: CredentialsService }
   ).credentialsService;
 
-  // Feature 043 — prompt assistant (mirrors composition.ts). Tool handlers
-  // contributed by catalog/inventory; provider HTTP is injected by tests.
-  const catalogToolDeps = {
-    emFactory: em,
-    events: eventBus,
-    auditLogService,
-    salesChannelMembership: salesChannels.handle.membershipService,
-    redis,
-  };
-  const promptActions = promptActionsModule({
-    emFactory: em,
-    settings: settings.handle.settingsService,
-    resolveSettingsChannelId: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
-    permissionService,
-    isModuleInstalled: (moduleId) => registryCache.isEnabled(moduleId),
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminContext: (request) => ({
-      adminUserId:
-        request.testActor?.kind === 'admin'
-          ? request.testActor.adminUserId
-          : TEST_ADMIN_ID,
-    }),
-    auditLogService,
-    credentials: credentialsService,
-    bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
-    ...(options.promptActionsLlmFetch !== undefined
-      ? { llmFetch: options.promptActionsLlmFetch }
-      : {}),
-    ...(options.promptActionsNow !== undefined ? { now: options.promptActionsNow } : {}),
-    ...(options.promptActionsTtlMinutes !== undefined
-      ? { ttlMinutes: options.promptActionsTtlMinutes }
-      : {}),
-  });
-  for (const tool of [
-    ...catalogPromptResolverTools(catalogToolDeps),
-    ...catalogPromptMutationTools(catalogToolDeps),
-    ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
-  ]) {
-    promptActions.handle.registry.register(tool);
-  }
-  modules.push(promptActions.plugin);
-
   // Feature 013 — Assets Library. Routes mount under /api/v1/admin/assets/*
   // and /assets/file/:assetId.
   const assetsLibrary = assetsLibraryModule({
@@ -1936,6 +1901,8 @@ export async function setupBackendServer(
     },
     // `redis` is registered further up, where the client is created.
     settingsReadPort: settings.handle.settingsService,
+    settingsChannelResolver: async () =>
+      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
     assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
     dictionaryValidator: dictionaries.handle.validator,
     blogStorefrontDeps: undefined,
@@ -1949,6 +1916,39 @@ export async function setupBackendServer(
   });
   modules.push(...lateModules.sink.plugins);
   await lateModules.runBootHooks();
+
+  // Feature 043 / 072 — the assistant's contribution points, mirroring
+  // `composition.ts`. They are registered **after** the late pass because the
+  // module registers its own empty defaults there; a value written before
+  // composition would be overwritten by them.
+  const catalogToolDeps = {
+    emFactory: em,
+    events: eventBus,
+    auditLogService,
+    salesChannelMembership: salesChannels.handle.membershipService,
+    redis,
+  };
+  registerValues(container, {
+    promptActionsBulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
+    ...(options.promptActionsLlmFetch === undefined
+      ? {}
+      : { promptActionsLlmFetch: options.promptActionsLlmFetch }),
+    ...(options.promptActionsNow === undefined
+      ? {}
+      : { promptActionsNow: options.promptActionsNow }),
+    ...(options.promptActionsTtlMinutes === undefined
+      ? {}
+      : { promptActionsTtlMinutes: options.promptActionsTtlMinutes }),
+  });
+  const promptActionsCradle = container.cradle as unknown as PromptActionsCradle;
+  for (const tool of [
+    ...catalogPromptResolverTools(catalogToolDeps),
+    ...catalogPromptMutationTools(catalogToolDeps),
+    ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
+  ]) {
+    promptActionsCradle.promptActionToolRegistry.register(tool);
+  }
+
   const blogCradle = container.cradle as unknown as BlogCradle;
   if (blogCradle.blogCacheService) await blogCradle.blogCacheService.invalidateAll();
 
@@ -2663,7 +2663,11 @@ export async function setupBackendServer(
     pubSubArmed: options.exercisePubSub === true,
     sessionService,
     auditLogService,
-    promptActions: promptActions.handle,
+    promptActions: {
+      registry: promptActionsCradle.promptActionToolRegistry,
+      requestService: promptActionsCradle.promptRequestService,
+      providerFactory: promptActionsCradle.llmProviderFactory,
+    },
     credentials: { service: credentialsService, configurationTypeRegistry },
     invoices: invoices.handle,
     ksef: ksef.handle,

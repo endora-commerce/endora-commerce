@@ -149,7 +149,6 @@ import {
 } from './modules/search/manifest.js';
 import { comparisonsModule } from './modules/comparisons/plugin.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
-import { promptActionsModule } from './modules/prompt_actions/plugin.js';
 // Feature 058 — Credentials (reusable credential configurations).
 import { configurationTypeRegistry } from './modules/credentials/services/registry-singleton.js';
 import { llmConfigurationType } from './modules/credentials/types/llm.type.js';
@@ -208,7 +207,10 @@ import {
 } from './modules/catalog/prompt-tools.js';
 import { inventoryPromptTools } from './modules/inventory/prompt-tools.js';
 import { ordersPromptTools } from './modules/orders/prompt-tools.js';
-import type { PromptActionTool } from './modules/prompt_actions/services/tool-registry.js';
+import type {
+  PromptActionTool,
+  PromptActionToolRegistry,
+} from './modules/prompt_actions/services/tool-registry.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
 import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
@@ -2007,6 +2009,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // The kernel's `SettingsService` already implements the read port; the
     // adapter object this replaces existed only to narrow it.
     settingsReadPort: settings.handle.settingsService,
+    // Which channel a global-scope settings read resolves against. It is a
+    // property of the deployment — the system-default channel, or the env
+    // fallback when none is configured yet — not of any module, and this root
+    // had spelled the same expression out four times.
+    settingsChannelResolver: async () =>
+      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
     assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
     dictionaryValidator: dictionaries.handle.validator,
     // Blog ships no storefront ports today — the factory defaulted this to `{}`
@@ -3168,21 +3176,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     salesChannelMembership: salesChannels.handle.membershipService,
     redis,
   };
-  const promptActions = promptActionsModule({
-    emFactory: em,
-    settings: settings.handle.settingsService,
-    resolveSettingsChannelId: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-    permissionService,
-    isModuleInstalled: (moduleId) => registryCache.isEnabled(moduleId),
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-    auditLogService,
-    // Feature 058 — resolve `prompt_actions.llm_credentials`; legacy settings
-    // remain the fallback when no credential reference is configured.
-    credentials: credentialsService,
-    bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
+  // Feature 072 — the module composed itself in the late pass; what is left
+  // here is the one thing a module cannot do for itself: hand it the
+  // contributions of whichever modules this deployment happens to ship.
+  registerValues(container, {
+    promptActionsBulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
   });
+  const promptActionToolRegistry = (
+    container.cradle as unknown as { promptActionToolRegistry: PromptActionToolRegistry }
+  ).promptActionToolRegistry;
   // Feature 043 — per-module AI-assistant command registration.
   //
   // Each module contributes its prompt-action tools (resolvers + mutations) as
@@ -3200,9 +3202,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }),
   ];
   for (const tool of promptActionToolProviders) {
-    promptActions.handle.registry.register(tool);
+    promptActionToolRegistry.register(tool);
   }
-  modules.push(promptActions.plugin);
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings
