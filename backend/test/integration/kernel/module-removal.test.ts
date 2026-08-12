@@ -96,6 +96,13 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // resolves and hands to `dictionaries` and `languages`. Both hosts take the
   // service as an argument now instead of each constructing one.
   currencies: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `analytics` (wave 1) — the first converted module with **no reference from
+  // a composition root at all**. Only the two central registries hold it, and
+  // both are known structural holes rather than anything this module did: the
+  // ORM entity list is hand-maintained, and the migration registry names every
+  // migration on purpose (feature 065). This is the residue shape the rest of
+  // the sweep should be aiming at.
+  analytics: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
 };
 
 function walk(dir: string, out: string[] = []): string[] {

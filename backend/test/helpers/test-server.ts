@@ -134,7 +134,6 @@ import { ReturnEmailNotifier } from '../../src/modules/returns/services/return-e
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
 import { customFieldsModule } from '../../src/modules/custom_fields/plugin.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
-import { analyticsModule } from '../../src/modules/analytics/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import { seoModule } from '../../src/modules/seo/plugin.js';
 import { i18nModule } from '../../src/modules/languages/plugin.js';
@@ -949,10 +948,6 @@ export async function setupBackendServer(
 
   // Analytics (Phase 10 / T237). No GA4 forwarder in tests — the env vars
   // are unset by default so `buildForwarderFromEnv` returns a NoopForwarder.
-  const analytics = analyticsModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-  });
 
   // Import/Export (Phase 10 / T240).
   const importExport = importExportModule({
@@ -1204,7 +1199,6 @@ export async function setupBackendServer(
     creditLimits.plugin,
     customFields.plugin,
     integrations.plugin,
-    analytics.plugin,
     importExport.plugin,
     seo.plugin,
     i18n.plugin,

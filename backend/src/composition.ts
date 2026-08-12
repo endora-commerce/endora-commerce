@@ -123,7 +123,6 @@ import {
   createWebhookWorker,
 } from './modules/webhooks/services/webhook-queue.js';
 import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
-import { analyticsModule } from './modules/analytics/plugin.js';
 import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
 import { i18nModule } from './modules/languages/plugin.js';
@@ -631,7 +630,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     customFields.handle.definitionService,
   );
 
-  const analytics = analyticsModule({ emFactory: em, requireAdmin });
   const importExport = importExportModule({ emFactory: em, requireAdmin });
   // `seoModule` is instantiated AFTER settings (further below) so the
   // sitemap generator can read the per-channel `sales_channels.storefront_url`
@@ -1348,7 +1346,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     creditLimits.plugin,
     customFields.plugin,
     integrations.plugin,
-    analytics.plugin,
     importExport.plugin,
     seo.plugin,
     i18n.plugin,
