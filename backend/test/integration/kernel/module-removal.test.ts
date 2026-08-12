@@ -74,6 +74,17 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   //    file, which is a mechanical, single-region edit the file's grouping was
   //    built for — not archaeology.
   blog: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `auth` (T078). Two references, both of which say something:
+  //
+  //  - `entities-registry.ts` names its `Session` entity, the same
+  //    hand-maintained list blog is caught by above.
+  //  - `composition.ts` imports `promoteAdminActor` and the `AuthCradle` type.
+  //    The type import is the ordinary shape of a root resolving a module's
+  //    registrations. `promoteAdminActor` is the interesting one: it is the
+  //    admin-session promotion the hand-wired `requireCustomer` closure applies
+  //    before deciding whether a request carries a customer, and it leaves when
+  //    `customer_accounts` converts.
+  auth: ['src/composition.ts', 'src/db/entities-registry.ts'],
 };
 
 function walk(dir: string, out: string[] = []): string[] {

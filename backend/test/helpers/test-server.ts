@@ -36,11 +36,12 @@ import {
 import { initOrm, closeOrm } from '../../src/db/index.js';
 import { EventBus } from '../../src/events/bus.js';
 import { CommandBus } from '../../src/commands/index.js';
-import { SessionService } from '../../src/modules/auth/services/session-service.js';
+import type { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
 import { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
 import { PermissionCatalogueService } from '../../src/modules/admin_roles/services/permission-catalogue.service.js';
 import { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
+import type { AuthCradle } from '../../src/modules/auth/backend.js';
 import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { catalogModule } from '../../src/modules/catalog/plugin.js';
@@ -644,7 +645,6 @@ export async function setupBackendServer(
     if (keys.length > 0) await redis.del(keys);
   }
 
-  const sessionService = new SessionService(em, redis);
   const auditLogService = new AuditLogService(em);
   const permissionService = new PermissionService(em);
   const permissionCatalogueService = new PermissionCatalogueService({
@@ -714,7 +714,27 @@ export async function setupBackendServer(
   // Feature 072 — the early pass of the generated module list, composed exactly
   // as `composition.ts` composes it and at the same point in the boot order:
   // ahead of the hand-wired remainder, which reads what it registers.
-  registerValues(container, { redis });
+  // Feature 072 (T078) — seeded **before** the early pass, not at the end of
+  // this function where it used to sit.
+  //
+  // The enabled set is a precondition for every gated resolution, and a
+  // converted module's port is resolved as soon as something asks for it. While
+  // no module provided a port the late seeding was invisible; `auth` providing
+  // `requireAdmin` turned it into `ModuleDisabledError: Module 'auth' is
+  // currently disabled` on a platform where nothing was disabled. The ordering
+  // was always wrong; nothing had asked the question early enough to show it.
+  registryCache.setActivationDeclarations(
+    activationDeclarationsFrom(REGISTERED_MANIFESTS.map((e) => e.manifest)),
+  );
+  registryCache.__setEnabledForTesting(REGISTERED_MANIFESTS.map((e) => e.manifest.id));
+  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
+
+  registerValues(container, {
+    redis,
+    // `admin_roles` owns this and is still hand-wired; `auth` resolves it to
+    // build the `requireAdmin` guard. Mirrors `composition.ts`.
+    permissionService,
+  });
   const earlyModules = composeModules(earlyPassModules(MODULES), {
     container,
     eventBus,
@@ -723,6 +743,11 @@ export async function setupBackendServer(
     ownership: registrationOwnership,
   });
   await earlyModules.runBootHooks();
+
+  // Feature 072 (T078) — `auth` owns these. Resolved from the same registration
+  // production resolves, which is the whole point of converging the roots: the
+  // harness no longer builds its own SessionService.
+  const sessionService = (container.cradle as unknown as AuthCradle).sessionService;
 
   // The mailer the `email` module registered. `injectedMailer` is the same
   // instance unless a test supplied its own — the one seam that stays, because
@@ -1063,6 +1088,18 @@ export async function setupBackendServer(
     // Feature 072 — the early pass's route contribution, ahead of the auth
     // plugin for the same reason production keeps it there.
     ...earlyModules.sink.plugins,
+    // Feature 072 (T078) — `auth`'s root plugin, at the same point in the boot
+    // order `composition.ts` puts it: after the liveness probe's routes, before
+    // everything that reads `request.actor`.
+    //
+    // It registers **before** `registerTestAuth`, so its `onRequest` hook runs
+    // first and the harness's synthetic actor still wins. That ordering is the
+    // whole compatibility story: `auth` decorates `actor` and seeds it from the
+    // real session cookies, and `registerTestAuth` then assigns the test actor
+    // over the top through the same decorator.
+    async (app) => {
+      for (const plugin of earlyModules.sink.rootPlugins) await plugin(app);
+    },
     async (app) => {
       registerTestAuth(app, {
         sessionService,
@@ -1851,7 +1888,15 @@ export async function setupBackendServer(
   // in the boot order `composition.ts` composes it. The host names below are the
   // only thing this root knows about those modules.
   registerValues(container, {
-    requireAdmin: requireTestAdmin(permissionService),
+    // `requireAdmin` is NOT here: `auth` provides it as a port (T078).
+    // Feature 072 (T078) — the two resolvers the auth plugin reads per request,
+    // mirroring `composition.ts`.
+    apiKeyResolver: async (token: string) =>
+      integrations.handle.apiKeyService.authenticate(token),
+    customerOrgResolver: async (customerAccountId: string) => {
+      const customer = await em().findOne(CustomerAccount, { id: customerAccountId });
+      return customer?.organizationId ?? null;
+    },
     // `redis` is registered further up, where the client is created.
     settingsReadPort: settings.handle.settingsService,
     assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
@@ -2553,11 +2598,6 @@ export async function setupBackendServer(
   // Production does this inside `registryCache.start()`; without it the
   // operator axis has nothing to resolve, the settings write guards never fire
   // and the activation endpoint reports every module as having no control.
-  registryCache.setActivationDeclarations(
-    activationDeclarationsFrom(REGISTERED_MANIFESTS.map((e) => e.manifest)),
-  );
-  registryCache.__setEnabledForTesting(REGISTERED_MANIFESTS.map((e) => e.manifest.id));
-  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
   // Feature 072 (T073) — the other half of the pub/sub path production runs: a
   // module-state change invalidates the permission catalogue.
   //

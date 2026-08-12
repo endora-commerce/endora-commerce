@@ -1,0 +1,108 @@
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type { Redis } from 'ioredis';
+import type { ModuleContext } from '../../kernel/index.js';
+import type { AdminPermissionChecker } from '../../kernel/ports/require-admin.js';
+import { Session } from './entities/session.entity.js';
+import { authPlugin } from './plugin.js';
+import { createRequireAdmin, createRequireAdminAny } from './require-admin.js';
+import { SessionService } from './services/session-service.js';
+
+/**
+ * `auth` — the module every other module's guards read (feature 072, T078).
+ *
+ * Three things about this conversion are not shared with the modules that
+ * follow it, and each is a property of what `auth` is rather than of how it was
+ * written.
+ *
+ *  1. **Its plugin goes through `ctx.rootPlugin`, not `ctx.routes`.** It
+ *     contributes no routes; it decorates `request.actor`, which every module's
+ *     guards read. Both routes seams encapsulate, and a decoration applied
+ *     inside a Fastify child context is invisible to that context's siblings —
+ *     so registering it through either would leave every module but this one
+ *     with no actor.
+ *  2. **Its ports are the only ones a disabled `auth` could withdraw, and it
+ *     cannot be disabled.** `requireAdmin` gates 205 call sites across 60
+ *     modules; a platform whose admin guard is absent has no admin surface to
+ *     speak of, so the manifest declares the module non-deactivatable and the
+ *     orchestrator refuses to switch it off. The port gate is still registered
+ *     rather than skipped: the check that can never fire costs one predicate,
+ *     and an exception carved into the port machinery would cost a reader's
+ *     confidence in every other gate.
+ *  3. **It consumes `permissionService`, which `admin_roles` owns.** The
+ *     manifest declares that dependency (D-32); it is the edge that made `auth`
+ *     the first module to need `check:port-dependencies` to pass.
+ */
+
+export const entities = [Session];
+
+/** What `auth` resolves: its own registrations, plus what it needs from elsewhere. */
+export interface AuthCradle {
+  readonly emFactory: () => EntityManager;
+  readonly redis: Redis;
+  /** `admin_roles`' permission checker, narrowed to what the guard uses. */
+  readonly permissionService: AdminPermissionChecker;
+  readonly sessionService: SessionService;
+  /**
+   * `api_keys`' bearer-token resolver. Registered by the composition root
+   * **after** this module composes, because `api_keys` is still hand-wired and
+   * is constructed later; it is read per request, so the late registration is
+   * invisible to the plugin below.
+   */
+  readonly apiKeyResolver:
+    | ((token: string) => Promise<{
+        apiKeyId: string;
+        scopes: string[];
+        organizationId?: string | null;
+        salesChannelId?: string | null;
+        customerAccountId?: string | null;
+      } | null>)
+    | undefined;
+  /** Resolves a customer account to its organisation. Same late-binding story. */
+  readonly customerOrgResolver: ((customerAccountId: string) => Promise<string | null>) | undefined;
+}
+
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.register({
+    sessionService: ctx
+      .asFunction(({ emFactory, redis }: AuthCradle) => new SessionService(emFactory, redis))
+      .singleton(),
+  });
+
+  // `requireAdmin` is the platform's single admin guard and the most-resolved
+  // name in the tree. It is a port because it is resolved by 60 other modules;
+  // `requireAdminAny` is the same guard with an any-of-these-codes predicate,
+  // and lives here for the same reason (`promoteAdminActor` plus a permission
+  // check are both this module's business).
+  ctx.di.providePort(
+    'requireAdmin',
+    ctx
+      .asFunction(({ permissionService }: AuthCradle) => createRequireAdmin({ permissionService }))
+      .singleton(),
+  );
+  ctx.di.providePort(
+    'requireAdminAny',
+    ctx
+      .asFunction(({ permissionService }: AuthCradle) =>
+        createRequireAdminAny({ permissionService }),
+      )
+      .singleton(),
+  );
+
+  ctx.rootPlugin(
+    'decorates request.actor and request.adminActor, which every module’s route ' +
+      'guards read — a decoration applied inside an encapsulated context would ' +
+      'reach none of them',
+    async (app) => {
+      const cradle = ctx.cradle<AuthCradle>();
+      await app.register(authPlugin, {
+        sessionService: cradle.sessionService,
+        // Read per request, so a resolver the root registers after this module
+        // composed is still found. Passing the cradle read rather than the
+        // value is what makes the late binding work without a mutable holder.
+        apiKeyResolver: async (token) => (await cradle.apiKeyResolver?.(token)) ?? null,
+        customerOrgResolver: async (customerAccountId) =>
+          (await cradle.customerOrgResolver?.(customerAccountId)) ?? null,
+      });
+    },
+  );
+}

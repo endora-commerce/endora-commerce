@@ -73,14 +73,24 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
  * its owner's conversion, so the list drains rather than accumulating.
  */
 export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
-  // `composition.ts` builds the guard from the auth plugin's decorations and
-  // `admin_roles`' permission service; `auth` registers it itself in T078.
-  requireAdmin: 'auth',
+  // `requireAdmin` and `requireAdminAny` are gone from here: `auth` provides
+  // them itself since T078, and the staleness check below fails the build if an
+  // entry outlives its owner's conversion.
+  //
+  // `admin_roles` owns the permission checker and is still hand-wired, so both
+  // composition roots register it as a host value for `auth` to resolve. `auth`
+  // declares `admin_roles` in its manifest (D-32), which is what makes this a
+  // declared edge rather than an invisible one.
+  permissionService: 'admin_roles',
   assetReferenceRegistry: 'assets_library',
   dictionaryValidator: 'dictionaries',
   // Registered as `undefined` today: blog ships no storefront ports and both
   // composition roots pass nothing. The name is blog's own.
   blogStorefrontDeps: 'blog',
+  // The two resolvers the auth plugin reads per request; their owners are
+  // hand-wired and constructed after `auth`, so a root registers them.
+  apiKeyResolver: 'api_keys',
+  customerOrgResolver: 'customer_accounts',
 };
 
 export interface PortResolution {
