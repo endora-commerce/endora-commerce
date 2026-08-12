@@ -159,6 +159,15 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
  * yet, and it is measured rather than assumed.
  */
 const REDIS_CLIENTS_PER_COMPOSITION = 2;
+
+/**
+ * Subscribing costs about **10 MB per composition** — measured, not estimated:
+ * arming it in every composition added ~1 GB to the suite's live set (1224 MB →
+ * 2231 MB at the same point in the run) and turned the full run into a heap OOM
+ * at file 182 of 940. The client is constructed everywhere, because that is
+ * cheap and matches production's shape; the *subscription* is opt-in.
+ */
+const PUBSUB_IS_OPT_IN = true;
 const ORM_INSTANCES_PER_COMPOSITION = 1;
 
 describe('T076 — what one composition costs, before the 555× multiplier', () => {
@@ -172,6 +181,27 @@ describe('T076 — what one composition costs, before the 555× multiplier', () 
     expect([...production.matchAll(/\bnew Redis\s*\(/g)].length).toBe(
       REDIS_CLIENTS_PER_COMPOSITION,
     );
+  });
+
+  it('arms the subscription only where a test asks for it', () => {
+    expect(PUBSUB_IS_OPT_IN).toBe(true);
+    // Both subscribing sites — the custom-field cache and the module-state
+    // channel — sit behind the guard. Counting them is the checkable form of
+    // "no bare subscribe": a new one added without a guard moves the counts
+    // apart and fails here.
+    const guards = [...harness.matchAll(/options\.exercisePubSub === true/g)].length;
+    const subscribes = [...harness.matchAll(/\.(subscribe|start)\(redisSubscriber|redisSubscriber\.subscribe\(/g)]
+      .length;
+    expect(guards).toBe(2);
+    expect(subscribes).toBe(2);
+  });
+
+  it('unsubscribes and drops listeners before disconnecting', () => {
+    // Disconnecting a subscribed client keeps its subscription set, and ioredis
+    // re-establishes it on any reconnect — one armed subscription per
+    // composition is how ~1 GB of retention accumulated.
+    expect(harness).toContain("removeAllListeners('message')");
+    expect(harness).toContain('unsubscribe()');
   });
 
   it('disconnects every client it opens', () => {

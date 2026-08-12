@@ -282,6 +282,19 @@ export interface BackendServerOptions {
    */
   ergonodeMediaFetcher?: ErgonodeMediaFetcherPort;
   /**
+   * Feature 072 (T073) — arm the cross-process pub/sub path: subscribe the
+   * second Redis client to the custom-field and module-state channels.
+   *
+   * **Off by default, and that is the design, not a shortcut.** Subscribing
+   * costs roughly 10 MB per composition and a run performs 555 of them — it
+   * added ~1 GB to the suite's live set and pushed it into a heap OOM when it
+   * was armed everywhere. Arming it in the handful of tests that actually
+   * assert cross-process invalidation exercises the same code and asserts
+   * something, which is strictly more than arming it everywhere and asserting
+   * nothing.
+   */
+  exercisePubSub?: boolean;
+  /**
    * Feature 060 — contribute API interceptor registrations before the server
    * seals the registry on ready. Contract tests use this to register fixture
    * interceptors against real module endpoints.
@@ -862,11 +875,13 @@ export async function setupBackendServer(
     commandBus,
     requireAdmin: requireTestAdmin(permissionService),
   });
-  // Feature 072 (T073) — production starts this and the harness did not, so the
-  // custom-field cache never listened for a cross-process invalidation: a
-  // definition changed in one process stayed stale in another, and nothing in
-  // the suite could notice.
-  void customFields.handle.cache.start(redisSubscriber);
+  // Feature 072 (T073) — production starts this; the harness arms it only when
+  // a test asks (see `exercisePubSub`). Awaited rather than fire-and-forget,
+  // because a `subscribe` landing after teardown made ioredis reconnect and
+  // re-subscribe, leaving a live client pinning the whole composition.
+  if (options.exercisePubSub === true) {
+    await customFields.handle.cache.start(redisSubscriber);
+  }
 
   // Feature 061 — the composed attribute read model (mirrors composition.ts):
   // product-host custom-field definitions + catalog extension rows, threaded
@@ -2544,14 +2559,20 @@ export async function setupBackendServer(
   registryCache.__setEnabledForTesting(REGISTERED_MANIFESTS.map((e) => e.manifest.id));
   permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
   // Feature 072 (T073) — the other half of the pub/sub path production runs: a
-  // module-state change invalidates the permission catalogue. Without it the
-  // catalogue kept answering from a snapshot taken before the change, which is
-  // exactly the bug the channel exists to prevent.
-  redisSubscriber.on('message', (channel) => {
-    if (channel === STATE_CHANGED_CHANNEL) {
-      permissionCatalogueService.invalidate();
-    }
-  });
+  // module-state change invalidates the permission catalogue.
+  //
+  // The **subscribe** matters as much as the listener. Without it this handler
+  // was dead code: production subscribes through the lifecycle module, which
+  // the harness does not boot, so the channel had no subscriber and the
+  // listener never fired once.
+  if (options.exercisePubSub === true) {
+    await redisSubscriber.subscribe(STATE_CHANGED_CHANNEL);
+    redisSubscriber.on('message', (channel) => {
+      if (channel === STATE_CHANGED_CHANNEL) {
+        permissionCatalogueService.invalidate();
+      }
+    });
+  }
   await app.ready();
 
   return {
@@ -2629,6 +2650,16 @@ export async function teardownBackendServer(h: BackendServerHandle): Promise<voi
   // cache, so a file's composed services do not outlive its server.
   await h.container.dispose();
   h.redis.disconnect();
+  // Unsubscribe and drop listeners **before** disconnecting. A subscribed
+  // client that is merely disconnected keeps its subscription set, and ioredis
+  // re-establishes it on any reconnect — which is how one armed subscription
+  // per composition became ~1 GB of retention across a run.
+  h.redisSubscriber.removeAllListeners('message');
+  try {
+    await h.redisSubscriber.unsubscribe();
+  } catch {
+    // Already closed — nothing to unsubscribe from.
+  }
   h.redisSubscriber.disconnect();
   await closeOrm();
 }
