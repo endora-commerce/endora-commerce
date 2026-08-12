@@ -21,13 +21,20 @@ import {
 
 export const STUB_CUSTOMER_PASSWORD = 'stub-password-change-me-1234';
 
+/**
+ * The seeded organization's tax id. Exported because the VAT fake has to agree
+ * with it: this row is seeded `vatStatus: 'vat_payer'`, so a validator that
+ * answers `failed` for it contradicts the fixture it is validating.
+ */
+export const TEST_ORGANIZATION_TAX_ID = 'PL0000000099';
+
 export async function seedTestOrganizations(em: EntityManager): Promise<void> {
   const passwordHash = await hashPassword(STUB_CUSTOMER_PASSWORD);
 
   const org = em.create(Organization, {
     id: TEST_ORGANIZATION_ID,
     name: 'Test Organization',
-    taxId: 'PL0000000099',
+    taxId: TEST_ORGANIZATION_TAX_ID,
     status: 'active',
     vatStatus: 'vat_payer',
     registeredAddress: {
