@@ -8,7 +8,10 @@ import {
   registerModulePresenceRoutes,
 } from '../../src/modules/_lifecycle/routes.admin.js';
 import { registerModulePresenceStorefrontRoutes } from '../../src/modules/_lifecycle/routes.storefront.js';
-import { publishStateChanged } from '../../src/modules/_lifecycle/services/registry-cache.js';
+import {
+  publishStateChanged,
+  STATE_CHANGED_CHANNEL,
+} from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { activationDeclarationsFrom } from '../../src/modules/_lifecycle/services/activation-resolver.js';
 import { effectiveState } from '../../src/modules/_lifecycle/services/effective-state.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
@@ -60,6 +63,9 @@ import { OrganizationContextService } from '../../src/modules/organizations/serv
 import { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
 import { SalesRepAssignmentService } from '../../src/modules/organizations/services/sales-rep-assignment-service.js';
 import { OrganizationTreeService } from '../../src/modules/organizations/services/organization-tree-service.js';
+import { OrganizationInheritanceService } from '../../src/modules/organizations/services/organization-inheritance-service.js';
+import { AddressService } from '../../src/modules/addresses/services/address-service.js';
+import { ORGANIZATIONS_SETTING_CODES } from '../../src/modules/organizations/manifest.js';
 import { resolveCustomerRollupSubtreeIds } from '../../src/modules/customer_accounts/services/customer-rollup-scope.js';
 import { OrganizationEffectivePriceListsService } from '../../src/modules/organizations/services/organization-effective-pricelists-service.js';
 import { OrganizationTaxIdValidationService } from '../../src/modules/organizations/services/organization-tax-id-validation-service.js';
@@ -206,7 +212,7 @@ import { collectRegisteredSettingsManifests } from '../../src/modules/settings/s
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import type { Mailer } from '../../src/modules/email/services/mailer.js';
 import { seedUs1Catalog } from './seed-catalog.js';
-import { seedTestOrganizations } from './seed-organizations.js';
+import { seedTestOrganizations, TEST_ORGANIZATION_TAX_ID } from './seed-organizations.js';
 import { seedUs2Commerce } from './seed-commerce.js';
 import { seedTestAdmins } from './seed-admins.js';
 import {
@@ -291,6 +297,8 @@ export interface BackendServerHandle {
   /** Feature 060 — the sealed API interceptor registry (execution plan via `.list()`). */
   apiInterceptors: ApiInterceptorRegistry;
   redis: Redis;
+  /** Feature 072 (T073) — the module-state pub/sub client, disconnected at teardown. */
+  redisSubscriber: Redis;
   sessionService: SessionService;
   auditLogService: AuditLogService;
   permissionService: PermissionService;
@@ -594,6 +602,22 @@ export async function setupBackendServer(
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
+  // Feature 018 / 072 (T073) — the module-state pub/sub client. ioredis puts a
+  // subscribed client into a mode where it will not accept ordinary commands,
+  // so production keeps subscriptions on a second connection; a harness with
+  // one client cannot exercise that path at all, and the pub/sub channel is the
+  // platform's *only* cross-process invalidation mechanism — the EventBus is
+  // in-process and the settings cache converges by TTL.
+  //
+  // It costs one more connection per composition. Redis tolerates that where
+  // PostgreSQL would not, and files run sequentially under `singleFork`, so at
+  // most a couple are live at once — but it is disconnected in
+  // `teardownBackendServer` alongside the main client, because 555 leaked
+  // connections is what the ceiling in `harness-parity.test.ts` is about.
+  const redisSubscriber = new Redis(redisUrl, {
+    maxRetriesPerRequest: null,
+    lazyConnect: false,
+  });
   // Each setup truncates + reseeds the DB with fresh random-id rows, so any
   // Redis cache that keys by a STABLE business key (channel code, setting code)
   // but stores the now-deleted row's id goes stale and causes FK violations on
@@ -613,7 +637,11 @@ export async function setupBackendServer(
   const permissionCatalogueService = new PermissionCatalogueService({
     registryEntries: REGISTERED_MANIFESTS,
   });
-  const adminRoleService = new AdminRoleService(em, permissionCatalogueService);
+  // Feature 072 (T074) — production passes the audit log service here and the
+  // harness did not, so every audited role write in tests ran through a service
+  // with no audit writer: the audit rows the write is supposed to leave were
+  // asserted by nothing, in the one module whose whole point is authorisation.
+  const adminRoleService = new AdminRoleService(em, permissionCatalogueService, auditLogService);
   const requireAdminAny = requireTestAdminAny(permissionService);
 
   const conn = orm.em.getConnection();
@@ -788,6 +816,30 @@ export async function setupBackendServer(
     getMfaLoginPort: getTestMfaLoginPort,
   });
 
+  // Feature 056 — organization tree + inheritance resolution, built here for
+  // the same reason production builds it (`composition.ts`): three consumers
+  // read it, and without it all three run a shape no deployment runs.
+  //
+  // The credit-mode closure reads Settings at **call** time, so it may be
+  // written before the settings module exists further down — which is exactly
+  // how production orders it. Feature 072 (T072).
+  const organizationInheritanceService = new OrganizationInheritanceService(
+    em,
+    new OrganizationTreeService(em),
+    async () => {
+      try {
+        const { z } = await import('zod');
+        return await settings.handle.settingsService.get(
+          ORGANIZATIONS_SETTING_CODES.CREDIT_INHERITANCE_MODE,
+          'default',
+          z.enum(['shared_pool', 'independent_default']),
+        );
+      } catch {
+        return 'shared_pool';
+      }
+    },
+  );
+
   // Credit-limits module — its CreditLimitService is the driver passed into
   // commerceModule below so OrderService.placeOrder can reserve atomically.
   const creditLimits = creditLimitsModule({
@@ -797,6 +849,9 @@ export async function setupBackendServer(
     requireCustomer: requireTestCustomer(),
     requireAdmin: requireTestAdmin(permissionService),
     resolveCustomerContext: customerResolver,
+    // Feature 072 (T072) — inherited credit limits (shared_pool /
+    // independent_default) were resolved by nothing in tests without this.
+    inheritance: organizationInheritanceService,
   });
 
   // Feature 055 — Custom Fields Layer. No Redis publisher in tests; the cache
@@ -807,6 +862,11 @@ export async function setupBackendServer(
     commandBus,
     requireAdmin: requireTestAdmin(permissionService),
   });
+  // Feature 072 (T073) — production starts this and the harness did not, so the
+  // custom-field cache never listened for a cross-process invalidation: a
+  // definition changed in one process stayed stale in another, and nothing in
+  // the suite could notice.
+  void customFields.handle.cache.start(redisSubscriber);
 
   // Feature 061 — the composed attribute read model (mirrors composition.ts):
   // product-host custom-field definitions + catalog extension rows, threaded
@@ -907,6 +967,11 @@ export async function setupBackendServer(
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
+    // Feature 072 (T072) — without this, inherited price lists (feature 056)
+    // resolved flat in every test: a descendant org never picked up an
+    // ancestor's org-named list, so the inheritance the feature exists for was
+    // exercised by nothing.
+    resolveOrgChain: (orgId) => organizationInheritanceService.priceListOrgChain(orgId),
   });
 
   // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
@@ -1064,6 +1129,10 @@ export async function setupBackendServer(
       requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
+      // Feature 072 (T072) — production passes this and the harness did not, so
+      // every address path in checkout ran a shape no deployment runs. Same
+      // three arguments as `composition.ts`.
+      addressService: new AddressService(em, dictionaries.handle.validator, auditLogService),
       // Real per-product VAT — mirrors composition.ts so placeOrder resolves the
       // rate from the tax rules instead of a flat 23%.
       resolveTaxRate: async ({ country, productType, vatStatus }) => {
@@ -1926,18 +1995,9 @@ export async function setupBackendServer(
     storefrontBaseUrl: 'http://localhost:3000',
     resolveDeletionRetentionDays: async () => 365,
     resolvePresenceFreshnessMinutes: async () => 10,
-    vatValidator: {
-      provider: 'vies' as const,
-      validate: async (input: { taxId: string; countryCode?: string | undefined }) => ({
-        outcome:
-          input.taxId === 'PL0000000099'
-            ? ('validated' as const)
-            : ('unverified' as const),
-        legalName: input.taxId === 'PL0000000099' ? 'Test Organization' : null,
-        address: null,
-        errorKind: null,
-      }),
-    },
+    // Feature 072 (T071) — the same fake the organizations wiring gets, rather
+    // than a second one that answered differently for the same tax id.
+    vatValidator: new FakeVatValidator('vies'),
     resolveModerationActor: async (request) => {
       const adminUserId =
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
@@ -2483,6 +2543,15 @@ export async function setupBackendServer(
   );
   registryCache.__setEnabledForTesting(REGISTERED_MANIFESTS.map((e) => e.manifest.id));
   permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
+  // Feature 072 (T073) — the other half of the pub/sub path production runs: a
+  // module-state change invalidates the permission catalogue. Without it the
+  // catalogue kept answering from a snapshot taken before the change, which is
+  // exactly the bug the channel exists to prevent.
+  redisSubscriber.on('message', (channel) => {
+    if (channel === STATE_CHANGED_CHANNEL) {
+      permissionCatalogueService.invalidate();
+    }
+  });
   await app.ready();
 
   return {
@@ -2492,6 +2561,7 @@ export async function setupBackendServer(
     eventBus,
     apiInterceptors,
     redis,
+    redisSubscriber,
     sessionService,
     auditLogService,
     promptActions: promptActions.handle,
@@ -2559,6 +2629,7 @@ export async function teardownBackendServer(h: BackendServerHandle): Promise<voi
   // cache, so a file's composed services do not outlive its server.
   await h.container.dispose();
   h.redis.disconnect();
+  h.redisSubscriber.disconnect();
   await closeOrm();
 }
 
@@ -2571,11 +2642,33 @@ export async function teardownBackendServer(h: BackendServerHandle): Promise<voi
  *
  * No real HTTP traffic; lets tests cover all three branches deterministically.
  */
+/**
+ * The one VAT validator fake (feature 072, T071).
+ *
+ * There used to be two, and they **disagreed**: this class answered `failed`
+ * for `PL0000000099` while an inline object literal in the customers wiring
+ * answered `validated` for the same input. Same port, same tax id, two answers
+ * — decided by which module happened to be called. That is the failure mode
+ * T071 is about: a hand-rolled fake per call site is a second wiring, and two
+ * wirings of one port drift the moment either is touched.
+ *
+ * `PL0000000099` is the seeded organization's tax id and the seed marks that
+ * row a VAT payer, so it validates here. A fake that failed it would contradict
+ * the fixture it is validating.
+ */
 class FakeVatValidator implements VatValidator {
   constructor(public readonly provider: 'vies' | 'mf_pl') {}
 
   async validate(input: { taxId: string }): Promise<VatValidationResult> {
     const cleaned = input.taxId.replace(/[\s-]+/g, '').toUpperCase();
+    if (cleaned === TEST_ORGANIZATION_TAX_ID) {
+      return {
+        outcome: 'validated',
+        legalName: 'Test Organization',
+        address: null,
+        errorKind: null,
+      };
+    }
     if (cleaned.endsWith('00000')) {
       return {
         outcome: 'validated',
