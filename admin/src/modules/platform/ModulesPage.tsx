@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useModulePresence } from '@/lib/module-presence';
+import { ModuleActivationControl } from './ModuleActivationControl';
 import { listModules } from './api';
 
 /**
@@ -148,15 +149,18 @@ export function ModulesPage(): ReactNode {
                 <TableHead>{t('platform.modules.column.activation')}</TableHead>
                 <TableHead>{t('platform.modules.column.version')}</TableHead>
                 <TableHead>{t('platform.modules.column.flags')}</TableHead>
+                <TableHead className="text-right">
+                  {t('platform.modules.column.actions')}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((row) => (
-                <ModuleTableRow key={row.item.id} row={row} t={t} />
+                <ModuleTableRow key={row.item.id} row={row} t={t} onError={setError} />
               ))}
               {!loading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-sm text-muted-foreground">
+                  <TableCell colSpan={6} className="text-sm text-muted-foreground">
                     {t('platform.modules.empty')}
                   </TableCell>
                 </TableRow>
@@ -171,10 +175,19 @@ export function ModulesPage(): ReactNode {
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
-function ModuleTableRow({ row, t }: { row: ModuleRow; t: Translate }): ReactNode {
+function ModuleTableRow({
+  row,
+  t,
+  onError,
+}: {
+  row: ModuleRow;
+  t: Translate;
+  onError: (message: string) => void;
+}): ReactNode {
   const { item, presence } = row;
   const state = presence?.platformState ?? item.state;
   const kind = activationKindOf(presence);
+  const available = isPlatformAvailable(row);
   const drift =
     item.version.registered !== null &&
     item.version.onDisk !== null &&
@@ -197,7 +210,7 @@ function ModuleTableRow({ row, t }: { row: ModuleRow; t: Translate }): ReactNode
         </Badge>
       </TableCell>
       <TableCell>
-        <ActivationCell presence={presence} kind={kind} available={isPlatformAvailable(row)} t={t} />
+        <ActivationCell presence={presence} kind={kind} available={available} t={t} />
       </TableCell>
       <TableCell className="whitespace-nowrap text-xs">
         {drift ? (
@@ -223,6 +236,20 @@ function ModuleTableRow({ row, t }: { row: ModuleRow; t: Translate }): ReactNode
             </Badge>
           ))}
         </div>
+      </TableCell>
+      <TableCell className="text-right">
+        {/* Only the operator axis is actionable here. Platform availability is
+            deployment work and stays with the CLI, and a module that declared
+            no control has nothing to flip. */}
+        {available && presence && (kind === 'on' || kind === 'off') && (
+          <ModuleActivationControl
+            moduleId={item.id}
+            moduleName={item.name}
+            presence={presence}
+            t={t}
+            onError={onError}
+          />
+        )}
       </TableCell>
     </TableRow>
   );

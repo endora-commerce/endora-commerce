@@ -25,7 +25,7 @@ import { settingsClient } from '../api/settings-client';
 import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { ConflictBanner } from '../components/ConflictBanner';
-import { ActivationControlRow } from '../components/ActivationControlRow';
+import { ActivationPointerRow } from '../components/ActivationPointerRow';
 import {
   SettingRowEditor,
   computeVersion,
@@ -507,11 +507,11 @@ export function SettingsPage(): ReactNode {
                                 />
                               )}
                               {s.activationControl === true ? (
-                                // Constitution XVII's single exception: this row
-                                // stays writable while its module is off, and it
-                                // writes through the audited activation Command
-                                // rather than the settings batch.
-                                <ActivationControlRow setting={s} onError={setError} />
+                                // D-36a: the control itself lives on
+                                // `/platform/modules`. What stays here is the
+                                // row an operator looks for by name, pointing
+                                // at the one surface that can flip it.
+                                <ActivationPointerRow setting={s} />
                               ) : (
                                 <SettingRowEditor
                                   setting={s}

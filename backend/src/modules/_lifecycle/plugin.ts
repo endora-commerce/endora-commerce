@@ -139,10 +139,16 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
       orchestrator,
       requireAdmin: deps.requireAdmin,
     });
-    // Feature 073 — the presence projections and the activation write. Both
-    // reads sit outside `defineModuleRoutes`: `_lifecycle` is non-deactivatable,
-    // and gating the surface that tells the frontends what is present on the
-    // state it reports would be circular.
+    // Feature 073 — the presence projections and the activation write, all
+    // outside `defineModuleRoutes`. The exemption is structural, not a
+    // privilege this module holds: a surface that reports on module presence
+    // cannot be gated on module presence without becoming circular, which is
+    // the same argument `ctx.ungatedRoutes` states for the probes.
+    //
+    // D-36 puts the activation *write* here too. It backs the kernel-served
+    // `/platform/modules` screen, so no module owns the surface that toggles
+    // modules and switching a module off can no longer take away the control
+    // that would switch it back on.
     registerModulePresenceRoutes(app, {
       requireAdmin: deps.requireAdmin,
       ...(deps.commandBus
