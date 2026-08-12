@@ -41,6 +41,10 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // That separation is what lets `health_checks` keep contributing its probe
   // ahead of the auth hook while `auth` registers first.
   'auth',
+  // `auth` resolves `permissionService` from it, and both roots resolve its
+  // three services immediately after this pass. The generated order already
+  // puts it ahead of `auth`, because `auth`'s manifest declares the dependency.
+  'admin_roles',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

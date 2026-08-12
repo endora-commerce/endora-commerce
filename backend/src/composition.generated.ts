@@ -20,18 +20,21 @@
 
 import type { ModuleEntry } from './kernel/compose.js';
 
-import * as module0 from './modules/auth/backend.js';
-import { manifest as manifest0 } from './modules/auth/manifest.js';
-import * as module1 from './modules/blog/backend.js';
-import { manifest as manifest1 } from './modules/blog/manifest.js';
-import * as module2 from './modules/email/backend.js';
-import { manifest as manifest2 } from './modules/email/manifest.js';
-import * as module3 from './modules/health_checks/backend.js';
-import { manifest as manifest3 } from './modules/health_checks/manifest.js';
+import * as module0 from './modules/admin_roles/backend.js';
+import { manifest as manifest0 } from './modules/admin_roles/manifest.js';
+import * as module1 from './modules/auth/backend.js';
+import { manifest as manifest1 } from './modules/auth/manifest.js';
+import * as module2 from './modules/blog/backend.js';
+import { manifest as manifest2 } from './modules/blog/manifest.js';
+import * as module3 from './modules/email/backend.js';
+import { manifest as manifest3 } from './modules/email/manifest.js';
+import * as module4 from './modules/health_checks/backend.js';
+import { manifest as manifest4 } from './modules/health_checks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
-  { id: 'auth', version: manifest0.version, registerModule: module0.registerModule },
-  { id: 'blog', version: manifest1.version, registerModule: module1.registerModule },
-  { id: 'email', version: manifest2.version, registerModule: module2.registerModule },
-  { id: 'health_checks', version: manifest3.version, registerModule: module3.registerModule },
+  { id: 'admin_roles', version: manifest0.version, registerModule: module0.registerModule },
+  { id: 'auth', version: manifest1.version, registerModule: module1.registerModule },
+  { id: 'blog', version: manifest2.version, registerModule: module2.registerModule },
+  { id: 'email', version: manifest3.version, registerModule: module3.registerModule },
+  { id: 'health_checks', version: manifest4.version, registerModule: module4.registerModule },
 ];

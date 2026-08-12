@@ -39,9 +39,9 @@ import type {
   RequireAdminFactory,
 } from './kernel/ports/require-admin.js';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
-import { PermissionService } from './modules/admin_roles/services/permission-service.js';
-import { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
-import { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
+import type { PermissionService } from './modules/admin_roles/services/permission-service.js';
+import type { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
+import type { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
 import type { AuthCradle } from './modules/auth/backend.js';
 import {
   registryCache,
@@ -347,7 +347,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
 
   const auditLogService = new AuditLogService(em);
-  const permissionService = new PermissionService(em);
 
   // Feature 057 — resolve the per-deployment overlay once. For a bare-core
   // build (no DEPLOYMENT / no overlay dir) all of these are empty and the wiring
@@ -368,10 +367,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ...overlayModuleManifests.map((m) => ({ manifest: m.manifest, filePath: m.filePath })),
   ];
 
-  const permissionCatalogueService = new PermissionCatalogueService({
-    registryEntries: resolvedRegistry,
-  });
-  const adminRoleService = new AdminRoleService(em, permissionCatalogueService, auditLogService);
 
   const eventBus = new EventBus();
 
@@ -405,10 +400,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // and the client has existed since the top of this function.
   registerValues(container, {
     redis,
-    // `admin_roles` owns this and is still hand-wired; `auth` resolves it to
-    // build the `requireAdmin` guard, and its manifest declares the dependency
-    // (D-32). The entry disappears when `admin_roles` converts.
-    permissionService,
+    // The resolved registry — core manifests plus this deployment's overlay
+    // modules. `admin_roles` builds the permission catalogue from it and cannot
+    // see it itself: which modules a deployment ships is a composition-root
+    // input, not something a module decides.
+    resolvedModuleRegistry: resolvedRegistry,
+    auditLogService,
   });
   const earlyModules = composeModules(earlyPassModules(MODULES), {
     container,
@@ -428,6 +425,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdminAny: RequireAdminAnyFactory;
   };
   const sessionService = authCradle.sessionService;
+
+  // Feature 072 (wave 1) — `admin_roles` owns these three now.
+  const rolesCradle = container.cradle as unknown as {
+    permissionService: PermissionService;
+    permissionCatalogueService: PermissionCatalogueService;
+    adminRoleService: AdminRoleService;
+  };
+  const permissionService = rolesCradle.permissionService;
+  const permissionCatalogueService = rolesCradle.permissionCatalogueService;
+  const adminRoleService = rolesCradle.adminRoleService;
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 

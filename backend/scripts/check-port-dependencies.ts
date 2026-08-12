@@ -61,6 +61,10 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   'commandBus',
   'apiInterceptors',
   'settingsReadPort',
+  // The resolved module registry is a composition-root input by nature: which
+  // modules a deployment ships is not something a module may decide.
+  'resolvedModuleRegistry',
+  'auditLogService',
   'salesChannelResolutionPort',
   'salesChannelMembershipPort',
 ]);
@@ -77,11 +81,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // them itself since T078, and the staleness check below fails the build if an
   // entry outlives its owner's conversion.
   //
-  // `admin_roles` owns the permission checker and is still hand-wired, so both
-  // composition roots register it as a host value for `auth` to resolve. `auth`
-  // declares `admin_roles` in its manifest (D-32), which is what makes this a
-  // declared edge rather than an invisible one.
-  permissionService: 'admin_roles',
   assetReferenceRegistry: 'assets_library',
   dictionaryValidator: 'dictionaries',
   // Registered as `undefined` today: blog ships no storefront ports and both

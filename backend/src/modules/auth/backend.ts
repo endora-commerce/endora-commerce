@@ -73,18 +73,28 @@ export function registerModule(ctx: ModuleContext): void {
   // `requireAdminAny` is the same guard with an any-of-these-codes predicate,
   // and lives here for the same reason (`promoteAdminActor` plus a permission
   // check are both this module's business).
+  //
+  // Both guards read `permissionService` **per check**, not at construction,
+  // and that is a correctness requirement rather than a style choice.
+  // `permissionService` is a port owned by `admin_roles`, so its resolution is
+  // gated on that module's effective state; a guard that captured the instance
+  // once would keep answering from it after the module went away, which is the
+  // permissive failure the gate exists to prevent. Awilix enforces the same
+  // thing from the other side — a singleton may not depend on the transient
+  // gate wrapper — so the two agree.
+  const permissionChecker = (): AdminPermissionChecker => ({
+    hasPermission: (adminUserId, permission) =>
+      ctx.cradle<AuthCradle>().permissionService.hasPermission(adminUserId, permission),
+  });
+
   ctx.di.providePort(
     'requireAdmin',
-    ctx
-      .asFunction(({ permissionService }: AuthCradle) => createRequireAdmin({ permissionService }))
-      .singleton(),
+    ctx.asFunction(() => createRequireAdmin({ permissionService: permissionChecker() })).singleton(),
   );
   ctx.di.providePort(
     'requireAdminAny',
     ctx
-      .asFunction(({ permissionService }: AuthCradle) =>
-        createRequireAdminAny({ permissionService }),
-      )
+      .asFunction(() => createRequireAdminAny({ permissionService: permissionChecker() }))
       .singleton(),
   );
 

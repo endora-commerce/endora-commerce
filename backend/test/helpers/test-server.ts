@@ -38,9 +38,9 @@ import { EventBus } from '../../src/events/bus.js';
 import { CommandBus } from '../../src/commands/index.js';
 import type { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
-import { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
-import { PermissionCatalogueService } from '../../src/modules/admin_roles/services/permission-catalogue.service.js';
-import { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
+import type { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
+import type { PermissionCatalogueService } from '../../src/modules/admin_roles/services/permission-catalogue.service.js';
+import type { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
 import type { AuthCradle } from '../../src/modules/auth/backend.js';
 import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../src/modules/_lifecycle/services/registry-cache.js';
@@ -646,16 +646,8 @@ export async function setupBackendServer(
   }
 
   const auditLogService = new AuditLogService(em);
-  const permissionService = new PermissionService(em);
-  const permissionCatalogueService = new PermissionCatalogueService({
-    registryEntries: REGISTERED_MANIFESTS,
-  });
-  // Feature 072 (T074) — production passes the audit log service here and the
-  // harness did not, so every audited role write in tests ran through a service
-  // with no audit writer: the audit rows the write is supposed to leave were
-  // asserted by nothing, in the one module whose whole point is authorisation.
-  const adminRoleService = new AdminRoleService(em, permissionCatalogueService, auditLogService);
-  const requireAdminAny = requireTestAdminAny(permissionService);
+
+
 
   const conn = orm.em.getConnection();
   await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
@@ -727,13 +719,13 @@ export async function setupBackendServer(
     activationDeclarationsFrom(REGISTERED_MANIFESTS.map((e) => e.manifest)),
   );
   registryCache.__setEnabledForTesting(REGISTERED_MANIFESTS.map((e) => e.manifest.id));
-  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
 
   registerValues(container, {
     redis,
-    // `admin_roles` owns this and is still hand-wired; `auth` resolves it to
-    // build the `requireAdmin` guard. Mirrors `composition.ts`.
-    permissionService,
+    // Mirrors `composition.ts`: the resolved registry the permission catalogue
+    // is built from, and the kernel's audit writer.
+    resolvedModuleRegistry: REGISTERED_MANIFESTS,
+    auditLogService,
   });
   const earlyModules = composeModules(earlyPassModules(MODULES), {
     container,
@@ -748,6 +740,24 @@ export async function setupBackendServer(
   // production resolves, which is the whole point of converging the roots: the
   // harness no longer builds its own SessionService.
   const sessionService = (container.cradle as unknown as AuthCradle).sessionService;
+
+  // Feature 072 (wave 1) — `admin_roles` owns these three. Resolved from the
+  // same registration production resolves, which is how the roots stop being
+  // able to differ: T074 found the harness building AdminRoleService without
+  // its audit writer, and a registration cannot be built two ways.
+  const rolesCradle = container.cradle as unknown as {
+    permissionService: PermissionService;
+    permissionCatalogueService: PermissionCatalogueService;
+    adminRoleService: AdminRoleService;
+  };
+  const permissionService = rolesCradle.permissionService;
+  const permissionCatalogueService = rolesCradle.permissionCatalogueService;
+  const adminRoleService = rolesCradle.adminRoleService;
+  const requireAdminAny = requireTestAdminAny(permissionService);
+  // The enabled-set accessor is wired here rather than with the seeding above,
+  // because the catalogue it wires is `admin_roles`' registration and does not
+  // exist until the early pass has run.
+  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
 
   // The mailer the `email` module registered. `injectedMailer` is the same
   // instance unless a test supplied its own — the one seam that stays, because

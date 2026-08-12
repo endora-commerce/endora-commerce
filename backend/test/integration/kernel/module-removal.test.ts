@@ -85,6 +85,12 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   //    before deciding whether a request carries a customer, and it leaves when
   //    `customer_accounts` converts.
   auth: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `admin_roles` (wave 1). Same two shapes as `auth`: its `AdminRole` entity
+  // is named by the hand-maintained ORM registry, and `composition.ts` imports
+  // its service types to annotate what it resolves out of the container. The
+  // second one is the ordinary shape of a root reading a module's
+  // registrations, and it leaves when nothing hand-wired needs the annotation.
+  admin_roles: ['src/composition.ts', 'src/db/entities-registry.ts'],
 };
 
 function walk(dir: string, out: string[] = []): string[] {
