@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { CustomerGroupService } from './services/customer-group-service.js';
 import { PriceListService } from './services/price-list-service.js';
 import { PricingService } from './services/pricing-service.js';
+import type { PricingServiceContract } from './services/pricing-service.interface.js';
 import { PriceListStatusWorker } from './services/price-list-status-worker.js';
 import { PricingCache } from './services/pricing-cache.js';
 import { registerPricingRoutes } from './routes.js';
@@ -50,19 +51,24 @@ export interface PriceListsModuleOptions {
    */
   resolveOrgChain?: (orgId: string) => Promise<readonly string[]>;
   /**
-   * Feature 057 — per-deployment overlay override for the pricing engine.
-   * When a deployment ships an overlay `PricingService` (assignable to the core
-   * class, satisfying `PricingServiceContract`), composition passes it here and
-   * it replaces the core implementation for every consumer. Absent ⇒ core
-   * (byte-for-byte unchanged for the bare-core build).
+   * A client override of the pricing engine, as a **decoration** (feature 072,
+   * D-28): it receives the core implementation and returns one that wraps it.
+   *
+   * This replaced feature 057's `pricingServiceClass`, which handed in a
+   * subclass to construct *instead of* core. Replacement is why a client
+   * override stopped receiving core fixes the day it was written — the next fix
+   * to `resolveLinePrice` landed in a class the deployment no longer
+   * instantiated. Wrapping keeps core in the call path.
+   *
+   * Absent ⇒ core, byte-for-byte unchanged for the bare-core build.
    */
-  pricingServiceClass?: typeof PricingService;
+  decoratePricingService?: (inner: PricingServiceContract) => PricingServiceContract;
 }
 
 export interface PriceListsModuleHandle {
   customerGroupService: CustomerGroupService;
   priceListService: PriceListService;
-  pricingService: PricingService;
+  pricingService: PricingServiceContract;
   statusWorker: PriceListStatusWorker;
 }
 
@@ -80,15 +86,18 @@ export function priceListsModule(options: PriceListsModuleOptions): {
     options.auditLogService,
     options.commandBus,
   );
-  // Feature 057 — resolve the pricing engine to the deployment's overlay when
-  // one is provided, else the core class. Consumers read `handle.pricingService`
-  // unchanged, so the swap propagates everywhere it is used.
-  const PricingImpl = options.pricingServiceClass ?? PricingService;
-  const pricingService = new PricingImpl(
+  // Core is always constructed; a deployment override wraps it rather than
+  // taking its place (feature 072, D-28). Consumers read
+  // `handle.pricingService` unchanged, so the wrap propagates everywhere it is
+  // used — and they read it as the *contract*, because a decorated engine is
+  // deliberately not an instance of the core class.
+  const corePricingService = new PricingService(
     options.emFactory,
     pricingCache,
     options.resolveOrgChain,
   );
+  const pricingService: PricingServiceContract =
+    options.decoratePricingService?.(corePricingService) ?? corePricingService;
   const statusWorker = new PriceListStatusWorker(options.emFactory);
 
   return {

@@ -13,7 +13,7 @@ import type { ApplicationRule } from '@b2b/contracts';
 import { ruleVisibleForScope } from '../../tenancy/derived-scope.js';
 import type { CustomerGroupService } from './services/customer-group-service.js';
 import type { PriceListService } from './services/price-list-service.js';
-import type { PricingService } from './services/pricing-service.js';
+import type { PricingServiceContract } from './services/pricing-service.interface.js';
 import { CustomerGroup } from './entities/customer-group.entity.js';
 import type { PriceList } from './entities/price-list.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
@@ -27,7 +27,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 export interface PricingRoutesDeps {
   customerGroupService: CustomerGroupService;
   priceListService: PriceListService;
-  pricingService: PricingService;
+  pricingService: PricingServiceContract;
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
   /** Feature 024 — resolves admin actor identity for audit entries. */

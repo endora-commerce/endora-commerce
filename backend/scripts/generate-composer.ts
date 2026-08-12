@@ -161,6 +161,86 @@ async function loadManifest(dir: string): Promise<{ id: string; dependencies: st
   return { id: manifest.id, dependencies: [...(manifest.dependencies ?? [])] };
 }
 
+/** One present module, as the dependency-presence check sees it. */
+export interface PresentModule {
+  readonly id: string;
+  readonly dependencies: readonly string[];
+}
+
+/**
+ * A module names a dependency that is not in the tree (FR-035, US4).
+ *
+ * This is the failure that makes removal safe. Deleting a module's directory
+ * removes it from every generated artefact — but a module that *declared* it
+ * keeps declaring it, and nothing downstream reads that declaration until the
+ * lifecycle resolves dependencies at runtime and fails closed. The result is a
+ * build that succeeds and a platform that answers 503 for a capability the
+ * operator never switched off, which is the exact shape of failure this feature
+ * exists to prevent. So generation stops, naming the missing module **and** the
+ * modules that still want it — because the fix is in the dependents, not in the
+ * module that is gone.
+ */
+export class MissingModuleDependencyError extends Error {
+  constructor(readonly missing: ReadonlyMap<string, readonly string[]>) {
+    const lines = [...missing]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([id, dependents]) => `  '${id}' — still declared by: ${[...dependents].sort().join(', ')}`);
+    super(
+      `[composer] ${missing.size} module dependenc${missing.size === 1 ? 'y is' : 'ies are'} ` +
+        `declared but not present in the tree:\n${lines.join('\n')}\n` +
+        `  Removing a module is deleting its directory; the modules above still name it in ` +
+        `\`manifest.dependencies\`. Drop the declaration from each dependent, or restore the ` +
+        `module. A missing dependency that reaches runtime fails closed as a 503 for a ` +
+        `capability nobody switched off.`,
+    );
+    this.name = 'MissingModuleDependencyError';
+  }
+}
+
+/**
+ * Every declared dependency names a module that exists (T056).
+ *
+ * Scope is deliberately **every present module**, not only the converted ones:
+ * a dangling declaration is just as wrong in a module that is still hand-wired,
+ * and the generator is the only place in the build that already has the whole
+ * manifest set in front of it.
+ */
+export function assertDependenciesPresent(modules: readonly PresentModule[]): void {
+  const present = new Set(modules.map((module) => module.id));
+  const missing = new Map<string, string[]>();
+  for (const module of modules) {
+    for (const dependency of module.dependencies) {
+      if (present.has(dependency)) continue;
+      const dependents = missing.get(dependency) ?? [];
+      dependents.push(module.id);
+      missing.set(dependency, dependents);
+    }
+  }
+  if (missing.size > 0) throw new MissingModuleDependencyError(missing);
+}
+
+/**
+ * Every module in the tree that ships a lifecycle-shape manifest — core plus
+ * the active deployment's overlay, an overlay id shadowing the core one.
+ */
+async function discoverPresentModules(): Promise<PresentModule[]> {
+  const byId = new Map<string, PresentModule>();
+  const collect = async (root: string): Promise<void> => {
+    for (const id of directoriesIn(root)) {
+      const manifestPath = join(root, id, 'manifest.ts');
+      if (!existsSync(manifestPath)) continue;
+      if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(readFileSync(manifestPath, 'utf8'))) {
+        continue;
+      }
+      byId.set(id, await loadManifest(join(root, id)));
+    }
+  };
+  await collect(modulesRoot);
+  const overlay = overlayRoot();
+  if (overlay) await collect(overlay.root);
+  return [...byId.values()];
+}
+
 /**
  * Registration order (FR-034): dependencies before dependents, the pinned
  * exception ahead of everything it does not itself depend on, overlay modules
@@ -259,6 +339,11 @@ ${entries}
 
 /** Pure render — the target path + expected content of the module composer. */
 export async function renderComposer(): Promise<{ outputPath: string; content: string }> {
+  // Before anything is emitted: every declared dependency names a module that
+  // is still in the tree (T056). A generated composer that quietly drops a
+  // removed module and leaves its dependents declaring it produces a build
+  // that boots and then fails closed at runtime.
+  assertDependenciesPresent(await discoverPresentModules());
   const discovered = discoverConverted();
   const nodes: ComposerNode[] = [];
   for (const entry of discovered) {

@@ -6,10 +6,18 @@
 // See specs/057-overlay-pattern-multideploy/data-model.md.
 
 /**
- * The kinds of core unit an overlay may replace in v1. Schema-level units
- * (entities, migrations) are intentionally excluded — see `RejectedKind`.
+ * The kinds of core unit an overlay may replace. Schema-level units (entities,
+ * migrations) are intentionally excluded — see `RejectedKind`.
+ *
+ * **`service` was removed in feature 072 (T067).** A service override no longer
+ * shadows a file: it decorates a container registration
+ * (`ctx.di.decorate`, D-28), which wraps core and delegates instead of
+ * replacing it. Replacement is the reason a client override stops receiving
+ * core fixes the day it is written; whatever core does to that method next
+ * happens in a file the deployment no longer runs. Nothing needs to classify a
+ * decoration by path, so the kind has no successor here.
  */
-export type OverridableKind = 'service' | 'route' | 'config';
+export type OverridableKind = 'route' | 'config';
 
 /** Path classifications the resolver refuses to override in v1. */
 export type RejectedKind = 'schema' | 'other';
@@ -31,12 +39,6 @@ export interface OverlayContribution {
   overlayPath: string;
   /** Absolute path to the shadowed core file. */
   corePath: string;
-  /**
-   * For a `service` override: module-relative POSIX path of the core interface
-   * file the overlay must satisfy (e.g. `services/pricing-service.interface.ts`).
-   * `null` for `route`/`config` (no interface gate — see core-interfaces.md).
-   */
-  interfaceRelPath: string | null;
 }
 
 /** Resolver output for a single core unit that an overlay replaced. */
@@ -60,8 +62,6 @@ export interface OverrideEntry {
   unitKey: string;
   /** Repo-relative POSIX path to the overlay file (deterministic, no absolute paths). */
   overlayPath: string;
-  /** Repo-relative POSIX path of the core interface checked, or `null`. */
-  satisfiesInterface: string | null;
 }
 
 /** The committed, per-deployment override-manifest artifact. */

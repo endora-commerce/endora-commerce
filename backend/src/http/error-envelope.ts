@@ -18,18 +18,34 @@ export class HttpError extends Error {
   // need a free-form object (e.g. `{ maxBatchSize: 200, attribute: "brand" }`).
   // Both shapes are propagated verbatim into the response envelope.
   readonly details?: Array<{ path: string; issue: string }> | Record<string, unknown>;
+  /**
+   * Response headers this error implies, applied by the error handler below.
+   *
+   * A status code is sometimes only half the answer: `503 MODULE_DISABLED` is
+   * `Retry-After` or it is an outage, and which one the client believes decides
+   * whether it backs off or gives up. Before this, the header was set by the
+   * one hook that knew it — `defineModuleRoutes` — so the identical error
+   * thrown from a service call (`requireModuleEnabled`) or from a port
+   * resolution reached the client without it. Carrying it on the error keeps
+   * the answer the same wherever the throw happens.
+   */
+  readonly headers?: Readonly<Record<string, string>>;
 
   constructor(
     statusCode: number,
     code: ErrorCode,
     message: string,
     details?: Array<{ path: string; issue: string }> | Record<string, unknown>,
+    headers?: Readonly<Record<string, string>>,
   ) {
     super(message);
     this.statusCode = statusCode;
     this.code = code;
     if (details !== undefined) {
       this.details = details;
+    }
+    if (headers !== undefined) {
+      this.headers = headers;
     }
     this.name = 'HttpError';
   }
@@ -122,6 +138,9 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
           requestId,
         },
       };
+      for (const [name, value] of Object.entries(error.headers ?? {})) {
+        reply.header(name, value);
+      }
       reply.status(error.statusCode).send(envelope);
       return;
     }

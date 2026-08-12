@@ -362,6 +362,49 @@ describe('fk drift — allow-list minimality M1-M5 (V5-V9)', () => {
   });
 });
 
+describe('fk drift — T057 a removed module leaves no foreign key behind (US4)', () => {
+  /**
+   * The schema half of "removing a module leaves nothing behind". A dangling
+   * import is a compile error; a foreign key into a dropped module's table is
+   * not — it is a migration that succeeds against a database built before the
+   * removal and fails against a fresh one, which is the worst place to find it.
+   *
+   * `health_checks` is feature 072's removal subject (see
+   * test/integration/kernel/module-removal.test.ts): fan-out 0, no entity, no
+   * migration.
+   */
+  const REMOVED = 'health_checks';
+
+  /** Every foreign key any remaining migration carries into `moduleId`'s tables. */
+  function edgesInto(moduleId: string, edges: readonly FkEdge[]): FkEdge[] {
+    return edges.filter((edge) => edge.to === moduleId && edge.from !== moduleId);
+  }
+
+  it('no remaining migration references a table the removed module owns', () => {
+    const inbound = edgesInto(REMOVED, graph.edges);
+    expect(
+      inbound,
+      `these foreign keys point into ${REMOVED}, so deleting it would leave the ` +
+        `referencing tables with a dangling constraint: ` +
+        `${inbound.map((edge) => edge.via.join(', ')).join(' | ')}`,
+    ).toEqual([]);
+  });
+
+  it('the removed module owns no table at all', () => {
+    const owned = [...graph.owners.entries()]
+      .filter(([, moduleId]) => moduleId === REMOVED)
+      .map(([table]) => table);
+    expect(owned).toEqual([]);
+  });
+
+  it('bites: a module with an inbound foreign key is reported, not silently removable', () => {
+    // Mutation — the same query against a module that IS referenced must find
+    // it, or the two assertions above only prove the scan is empty.
+    const inbound = edgesInto('catalog', graph.edges);
+    expect(inbound.length).toBeGreaterThan(0);
+  });
+});
+
 describe('fk ownership map — V10 core owns nothing', () => {
   it("never attributes a table to the 'core' pseudo-module", () => {
     const coreOwned = [...graph.owners.entries()]

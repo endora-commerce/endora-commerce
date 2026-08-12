@@ -12,7 +12,6 @@ const contribution = (overlayPath: string): OverlayContribution => ({
   relPath: 'routes.admin.ts',
   overlayPath,
   corePath: '/core/catalog/routes.admin.ts',
-  interfaceRelPath: null,
 });
 
 describe('US3 — conflicting overrides fail the build (T035)', () => {

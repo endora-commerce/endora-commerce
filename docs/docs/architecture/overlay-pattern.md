@@ -33,22 +33,48 @@ core stays deployment-agnostic and the bare-core build keeps working unchanged.
 
 | Kind | Overridable? | Notes |
 |------|--------------|-------|
-| Service | ✅ | Must satisfy the core interface (see below). |
+| Service | ✅ | By **decoration**, not by shadowing a file — see below. |
 | Route / plugin | ✅ | Same route mechanism as core. |
 | Config / manifest | ✅ | |
 | Whole new module | ✅ | Registered without editing the core registry. |
 | Entity / migration | ❌ | Schema overrides are out of v1 — ship new schema as a client-only overlay module that owns its own tables. |
 
-## Contract-gated service overrides
+## Service overrides are decorations
 
-A core service is overridable only if it exposes a documented interface — a
-sibling `*.interface.ts` the core class `implements`. An overlay service imports
-that interface via a **relative `.js` path** (overlay files are dynamically
-imported at runtime, so a `@core/*` tsconfig alias — which resolves under
-tsc/tsx but not `node dist/` — is not used) and `implements` it too, so the
-standard `tsc` build fails if the overlay does not satisfy the contract.
-Contract drift (core changes the interface, the overlay does not) is therefore a
-**build failure**, never a per-deployment runtime surprise (FR-003).
+A client override of a service **wraps** the core implementation and delegates to
+it. It does not shadow a file and it does not subclass core.
+
+That is a correctness property, not a style preference. Replacing a service means
+the deployment stops receiving core fixes to the overridden methods the day the
+override is written — whatever core does to that method next lands in a class the
+deployment no longer instantiates, and nobody finds out until the behaviour
+diverges in production. A wrapper keeps core in the call path, so a core fix
+arrives *and* the client behaviour survives it.
+
+A decoration lives in `backend/src/apps/<deployment>/decorations/`, one file per
+registration it wraps, exporting `decorate`:
+
+```ts
+// backend/src/apps/acme/decorations/pricing-service.ts → decorates `pricingService`
+export function decorate(inner: PricingServiceContract): PricingServiceContract {
+  return new AcmePricingService(inner);
+}
+```
+
+The file is named after the **registration**, not after the core file's path, so
+core moving a file breaks nothing. `tsc` remains the contract gate: the
+decoration is written against the core interface (`*.interface.ts`) and stops
+being assignable the moment that interface changes, so contract drift is a build
+failure rather than a per-deployment runtime surprise.
+
+Where two modules decorate the same registration, the wrapping order must be
+declared — composition fails rather than picking by package load order — and
+every applied decoration appears in the composer's override report.
+
+Before feature 072 a service override shadowed
+`modules/<id>/services/<name>.ts` and replaced the core class. A `services/`
+file under an overlay is now an **unknown override target**, which is what it
+is: a file the platform would never load.
 
 ## Fail-closed guards
 
@@ -57,7 +83,7 @@ The build fails — never resolves silently — on:
 - **Conflict** — two overlays targeting one core unit (no last-wins).
 - **Unknown target** — an overlay whose core file does not exist (stale/typo).
 - **Schema override** — an overlay under `entities/`/`migrations/` of a core module.
-- **Missing contract** — a service override whose core service has no interface.
+- **Ambiguous decoration** — two modules decorating one registration with no declared order.
 
 ## Guards still apply
 
@@ -70,9 +96,9 @@ and pass the permission-inventory check per deployment.
 ## Adding an overlay
 
 ```bash
-# 1. Override a core service (its interface must already exist):
-#    backend/src/apps/acme/modules/price_lists/services/pricing-service.ts
-#    → export class PricingService implements PricingServiceContract { … }
+# 1. Override a core service by decorating it (its interface must already exist):
+#    backend/src/apps/acme/decorations/pricing-service.ts
+#    → export function decorate(inner: PricingServiceContract) { … }
 
 # 2. Or add a client-only module:
 #    backend/src/apps/acme/modules/acme_loyalty/{manifest,plugin,routes.admin}.ts

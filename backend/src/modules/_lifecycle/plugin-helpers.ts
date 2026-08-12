@@ -6,9 +6,18 @@ import type { ModulePlugin } from '../../http/server.js';
 import { effectiveState } from './services/effective-state.js';
 
 /**
+ * How long a client should wait before retrying a surface whose module is
+ * absent — one enable-check window. Carried by the error itself, so a route
+ * gate, a `requireModuleEnabled` call and a port resolution all answer the
+ * same thing (feature 072, T059).
+ */
+const RETRY_AFTER_SECONDS = '60';
+
+/**
  * Thrown when service-to-service code calls into a disabled module's
  * surface. Surfaces as `503 Service Unavailable` via the standard error
- * envelope.
+ * envelope, with `Retry-After` so a well-behaved client backs off rather than
+ * treating the module as gone.
  */
 export class ModuleDisabledError extends HttpError {
   constructor(public readonly moduleId: string) {
@@ -16,6 +25,8 @@ export class ModuleDisabledError extends HttpError {
       503,
       ERROR_CODES.MODULE_DISABLED,
       `Module '${moduleId}' is currently disabled.`,
+      undefined,
+      { 'Retry-After': RETRY_AFTER_SECONDS },
     );
     this.name = 'ModuleDisabledError';
   }
@@ -52,7 +63,9 @@ export function requireModuleEnabled(moduleId: string): void {
  *   1. The wrapper registers a child encapsulated context, so the
  *      preHandler hook only fires for routes registered inside `register`.
  *   2. The 503 response includes `Retry-After: 60` so well-behaved
- *      clients back off until the next enable-check window.
+ *      clients back off until the next enable-check window. The header now
+ *      travels on {@link ModuleDisabledError} itself, so the same 503 from a
+ *      service call or a port resolution carries it too.
  */
 export function defineModuleRoutes(
   moduleId: string,
@@ -60,9 +73,8 @@ export function defineModuleRoutes(
 ): ModulePlugin {
   return async (app: FastifyInstance) => {
     await app.register(async (scoped) => {
-      scoped.addHook('onRequest', async (_request, reply) => {
+      scoped.addHook('onRequest', async () => {
         if (!effectiveState.isPresent(moduleId)) {
-          reply.header('Retry-After', '60');
           throw new ModuleDisabledError(moduleId);
         }
       });

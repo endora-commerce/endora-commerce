@@ -88,6 +88,12 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: [
     'assets_library',
+    // Feature 072 (T061) — blog resolves the `requireAdmin` port, which `auth`
+    // owns. Every admin route in this module is gated by it, so `auth` being
+    // absent is not a degraded blog, it is a blog whose admin surface cannot be
+    // guarded. The edge existed before this declaration; it simply existed
+    // nowhere the lifecycle, the migration order or an operator could see it.
+    'auth',
     'catalog',
     'cms',
     'dictionaries',
