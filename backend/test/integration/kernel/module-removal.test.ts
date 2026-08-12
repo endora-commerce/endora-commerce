@@ -1,0 +1,270 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { MODULES } from '../../../src/composition.generated.js';
+import { EventBus } from '../../../src/events/bus.js';
+import { composeModules } from '../../../src/kernel/compose.js';
+import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
+import { ALL_ENTITIES } from '../../../src/db/entities-registry.js';
+import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.js';
+import {
+  orderMigrations,
+  UNCORRECTED_THROUGH,
+  type MigrationRegistryEntry,
+} from '../../../src/db/migration-order.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import {
+  REGISTERED_MANIFESTS,
+  type RegisteredManifestEntry,
+} from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
+import { entities as healthCheckEntities } from '../../../src/modules/health_checks/backend.js';
+
+/**
+ * Removing a module leaves nothing behind (feature 072, US4 / T055).
+ *
+ * This is the property `composition.ts` structurally cannot have. A 3144-line
+ * composition root imports every module by name, so "delete the folder" is a
+ * compile error in a file the module does not own, and finding the rest of the
+ * residue — an entity in the ORM registry, a migration in the registry, a
+ * permission in the catalogue — is archaeology. When the composer is generated
+ * from a filesystem walk, removing a module is deleting its directory.
+ *
+ * The subject is `health_checks`: the composer owns it (it is one of the three
+ * converted modules), it has fan-out 0, it owns no entity and no migration, and
+ * nothing outside its directory names it. `email` is the other fan-out-0
+ * candidate and is deliberately **not** the subject — see the residue ledger
+ * below, which records exactly why it is not removable yet.
+ *
+ * What "removal" means here is a deletion of `src/modules/<id>/`, followed by a
+ * regeneration. So the generated artefacts are excluded from the residue scan
+ * (they are a function of the tree and would lose the module by construction),
+ * and everything else is not.
+ */
+
+const here = dirname(fileURLToPath(import.meta.url));
+const srcRoot = resolve(here, '../../../src');
+
+const SUBJECT = 'health_checks';
+
+/**
+ * Converted modules that are **not** removable yet, and the reference that
+ * holds them. This is a ledger, not an allow-list: each entry names a real
+ * residue that its owner's conversion has to clear, and the test fails both
+ * when an entry becomes stale and when a new one appears.
+ */
+const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
+  // `composition.ts` still reaches into `email` twice: for the `EmailCradle`
+  // type it resolves the mailer with, and for `absolutizePublicUrl`, a URL
+  // helper it applies on behalf of modules that are still hand-wired. Both
+  // disappear when those consumers convert; neither belongs to `email`.
+  email: ['src/composition.ts'],
+  // Two central registries name blog by path, and they are different problems.
+  //
+  //  - `entities-registry.ts` is a hand-maintained flat import list, so blog's
+  //    11 entities are declared in a file blog does not own. Feature 072 does
+  //    not rewire it: it is imported by `mikro-orm.config.ts`, which the
+  //    migration CLI loads, and sourcing it from the generated composer would
+  //    pull every module's full import graph into the ORM config. It is the
+  //    last structural hole in US4 and it belongs to the harness convergence.
+  //  - `migrations-registry.ts` names every migration on purpose (feature 065:
+  //    static imports, no glob), so a module's migrations are registered
+  //    outside it by design. Removing a module deletes its group from that
+  //    file, which is a mechanical, single-region edit the file's grouping was
+  //    built for — not archaeology.
+  blog: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+};
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (name === 'node_modules' || name === 'dist') continue;
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) walk(full, out);
+    else if (full.endsWith('.ts')) out.push(full);
+  }
+  return out;
+}
+
+/** Every module-relative import specifier in a source file. */
+function importSpecifiers(source: string): string[] {
+  const out: string[] = [];
+  const pattern = /(?:from\s*|import\s*\(\s*|require\s*\(\s*)['"]([^'"]+)['"]/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(source)) !== null) {
+    if (match[1]) out.push(match[1]);
+  }
+  return out;
+}
+
+/**
+ * Files outside `src/modules/<id>/` that import from it — i.e. what would stop
+ * compiling the moment the directory is deleted.
+ *
+ * `*.generated.ts` is excluded on purpose: a generated file is a function of
+ * the tree, so deleting the directory and regenerating removes the reference.
+ * That is the whole point of generating them (FR-030).
+ */
+function residueFor(moduleId: string): string[] {
+  const needle = `modules/${moduleId}/`;
+  const own = join(srcRoot, 'modules', moduleId);
+  const offenders = new Set<string>();
+  for (const file of walk(srcRoot)) {
+    if (file.startsWith(`${own}/`)) continue;
+    if (file.endsWith('.generated.ts')) continue;
+    const specs = importSpecifiers(readFileSync(file, 'utf8'));
+    if (specs.some((spec) => spec.includes(needle))) {
+      offenders.add(relative(resolve(srcRoot, '..'), file));
+    }
+  }
+  return [...offenders].sort();
+}
+
+describe('T055 — deleting the module directory leaves no dangling reference', () => {
+  it(`nothing outside src/modules/${SUBJECT}/ imports it`, () => {
+    const residue = residueFor(SUBJECT);
+    expect(
+      residue,
+      `${SUBJECT} is the removal subject: these files would stop compiling if its ` +
+        `directory were deleted — ${residue.join(', ')}`,
+    ).toEqual([]);
+  });
+
+  it('records, per converted module, exactly which references still hold it', () => {
+    const actual: Record<string, readonly string[]> = {};
+    for (const entry of MODULES) {
+      const residue = residueFor(entry.id);
+      if (residue.length > 0) actual[entry.id] = residue;
+    }
+    expect(
+      actual,
+      'the residue ledger drifted: either a conversion cleared an entry (delete it) ' +
+        'or a new reference into a converted module appeared (that is the regression)',
+    ).toEqual(RESIDUE_LEDGER);
+  });
+});
+
+describe('T055 — the removed module contributes no schema', () => {
+  it('owns no entity, so the ORM metadata loses nothing', () => {
+    expect(healthCheckEntities).toEqual([]);
+    const owned = new Set<unknown>(healthCheckEntities);
+    expect(ALL_ENTITIES.filter((entity) => owned.has(entity))).toEqual([]);
+  });
+
+  it('owns no migration, and the plan computed without it is unchanged', () => {
+    const moduleDependencies = new Map<string, readonly string[]>([
+      ['core', []],
+      ...DISCOVERED_MANIFESTS.map(
+        (entry) => [entry.id, entry.manifest.dependencies ?? []] as const,
+      ),
+    ]);
+    const plan = (entries: readonly MigrationRegistryEntry[]): string[] =>
+      orderMigrations({
+        entries,
+        moduleDependencies,
+        uncorrectedThrough: UNCORRECTED_THROUGH,
+        correctionHorizonDays: 45,
+      }).map((migration) => migration.name);
+
+    const owned = MIGRATION_REGISTRY.filter((entry) => entry.moduleId === SUBJECT);
+    expect(owned).toEqual([]);
+
+    const withoutSubject = MIGRATION_REGISTRY.filter((entry) => entry.moduleId !== SUBJECT);
+    expect(plan(withoutSubject)).toEqual(plan(MIGRATION_REGISTRY));
+  });
+});
+
+describe('T058 — a removed module contributes to no admin inventory', () => {
+  /**
+   * The three inventories a module contributes to, each derived from the
+   * manifest registry and nothing else. That is what makes removal total:
+   * deleting the directory removes the manifest, and the manifest is the only
+   * declaration of the module's permissions, palette actions and settings
+   * group. Each projection below is the same one production builds —
+   * `PermissionCatalogueService`, `admin_actions`' reconciler input, and
+   * `collectRegisteredSettingsManifests()`.
+   */
+  const inventories = (entries: ReadonlyArray<RegisteredManifestEntry>) => ({
+    permissions: listAssignablePermissionCodes(entries),
+    actions: entries.flatMap((entry) =>
+      (entry.manifest.actions ?? []).map((action) => `${entry.manifest.id}:${action.id}`),
+    ),
+    settingsGroups: entries
+      .map((entry) => entry.manifest.settings?.moduleCode)
+      .filter((code): code is string => code !== undefined),
+  });
+
+  const without = (moduleId: string): ReadonlyArray<RegisteredManifestEntry> =>
+    REGISTERED_MANIFESTS.filter((entry) => entry.manifest.id !== moduleId);
+
+  it(`removing ${SUBJECT} changes no inventory — it declares none`, () => {
+    expect(inventories(without(SUBJECT))).toEqual(inventories(REGISTERED_MANIFESTS));
+  });
+
+  it('removing a module that declares all three drops exactly its declarations', () => {
+    // `health_checks` is the removal subject but declares nothing, so on its own
+    // it cannot tell "the inventories are manifest-derived" from "the test does
+    // not look". A module that declares all three is the witness that it does.
+    const witness = 'product_feeds';
+    const entry = REGISTERED_MANIFESTS.find((e) => e.manifest.id === witness);
+    expect(entry, `${witness} should be registered`).toBeDefined();
+
+    const full = inventories(REGISTERED_MANIFESTS);
+    const reduced = inventories(without(witness));
+
+    const droppedPermissions = full.permissions.filter((c) => !reduced.permissions.includes(c));
+    const droppedActions = full.actions.filter((a) => !reduced.actions.includes(a));
+    const droppedGroups = full.settingsGroups.filter((g) => !reduced.settingsGroups.includes(g));
+
+    expect(droppedPermissions.length).toBeGreaterThan(0);
+    expect(droppedActions.length).toBeGreaterThan(0);
+    expect(droppedGroups).toEqual([entry?.manifest.settings?.moduleCode]);
+    // And nothing else moved: every dropped code is one this module declared.
+    const declared = new Set((entry?.manifest.permissions ?? []).map((p) => p.code));
+    expect(droppedPermissions.every((code) => declared.has(code))).toBe(true);
+    expect(droppedActions.every((id) => id.startsWith(`${witness}:`))).toBe(true);
+  });
+});
+
+describe('T055 — the remaining module set still composes', () => {
+  const log = { info: (): void => {}, warn: (): void => {}, error: (): void => {} };
+
+  function composeWithout(removed: string): ReturnType<typeof composeModules> {
+    const container = createRootContainer();
+    registerValues(container, {
+      // The host values the surviving converted modules resolve. `orm` is
+      // `health_checks`' only kernel dependency and is deliberately absent —
+      // nothing left may reach for it.
+      redis: undefined,
+      requireAdmin: undefined,
+      settingsReadPort: undefined,
+      assetReferenceRegistry: undefined,
+      dictionaryValidator: undefined,
+      blogStorefrontDeps: undefined,
+      emFactory: () => undefined,
+    });
+    return composeModules(
+      MODULES.filter((entry) => entry.id !== removed),
+      { container, eventBus: new EventBus(), log },
+    );
+  }
+
+  it('composes the surviving modules without the removed one', () => {
+    const composed = composeWithout(SUBJECT);
+    expect(composed.ownerOf('healthCheckProbes')).toBeUndefined();
+    // The surviving modules still own their names — removal took exactly one.
+    expect(composed.ownerOf('emailMailer')).toBe('email');
+  });
+
+  it('resolving the removed module\'s registration fails naming the name', () => {
+    const container = createRootContainer();
+    registerValues(container, { redis: undefined });
+    composeModules(
+      MODULES.filter((entry) => entry.id !== SUBJECT),
+      { container, eventBus: new EventBus(), log },
+    );
+    // Not `undefined` reaching business logic — the property `composition.ts`
+    // could not offer, where a missing option-object key is simply absent.
+    expect(() => container.cradle['healthCheckProbes']).toThrow(/healthCheckProbes/);
+  });
+});

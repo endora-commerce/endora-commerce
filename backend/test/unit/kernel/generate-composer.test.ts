@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  assertDependenciesPresent,
+  MissingModuleDependencyError,
   orderModules,
   renderComposer,
   renderRegisteredManifests,
@@ -111,5 +113,56 @@ describe('T047 — ordering', () => {
 
   it('reports a dependency cycle naming the modules, rather than linearising it', () => {
     expect(() => orderModules([node('a', ['b']), node('b', ['a'])])).toThrow(/cycle.*a.*b|a.*b.*cycle/s);
+  });
+});
+
+describe('T056 — a removed module still named as a dependency fails generation', () => {
+  const module = (id: string, dependencies: string[] = []): { id: string; dependencies: string[] } => ({
+    id,
+    dependencies,
+  });
+
+  it('accepts a tree where every declared dependency is present', () => {
+    expect(() =>
+      assertDependenciesPresent([module('blog', ['cms']), module('cms', []), module('email')]),
+    ).not.toThrow();
+  });
+
+  it('fails naming the missing dependency and every module that still declares it', () => {
+    let thrown: unknown;
+    try {
+      assertDependenciesPresent([
+        module('blog', ['loyalty', 'cms']),
+        module('orders', ['loyalty']),
+        module('cms'),
+      ]);
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(MissingModuleDependencyError);
+    const message = (thrown as Error).message;
+    // The fix belongs in the dependents, so the dependents are what it names.
+    expect(message).toContain("'loyalty'");
+    expect(message).toContain('blog');
+    expect(message).toContain('orders');
+    expect(message).not.toContain("'cms'");
+  });
+
+  it('reports every missing dependency at once, deterministically ordered', () => {
+    const error = new MissingModuleDependencyError(
+      new Map([
+        ['zeta', ['b', 'a']],
+        ['alpha', ['c']],
+      ]),
+    );
+    expect(error.message.indexOf("'alpha'")).toBeLessThan(error.message.indexOf("'zeta'"));
+    expect(error.message).toContain('a, b');
+  });
+
+  it('the real tree declares no dependency on a module that is not there', async () => {
+    // `renderComposer` runs the check before it emits anything, so this is the
+    // same failure a build would hit.
+    await expect(renderComposer()).resolves.toBeDefined();
   });
 });
