@@ -19,4 +19,15 @@ export const manifest = defineModuleManifest({
   // The edge existed in the code long before it existed in the manifest; it is
   // one of the 261 imported-but-undeclared dependencies F3 will finish fixing.
   dependencies: ['admin_roles'],
+  // Feature 072/073 (Constitution XVII) — `auth` resolves `request.actor` for
+  // every request and owns the `requireAdmin` port that gates 205 call sites in
+  // 60 modules. A deployment with it switched off has no admin surface and no
+  // customer session, which is not a smaller platform but a broken one. The
+  // orchestrator refuses to disable it, with no `--force`.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Resolves the actor for every request and owns the requireAdmin guard; switched off, the ' +
+      'platform has no admin surface and no customer sessions.',
+  },
 });

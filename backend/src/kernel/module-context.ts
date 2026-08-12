@@ -344,6 +344,26 @@ export interface ModuleContext {
     register: (app: FastifyInstance) => Promise<void> | void,
   ): void;
 
+  /**
+   * A plugin registered on the **root** Fastify instance, uncapsulated (T078).
+   *
+   * `ctx.routes` and `ctx.ungatedRoutes` both register into an encapsulated
+   * child context, which is right for routes and wrong for a decoration every
+   * other module reads: a `decorateRequest` applied inside a child context is
+   * invisible to that context's siblings, so `auth` decorating `request.actor`
+   * through either of them would leave every other module's guards with no
+   * actor to read.
+   *
+   * The difference from `ungatedRoutes` is not one of degree. That one is about
+   * **the gate** — a surface that must answer while its module is off. This one
+   * is about **encapsulation** — a contribution that must apply to the whole
+   * application. A module can need either without the other.
+   *
+   * `reason` is required and non-empty: this is the one seam that can affect
+   * every module in a deployment, so its justification lives beside it.
+   */
+  rootPlugin(reason: string, plugin: ModulePlugin): void;
+
   /** Wrapped in `defineModuleWorker(module.id, …)`. Takes a **constructed** `Worker`. */
   worker<W extends Worker>(worker: W, options?: DefineModuleWorkerOptions): W;
 
@@ -383,6 +403,13 @@ export interface ModuleContext {
  */
 export interface ModuleRegistrationSink {
   readonly plugins: ModulePlugin[];
+  /**
+   * Plugins a composition root registers on the **root** Fastify instance,
+   * uncapsulated (T078). Kept apart from `plugins` because a root places them
+   * at a different point: a module's routes go with its own surface, a root
+   * plugin goes where the whole application needs decorating.
+   */
+  readonly rootPlugins: ModulePlugin[];
   readonly workers: Worker[];
   readonly unsubscribes: Array<() => void>;
   readonly installHooks: ModuleInstallHook[];
@@ -393,6 +420,7 @@ export interface ModuleRegistrationSink {
 export function createModuleRegistrationSink(): ModuleRegistrationSink {
   return {
     plugins: [],
+    rootPlugins: [],
     workers: [],
     unsubscribes: [],
     installHooks: [],
@@ -531,6 +559,17 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
           await register(scoped);
         });
       });
+    },
+
+    rootPlugin(reason, plugin) {
+      if (reason.trim().length === 0) {
+        throw new Error(
+          `[kernel] module '${module.id}' registered a root plugin without a reason. ` +
+            `This is the one seam that reaches every other module, so it states what it ` +
+            `decorates and why that cannot live inside the module's own context.`,
+        );
+      }
+      sink.rootPlugins.push(plugin);
     },
 
     worker(worker, workerOptions) {

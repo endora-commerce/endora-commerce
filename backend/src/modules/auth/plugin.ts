@@ -1,7 +1,5 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
-import { ERROR_CODES } from '@b2b/contracts';
-import { HttpError } from '../../http/error-envelope.js';
 import type { SessionService } from './services/session-service.js';
 import type { Session } from './entities/session.entity.js';
 
@@ -223,10 +221,6 @@ async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Pr
     }
   });
 
-  // Gate factories — routes use these as preHandlers.
-  app.decorate('requireCustomer', () => requireCustomer);
-  app.decorate('requireAdmin', (permission?: string) => requireAdmin(permission));
-  app.decorate('requireApiKey', (scope: string) => requireApiKey(scope));
 }
 
 export const authPlugin = fastifyPlugin(authPluginImpl, {
@@ -234,41 +228,16 @@ export const authPlugin = fastifyPlugin(authPluginImpl, {
   fastify: '5.x',
 });
 
-declare module 'fastify' {
-  interface FastifyInstance {
-    requireCustomer: () => (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
-    requireAdmin: (permission?: string) => (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
-    requireApiKey: (scope: string) => (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
-  }
-}
-
-function requireCustomer(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
-  if (request.actor.kind !== 'customer') {
-    throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-  }
-  return Promise.resolve();
-}
-
-function requireAdmin(permission?: string) {
-  return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
-    if (request.actor.kind !== 'admin') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-    }
-    if (permission) {
-      // Permission matrix lookup is wired by the admin_users module in US4; for now we accept
-      // any admin. The real check replaces this function body in T188.
-      return;
-    }
-  };
-}
-
-function requireApiKey(scope: string) {
-  return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
-    if (request.actor.kind !== 'api_key') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'API key required.');
-    }
-    if (!request.actor.scopes.includes(scope)) {
-      throw new HttpError(403, ERROR_CODES.API_KEY_OUT_OF_SCOPE, `API key lacks required scope: ${scope}.`);
-    }
-  };
-}
+/*
+ * Three `FastifyInstance` decorators lived here — `requireCustomer`,
+ * `requireAdmin`, `requireApiKey` — and were deleted with this module's
+ * conversion (feature 072, T078). **Nothing in `src/` or `test/` called any of
+ * them.**
+ *
+ * Worth recording rather than deleting silently, because the `requireAdmin` one
+ * read as a live authorisation hole: its body accepted any admin regardless of
+ * the permission code, under a comment promising the real check "in T188". It
+ * was not a hole — the guard every route actually uses is `createRequireAdmin`
+ * in `require-admin.ts`, which checks `permissionService.hasPermission`. The
+ * decorator was dead code that looked dangerous, which is its own kind of cost.
+ */

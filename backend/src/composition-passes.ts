@@ -28,7 +28,20 @@ import type { ModuleEntry } from './kernel/compose.js';
  * is the safe default: late means "after auth, after the values the hand-wired
  * remainder registers".
  */
-export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set(['email', 'health_checks']);
+export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
+  'email',
+  'health_checks',
+  // Feature 072 (T078) — `auth` registers `sessionService` and the
+  // `requireAdmin` port, and the whole hand-wired remainder resolves both. It
+  // has to have registered before any of it is constructed.
+  //
+  // Its *plugin* is not affected by this list: it goes through
+  // `ctx.rootPlugin`, so a root places it where the application needs
+  // decorating rather than wherever this pass's route contributions land.
+  // That separation is what lets `health_checks` keep contributing its probe
+  // ahead of the auth hook while `auth` registers first.
+  'auth',
+]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */
 export function earlyPassModules(modules: readonly ModuleEntry[]): ModuleEntry[] {

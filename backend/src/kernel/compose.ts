@@ -188,6 +188,7 @@ export function composeModules(
       }
 
       combined.plugins.push(...sink.plugins);
+      combined.rootPlugins.push(...sink.rootPlugins);
       combined.workers.push(...sink.workers);
       combined.unsubscribes.push(...sink.unsubscribes);
       combined.installHooks.push(...sink.installHooks);

@@ -33,13 +33,16 @@ import {
   registerOrm,
   registerValues,
 } from './kernel/index.js';
-import { authPlugin, promoteAdminActor } from './modules/auth/plugin.js';
-import { SessionService } from './modules/auth/services/session-service.js';
+import { promoteAdminActor } from './modules/auth/plugin.js';
+import type {
+  RequireAdminAnyFactory,
+  RequireAdminFactory,
+} from './kernel/ports/require-admin.js';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
 import { PermissionService } from './modules/admin_roles/services/permission-service.js';
 import { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
 import { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
-import { createRequireAdmin, createRequireAdminAny } from './modules/auth/require-admin.js';
+import type { AuthCradle } from './modules/auth/backend.js';
 import {
   registryCache,
   STATE_CHANGED_CHANNEL,
@@ -343,7 +346,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     lazyConnect: false,
   });
 
-  const sessionService = new SessionService(em, redis);
   const auditLogService = new AuditLogService(em);
   const permissionService = new PermissionService(em);
 
@@ -401,7 +403,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `redis` is registered here rather than beside the late pass because
   // `health_checks` pings it: a host name belongs where the value first exists,
   // and the client has existed since the top of this function.
-  registerValues(container, { redis });
+  registerValues(container, {
+    redis,
+    // `admin_roles` owns this and is still hand-wired; `auth` resolves it to
+    // build the `requireAdmin` guard, and its manifest declares the dependency
+    // (D-32). The entry disappears when `admin_roles` converts.
+    permissionService,
+  });
   const earlyModules = composeModules(earlyPassModules(MODULES), {
     container,
     eventBus,
@@ -411,6 +419,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ownership: registrationOwnership,
   });
   await earlyModules.runBootHooks();
+
+  // Feature 072 (T078) — `auth` owns these now. Resolved rather than
+  // constructed, so production and the test harness get the same instances
+  // from the same registration instead of each building their own.
+  const authCradle = container.cradle as unknown as AuthCradle & {
+    requireAdmin: RequireAdminFactory;
+    requireAdminAny: RequireAdminAnyFactory;
+  };
+  const sessionService = authCradle.sessionService;
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
@@ -424,8 +441,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // shared with the test harness. It used to be declared inline here while the
   // harness ran its own copy that read a different request property and took
   // `permissionService` as optional.
-  const requireAdmin = createRequireAdmin({ permissionService });
-  const requireAdminAny = createRequireAdminAny({ permissionService });
+  const requireAdmin = authCradle.requireAdmin;
+  const requireAdminAny = authCradle.requireAdminAny;
 
   /**
    * Resolver for routes that require an authenticated Customer **with** an
@@ -518,18 +535,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       )
     : null;
 
+  // Feature 072 (T078) — the auth plugin is `auth`'s own contribution now,
+  // collected by `ctx.rootPlugin` because it decorates `request.actor` for the
+  // whole application rather than contributing routes. The two resolvers it
+  // reads are registered below, once the modules that own them exist; the
+  // plugin reads them per request, so the order is not a race.
   const authModulePlugin: ModulePlugin = async (app) => {
-    await app.register(authPlugin, {
-      sessionService,
-      apiKeyResolver: async (token) => integrations.handle.apiKeyService.authenticate(token),
-      customerOrgResolver: async (customerAccountId) =>
-        // Feature 050 — runs in the auth hook, before the tenant context exists;
-        // identity resolution is a system-scoped read.
-        withSystemScope('auth: resolve customer org', async () => {
-          const customer = await em().findOne(CustomerAccount, { id: customerAccountId });
-          return customer?.organizationId ?? null;
-        }),
-    });
+    for (const plugin of earlyModules.sink.rootPlugins) await plugin(app);
   };
 
   // Feature 042 — the MFA module is constructed after `settings` exists, so its
@@ -1931,7 +1943,25 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // factory call did — after `DefaultChannelReconciler`, so blog's boot hook
   // attaches the Default category to a channel that already exists.
   registerValues(container, {
-    requireAdmin,
+    // `requireAdmin` is NOT here any more: `auth` provides it as a port
+    // (T078), and re-registering the name would silently replace a gated
+    // registration with an ungated value — the exact failure `providePort`
+    // exists to prevent.
+    // Feature 072 (T078) — the two resolvers the auth plugin reads per request.
+    // They are registered here rather than beside `auth` because the modules
+    // that own them (`api_keys`, `customer_accounts`) are still hand-wired and
+    // are constructed after it; the plugin resolves them at request time, so a
+    // late registration is invisible to it. Both entries disappear when those
+    // modules convert.
+    apiKeyResolver: async (token: string) =>
+      integrations.handle.apiKeyService.authenticate(token),
+    customerOrgResolver: async (customerAccountId: string) =>
+      // Feature 050 — runs in the auth hook, before the tenant context exists;
+      // identity resolution is a system-scoped read.
+      withSystemScope('auth: resolve customer org', async () => {
+        const customer = await em().findOne(CustomerAccount, { id: customerAccountId });
+        return customer?.organizationId ?? null;
+      }),
     // `redis` is registered further up, where the client is created.
     // The kernel's `SettingsService` already implements the read port; the
     // adapter object this replaces existed only to narrow it.

@@ -20,15 +20,18 @@
 
 import type { ModuleEntry } from './kernel/compose.js';
 
-import * as module0 from './modules/blog/backend.js';
-import { manifest as manifest0 } from './modules/blog/manifest.js';
-import * as module1 from './modules/email/backend.js';
-import { manifest as manifest1 } from './modules/email/manifest.js';
-import * as module2 from './modules/health_checks/backend.js';
-import { manifest as manifest2 } from './modules/health_checks/manifest.js';
+import * as module0 from './modules/auth/backend.js';
+import { manifest as manifest0 } from './modules/auth/manifest.js';
+import * as module1 from './modules/blog/backend.js';
+import { manifest as manifest1 } from './modules/blog/manifest.js';
+import * as module2 from './modules/email/backend.js';
+import { manifest as manifest2 } from './modules/email/manifest.js';
+import * as module3 from './modules/health_checks/backend.js';
+import { manifest as manifest3 } from './modules/health_checks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
-  { id: 'blog', version: manifest0.version, registerModule: module0.registerModule },
-  { id: 'email', version: manifest1.version, registerModule: module1.registerModule },
-  { id: 'health_checks', version: manifest2.version, registerModule: module2.registerModule },
+  { id: 'auth', version: manifest0.version, registerModule: module0.registerModule },
+  { id: 'blog', version: manifest1.version, registerModule: module1.registerModule },
+  { id: 'email', version: manifest2.version, registerModule: module2.registerModule },
+  { id: 'health_checks', version: manifest3.version, registerModule: module3.registerModule },
 ];
