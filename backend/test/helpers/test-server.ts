@@ -19,6 +19,7 @@ import {
 } from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { activationDeclarationsFrom } from '../../src/modules/_lifecycle/services/activation-resolver.js';
 import { effectiveState } from '../../src/modules/_lifecycle/services/effective-state.js';
+import { ModuleDisabledError } from '../../src/modules/_lifecycle/plugin-helpers.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { type TenantContext } from '../../src/tenancy/tenant-context.js';
 import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js';
@@ -1915,6 +1916,30 @@ export async function setupBackendServer(
     ownership: registrationOwnership,
   });
   modules.push(...lateModules.sink.plugins);
+
+  // Registered **after** the late pass on purpose: `audit_logs` registers its
+  // own empty default there, so a value written before composition would be
+  // overwritten by it (the same trap `prompt_actions` hit).
+  registerValues(container, {
+    // Feature 072 (T084) — `audit_logs` owns its routes now and no longer
+    // reaches into `admin_users` for identities. Turning an actor id into a
+    // name is a **contribution**, so it is gated here rather than declared as
+    // a dependency: the audit log must stay readable when `admin_users` is
+    // off, and it degrades to raw ids instead of refusing. Deciding what
+    // "`admin_users` is present" means is a root's job, not the reading
+    // module's; this entry disappears when `admin_users` converts and
+    // publishes the resolver itself.
+    auditActorResolver: async (ids: string[]) => {
+      if (!effectiveState.isPresent('admin_users')) throw new ModuleDisabledError('admin_users');
+      const users = await admin.handle.adminUserService.listByIds(ids);
+      return users.map((u) => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+      }));
+    },
+  });
   await lateModules.runBootHooks();
 
   // Feature 043 / 072 — the assistant's contribution points, mirroring

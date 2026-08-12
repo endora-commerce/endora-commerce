@@ -12,9 +12,6 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { registerAdminPublicRoutes } from './routes.public.js';
 import { registerImpersonationRoutes } from './routes.impersonation.js';
 import { registerAdminUsersAdminRoutes } from './routes.admin.js';
-import { registerAuditLogAdminRoutes } from '../audit_logs/routes.admin.js';
-import { registerRecentActivityRoutes } from '../audit_logs/routes.admin.recent-activity.js';
-import { RecentActivityService } from '../audit_logs/services/recent-activity-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface AdminModuleOptions {
@@ -37,6 +34,13 @@ export interface AdminModuleHandle {
   impersonationService: ImpersonationService;
   permissionService: PermissionService;
   auditLogService: AuditLogService;
+  /**
+   * Exposed so a composition root can contribute `auditActorResolver` to
+   * `audit_logs` (feature 072, T084). That module used to be mounted from
+   * inside this plugin and reached `listByIds` directly; it owns its routes
+   * now, and identity lookup is the one thing it still wants from here.
+   */
+  adminUserService: AdminUserService;
 }
 
 /**
@@ -57,17 +61,17 @@ export function adminModule(
     options.sessionService,
     options.auditLogService,
   );
+  const adminUserService = new AdminUserService(options.emFactory, options.auditLogService);
   const handle: AdminModuleHandle = {
     adminAuthService,
     impersonationService,
     permissionService: options.permissionService,
     auditLogService: options.auditLogService,
+    adminUserService,
   };
-  const adminUserService = new AdminUserService(options.emFactory, options.auditLogService);
   const adminRoleService =
     options.adminRoleService ??
     new AdminRoleService(options.emFactory, options.permissionCatalogueService, options.auditLogService);
-  const recentActivityService = new RecentActivityService(options.emFactory);
   return {
     handle,
     plugin: async (app) => {
@@ -83,23 +87,6 @@ export function adminModule(
         permissionService: options.permissionService,
         requireAdmin: options.requireAdmin,
         resolveAdminContext: options.resolveAdminContext,
-      });
-      await registerAuditLogAdminRoutes(app, {
-        auditLogService: options.auditLogService,
-        requireAdmin: options.requireAdmin,
-        resolveActors: async (ids) => {
-          const users = await adminUserService.listByIds(ids);
-          return users.map((u) => ({
-            id: u.id,
-            firstName: u.firstName,
-            lastName: u.lastName,
-            email: u.email,
-          }));
-        },
-      });
-      await registerRecentActivityRoutes(app, {
-        recentActivityService,
-        requireAdmin: options.requireAdmin,
       });
     },
   };

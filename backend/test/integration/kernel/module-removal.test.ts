@@ -53,6 +53,17 @@ const SUBJECT = 'health_checks';
  * holds them. This is a ledger, not an allow-list: each entry names a real
  * residue that its owner's conversion has to clear, and the test fails both
  * when an entry becomes stale and when a new one appears.
+ *
+ * `audit_logs` (wave 1, T084) is the second module to be **absent from this
+ * ledger entirely**, and the first that got there by being disentangled rather
+ * than by having been simple all along. Before its conversion it was not even a
+ * candidate: `admin_users/plugin.ts` imported both its route files and
+ * constructed its service. It owns no entity (`AuditLogEntry` moved to the
+ * kernel in T016) and no migration, so neither central registry names it, and
+ * the `auditActorResolver` a root contributes is a closure over `admin_users`'
+ * own service — it imports nothing from `audit_logs`. Deleting the directory
+ * really is all there is to it. That is the target shape for the rest of the
+ * sweep.
  */
 const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `composition.ts` still reaches into `email` twice: for the `EmailCradle`
@@ -132,6 +143,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 
 function walk(dir: string, out: string[] = []): string[] {
