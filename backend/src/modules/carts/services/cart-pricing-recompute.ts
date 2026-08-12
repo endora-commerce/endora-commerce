@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PricingService } from '../../price_lists/services/pricing-service.js';
+import type { PricingServiceContract } from '../../price_lists/services/pricing-service.interface.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
@@ -48,7 +48,7 @@ export interface CartPricingRecomputeContext {
 export class CartPricingRecompute {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly pricingService: PricingService,
+    private readonly pricingService: PricingServiceContract,
     private readonly cache: CartRecomputeCache,
   ) {}
 

@@ -7,7 +7,7 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
-import type { PricingService } from '../../price_lists/services/pricing-service.js';
+import type { PricingServiceContract } from '../../price_lists/services/pricing-service.interface.js';
 import type { CartService } from '../../carts/services/cart-service.js';
 import type { AddressService } from '../../addresses/services/address-service.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
@@ -51,7 +51,7 @@ export interface OrderApiIntakeDeps {
    * The SAME resolver cart pricing uses. Absent ⇒ the `defaultPrice` fallback
    * below is the only price source (mirrors CartService's legacy path).
    */
-  pricingService?: PricingService | undefined;
+  pricingService?: PricingServiceContract | undefined;
   /** Per-key intake lock (research §R8 step 2). Absent ⇒ no serialization. */
   redis?: Redis | undefined;
   /**

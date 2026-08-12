@@ -3,16 +3,26 @@ import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { KernelContainer } from './container.js';
 import { enterSystemScope } from './scope.js';
 import {
+  AmbiguousDecorationError,
   DuplicateRegistrationError,
   EagerResolutionError,
+  createDecorationLedger,
   createModuleContext,
   createModuleRegistrationSink,
   createRegistrationOwnership,
+  type DecorationLedger,
+  type DecorationRecord,
   type ModuleBootHook,
   type ModuleContext,
   type ModuleLifecycleLogger,
   type ModuleRegistrationSink,
   type RegistrationOwnership,
+} from './module-context.js';
+
+export {
+  AmbiguousDecorationError,
+  type DecorationLedger,
+  type DecorationRecord,
 } from './module-context.js';
 
 /**
@@ -66,7 +76,11 @@ export class ModuleCompositionError extends Error {
 
 /** Both already carry the module id; wrapping them would only bury it. */
 function alreadyNamesTheModule(error: unknown): boolean {
-  return error instanceof DuplicateRegistrationError || error instanceof EagerResolutionError;
+  return (
+    error instanceof DuplicateRegistrationError ||
+    error instanceof EagerResolutionError ||
+    error instanceof AmbiguousDecorationError
+  );
 }
 
 /** What the composer knows about one module. Nothing else about it is reachable. */
@@ -90,6 +104,23 @@ export interface ComposeModulesOptions {
    * module still collides with a converted module composed in another call.
    */
   readonly ownership?: RegistrationOwnership | undefined;
+  /**
+   * Share one decoration ledger across several `composeModules` calls, for the
+   * same reason `ownership` is shared: a client module composed in a later call
+   * still wraps a registration an earlier call decorated.
+   */
+  readonly decorations?: DecorationLedger | undefined;
+  /**
+   * Declared wrapping order per registration name — `endora.config.ts`'s
+   * `overrides.order` (D-28), reaching the composer as data.
+   *
+   * Only needed where **two different modules** decorate one name; below that
+   * there is nothing to decide. It is checked rather than applied: the composer
+   * emits modules in topological order, so the declaration's job is to say that
+   * this order is the intended one, and composition fails when the two
+   * disagree.
+   */
+  readonly decorationOrder?: Readonly<Record<string, readonly string[]>> | undefined;
 }
 
 export interface ComposedModules {
@@ -97,6 +128,15 @@ export interface ComposedModules {
   readonly sink: ModuleRegistrationSink;
   /** Which module registered `name`, for diagnostics and for the duplicate report. */
   ownerOf(name: string): string | undefined;
+  /**
+   * The override report (T065): every decoration this composition applied, in
+   * application order, innermost first.
+   *
+   * A build's customisations should be readable from the build, not inferred
+   * from which files happen to exist on disk. Empty means a bare-core build,
+   * and it means it explicitly.
+   */
+  readonly decorations: readonly DecorationRecord[];
   /**
    * Run the explicit boot phase (FR-021): every module's `onBoot` hook, in
    * registration order, each inside its own `enterSystemScope`.
@@ -115,6 +155,8 @@ export function composeModules(
 ): ComposedModules {
   const combined = createModuleRegistrationSink();
   const ownership = options.ownership ?? createRegistrationOwnership();
+  const decorations =
+    options.decorations ?? createDecorationLedger(options.decorationOrder ?? {});
   const bootHooks: Array<{ moduleId: string; hook: ModuleBootHook }> = [];
 
   // Read by every context this call creates, so the phase guard covers the
@@ -131,6 +173,7 @@ export function composeModules(
         sink,
         log: options.log,
         ownership,
+        decorations,
         isRegistering: () => registering,
         ...(options.interceptorRegistry
           ? { interceptorRegistry: options.interceptorRegistry }
@@ -155,9 +198,27 @@ export function composeModules(
     registering = false;
   }
 
+  // The report is emitted, not merely available: a deployment running a client
+  // override should say so once at boot, in the same place the operator already
+  // reads what the platform composed.
+  if (decorations.entries.length > 0) {
+    options.log.info(
+      {
+        overrides: decorations.entries.map((entry) => ({
+          registration: entry.name,
+          decoratedBy: entry.moduleId,
+          owner: entry.owner ?? null,
+          depth: entry.depth,
+        })),
+      },
+      'kernel.decorations',
+    );
+  }
+
   return {
     sink: combined,
     ownerOf: (name) => ownership.ownerOf(name),
+    decorations: decorations.entries,
     async runBootHooks(): Promise<void> {
       for (const { moduleId, hook } of bootHooks) {
         await enterSystemScope(

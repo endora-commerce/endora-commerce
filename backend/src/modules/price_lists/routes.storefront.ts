@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PriceListService } from './services/price-list-service.js';
-import type { PricingService } from './services/pricing-service.js';
+import type { PricingServiceContract } from './services/pricing-service.interface.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 
 export interface StorefrontPricingRoutesDeps {
   priceListService: PriceListService;
-  pricingService: PricingService;
+  pricingService: PricingServiceContract;
   emFactory: () => EntityManager;
 }
 

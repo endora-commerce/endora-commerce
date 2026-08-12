@@ -13,5 +13,4 @@ export * from './overlay-roots.js';
 export * from './conflict-policy.js';
 export * from './resolve-overlay.js';
 export * from './override-manifest.js';
-export * from './check-core-contracts.js';
 export * from './overlay-runtime.js';

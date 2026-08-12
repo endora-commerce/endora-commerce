@@ -18,7 +18,7 @@ import { CartPricingRecompute } from '../carts/services/cart-pricing-recompute.j
 import { CartAbandonmentWorker } from '../carts/services/cart-abandonment-worker.js';
 import { registerCartsAdminRoutes } from '../carts/routes.admin.js';
 import { registerCartsOrganizationRoutes } from '../carts/routes.organization.js';
-import type { PricingService } from '../price_lists/services/pricing-service.js';
+import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
 import { AddressService } from '../addresses/services/address-service.js';
 import type { PromotionService } from '../promotions/services/promotion-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
@@ -126,7 +126,7 @@ export interface OrdersModuleOptions {
    * displayMode='none' guard (T076 / T084). Foundation tests that
    * don't care about pricing engine semantics can omit it.
    */
-  pricingService?: PricingService;
+  pricingService?: PricingServiceContract;
   /**
    * Feature 038 (US3) — org address book service. Used by the admin
    * create-order flow to persist (and clean up) addresses typed inline on the

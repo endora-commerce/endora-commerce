@@ -11,6 +11,7 @@
 // (production) we import the compiled `.js`; under tsx/vitest (dev + tests) we
 // import the `.ts` source directly. Detected from `import.meta.url`.
 
+import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { EntityManager } from '@mikro-orm/postgresql';
@@ -22,11 +23,11 @@ import type { CommandBus } from '../commands/index.js';
 import type { AuditLogService } from '../kernel/audit/audit-log-service.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import {
+  activeOverlayDecorationsRoot,
   activeOverlayModulesRoot,
   coreModulesRoot,
-  selectedDeployment,
 } from './overlay-roots.js';
-import { indexCore, resolveOverlay, scanOverlay } from './resolve-overlay.js';
+import { indexCore, scanOverlay } from './resolve-overlay.js';
 import type { RequireAdminFactory } from '../kernel/ports/require-admin.js';
 
 const RUNNING_FROM_DIST = import.meta.url.includes('/dist/');
@@ -39,48 +40,50 @@ function importUrlFor(absSrcPath: string): string {
   return pathToFileURL(path).href;
 }
 
-function pascalCase(fileStem: string): string {
-  return fileStem
-    .split(/[-_.]/)
-    .filter(Boolean)
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-    .join('');
-}
+// ---- Decorations (feature 072, T066) ---------------------------------------
 
-/** Pick the class/constructor export from a dynamically-imported overlay module. */
-function pickClassExport(mod: Record<string, unknown>, relPath: string): unknown {
-  if (typeof mod['default'] === 'function') return mod['default'];
-  const stem = (relPath.split('/').pop() ?? relPath).replace(/\.ts$/, '');
-  const byName = mod[pascalCase(stem)];
-  if (typeof byName === 'function') return byName;
-  for (const value of Object.values(mod)) {
-    if (typeof value === 'function') return value;
-  }
-  return undefined;
+/**
+ * A client override, in the one shape D-28 permits: it receives the
+ * implementation it replaces and returns one that wraps it.
+ *
+ * This is what replaced the service-class override of feature 057. That
+ * mechanism *replaced* the core class, so a deployment stopped receiving core
+ * fixes to the overridden methods the day the override was written — whatever
+ * core did there next happened in a file the deployment no longer ran.
+ * Delegation keeps core in the call path unless the override deliberately
+ * intercepts.
+ */
+export type OverlayDecorator = (inner: unknown) => unknown;
+
+/** `pricing-service` → `pricingService`: the registration name, not a path. */
+function camelCase(fileStem: string): string {
+  const [head, ...rest] = fileStem.split(/[-_.]/).filter(Boolean);
+  return [head ?? '', ...rest.map((p) => p.charAt(0).toUpperCase() + p.slice(1))].join('');
 }
 
 /**
- * Load overlay SERVICE class overrides for the active deployment, keyed
- * `"<moduleId>/<relPath>"` (e.g. `price_lists/services/pricing-service.ts`).
- * The value is the overlay's exported class; composition passes it into the
- * owning module factory. Empty for a bare-core build.
+ * Load the active deployment's decorations, keyed by the **registration name**
+ * they wrap. Empty for a bare-core build, and empty is the whole story: a
+ * deployment with no decorations composes byte-for-byte like core.
+ *
+ * Each file under `apps/<deployment>/decorations/` exports `decorate` (or a
+ * default) and is named after its target registration —
+ * `pricing-service.ts` decorates `pricingService`.
  */
-export async function loadOverlayServiceClasses(
+export async function loadOverlayDecorations(
   env: NodeJS.ProcessEnv = process.env,
-): Promise<Map<string, unknown>> {
-  const map = new Map<string, unknown>();
-  const overlayRoot = activeOverlayModulesRoot(env);
-  if (overlayRoot === null) return map;
-  const resolution = resolveOverlay({
-    coreRoot: coreModulesRoot(),
-    overlayRoot,
-    deployment: selectedDeployment(env),
-  });
-  for (const o of resolution.overrides) {
-    if (o.kind !== 'service') continue;
-    const mod = (await import(importUrlFor(o.overlayPath))) as Record<string, unknown>;
-    const impl = pickClassExport(mod, o.relPath);
-    if (impl !== undefined) map.set(`${o.moduleId}/${o.relPath}`, impl);
+): Promise<Map<string, OverlayDecorator>> {
+  const map = new Map<string, OverlayDecorator>();
+  const root = activeOverlayDecorationsRoot(env);
+  if (root === null) return map;
+
+  for (const file of readdirSync(root).sort()) {
+    if (!file.endsWith('.ts') && !file.endsWith('.js')) continue;
+    if (file.endsWith('.d.ts')) continue;
+    const mod = (await import(importUrlFor(join(root, file)))) as Record<string, unknown>;
+    const decorate = mod['decorate'] ?? mod['default'];
+    if (typeof decorate !== 'function') continue;
+    map.set(camelCase(file.replace(/\.[jt]s$/, '')), decorate as OverlayDecorator);
   }
   return map;
 }

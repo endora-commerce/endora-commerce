@@ -263,9 +263,14 @@ is discovered without editing the shared core registry (`REGISTERED_MANIFESTS` s
 untouched — FR-004). It is an ordinary lifecycle participant, so every checklist above
 applies, with one difference: its admin permissions must appear on `/admin-roles` and pass
 the permission-inventory check **for that deployment** — run the inventory test with
-`DEPLOYMENT=<name>` set. Overriding a core **service** requires the core service to expose a
-`*.interface.ts`; the overlay `implements` it through the `@core/*` alias so `tsc` is the
-contract gate. Never override a core entity or migration (schema overrides are out of v1) —
+`DEPLOYMENT=<name>` set. Overriding a core **service** is a **decoration**, not a file
+shadowing it (feature 072): a file under `backend/src/apps/<deployment>/decorations/`, named
+after the registration it wraps, exporting `decorate(inner)` — it receives the core
+implementation and returns one that delegates to it, so core fixes keep flowing. `tsc` is the
+contract gate: the decoration is written against the core service's `*.interface.ts` and
+stops being assignable when that interface changes. A `services/` file under an overlay is
+now an **unknown override target** and fails the build.
+Never override a core entity or migration (schema overrides are out of v1) —
 ship new schema as tables owned by the overlay module. See
 `docs/docs/architecture/overlay-pattern.md` and `specs/057-overlay-pattern-multideploy/`.
 

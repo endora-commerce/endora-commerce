@@ -45,7 +45,7 @@ import { Invoice } from '../invoices/entities/invoice.entity.js';
 import { Asset } from '../assets_library/entities/asset.entity.js';
 import { buildBulkInvoicesPdf, buildMinimalInvoicePdf } from '../invoices/services/invoice-pdf.js';
 import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
-import type { PricingService } from '../price_lists/services/pricing-service.js';
+import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { Organization } from '../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
@@ -76,7 +76,7 @@ export interface OrdersDeps {
    * preview to resolve per-line prices for the chosen customer/channel. When
    * absent the preview endpoint returns a graceful zeroed summary.
    */
-  pricingService?: PricingService;
+  pricingService?: PricingServiceContract;
   emFactory: () => EntityManager;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;

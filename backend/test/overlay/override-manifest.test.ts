@@ -41,12 +41,7 @@ describe('override-manifest — emit shape & determinism (T010, FR-005/FR-006)',
     expect(m.newModules).toEqual(['acme_loyalty']);
     expect(m.overrides.map((o) => `${o.moduleId}:${o.kind}:${o.unitKey}`)).toEqual([
       'price_lists:route:routes.admin.ts',
-      'price_lists:service:services/pricing-service.ts',
     ]);
-    const svc = m.overrides.find((o) => o.kind === 'service');
-    expect(svc?.satisfiesInterface).toBe(
-      'modules/price_lists/services/pricing-service.interface.ts',
-    );
     // No absolute paths leak into the artifact.
     expect(serializeManifestJson(m)).not.toContain(coreSampleRoot);
   });

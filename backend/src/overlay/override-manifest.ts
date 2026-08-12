@@ -39,10 +39,6 @@ export function buildOverrideManifest(params: {
       kind: o.kind,
       unitKey: o.relPath,
       overlayPath: repoRelative(o.overlayPath, base),
-      satisfiesInterface:
-        o.interfaceRelPath === null
-          ? null
-          : `modules/${o.moduleId}/${o.interfaceRelPath}`,
     }))
     .sort(
       (a, b) =>

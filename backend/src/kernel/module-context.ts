@@ -119,6 +119,128 @@ export class EagerResolutionError extends Error {
   }
 }
 
+/**
+ * One applied decoration, as the override report lists it (T065).
+ *
+ * "Who is overriding what" is two questions, so the record answers both: the
+ * module that wrote the wrap, and the module that owns the registration being
+ * wrapped. A report that answers only the first sends its reader back to grep
+ * for the second, which is the state this replaces — a client override was
+ * discoverable by noticing a file existed under `apps/<deployment>/`.
+ */
+export interface DecorationRecord {
+  readonly name: string;
+  readonly moduleId: string;
+  /** The module that registered `name`; `undefined` if a composition root did. */
+  readonly owner: string | undefined;
+  /** 1-based position in the wrapping chain for this name; innermost first. */
+  readonly depth: number;
+}
+
+/**
+ * Two modules decorate one name and nothing says which wraps which (T064).
+ *
+ * Decoration order is not a formatting question: `beta(acme(core))` and
+ * `acme(beta(core))` are different implementations, and a platform that picks
+ * between them by package load order picks by accident. The failure is loud at
+ * composition rather than deferred to whichever behaviour shows up in
+ * production.
+ *
+ * A module decorating the same name twice is *not* ambiguous — it wrote both
+ * wraps, in the order it wrote them — so this fires only across modules.
+ */
+export class AmbiguousDecorationError extends Error {
+  constructor(
+    readonly registrationName: string,
+    readonly modules: readonly string[],
+    detail: string,
+  ) {
+    super(
+      `[kernel] modules ${modules.map((m) => `'${m}'`).join(' and ')} both decorate ` +
+        `'${registrationName}', and ${detail} Which override wraps which decides what the ` +
+        `platform runs, so it cannot be left to the order the modules happen to compose in: ` +
+        `declare it as \`decorationOrder['${registrationName}']\` in the composer.`,
+    );
+    this.name = 'AmbiguousDecorationError';
+  }
+}
+
+/**
+ * The composition-wide record of decorations, shared by every module context of
+ * one composition.
+ *
+ * It is shared for two reasons and both are defects if it is not. The private
+ * name a decoration parks its inner resolver under must be unique **per
+ * container**: a per-context counter gives the first decoration of two
+ * different modules the same private name, so the second overwrites the first's
+ * inner registration with the first's own wrapper and the chain resolves into
+ * itself. And the ambiguity check is by definition cross-module, so it cannot
+ * live in anything a single module owns.
+ */
+export interface DecorationLedger {
+  /** @throws {AmbiguousDecorationError} when two modules decorate `name` unordered. */
+  record(name: string, moduleId: string, owner: string | undefined): DecorationRecord;
+  /** A private name for the resolver being wrapped, unique across the container. */
+  innerNameFor(name: string): string;
+  readonly entries: readonly DecorationRecord[];
+}
+
+export function createDecorationLedger(
+  decorationOrder: Readonly<Record<string, readonly string[]>> = {},
+): DecorationLedger {
+  const entries: DecorationRecord[] = [];
+  let counter = 0;
+
+  return {
+    entries,
+
+    innerNameFor(name) {
+      counter += 1;
+      return `${name}$undecorated$${counter}`;
+    },
+
+    record(name, moduleId, owner) {
+      const prior = entries.filter((entry) => entry.name === name);
+      const priorModules = [...new Set(prior.map((entry) => entry.moduleId))];
+
+      if (priorModules.some((id) => id !== moduleId)) {
+        const applied = [...new Set([...priorModules, moduleId])];
+        const declared = decorationOrder[name];
+
+        if (declared === undefined) {
+          throw new AmbiguousDecorationError(name, applied, 'no order is declared for it.');
+        }
+
+        const missing = applied.filter((id) => !declared.includes(id));
+        if (missing.length > 0) {
+          throw new AmbiguousDecorationError(
+            name,
+            applied,
+            `the declared order omits ${missing.map((id) => `'${id}'`).join(', ')}.`,
+          );
+        }
+
+        // A declaration that does not bind is worse than none: it reads as a
+        // decision and behaves as a comment.
+        for (let i = 1; i < applied.length; i += 1) {
+          if (declared.indexOf(applied[i] as string) < declared.indexOf(applied[i - 1] as string)) {
+            throw new AmbiguousDecorationError(
+              name,
+              applied,
+              `they compose in the order ${applied.map((id) => `'${id}'`).join(' → ')}, which ` +
+                `contradicts the declared ${declared.map((id) => `'${id}'`).join(' → ')}.`,
+            );
+          }
+        }
+      }
+
+      const entry: DecorationRecord = { name, moduleId, owner, depth: prior.length + 1 };
+      entries.push(entry);
+      return entry;
+    },
+  };
+}
+
 export function createRegistrationOwnership(): RegistrationOwnership {
   const owners = new Map<string, string>();
   return {
@@ -294,6 +416,14 @@ export interface ModuleContextOptions {
    */
   readonly ownership?: RegistrationOwnership;
   /**
+   * Shared across every module of one composition, so the private name a
+   * decoration parks its inner resolver under is unique per container and the
+   * cross-module ambiguity check can see every decoration (T064/T065). Absent
+   * for a hand-built context — one module's decorations are ordered by the
+   * order it wrote them.
+   */
+  readonly decorations?: DecorationLedger;
+  /**
    * Whether `registerModule` is still running for this composition. While it
    * is, `ctx.cradle()` refuses to resolve (T043). Defaults to "no", so a
    * context built by hand in a unit test resolves freely.
@@ -304,7 +434,7 @@ export interface ModuleContextOptions {
 export function createModuleContext(options: ModuleContextOptions): ModuleContext {
   const { module, container, eventBus, sink, log, interceptorRegistry, ownership } = options;
   const isRegistering = options.isRegistering ?? ((): boolean => false);
-  let decorationDepth = 0;
+  const decorations = options.decorations ?? createDecorationLedger();
 
   /**
    * One proxy per context, over this module's own container. It is stable
@@ -347,11 +477,18 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
               `topological, so the owning module must come first.`,
           );
         }
+        // Recorded before anything is registered, so an ambiguous pair fails
+        // composition with the container untouched rather than half-wrapped.
+        decorations.record(name, module.id, ownership?.ownerOf(name));
         const inner = container.getRegistration(name) as Resolver<T>;
         // Re-registering the previous resolver under a private name keeps the
         // inner instance resolving through the SAME container or scope, so its
         // lifetime is preserved and a chain of decorations composes cleanly.
-        const innerName = `${name}$undecorated$${(decorationDepth += 1)}`;
+        // The name comes from the composition-wide ledger: a per-context
+        // counter would hand two modules' first decorations the same private
+        // name, and the second would overwrite the first's inner registration
+        // with the first's own wrapper — a chain that resolves into itself.
+        const innerName = decorations.innerNameFor(name);
         container.register({ [innerName]: inner });
         container.register({
           [name]: asFunction((cradle: KernelCradle) =>

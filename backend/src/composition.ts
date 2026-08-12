@@ -216,10 +216,10 @@ import {
 // Feature 057 — per-deployment overlay resolution (build/composition-time).
 import {
   discoverOverlayModuleManifests,
+  loadOverlayDecorations,
   loadOverlayModulePlugins,
-  loadOverlayServiceClasses,
 } from './overlay/overlay-runtime.js';
-import type { PricingService } from './modules/price_lists/services/pricing-service.js';
+import type { PricingServiceContract } from './modules/price_lists/services/pricing-service.interface.js';
 import { i18nModule as adminI18nModule } from './modules/_i18n/plugin.js';
 import { adminActionsModule } from './modules/admin_actions/plugin.js';
 import { AdminUserService } from './modules/admin_users/services/admin-user-service.js';
@@ -351,10 +351,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // build (no DEPLOYMENT / no overlay dir) all of these are empty and the wiring
   // below is byte-for-byte unchanged. `resolvedRegistry` = the hand-maintained
   // core registry + overlay-only modules (the core array is never edited).
-  const overlayServiceClasses = await loadOverlayServiceClasses();
-  const overlayPricingService = overlayServiceClasses.get(
-    'price_lists/services/pricing-service.ts',
-  ) as typeof PricingService | undefined;
+  // Feature 072 (T066) — a deployment's client overrides, as decorations
+  // keyed by the registration they wrap. The overrides that reach a module
+  // still hand-wired here are handed to it; once a module is converted its
+  // override becomes `ctx.di.decorate` and this lookup disappears with the
+  // hand-wiring.
+  const overlayDecorations = await loadOverlayDecorations();
+  const decoratePricingService = overlayDecorations.get('pricingService') as
+    | ((inner: PricingServiceContract) => PricingServiceContract)
+    | undefined;
   const overlayModuleManifests = await discoverOverlayModuleManifests();
   const resolvedRegistry: RegisteredManifestEntry[] = [
     ...REGISTERED_MANIFESTS,
@@ -679,8 +684,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     auditLogService,
     commandBus,
-    // Feature 057 — swap in the deployment's overlay pricing engine, if any.
-    ...(overlayPricingService ? { pricingServiceClass: overlayPricingService } : {}),
+    // Feature 072 — wrap the pricing engine in the deployment's override, if
+    // any. Core is constructed either way and stays in the call path.
+    ...(decoratePricingService ? { decoratePricingService } : {}),
     resolveAdminAuditContext: (request) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
       if (actor?.kind !== 'admin') {
