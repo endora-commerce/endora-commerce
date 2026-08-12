@@ -1,5 +1,9 @@
 import type { EventBus } from '../../events/bus.js';
-import type { SalesChannelsCache } from './sales-channels-cache.js';
+import { inProcessCaches } from '../cache/in-process-cache-registry.js';
+import {
+  SALES_CHANNELS_CACHE_NAMESPACE,
+  type SalesChannelsCache,
+} from './sales-channels-cache.js';
 
 /**
  * SalesChannelsCacheInvalidator — feature 005 / T012.
@@ -8,6 +12,10 @@ import type { SalesChannelsCache } from './sales-channels-cache.js';
  * identity / lifecycle change emitted by the sales-channels services.
  * Lives for the process lifetime; the returned `dispose` unsubscribes
  * for tests that want a deterministic teardown.
+ *
+ * As in `settings`, this is also where the cache announces itself to the
+ * operator-facing cache clear, so an invalidation and a manual clear cannot
+ * reach different sets of layers.
  */
 
 export interface SalesChannelsCacheInvalidatorHandle {
@@ -43,10 +51,13 @@ export function attachSalesChannelsCacheInvalidator(
     },
   );
 
+  const unregister = inProcessCaches.register(SALES_CHANNELS_CACHE_NAMESPACE, cache);
+
   return {
     dispose() {
       offIdentity();
       offLifecycle();
+      unregister();
     },
   };
 }

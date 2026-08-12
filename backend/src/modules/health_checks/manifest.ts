@@ -15,15 +15,12 @@ export const manifest = defineModuleManifest({
     'Liveness/readiness HTTP endpoints consumed by orchestrators.',
   version: '1.0.0',
   dependencies: [],
-  // Feature 072 (T080) / Constitution XVII — converting this module put
-  // `/api/v1/_health` behind `defineModuleRoutes`, which the inline plugin in
-  // `composition.ts` was not. The operator axis is therefore declared closed:
-  // a container whose liveness probe answers 503 is restarted by its
-  // orchestrator, so "switched off" would read as "permanently unhealthy".
-  activation: {
-    nonDeactivatable: true,
-    reason:
-      'Orchestrators use the liveness endpoint to decide whether this container ' +
-      'is healthy; without it the deployment restarts in a loop.',
-  },
+  // No activation declaration, deliberately (D-36a item 4). This module owns
+  // exactly one surface — the probes — and D-36b exempts them from gating
+  // outright, which is a stronger guarantee than `nonDeactivatable`: the flag
+  // closes the operator axis only, while the platform axis (the lifecycle CLI)
+  // would still take a gated route down. With nothing gated left to protect,
+  // the flag would declare a hazard that no longer exists, and a declaration
+  // about a hazard is exactly what D-32 rejected in favour of a structure
+  // without one.
 });

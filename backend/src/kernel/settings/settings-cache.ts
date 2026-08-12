@@ -1,4 +1,5 @@
 import type Redis from 'ioredis';
+import { SharedDropMarks } from '../cache/shared-drop-marks.js';
 
 /**
  * Read-through cache for `SettingsService.get` — feature 004 / US3 (T050).
@@ -8,40 +9,70 @@ import type Redis from 'ioredis';
  *   2. Redis (`settings:v1:<code>:<channelId>`, TTL 1h; survives restarts).
  *
  * Invalidation goes the other way: write → drop in Redis → drop in LRU →
- * notify other processes via the EventBus subscriber (`SettingsCacheInvalidator`).
+ * notify this process's subscriber (`SettingsCacheInvalidator`).
  *
  * Dropping the shared layer first is deliberate: it is the layer that outlives
  * this process and would otherwise be re-pulled into every other process's
  * LRU. Dropping it is also the step that can fail (network, closed
  * connection), and a half-done invalidation must degrade to "slower but
- * correct", never to "fast and wrong". Two guards enforce that:
+ * correct", never to "fast and wrong". {@link SharedDropMarks} holds the two
+ * guards that enforce it.
  *
- *   - while a drop is in flight, reads for the affected codes bypass both
- *     layers and writes do not repopulate them — the EventBus dispatches
- *     `settings.value_changed` fire-and-forget, so a read routinely lands
- *     mid-invalidation;
- *   - when the shared drop throws, the affected prefix stays marked, so reads
- *     keep bypassing the cache (and keep retrying the drop) instead of being
- *     served a pre-invalidation value that survived in Redis.
+ * **The local layer expires.** The EventBus is in-process (`events/bus.ts`),
+ * so a second API instance learns about a write only through the shared layer:
+ * invalidation is, across processes, a broadcast that can be missed. Redis
+ * expires its entries after an hour; without {@link SETTINGS_LRU_TTL_MS} the
+ * LRU expired nothing and was bounded only by its capacity, so a process that
+ * missed a notification served the pre-write value indefinitely — the one case
+ * the operator's "clear cache" button cannot fix, because clearing rides the
+ * same in-process path that already failed. The window is on the value's age,
+ * never refreshed by a read: a setting read on every request is exactly the
+ * entry a sliding window would pin forever.
  *
  * Stored values are JSON-serialised so structured types (objects, arrays)
  * survive the Redis hop. The `null` sentinel is never stored — absence of a
  * key means "cache miss"; falsy values like `false`, `0`, `""` are valid.
  */
 
-const KEY_PREFIX = 'settings:v1:';
+/** Shared with the operator-facing cache-clear surface, so the two cannot drift. */
+export const SETTINGS_CACHE_KEY_PREFIX = 'settings:v1:';
+export const SETTINGS_CACHE_NAMESPACE = 'settings';
+
+/**
+ * Maximum age of an entry in the per-process layer.
+ *
+ * 30 s is chosen from both ends. The layer exists to remove the Redis hop from
+ * a path read several times per request, and a request burst — a page load, a
+ * checkout step, a worker's batch — lives well inside 30 s, so the hit rate
+ * that justifies the layer is untouched; a 5 s window (what `custom_fields`
+ * uses for a far colder key space) would put a Redis round trip back on the
+ * hot path many times a second. At the other end, 30 s is a bound an operator
+ * experiences as "reload the page and it is right" rather than as a defect,
+ * and it is two orders of magnitude below the hour Redis keeps its own copy —
+ * which is what makes the self-healing real rather than theoretical.
+ */
+export const SETTINGS_LRU_TTL_MS = 30_000;
+
+const KEY_PREFIX = SETTINGS_CACHE_KEY_PREFIX;
 const TTL_SECONDS = 60 * 60;
 const LRU_MAX = 1024;
 const NOT_REGISTERED = '__settings_not_registered__';
 
-export class SettingsCache {
-  private readonly lru = new Map<string, unknown>();
-  /** Key prefixes whose shared drop is on the wire right now, by depth. */
-  private readonly draining = new Map<string, number>();
-  /** Key prefixes whose shared drop threw; Redis may still hold a stale value. */
-  private readonly undrained = new Set<string>();
+interface LruEntry {
+  readonly value: unknown;
+  /** When the value was read from the shared layer or written here. */
+  readonly storedAt: number;
+}
 
-  constructor(private readonly redis: Redis) {}
+export class SettingsCache {
+  private readonly lru = new Map<string, LruEntry>();
+  private readonly marks = new SharedDropMarks();
+
+  constructor(
+    private readonly redis: Redis,
+    /** Injectable so a test can advance the TTL window without a real clock. */
+    private readonly now: () => number = () => Date.now(),
+  ) {}
 
   private static composeKey(code: string, channelId: string): string {
     return `${KEY_PREFIX}${code}:${channelId}`;
@@ -60,15 +91,19 @@ export class SettingsCache {
     const key = SettingsCache.composeKey(code, channelId);
     if (await this.isBypassed(key)) return { hit: false };
 
-    if (this.lru.has(key)) {
-      const v = this.lru.get(key);
-      // Touch the LRU.
-      this.lru.delete(key);
-      this.lru.set(key, v);
-      if (this.isNotRegisteredSentinel(v)) {
-        return { hit: true, value: undefined, notRegistered: true };
+    const entry = this.lru.get(key);
+    if (entry !== undefined) {
+      if (this.now() - entry.storedAt < SETTINGS_LRU_TTL_MS) {
+        // Touch the LRU for eviction order — but not `storedAt`: the bound is
+        // on the value's age, and a hot key must still age out.
+        this.lru.delete(key);
+        this.lru.set(key, entry);
+        if (this.isNotRegisteredSentinel(entry.value)) {
+          return { hit: true, value: undefined, notRegistered: true };
+        }
+        return { hit: true, value: entry.value };
       }
-      return { hit: true, value: v };
+      this.lru.delete(key);
     }
 
     const raw = await this.redis.get(key);
@@ -100,14 +135,20 @@ export class SettingsCache {
     await this.redis.set(key, JSON.stringify(sentinel), 'EX', TTL_SECONDS);
   }
 
-  /** Drop every cached entry for a given setting code (across every channel). */
-  async invalidate(code: string): Promise<void> {
-    await this.drop(`${KEY_PREFIX}${code}:`, 200);
+  /**
+   * Drop every cached entry for a given setting code (across every channel).
+   * Returns how many shared keys were deleted.
+   */
+  async invalidate(code: string): Promise<number> {
+    return this.drop(`${KEY_PREFIX}${code}:`, 200);
   }
 
-  /** Used after group-level changes that may affect many codes. */
-  async invalidateAll(): Promise<void> {
-    await this.drop(KEY_PREFIX, 500);
+  /**
+   * Used after group-level changes that may affect many codes, and by the
+   * operator-facing cache clear. Returns how many shared keys were deleted.
+   */
+  async invalidateAll(): Promise<number> {
+    return this.drop(KEY_PREFIX, 500);
   }
 
   /**
@@ -116,30 +157,27 @@ export class SettingsCache {
    * observe or restore the pre-invalidation state; the mark is only released
    * once the shared layer is known to be clean.
    */
-  private async drop(prefix: string, scanCount: number): Promise<void> {
-    this.draining.set(prefix, (this.draining.get(prefix) ?? 0) + 1);
+  private async drop(prefix: string, scanCount: number): Promise<number> {
+    this.marks.begin(prefix);
     try {
-      await this.dropShared(prefix, scanCount);
-      // A successful drop also retires any narrower outstanding failure.
-      for (const p of this.undrained) {
-        if (p.startsWith(prefix)) this.undrained.delete(p);
-      }
+      const deleted = await this.dropShared(prefix, scanCount);
+      this.marks.retireFailedUnder(prefix);
+      return deleted;
     } catch (err) {
       // Fail closed: Redis may still serve the pre-invalidation value to this
       // process, so keep reads off the cache until a later drop succeeds.
-      this.undrained.add(prefix);
+      this.marks.markFailed(prefix);
       throw err;
     } finally {
       this.dropLocal(prefix);
-      const depth = (this.draining.get(prefix) ?? 1) - 1;
-      if (depth <= 0) this.draining.delete(prefix);
-      else this.draining.set(prefix, depth);
+      this.marks.finish(prefix);
     }
   }
 
   /** SCAN + DEL, to avoid blocking on KEYS in production-sized databases. */
-  private async dropShared(prefix: string, scanCount: number): Promise<void> {
+  private async dropShared(prefix: string, scanCount: number): Promise<number> {
     let cursor = '0';
+    let deleted = 0;
     do {
       const [next, keys] = await this.redis.scan(
         cursor,
@@ -150,9 +188,10 @@ export class SettingsCache {
       );
       cursor = next;
       if (keys.length > 0) {
-        await this.redis.del(...keys);
+        deleted += await this.redis.del(...keys);
       }
     } while (cursor !== '0');
+    return deleted;
   }
 
   private dropLocal(prefix: string): void {
@@ -168,25 +207,21 @@ export class SettingsCache {
    * their caching until Redis answers again — not for the process lifetime.
    */
   private async isBypassed(key: string): Promise<boolean> {
-    if (this.draining.size === 0 && this.undrained.size === 0) return false;
-    for (const prefix of this.draining.keys()) {
-      if (key.startsWith(prefix)) return true;
+    if (this.marks.isClean) return false;
+    if (this.marks.isDraining(key)) return true;
+    const failed = this.marks.failedPrefixFor(key);
+    if (failed === undefined) return false;
+    try {
+      await this.drop(failed, 200);
+    } catch {
+      // Still unreachable — stay off the cache and read through to Postgres.
     }
-    for (const prefix of [...this.undrained]) {
-      if (!key.startsWith(prefix)) continue;
-      try {
-        await this.drop(prefix, 200);
-      } catch {
-        // Still unreachable — stay off the cache and read through to Postgres.
-      }
-      return true;
-    }
-    return false;
+    return true;
   }
 
   private touchLru(key: string, value: unknown): void {
     if (this.lru.has(key)) this.lru.delete(key);
-    this.lru.set(key, value);
+    this.lru.set(key, { value, storedAt: this.now() });
     while (this.lru.size > LRU_MAX) {
       const oldest = this.lru.keys().next().value;
       if (oldest === undefined) break;

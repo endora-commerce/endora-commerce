@@ -1,5 +1,6 @@
 import type { EventBus } from '../../events/bus.js';
-import type { SettingsCache } from './settings-cache.js';
+import { inProcessCaches } from '../cache/in-process-cache-registry.js';
+import { SETTINGS_CACHE_NAMESPACE, type SettingsCache } from './settings-cache.js';
 
 /**
  * SettingsCacheInvalidator — feature 004 / US3 (T051).
@@ -8,6 +9,11 @@ import type { SettingsCache } from './settings-cache.js';
  * admin service emits a value or group change. Lives for the process
  * lifetime; the returned `dispose` unsubscribes for tests that want a
  * deterministic teardown.
+ *
+ * It is also where this process's cache announces itself to the
+ * operator-facing cache clear: the wiring point that makes the cache reachable
+ * by an invalidation is exactly the one that must make it reachable by a
+ * manual clear, so the two cannot be wired apart.
  */
 
 export interface SettingsCacheInvalidatorHandle {
@@ -43,10 +49,13 @@ export function attachSettingsCacheInvalidator(
     },
   );
 
+  const unregister = inProcessCaches.register(SETTINGS_CACHE_NAMESPACE, cache);
+
   return {
     dispose() {
       offValue();
       offGroup();
+      unregister();
     },
   };
 }

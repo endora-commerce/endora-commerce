@@ -111,7 +111,6 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
     await reconcileExistingModules(deps.emFactory, deps.registry);
 
     await registryCache.start({
-      redis: deps.redis,
       redisSubscriber: deps.redisSubscriber,
       em: deps.emFactory,
       // Feature 073 — the operator-activation axis. Declarations come from the

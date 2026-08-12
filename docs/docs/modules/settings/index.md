@@ -118,14 +118,23 @@ const baseUrl = await settingsService.get(
 The universal getter is cheap enough to call freely from request paths.
 Resolution order:
 
-1. Per-process LRU (1024 entries).
+1. Per-process LRU (1024 entries, entries older than 30 s ignored).
 2. Redis (`settings:v1:<code>:<channelId>`, TTL 1h).
 3. Postgres (one keyed lookup against `(setting_id, sales_channel_id)`).
 
 Cache invalidation hangs off the EventBus events that the admin service
-emits on every value or group mutation, so subsequent reads pick up
-changes immediately within a single process and within seconds across
-multiple processes.
+emits on every value or group mutation. The EventBus is in-process, so the
+writing process picks the change up immediately, and every other process
+picks it up on its next read past the 30 s window — invalidation dropped the
+shared Redis entry, and the local window is measured from when the value was
+loaded rather than from the last read, so even a setting read on every request
+ages out.
+
+That window is the bound on how long a missed invalidation can be visible. It
+is also why the operator-facing "clear cache" page is a diagnostic tool rather
+than a repair: it drops both layers in the process that serves it and the
+shared entries for everyone, and every other process converges within the same
+30 s.
 
 ## CLI
 

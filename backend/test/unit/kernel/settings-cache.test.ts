@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type Redis from 'ioredis';
-import { SettingsCache } from '../../../src/kernel/settings/settings-cache.js';
+import {
+  SettingsCache,
+  SETTINGS_CACHE_KEY_PREFIX,
+  SETTINGS_LRU_TTL_MS,
+} from '../../../src/kernel/settings/settings-cache.js';
 
 /**
  * `SettingsCache` invalidation under failure and under concurrency.
@@ -191,6 +195,18 @@ describe('SettingsCache invalidation', () => {
     expect(await cache.get('shop.name', CHANNEL)).toEqual({ hit: false });
   });
 
+  it('reports how many shared keys a drop deleted, so an operator clear can be counted', async () => {
+    const { redis } = fakeRedis();
+    const cache = new SettingsCache(redis);
+
+    await cache.set('mfa.storefront.google_enabled', CHANNEL, true);
+    await cache.set('shop.name', CHANNEL, 'Acme');
+
+    expect(await cache.invalidate('mfa.storefront.google_enabled')).toBe(1);
+    expect(await cache.invalidateAll()).toBe(1);
+    expect(await cache.invalidateAll()).toBe(0);
+  });
+
   it('keeps the "not registered" sentinel out of the cache while an invalidation is pending', async () => {
     const controls = fakeRedis();
     const cache = new SettingsCache(controls.redis);
@@ -205,5 +221,83 @@ describe('SettingsCache invalidation', () => {
     await pending;
 
     expect(await cache.get('mfa.storefront.google_enabled', CHANNEL)).toEqual({ hit: false });
+  });
+});
+
+/**
+ * The second defect behind "the operator cleared the cache and nothing
+ * changed". Invalidation is a broadcast, and a broadcast can be missed — the
+ * `settings.value_changed` subscriber is in-process, so a second API instance
+ * only learns about a write through the shared layer. Redis expires its entries
+ * after an hour; the per-process LRU had **no expiry at all** and was bounded
+ * only by its 1024-entry capacity, so a process that missed an invalidation
+ * served the pre-write value indefinitely.
+ *
+ * That is the case the "clear cache" button cannot fix, because clearing rides
+ * the same in-process path that already failed. A TTL fixes it without anyone
+ * pressing anything.
+ */
+describe('SettingsCache in-process staleness is bounded', () => {
+  const CODE = 'mfa.storefront.google_enabled';
+  const KEY = `${SETTINGS_CACHE_KEY_PREFIX}${CODE}:${CHANNEL}`;
+
+  it('is bounded within a minute — long enough to absorb a request burst, short enough to self-heal', () => {
+    expect(SETTINGS_LRU_TTL_MS).toBeGreaterThanOrEqual(5_000);
+    expect(SETTINGS_LRU_TTL_MS).toBeLessThanOrEqual(60_000);
+  });
+
+  it('serves the in-process layer inside the window', async () => {
+    const controls = fakeRedis();
+    let now = 0;
+    const cache = new SettingsCache(controls.redis, () => now);
+
+    await cache.set(CODE, CHANNEL, true);
+    // Another process wrote a new value; this one missed the notification.
+    controls.store.set(KEY, JSON.stringify(false));
+
+    now += SETTINGS_LRU_TTL_MS - 1;
+    expect(await cache.get(CODE, CHANNEL)).toEqual({ hit: true, value: true });
+  });
+
+  it('re-reads the shared layer once the entry is older than the TTL', async () => {
+    const controls = fakeRedis();
+    let now = 0;
+    const cache = new SettingsCache(controls.redis, () => now);
+
+    await cache.set(CODE, CHANNEL, true);
+    controls.store.set(KEY, JSON.stringify(false));
+
+    now += SETTINGS_LRU_TTL_MS;
+    expect(await cache.get(CODE, CHANNEL)).toEqual({ hit: true, value: false });
+  });
+
+  it('falls through to PostgreSQL when the entry aged out and the shared layer is empty', async () => {
+    const controls = fakeRedis();
+    let now = 0;
+    const cache = new SettingsCache(controls.redis, () => now);
+
+    await cache.set(CODE, CHANNEL, true);
+    controls.store.delete(KEY);
+
+    now += SETTINGS_LRU_TTL_MS;
+    expect(await cache.get(CODE, CHANNEL)).toEqual({ hit: false });
+  });
+
+  it('ages out a continuously read key — the window is on the value, not on idleness', async () => {
+    const controls = fakeRedis();
+    let now = 0;
+    const cache = new SettingsCache(controls.redis, () => now);
+
+    await cache.set(CODE, CHANNEL, true);
+    controls.store.set(KEY, JSON.stringify(false));
+
+    // A setting read on every request is exactly the key a sliding window would
+    // pin forever, which would leave the staleness unbounded for the hottest
+    // values on the platform.
+    for (let i = 0; i < 40; i += 1) {
+      now += SETTINGS_LRU_TTL_MS / 4;
+      await cache.get(CODE, CHANNEL);
+    }
+    expect(await cache.get(CODE, CHANNEL)).toEqual({ hit: true, value: false });
   });
 });

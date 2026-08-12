@@ -52,7 +52,18 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
-  ctx.routes(async (app) => {
-    await registerHealthRoutes(app, ctx.cradle<HealthChecksCradle>().healthCheckProbes);
-  });
+  // D-36b — the probes are never gated. Feature 072's conversion briefly put
+  // `/api/v1/_health` behind `defineModuleRoutes`, which the inline plugin it
+  // replaced was not: a liveness probe that answers 503 because its module is
+  // absent makes the orchestrator kill the container, restart it, get 503
+  // again, and repeat — and nothing stays up long enough to serve the surface
+  // that would switch the module back on.
+  ctx.ungatedRoutes(
+    'Liveness and readiness probes: an orchestrator reads a 503 here as "kill this ' +
+      'container", so gating them on module presence turns a switched-off module into a ' +
+      'restart loop no operator surface can escape.',
+    async (app) => {
+      await registerHealthRoutes(app, ctx.cradle<HealthChecksCradle>().healthCheckProbes);
+    },
+  );
 }

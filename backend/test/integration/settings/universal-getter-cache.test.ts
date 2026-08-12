@@ -49,6 +49,12 @@ describe('SettingsService cache invalidation (T047)', () => {
             valueType: 'string',
             defaultValue: 'https://default.example',
           },
+          {
+            code: 'us3_cache.cleared_url',
+            name: 'Cleared URL',
+            valueType: 'string',
+            defaultValue: 'https://default.example',
+          },
         ],
       }),
     ]);
@@ -166,6 +172,37 @@ describe('SettingsService cache invalidation (T047)', () => {
       await h.settings.settingsService.get('us3_cache.unreachable_url', channel.id, z.string()),
     ).toBe('https://unreachable-redis.example');
     expect(await h.redis.keys('settings:v1:us3_cache.unreachable_url:*')).not.toHaveLength(0);
+  });
+
+  it('lets an operator cache clear reach the in-process layer, not only Redis', async () => {
+    const channel = await h.em().findOneOrFail(SalesChannel, { code: 'pl_retail' });
+
+    // Warm both layers with the default.
+    expect(
+      await h.settings.settingsService.get('us3_cache.cleared_url', channel.id, z.string()),
+    ).toBe('https://default.example');
+
+    // Another process changed the value and this one never heard about it: the
+    // EventBus is in-process, so a missed notification leaves the LRU holding
+    // the pre-change value with nothing to expire it. Writing the row straight
+    // through the EM reproduces that state exactly.
+    const em = h.em();
+    const setting = await em.findOneOrFail(Setting, { code: 'us3_cache.cleared_url' });
+    em.create(SettingValue, {
+      setting,
+      salesChannel: em.getReference(SalesChannel, channel.id),
+      value: 'https://written-elsewhere.example',
+    });
+    await em.flush();
+
+    // This is the button the operator presses when a value "did not take".
+    // Dropping Redis alone leaves every warm process serving the stale value —
+    // and re-pinning it into Redis on the next read.
+    await h.settings.cacheAdminService.clear(['settings']);
+
+    expect(
+      await h.settings.settingsService.get('us3_cache.cleared_url', channel.id, z.string()),
+    ).toBe('https://written-elsewhere.example');
   });
 
   it('caches the "not registered" outcome and invalidates it on subsequent group changes', async () => {

@@ -46,13 +46,11 @@ afterAll(async () => {
 });
 
 describe('ModuleRegistryCache — degraded-mode refresh without a publish (integration)', () => {
-  let publisher: Redis;
   let subscriberRedis: Redis;
   let cache: ModuleRegistryCache;
 
   beforeAll(async () => {
     const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
-    publisher = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
     subscriberRedis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
 
     const em = db.orm.em.fork();
@@ -70,7 +68,6 @@ describe('ModuleRegistryCache — degraded-mode refresh without a publish (integ
 
     cache = new ModuleRegistryCache();
     await cache.start({
-      redis: publisher,
       redisSubscriber: subscriberRedis,
       em: () => db.orm.em.fork() as never,
     });
@@ -79,7 +76,6 @@ describe('ModuleRegistryCache — degraded-mode refresh without a publish (integ
   afterAll(async () => {
     cache.stopFallbackRefresh();
     await db.orm.em.fork().nativeDelete(ModuleRegistration, { moduleId: MODULE_ID });
-    publisher.disconnect();
     subscriberRedis.disconnect();
   });
 

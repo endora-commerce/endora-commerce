@@ -63,10 +63,20 @@ export {
 } from './audit/audit-log-service.js';
 export { AuditLogEntry } from './audit/audit-log-entry.entity.js';
 
+export {
+  InProcessCacheRegistry,
+  inProcessCaches,
+  type InProcessCacheLayer,
+} from './cache/in-process-cache-registry.js';
+export { SharedDropMarks } from './cache/shared-drop-marks.js';
+
 export { SalesChannel } from './sales-channels/sales-channel.entity.js';
 export {
   SalesChannelsCache,
   toCachedChannel,
+  SALES_CHANNELS_CACHE_KEY_PREFIX,
+  SALES_CHANNELS_CACHE_NAMESPACE,
+  SALES_CHANNELS_LRU_TTL_MS,
   type CachedChannel,
 } from './sales-channels/sales-channels-cache.js';
 export {
@@ -106,7 +116,12 @@ export {
   SettingOutOfScopeForChannel,
   SettingValueShapeMismatch,
 } from './settings/settings.service.js';
-export { SettingsCache } from './settings/settings-cache.js';
+export {
+  SettingsCache,
+  SETTINGS_CACHE_KEY_PREFIX,
+  SETTINGS_CACHE_NAMESPACE,
+  SETTINGS_LRU_TTL_MS,
+} from './settings/settings-cache.js';
 export {
   attachSettingsCacheInvalidator,
   type SettingsCacheInvalidatorHandle,
