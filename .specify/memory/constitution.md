@@ -1,6 +1,70 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 3.10.0 → 3.11.0
+Rationale: MINOR bump. Principle XVII's "One toggle, **in Settings**, declared
+by the module" clause named the Settings module's admin surface as the home of
+every module's activation control. That put the control that toggles modules
+inside a module: switch the Settings admin surface off and no activation
+control is reachable, including the one that would switch it back on. The
+circle was patched with `nonDeactivatable`, a per-module manifest flag which
+nothing on the platform axis read — a declaration about a hazard rather than a
+structure without one, which is the shape the modular-packaging programme
+(D-32) deliberately rejected elsewhere.
+
+The amendment changes **the surface only**. The clause's three binding
+requirements are preserved verbatim: a module exposes **exactly one** activation
+control, the control is **declared by the owning module's manifest** rather than
+by a shared hand-maintained list, and an operator can **reach it without CLI
+access**. So is the clause's own reasoning, which exists to stop activation
+being CLI-only and to stop a shared registry of toggles — neither of which a
+kernel-served platform screen reintroduces. What changes is that the surface
+must belong to **no module**, so the circle does not exist to be patched.
+
+Two consequences are written in rather than left implicit. The "single
+exception" (a deactivated module's own control stays visible) becomes
+*structural*: the control was never part of the module's own surface, so nothing
+of that surface survives deactivation. And the non-deactivatable set may no
+longer include a module that is load-bearing only because of **where a screen
+lives** — that is a layout problem, fixed by moving the screen — while the
+declaration must now be **enforced on the platform axis**, not only rendered in
+the Admin UI.
+
+Not MAJOR: no principle is removed or redefined in substance, and the only
+compliant implementation this invalidates — feature 073's Settings-hosted
+control — is corrected in the same change. Not PATCH: this is not a wording
+clarification; a compliant implementation has to move the control.
+
+Modified principles:
+  - XVII. Operator-Toggleable Modules & Disabled-Means-Absent — the surface
+    clause, the operator-activation axis wording, the single-exception clause,
+    the non-deactivatable clause and quality gate #16's matching sentence.
+
+Added sections:
+  - (none)
+
+Removed sections:
+  - (none)
+
+Templates / artifacts requiring alignment:
+  - ✅ README.md — point 17 updated to name the platform-owned surface.
+  - ✅ .github/pull_request_template.md — gate #16 updated to match.
+  - ✅ AGENTS.md — Principle XVII summary and the "Module enable/disable"
+       checklist updated. (CLAUDE.md is a pointer and needs no edit.)
+  - ✅ .specify/templates/plan-template.md / spec-template.md /
+       tasks-template.md — Constitution Check is generic; no edits required.
+
+Deferred items / TODOs:
+  - Two amendments remain queued and are deliberately NOT in this change:
+    Principle XV's overlay mechanism (belongs with F1) and Principle XVII's
+    embedded "10 of 67" measurement (belongs with F5, when the number is
+    final).
+
+--- The 3.10.0 report follows unchanged: it introduced Principle XVII and
+--- records the mechanisms that principle deferred, several still in flight.
+
+SYNC IMPACT REPORT
+==================
 Version change: 3.9.0 → 3.10.0
 Rationale: MINOR bump. A new principle — XVII (Operator-Toggleable Modules &
 Disabled-Means-Absent) — is added. The platform is modular by Principle I, and
@@ -722,7 +786,8 @@ do. Introduced after the `credentials` / `google_analytics` / `newsletter` palet
 
 Principle I makes modules detachable in the codebase; this principle makes them detachable **at
 runtime, by a business operator, without a deploy**. Every module MUST be switchable on and off from
-the Settings module, and a module that is off MUST behave as though it were **never installed** —
+a platform-owned admin surface, and a module that is off MUST behave as though it were **never
+installed** —
 across business logic, the API, the Admin UI and the Storefront UI alike. The following are binding
 for every module:
 
@@ -732,9 +797,9 @@ for every module:
     `018`, `module_registrations`). Owned by whoever operates the **deployment**, changed through
     the lifecycle path (CLI / deployment tooling). It answers *"is this module's code installed,
     migrated and wired in this deployment?"*
-  - **Operator activation** — the module's own on/off Setting in the Settings module. Owned by the
-    **business operator**, changed from the Admin UI. It answers *"does this client want to use this
-    capability?"*
+  - **Operator activation** — the module's own on/off Setting, stored in the platform's settings
+    store and flipped from a platform-owned admin surface. Owned by the **business operator**,
+    changed from the Admin UI. It answers *"does this client want to use this capability?"*
 
   A module is **effectively present only when both are true**. Every gating seam — routes, workers,
   subscribers, interceptors, cross-module calls, Admin UI, Storefront — MUST resolve this
@@ -745,14 +810,19 @@ for every module:
   the operator's activation choice** rather than silently switching the capability back on. An
   operator who deactivated a module MUST find it still deactivated after platform-level work; a
   platform operator who disabled a module MUST NOT have that decision undone by a Settings write.
-- **One toggle, in Settings, declared by the module.** Every module MUST expose exactly **one**
-  activation control in the Settings module's admin surface. The control MUST be declared by the
-  owning module (its manifest), never by adding a row to a shared hand-maintained list — the same
-  registry discipline Principle XVI applies to palette entries and Principle XV to overlay
-  registration. An operator MUST be able to reach it without CLI access. Overlay modules (Principle
-  XV) declare their control exactly as core modules do. Flipping it is a sensitive write (Principle
-  XIII: a Command, audited, actor from the ambient TenantContext) and MUST take effect in **every
-  running process** — API instances and separable workers (Principle X) — without a redeploy.
+- **One toggle, on a surface no module owns, declared by the module.** Every module MUST expose
+  exactly **one** activation control, rendered on a **platform-owned admin surface** — one served
+  by the kernel and belonging to no module (today: the platform modules screen). It MUST NOT be
+  hosted by any module's own admin surface: a module that owns the surface where activation is
+  flipped can be switched off and take the control that would switch it back on with it, and the
+  resulting circle can only be patched with a flag rather than removed. The control MUST be
+  declared by the owning module (its manifest), never by adding a row to a shared hand-maintained
+  list — the same registry discipline Principle XVI applies to palette entries and Principle XV to
+  overlay registration. An operator MUST be able to reach it without CLI access. Overlay modules
+  (Principle XV) declare their control exactly as core modules do. Flipping it is a sensitive write
+  (Principle XIII: a Command, audited, actor from the ambient TenantContext) and MUST take effect in
+  **every running process** — API instances and separable workers (Principle X) — without a
+  redeploy.
 - **The two axes read differently to an operator.** The Admin UI MUST NOT present a
   platform-unavailable module as merely "switched off". A module that is **installed but
   deactivated** shows an actionable control the operator can switch back on. A module that is
@@ -776,8 +846,10 @@ for every module:
   effective enabled-set from the server and hide accordingly. Hard-coding a module's surfaces as
   conditionally-present in the frontends is not compliance.
 - **The single exception: its own activation control.** The **only** thing that MAY remain visible
-  for a deactivated module is its own on/off control in Settings, so an operator can turn it back
-  on. A module that is off but leaves anything else visible — one sidebar link, one palette action,
+  for a deactivated module is its own on/off control on the platform-owned surface, so an operator
+  can turn it back on. Because that surface belongs to no module, the exception is **structural**
+  rather than a carve-out an implementation has to remember: nothing of the module's own surface
+  survives its deactivation. A module that is off but leaves anything else visible — one sidebar link, one palette action,
   one storefront block, one configurable field — violates this principle. In particular, a
   deactivated module's **own configuration surface MUST NOT be editable**; only its activation is.
 - **Off is not uninstall: non-destructive and reversible.** Deactivating MUST NOT drop tables,
@@ -789,9 +861,12 @@ for every module:
   MUST render as **locked with a stated reason** — never silently absent, and never
   present-but-ignored. The set MUST be minimal and justified: a module belongs in it only if
   switching it off would leave the platform unable to authenticate an operator, resolve tenancy, or
-  switch anything back on (the lifecycle subsystem and the Settings surface itself being the obvious
-  members). Hard-coding an exception list in the admin app instead of declaring it per module is
-  prohibited.
+  switch anything back on (authentication, admin identity, the permission catalogue and tenancy —
+  the modules whose absence makes the platform unusable rather than reduced). The set MUST NOT
+  include a module that is only load-bearing because of **where a screen lives**; that is a layout
+  problem, and it is fixed by moving the screen. The declaration MUST also be enforced on the
+  platform axis, not only in the Admin UI — a declaration nothing checks reads as done. Hard-coding
+  an exception list in the admin app instead of declaring it per module is prohibited.
 - **Dependencies fail closed.** Switching off a module that effectively-present modules depend on
   (per manifest `dependencies`, transitively) MUST be **refused with the blocking dependents
   named**, and switching one on whose dependencies are off MUST be refused or require an explicit,
@@ -849,8 +924,11 @@ leaks, and resolving it from the effective state converts "the module is off som
 module is gone."
 
 The carve-outs keep the rule from being a foot-gun: without declared non-deactivatable modules an
-operator can switch off Settings and lose the ability to switch anything back on, and without
-fail-closed dependency handling switching off one module silently breaks its dependents. Off stays
+operator can switch off authentication or tenancy and lose the platform, and without fail-closed
+dependency handling switching off one module silently breaks its dependents. The related hazard —
+switching off the module that *hosts* the controls and losing the way back — is not on that list,
+because it is answered by structure instead: the control renders on a surface no module owns, so
+there is no circle for a declaration to patch. Off stays
 non-destructive — data *and* configuration survive — so the toggle is a safe, reversible business
 decision rather than a data-loss risk; hard uninstall remains the destructive path. The principle
 composes with the guards already in place instead of adding a mechanism: the activation write is a
@@ -1057,12 +1135,13 @@ Every change MUST pass the following sixteen gates before merge:
     surface plus the operator actions that earn a keystroke (Principle IV).
 16. **Module enable/disable completeness** — reviewers MUST reject any change that violates
     Principle XVII: a gating seam that resolves only one of the two axes (platform availability from
-    the lifecycle registry, operator activation from the Settings control) instead of the effective
+    the lifecycle registry, operator activation from the module's declared control) instead of the effective
     conjunction, or that fails open when either is off or unresolved; an activation write that
     mutates the lifecycle registry, or a lifecycle disable → enable cycle that discards the
     operator's activation choice (neither axis may overwrite the other); a module that ships without
-    exactly one activation control in the Settings module, or whose control is registered in a
-    shared hand-maintained list instead of the owning module's manifest; an activation transition
+    exactly one activation control on the platform-owned admin surface, whose control is hosted by
+    a module's own admin surface, or whose control is registered in a shared hand-maintained list
+    instead of the owning module's manifest; an activation transition
     that is not an audited Command (Principle XIII) taking effect across API and worker processes
     without a redeploy; an Admin UI that renders a platform-unavailable module as merely "switched
     off" rather than absent or blocked-with-a-reason; a module that is off yet remains observable on
@@ -1119,4 +1198,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 3.10.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-08-06
+**Version**: 3.11.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-08-12

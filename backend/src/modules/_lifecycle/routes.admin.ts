@@ -99,9 +99,15 @@ export interface ModulePresenceAdminDeps {
 /**
  * Feature 073 — the presence projection and the activation write.
  *
- * Registered outside `defineModuleRoutes`: `_lifecycle` is non-deactivatable,
- * and gating the surface that tells the frontends what is present on the very
- * state it reports would be circular.
+ * Registered outside `defineModuleRoutes`, and not because this module holds a
+ * privilege: gating a surface that reports on module presence on module
+ * presence is circular, which is the same argument `ctx.ungatedRoutes` states
+ * for the liveness probes (D-36b).
+ *
+ * The activation write joins them under D-36. It backs the kernel-served
+ * `/platform/modules` screen rather than a module's own admin surface, so
+ * switching a module off can no longer remove the control that would switch it
+ * back on — the circle is gone rather than patched with a flag.
  */
 export function registerModulePresenceRoutes(
   app: FastifyInstance,
@@ -121,6 +127,7 @@ export function registerModulePresenceRoutes(
     },
     async (): Promise<AdminModulePresenceResponse> => ({
       modules: effectiveState.all().map(toPresenceDto),
+      degraded: effectiveState.isDegraded(),
     }),
   );
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest, type ModuleActivation } from '@b2b/contracts';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../../../src/modules/_lifecycle/services/orchestrator.js';
 import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
 import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
@@ -125,7 +125,12 @@ class FakeAuditLog {
 }
 
 function buildRegistry(
-  entries: Array<{ id: string; deps?: string[]; installHook?: () => Promise<void> }>,
+  entries: Array<{
+    id: string;
+    deps?: string[];
+    installHook?: () => Promise<void>;
+    activation?: ModuleActivation;
+  }>,
 ): LoadedManifestRegistry {
   const map = new Map<string, { manifest: ReturnType<typeof defineModuleManifest>; filePath: string; installHook?: () => Promise<void> }>();
   for (const e of entries) {
@@ -135,6 +140,7 @@ function buildRegistry(
         name: e.id,
         version: '1.0.0',
         dependencies: e.deps ?? [],
+        ...(e.activation ? { activation: e.activation } : {}),
       }),
       filePath: `<test:${e.id}>`,
       ...(e.installHook ? { installHook: e.installHook } : {}),
@@ -413,6 +419,98 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
         (r) => r['action'] === 'module.disabled',
       );
       expect(disabledEntries.length).toBe(2);
+    });
+  });
+
+  /**
+   * D-36a item 3 / issue #37 — the platform axis honours `nonDeactivatable`.
+   *
+   * Until this landed, nothing anywhere on the platform axis read the field:
+   * `module:disable auth` proceeded, and the declaration was a comment that
+   * looked like a guard. A declaration nothing checks reads as done and is
+   * worse than no declaration at all.
+   *
+   * The refusal is unconditional — there is deliberately no `--force`. The
+   * consequence of disabling one of these modules is a deployment that cannot
+   * authenticate the operator who would undo it, which is not a trade-off
+   * anyone can weigh at the prompt. `--force` guards *data loss* on
+   * `uninstall --hard`, where the operator can.
+   */
+  describe('disable — nonDeactivatable is enforced on the platform axis', () => {
+    const LOCKED: ModuleActivation = {
+      nonDeactivatable: true,
+      reason: 'Nobody could sign in to switch it back on.',
+    };
+
+    function seedInstalled(...ids: string[]): FakeRow[] {
+      return ids.map((moduleId) => ({
+        moduleId,
+        state: 'installed',
+        version: '1.0.0',
+        installedAt: new Date(),
+        lastStateChangeAt: new Date(),
+        lastInstallFailedAt: null,
+        lastInstallError: null,
+      }));
+    }
+
+    it('refuses, echoes the declared reason, and leaves the registry row alone', async () => {
+      const reg = buildRegistry([{ id: 'auth', activation: LOCKED }]);
+      const { orchestrator, em, auditLog } = buildOrchestrator({
+        registry: reg,
+        em: new FakeEm(seedInstalled('auth')),
+      });
+
+      await expect(orchestrator.disable('auth')).rejects.toMatchObject({
+        kind: 'non-deactivatable',
+      });
+      try {
+        await orchestrator.disable('auth');
+      } catch (err) {
+        // The operator reads the module's own sentence, not a generic refusal:
+        // the reason is the only thing that tells them why.
+        expect((err as LifecycleError).message).toContain(LOCKED.reason);
+      }
+
+      expect(em.rows[0]?.state).toBe('installed');
+      expect(auditLog.records.some((r) => r['action'] === 'module.disabled')).toBe(false);
+    });
+
+    it('refuses a cascade that would take a non-deactivatable dependent down', async () => {
+      // The dangerous shape: the target itself is ordinary, and the module the
+      // platform cannot run without is only reached through the cascade.
+      const reg = buildRegistry([
+        { id: 'organizations' },
+        { id: 'auth', deps: ['organizations'], activation: LOCKED },
+      ]);
+      const { orchestrator, em, auditLog } = buildOrchestrator({
+        registry: reg,
+        em: new FakeEm(seedInstalled('organizations', 'auth')),
+      });
+
+      await expect(
+        orchestrator.disable('organizations', { cascade: true }),
+      ).rejects.toMatchObject({ kind: 'non-deactivatable' });
+
+      // Refused before any write — a partially-applied cascade is the one
+      // outcome worse than the refusal.
+      expect(em.rows.every((r) => r.state === 'installed')).toBe(true);
+      expect(auditLog.records.some((r) => r['action'] === 'module.disabled')).toBe(false);
+    });
+
+    it('leaves an ordinary module with an activation control disable-able', async () => {
+      // The two axes stay independent: declaring an operator control says
+      // nothing about whether the deployment may withdraw the module.
+      const reg = buildRegistry([
+        { id: 'blog', activation: { settingCode: 'blog.enabled', default: true } },
+      ]);
+      const { orchestrator } = buildOrchestrator({
+        registry: reg,
+        em: new FakeEm(seedInstalled('blog')),
+      });
+
+      const result = await orchestrator.disable('blog');
+      expect(result.state).toBe('disabled');
     });
   });
 

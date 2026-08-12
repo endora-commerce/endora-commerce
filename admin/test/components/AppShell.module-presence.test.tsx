@@ -157,6 +157,16 @@ describe('AppShell — module presence drives the sidebar (FR-031)', () => {
     renderShell(ALL_MODULES);
     expect(sidebarHrefs()).toContain('/');
   });
+
+  it('keeps the platform Modules entry with every module switched off (D-36)', () => {
+    // The screen that toggles modules belongs to no module, so it cannot be
+    // toggled out of existence. With the control on the Settings screen — which
+    // does belong to a module — switching that module off took away the entry
+    // that led to the control that would switch it back on.
+    renderShell(ALL_MODULES);
+    expect(sidebarHrefs()).toContain('/platform/modules');
+    expect(sidebarHrefs()).not.toContain('/settings');
+  });
 });
 
 describe('AppShell — module presence drives the command palette (FR-032)', () => {

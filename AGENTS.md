@@ -85,8 +85,9 @@ replacement. Non-negotiable ones are marked **(NN)**.
 - **XVI. Module discoverability in the command palette** — see the checklist below.
 - **XVII. Operator-toggleable modules (NN)** — presence is the conjunction of **two
   orthogonal axes**: platform availability (lifecycle registry, deployment-owned, CLI) and
-  operator activation (a manifest-declared Setting in the Settings module, business-owned,
-  Admin UI). Neither overwrites the other. A module that is off behaves as if never
+  operator activation (a manifest-declared Setting, flipped on the kernel-served
+  `/platform/modules` screen — a surface no module owns — business-owned, Admin UI). Neither
+  overwrites the other. A module that is off behaves as if never
   installed — business logic, API, Admin UI and Storefront — its own activation control
   being the one exception. Off is non-destructive and reversible; non-deactivatable modules
   declare that in their manifest; dependencies fail closed. See the checklist below.
@@ -143,7 +144,7 @@ A module's presence is the **conjunction of two orthogonal axes** — do not con
 | Axis | Stored in | Owned by | Changed via | Answers |
 | --- | --- | --- | --- | --- |
 | **Platform availability** | lifecycle registry (`module_registrations`) | deployment operator | CLI / deployment tooling | is this module installed and wired here? |
-| **Operator activation** | a Setting in the `settings` module | business operator | Admin UI | does this client want this capability? |
+| **Operator activation** | a manifest-declared Setting in the settings store | business operator | Admin UI, on `/platform/modules` | does this client want this capability? |
 
 Effective presence = **both true**. Gate on the effective state, fail closed if either is off.
 An activation write must not touch the registry, and a platform disable → enable cycle must
@@ -165,7 +166,10 @@ are touching does not.
    (`ERROR_CODES.MODULE_DISABLED`) instead of a half-executed operation.
 4. **Manifest** — declare the module's activation control and its default, and, if the
    platform genuinely cannot run without the module, declare it non-deactivatable with a
-   reason. Never hard-code an exception list in the admin app.
+   reason. The lifecycle orchestrator refuses to disable a module that declares it, with no
+   `--force`, so the declaration bites on both axes. Never hard-code an exception list in the
+   admin app, and never declare it because a screen happens to live in the module — the
+   activation controls render on `/platform/modules`, which belongs to no module (D-36).
 5. **Admin and Storefront** — a module that is off contributes no sidebar entry, palette
    action, widget, tab, settings group or editable configuration, and no storefront element.
    Both frontends resolve this from the server's effective enabled-set; do not hard-code the

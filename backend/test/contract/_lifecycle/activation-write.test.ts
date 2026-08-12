@@ -195,6 +195,32 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     expect(res.statusCode).toBe(403);
   });
 
+  it('stays reachable while the settings module is switched off (D-36)', async () => {
+    // The property the relocation buys, and the reason Constitution XVII's
+    // surface clause was amended. With the control on the Settings screen, this
+    // state was the circle: no activation control reachable, including the one
+    // that would switch Settings back on. The endpoint is kernel-resident, so
+    // it answers whether or not the module that used to host its UI is present.
+    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['settings'] });
+
+    const presence = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/module-presence',
+      cookies: ADMIN,
+    });
+    expect(presence.statusCode).toBe(200);
+    expect(
+      presence.json().modules.find((m: { id: string }) => m.id === 'settings'),
+    ).toMatchObject({ present: false, activated: false });
+
+    const res = await flip(MODULE, false);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().module.activated).toBe(false);
+
+    // And the way back works from the same place.
+    expect((await flip(MODULE, true)).statusCode).toBe(200);
+  });
+
   it('refuses the ordinary settings write path against an activation code', async () => {
     // FR-009: the audited Command is the only door. Without this guard an
     // operator could flip a module through the generic settings screen and
