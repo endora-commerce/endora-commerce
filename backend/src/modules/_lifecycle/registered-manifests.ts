@@ -29,63 +29,62 @@ import { manifest as manifest5 } from '../admin_roles/manifest.js';
 import { manifest as manifest6 } from '../admin_users/manifest.js';
 import { manifest as manifest7 } from '../analytics/manifest.js';
 import { manifest as manifest8 } from '../api_keys/manifest.js';
-import { manifest as manifest9 } from '../assets/manifest.js';
-import { manifest as manifest10 } from '../assets_library/manifest.js';
-import { manifest as manifest11 } from '../audit_logs/manifest.js';
-import { manifest as manifest12 } from '../auth/manifest.js';
-import { manifest as manifest13 } from '../autopay/manifest.js';
-import { manifest as manifest14 } from '../blog/manifest.js';
-import { manifest as manifest15 } from '../carts/manifest.js';
-import { manifest as manifest16 } from '../catalog/manifest.js';
-import { manifest as manifest17 } from '../cms/manifest.js';
-import { manifest as manifest18 } from '../comparisons/manifest.js';
-import { manifest as manifest19 } from '../credentials/manifest.js';
-import { manifest as manifest20 } from '../credit_limits/manifest.js';
-import { manifest as manifest21 } from '../currencies/manifest.js';
-import { manifest as manifest22, uninstallHook as uninstallHook22 } from '../custom_fields/manifest.js';
-import { manifest as manifest23 } from '../customer_accounts/manifest.js';
-import { manifest as manifest24 } from '../customers/manifest.js';
-import { manifest as manifest25 } from '../delivery_methods/manifest.js';
-import { manifest as manifest26 } from '../dictionaries/manifest.js';
-import { manifest as manifest27 } from '../email/manifest.js';
-import { manifest as manifest28 } from '../google_analytics/manifest.js';
-import { manifest as manifest29 } from '../google_tag_manager/manifest.js';
-import { manifest as manifest30 } from '../health_checks/manifest.js';
-import { manifest as manifest31 } from '../import_export/manifest.js';
-import { manifest as manifest32 } from '../inventory/manifest.js';
-import { manifest as manifest33 } from '../invoices/manifest.js';
-import { manifest as manifest34 } from '../ksef/manifest.js';
-import { manifest as manifest35 } from '../languages/manifest.js';
-import { manifest as manifest36 } from '../linkedin_ads/manifest.js';
-import { manifest as manifest37 } from '../megamenu/manifest.js';
-import { manifest as manifest38 } from '../meta_ads/manifest.js';
-import { manifest as manifest39 } from '../mfa/manifest.js';
-import { manifest as manifest40 } from '../newsletter/manifest.js';
-import { manifest as manifest41 } from '../orders/manifest.js';
-import { manifest as manifest42 } from '../organizations/manifest.js';
-import { manifest as manifest43 } from '../payment_methods/manifest.js';
-import { manifest as manifest44 } from '../payments/manifest.js';
-import { manifest as manifest45 } from '../payu/manifest.js';
-import { manifest as manifest46 } from '../pim_ergonode/manifest.js';
-import { manifest as manifest47 } from '../price_lists/manifest.js';
-import { manifest as manifest48 } from '../product_feeds/manifest.js';
-import { manifest as manifest49 } from '../promotions/manifest.js';
-import { manifest as manifest50 } from '../prompt_actions/manifest.js';
-import { manifest as manifest51 } from '../pwa/manifest.js';
-import { manifest as manifest52 } from '../quick_order/manifest.js';
-import { manifest as manifest53 } from '../quote_requests/manifest.js';
-import { manifest as manifest54 } from '../returns/manifest.js';
-import { manifest as manifest55 } from '../sales_channels/manifest.js';
-import { manifest as manifest56 } from '../search/manifest.js';
-import { manifest as manifest57 } from '../seo/manifest.js';
-import { manifest as manifest58 } from '../settings/manifest.js';
-import { manifest as manifest59 } from '../shipments/manifest.js';
-import { manifest as manifest60 } from '../shopping_lists/manifest.js';
-import { manifest as manifest61 } from '../stripe/manifest.js';
-import { manifest as manifest62 } from '../taxes/manifest.js';
-import { manifest as manifest63 } from '../tpay/manifest.js';
-import { manifest as manifest64 } from '../transactional_emails/manifest.js';
-import { manifest as manifest65 } from '../webhooks/manifest.js';
+import { manifest as manifest9 } from '../assets_library/manifest.js';
+import { manifest as manifest10 } from '../audit_logs/manifest.js';
+import { manifest as manifest11 } from '../auth/manifest.js';
+import { manifest as manifest12 } from '../autopay/manifest.js';
+import { manifest as manifest13 } from '../blog/manifest.js';
+import { manifest as manifest14 } from '../carts/manifest.js';
+import { manifest as manifest15 } from '../catalog/manifest.js';
+import { manifest as manifest16 } from '../cms/manifest.js';
+import { manifest as manifest17 } from '../comparisons/manifest.js';
+import { manifest as manifest18 } from '../credentials/manifest.js';
+import { manifest as manifest19 } from '../credit_limits/manifest.js';
+import { manifest as manifest20 } from '../currencies/manifest.js';
+import { manifest as manifest21, uninstallHook as uninstallHook21 } from '../custom_fields/manifest.js';
+import { manifest as manifest22 } from '../customer_accounts/manifest.js';
+import { manifest as manifest23 } from '../customers/manifest.js';
+import { manifest as manifest24 } from '../delivery_methods/manifest.js';
+import { manifest as manifest25 } from '../dictionaries/manifest.js';
+import { manifest as manifest26 } from '../email/manifest.js';
+import { manifest as manifest27 } from '../google_analytics/manifest.js';
+import { manifest as manifest28 } from '../google_tag_manager/manifest.js';
+import { manifest as manifest29 } from '../health_checks/manifest.js';
+import { manifest as manifest30 } from '../import_export/manifest.js';
+import { manifest as manifest31 } from '../inventory/manifest.js';
+import { manifest as manifest32 } from '../invoices/manifest.js';
+import { manifest as manifest33 } from '../ksef/manifest.js';
+import { manifest as manifest34 } from '../languages/manifest.js';
+import { manifest as manifest35 } from '../linkedin_ads/manifest.js';
+import { manifest as manifest36 } from '../megamenu/manifest.js';
+import { manifest as manifest37 } from '../meta_ads/manifest.js';
+import { manifest as manifest38 } from '../mfa/manifest.js';
+import { manifest as manifest39 } from '../newsletter/manifest.js';
+import { manifest as manifest40 } from '../orders/manifest.js';
+import { manifest as manifest41 } from '../organizations/manifest.js';
+import { manifest as manifest42 } from '../payment_methods/manifest.js';
+import { manifest as manifest43 } from '../payments/manifest.js';
+import { manifest as manifest44 } from '../payu/manifest.js';
+import { manifest as manifest45 } from '../pim_ergonode/manifest.js';
+import { manifest as manifest46 } from '../price_lists/manifest.js';
+import { manifest as manifest47 } from '../product_feeds/manifest.js';
+import { manifest as manifest48 } from '../promotions/manifest.js';
+import { manifest as manifest49 } from '../prompt_actions/manifest.js';
+import { manifest as manifest50 } from '../pwa/manifest.js';
+import { manifest as manifest51 } from '../quick_order/manifest.js';
+import { manifest as manifest52 } from '../quote_requests/manifest.js';
+import { manifest as manifest53 } from '../returns/manifest.js';
+import { manifest as manifest54 } from '../sales_channels/manifest.js';
+import { manifest as manifest55 } from '../search/manifest.js';
+import { manifest as manifest56 } from '../seo/manifest.js';
+import { manifest as manifest57 } from '../settings/manifest.js';
+import { manifest as manifest58 } from '../shipments/manifest.js';
+import { manifest as manifest59 } from '../shopping_lists/manifest.js';
+import { manifest as manifest60 } from '../stripe/manifest.js';
+import { manifest as manifest61 } from '../taxes/manifest.js';
+import { manifest as manifest62 } from '../tpay/manifest.js';
+import { manifest as manifest63 } from '../transactional_emails/manifest.js';
+import { manifest as manifest64 } from '../webhooks/manifest.js';
 
 /**
  * Each entry carries a real `filePath` so downstream reconcilers can locate the
@@ -120,63 +119,62 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: manifest6, filePath: pathFor('admin_users') },
   { manifest: manifest7, filePath: pathFor('analytics') },
   { manifest: manifest8, filePath: pathFor('api_keys') },
-  { manifest: manifest9, filePath: pathFor('assets') },
-  { manifest: manifest10, filePath: pathFor('assets_library') },
-  { manifest: manifest11, filePath: pathFor('audit_logs') },
-  { manifest: manifest12, filePath: pathFor('auth') },
-  { manifest: manifest13, filePath: pathFor('autopay') },
-  { manifest: manifest14, filePath: pathFor('blog') },
-  { manifest: manifest15, filePath: pathFor('carts') },
-  { manifest: manifest16, filePath: pathFor('catalog') },
-  { manifest: manifest17, filePath: pathFor('cms') },
-  { manifest: manifest18, filePath: pathFor('comparisons') },
-  { manifest: manifest19, filePath: pathFor('credentials') },
-  { manifest: manifest20, filePath: pathFor('credit_limits') },
-  { manifest: manifest21, filePath: pathFor('currencies') },
-  { manifest: manifest22, filePath: pathFor('custom_fields'), uninstallHook: uninstallHook22 },
-  { manifest: manifest23, filePath: pathFor('customer_accounts') },
-  { manifest: manifest24, filePath: pathFor('customers') },
-  { manifest: manifest25, filePath: pathFor('delivery_methods') },
-  { manifest: manifest26, filePath: pathFor('dictionaries') },
-  { manifest: manifest27, filePath: pathFor('email') },
-  { manifest: manifest28, filePath: pathFor('google_analytics') },
-  { manifest: manifest29, filePath: pathFor('google_tag_manager') },
-  { manifest: manifest30, filePath: pathFor('health_checks') },
-  { manifest: manifest31, filePath: pathFor('import_export') },
-  { manifest: manifest32, filePath: pathFor('inventory') },
-  { manifest: manifest33, filePath: pathFor('invoices') },
-  { manifest: manifest34, filePath: pathFor('ksef') },
-  { manifest: manifest35, filePath: pathFor('languages') },
-  { manifest: manifest36, filePath: pathFor('linkedin_ads') },
-  { manifest: manifest37, filePath: pathFor('megamenu') },
-  { manifest: manifest38, filePath: pathFor('meta_ads') },
-  { manifest: manifest39, filePath: pathFor('mfa') },
-  { manifest: manifest40, filePath: pathFor('newsletter') },
-  { manifest: manifest41, filePath: pathFor('orders') },
-  { manifest: manifest42, filePath: pathFor('organizations') },
-  { manifest: manifest43, filePath: pathFor('payment_methods') },
-  { manifest: manifest44, filePath: pathFor('payments') },
-  { manifest: manifest45, filePath: pathFor('payu') },
-  { manifest: manifest46, filePath: pathFor('pim_ergonode') },
-  { manifest: manifest47, filePath: pathFor('price_lists') },
-  { manifest: manifest48, filePath: pathFor('product_feeds') },
-  { manifest: manifest49, filePath: pathFor('promotions') },
-  { manifest: manifest50, filePath: pathFor('prompt_actions') },
-  { manifest: manifest51, filePath: pathFor('pwa') },
-  { manifest: manifest52, filePath: pathFor('quick_order') },
-  { manifest: manifest53, filePath: pathFor('quote_requests') },
-  { manifest: manifest54, filePath: pathFor('returns') },
-  { manifest: manifest55, filePath: pathFor('sales_channels') },
-  { manifest: manifest56, filePath: pathFor('search') },
-  { manifest: manifest57, filePath: pathFor('seo') },
-  { manifest: manifest58, filePath: pathFor('settings') },
-  { manifest: manifest59, filePath: pathFor('shipments') },
-  { manifest: manifest60, filePath: pathFor('shopping_lists') },
-  { manifest: manifest61, filePath: pathFor('stripe') },
-  { manifest: manifest62, filePath: pathFor('taxes') },
-  { manifest: manifest63, filePath: pathFor('tpay') },
-  { manifest: manifest64, filePath: pathFor('transactional_emails') },
-  { manifest: manifest65, filePath: pathFor('webhooks') },
+  { manifest: manifest9, filePath: pathFor('assets_library') },
+  { manifest: manifest10, filePath: pathFor('audit_logs') },
+  { manifest: manifest11, filePath: pathFor('auth') },
+  { manifest: manifest12, filePath: pathFor('autopay') },
+  { manifest: manifest13, filePath: pathFor('blog') },
+  { manifest: manifest14, filePath: pathFor('carts') },
+  { manifest: manifest15, filePath: pathFor('catalog') },
+  { manifest: manifest16, filePath: pathFor('cms') },
+  { manifest: manifest17, filePath: pathFor('comparisons') },
+  { manifest: manifest18, filePath: pathFor('credentials') },
+  { manifest: manifest19, filePath: pathFor('credit_limits') },
+  { manifest: manifest20, filePath: pathFor('currencies') },
+  { manifest: manifest21, filePath: pathFor('custom_fields'), uninstallHook: uninstallHook21 },
+  { manifest: manifest22, filePath: pathFor('customer_accounts') },
+  { manifest: manifest23, filePath: pathFor('customers') },
+  { manifest: manifest24, filePath: pathFor('delivery_methods') },
+  { manifest: manifest25, filePath: pathFor('dictionaries') },
+  { manifest: manifest26, filePath: pathFor('email') },
+  { manifest: manifest27, filePath: pathFor('google_analytics') },
+  { manifest: manifest28, filePath: pathFor('google_tag_manager') },
+  { manifest: manifest29, filePath: pathFor('health_checks') },
+  { manifest: manifest30, filePath: pathFor('import_export') },
+  { manifest: manifest31, filePath: pathFor('inventory') },
+  { manifest: manifest32, filePath: pathFor('invoices') },
+  { manifest: manifest33, filePath: pathFor('ksef') },
+  { manifest: manifest34, filePath: pathFor('languages') },
+  { manifest: manifest35, filePath: pathFor('linkedin_ads') },
+  { manifest: manifest36, filePath: pathFor('megamenu') },
+  { manifest: manifest37, filePath: pathFor('meta_ads') },
+  { manifest: manifest38, filePath: pathFor('mfa') },
+  { manifest: manifest39, filePath: pathFor('newsletter') },
+  { manifest: manifest40, filePath: pathFor('orders') },
+  { manifest: manifest41, filePath: pathFor('organizations') },
+  { manifest: manifest42, filePath: pathFor('payment_methods') },
+  { manifest: manifest43, filePath: pathFor('payments') },
+  { manifest: manifest44, filePath: pathFor('payu') },
+  { manifest: manifest45, filePath: pathFor('pim_ergonode') },
+  { manifest: manifest46, filePath: pathFor('price_lists') },
+  { manifest: manifest47, filePath: pathFor('product_feeds') },
+  { manifest: manifest48, filePath: pathFor('promotions') },
+  { manifest: manifest49, filePath: pathFor('prompt_actions') },
+  { manifest: manifest50, filePath: pathFor('pwa') },
+  { manifest: manifest51, filePath: pathFor('quick_order') },
+  { manifest: manifest52, filePath: pathFor('quote_requests') },
+  { manifest: manifest53, filePath: pathFor('returns') },
+  { manifest: manifest54, filePath: pathFor('sales_channels') },
+  { manifest: manifest55, filePath: pathFor('search') },
+  { manifest: manifest56, filePath: pathFor('seo') },
+  { manifest: manifest57, filePath: pathFor('settings') },
+  { manifest: manifest58, filePath: pathFor('shipments') },
+  { manifest: manifest59, filePath: pathFor('shopping_lists') },
+  { manifest: manifest60, filePath: pathFor('stripe') },
+  { manifest: manifest61, filePath: pathFor('taxes') },
+  { manifest: manifest62, filePath: pathFor('tpay') },
+  { manifest: manifest63, filePath: pathFor('transactional_emails') },
+  { manifest: manifest64, filePath: pathFor('webhooks') },
 ];
 
 /**
