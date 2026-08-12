@@ -137,6 +137,7 @@ export {
   type ReconciliationResult,
 } from './settings/manifest-reconciler.js';
 
+export { registerPort } from './ports/provide.js';
 export {
   type AdminPermissionChecker,
   type RequireAdminAnyFactory,

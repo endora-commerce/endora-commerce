@@ -23,6 +23,7 @@ import {
   type WorkerLogger,
 } from '../modules/_lifecycle/plugin-helpers.js';
 import type { KernelContainer, KernelCradle } from './container.js';
+import { registerPort } from './ports/provide.js';
 
 /**
  * `ModuleContext` — the only kernel surface a module sees (feature 072).
@@ -137,6 +138,20 @@ export interface ModuleContext {
 
   readonly di: {
     register(registrations: Record<string, Registration>): void;
+    /**
+     * Register a name **other modules resolve** — a port (FR-040).
+     *
+     * The difference from `register` is fail-closed cross-module resolution:
+     * resolving a port while this module is not effectively present throws
+     * `ModuleDisabledError` (503 `MODULE_DISABLED`, with `Retry-After`) rather
+     * than handing a consumer a live service belonging to a module the
+     * operator switched off (Constitution XVII).
+     *
+     * A module's *internal* registrations stay on `register`: gating those
+     * would break the one surface that must answer while its module is
+     * absent — `ctx.ungatedRoutes`, i.e. the liveness probe.
+     */
+    providePort<T>(name: string, registration: Registration<T>): void;
     /**
      * Wrap an existing registration (D-28: decoration, never replacement), so a
      * client override keeps delegating to core and core fixes keep flowing
@@ -317,6 +332,11 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
       register(registrations) {
         for (const name of Object.keys(registrations)) ownership?.claim(name, module.id);
         container.register(registrations);
+      },
+
+      providePort(name, registration) {
+        ownership?.claim(name, module.id);
+        registerPort(container, module.id, name, registration);
       },
 
       decorate<T>(name: string, wrap: (inner: T, cradle: KernelCradle) => T): void {
