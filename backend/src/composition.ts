@@ -1,3 +1,5 @@
+import { CURRENCY_CHANGED_EVENT } from './modules/currencies/backend.js';
+import type { CurrencyService } from './modules/currencies/services/currency-service.js';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
@@ -400,6 +402,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // and the client has existed since the top of this function.
   registerValues(container, {
     redis,
+    // Modules announce on it; `ctx.subscribe` receives on it. A module that
+    // publishes needs it as a registration, not just as a composer option.
+    eventBus,
     // The resolved registry — core manifests plus this deployment's overlay
     // modules. `admin_roles` builds the permission catalogue from it and cannot
     // see it itself: which modules a deployment ships is a composition-root
@@ -435,6 +440,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const permissionService = rolesCradle.permissionService;
   const permissionCatalogueService = rolesCradle.permissionCatalogueService;
   const adminRoleService = rolesCradle.adminRoleService;
+
+  // Feature 072 (wave 1) — one `CurrencyService`, where `dictionaries` and
+  // `languages` each built their own with different invalidators.
+  const currencyService = (container.cradle as unknown as { currencyService: CurrencyService })
+    .currencyService;
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
@@ -627,7 +637,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // sitemap generator can read the per-channel `sales_channels.storefront_url`
   // setting via the SettingsService port. See `const seo = seoModule(...)` /
   // `modules.push(seo.plugin)` further down.
-  const i18n = i18nModule({ emFactory: em, requireAdmin, auditLog: auditLogService });
+  const i18n = i18nModule({
+    emFactory: em,
+    requireAdmin,
+    auditLog: auditLogService,
+    currencyService,
+  });
 
   // Feature 005 — Sales Channels module. The boot-time
   // DefaultChannelReconciler runs FIRST so every other module can rely on a
@@ -665,9 +680,29 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // The plugin itself is still registered later to preserve route order.
   const dictionaries = dictionariesModule({
     emFactory: em,
+    currencyService,
     requireAdmin,
     redis,
     auditLog: auditLogService,
+  });
+
+  // Feature 072 (wave 1) — `currencies` resolves this per write. It is the same
+  // pair of drops `dictionariesModule` performs internally; registering it here
+  // is what lets a single `CurrencyService` serve both admin surfaces, which is
+  // the point of the conversion. It disappears when `dictionaries` converts and
+  // registers the invalidator itself.
+  // Feature 072 (wave 1) — `dictionaries` reacts to a currency change instead
+  // of `currencies` calling into it. The direction matters: declaring the call
+  // as a dependency produced a real cycle, and the cycle was the design saying
+  // a currency must not know a dictionary cache exists.
+  eventBus.on(CURRENCY_CHANGED_EVENT, () => {
+    dictionaries.handle.validator.invalidate();
+    // Swallowed rather than left floating: the handler is synchronous, so a
+    // drop that lands after the server closed would surface as an unhandled
+    // rejection from ioredis's socket-close path and fail an otherwise green
+    // run. A cache that could not be dropped because the process is going away
+    // has nothing to be stale for.
+    void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
   });
 
   const salesChannels = salesChannelsModule({

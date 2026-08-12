@@ -89,6 +89,9 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // The two resolvers the auth plugin reads per request; their owners are
   // hand-wired and constructed after `auth`, so a root registers them.
   apiKeyResolver: 'api_keys',
+  // `dictionaries` owns the validator + cache drop; `currencies` resolves it
+  // per write so one CurrencyService can serve both admin surfaces.
+  dictionaryInvalidator: 'dictionaries',
   customerOrgResolver: 'customer_accounts',
 };
 

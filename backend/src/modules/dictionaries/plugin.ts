@@ -23,11 +23,17 @@ import { TranslationService } from './services/translation-service.js';
 import { registerDictionaryAdminRoutes } from './routes.admin.js';
 import { registerDictionaryStorefrontRoutes } from './routes.storefront.js';
 import { LanguageService } from '../languages/services/language-service.js';
-import { CurrencyService } from '../currencies/services/currency-service.js';
+import type { CurrencyService } from '../currencies/services/currency-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface DictionariesModuleOptions {
   emFactory: () => EntityManager;
+  /**
+   * Feature 072 (wave 1) — `currencies` owns this. Injected rather than built
+   * here, because `languages` used to build a second one with a different
+   * invalidator and the two diverged silently.
+   */
+  currencyService: CurrencyService;
   requireAdmin?: RequireAdminFactory;
   /** Redis is optional — when absent, the registry cache is skipped. */
   redis?: Redis;
@@ -85,7 +91,7 @@ export function dictionariesModule(options: DictionariesModuleOptions): {
       await registerDictionaryAdminRoutes(app, {
         emFactory: options.emFactory,
         countryService: new CountryService(options.emFactory, invalidateDictionaryState, options.auditLog),
-        currencyService: new CurrencyService(options.emFactory, invalidateDictionaryState, options.auditLog),
+        currencyService: options.currencyService,
         languageService: new LanguageService(options.emFactory, invalidateDictionaryState, options.auditLog),
         languageCountryService: new LanguageCountryService(
           options.emFactory,

@@ -1,3 +1,5 @@
+import { CURRENCY_CHANGED_EVENT } from '../../src/modules/currencies/backend.js';
+import type { CurrencyService } from '../../src/modules/currencies/services/currency-service.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import Redis from 'ioredis';
@@ -313,6 +315,8 @@ export interface BackendServerHandle {
   redis: Redis;
   /** Feature 072 (T073) — the module-state pub/sub client, disconnected at teardown. */
   redisSubscriber: Redis;
+  /** Whether `exercisePubSub` armed a subscription, so teardown knows to undo it. */
+  pubSubArmed: boolean;
   sessionService: SessionService;
   auditLogService: AuditLogService;
   permissionService: PermissionService;
@@ -722,6 +726,9 @@ export async function setupBackendServer(
 
   registerValues(container, {
     redis,
+    // Modules announce on it; `ctx.subscribe` receives on it. A module that
+    // publishes needs it as a registration, not just as a composer option.
+    eventBus,
     // Mirrors `composition.ts`: the resolved registry the permission catalogue
     // is built from, and the kernel's audit writer.
     resolvedModuleRegistry: REGISTERED_MANIFESTS,
@@ -753,6 +760,11 @@ export async function setupBackendServer(
   const permissionService = rolesCradle.permissionService;
   const permissionCatalogueService = rolesCradle.permissionCatalogueService;
   const adminRoleService = rolesCradle.adminRoleService;
+
+  // Feature 072 (wave 1) — one `CurrencyService`, where `dictionaries` and
+  // `languages` each built their own with different invalidators.
+  const currencyService = (container.cradle as unknown as { currencyService: CurrencyService })
+    .currencyService;
   const requireAdminAny = requireTestAdminAny(permissionService);
   // The enabled-set accessor is wired here rather than with the seeding above,
   // because the catalogue it wires is `admin_roles`' registration and does not
@@ -963,13 +975,34 @@ export async function setupBackendServer(
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
     auditLog: auditLogService,
+    currencyService,
   });
 
   const dictionaries = dictionariesModule({
     emFactory: em,
+    currencyService,
     requireAdmin: requireTestAdmin(permissionService),
     redis,
     auditLog: auditLogService,
+  });
+
+  // Feature 072 (wave 1) — `currencies` resolves this per write. It is the same
+  // pair of drops `dictionariesModule` performs internally; registering it here
+  // is what lets a single `CurrencyService` serve both admin surfaces, which is
+  // the point of the conversion. It disappears when `dictionaries` converts and
+  // registers the invalidator itself.
+  // Feature 072 (wave 1) — `dictionaries` reacts to a currency change instead
+  // of `currencies` calling into it. The direction matters: declaring the call
+  // as a dependency produced a real cycle, and the cycle was the design saying
+  // a currency must not know a dictionary cache exists.
+  eventBus.on(CURRENCY_CHANGED_EVENT, () => {
+    dictionaries.handle.validator.invalidate();
+    // Swallowed rather than left floating: the handler is synchronous, so a
+    // drop that lands after the server closed would surface as an unhandled
+    // rejection from ioredis's socket-close path and fail an otherwise green
+    // run. A cache that could not be dropped because the process is going away
+    // has nothing to be stale for.
+    void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
   });
 
   // Feature 005 — sales-channels module is built BEFORE every other module
@@ -2633,6 +2666,7 @@ export async function setupBackendServer(
     apiInterceptors,
     redis,
     redisSubscriber,
+    pubSubArmed: options.exercisePubSub === true,
     sessionService,
     auditLogService,
     promptActions: promptActions.handle,
@@ -2705,10 +2739,16 @@ export async function teardownBackendServer(h: BackendServerHandle): Promise<voi
   // re-establishes it on any reconnect — which is how one armed subscription
   // per composition became ~1 GB of retention across a run.
   h.redisSubscriber.removeAllListeners('message');
-  try {
-    await h.redisSubscriber.unsubscribe();
-  } catch {
-    // Already closed — nothing to unsubscribe from.
+  // Only when something actually subscribed. `unsubscribe()` on a client that
+  // never entered subscriber mode rejects asynchronously from ioredis's socket
+  // close handler — a rejection no `try` around this call can catch, which
+  // surfaced as an unhandled rejection failing otherwise-green runs.
+  if (h.pubSubArmed) {
+    try {
+      await h.redisSubscriber.unsubscribe();
+    } catch {
+      // Already closed — nothing left to unsubscribe from.
+    }
   }
   h.redisSubscriber.disconnect();
   await closeOrm();

@@ -91,6 +91,11 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // second one is the ordinary shape of a root reading a module's
   // registrations, and it leaves when nothing hand-wired needs the annotation.
   admin_roles: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `currencies` (wave 1). Same two shapes again — the ORM registry names its
+  // entity, and `composition.ts` imports the service type to annotate what it
+  // resolves and hands to `dictionaries` and `languages`. Both hosts take the
+  // service as an argument now instead of each constructing one.
+  currencies: ['src/composition.ts', 'src/db/entities-registry.ts'],
 };
 
 function walk(dir: string, out: string[] = []): string[] {

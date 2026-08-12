@@ -45,6 +45,11 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // three services immediately after this pass. The generated order already
   // puts it ahead of `auth`, because `auth`'s manifest declares the dependency.
   'admin_roles',
+  // `dictionaries` and `languages` are constructed well before the late pass
+  // and both take `currencyService` as an argument now, so the registration has
+  // to exist by then. It needs nothing but `emFactory`, the kernel audit writer
+  // and a lazily-read invalidator, so composing it early costs nothing.
+  'currencies',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

@@ -189,10 +189,15 @@ describe('T076 — what one composition costs, before the 555× multiplier', () 
     // channel — sit behind the guard. Counting them is the checkable form of
     // "no bare subscribe": a new one added without a guard moves the counts
     // apart and fails here.
+    // Three occurrences: the two subscribing sites, plus the handle flag that
+    // tells teardown whether there is anything to unsubscribe from. The flag
+    // exists because `unsubscribe()` on a client that never subscribed rejects
+    // asynchronously from ioredis's socket close handler, where no `try` can
+    // reach it.
     const guards = [...harness.matchAll(/options\.exercisePubSub === true/g)].length;
     const subscribes = [...harness.matchAll(/\.(subscribe|start)\(redisSubscriber|redisSubscriber\.subscribe\(/g)]
       .length;
-    expect(guards).toBe(2);
+    expect(guards).toBe(3);
     expect(subscribes).toBe(2);
   });
 
