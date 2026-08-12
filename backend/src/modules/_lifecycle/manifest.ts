@@ -13,6 +13,29 @@ export const manifest = defineModuleManifest({
     'enable / disable / status across every domain module.',
   version: '1.0.0',
   dependencies: [],
+  i18n: { bundlesDir: 'i18n' },
+  /**
+   * Principle XVI. The screen that says what this deployment offers and what
+   * the business has switched on is reachable from ⌘K, not only from a nav
+   * entry buried under System — it is the surface an operator goes looking for
+   * precisely when something is missing and they cannot find the sidebar item
+   * for it, because the module owning it is off.
+   *
+   * One action, deliberately: the write is a per-module flip with no route of
+   * its own, so a palette entry per module would be a route dump.
+   */
+  actions: [
+    {
+      id: 'open-platform-modules',
+      labelKey: 'actions.openPlatformModules.label',
+      descriptionKey: 'actions.openPlatformModules.description',
+      icon: 'Boxes',
+      targetRoute: '/platform/modules',
+      requiredPermission: 'platform.modules.read',
+      keywords: ['modules', 'moduły', 'włącz', 'wyłącz', 'enable', 'disable', 'platform'],
+      weight: 300,
+    },
+  ],
   permissions: [
     {
       code: 'platform.modules.read',
