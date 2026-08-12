@@ -125,7 +125,8 @@ export class LifecycleError extends Error {
       | 'install-failed'
       | 'uninstall-failed'
       | 'manifest-cycle'
-      | 'lock-busy',
+      | 'lock-busy'
+      | 'non-deactivatable',
     message: string,
     public readonly details: Record<string, unknown> = {},
   ) {
@@ -590,6 +591,8 @@ export class ModuleLifecycleOrchestrator {
         return { moduleId, state: 'already-disabled', cascade: false, cascaded: [] };
       }
 
+      this.assertDeactivatable(moduleId);
+
       // Find currently-enabled dependents.
       const directDependents = this.deps.registry.graph.dependentsOf(moduleId);
       const em = this.deps.em();
@@ -626,6 +629,12 @@ export class ModuleLifecycleOrchestrator {
         const order = this.deps.registry.graph
           .reverseTopologicalOrder()
           .filter((id) => enabledTransitive.has(id));
+        // Every module the cascade would reach is checked before the first
+        // write. A cascade that stops half-way through is worse than the
+        // refusal it was trying to avoid, and the dangerous shape here is a
+        // perfectly ordinary target whose dependent is the module the platform
+        // cannot run without.
+        for (const dep of order) this.assertDeactivatable(dep);
         for (const dep of order) {
           const depRow = await em.findOne(ModuleRegistration, { moduleId: dep });
           if (!depRow || depRow.state !== 'installed') continue;
@@ -668,6 +677,29 @@ export class ModuleLifecycleOrchestrator {
     } finally {
       await lease.release();
     }
+  }
+
+  /**
+   * The platform axis honours `nonDeactivatable` — D-36a item 3, issue #37.
+   *
+   * Until this existed nothing on this axis read the field for any module, so
+   * `module:disable auth` proceeded and the declaration was a comment that
+   * looked like a guard.
+   *
+   * There is deliberately **no `--force`**. `uninstall --hard --force` guards
+   * data loss, a consequence an operator can weigh at the prompt; this guards
+   * a deployment that can no longer authenticate the operator who would undo
+   * it, which they cannot. The operator axis already refuses the same flip
+   * (`activation.commands.ts`), so both axes now agree.
+   */
+  private assertDeactivatable(moduleId: string): void {
+    const activation = this.deps.registry.modules.get(moduleId)?.manifest.activation;
+    if (!activation || !('nonDeactivatable' in activation)) return;
+    throw new LifecycleError(
+      'non-deactivatable',
+      `module "${moduleId}" declares itself non-deactivatable: ${activation.reason}`,
+      { moduleId, reason: activation.reason },
+    );
   }
 
   // -------------------------------------------------------------------------
