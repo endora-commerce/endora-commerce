@@ -56,6 +56,7 @@ const bundle = passthroughBundle('core', [
   'platform.modules.activation.on',
   'platform.modules.activation.off',
   'platform.modules.activation.unmanaged',
+  'platform.modules.activation.locked',
   'platform.modules.action.enable',
   'platform.modules.action.disable',
   'platform.modules.action.confirmDisable',
@@ -158,6 +159,33 @@ describe('ModulesPage — the activation control lives here now (D-36a)', () => 
     // That axis belongs to whoever operates the deployment and is changed with
     // the CLI; a button here would be a promise this screen cannot keep.
     expect(within(row('ksef')).queryByRole('button')).toBeNull();
+  });
+
+  it('renders a non-deactivatable module locked, with the reason the module itself declared', async () => {
+    // T063 / SC-012. The id is deliberately one no module will ever have: the
+    // lock and its wording come from the projection, and the admin app contains
+    // no list of module ids that may not be switched off.
+    listed = [moduleItem({ id: 'load_bearing_thing', name: 'Load-bearing thing' })];
+    presence = [
+      presenceItem({
+        id: 'load_bearing_thing',
+        deactivatable: false,
+        nonDeactivatableReason: 'Nobody could sign in to switch it back on.',
+      }),
+    ];
+    await renderPage();
+
+    const control = within(row('load_bearing_thing')).getByRole('button', {
+      name: /platform.modules.activation.locked/,
+    });
+    expect(control).toBeDisabled();
+    expect(control.getAttribute('title')).toBe('Nobody could sign in to switch it back on.');
+    expect(
+      within(row('load_bearing_thing')).getByText('Nobody could sign in to switch it back on.'),
+    ).toBeInTheDocument();
+
+    await userEvent.click(control);
+    expect(setModuleActivation).not.toHaveBeenCalled();
   });
 
   it('offers no control for a module that has declared no activation setting', async () => {

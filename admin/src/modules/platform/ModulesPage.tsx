@@ -4,6 +4,7 @@ import type { ModuleListItem, ModulePresence } from '@b2b/contracts';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import {
@@ -210,7 +211,7 @@ function ModuleTableRow({
         </Badge>
       </TableCell>
       <TableCell>
-        <ActivationCell presence={presence} kind={kind} available={available} t={t} />
+        <ActivationCell kind={kind} available={available} t={t} />
       </TableCell>
       <TableCell className="whitespace-nowrap text-xs">
         {drift ? (
@@ -250,6 +251,28 @@ function ModuleTableRow({
             onError={onError}
           />
         )}
+        {available && kind === 'locked' && (
+          // T063: the control is present and visibly locked rather than absent,
+          // so the answer to "why can I not switch this off" is on screen. The
+          // wording is the module's own declared reason, carried by the
+          // projection from its manifest — this app holds no list of module ids
+          // that may not be switched off (SC-012).
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled
+              title={presence?.nonDeactivatableReason ?? undefined}
+            >
+              <Lock className="mr-1 size-3.5" aria-hidden="true" />
+              {t('platform.modules.activation.locked')}
+            </Button>
+            <p className="max-w-prose text-right text-xs text-muted-foreground">
+              {presence?.nonDeactivatableReason}
+            </p>
+          </div>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -262,12 +285,10 @@ function ModuleTableRow({
  * that is not on this screen.
  */
 function ActivationCell({
-  presence,
   kind,
   available,
   t,
 }: {
-  presence: ModulePresence | undefined;
   kind: ActivationKind;
   available: boolean;
   t: Translate;
@@ -276,17 +297,10 @@ function ActivationCell({
     return <span className="text-xs text-muted-foreground">—</span>;
   }
   if (kind === 'locked') {
-    return (
-      <div className="space-y-1">
-        <Badge variant="outline" className="gap-1">
-          <Lock className="size-3" aria-hidden="true" />
-          {t('platform.modules.activation.locked')}
-        </Badge>
-        <p className="max-w-prose text-xs text-muted-foreground">
-          {presence?.nonDeactivatableReason}
-        </p>
-      </div>
-    );
+    // A non-deactivatable module is on and stays on — the effective state
+    // forces its operator axis true. So the state column says "on" like any
+    // other, and the *control* is where the lock and its reason live.
+    return <Badge variant="success">{t('platform.modules.activation.on')}</Badge>;
   }
   if (kind === 'unmanaged') {
     return (
