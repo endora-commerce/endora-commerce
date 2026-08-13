@@ -13,7 +13,25 @@ export const manifest = defineModuleManifest({
   name: 'Import / Export',
   description: 'Bulk product import and export wizard.',
   version: '1.0.0',
-  dependencies: ['catalog'],
+  // `auth` owns the `requireAdmin` port the routes are gated by; feature 072
+  // made it a container resolution rather than a constructor argument.
+  dependencies: ['catalog', 'auth'],
+  settings: {
+    moduleCode: 'import_export',
+    groups: [{ code: 'import_export', name: 'Import / export' }],
+    settings: [
+      {
+        // Feature 073 — the operator's activation control. Platform-wide.
+        code: 'import_export.enabled',
+        name: 'Import / export enabled',
+        description:
+          'Switches the CSV import and export endpoints on or off. The module holds no data of its own, so nothing is dropped — the catalog it reads and writes is untouched either way.',
+        groupCode: 'import_export',
+        valueType: 'boolean',
+        defaultValue: true,
+      },
+    ],
+  },
   i18n: { bundlesDir: 'i18n' },
   actions: [
     {
@@ -37,4 +55,5 @@ export const manifest = defineModuleManifest({
       weight: 220,
     },
   ],
+  activation: { settingCode: 'import_export.enabled', default: true },
 });

@@ -130,7 +130,6 @@ import {
 } from './modules/webhooks/services/webhook-queue.js';
 import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
 import type { WebhooksCradle } from './modules/webhooks/backend.js';
-import { importExportModule } from './modules/import_export/plugin.js';
 import type { LanguagesCradle } from './modules/languages/backend.js';
 import type { CmsCradle } from './modules/cms/backend.js';
 import type { MegamenuCradle } from './modules/megamenu/backend.js';
@@ -661,7 +660,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     customFieldDefinitionService,
   );
 
-  const importExport = importExportModule({ emFactory: em, requireAdmin });
+  // Feature 072 (T122) — `import_export` owns its service and routes now.
   // Feature 072 (T105) — `languages` owns its services and routes now.
   const languagesCradle = container.cradle as unknown as LanguagesCradle;
 
@@ -1302,7 +1301,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     admin.plugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
     integrations.plugin,
-    importExport.plugin,
     priceLists.plugin,
     promotions.plugin,
     commerceModule({

@@ -163,7 +163,6 @@ import type { CustomFieldDefinitionService } from '../../src/modules/custom_fiel
 import type { CustomFieldValueService } from '../../src/modules/custom_fields/services/custom-field-value.service.js';
 import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
-import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import type { LanguagesCradle } from '../../src/modules/languages/backend.js';
 import type { CmsCradle } from '../../src/modules/cms/backend.js';
 import type { MegamenuCradle } from '../../src/modules/megamenu/backend.js';
@@ -1038,10 +1037,7 @@ export async function setupBackendServer(
   // are unset by default so `buildForwarderFromEnv` returns a NoopForwarder.
 
   // Import/Export (Phase 10 / T240).
-  const importExport = importExportModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-  });
+  // Feature 072 (T122) — `import_export` owns its service and routes now.
 
   // SEO meta + sitemap (Phase 10 / T235). Stale-window dropped to zero in
   // tests so each test that calls regenerate sees a fresh payload.
@@ -1271,7 +1267,6 @@ export async function setupBackendServer(
     },
     admin.plugin,
     integrations.plugin,
-    importExport.plugin,
     priceLists.plugin,
     promotions.plugin,
     commerceModule({
