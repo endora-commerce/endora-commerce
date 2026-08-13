@@ -151,10 +151,16 @@ An activation write must not touch the registry, and a platform disable → enab
 preserve the operator's activation choice.
 
 The gating wrappers exist in `backend/src/modules/_lifecycle/` (`defineModuleRoutes`,
-`defineModuleWorker`, `subscribeForModule`, `requireModuleEnabled`) but today resolve only
-the platform axis via `registryCache.isEnabled` — extend them to the effective state rather
-than adding a parallel check. Only 10 of 67 modules use them at all, so assume the module you
-are touching does not.
+`defineModuleWorker`, `subscribeForModule`, `requireModuleEnabled`) — extend them to the
+effective state rather than adding a parallel check.
+
+**Check whether your module is converted before you wire anything.** A module with a
+`backend.ts` exporting `registerModule(ctx)` is composed through the kernel container, and
+`ctx.routes` / `ctx.worker` / `ctx.subscribe` already wrap it in the gating wrappers — you do
+not call them by hand, and you do not construct the module in `composition.ts` or
+`test-server.ts`. Feature 072 wave 1 converted 18 of them; 21 of 65 core modules now have a
+`backend.ts`, so this is no longer the rare case it was. For an unconverted module the
+wrappers still apply, called directly.
 
 1. **Routes** — wrap the module's route registration in `defineModuleRoutes('<id>', …)` so
    gating holds at the registration seam for every route the module owns, including later
