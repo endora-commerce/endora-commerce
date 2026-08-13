@@ -14,5 +14,24 @@ export const manifest = defineModuleManifest({
   description:
     'Per-organization credit limits and credit-check enforcement at checkout.',
   version: '1.0.0',
-  dependencies: ['organizations'],
+  // `auth` owns the `requireAdmin` port, the customer guard and the customer
+  // context resolver this module now resolves from the container.
+  dependencies: ['organizations', 'auth'],
+  settings: {
+    moduleCode: 'credit_limits',
+    groups: [{ code: 'credit_limits', name: 'Credit limits' }],
+    settings: [
+      {
+        // Feature 073 — the operator's activation control. Platform-wide.
+        code: 'credit_limits.enabled',
+        name: 'Credit limits enabled',
+        description:
+          'Switches deferred-payment credit limits on or off: the admin screens, the customer-facing balance and the reservation orders take against it. Nothing is dropped — configured limits and their history stay in the database and apply again when you switch it back on.',
+        groupCode: 'credit_limits',
+        valueType: 'boolean',
+        defaultValue: true,
+      },
+    ],
+  },
+  activation: { settingCode: 'credit_limits.enabled', default: true },
 });

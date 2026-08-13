@@ -122,7 +122,7 @@ import { inventoryModule } from './modules/inventory/plugin.js';
 import { StockLevelService } from './modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
-import { creditLimitsModule } from './modules/credit_limits/plugin.js';
+import type { CreditLimitsCradle } from './modules/credit_limits/backend.js';
 import type { CustomFieldsCradle } from './modules/custom_fields/backend.js';
 import { integrationsModule } from './modules/api_keys/plugin.js';
 // Feature 062 (T029) — outbound webhook delivery pipeline.
@@ -644,16 +644,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
   );
 
-  const creditLimits = creditLimitsModule({
-    emFactory: em,
-    eventBus,
-    commandBus,
-    requireCustomer,
-    requireAdmin,
-    resolveCustomerContext: customerResolver,
-    // Feature 056 — inherited credit limits (shared_pool / independent_default).
-    inheritance: organizationInheritanceService,
-  });
+  // Feature 072 (T101) — `credit_limits` owns its service and routes now.
+  const creditLimitsCradle = container.cradle as unknown as CreditLimitsCradle;
 
   // Feature 055 — Custom Fields Layer, converted in feature 072 (T087). The
   // module owns its services, its admin API and the cross-process cache
@@ -1350,7 +1342,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     tenantContextModulePlugin,
     admin.plugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
-    creditLimits.plugin,
     integrations.plugin,
     importExport.plugin,
     priceLists.plugin,
@@ -1369,7 +1360,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       mailer: platformMailer,
       // Feature 047 — late-bound; set once the transactional_emails module builds.
       getTransactionalEmailSender: () => transactionalEmailSender,
-      creditLimit: creditLimits.handle.creditLimitService,
+      creditLimit: creditLimitsCradle.creditLimitService,
       requireCustomer,
       requireAdmin,
       resolveCustomerContext: customerResolver,
@@ -2028,6 +2019,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // still declared inline above; see the task on unifying it with the
     // harness's `requireTestCustomer()`.
     requireCustomer,
+    // Feature 072 (wave 2) — how this composition resolves the calling
+    // customer. Root-shaped for the same reason `requireCustomer` is: five
+    // modules take it as an option and each root spells it once.
+    customerContextResolver: customerResolver,
+    // Feature 072 (T101) — inherited credit limits. Owned by `organizations`,
+    // which is still hand-wired; the entry goes when that module converts.
+    organizationInheritancePort: organizationInheritanceService,
     // Feature 072 (wave 2) — how this composition names the acting admin for an
     // audit record: the admin's id, or `null` for a non-admin caller. The ad
     // modules each declared an identically-shaped `resolveAuditContext` option
@@ -2734,7 +2732,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       orderContext: new OrderReturnContextProvider(em),
       paymentRefund: new PaymentRefundProvider(em),
       correctiveInvoice: new CorrectiveInvoiceProvider(em, invoices.handle.numberGenerator, auditLogService, eventBus),
-      creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
+      creditTopup: new CreditTopupProvider(creditLimitsCradle.creditLimitService),
       auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
         platformMailer,

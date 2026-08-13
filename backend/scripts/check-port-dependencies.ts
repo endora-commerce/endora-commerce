@@ -136,6 +136,12 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // The sales-channel code⇄id lookup. Owned by `sales_channels`, which is still
   // hand-wired (T110); the entry goes when that module converts.
   salesChannelCodeIdPort: 'sales_channels',
+  // How a composition resolves the calling customer. Root-shaped for the same
+  // reason `requireCustomer` is; owned by `auth` in principle.
+  customerContextResolver: 'auth',
+  // Inherited credit limits (feature 056). Owned by `organizations`, still
+  // hand-wired; the entry goes when that module converts.
+  organizationInheritancePort: 'organizations',
 };
 
 export interface PortResolution {

@@ -158,7 +158,7 @@ import {
 } from '../../src/modules/invoices/services/invoice-number-generator.js';
 import { CreditTopupProvider } from '../../src/modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from '../../src/modules/returns/services/return-email-notifier.js';
-import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
+import type { CreditLimitsCradle } from '../../src/modules/credit_limits/backend.js';
 import type { CustomFieldsCradle } from '../../src/modules/custom_fields/backend.js';
 import type { CustomFieldDefinitionService } from '../../src/modules/custom_fields/services/custom-field-definition.service.js';
 import type { CustomFieldValueService } from '../../src/modules/custom_fields/services/custom-field-value.service.js';
@@ -994,17 +994,8 @@ export async function setupBackendServer(
 
   // Credit-limits module — its CreditLimitService is the driver passed into
   // commerceModule below so OrderService.placeOrder can reserve atomically.
-  const creditLimits = creditLimitsModule({
-    emFactory: em,
-    eventBus,
-    commandBus,
-    requireCustomer: requireTestCustomer(),
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveCustomerContext: customerResolver,
-    // Feature 072 (T072) — inherited credit limits (shared_pool /
-    // independent_default) were resolved by nothing in tests without this.
-    inheritance: organizationInheritanceService,
-  });
+  // Feature 072 (T101) — `credit_limits` owns its service and routes now.
+  const creditLimitsCradle = container.cradle as unknown as CreditLimitsCradle;
 
   // Feature 055 — Custom Fields Layer, converted in feature 072 (T087). The
   // module owns its services and its cache subscription now; the harness reads
@@ -1304,7 +1295,6 @@ export async function setupBackendServer(
       await registerRequestScopeHook(app, { buildTenantContext: buildContext });
     },
     admin.plugin,
-    creditLimits.plugin,
     integrations.plugin,
     importExport.plugin,
     priceLists.plugin,
@@ -1321,7 +1311,7 @@ export async function setupBackendServer(
       auditLogService,
       customFieldValues: customFieldValueService,
       getTransactionalEmailSender: () => transactionalEmailSender,
-      creditLimit: creditLimits.handle.creditLimitService,
+      creditLimit: creditLimitsCradle.creditLimitService,
       requireCustomer: requireTestCustomer(),
       requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
@@ -1992,6 +1982,9 @@ export async function setupBackendServer(
     // different implementation from the root's. Registering it is what makes
     // that divergence visible in one place instead of twenty-seven.
     requireCustomer: requireTestCustomer(),
+    // Feature 072 (wave 2) — mirrors `composition.ts`.
+    customerContextResolver: customerResolver,
+    organizationInheritancePort: organizationInheritanceService,
     // Feature 072 (wave 2) — mirrors `composition.ts`, reading this harness's
     // own actor property. The ad modules resolve one name instead of each
     // taking its own identically-shaped `resolveAuditContext` option.
@@ -2290,7 +2283,7 @@ export async function setupBackendServer(
         auditLogService,
         eventBus,
       ),
-      creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
+      creditTopup: new CreditTopupProvider(creditLimitsCradle.creditLimitService),
       auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
         injectedMailer,

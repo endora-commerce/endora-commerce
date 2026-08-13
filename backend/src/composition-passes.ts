@@ -114,6 +114,11 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // registration, and prefer modules that register no subscriber. `languages`
   // registers none.
   'languages',
+  // Both roots resolve `creditLimitService` where this module used to be
+  // constructed — `orders` takes it and the credit-topup payment provider wraps
+  // it — well before the late pass. Registers no subscriber, so no ordering
+  // hazard (see the note above).
+  'credit_limits',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */
