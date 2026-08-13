@@ -208,6 +208,21 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `_i18n` (wave 1, T089). The two registries name its entity and migrations;
+  // `composition.ts` imports the cradle type to annotate the service it hands
+  // the error envelope and the reconciler it hands the lifecycle orchestrator.
+  // Both consumers are the root itself rather than a module, and the reconciler
+  // one goes when `_lifecycle` converts.
+  _i18n: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+    // The HTTP error envelope imports this module's `ERROR_TRANSLATION_KEYS`
+    // map to decide which envelope fields are translatable. That is a genuine
+    // coupling of the platform's error surface to the i18n module rather than a
+    // conversion leftover, and `_i18n` is `nonDeactivatable`, so it stays.
+    'src/http/error-envelope.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

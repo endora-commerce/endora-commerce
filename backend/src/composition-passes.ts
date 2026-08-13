@@ -85,6 +85,16 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // and the two catalog admin services — and every one of them is built before
   // the late pass. Named from the conversion diff, per the predictor above.
   'custom_fields',
+  // I argued this one out of the list on the reasoning that its consumers sit
+  // near the *end* of a root, and was wrong: `container.cradle` is read there,
+  // but the read still has to find a registration, and the late pass composes
+  // after the harness's read. Ninth of fourteen conversions to need this entry.
+  //
+  // Joining early does not disturb the reconcile-timing this module is careful
+  // about (see `_i18n/backend.ts`): a pass decides when a module *registers*,
+  // while its route plugin is attached from the `modules` array at the end of
+  // `buildServer` either way.
+  '_i18n',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

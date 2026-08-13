@@ -232,9 +232,8 @@ import {
   loadOverlayModulePlugins,
 } from './overlay/overlay-runtime.js';
 import type { PricingServiceContract } from './modules/price_lists/services/pricing-service.interface.js';
-import { i18nModule as adminI18nModule } from './modules/_i18n/plugin.js';
+import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 import { adminActionsModule } from './modules/admin_actions/plugin.js';
-import { AdminUserService } from './modules/admin_users/services/admin-user-service.js';
 import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
@@ -2069,6 +2068,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // modules convert.
     apiKeyResolver: async (token: string) =>
       integrations.handle.apiKeyService.authenticate(token),
+    // Feature 072 (T089) — `_i18n` reads it to serve the per-admin language
+    // preference. This is `admin_users`' own audited instance: the root used to
+    // build a second, audit-less `AdminUserService` purely to hand to that
+    // module. The entry goes when `admin_users` converts and provides it.
+    adminUserService: admin.handle.adminUserService,
     // `redis` is registered further up, where the client is created.
     // The kernel's `SettingsService` already implements the read port; the
     // adapter object this replaces existed only to narrow it.
@@ -3176,14 +3180,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // lazy registry accessor (the lifecycle's registry is populated by
   // the time the plugin chain is registered).
   let lifecycleRef: typeof lifecycle | undefined;
-  const adminI18n = adminI18nModule({
-    orm,
-    emFactory: em,
-    registry: () => lifecycleRef?.handle.registry,
-    adminUserService: new AdminUserService(em),
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-  });
+  // Feature 072 (T089) — `_i18n` owns its service, its reconciler and its
+  // routes now. The root only reads the two the platform consumes.
+  const adminI18nCradle = container.cradle as unknown as AdminI18nCradle;
 
   // Feature 020 — Admin Command Palette actions registry. Built before
   // the lifecycle so its reconciler can be plugged into the orchestrator
@@ -3192,7 +3191,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     orm,
     emFactory: em,
     registry: () => lifecycleRef?.handle.registry,
-    i18nService: adminI18n.handle.i18nService,
+    i18nService: adminI18nCradle.adminI18nService,
     permissionService,
     redisSubscriber,
     requireAdmin,
@@ -3215,7 +3214,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // Feature 019: hand the i18n reconciler to the orchestrator so
       // module:install and module:uninstall --hard keep
       // translation_bundles aligned with the lifecycle.
-      i18nReconciler: adminI18n.handle.reconciler,
+      i18nReconciler: adminI18nCradle.adminI18nReconciler,
       // Feature 020: hand the admin-actions reconciler to the
       // orchestrator so module:install and module:uninstall --hard keep
       // module_actions aligned with the lifecycle.
@@ -3238,6 +3237,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     })),
   );
   lifecycleRef = lifecycle;
+  // Feature 072 (T089) — the accessor `_i18n` walks to reconcile every module's
+  // translation bundles. It stays an accessor rather than the registry itself
+  // because of the order this file is written in: `_i18n` composes with the
+  // late pass ~1100 lines above, and the registry it needs does not exist until
+  // the line above this one. `_i18n` resolves it at plugin-attach time, which
+  // is after this function returns. Goes when `_lifecycle` converts.
+  registerValues(container, {
+    lifecycleManifestRegistry: () => lifecycleRef?.handle.registry,
+  });
 
   permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
   redisSubscriber.on('message', (channel) => {
@@ -3252,7 +3260,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   modules.push(async (app) => {
     registerApiInterceptorAdminRoutes(app, { registry: apiInterceptors, requireAdmin });
   });
-  modules.push(adminI18n.plugin);
   modules.push(adminActions.plugin);
 
   // Feature 043 — prompt assistant for the admin command palette. The module
@@ -3356,7 +3363,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return adminUser?.preferredLanguage === 'pl' ? 'pl' : 'en';
       },
       translateErrorMessage: async ({ moduleId, key, language, originalMessage }) => {
-        const translated = await adminI18n.handle.i18nService.translate(
+        const translated = await adminI18nCradle.adminI18nService.translate(
           moduleId,
           key,
           language,

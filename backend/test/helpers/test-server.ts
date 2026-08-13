@@ -87,8 +87,7 @@ import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
-import { AdminUserService } from '../../src/modules/admin_users/services/admin-user-service.js';
-import { i18nModule as adminI18nModule } from '../../src/modules/_i18n/plugin.js';
+import type { AdminI18nCradle } from '../../src/modules/_i18n/backend.js';
 import { adminActionsModule } from '../../src/modules/admin_actions/plugin.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
@@ -407,7 +406,7 @@ export interface BackendServerHandle {
   /** Feature 017 — Dictionary module handle (cache + future validator). */
   dictionaries: ReturnType<typeof dictionariesModule>['handle'];
   /** Feature 021 — error-envelope i18n bridge. */
-  adminI18n: ReturnType<typeof adminI18nModule>['handle'];
+  adminI18n: { i18nService: AdminI18nCradle['adminI18nService'] };
   /** Feature 015+ — promotions module handle (exposes PromotionService). */
   promotions: ReturnType<typeof promotionsModule>['handle'];
   /** Feature 055 — custom fields (definition + value services). */
@@ -944,11 +943,6 @@ export async function setupBackendServer(
       allowedOrganizationIds: assignments.rows.map((r) => r.organization_id),
     };
   };
-
-  // Standalone AdminUserService for modules that need direct service-level
-  // access to admin users (feature 019 — wires the preferred-language
-  // setter into the i18n module's PATCH route).
-  const testAdminUserService = new AdminUserService(em);
 
   // Feature 042 — late-bound MFA login port (the MFA module is built after
   // `settings` below; mirrors composition.ts).
@@ -1767,19 +1761,8 @@ export async function setupBackendServer(
   // (the boot-time bundle reconciler is skipped), so route-level tests
   // exercise only the HTTP surface and the in-process resolver. Tests
   // that need bundle rows seed the table directly via `h.em()`.
-  const adminI18n = adminI18nModule({
-    orm,
-    emFactory: em,
-    adminUserService: testAdminUserService,
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminContext: (request) => ({
-      adminUserId:
-        request.testActor?.kind === 'admin'
-          ? request.testActor.adminUserId
-          : TEST_ADMIN_ID,
-    }),
-  });
-  modules.push(adminI18n.plugin);
+  // Feature 072 (T089) — `_i18n` owns its service, reconciler and routes now.
+  const adminI18nCradle = container.cradle as unknown as AdminI18nCradle;
 
   // Feature 020 — Admin Command Palette actions registry. Mounts the
   // GET /api/v1/admin/admin-actions read endpoint. Tests that need
@@ -1787,7 +1770,7 @@ export async function setupBackendServer(
   const adminActions = adminActionsModule({
     orm,
     emFactory: em,
-    i18nService: adminI18n.handle.i18nService,
+    i18nService: adminI18nCradle.adminI18nService,
     permissionService,
     requireAdmin: requireTestAdmin(permissionService),
     resolveAdminContext: (request) => ({
@@ -2032,6 +2015,16 @@ export async function setupBackendServer(
     // "`admin_users` is present" means is a root's job, not the reading
     // module's; this entry disappears when `admin_users` converts and
     // publishes the resolver itself.
+    // Feature 072 (T089) — mirrors `composition.ts`: `_i18n` reads it for the
+    // per-admin language preference, and it is `admin_users`' own instance.
+    // The harness used to build a third one for that module alone.
+    adminUserService: admin.handle.adminUserService,
+    // Feature 072 (T089) — the harness composes no `_lifecycle`, so there is no
+    // manifest registry to walk and `_i18n`'s reconcile is a no-op here. That
+    // was already true before the conversion (the old call site passed no
+    // `registry` option at all); making the absence an explicit registration is
+    // what lets the module resolve one name in both compositions.
+    lifecycleManifestRegistry: () => undefined,
     auditActorResolver: async (ids: string[]) => {
       if (!effectiveState.isPresent('admin_users')) throw new ModuleDisabledError('admin_users');
       const users = await admin.handle.adminUserService.listByIds(ids);
@@ -2745,7 +2738,7 @@ export async function setupBackendServer(
         return adminUser?.preferredLanguage === 'pl' ? 'pl' : 'en';
       },
       translateErrorMessage: async ({ moduleId, key, language, originalMessage }) => {
-        const translated = await adminI18n.handle.i18nService.translate(
+        const translated = await adminI18nCradle.adminI18nService.translate(
           moduleId,
           key,
           language,
@@ -2820,7 +2813,7 @@ export async function setupBackendServer(
     },
     container,
     dictionaries: dictionaries.handle,
-    adminI18n: adminI18n.handle,
+    adminI18n: { i18nService: adminI18nCradle.adminI18nService },
     promotions: promotions.handle,
     customFields: {
       definitionService: customFieldDefinitionService,

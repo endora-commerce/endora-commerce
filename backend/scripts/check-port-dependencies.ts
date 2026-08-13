@@ -107,6 +107,13 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `dictionaries` owns the validator + cache drop; `currencies` resolves it
   // per write so one CurrencyService can serve both admin surfaces.
   dictionaryInvalidator: 'dictionaries',
+  // `_i18n` reads it to serve the per-admin language preference; `admin_users`
+  // owns the audited instance and is still hand-wired.
+  adminUserService: 'admin_users',
+  // The lazy accessor `_i18n` walks to reconcile every module's bundles. The
+  // registry does not exist until `_lifecycle` is constructed, which in a root
+  // happens after the late pass, so a root supplies the accessor.
+  lifecycleManifestRegistry: '_lifecycle',
 };
 
 export interface PortResolution {
