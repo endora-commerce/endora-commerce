@@ -329,6 +329,18 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `promotions` (wave 2, T115). The two central registries name its six
+  // entities and its migrations; `composition.ts` imports the cradle type to
+  // annotate the `promotionService` port it hands `orders` for cart pricing,
+  // and holds the three bundles the module must not own — the catalog read
+  // port, the organization-status gate and the Rule Builder picker sources.
+  // The first goes when `catalog` converts, the second when `organizations`
+  // does; the pickers are a root's by design, like `megamenu`'s.
+  promotions: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

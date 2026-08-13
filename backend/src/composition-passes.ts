@@ -130,6 +130,11 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // is the order a contribution point needs — the module declares the default,
   // the root overrides it.
   'megamenu',
+  // `orders` takes `promotionService` for cart pricing and both roots resolve
+  // it before the late pass. Registers no subscriber, so no ordering hazard;
+  // composing early also puts its own `promotionRuleTargets` default ahead of
+  // the root's contribution, which is the order a contribution point needs.
+  'promotions',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

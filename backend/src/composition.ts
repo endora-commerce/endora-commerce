@@ -139,7 +139,7 @@ import { registerMegamenuAssetReferences } from './modules/megamenu/services/ass
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import type { TaxesCradle } from './modules/taxes/backend.js';
-import { promotionsModule } from './modules/promotions/plugin.js';
+import type { PromotionsCradle } from './modules/promotions/backend.js';
 import { settingsModule } from './modules/settings/plugin.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
 import { salesChannelsModule } from './modules/sales_channels/plugin.js';
@@ -779,22 +779,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     undefined,
     catalogAttributeReadService,
   );
-  const promotions = promotionsModule({
-    emFactory: em,
-    requireAdmin,
-    auditLog: auditLogService,
-    salesChannelMembership: salesChannels.handle.membershipService,
-    catalogQueryService: catalogQueryServiceForPromotions,
-    // Feature 026 US5 — org-targeted promotions only fire for active Organizations.
-    resolveOrganizationStatus: async (orgId) => {
+  // Feature 072 (T115) — `promotions` owns its services and routes now.
+  // These three stay here: the org-status gate and the Rule Builder picker
+  // sources read `organizations`, `categories`, `payment_methods` and
+  // `delivery_methods` directly, and the catalog read port is `catalog`'s.
+  // Registered after the late pass, where the module declares its defaults.
+  registerValues(container, {
+    catalogQueryPort: catalogQueryServiceForPromotions,
+    organizationStatusResolver: async (orgId: string) => {
       const row = (await em().getKnex()
         .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
       return row.rows[0]?.status ?? null;
     },
-    // Feature 045 (T033) — Rule Builder picker sources. Channels + customer
-    // groups come from their module services; the rest are read at the wiring
-    // layer so the promotions module stays decoupled (Principle I).
-    ruleTargets: {
+    promotionRuleTargets: {
       salesChannels: async () => {
         const { items } = await salesChannels.handle.salesChannelsService.list({});
         return items.map((c) => ({ id: c.id, code: c.code, name: anyLabel(c.name) }));
@@ -829,6 +826,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     },
   });
+  const promotionsCradle = container.cradle as unknown as PromotionsCradle;
 
   // Settings module is constructed up here (rather than further down) so its
   // SettingsService handle can be threaded into inventory + search at module
@@ -1302,7 +1300,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // Feature 058 — Credentials (instantiated earlier, right after settings).
     integrations.plugin,
     priceLists.plugin,
-    promotions.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
       shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
@@ -1324,7 +1321,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
       addressService,
-      promotionService: promotions.handle.promotionService,
+      promotionService: promotionsCradle.promotionService,
       redis,
       // Feature 062 — external orders namespace (/api/v1/external/orders*):
       // bound-key gate + the org method allow-lists (FR-021 envelope).

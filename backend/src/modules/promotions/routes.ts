@@ -11,7 +11,25 @@ import type { PromotionService, UpsertPromotionInput } from './services/promotio
 import type { CouponService } from './services/coupon-service.js';
 import type { PromotionRuleStore } from './services/promotion-rule-store.js';
 import type { PromotionStatsService, StatsQuery } from './services/promotion-stats-service.js';
-import type { PromotionRuleTargetPorts } from './plugin.js';
+
+/**
+ * List ports feeding the Rule Builder pickers (feature 045, US1/T033).
+ *
+ * Declared here rather than in a module factory since feature 072 (T115): the
+ * factory is gone, and these are the routes' own option shape. Every member is
+ * optional because a composition may know how to list some target kinds and not
+ * others — an absent one yields an empty picker rather than a broken screen.
+ */
+export interface PromotionRuleTargetPorts {
+  salesChannels?: () => Promise<Array<{ id: string; code: string; name: string }>>;
+  customerGroups?: () => Promise<Array<{ id: string; code: string; name: string }>>;
+  organizations?: () => Promise<Array<{ id: string; name: string; taxId: string | null }>>;
+  categories?: () => Promise<
+    Array<{ id: string; slug: string; name: string; parentCategoryId: string | null }>
+  >;
+  paymentMethods?: () => Promise<Array<{ id: string; code: string; name: string }>>;
+  deliveryMethods?: () => Promise<Array<{ id: string; code: string; name: string }>>;
+}
 import { promotionStatsGroupBySchema } from '@b2b/contracts';
 import type { Promotion } from './entities/promotion.entity.js';
 import type { PromotionCoupon } from './entities/promotion-coupon.entity.js';

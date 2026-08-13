@@ -78,14 +78,16 @@ import * as module27 from './modules/mfa/backend.js';
 import { manifest as manifest27 } from './modules/mfa/manifest.js';
 import * as module28 from './modules/payment_methods/backend.js';
 import { manifest as manifest28 } from './modules/payment_methods/manifest.js';
-import * as module29 from './modules/prompt_actions/backend.js';
-import { manifest as manifest29 } from './modules/prompt_actions/manifest.js';
-import * as module30 from './modules/seo/backend.js';
-import { manifest as manifest30 } from './modules/seo/manifest.js';
-import * as module31 from './modules/taxes/backend.js';
-import { manifest as manifest31 } from './modules/taxes/manifest.js';
-import * as module32 from './modules/webhooks/backend.js';
-import { manifest as manifest32 } from './modules/webhooks/manifest.js';
+import * as module29 from './modules/promotions/backend.js';
+import { manifest as manifest29 } from './modules/promotions/manifest.js';
+import * as module30 from './modules/prompt_actions/backend.js';
+import { manifest as manifest30 } from './modules/prompt_actions/manifest.js';
+import * as module31 from './modules/seo/backend.js';
+import { manifest as manifest31 } from './modules/seo/manifest.js';
+import * as module32 from './modules/taxes/backend.js';
+import { manifest as manifest32 } from './modules/taxes/manifest.js';
+import * as module33 from './modules/webhooks/backend.js';
+import { manifest as manifest33 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: 'admin_roles', version: manifest0.version, registerModule: module0.registerModule },
@@ -117,8 +119,9 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'meta_ads', version: manifest26.version, registerModule: module26.registerModule },
   { id: 'mfa', version: manifest27.version, registerModule: module27.registerModule },
   { id: 'payment_methods', version: manifest28.version, registerModule: module28.registerModule },
-  { id: 'prompt_actions', version: manifest29.version, registerModule: module29.registerModule },
-  { id: 'seo', version: manifest30.version, registerModule: module30.registerModule },
-  { id: 'taxes', version: manifest31.version, registerModule: module31.registerModule },
-  { id: 'webhooks', version: manifest32.version, registerModule: module32.registerModule },
+  { id: 'promotions', version: manifest29.version, registerModule: module29.registerModule },
+  { id: 'prompt_actions', version: manifest30.version, registerModule: module30.registerModule },
+  { id: 'seo', version: manifest31.version, registerModule: module31.registerModule },
+  { id: 'taxes', version: manifest32.version, registerModule: module32.registerModule },
+  { id: 'webhooks', version: manifest33.version, registerModule: module33.registerModule },
 ];
