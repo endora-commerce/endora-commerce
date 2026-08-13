@@ -126,8 +126,6 @@ import { transactionalEmailsModule } from '../../src/modules/transactional_email
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
 import { googleAnalyticsModule } from '../../src/modules/google_analytics/plugin.js';
-import { linkedInAdsModule } from '../../src/modules/linkedin_ads/plugin.js';
-import { metaAdsModule } from '../../src/modules/meta_ads/plugin.js';
 import { googleTagManagerModule } from '../../src/modules/google_tag_manager/plugin.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
@@ -1999,6 +1997,13 @@ export async function setupBackendServer(
     // different implementation from the root's. Registering it is what makes
     // that divergence visible in one place instead of twenty-seven.
     requireCustomer: requireTestCustomer(),
+    // Feature 072 (wave 2) — mirrors `composition.ts`, reading this harness's
+    // own actor property. The ad modules resolve one name instead of each
+    // taking its own identically-shaped `resolveAuditContext` option.
+    adminAuditActorResolver: (request: FastifyRequest) => ({
+      actorAdminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : null,
+    }),
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
     dictionaryValidator: dictionaries.handle.validator,
@@ -2617,30 +2622,8 @@ export async function setupBackendServer(
   );
 
   // Feature 063 — LinkedIn Ads. Config + mapping CRUD are fully exercised.
-  modules.push(
-    linkedInAdsModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
-      requireAdmin: requireTestAdmin(permissionService),
-      resolveAuditContext: (req) => ({
-        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
-      }),
-      auditLog: auditLogService,
-    }),
-  );
 
   // Feature 064 — Meta Ads. Config + custom-event CRUD are fully exercised.
-  modules.push(
-    metaAdsModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
-      requireAdmin: requireTestAdmin(permissionService),
-      resolveAuditContext: (req) => ({
-        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
-      }),
-      auditLog: auditLogService,
-    }),
-  );
 
   // Feature 066 — Google Tag Manager. No redis wired here: a BullMQ queue built
   // per `setupBackendServer()` is never closed, and this harness is constructed

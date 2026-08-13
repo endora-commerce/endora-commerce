@@ -123,6 +123,10 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // fixed for `requireAdmin` and never did for this one. Owner is `auth`; the
   // entry goes when the two implementations are unified.
   requireCustomer: 'auth',
+  // How a composition names the acting admin on an audit record. Root-shaped
+  // by nature — production reads `request.actor`, the harness `request.testActor`
+  // — so it is a composition input rather than any module's property.
+  adminAuditActorResolver: 'auth',
 };
 
 export interface PortResolution {

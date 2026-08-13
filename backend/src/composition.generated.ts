@@ -54,14 +54,18 @@ import * as module15 from './modules/email/backend.js';
 import { manifest as manifest15 } from './modules/email/manifest.js';
 import * as module16 from './modules/health_checks/backend.js';
 import { manifest as manifest16 } from './modules/health_checks/manifest.js';
-import * as module17 from './modules/mfa/backend.js';
-import { manifest as manifest17 } from './modules/mfa/manifest.js';
-import * as module18 from './modules/payment_methods/backend.js';
-import { manifest as manifest18 } from './modules/payment_methods/manifest.js';
-import * as module19 from './modules/prompt_actions/backend.js';
-import { manifest as manifest19 } from './modules/prompt_actions/manifest.js';
-import * as module20 from './modules/webhooks/backend.js';
-import { manifest as manifest20 } from './modules/webhooks/manifest.js';
+import * as module17 from './modules/linkedin_ads/backend.js';
+import { manifest as manifest17 } from './modules/linkedin_ads/manifest.js';
+import * as module18 from './modules/meta_ads/backend.js';
+import { manifest as manifest18 } from './modules/meta_ads/manifest.js';
+import * as module19 from './modules/mfa/backend.js';
+import { manifest as manifest19 } from './modules/mfa/manifest.js';
+import * as module20 from './modules/payment_methods/backend.js';
+import { manifest as manifest20 } from './modules/payment_methods/manifest.js';
+import * as module21 from './modules/prompt_actions/backend.js';
+import { manifest as manifest21 } from './modules/prompt_actions/manifest.js';
+import * as module22 from './modules/webhooks/backend.js';
+import { manifest as manifest22 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: 'addresses', version: manifest0.version, registerModule: module0.registerModule },
@@ -81,8 +85,10 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'delivery_methods', version: manifest14.version, registerModule: module14.registerModule },
   { id: 'email', version: manifest15.version, registerModule: module15.registerModule },
   { id: 'health_checks', version: manifest16.version, registerModule: module16.registerModule },
-  { id: 'mfa', version: manifest17.version, registerModule: module17.registerModule },
-  { id: 'payment_methods', version: manifest18.version, registerModule: module18.registerModule },
-  { id: 'prompt_actions', version: manifest19.version, registerModule: module19.registerModule },
-  { id: 'webhooks', version: manifest20.version, registerModule: module20.registerModule },
+  { id: 'linkedin_ads', version: manifest17.version, registerModule: module17.registerModule },
+  { id: 'meta_ads', version: manifest18.version, registerModule: module18.registerModule },
+  { id: 'mfa', version: manifest19.version, registerModule: module19.registerModule },
+  { id: 'payment_methods', version: manifest20.version, registerModule: module20.registerModule },
+  { id: 'prompt_actions', version: manifest21.version, registerModule: module21.registerModule },
+  { id: 'webhooks', version: manifest22.version, registerModule: module22.registerModule },
 ];

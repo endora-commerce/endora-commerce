@@ -101,6 +101,9 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // Both roots read `mfaLoginPort` well before the late pass, to contribute the
   // `mfaLoginPortGetter` that `customer_accounts` resolves at login.
   'mfa',
+  // Wave 2. Named up front rather than after a red run: the predictor in the
+  // note above says any module a root reads is affected, and the cost of an
+  // unnecessary entry is nil while the cost of a missing one is a failed boot.
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

@@ -242,6 +242,13 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `meta_ads` and `linkedin_ads` (wave 2, T108/T106), converted as a pair.
+  // Only the two central registries name them: both roots stopped referring to
+  // them entirely, because everything they took is either a kernel registration
+  // or the one shared `adminAuditActorResolver` contribution. That makes them
+  // the third and fourth fully removable modules in this transition.
+  meta_ads: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  linkedin_ads: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 
