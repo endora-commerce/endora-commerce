@@ -3,8 +3,11 @@ import {
   closureOf,
   describe as describeViolation,
   findViolations,
+  findRootIssues,
+  providedPortNames,
   registeredNames,
   resolvedNames,
+  rootRegisteredNames,
   HOST_REGISTERED_PORTS,
   PLATFORM_OWNED_NAMES,
   type PortResolution,
@@ -236,5 +239,116 @@ describe('the bridging tables stay honest', () => {
     for (const name of Object.keys(HOST_REGISTERED_PORTS)) {
       expect(PLATFORM_OWNED_NAMES.has(name), `${name} is in both tables`).toBe(false);
     }
+  });
+});
+
+describe('rootRegisteredNames — what a composition root writes into the container', () => {
+  it('collects registerValues keys, including shorthand', () => {
+    const source = `
+      registerValues(container, {
+        apiKeyResolver: async (t) => svc.authenticate(t),
+        requireCustomer,
+      });
+    `;
+    expect(rootRegisteredNames(source, 'composition.ts').sort()).toEqual([
+      'apiKeyResolver',
+      'requireCustomer',
+    ]);
+  });
+
+  it('collects a direct container.register too', () => {
+    const source = `container.register({ redis: asValue(client) });`;
+    expect(rootRegisteredNames(source, 'composition.ts')).toEqual(['redis']);
+  });
+
+  it('ignores a spread, which names nothing it can reason about', () => {
+    const source = `registerValues(container, { ...extras, redis });`;
+    expect(rootRegisteredNames(source, 'composition.ts')).toEqual(['redis']);
+  });
+});
+
+describe('providedPortNames — the gated subset', () => {
+  it('takes providePort and leaves di.register alone', () => {
+    const source = `
+      ctx.di.register({ ksefVerificationResolver: ctx.asFunction(() => undefined).singleton() });
+      ctx.di.providePort('invoiceService', ctx.asFunction(() => svc).singleton());
+    `;
+    expect(providedPortNames(source, 'backend.ts')).toEqual(['invoiceService']);
+    expect(registeredNames(source, 'backend.ts').sort()).toEqual([
+      'invoiceService',
+      'ksefVerificationResolver',
+    ]);
+  });
+});
+
+describe('findRootIssues', () => {
+  const roots = (production: string[], harness: string[]): Map<string, ReadonlySet<string>> =>
+    new Map([
+      ['production', new Set(production)],
+      ['harness', new Set(harness)],
+    ]);
+
+  it('flags a root registering a name a module provides as a gated port', () => {
+    const issues = findRootIssues({
+      moduleRegistered: new Map([['apiKeyResolver', 'api_keys']]),
+      rootNames: roots(['apiKeyResolver'], ['apiKeyResolver']),
+      hostRegistered: {},
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      kind: 'root-shadows-module-port',
+      name: 'apiKeyResolver',
+      owner: 'api_keys',
+    });
+    expect([...issues[0]!.roots].sort()).toEqual(['harness', 'production']);
+  });
+
+  it('does not flag a root overriding a contribution point', () => {
+    // The module registered it with `di.register`, so it never reaches
+    // `moduleRegistered` — overriding it is the design, not a bug.
+    expect(
+      findRootIssues({
+        moduleRegistered: new Map(),
+        rootNames: roots(['ksefVerificationResolver'], []),
+        hostRegistered: {},
+      }),
+    ).toEqual([]);
+  });
+
+  it('flags a host-registered port only one composition supplies', () => {
+    const issues = findRootIssues({
+      moduleRegistered: new Map(),
+      rootNames: roots([], ['settingsAdminService']),
+      hostRegistered: { settingsAdminService: 'settings' },
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      kind: 'root-divergence',
+      name: 'settingsAdminService',
+      owner: 'settings',
+      roots: ['harness'],
+    });
+  });
+
+  it('accepts a host-registered port both compositions supply', () => {
+    expect(
+      findRootIssues({
+        moduleRegistered: new Map(),
+        rootNames: roots(['requireCustomer'], ['requireCustomer']),
+        hostRegistered: { requireCustomer: 'auth' },
+      }),
+    ).toEqual([]);
+  });
+
+  it('says nothing about a host-registered port neither composition supplies', () => {
+    // Absent everywhere is the `unowned-name` violation's job, and reporting it
+    // twice would make the table look like the problem.
+    expect(
+      findRootIssues({
+        moduleRegistered: new Map(),
+        rootNames: roots([], []),
+        hostRegistered: { somePort: 'somewhere' },
+      }),
+    ).toEqual([]);
   });
 });

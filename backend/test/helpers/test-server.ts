@@ -1931,10 +1931,11 @@ export async function setupBackendServer(
   // only thing this root knows about those modules.
   registerValues(container, {
     // `requireAdmin` is NOT here: `auth` provides it as a port (T078).
-    // Feature 072 (T078) — the two resolvers the auth plugin reads per request,
-    // mirroring `composition.ts`.
-    apiKeyResolver: async (token: string) =>
-      apiKeysCradle.apiKeyService.authenticate(token),
+    // `apiKeyResolver` is NOT here either: `api_keys` provides it as a gated
+    // port (T100), and re-registering the name replaced that gate with a plain
+    // closure — API-key authentication kept working after the module was
+    // switched off. Both roots carried the entry until the root-registration
+    // check started reading them (T118).
     // `redis` is registered further up, where the client is created.
     settingsReadPort: settings.settingsService,
     // Feature 072 (T093) — `composition.ts` has registered this since T086;

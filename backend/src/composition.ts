@@ -1929,14 +1929,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // (T078), and re-registering the name would silently replace a gated
     // registration with an ungated value — the exact failure `providePort`
     // exists to prevent.
-    // Feature 072 (T078) — the two resolvers the auth plugin reads per request.
-    // They are registered here rather than beside `auth` because the modules
-    // that own them (`api_keys`, `customer_accounts`) are still hand-wired and
-    // are constructed after it; the plugin resolves them at request time, so a
-    // late registration is invisible to it. Both entries disappear when those
-    // modules convert.
-    apiKeyResolver: async (token: string) =>
-      apiKeysCradle.apiKeyService.authenticate(token),
+    // `apiKeyResolver` is NOT here either: `api_keys` provides it as a gated
+    // port (T100), and re-registering the name replaced that gate with a plain
+    // closure — API-key authentication kept working after the module was
+    // switched off. Both roots carried the entry until the root-registration
+    // check started reading them (T118).
     // `redis` is registered further up, where the client is created.
     // The kernel's `SettingsService` already implements the read port; the
     // adapter object this replaces existed only to narrow it.
