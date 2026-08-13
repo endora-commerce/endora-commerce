@@ -28,7 +28,27 @@ export const manifest = defineModuleManifest({
   // builder offers, not install-time necessities: a promotion module with no
   // price lists installed simply offers fewer conditions. `dependencies` means
   // "cannot exist without" — specs/065-manifest-aware-migrations/research.md §R9.
-  dependencies: ['catalog', 'sales_channels'],
+  // `auth` owns `requireAdmin`; `dictionaries` owns the language-scope
+  // validator; `organizations` owns the status gate that keeps a suspended
+  // organization from collecting org-targeted discounts. Feature 072 made all
+  // three container resolutions rather than optional arguments.
+  dependencies: ['catalog', 'sales_channels', 'auth', 'dictionaries', 'organizations'],
+  settings: {
+    moduleCode: 'promotions',
+    groups: [{ code: 'promotions', name: 'Promotions' }],
+    settings: [
+      {
+        // Feature 073 — the operator's activation control. Platform-wide.
+        code: 'promotions.enabled',
+        name: 'Promotions enabled',
+        description:
+          'Switches promotions, coupons and the Rule Builder on or off, including the discounts they apply at checkout. Nothing is dropped: promotions, their rules and their usage history stay in the database and apply again exactly as configured when you switch it back on.',
+        groupCode: 'promotions',
+        valueType: 'boolean',
+        defaultValue: true,
+      },
+    ],
+  },
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: PROMOTION_PERMISSIONS.READ, label: 'View promotions' },
@@ -57,4 +77,5 @@ export const manifest = defineModuleManifest({
       weight: 251,
     },
   ],
+  activation: { settingCode: 'promotions.enabled', default: true },
 });

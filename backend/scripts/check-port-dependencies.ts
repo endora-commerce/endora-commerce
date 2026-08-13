@@ -146,6 +146,12 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `megamenu/backend.ts` on why they must not move into the module.
   megamenuValidatorDeps: 'megamenu',
   megamenuStorefrontDeps: 'megamenu',
+  // `catalog`'s query service. Root-built until that module converts — see the
+  // note in `promotions/backend.ts` on why this is the last live instance of it.
+  catalogQueryPort: 'catalog',
+  // The organization-status gate feature 026 US5 added: an org-targeted
+  // promotion only fires for an active Organization. Owned by `organizations`.
+  organizationStatusResolver: 'organizations',
 };
 
 export interface PortResolution {

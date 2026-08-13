@@ -177,7 +177,7 @@ import type { BlogCradle } from '../../src/modules/blog/backend.js';
 import type { DictionariesCradle } from '../../src/modules/dictionaries/backend.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import type { TaxesCradle } from '../../src/modules/taxes/backend.js';
-import { promotionsModule } from '../../src/modules/promotions/plugin.js';
+import type { PromotionsCradle } from '../../src/modules/promotions/backend.js';
 import { settingsModule } from '../../src/modules/settings/plugin.js';
 import type { MfaActorBridge, MfaCradle } from '../../src/modules/mfa/backend.js';
 import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
@@ -409,7 +409,12 @@ export interface BackendServerHandle {
   /** Feature 021 — error-envelope i18n bridge. */
   adminI18n: { i18nService: AdminI18nCradle['adminI18nService'] };
   /** Feature 015+ — promotions module handle (exposes PromotionService). */
-  promotions: ReturnType<typeof promotionsModule>['handle'];
+  promotions: {
+    promotionService: PromotionsCradle['promotionService'];
+    couponService: PromotionsCradle['promotionCouponService'];
+    ruleStore: PromotionsCradle['promotionRuleStore'];
+    statsService: PromotionsCradle['promotionStatsService'];
+  };
   /** Feature 055 — custom fields (definition + value services). */
   customFields: {
     definitionService: CustomFieldDefinitionService;
@@ -1131,24 +1136,19 @@ export async function setupBackendServer(
   // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
   // Feature 072 (T119) — `taxes` owns its service and routes now.
   const taxesCradle = container.cradle as unknown as TaxesCradle;
-  const promotions = promotionsModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    auditLog: auditLogService,
-    salesChannelMembership: salesChannels.handle.membershipService,
-    // Feature 012 / US8 — wire the catalog read port so the rule-target
-    // picker + criterion validation work in tests.
-    catalogQueryService: new CatalogQueryService(em, undefined, undefined, catalogAttributeReadService),
-    // Feature 026 US5 — org-targeted promotions skip when the Organization
-    // is not active. Inlined as a raw SQL lookup to avoid coupling promotions
-    // to the Organization entity at module-construction time.
-    resolveOrganizationStatus: async (orgId) => {
+  // Feature 072 (T115) — `promotions` owns its services and routes now.
+  // These three stay here: the org-status gate and the Rule Builder picker
+  // sources read `organizations`, `categories`, `payment_methods` and
+  // `delivery_methods` directly, and the catalog read port is `catalog`'s.
+  // Registered after the late pass, where the module declares its defaults.
+  registerValues(container, {
+    catalogQueryPort: new CatalogQueryService(em, undefined, undefined, catalogAttributeReadService),
+    organizationStatusResolver: async (orgId: string) => {
       const row = (await em().getKnex()
         .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
       return row.rows[0]?.status ?? null;
     },
-    // Feature 045 (T033) — Rule Builder picker sources (raw at the wiring layer).
-    ruleTargets: {
+    promotionRuleTargets: {
       salesChannels: async () => {
         const { items } = await salesChannels.handle.salesChannelsService.list({});
         return items.map((c) => ({ id: c.id, code: c.code, name: testAnyLabel(c.name) }));
@@ -1183,6 +1183,7 @@ export async function setupBackendServer(
       },
     },
   });
+  const promotionsCradle = container.cradle as unknown as PromotionsCradle;
 
   // Feature 047 — late-bound transactional-email sender (mirrors composition).
   let transactionalEmailSender: import('@b2b/contracts').TransactionalEmailSender | undefined;
@@ -1268,7 +1269,6 @@ export async function setupBackendServer(
     admin.plugin,
     integrations.plugin,
     priceLists.plugin,
-    promotions.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
       shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
@@ -1310,7 +1310,7 @@ export async function setupBackendServer(
         }
       },
       pricingService: priceLists.handle.pricingService,
-      promotionService: promotions.handle.promotionService,
+      promotionService: promotionsCradle.promotionService,
       redis,
       // Feature 062 — external orders namespace (mirrors composition.ts):
       // bound-key gate + the org method allow-lists (FR-021 envelope).
@@ -2773,7 +2773,12 @@ export async function setupBackendServer(
       cache: dictionariesCradle.dictionaryCache,
     },
     adminI18n: { i18nService: adminI18nCradle.adminI18nService },
-    promotions: promotions.handle,
+    promotions: {
+      promotionService: promotionsCradle.promotionService,
+      couponService: promotionsCradle.promotionCouponService,
+      ruleStore: promotionsCradle.promotionRuleStore,
+      statsService: promotionsCradle.promotionStatsService,
+    },
     customFields: {
       definitionService: customFieldDefinitionService,
       valueService: customFieldValueService,
