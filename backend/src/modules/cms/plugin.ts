@@ -21,7 +21,7 @@ import { CmsTemplateService } from './services/cms-template-service.js';
 import { CmsReferenceRegistry } from './services/cms-reference-registry.js';
 import { StorefrontResolver, type CmsAssetResolver } from './services/storefront-resolver.js';
 import { CmsHookService } from './services/cms-hook-service.js';
-import { CmsCache, type CmsCacheOptions } from './services/cms-cache.js';
+import { CmsCache } from './services/cms-cache.js';
 import { registerCmsAdminRoutes } from './routes.admin.js';
 import { registerCmsStorefrontRoutes } from './routes.storefront.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -39,14 +39,19 @@ export type ColorPaletteWriter = (
 
 export interface CmsModuleOptions {
   emFactory: () => EntityManager;
-  requireAdmin?: RequireAdminFactory;
+  /**
+   * Required since feature 072 (T093). It was optional, and `routes.admin.ts`
+   * defaulted it to `?? (async () => {})` — a permission gate whose absent form
+   * is open. It is resolved from the container now, so there is no omission
+   * left to default.
+   */
+  requireAdmin: RequireAdminFactory;
   /**
    * When provided, the storefront resolver caches its responses in Redis
    * with a 5-minute TTL. Tests pass a custom `cacheOptions.ttlSeconds=0`
    * to disable caching when they need every read to hit the DB.
    */
   redis?: Redis;
-  cacheOptions?: CmsCacheOptions;
 }
 
 export interface CmsModuleHandle {
@@ -218,7 +223,7 @@ export function cmsModule(options: CmsModuleOptions): {
     },
   });
 
-  const cache = options.redis ? new CmsCache(options.redis, options.cacheOptions ?? {}) : undefined;
+  const cache = options.redis ? new CmsCache(options.redis, {}) : undefined;
 
   const referenceRegistry = new CmsReferenceRegistry(options.emFactory);
   const pageService = new CmsPageService(
@@ -277,7 +282,7 @@ export function cmsModule(options: CmsModuleOptions): {
       hookService,
       pageBuilderRegistry,
       getColorPaletteWriter: () => colorPaletteWriter,
-      ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),
+      requireAdmin: options.requireAdmin,
     });
     await registerCmsStorefrontRoutes(app, { storefrontResolver });
   };

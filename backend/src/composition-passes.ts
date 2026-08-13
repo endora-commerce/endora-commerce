@@ -95,6 +95,9 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // while its route plugin is attached from the `modules` array at the end of
   // `buildServer` either way.
   '_i18n',
+  // `megamenu` cross-registers into this module's reference registry, and the
+  // root resolves that registry before the late pass. Named from the diff.
+  'cms',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

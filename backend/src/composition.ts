@@ -19,7 +19,7 @@ import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
 import { Organization } from './modules/organizations/entities/organization.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, cmsColorPaletteSchema } from '@b2b/contracts';
+import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
 import { ApiInterceptorRegistry } from './http/interceptors/index.js';
@@ -134,8 +134,7 @@ import type { WebhooksCradle } from './modules/webhooks/backend.js';
 import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
 import { i18nModule } from './modules/languages/plugin.js';
-import { cmsModule } from './modules/cms/plugin.js';
-import { CMS_PAGE_BUILDER_SETTING_CODES } from './modules/cms/manifest.js';
+import type { CmsCradle } from './modules/cms/backend.js';
 import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
@@ -782,13 +781,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 014 — CMS module (Pages, Blocks, Templates, Hooks, Page
   // Builder). Phase 2 ships module instantiation + seeded-Hook
   // reconciliation; admin/storefront routes land in subsequent phases.
-  const cms = cmsModule({ emFactory: em, requireAdmin, redis });
-  // Reconcile the 23 seeded Hook codes idempotently before HTTP starts.
-  // The same logic also runs inside migration 035 so first boot has the
-  // rows already; this call covers re-deploys when the seeded list grows.
-  await enterSystemScope('boot: reconcile seeded CMS hooks', () => cms.handle.reconcile(), {
-    entryPoint: 'boot',
-  });
+  // Feature 072 (T093) — `cms` owns its services, its four late-bound
+  // resolvers, its seeded-Hook reconciliation and its routes now. This root
+  // reads only the reference registry `megamenu` cross-registers into, and
+  // contributes the asset resolver further below.
+  const cmsCradle = container.cradle as unknown as CmsCradle;
 
   // The Megamenu module is constructed later in this composition root —
   // after the assetsLibrary module is built — so its `storefrontDeps`
@@ -1115,49 +1112,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   const platformSettingsChannelId = process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default';
 
-  const pageBuilderBreakpointSchema = z.number().int().positive();
-  cms.handle.setPageBuilderBreakpointsResolver(async () => {
-    try {
-      const [tabletMin, desktopMin] = await Promise.all([
-        settings.handle.settingsService.get(
-          CMS_PAGE_BUILDER_SETTING_CODES.BREAKPOINT_TABLET_MIN,
-          platformSettingsChannelId,
-          pageBuilderBreakpointSchema,
-        ),
-        settings.handle.settingsService.get(
-          CMS_PAGE_BUILDER_SETTING_CODES.BREAKPOINT_DESKTOP_MIN,
-          platformSettingsChannelId,
-          pageBuilderBreakpointSchema,
-        ),
-      ]);
-      return { tabletMin, desktopMin };
-    } catch {
-      return cms.handle.pageBuilderRegistry.getBreakpoints();
-    }
-  });
-
-  cms.handle.setColorPaletteResolver(async () => {
-    try {
-      return await settings.handle.settingsService.get(
-        CMS_PAGE_BUILDER_SETTING_CODES.COLOR_PALETTE,
-        platformSettingsChannelId,
-        cmsColorPaletteSchema,
-      );
-    } catch {
-      return [];
-    }
-  });
-
-  cms.handle.setColorPaletteWriter(async (entries, expectedVersion, actor) => {
-    await settings.handle.adminService.setValueForAllChannels(
-      CMS_PAGE_BUILDER_SETTING_CODES.COLOR_PALETTE,
-      entries,
-      expectedVersion,
-      actor,
-    );
-    return entries;
-  });
-
   const resolveModerationMode = async (): Promise<'auto' | 'manual'> => {
     try {
       return await settings.handle.settingsService.get(
@@ -1411,7 +1365,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     importExport.plugin,
     seo.plugin,
     i18n.plugin,
-    cms.plugin,
     priceLists.plugin,
     taxes.plugin,
     promotions.plugin,
@@ -1875,19 +1828,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
   registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
 
-  cms.handle.setAssetResolver(async (assetId) => {
-    try {
-      const detail = await assetsLibrary.handle.service.getAsset(assetId);
-      return {
-        url: detail.url,
-        mimeType: detail.mimeType,
-        filename: detail.filename,
-        label: detail.label ?? null,
-        visibility: detail.visibility,
-      };
-    } catch {
-      return null;
-    }
+  // Feature 072 (T093) — contributed, not set: which modules a deployment
+  // ships is this root's business, and `cms` reads the contribution per call.
+  registerValues(container, {
+    cmsAssetResolver: async (assetId: string) => {
+      try {
+        const detail = await assetsLibrary.handle.service.getAsset(assetId);
+        return {
+          url: detail.url,
+          mimeType: detail.mimeType,
+          filename: detail.filename,
+          label: detail.label ?? null,
+          visibility: detail.visibility,
+        };
+      } catch {
+        return null;
+      }
+    },
   });
 
   // Feature 046 — PWA module. Owns the installable-app control plane (over the
@@ -2044,7 +2001,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   modules.push(megamenu.plugin);
   // Megamenu items that reference a CMS page or block block those entities'
   // deletion via the CMS module's reference registry.
-  registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
+  registerMegamenuCmsReferences(cmsCradle.cmsReferenceRegistry, megamenu.handle.referenceRegistry);
 
   // Feature 072 — the late pass of the generated module list. No converted
   // module is named here: what this root still owns are the **host values** any

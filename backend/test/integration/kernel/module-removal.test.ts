@@ -223,6 +223,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     // conversion leftover, and `_i18n` is `nonDeactivatable`, so it stays.
     'src/http/error-envelope.ts',
   ],
+  // `cms` (wave 1, T093). The two registries name its five entities and its
+  // migrations; `composition.ts` imports the cradle type to annotate the
+  // reference registry `megamenu` cross-registers into and the asset resolver
+  // it contributes. Both are a root's business — which modules a deployment
+  // ships is not this module's — so they stay until `megamenu` converts.
+  cms: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

@@ -171,7 +171,7 @@ import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import { seoModule } from '../../src/modules/seo/plugin.js';
 import { i18nModule } from '../../src/modules/languages/plugin.js';
-import { cmsModule } from '../../src/modules/cms/plugin.js';
+import type { CmsCradle } from '../../src/modules/cms/backend.js';
 import { megamenuModule } from '../../src/modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/services/cms-references.js';
@@ -388,7 +388,7 @@ export interface BackendServerHandle {
   /** Feature 013 — Assets Library handle (service, folders, registry, adapters). */
   assetsLibrary: AssetsLibraryCradle['assetsLibrary']['handle'];
   /** Feature 014 — CMS module handle (page builder registry, services, resolver). */
-  cms: ReturnType<typeof cmsModule>['handle'];
+  cms: CmsCradle['cms']['handle'];
   /** Feature 015 — Megamenu module handle (reference registry, cache). */
   megamenu: ReturnType<typeof megamenuModule>['handle'];
   /**
@@ -1131,15 +1131,14 @@ export async function setupBackendServer(
 
   // Feature 014 — CMS module. Reconcile seeded Hooks once; the storefront
   // resolver wraps Redis as a read-through cache.
-  const cms = cmsModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    redis,
-  });
-  await cms.handle.reconcile();
+  // Feature 072 (T093) — `cms` owns its services, resolvers, reconciliation
+  // and routes now. Notably it also owns the four late-bound resolvers this
+  // harness never wired: the colour-palette writer was absent here, so
+  // `PUT /admin/cms/page-builder/color-palette` answered 500 in every test run.
+  const cmsCradle = container.cradle as unknown as CmsCradle;
   // Tests rely on writes being immediately visible. Wipe the namespace
   // before each backend boot so a previous run's keys don't bleed in.
-  if (cms.handle.cache) await cms.handle.cache.invalidateAll();
+  if (cmsCradle.cms.handle.cache) await cmsCradle.cms.handle.cache.invalidateAll();
 
   // Pricing (T127 / FR-050).
   const priceLists = priceListsModule({
@@ -1314,7 +1313,6 @@ export async function setupBackendServer(
     importExport.plugin,
     seo.plugin,
     i18n.plugin,
-    cms.plugin,
     priceLists.plugin,
     taxes.plugin,
     promotions.plugin,
@@ -1975,7 +1973,7 @@ export async function setupBackendServer(
     },
   });
   modules.push(megamenu.plugin);
-  registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
+  registerMegamenuCmsReferences(cmsCradle.cmsReferenceRegistry, megamenu.handle.referenceRegistry);
   if (megamenu.handle.cache) await megamenu.handle.cache.invalidateAll();
 
   // Feature 072 — the late pass of the generated module list, at the same point
@@ -1989,6 +1987,11 @@ export async function setupBackendServer(
       integrations.handle.apiKeyService.authenticate(token),
     // `redis` is registered further up, where the client is created.
     settingsReadPort: settings.handle.settingsService,
+    // Feature 072 (T093) — `composition.ts` has registered this since T086;
+    // the harness passed the same object to `searchModule` as an option but
+    // never registered it, so `cms`' colour-palette writer had nothing to
+    // resolve. Mirroring the root is the point of this block.
+    settingsAdminService: settings.handle.adminService,
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
     dictionaryValidator: dictionaries.handle.validator,
@@ -2805,7 +2808,7 @@ export async function setupBackendServer(
     search: search.handle,
     comparisons: comparisons.handle,
     assetsLibrary: assetsLibrary.handle,
-    cms: cms.handle,
+    cms: cmsCradle.cms.handle,
     megamenu: megamenu.handle,
     blog: {
       cache: blogCradle.blogCacheService,

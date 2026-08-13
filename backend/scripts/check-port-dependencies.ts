@@ -114,6 +114,10 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // registry does not exist until `_lifecycle` is constructed, which in a root
   // happens after the late pass, so a root supplies the accessor.
   lifecycleManifestRegistry: '_lifecycle',
+  // The audited settings write path. `settingsReadPort` is platform-owned
+  // because the kernel holds the store (D-32), but the *admin* service is still
+  // the `settings` module's, and that module is hand-wired.
+  settingsAdminService: 'settings',
 };
 
 export interface PortResolution {
