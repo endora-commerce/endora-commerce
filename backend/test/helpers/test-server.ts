@@ -176,7 +176,9 @@ import type { DictionariesCradle } from '../../src/modules/dictionaries/backend.
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import type { TaxesCradle } from '../../src/modules/taxes/backend.js';
 import type { PromotionsCradle } from '../../src/modules/promotions/backend.js';
-import { settingsModule } from '../../src/modules/settings/plugin.js';
+import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
+import type { SettingsKernel } from '../../src/kernel/settings/compose.js';
+import type { SettingsCradle } from '../../src/modules/settings/backend.js';
 import type { MfaActorBridge, MfaCradle } from '../../src/modules/mfa/backend.js';
 import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
 import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
@@ -350,8 +352,14 @@ export interface BackendServerHandle {
   auditLogService: AuditLogService;
   permissionService: PermissionService;
   permissionCatalogueService: PermissionCatalogueService;
-  /** Feature 004 — exposes the universal getter and cache invalidator for tests. */
-  settings: ReturnType<typeof settingsModule>['handle'];
+  /**
+   * Feature 004 — the universal getter and cache invalidator (kernel-composed
+   * since T118), plus the module's admin services, resolved from the container.
+   */
+  settings: SettingsKernel & {
+    adminService: SettingsCradle['settingsAdminService'];
+    cacheAdminService: SettingsCradle['settingsCacheAdminService'];
+  };
   /** Feature 043 — prompt assistant handle (registry + request service). */
   promptActions: {
     registry: PromptActionToolRegistry;
@@ -986,7 +994,7 @@ export async function setupBackendServer(
     async () => {
       try {
         const { z } = await import('zod');
-        return await settings.handle.settingsService.get(
+        return await settings.settingsService.get(
           ORGANIZATIONS_SETTING_CODES.CREDIT_INHERITANCE_MODE,
           'default',
           z.enum(['shared_pool', 'independent_default']),
@@ -1318,7 +1326,7 @@ export async function setupBackendServer(
       resolveChannelAllowNegativeStock: async (salesChannelId: string) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'inventory.allow_negative_stock',
             salesChannelId,
             z.boolean(),
@@ -1551,7 +1559,7 @@ export async function setupBackendServer(
             ? await salesChannels.resolver.getByCode(salesChannelCode)
             : await salesChannels.resolver.getSystemDefault();
           if (!channel) return null;
-          const url = await settings.handle.settingsService.get(
+          const url = await settings.settingsService.get(
             'product_image_placeholder_url',
             channel.id,
             z.string(),
@@ -1590,25 +1598,24 @@ export async function setupBackendServer(
     }),
   ];
 
-  const settings = settingsModule({
+  // Feature 072 (T118) — the kernel composes the settings reader; the module
+  // owns the admin surface and composes itself.
+  const settings = composeSettingsKernel({
     emFactory: em,
     eventBus,
-    auditLogService,
     redis,
-    requireAdmin: requireTestAdmin(permissionService),
     ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
       ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
       : {}),
-    // Feature 073 — mirrors composition.ts: the effective-state reader that
-    // classifies each setting and refuses writes an absent module owns.
-    modulePresence: {
-      presenceOf: (moduleId) => effectiveState.presenceOf(moduleId),
-      activationControlOwner: (code) => effectiveState.activationControlOwner(code),
+  });
+  registerValues(container, {
+    settingsSecretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
+    // Mirrors composition.ts: the effective-state reader that classifies each
+    // setting and refuses writes an absent module owns.
+    settingsModulePresence: {
+      presenceOf: (moduleId: string) => effectiveState.presenceOf(moduleId),
+      activationControlOwner: (code: string) => effectiveState.activationControlOwner(code),
     },
-    resolveAdminAuditContext: (request) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
   });
   // Feature 042 — MFA module (mirrors composition.ts). Built after `settings`
   // so it can read MFA settings; its login port is bound to the late-bound
@@ -1691,7 +1698,6 @@ export async function setupBackendServer(
   testMfaLoginPort = mfaCradle.mfaLoginPort;
 
   modules.push(salesChannels.plugin);
-  modules.push(settings.plugin);
 
   // Feature 019 — Admin UI i18n. Test wiring uses no lifecycle registry
   // (the boot-time bundle reconciler is skipped), so route-level tests
@@ -1740,7 +1746,7 @@ export async function setupBackendServer(
       adminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
-    credentialsSettingsPort: settings.handle.settingsService,
+    credentialsSettingsPort: settings.settingsService,
   });
   const credentialsService = (
     container.cradle as unknown as { credentialsService: CredentialsService }
@@ -1930,12 +1936,11 @@ export async function setupBackendServer(
     apiKeyResolver: async (token: string) =>
       apiKeysCradle.apiKeyService.authenticate(token),
     // `redis` is registered further up, where the client is created.
-    settingsReadPort: settings.handle.settingsService,
+    settingsReadPort: settings.settingsService,
     // Feature 072 (T093) — `composition.ts` has registered this since T086;
     // the harness passed the same object to `searchModule` as an option but
     // never registered it, so `cms`' colour-palette writer had nothing to
     // resolve. Mirroring the root is the point of this block.
-    settingsAdminService: settings.handle.adminService,
     // Feature 072 (T096) — the harness's own customer guard, which is a
     // different implementation from the root's. Registering it is what makes
     // that divergence visible in one place instead of twenty-seven.
@@ -2165,7 +2170,7 @@ export async function setupBackendServer(
         const { z } = await import('zod');
         const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return false;
-        return await settings.handle.settingsService.get(
+        return await settings.settingsService.get(
           'customers.allow_registration_without_organization',
           channel.id,
           z.boolean(),
@@ -2222,7 +2227,7 @@ export async function setupBackendServer(
       paymentRefund: new PaymentRefundProvider(em),
       correctiveInvoice: new CorrectiveInvoiceProvider(
         em,
-        new InvoiceNumberGenerator(createSettingsPatternResolver(settings.handle.settingsService)),
+        new InvoiceNumberGenerator(createSettingsPatternResolver(settings.settingsService)),
         auditLogService,
         eventBus,
       ),
@@ -2273,7 +2278,7 @@ export async function setupBackendServer(
     ksefSellerNipResolver: async () => {
       try {
         const { z: zod } = await import('zod');
-        const raw = await settings.handle.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', zod.string());
+        const raw = await settings.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', zod.string());
         const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
         return nip.length > 0 ? nip : null;
       } catch {
@@ -2356,7 +2361,7 @@ export async function setupBackendServer(
     // the integration tests assert on. The module instance lives inside the
     // feature-026 wiring block above, which exposes it on this handle.
     adminNotificationService: handleFeature026.adminNotificationService,
-    settings: settings.handle.settingsService,
+    settings: settings.settingsService,
     publicBaseUrl: 'http://feeds.test.local',
     // Tests deliberately do not load `backend/.env`, so a deterministic key is
     // supplied here rather than read from the environment: several suites set
@@ -2421,7 +2426,7 @@ export async function setupBackendServer(
     currencies: currencyService,
     languageService: languagesCradle.languageService,
     adminNotificationService: handleFeature026.adminNotificationService,
-    settings: settings.handle.settingsService,
+    settings: settings.settingsService,
     // The egress seam. The default REFUSES every stream read rather than
     // answering empty: an empty source is a plausible fixture, so a silent
     // default would let a test that forgot to script the source pass while
@@ -2498,14 +2503,14 @@ export async function setupBackendServer(
   modules.push(
     transactionalEmailsModule({
       emFactory: em,
-      settingsService: settings.handle.settingsService,
+      settingsService: settings.settingsService,
       requireAdmin: requireTestAdmin(permissionService),
       resolveAdminUserId: (req) =>
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
       manifests: REGISTERED_MANIFESTS.map((e) => e.manifest),
       mailer: injectedMailer,
       auditLog: auditLogService,
-      settingsAdmin: settings.handle.adminService,
+      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
       exposeSender: (sender) => {
         transactionalEmailSender = sender;
       },
@@ -2576,7 +2581,7 @@ export async function setupBackendServer(
       resolveOneClickEnabled: async (salesChannelId) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'quick_order.one_click_buy_enabled',
             salesChannelId,
             z.boolean(),
@@ -2711,7 +2716,12 @@ export async function setupBackendServer(
     pwa: pwaCradle.pwa.handle,
     permissionService,
     permissionCatalogueService,
-    settings: settings.handle,
+    settings: {
+      ...settings,
+      adminService: (container.cradle as unknown as SettingsCradle).settingsAdminService,
+      cacheAdminService: (container.cradle as unknown as SettingsCradle)
+        .settingsCacheAdminService,
+    },
     salesChannels: {
       ...salesChannels,
       salesChannelsService: (container.cradle as unknown as SalesChannelsCradle)

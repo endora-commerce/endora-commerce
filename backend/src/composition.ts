@@ -139,7 +139,8 @@ import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-r
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import type { TaxesCradle } from './modules/taxes/backend.js';
 import type { PromotionsCradle } from './modules/promotions/backend.js';
-import { settingsModule } from './modules/settings/plugin.js';
+import { composeSettingsKernel } from './kernel/settings/compose.js';
+import type { SettingsCradle } from './modules/settings/backend.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
 import { composeSalesChannelsKernel } from './kernel/sales-channels/compose.js';
 import type { SalesChannelsCradle } from './modules/sales_channels/backend.js';
@@ -611,7 +612,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     async () => {
       try {
         const { z } = await import('zod');
-        return await settings.handle.settingsService.get(
+        return await settings.settingsService.get(
           ORGANIZATIONS_SETTING_CODES.CREDIT_INHERITANCE_MODE,
           'default',
           z.enum(['shared_pool', 'independent_default']),
@@ -812,26 +813,28 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Settings module is constructed up here (rather than further down) so its
   // SettingsService handle can be threaded into inventory + search at module
   // construction time. The plugin itself is still pushed onto `modules` below.
-  const settings = settingsModule({
+  // Feature 072 (T118) — the universal settings *reader* is kernel
+  // infrastructure: almost every module calls `SettingsService.get`, so it
+  // cannot be gated on whether an operator wants the settings screens. The
+  // module owns the admin write service, the cache-clear action, the four
+  // storefront resolvers and its routes, and composes itself.
+  const settings = composeSettingsKernel({
     emFactory: em,
     eventBus,
-    auditLogService,
-    requireAdmin,
     redis,
     ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
       ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
       : {}),
-    // Feature 073 — the effective-state reader. Passed as a port rather than
-    // imported inside the module so the dependency direction stays declared
-    // here: `_lifecycle` reads this module's `Setting` rows, and this module
+  });
+  registerValues(container, {
+    settingsSecretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
+    // Feature 073 — the effective-state reader. Registered here rather than
+    // imported inside the module so the dependency direction stays declared in
+    // a root: `_lifecycle` reads this module's `Setting` rows, and this module
     // reads nothing of `_lifecycle`'s.
-    modulePresence: {
-      presenceOf: (moduleId) => effectiveState.presenceOf(moduleId),
-      activationControlOwner: (code) => effectiveState.activationControlOwner(code),
-    },
-    resolveAdminAuditContext: (request) => {
-      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
-      return { actorAdminUserId: request.actor.adminUserId };
+    settingsModulePresence: {
+      presenceOf: (moduleId: string) => effectiveState.presenceOf(moduleId),
+      activationControlOwner: (code: string) => effectiveState.activationControlOwner(code),
     },
   });
 
@@ -870,7 +873,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     adminContextResolver,
     // US2 — the delete-integrity guard reaches settings only through this port
     // (Principle I): `SettingsService.listReferencesToConfiguration`.
-    credentialsSettingsPort: settings.handle.settingsService,
+    credentialsSettingsPort: settings.settingsService,
   });
   const credentialsService = (
     container.cradle as unknown as { credentialsService: CredentialsService }
@@ -898,7 +901,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       let allowed = false;
       try {
         const { z } = await import('zod');
-        allowed = await settings.handle.settingsService.get(
+        allowed = await settings.settingsService.get(
           'customers.allow_registration_without_organization',
           'default',
           z.boolean(),
@@ -1033,7 +1036,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   const resolveModerationMode = async (): Promise<'auto' | 'manual'> => {
     try {
-      return await settings.handle.settingsService.get(
+      return await settings.settingsService.get(
         ORGANIZATIONS_SETTING_CODES.MODERATION_MODE,
         platformSettingsChannelId,
         moderationModeSchema,
@@ -1048,7 +1051,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   const resolveRegistrationRecipients = async (): Promise<string[]> => {
     try {
-      return await settings.handle.settingsService.get(
+      return await settings.settingsService.get(
         ORGANIZATIONS_SETTING_CODES.NEW_REGISTRATION_RECIPIENTS,
         platformSettingsChannelId,
         notificationRecipientsSchema,
@@ -1320,7 +1323,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCartAbandonmentInactivityMinutes: async () => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'carts.abandonment.inactivity_minutes',
             'default',
             z.number().int().nonnegative(),
@@ -1332,7 +1335,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCartAbandonmentNotificationRecipient: async () => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'carts.abandonment.notification_recipient',
             'default',
             z.string(),
@@ -1346,7 +1349,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveOrderBusinessIdPrefix: async (salesChannelId: string) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'orders.business_id.prefix',
             salesChannelId,
             z.string(),
@@ -1358,7 +1361,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveOrderBusinessIdSuffix: async (salesChannelId: string) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'orders.business_id.suffix',
             salesChannelId,
             z.string(),
@@ -1372,7 +1375,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveReorderEnabled: async (salesChannelId: string) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'orders.reorder_enabled',
             salesChannelId,
             z.boolean(),
@@ -1385,7 +1388,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveOrderConfirmationRecipients: async (salesChannelId: string) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'orders.confirmation_recipients',
             salesChannelId,
             z.array(z.string()),
@@ -1398,7 +1401,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveMinOrderValue: async (salesChannelId: string) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'orders.min_order_value',
             salesChannelId,
             z.number(),
@@ -1434,7 +1437,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveChannelFulfilmentStrategy: async (salesChannelId: string) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'inventory.fulfilment_strategy',
             salesChannelId,
             z.enum([
@@ -1452,7 +1455,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveChannelFulfilmentWarehouseOrder: async (salesChannelId: string) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'inventory.fulfilment_strategy_warehouse_order',
             salesChannelId,
             z.array(z.string()),
@@ -1466,7 +1469,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveChannelAllowNegativeStock: async (salesChannelId: string) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'inventory.allow_negative_stock',
             salesChannelId,
             z.boolean(),
@@ -1670,7 +1673,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
             ? await salesChannels.resolver.getByCode(salesChannelCode)
             : await salesChannels.resolver.getSystemDefault();
           const channelId = channel?.id ?? platformSettingsChannelId;
-          const url = await settings.handle.settingsService.get(
+          const url = await settings.settingsService.get(
             'product_image_placeholder_url',
             channelId,
             z.string(),
@@ -1694,7 +1697,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         resolveScopeSalesChannelId,
         resolveLanguage: resolveSalesChannelLanguage,
       }),
-      settingsService: settings.handle.settingsService,
+      settingsService: settings.settingsService,
         auditLogService,
       resolveAdminAuditContext: (request) => {
         const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
@@ -1717,7 +1720,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // service handle was constructed up at the inventory site so other
   // modules can read it at construction time. The boot-time reconciler
   // runs below before HTTP comes up.
-  modules.push(settings.plugin);
 
   // Feature 013 — Assets Library. Phase 2 instantiates the module so its
   // manifest is reconciled and the AssetsLibraryService / referenceRegistry
@@ -1938,7 +1940,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // `redis` is registered further up, where the client is created.
     // The kernel's `SettingsService` already implements the read port; the
     // adapter object this replaces existed only to narrow it.
-    settingsReadPort: settings.handle.settingsService,
+    settingsReadPort: settings.settingsService,
     // Which channel a global-scope settings read resolves against. It is a
     // property of the deployment — the system-default channel, or the env
     // fallback when none is configured yet — not of any module, and this root
@@ -2131,7 +2133,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveExpiryDays: async () => {
       try {
         const { z } = await import('zod');
-        const value = await settings.handle.settingsService.get(
+        const value = await settings.settingsService.get(
           QUOTE_REQUESTS_SETTING_CODES.EXPIRY_DAYS,
           'default',
           z.number().int().nonnegative(),
@@ -2148,7 +2150,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           key === 'show_add_to_quote_on_card'
             ? QUOTE_REQUESTS_SETTING_CODES.SHOW_ADD_TO_QUOTE_ON_CARD
             : QUOTE_REQUESTS_SETTING_CODES.SHOW_ADD_TO_QUOTE_ON_PDP;
-        return await settings.handle.settingsService.get(code, 'default', z.boolean());
+        return await settings.settingsService.get(code, 'default', z.boolean());
       } catch {
         return true;
       }
@@ -2158,7 +2160,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveBusinessIdPrefix: async () => {
       try {
         const { z } = await import('zod');
-        return await settings.handle.settingsService.get(
+        return await settings.settingsService.get(
           QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_PREFIX,
           'default',
           z.string(),
@@ -2170,7 +2172,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveBusinessIdSuffix: async () => {
       try {
         const { z } = await import('zod');
-        return await settings.handle.settingsService.get(
+        return await settings.settingsService.get(
           QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_SUFFIX,
           'default',
           z.string(),
@@ -2238,7 +2240,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         const { z } = await import('zod');
         const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return false;
-        return await settings.handle.settingsService.get(
+        return await settings.settingsService.get(
           CUSTOMERS_SETTING_CODES.ALLOW_REGISTRATION_WITHOUT_ORGANIZATION,
           channel.id,
           z.boolean(),
@@ -2266,7 +2268,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         const { z } = await import('zod');
         const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return 365;
-        return await settings.handle.settingsService.get(
+        return await settings.settingsService.get(
           CUSTOMERS_SETTING_CODES.DELETION_RETENTION_DAYS,
           channel.id,
           z.number(),
@@ -2280,7 +2282,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         const { z } = await import('zod');
         const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return 10;
-        return await settings.handle.settingsService.get(
+        return await settings.settingsService.get(
           CUSTOMERS_SETTING_CODES.PRESENCE_FRESHNESS_MINUTES,
           channel.id,
           z.number(),
@@ -2362,7 +2364,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   registerValues(container, {
     ksefSellerNipResolver: async () => {
       try {
-        const raw = await settings.handle.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', z.string());
+        const raw = await settings.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', z.string());
         const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
         return nip.length > 0 ? nip : null;
       } catch {
@@ -2467,7 +2469,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     customFieldDefinitions: customFieldDefinitionService,
     languageService: languagesCradle.languageService,
     adminNotificationService: adminNotificationService,
-    settings: settings.handle.settingsService,
+    settings: settings.settingsService,
     // A feed URL exists to be pasted into Merchant Center, so a path-only one
     // is useless to the operator who copies it. `PUBLIC_API_BASE_URL` is the
     // deployment's answer; the local backend origin is the honest fallback,
@@ -2579,7 +2581,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     currencies: currencyService,
     languageService: languagesCradle.languageService,
     adminNotificationService: adminNotificationService,
-    settings: settings.handle.settingsService,
+    settings: settings.settingsService,
     redis,
     // Principle X — the import and reaper consumers run co-located unless
     // BACKEND_ROLE=api, in which case only the separate `pnpm worker` process
@@ -2713,8 +2715,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     stripeModule({
       emFactory: em,
       eventBus,
-      settingsService: settings.handle.settingsService,
-      settingsAdmin: settings.handle.adminService,
+      settingsService: settings.settingsService,
+      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
       requireAdmin,
       requireCustomer,
       resolveCustomerAccountId,
@@ -2732,8 +2734,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     tpayModule({
       emFactory: em,
       eventBus,
-      settingsService: settings.handle.settingsService,
-      settingsAdmin: settings.handle.adminService,
+      settingsService: settings.settingsService,
+      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
       requireAdmin,
       requireCustomer,
       resolveCustomerAccountId,
@@ -2755,8 +2757,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     payuModule({
       emFactory: em,
       eventBus,
-      settingsService: settings.handle.settingsService,
-      settingsAdmin: settings.handle.adminService,
+      settingsService: settings.settingsService,
+      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
       requireAdmin,
       requireCustomer,
       resolveCustomerAccountId,
@@ -2778,8 +2780,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     autopayModule({
       emFactory: em,
       eventBus,
-      settingsService: settings.handle.settingsService,
-      settingsAdmin: settings.handle.adminService,
+      settingsService: settings.settingsService,
+      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
       requireAdmin,
       requireCustomer,
       resolveCustomerAccountId,
@@ -2796,13 +2798,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   modules.push(
     transactionalEmailsModule({
       emFactory: em,
-      settingsService: settings.handle.settingsService,
+      settingsService: settings.settingsService,
       requireAdmin,
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       manifests: resolvedRegistry.map((e) => e.manifest),
       mailer: platformMailer,
       auditLog: auditLogService,
-      settingsAdmin: settings.handle.adminService,
+      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
       resolveAssetUrl: async (assetId: string) => {
         try {
           const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
@@ -2897,7 +2899,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // Feature 039 — resolve the quick-order import row cap from settings,
       // register the admin on-behalf quick-order routes, and wire the
       // default-preferences routes (audit + org allow-list eligibility).
-      settingsService: settings.handle.settingsService,
+      settingsService: settings.settingsService,
       requireAdmin,
       auditLog: auditLogService,
       organizationRestriction: organizationRestrictionService,
@@ -2907,7 +2909,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveOneClickEnabled: async (salesChannelId) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             QUICK_ORDER_SETTING_CODES.ONE_CLICK_BUY_ENABLED,
             salesChannelId,
             z.boolean(),

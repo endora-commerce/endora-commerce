@@ -93,6 +93,13 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // via `composeSalesChannelsKernel` (T110), because channel resolution backs
   // every channel-scoped read and must not be gated on any one module.
   'salesChannelsCache',
+  // The settings reader's cache and the two deployment properties the settings
+  // admin surface needs: the `secret` encryption key, and the effective-state
+  // reader that classifies each setting (Constitution XVII, FR-033). All three
+  // are root-composed, for the same reason the channel cache is — a settings
+  // read backs behaviour in nearly every module.
+  'settingsSecretEncryptionKey',
+  'settingsModulePresence',
 ]);
 
 /**
@@ -119,7 +126,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // The audited settings write path. `settingsReadPort` is platform-owned
   // because the kernel holds the store (D-32), but the *admin* service is still
   // the `settings` module's, and that module is hand-wired.
-  settingsAdminService: 'settings',
   // `auth`'s customer-side guard, still declared inline in each root while the
   // harness runs a separate `requireTestCustomer()` — the divergence T011/T012
   // fixed for `requireAdmin` and never did for this one. Owner is `auth`; the
@@ -228,6 +234,11 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   'auditLogService',
   'resolvedModuleRegistry',
   'apiInterceptors',
+  // Plain deployment values rather than gates: a string read from the
+  // environment, and a reader over the lifecycle's in-memory state. Neither is
+  // a module port, so capturing one cannot outlive a module being switched off.
+  'settingsSecretEncryptionKey',
+  'settingsModulePresence',
 ]);
 
 /**

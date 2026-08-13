@@ -441,6 +441,13 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // Neither central registry names it: T019 moved the `SalesChannel` entity
   // into the kernel and T020 moved its migrations with it.
   sales_channels: ['src/composition.ts'],
+  // `settings` (wave 2, T118). Both roots compose the kernel reader through
+  // `composeSettingsKernel` and register the two deployment properties the
+  // admin surface needs — the `secret` encryption key and the effective-state
+  // reader. Like `sales_channels`, that is design rather than residue: a
+  // settings read backs behaviour in nearly every module and cannot be gated
+  // on the settings screens.
+  settings: ['src/composition.ts'],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

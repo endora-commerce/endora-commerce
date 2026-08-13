@@ -204,9 +204,28 @@ export const manifest = defineModuleManifest({
   // Since feature 072 (T018/T019) all four of those tables are kernel-owned, so
   // the edge no longer crosses a module boundary at all and the acknowledged
   // entry in test/unit/db/acknowledged-fk-edges.ts has been removed. The
-  // reasoning is kept because it is why this module still declares nothing.
-  dependencies: [],
+  // reasoning is kept because it is why this module declares no edge to
+  // `sales_channels`.
+  //
+  // Feature 072 (T118) — `auth` *is* declared: the admin routes are gated by
+  // `requireAdmin` and name the acting admin through `adminAuditActorResolver`,
+  // both of which `auth` owns. It closes no cycle (`auth` → `admin_roles` → ∅)
+  // and shifts no migration order, because T018 moved this module's tables into
+  // the kernel and it ships no migrations of its own.
+  dependencies: ['auth'],
   settings,
+  // Feature 072/073 (Constitution XVII, FR-071) — the one module whose
+  // activation control could not be stored anywhere but itself. Every other
+  // module's operator switch is a `Setting` row this module's surface edits, so
+  // gating this one on such a row recurses; `resolveActivation` short-circuits
+  // a non-deactivatable module precisely to break that. Switching it off would
+  // also take away the screen an operator uses to switch anything back on.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      "Hosts every other module's operator switch, and its own control would be a setting " +
+      'stored in the module being switched off — the one activation that cannot be expressed.',
+  },
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'settings:read', label: 'View settings' },
