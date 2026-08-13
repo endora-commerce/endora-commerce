@@ -432,6 +432,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `sales_channels` (wave 2, T110). Both roots compose the kernel half —
+  // cache, resolver, membership, middleware — through
+  // `composeSalesChannelsKernel`, and build `salesChannelCodeIdPort` over the
+  // module's CRUD service. That is not residue of a half-finished conversion:
+  // channel resolution backs every channel-scoped read (Principle XII) and is
+  // kernel infrastructure by design since T019.
+  // Neither central registry names it: T019 moved the `SalesChannel` entity
+  // into the kernel and T020 moved its migrations with it.
+  sales_channels: ['src/composition.ts'],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

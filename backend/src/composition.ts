@@ -141,7 +141,8 @@ import type { TaxesCradle } from './modules/taxes/backend.js';
 import type { PromotionsCradle } from './modules/promotions/backend.js';
 import { settingsModule } from './modules/settings/plugin.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
-import { salesChannelsModule } from './modules/sales_channels/plugin.js';
+import { composeSalesChannelsKernel } from './kernel/sales-channels/compose.js';
+import type { SalesChannelsCradle } from './modules/sales_channels/backend.js';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
 import { SearchIndexer } from './modules/search/services/search-indexer.js';
 import type { ComparisonsCradle } from './modules/comparisons/backend.js';
@@ -647,7 +648,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // DefaultChannelReconciler runs FIRST so every other module can rely on a
   // system-default channel existing; it must precede the modules array
   // because catalog (and later other modules) consume
-  // `salesChannels.handle.membershipService` in their composition. The
+  // `salesChannels.membershipService` in their composition. The
   // plugin itself (resolver middleware) is pushed into `modules` below.
   const salesChannelsReconciler = new DefaultChannelReconciler(em, auditLogService);
   // Feature 072 (T036) — boot reconcilers establish their own scope. They ran
@@ -700,23 +701,24 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // served from the Redis dictionary cache for up to an hour, while a currency
   // change dropped both immediately.
 
-  const salesChannels = salesChannelsModule({
+  // Feature 072 (T110) — the channel *resolution* machinery is kernel
+  // infrastructure and stays ungated: every channel-scoped read depends on it
+  // (Principle XII), so it must keep working whether or not an operator wants
+  // the administration screens. The module owns the admin CRUD service and its
+  // routes, and composes itself.
+  const salesChannels = composeSalesChannelsKernel({
     emFactory: em,
     eventBus,
     redis,
     auditLogService,
-    requireAdmin,
-    resolveAdminAuditContext: (request) => {
-      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
-      return { actorAdminUserId: request.actor.adminUserId };
-    },
   });
-  // Feature 072 — the kernel-reserved membership port. `payment_methods` and
-  // `delivery_methods` resolve it to auto-bind a new method to the system
-  // default channel; both are composed early, but they read it when their
-  // routes register, which is after this line.
   registerValues(container, {
-    salesChannelMembershipPort: salesChannels.handle.membershipService,
+    salesChannelsCache: salesChannels.cache,
+    // The kernel-reserved membership port. `payment_methods` and
+    // `delivery_methods` resolve it to auto-bind a new method to the system
+    // default channel; both are composed early, but they read it when their
+    // routes register, which is after this line.
+    salesChannelMembershipPort: salesChannels.membershipService,
   });
 
   // Feature 014 — CMS module (Pages, Blocks, Templates, Hooks, Page
@@ -772,7 +774,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     promotionRuleTargets: {
       salesChannels: async () => {
-        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
         return items.map((c) => ({ id: c.id, code: c.code, name: anyLabel(c.name) }));
       },
       customerGroups: async () => {
@@ -930,7 +932,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // composition either knows how to resolve an actor or it does not.
   registerValues(container, {
     mfaDefaultChannelIdResolver: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
+      (await salesChannels.resolver.getSystemDefault())?.id ?? null,
     ...(oauthProvider ? { mfaOauthProvider: oauthProvider } : {}),
     mfaSocialAccountResolvers: mfaSocialResolvers,
     mfaActorBridge: {
@@ -1169,7 +1171,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const organizationEffectivePriceListsService = new OrganizationEffectivePriceListsService({
     emFactory: em,
     resolveDefaultSalesChannelId: async () => {
-      const channel = await salesChannels.handle.resolver.getSystemDefault();
+      const channel = await salesChannels.resolver.getSystemDefault();
       return channel?.id ?? 'default';
     },
   });
@@ -1295,7 +1297,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireCustomer,
       requireAdmin,
       resolveCustomerContext: customerResolver,
-      salesChannelMembership: salesChannels.handle.membershipService,
+      salesChannelMembership: salesChannels.membershipService,
       pricingService: priceLists.handle.pricingService,
       addressService,
       promotionService: promotionsCradle.promotionService,
@@ -1628,7 +1630,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
         );
       },
-      salesChannelMembership: salesChannels.handle.membershipService,
+      salesChannelMembership: salesChannels.membershipService,
       languageService: languagesCradle.languageService,
       adminNotificationService: adminNotificationService,
       mailer: platformMailer,
@@ -1665,8 +1667,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveProductImagePlaceholderUrl: async (salesChannelCode) => {
         try {
           const channel = salesChannelCode
-            ? await salesChannels.handle.resolver.getByCode(salesChannelCode)
-            : await salesChannels.handle.resolver.getSystemDefault();
+            ? await salesChannels.resolver.getByCode(salesChannelCode)
+            : await salesChannels.resolver.getSystemDefault();
           const channelId = channel?.id ?? platformSettingsChannelId;
           const url = await settings.handle.settingsService.get(
             'product_image_placeholder_url',
@@ -1686,7 +1688,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       requireAdmin,
       eventBus,
-      channelResolver: salesChannels.handle.resolver,
+      channelResolver: salesChannels.resolver,
       templateEmail: makeOrgTemplateEmail({
         getSender: () => transactionalEmailSender,
         resolveScopeSalesChannelId,
@@ -1781,13 +1783,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
       resolveChannelIdByCode: async (code: string | undefined) => {
         if (code) {
-          const ch = await salesChannels.handle.resolver.getByCode(code);
+          const ch = await salesChannels.resolver.getByCode(code);
           if (ch) return ch.id;
         }
-        return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId;
+        return (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId;
       },
       defaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
       channelCodeForId: async (channelId: string) => {
         const ch = await em().findOne(SalesChannel, { id: channelId });
         return ch?.code ?? null;
@@ -1972,14 +1974,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // resolves. Owned by `sales_channels`, which is still hand-wired (T110).
     salesChannelCodeIdPort: {
       idByCode: async (code: string) =>
-        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        (await salesChannels.resolver.getByCode(code))?.id ?? null,
       codeById: async (id: string) => {
-        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
         return items.find((c) => c.id === id)?.code ?? null;
       },
     },
     settingsChannelResolver: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
     // Blog ships no storefront ports today — the factory defaulted this to `{}`
     // and neither composition root ever passed one.
     blogStorefrontDeps: undefined,
@@ -2234,7 +2236,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveAllowRegistrationWithoutOrganization: async () => {
       try {
         const { z } = await import('zod');
-        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return false;
         return await settings.handle.settingsService.get(
           CUSTOMERS_SETTING_CODES.ALLOW_REGISTRATION_WITHOUT_ORGANIZATION,
@@ -2262,7 +2264,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveDeletionRetentionDays: async () => {
       try {
         const { z } = await import('zod');
-        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return 365;
         return await settings.handle.settingsService.get(
           CUSTOMERS_SETTING_CODES.DELETION_RETENTION_DAYS,
@@ -2276,7 +2278,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolvePresenceFreshnessMinutes: async () => {
       try {
         const { z } = await import('zod');
-        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return 10;
         return await settings.handle.settingsService.get(
           CUSTOMERS_SETTING_CODES.PRESENCE_FRESHNESS_MINUTES,
@@ -2416,7 +2418,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return adapter;
       },
     },
-    salesChannelMembership: salesChannels.handle.membershipService,
+    salesChannelMembership: salesChannels.membershipService,
     pricingService: priceLists.handle.pricingService,
     taxService: taxesCradle.taxService,
     // Feature 070 — every secret a delivery target needs is stored through the
@@ -2556,14 +2558,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       em,
       eventBus as unknown as CatalogEventBus,
       auditLogService,
-      salesChannels.handle.membershipService,
+      salesChannels.membershipService,
       commandBus,
       catalogAttributeReadService,
       customFieldDefinitionService,
     ),
     categoryAdmin: new CategoryAdminService(
       em,
-      salesChannels.handle.membershipService,
+      salesChannels.membershipService,
       commandBus,
       customFieldValueService,
     ),
@@ -2720,8 +2722,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
       }),
       resolveDefaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.handle.membershipService,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.membershipService,
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     }),
   );
@@ -2739,8 +2741,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
       }),
       resolveDefaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.handle.membershipService,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.membershipService,
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
       publicApiBaseUrl:
         process.env['PUBLIC_API_BASE_URL'] ??
@@ -2762,8 +2764,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
       }),
       resolveDefaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.handle.membershipService,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.membershipService,
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
       publicApiBaseUrl:
         process.env['PUBLIC_API_BASE_URL'] ??
@@ -2785,8 +2787,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
       }),
       resolveDefaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.handle.membershipService,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.membershipService,
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     }),
   );
@@ -2833,9 +2835,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         process.env['SESSION_COOKIE_SECRET'] ??
         'newsletter-dev-secret',
       platformChannelId:
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
       resolveChannelIdByCode: async (code) =>
-        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        (await salesChannels.resolver.getByCode(code))?.id ?? null,
       publicBaseUrl:
         process.env['PUBLIC_API_BASE_URL'] ??
         process.env['STOREFRONT_BASE_URL'] ??
@@ -3010,7 +3012,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     events: eventBus,
     auditLogService,
-    salesChannelMembership: salesChannels.handle.membershipService,
+    salesChannelMembership: salesChannels.membershipService,
     redis,
   };
   // Feature 072 — the module composed itself in the late pass; what is left

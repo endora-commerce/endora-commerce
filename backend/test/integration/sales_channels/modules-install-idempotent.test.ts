@@ -74,13 +74,15 @@ describe('modules:install sales_channels — idempotency (T069)', () => {
       const all = await em.find(SettingGroup, { code: 'sales_channels' });
       expect(all.length).toBe(1);
 
-      // The sales_channels manifest ships exactly one setting
-      // (`sales_channels.storefront_url`) — confirm the pipeline persists that
-      // single row and does not synthesize phantom rows under
-      // owner_module='sales_channels'.
+      // The sales_channels manifest ships exactly two settings — the
+      // storefront URL and, since T110, the operator's activation control —
+      // so confirm the pipeline persists those rows and synthesizes no
+      // phantom ones under owner_module='sales_channels'.
       const owned = await em.find(Setting, { ownerModule: 'sales_channels' });
-      expect(owned.length).toBe(1);
-      expect(owned[0]!.code).toBe('sales_channels.storefront_url');
+      expect(owned.map((s) => s.code).sort()).toEqual([
+        'sales_channels.enabled',
+        'sales_channels.storefront_url',
+      ]);
     } finally {
       await db.rollbackTx();
     }

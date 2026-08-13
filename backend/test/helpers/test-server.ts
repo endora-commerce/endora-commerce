@@ -181,7 +181,9 @@ import type { MfaActorBridge, MfaCradle } from '../../src/modules/mfa/backend.js
 import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
 import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
 import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
-import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
+import { composeSalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
+import type { SalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
+import type { SalesChannelsCradle } from '../../src/modules/sales_channels/backend.js';
 import type { SearchCradle } from '../../src/modules/search/backend.js';
 import type { PromptActionsCradle } from '../../src/modules/prompt_actions/backend.js';
 import type { PromptActionToolRegistry } from '../../src/modules/prompt_actions/services/tool-registry.js';
@@ -372,8 +374,13 @@ export interface BackendServerHandle {
   pimErgonode: ReturnType<typeof pimErgonodeModule>['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: PwaCradle['pwa']['handle'];
-  /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
-  salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
+  /**
+   * Feature 005 — the resolver and membership service (kernel-composed since
+   * T110), plus the module's CRUD service, resolved from the container.
+   */
+  salesChannels: SalesChannelsKernel & {
+    salesChannelsService: SalesChannelsCradle['salesChannelsService'];
+  };
   /** Feature 062 — api-keys/webhooks handle (api-key gates). */
   integrations: {
     apiKeyService: ApiKeysCradle['apiKeyService'];
@@ -1065,23 +1072,17 @@ export async function setupBackendServer(
   // Feature 005 — sales-channels module is built BEFORE every other module
   // that consumes its membership service in their composition (catalog,
   // cms, taxes, promotions, commerce for payment + delivery methods).
-  const salesChannels = salesChannelsModule({
+  // Feature 072 (T110) — the kernel composes channel resolution; the module
+  // owns the admin surface and composes itself.
+  const salesChannels = composeSalesChannelsKernel({
     emFactory: em,
     eventBus,
     redis,
     auditLogService,
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminAuditContext: (request) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
   });
-  // Feature 072 — the kernel-reserved membership port. `payment_methods` and
-  // `delivery_methods` resolve it to auto-bind a new method to the system
-  // default channel; both are composed early, but they read it when their
-  // routes register, which is after this line.
   registerValues(container, {
-    salesChannelMembershipPort: salesChannels.handle.membershipService,
+    salesChannelsCache: salesChannels.cache,
+    salesChannelMembershipPort: salesChannels.membershipService,
   });
 
   // Feature 014 — CMS module. Reconcile seeded Hooks once; the storefront
@@ -1136,7 +1137,7 @@ export async function setupBackendServer(
     },
     promotionRuleTargets: {
       salesChannels: async () => {
-        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
         return items.map((c) => ({ id: c.id, code: c.code, name: testAnyLabel(c.name) }));
       },
       customerGroups: async () => {
@@ -1269,7 +1270,7 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
-      salesChannelMembership: salesChannels.handle.membershipService,
+      salesChannelMembership: salesChannels.membershipService,
       // Feature 072 (T072) — production passes this and the harness did not, so
       // every address path in checkout ran a shape no deployment runs. Same
       // three arguments as `composition.ts`.
@@ -1407,7 +1408,7 @@ export async function setupBackendServer(
         async () => 'manual',
       );
       const resolveScopeSalesChannelId = async (): Promise<string | null> =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null;
+        (await salesChannels.resolver.getSystemDefault())?.id ?? null;
       const resolveSalesChannelLanguage = async (salesChannelId: string): Promise<string> =>
         (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
       const orgRegistrationNotifier = new OrgRegistrationNotifier({
@@ -1435,7 +1436,7 @@ export async function setupBackendServer(
       const effectivePriceListsService = new OrganizationEffectivePriceListsService({
         emFactory: em,
         resolveDefaultSalesChannelId: async () => {
-          const channel = await salesChannels.handle.resolver.getSystemDefault();
+          const channel = await salesChannels.resolver.getSystemDefault();
           return channel?.id ?? 'default';
         },
       });
@@ -1533,7 +1534,7 @@ export async function setupBackendServer(
           candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
         );
       },
-      salesChannelMembership: salesChannels.handle.membershipService,
+      salesChannelMembership: salesChannels.membershipService,
       languageService: languagesCradle.languageService,
       // Tests assert the queued ack only: no `redis` is wired into the catalog
       // module here, so the producer's enqueue is a no-op and queued rows stay
@@ -1547,8 +1548,8 @@ export async function setupBackendServer(
         try {
           const { z } = await import('zod');
           const channel = salesChannelCode
-            ? await salesChannels.handle.resolver.getByCode(salesChannelCode)
-            : await salesChannels.handle.resolver.getSystemDefault();
+            ? await salesChannels.resolver.getByCode(salesChannelCode)
+            : await salesChannels.resolver.getSystemDefault();
           if (!channel) return null;
           const url = await settings.handle.settingsService.get(
             'product_image_placeholder_url',
@@ -1576,7 +1577,7 @@ export async function setupBackendServer(
       templateEmail: makeOrgTemplateEmail({
         getSender: () => transactionalEmailSender,
         resolveScopeSalesChannelId: async () =>
-          (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
+          (await salesChannels.resolver.getSystemDefault())?.id ?? null,
         resolveLanguage: async (id) =>
           (await em().findOne(SalesChannel, { id }))?.defaultLanguage ?? 'en-US',
       }),
@@ -1618,7 +1619,7 @@ export async function setupBackendServer(
   // why the bridge is contributed rather than built into the module.
   registerValues(container, {
     mfaDefaultChannelIdResolver: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
+      (await salesChannels.resolver.getSystemDefault())?.id ?? null,
     mfaBaseUrls: {
       backend: 'http://localhost',
       storefront: 'http://localhost:3000',
@@ -1783,13 +1784,13 @@ export async function setupBackendServer(
       },
       resolveChannelIdByCode: async (code: string | undefined) => {
         if (code) {
-          const ch = await salesChannels.handle.resolver.getByCode(code);
+          const ch = await salesChannels.resolver.getByCode(code);
           if (ch) return ch.id;
         }
-        return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default';
+        return (await salesChannels.resolver.getSystemDefault())?.id ?? 'default';
       },
       defaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
+        (await salesChannels.resolver.getSystemDefault())?.id ?? 'default',
       channelCodeForId: async (channelId: string) => {
         const ch = await em().findOne(SalesChannel, { id: channelId });
         return ch?.code ?? null;
@@ -1960,14 +1961,14 @@ export async function setupBackendServer(
     // Feature 072 (wave 2) — mirrors `composition.ts`.
     salesChannelCodeIdPort: {
       idByCode: async (code: string) =>
-        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        (await salesChannels.resolver.getByCode(code))?.id ?? null,
       codeById: async (id: string) => {
-        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
         return items.find((c) => c.id === id)?.code ?? null;
       },
     },
     settingsChannelResolver: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
+      (await salesChannels.resolver.getSystemDefault())?.id ?? 'default',
     blogStorefrontDeps: undefined,
   });
   const lateModules = composeModules(latePassModules(MODULES), {
@@ -2034,7 +2035,7 @@ export async function setupBackendServer(
     emFactory: em,
     events: eventBus,
     auditLogService,
-    salesChannelMembership: salesChannels.handle.membershipService,
+    salesChannelMembership: salesChannels.membershipService,
     redis,
   };
   registerValues(container, {
@@ -2162,7 +2163,7 @@ export async function setupBackendServer(
     resolveAllowRegistrationWithoutOrganization: async () => {
       try {
         const { z } = await import('zod');
-        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return false;
         return await settings.handle.settingsService.get(
           'customers.allow_registration_without_organization',
@@ -2313,7 +2314,7 @@ export async function setupBackendServer(
         return adapter;
       },
     },
-    salesChannelMembership: salesChannels.handle.membershipService,
+    salesChannelMembership: salesChannels.membershipService,
     pricingService: priceLists.handle.pricingService,
     taxService: taxesCradle.taxService,
     resolveAvailability: async (productIds, salesChannelId) => {
@@ -2399,14 +2400,14 @@ export async function setupBackendServer(
       em,
       eventBus as unknown as CatalogEventBus,
       auditLogService,
-      salesChannels.handle.membershipService,
+      salesChannels.membershipService,
       commandBus,
       catalogAttributeReadService,
       customFieldDefinitionService,
     ),
     categoryAdmin: new CategoryAdminService(
       em,
-      salesChannels.handle.membershipService,
+      salesChannels.membershipService,
       commandBus,
       customFieldValueService,
     ),
@@ -2518,9 +2519,9 @@ export async function setupBackendServer(
   registerValues(container, {
     newsletterBridge: {
       tokenSecret: 'test-newsletter-secret',
-      platformChannelId: (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
+      platformChannelId: (await salesChannels.resolver.getSystemDefault())?.id ?? 'default',
       resolveChannelIdByCode: async (code) =>
-        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        (await salesChannels.resolver.getByCode(code))?.id ?? null,
       publicBaseUrl: 'http://localhost',
       storefrontBaseUrl: 'http://localhost',
       resolveCustomerAccountId: (req) =>
@@ -2711,7 +2712,11 @@ export async function setupBackendServer(
     permissionService,
     permissionCatalogueService,
     settings: settings.handle,
-    salesChannels: salesChannels.handle,
+    salesChannels: {
+      ...salesChannels,
+      salesChannelsService: (container.cradle as unknown as SalesChannelsCradle)
+        .salesChannelsService,
+    },
     integrations: {
       apiKeyService: apiKeysCradle.apiKeyService,
       requireApiKey: apiKeysCradle.requireApiKey,

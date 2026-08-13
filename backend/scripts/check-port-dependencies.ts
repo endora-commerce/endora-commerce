@@ -89,6 +89,10 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   'settingsChannelResolver',
   'salesChannelResolutionPort',
   'salesChannelMembershipPort',
+  // The channel cache the kernel resolver reads through. Composed by the root
+  // via `composeSalesChannelsKernel` (T110), because channel resolution backs
+  // every channel-scoped read and must not be gated on any one module.
+  'salesChannelsCache',
 ]);
 
 /**
