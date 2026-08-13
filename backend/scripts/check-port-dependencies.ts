@@ -141,6 +141,11 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // The composed attribute read model (feature 061). Owned by `catalog`, still
   // hand-wired; the entry goes when that module converts.
   catalogAttributeReadPort: 'catalog',
+  // `megamenu`'s existence checks and URL lookups against `catalog`, `cms` and
+  // `assets_library` tables. Root-owned by design — see the note in
+  // `megamenu/backend.ts` on why they must not move into the module.
+  megamenuValidatorDeps: 'megamenu',
+  megamenuStorefrontDeps: 'megamenu',
 };
 
 export interface PortResolution {

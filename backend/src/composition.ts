@@ -133,7 +133,9 @@ import type { WebhooksCradle } from './modules/webhooks/backend.js';
 import { importExportModule } from './modules/import_export/plugin.js';
 import type { LanguagesCradle } from './modules/languages/backend.js';
 import type { CmsCradle } from './modules/cms/backend.js';
-import { megamenuModule } from './modules/megamenu/plugin.js';
+import type { MegamenuCradle } from './modules/megamenu/backend.js';
+import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
+import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
@@ -748,10 +750,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // contributes the asset resolver further below.
   const cmsCradle = container.cradle as unknown as CmsCradle;
 
-  // The Megamenu module is constructed later in this composition root —
-  // after the assetsLibrary module is built — so its `storefrontDeps`
-  // can resolve asset URLs through the assets-library service. Search
-  // for `megamenuModule(` below for the actual instantiation.
   const priceLists = priceListsModule({
     emFactory: em,
     requireAdmin,
@@ -1849,11 +1847,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 015 — Megamenu module. Wires the cross-module ports the
   // target validator + storefront resolver delegate to. v1 uses small
   // direct SQL lookups instead of forcing new upstream surfaces.
-  const megamenu = megamenuModule({
-    emFactory: em,
-    requireAdmin,
-    redis,
-    validatorDeps: {
+  // Feature 072 (T107) — `megamenu` owns its services and routes now. These
+  // two bundles stay here: both are existence checks and URL lookups against
+  // OTHER modules' tables, so moving them into the module would give it
+  // direct reads of `catalog`, `cms` and `assets_library` storage.
+  //
+  // Registered after the late pass, where `megamenu` composes and declares
+  // its own defaults — contributing earlier would let the module overwrite
+  // the root.
+  registerValues(container, {
+    megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
         const rows = (await em().getConnection().execute(
           'select 1 from categories where id = ? limit 1',
@@ -1882,8 +1885,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         )) as Array<{ '?column?': number }>;
         return rows.length > 0;
       },
-    },
-    storefrontDeps: {
+    } satisfies TargetValidatorDeps,
+    megamenuStorefrontDeps: {
       resolveCategoryUrl: async (categoryId) => {
         // Feature 068 — a megamenu item pointing at a deactivated (or deleted)
         // category resolves to null, which drops the item from the menu.
@@ -1931,12 +1934,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           content: { schemaVersion: 1, data },
         };
       },
-    },
+    } satisfies StorefrontDeps,
   });
-  modules.push(megamenu.plugin);
+  const megamenuCradle = container.cradle as unknown as MegamenuCradle;
   // Megamenu items that reference a CMS page or block block those entities'
   // deletion via the CMS module's reference registry.
-  registerMegamenuCmsReferences(cmsCradle.cmsReferenceRegistry, megamenu.handle.referenceRegistry);
+  registerMegamenuCmsReferences(
+    cmsCradle.cmsReferenceRegistry,
+    megamenuCradle.megamenuReferenceRegistry,
+  );
 
   // Feature 072 — the late pass of the generated module list. No converted
   // module is named here: what this root still owns are the **host values** any

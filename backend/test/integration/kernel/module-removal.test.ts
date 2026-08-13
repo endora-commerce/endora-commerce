@@ -316,6 +316,19 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // listeners they ran moved inside — this module owns the cache they were
   // dropping. Fifth fully-root-free module in the transition.
   dictionaries: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `megamenu` (wave 2, T107). The two central registries name its three
+  // entities and migrations; `composition.ts` imports the cradle type plus the
+  // two dependency-bundle types, because the bundles themselves stay in the
+  // root — they are existence checks and URL lookups against `catalog`, `cms`
+  // and `assets_library` tables, and moving them into the module would give it
+  // direct reads of another module's storage. Those references are a root's by
+  // design rather than a leftover, so unlike most entries here they do not go
+  // when some other module converts.
+  megamenu: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

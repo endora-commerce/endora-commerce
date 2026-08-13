@@ -166,7 +166,9 @@ import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import type { LanguagesCradle } from '../../src/modules/languages/backend.js';
 import type { CmsCradle } from '../../src/modules/cms/backend.js';
-import { megamenuModule } from '../../src/modules/megamenu/plugin.js';
+import type { MegamenuCradle } from '../../src/modules/megamenu/backend.js';
+import type { TargetValidatorDeps } from '../../src/modules/megamenu/services/target-validator.js';
+import type { StorefrontDeps } from '../../src/modules/megamenu/services/storefront-resolver.js';
 import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/services/cms-references.js';
 // Feature 072 — the harness is a second composition root, so a module left
@@ -384,7 +386,10 @@ export interface BackendServerHandle {
   /** Feature 014 — CMS module handle (page builder registry, services, resolver). */
   cms: CmsCradle['cms']['handle'];
   /** Feature 015 — Megamenu module handle (reference registry, cache). */
-  megamenu: ReturnType<typeof megamenuModule>['handle'];
+  megamenu: {
+    referenceRegistry: MegamenuCradle['megamenuReferenceRegistry'];
+    cache: MegamenuCradle['megamenuServices']['cache'];
+  };
   /**
    * Feature 016 — Blog services, resolved out of the kernel container (feature
    * 072). Not a module handle any more: `blog` declares itself through
@@ -1842,11 +1847,16 @@ export async function setupBackendServer(
   // Feature 015 — Megamenu module. Wires the cross-module ports the
   // target validator + storefront resolver delegate to. v1 uses small
   // direct SQL lookups instead of forcing new upstream surfaces.
-  const megamenu = megamenuModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    redis,
-    validatorDeps: {
+  // Feature 072 (T107) — `megamenu` owns its services and routes now. These
+  // two bundles stay here: both are existence checks and URL lookups against
+  // OTHER modules' tables, so moving them into the module would give it
+  // direct reads of `catalog`, `cms` and `assets_library` storage.
+  //
+  // Registered after the late pass, where `megamenu` composes and declares
+  // its own defaults — contributing earlier would let the module overwrite
+  // the root.
+  registerValues(container, {
+    megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
         const rows = (await em().getConnection().execute(
           'select 1 from categories where id = ? limit 1',
@@ -1875,8 +1885,8 @@ export async function setupBackendServer(
         )) as Array<{ '?column?': number }>;
         return rows.length > 0;
       },
-    },
-    storefrontDeps: {
+    } satisfies TargetValidatorDeps,
+    megamenuStorefrontDeps: {
       resolveCategoryUrl: async (categoryId) => {
         const rows = (await em().getConnection().execute(
           'select slug from categories where id = ? limit 1',
@@ -1922,11 +1932,16 @@ export async function setupBackendServer(
           content: { schemaVersion: 1, data },
         };
       },
-    },
+    } satisfies StorefrontDeps,
   });
-  modules.push(megamenu.plugin);
-  registerMegamenuCmsReferences(cmsCradle.cmsReferenceRegistry, megamenu.handle.referenceRegistry);
-  if (megamenu.handle.cache) await megamenu.handle.cache.invalidateAll();
+  const megamenuCradle = container.cradle as unknown as MegamenuCradle;
+  registerMegamenuCmsReferences(
+    cmsCradle.cmsReferenceRegistry,
+    megamenuCradle.megamenuReferenceRegistry,
+  );
+  if (megamenuCradle.megamenuServices.cache) {
+    await megamenuCradle.megamenuServices.cache.invalidateAll();
+  }
 
   // Feature 072 — the late pass of the generated module list, at the same point
   // in the boot order `composition.ts` composes it. The host names below are the
@@ -2749,7 +2764,10 @@ export async function setupBackendServer(
     comparisons: { comparisonService: comparisonsCradle.comparisonService },
     assetsLibrary: assetsLibrary.handle,
     cms: cmsCradle.cms.handle,
-    megamenu: megamenu.handle,
+    megamenu: {
+      referenceRegistry: megamenuCradle.megamenuReferenceRegistry,
+      cache: megamenuCradle.megamenuServices.cache,
+    },
     blog: {
       cache: blogCradle.blogCacheService,
       storefrontResolver: blogCradle.blogStorefrontResolver,
