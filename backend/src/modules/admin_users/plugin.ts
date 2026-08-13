@@ -5,7 +5,7 @@ import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
 import { AdminAuthService } from './services/admin-auth-service.js';
 import { ImpersonationService } from './services/impersonation-service.js';
 import { AdminUserService } from './services/admin-user-service.js';
-import { AdminRoleService } from '../admin_roles/services/admin-role-service.js';
+import type { AdminRoleService } from '../admin_roles/services/admin-role-service.js';
 import type { PermissionService } from '../admin_roles/services/permission-service.js';
 import type { PermissionCatalogueService } from '../admin_roles/services/permission-catalogue.service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
@@ -20,7 +20,13 @@ export interface AdminModuleOptions {
   auditLogService: AuditLogService;
   permissionService: PermissionService;
   permissionCatalogueService: PermissionCatalogueService;
-  adminRoleService?: AdminRoleService;
+  /**
+   * Required since feature 072 (T121). It was optional with an in-module
+   * fallback that built a second `AdminRoleService`; both compositions passed
+   * `admin_roles`' own instance, and the fallback would have written role
+   * changes through a different audit path than `/admin-roles` reads.
+   */
+  adminRoleService: AdminRoleService;
   requireAdmin: RequireAdminFactory;
   /** Resolves the current admin's id from `request.actor` (prod) or
    *  `request.testActor` (test harness). Used by `GET /admin/me`. */
@@ -69,9 +75,7 @@ export function adminModule(
     auditLogService: options.auditLogService,
     adminUserService,
   };
-  const adminRoleService =
-    options.adminRoleService ??
-    new AdminRoleService(options.emFactory, options.permissionCatalogueService, options.auditLogService);
+  const adminRoleService = options.adminRoleService;
   return {
     handle,
     plugin: async (app) => {

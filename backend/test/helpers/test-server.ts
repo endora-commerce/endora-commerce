@@ -47,7 +47,6 @@ import {
 } from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { activationDeclarationsFrom } from '../../src/modules/_lifecycle/services/activation-resolver.js';
 import { effectiveState } from '../../src/modules/_lifecycle/services/effective-state.js';
-import { ModuleDisabledError } from '../../src/modules/_lifecycle/plugin-helpers.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { type TenantContext } from '../../src/tenancy/tenant-context.js';
 import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js';
@@ -113,7 +112,7 @@ import type { OrganizationEventBus } from '../../src/modules/organizations/servi
 // proved nothing: every mail-sending suite runs against this root.
 import type { EmailCradle } from '../../src/modules/email/backend.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
-import { adminModule } from '../../src/modules/admin_users/plugin.js';
+import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
@@ -182,7 +181,9 @@ import type { MfaActorBridge, MfaCradle } from '../../src/modules/mfa/backend.js
 import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
 import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
 import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
-import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
+import { composeSalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
+import type { SalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
+import type { SalesChannelsCradle } from '../../src/modules/sales_channels/backend.js';
 import type { SearchCradle } from '../../src/modules/search/backend.js';
 import type { PromptActionsCradle } from '../../src/modules/prompt_actions/backend.js';
 import type { PromptActionToolRegistry } from '../../src/modules/prompt_actions/services/tool-registry.js';
@@ -373,8 +374,13 @@ export interface BackendServerHandle {
   pimErgonode: ReturnType<typeof pimErgonodeModule>['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: PwaCradle['pwa']['handle'];
-  /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
-  salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
+  /**
+   * Feature 005 — the resolver and membership service (kernel-composed since
+   * T110), plus the module's CRUD service, resolved from the container.
+   */
+  salesChannels: SalesChannelsKernel & {
+    salesChannelsService: SalesChannelsCradle['salesChannelsService'];
+  };
   /** Feature 062 — api-keys/webhooks handle (api-key gates). */
   integrations: {
     apiKeyService: ApiKeysCradle['apiKeyService'];
@@ -851,7 +857,6 @@ export async function setupBackendServer(
   };
   const permissionService = rolesCradle.permissionService;
   const permissionCatalogueService = rolesCradle.permissionCatalogueService;
-  const adminRoleService = rolesCradle.adminRoleService;
 
   // Feature 072 (wave 1) — one `CurrencyService`, where `dictionaries` and
   // `languages` each built their own with different invalidators.
@@ -967,22 +972,6 @@ export async function setupBackendServer(
   // `mfa` composing later is not a race.
   registerValues(container, { mfaLoginPortGetter: getTestMfaLoginPort });
 
-  // Build the admin module first so we can hand its handle (auditLogService,
-  // permissionService) to other modules that need it.
-  const admin = adminModule({
-    emFactory: em,
-    sessionService,
-    auditLogService,
-    permissionService,
-    permissionCatalogueService,
-    adminRoleService,
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminContext: (request) => ({
-      adminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
-    getMfaLoginPort: getTestMfaLoginPort,
-  });
 
   // Feature 056 — organization tree + inheritance resolution, built here for
   // the same reason production builds it (`composition.ts`): three consumers
@@ -1083,23 +1072,17 @@ export async function setupBackendServer(
   // Feature 005 — sales-channels module is built BEFORE every other module
   // that consumes its membership service in their composition (catalog,
   // cms, taxes, promotions, commerce for payment + delivery methods).
-  const salesChannels = salesChannelsModule({
+  // Feature 072 (T110) — the kernel composes channel resolution; the module
+  // owns the admin surface and composes itself.
+  const salesChannels = composeSalesChannelsKernel({
     emFactory: em,
     eventBus,
     redis,
     auditLogService,
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminAuditContext: (request) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
   });
-  // Feature 072 — the kernel-reserved membership port. `payment_methods` and
-  // `delivery_methods` resolve it to auto-bind a new method to the system
-  // default channel; both are composed early, but they read it when their
-  // routes register, which is after this line.
   registerValues(container, {
-    salesChannelMembershipPort: salesChannels.handle.membershipService,
+    salesChannelsCache: salesChannels.cache,
+    salesChannelMembershipPort: salesChannels.membershipService,
   });
 
   // Feature 014 — CMS module. Reconcile seeded Hooks once; the storefront
@@ -1154,7 +1137,7 @@ export async function setupBackendServer(
     },
     promotionRuleTargets: {
       salesChannels: async () => {
-        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
         return items.map((c) => ({ id: c.id, code: c.code, name: testAnyLabel(c.name) }));
       },
       customerGroups: async () => {
@@ -1270,7 +1253,6 @@ export async function setupBackendServer(
       // request seam gets a leak that no test can see.
       await registerRequestScopeHook(app, { buildTenantContext: buildContext });
     },
-    admin.plugin,
     priceLists.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
@@ -1288,7 +1270,7 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
-      salesChannelMembership: salesChannels.handle.membershipService,
+      salesChannelMembership: salesChannels.membershipService,
       // Feature 072 (T072) — production passes this and the harness did not, so
       // every address path in checkout ran a shape no deployment runs. Same
       // three arguments as `composition.ts`.
@@ -1426,7 +1408,7 @@ export async function setupBackendServer(
         async () => 'manual',
       );
       const resolveScopeSalesChannelId = async (): Promise<string | null> =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null;
+        (await salesChannels.resolver.getSystemDefault())?.id ?? null;
       const resolveSalesChannelLanguage = async (salesChannelId: string): Promise<string> =>
         (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
       const orgRegistrationNotifier = new OrgRegistrationNotifier({
@@ -1454,7 +1436,7 @@ export async function setupBackendServer(
       const effectivePriceListsService = new OrganizationEffectivePriceListsService({
         emFactory: em,
         resolveDefaultSalesChannelId: async () => {
-          const channel = await salesChannels.handle.resolver.getSystemDefault();
+          const channel = await salesChannels.resolver.getSystemDefault();
           return channel?.id ?? 'default';
         },
       });
@@ -1552,7 +1534,7 @@ export async function setupBackendServer(
           candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
         );
       },
-      salesChannelMembership: salesChannels.handle.membershipService,
+      salesChannelMembership: salesChannels.membershipService,
       languageService: languagesCradle.languageService,
       // Tests assert the queued ack only: no `redis` is wired into the catalog
       // module here, so the producer's enqueue is a no-op and queued rows stay
@@ -1566,8 +1548,8 @@ export async function setupBackendServer(
         try {
           const { z } = await import('zod');
           const channel = salesChannelCode
-            ? await salesChannels.handle.resolver.getByCode(salesChannelCode)
-            : await salesChannels.handle.resolver.getSystemDefault();
+            ? await salesChannels.resolver.getByCode(salesChannelCode)
+            : await salesChannels.resolver.getSystemDefault();
           if (!channel) return null;
           const url = await settings.handle.settingsService.get(
             'product_image_placeholder_url',
@@ -1595,7 +1577,7 @@ export async function setupBackendServer(
       templateEmail: makeOrgTemplateEmail({
         getSender: () => transactionalEmailSender,
         resolveScopeSalesChannelId: async () =>
-          (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
+          (await salesChannels.resolver.getSystemDefault())?.id ?? null,
         resolveLanguage: async (id) =>
           (await em().findOne(SalesChannel, { id }))?.defaultLanguage ?? 'en-US',
       }),
@@ -1637,7 +1619,7 @@ export async function setupBackendServer(
   // why the bridge is contributed rather than built into the module.
   registerValues(container, {
     mfaDefaultChannelIdResolver: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
+      (await salesChannels.resolver.getSystemDefault())?.id ?? null,
     mfaBaseUrls: {
       backend: 'http://localhost',
       storefront: 'http://localhost:3000',
@@ -1802,13 +1784,13 @@ export async function setupBackendServer(
       },
       resolveChannelIdByCode: async (code: string | undefined) => {
         if (code) {
-          const ch = await salesChannels.handle.resolver.getByCode(code);
+          const ch = await salesChannels.resolver.getByCode(code);
           if (ch) return ch.id;
         }
-        return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default';
+        return (await salesChannels.resolver.getSystemDefault())?.id ?? 'default';
       },
       defaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
+        (await salesChannels.resolver.getSystemDefault())?.id ?? 'default',
       channelCodeForId: async (channelId: string) => {
         const ch = await em().findOne(SalesChannel, { id: channelId });
         return ch?.code ?? null;
@@ -1979,14 +1961,14 @@ export async function setupBackendServer(
     // Feature 072 (wave 2) — mirrors `composition.ts`.
     salesChannelCodeIdPort: {
       idByCode: async (code: string) =>
-        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        (await salesChannels.resolver.getByCode(code))?.id ?? null,
       codeById: async (id: string) => {
-        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
         return items.find((c) => c.id === id)?.code ?? null;
       },
     },
     settingsChannelResolver: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
+      (await salesChannels.resolver.getSystemDefault())?.id ?? 'default',
     blogStorefrontDeps: undefined,
   });
   const lateModules = composeModules(latePassModules(MODULES), {
@@ -1996,6 +1978,13 @@ export async function setupBackendServer(
     interceptorRegistry: apiInterceptors,
     ownership: registrationOwnership,
   });
+  // Feature 072 (T121) — `admin_users` owns its services and routes now. The
+  // MFA getter is a contribution the module defaults absent, so it is
+  // registered **after the late pass** that composes `admin_users`: earlier and
+  // the module's own default would overwrite it and every admin login would
+  // silently go password-only. The getter is late-bound, so `mfa` composing
+  // later is not a race.
+  registerValues(container, { adminMfaLoginPortGetter: getTestMfaLoginPort });
   modules.push(...lateModules.sink.plugins);
 
   // Registered **after** the late pass on purpose: `audit_logs` registers its
@@ -2012,27 +2001,22 @@ export async function setupBackendServer(
     // module overwrite the root — which is exactly what happened, and the
     // sitemap silently fell through to `http://localhost:3000`.
     sitemapOptions: { staleAfterMs: 0, baseUrl: 'http://test.local' },
-    // Feature 072 (T084) — `audit_logs` owns its routes now and no longer
-    // reaches into `admin_users` for identities. Turning an actor id into a
-    // name is a **contribution**, so it is gated here rather than declared as
-    // a dependency: the audit log must stay readable when `admin_users` is
-    // off, and it degrades to raw ids instead of refusing. Deciding what
-    // "`admin_users` is present" means is a root's job, not the reading
-    // module's; this entry disappears when `admin_users` converts and
-    // publishes the resolver itself.
-    // Feature 072 (T089) — mirrors `composition.ts`: `_i18n` reads it for the
-    // per-admin language preference, and it is `admin_users`' own instance.
-    // The harness used to build a third one for that module alone.
-    adminUserService: admin.handle.adminUserService,
     // Feature 072 (T089) — the harness composes no `_lifecycle`, so there is no
     // manifest registry to walk and `_i18n`'s reconcile is a no-op here. That
     // was already true before the conversion (the old call site passed no
     // `registry` option at all); making the absence an explicit registration is
     // what lets the module resolve one name in both compositions.
     lifecycleManifestRegistry: () => undefined,
+    // Feature 072 (T121) — the gate is the port's own now: `adminUserService`
+    // is provided by `admin_users` and raises `ModuleDisabledError` when that
+    // module is off, so no root hard-codes `isPresent('admin_users')` here.
+    // The contribution itself stays a root's: `audit_logs` owns the name and
+    // defaults it absent, and it composes after `admin_users`, so a
+    // registration from the module would be overwritten by that default.
     auditActorResolver: async (ids: string[]) => {
-      if (!effectiveState.isPresent('admin_users')) throw new ModuleDisabledError('admin_users');
-      const users = await admin.handle.adminUserService.listByIds(ids);
+      const users = await (
+        container.cradle as unknown as AdminUsersCradle
+      ).adminUserService.listByIds(ids);
       return users.map((u) => ({
         id: u.id,
         firstName: u.firstName,
@@ -2051,7 +2035,7 @@ export async function setupBackendServer(
     emFactory: em,
     events: eventBus,
     auditLogService,
-    salesChannelMembership: salesChannels.handle.membershipService,
+    salesChannelMembership: salesChannels.membershipService,
     redis,
   };
   registerValues(container, {
@@ -2179,7 +2163,7 @@ export async function setupBackendServer(
     resolveAllowRegistrationWithoutOrganization: async () => {
       try {
         const { z } = await import('zod');
-        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return false;
         return await settings.handle.settingsService.get(
           'customers.allow_registration_without_organization',
@@ -2330,7 +2314,7 @@ export async function setupBackendServer(
         return adapter;
       },
     },
-    salesChannelMembership: salesChannels.handle.membershipService,
+    salesChannelMembership: salesChannels.membershipService,
     pricingService: priceLists.handle.pricingService,
     taxService: taxesCradle.taxService,
     resolveAvailability: async (productIds, salesChannelId) => {
@@ -2416,14 +2400,14 @@ export async function setupBackendServer(
       em,
       eventBus as unknown as CatalogEventBus,
       auditLogService,
-      salesChannels.handle.membershipService,
+      salesChannels.membershipService,
       commandBus,
       catalogAttributeReadService,
       customFieldDefinitionService,
     ),
     categoryAdmin: new CategoryAdminService(
       em,
-      salesChannels.handle.membershipService,
+      salesChannels.membershipService,
       commandBus,
       customFieldValueService,
     ),
@@ -2535,9 +2519,9 @@ export async function setupBackendServer(
   registerValues(container, {
     newsletterBridge: {
       tokenSecret: 'test-newsletter-secret',
-      platformChannelId: (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
+      platformChannelId: (await salesChannels.resolver.getSystemDefault())?.id ?? 'default',
       resolveChannelIdByCode: async (code) =>
-        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        (await salesChannels.resolver.getByCode(code))?.id ?? null,
       publicBaseUrl: 'http://localhost',
       storefrontBaseUrl: 'http://localhost',
       resolveCustomerAccountId: (req) =>
@@ -2728,7 +2712,11 @@ export async function setupBackendServer(
     permissionService,
     permissionCatalogueService,
     settings: settings.handle,
-    salesChannels: salesChannels.handle,
+    salesChannels: {
+      ...salesChannels,
+      salesChannelsService: (container.cradle as unknown as SalesChannelsCradle)
+        .salesChannelsService,
+    },
     integrations: {
       apiKeyService: apiKeysCradle.apiKeyService,
       requireApiKey: apiKeysCradle.requireApiKey,

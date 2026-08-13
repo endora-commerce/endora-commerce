@@ -1,0 +1,82 @@
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type { FastifyRequest } from 'fastify';
+import type { DictionaryValidator } from '@b2b/contracts';
+import type { EventBus } from '../../events/bus.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { SalesChannelsCache } from '../../kernel/sales-channels/sales-channels-cache.js';
+import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import { SalesChannelsService } from './services/sales-channels.service.js';
+import type { AdminAuditContext } from './services/sales-channels.service.js';
+import { registerSalesChannelsAdminRoutes } from './routes.admin.js';
+
+/**
+ * `sales_channels` — what is left after the kernel took the resolution
+ * machinery (feature 072, wave 2, T110).
+ *
+ * T019 moved the cache, the resolver, the membership service, the middleware
+ * and the default-channel reconciler into `kernel/sales-channels/`, and this
+ * conversion finishes the thought: a composition root composes those through
+ * `composeSalesChannelsKernel`, and the module keeps only what an operator
+ * would recognise as the module — the admin CRUD service and its routes.
+ *
+ * The division is not cosmetic. Resolving which channel a request belongs to
+ * backs every channel-scoped read in the platform (Principle XII), so it must
+ * not be gated on this module: switching the administration screens off would
+ * otherwise leave every storefront request with no resolved channel.
+ *
+ * **`dictionaryValidator` was optional, and never once supplied.** Neither
+ * composition passed it, so `SalesChannelsService` has been skipping the
+ * language- and currency-code checks it declares — creating a channel with a
+ * language nothing in the platform speaks is accepted today, silently. It is a
+ * declared dependency now, not an option: its absence removes a check rather
+ * than a capability, which is the line these conversions have been drawing.
+ */
+
+export interface SalesChannelsCradle {
+  readonly emFactory: () => EntityManager;
+  readonly eventBus: EventBus;
+  readonly auditLogService: AuditLogService;
+  readonly requireAdmin: RequireAdminFactory;
+  readonly adminAuditActorResolver: (req: FastifyRequest) => AdminAuditContext;
+  /** Kernel-composed, so it is the same cache the resolver reads through. */
+  readonly salesChannelsCache: SalesChannelsCache;
+  readonly salesChannelMembershipPort: SalesChannelMembershipService;
+  readonly dictionaryValidator: DictionaryValidator;
+  readonly salesChannelsService: SalesChannelsService;
+}
+
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.providePort(
+    'salesChannelsService',
+    ctx
+      .asFunction(
+        ({ emFactory, eventBus, auditLogService }: SalesChannelsCradle) =>
+          new SalesChannelsService(
+            emFactory,
+            eventBus,
+            auditLogService,
+            // Both are resolved per call rather than captured: the cache is
+            // composed by a root, and the validator is another module's port.
+            lazyPort<SalesChannelsCache>(ctx, 'salesChannelsCache'),
+            lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
+          ),
+      )
+      .singleton(),
+  );
+
+  ctx.routes(async (app) => {
+    const { salesChannelsService, salesChannelMembershipPort, requireAdmin } =
+      ctx.cradle<SalesChannelsCradle>();
+
+    await registerSalesChannelsAdminRoutes(app, {
+      salesChannelsService,
+      membershipService: salesChannelMembershipPort,
+      requireAdmin,
+      resolveAdminAuditContext: (req) =>
+        ctx.cradle<SalesChannelsCradle>().adminAuditActorResolver(req),
+    });
+  });
+}

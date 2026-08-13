@@ -84,8 +84,15 @@ describe('audit_logs — owns its surface [integration]', () => {
     expect(entry?.['actorName']).toBeTruthy();
   });
 
-  it('keeps answering when admin_users is switched off, with the actor degraded to an id', async () => {
-    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['admin_users'] });
+  it('keeps answering when admin_users is absent, with the actor degraded to an id', async () => {
+    // The **platform** axis, not the operator one. Since T121 `admin_users`
+    // declares itself non-deactivatable — it owns admin login, so an operator
+    // switching it off would lock everyone out, including out of the control
+    // that switches it back — and `isPresent` therefore ignores the operator
+    // axis for it. A deployment that does not ship the module at all is the
+    // case this degradation was designed for, and it is the one axis that can
+    // still produce it.
+    registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'admin_users'));
     try {
       const entry = await readEntry();
       // The record is the point. Losing the display name is acceptable;

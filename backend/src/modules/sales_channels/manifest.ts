@@ -19,6 +19,19 @@ const settings = defineModuleSettingsManifest({
   ],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide, and it
+      // covers the administration surface only: since T110 the kernel composes
+      // channel *resolution*, so switching this off freezes the channel
+      // configuration rather than un-resolving every storefront request.
+      code: 'sales_channels.enabled',
+      name: 'Sales channel administration enabled',
+      description:
+        'Switches the sales-channel administration screens on or off: creating, editing and retiring channels, and managing which entities belong to which channel. Existing channels keep resolving for storefront and admin requests, and every channel, membership and per-channel setting stays in the database.',
+      groupCode: 'sales_channels',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: 'sales_channels.storefront_url',
       name: 'Storefront URL',
       description:
@@ -58,8 +71,9 @@ export const manifest = defineModuleManifest({
   //
   // Forward-looking convention: a new bridge table for module X is owned by X's
   // migration, so X → sales_channels covers it and no new exception is needed.
-  dependencies: ['settings'],
+  dependencies: ['dictionaries', 'settings'],
   settings,
+  activation: { settingCode: 'sales_channels.enabled', default: true },
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'sales_channels:read', label: 'View sales channels' },

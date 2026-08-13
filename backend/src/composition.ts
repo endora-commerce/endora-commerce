@@ -58,7 +58,6 @@ import {
   STATE_CHANGED_CHANNEL,
 } from './modules/_lifecycle/services/registry-cache.js';
 import { effectiveState } from './modules/_lifecycle/services/effective-state.js';
-import { ModuleDisabledError } from './modules/_lifecycle/plugin-helpers.js';
 import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 import { catalogModule } from './modules/catalog/plugin.js';
 import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
@@ -108,7 +107,7 @@ import { customersModule } from './modules/customers/plugin.js';
 import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
 import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
-import { adminModule } from './modules/admin_users/plugin.js';
+import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge, MfaCradle } from './modules/mfa/backend.js';
 import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
 import { verifyPassword, hashPassword } from './modules/auth/services/password-hasher.js';
@@ -142,7 +141,8 @@ import type { TaxesCradle } from './modules/taxes/backend.js';
 import type { PromotionsCradle } from './modules/promotions/backend.js';
 import { settingsModule } from './modules/settings/plugin.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
-import { salesChannelsModule } from './modules/sales_channels/plugin.js';
+import { composeSalesChannelsKernel } from './kernel/sales-channels/compose.js';
+import type { SalesChannelsCradle } from './modules/sales_channels/backend.js';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
 import { SearchIndexer } from './modules/search/services/search-indexer.js';
 import type { ComparisonsCradle } from './modules/comparisons/backend.js';
@@ -464,7 +464,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   };
   const permissionService = rolesCradle.permissionService;
   const permissionCatalogueService = rolesCradle.permissionCatalogueService;
-  const adminRoleService = rolesCradle.adminRoleService;
 
   // Feature 072 (wave 1) — one `CurrencyService`, where `dictionaries` and
   // `languages` each built their own with different invalidators.
@@ -600,17 +599,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `mfa` composing later is not a race.
   registerValues(container, { mfaLoginPortGetter: getMfaLoginPort });
 
-  const admin = adminModule({
-    emFactory: em,
-    sessionService,
-    auditLogService,
-    permissionService,
-    permissionCatalogueService,
-    adminRoleService,
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-    getMfaLoginPort,
-  });
 
   // Feature 056 — organization tree + inheritance resolution port (shared by
   // US2 scope expansion and US3 commercial-term inheritance). The global
@@ -660,7 +648,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // DefaultChannelReconciler runs FIRST so every other module can rely on a
   // system-default channel existing; it must precede the modules array
   // because catalog (and later other modules) consume
-  // `salesChannels.handle.membershipService` in their composition. The
+  // `salesChannels.membershipService` in their composition. The
   // plugin itself (resolver middleware) is pushed into `modules` below.
   const salesChannelsReconciler = new DefaultChannelReconciler(em, auditLogService);
   // Feature 072 (T036) — boot reconcilers establish their own scope. They ran
@@ -713,23 +701,24 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // served from the Redis dictionary cache for up to an hour, while a currency
   // change dropped both immediately.
 
-  const salesChannels = salesChannelsModule({
+  // Feature 072 (T110) — the channel *resolution* machinery is kernel
+  // infrastructure and stays ungated: every channel-scoped read depends on it
+  // (Principle XII), so it must keep working whether or not an operator wants
+  // the administration screens. The module owns the admin CRUD service and its
+  // routes, and composes itself.
+  const salesChannels = composeSalesChannelsKernel({
     emFactory: em,
     eventBus,
     redis,
     auditLogService,
-    requireAdmin,
-    resolveAdminAuditContext: (request) => {
-      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
-      return { actorAdminUserId: request.actor.adminUserId };
-    },
   });
-  // Feature 072 — the kernel-reserved membership port. `payment_methods` and
-  // `delivery_methods` resolve it to auto-bind a new method to the system
-  // default channel; both are composed early, but they read it when their
-  // routes register, which is after this line.
   registerValues(container, {
-    salesChannelMembershipPort: salesChannels.handle.membershipService,
+    salesChannelsCache: salesChannels.cache,
+    // The kernel-reserved membership port. `payment_methods` and
+    // `delivery_methods` resolve it to auto-bind a new method to the system
+    // default channel; both are composed early, but they read it when their
+    // routes register, which is after this line.
+    salesChannelMembershipPort: salesChannels.membershipService,
   });
 
   // Feature 014 — CMS module (Pages, Blocks, Templates, Hooks, Page
@@ -785,7 +774,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     promotionRuleTargets: {
       salesChannels: async () => {
-        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
         return items.map((c) => ({ id: c.id, code: c.code, name: anyLabel(c.name) }));
       },
       customerGroups: async () => {
@@ -943,7 +932,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // composition either knows how to resolve an actor or it does not.
   registerValues(container, {
     mfaDefaultChannelIdResolver: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
+      (await salesChannels.resolver.getSystemDefault())?.id ?? null,
     ...(oauthProvider ? { mfaOauthProvider: oauthProvider } : {}),
     mfaSocialAccountResolvers: mfaSocialResolvers,
     mfaActorBridge: {
@@ -1182,7 +1171,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const organizationEffectivePriceListsService = new OrganizationEffectivePriceListsService({
     emFactory: em,
     resolveDefaultSalesChannelId: async () => {
-      const channel = await salesChannels.handle.resolver.getSystemDefault();
+      const channel = await salesChannels.resolver.getSystemDefault();
       return channel?.id ?? 'default';
     },
   });
@@ -1288,7 +1277,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ...earlyModules.sink.plugins,
     authModulePlugin,
     tenantContextModulePlugin,
-    admin.plugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
     priceLists.plugin,
     commerceModule({
@@ -1309,7 +1297,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireCustomer,
       requireAdmin,
       resolveCustomerContext: customerResolver,
-      salesChannelMembership: salesChannels.handle.membershipService,
+      salesChannelMembership: salesChannels.membershipService,
       pricingService: priceLists.handle.pricingService,
       addressService,
       promotionService: promotionsCradle.promotionService,
@@ -1642,7 +1630,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
         );
       },
-      salesChannelMembership: salesChannels.handle.membershipService,
+      salesChannelMembership: salesChannels.membershipService,
       languageService: languagesCradle.languageService,
       adminNotificationService: adminNotificationService,
       mailer: platformMailer,
@@ -1679,8 +1667,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveProductImagePlaceholderUrl: async (salesChannelCode) => {
         try {
           const channel = salesChannelCode
-            ? await salesChannels.handle.resolver.getByCode(salesChannelCode)
-            : await salesChannels.handle.resolver.getSystemDefault();
+            ? await salesChannels.resolver.getByCode(salesChannelCode)
+            : await salesChannels.resolver.getSystemDefault();
           const channelId = channel?.id ?? platformSettingsChannelId;
           const url = await settings.handle.settingsService.get(
             'product_image_placeholder_url',
@@ -1700,7 +1688,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       requireAdmin,
       eventBus,
-      channelResolver: salesChannels.handle.resolver,
+      channelResolver: salesChannels.resolver,
       templateEmail: makeOrgTemplateEmail({
         getSender: () => transactionalEmailSender,
         resolveScopeSalesChannelId,
@@ -1795,13 +1783,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
       resolveChannelIdByCode: async (code: string | undefined) => {
         if (code) {
-          const ch = await salesChannels.handle.resolver.getByCode(code);
+          const ch = await salesChannels.resolver.getByCode(code);
           if (ch) return ch.id;
         }
-        return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId;
+        return (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId;
       },
       defaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
       channelCodeForId: async (channelId: string) => {
         const ch = await em().findOne(SalesChannel, { id: channelId });
         return ch?.code ?? null;
@@ -1947,11 +1935,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // modules convert.
     apiKeyResolver: async (token: string) =>
       apiKeysCradle.apiKeyService.authenticate(token),
-    // Feature 072 (T089) — `_i18n` reads it to serve the per-admin language
-    // preference. This is `admin_users`' own audited instance: the root used to
-    // build a second, audit-less `AdminUserService` purely to hand to that
-    // module. The entry goes when `admin_users` converts and provides it.
-    adminUserService: admin.handle.adminUserService,
     // `redis` is registered further up, where the client is created.
     // The kernel's `SettingsService` already implements the read port; the
     // adapter object this replaces existed only to narrow it.
@@ -1991,14 +1974,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // resolves. Owned by `sales_channels`, which is still hand-wired (T110).
     salesChannelCodeIdPort: {
       idByCode: async (code: string) =>
-        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        (await salesChannels.resolver.getByCode(code))?.id ?? null,
       codeById: async (id: string) => {
-        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
         return items.find((c) => c.id === id)?.code ?? null;
       },
     },
     settingsChannelResolver: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
     // Blog ships no storefront ports today — the factory defaulted this to `{}`
     // and neither composition root ever passed one.
     blogStorefrontDeps: undefined,
@@ -2011,6 +1994,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     interceptorRegistry: apiInterceptors,
     ownership: registrationOwnership,
   });
+  // Feature 072 (T121) — `admin_users` owns its services and routes now. The
+  // MFA getter is a contribution the module defaults absent, so it is
+  // registered **after the late pass** that composes `admin_users`: earlier and
+  // the module's own default would overwrite it and every admin login would
+  // silently go password-only. The getter is late-bound, so `mfa` composing
+  // later is not a race.
+  registerValues(container, { adminMfaLoginPortGetter: getMfaLoginPort });
   modules.push(...lateModules.sink.plugins);
 
   // Registered **after** the late pass on purpose: `audit_logs` registers its
@@ -2025,9 +2015,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // "`admin_users` is present" means is a root's job, not the reading
     // module's; this entry disappears when `admin_users` converts and
     // publishes the resolver itself.
+    // Feature 072 (T121) — the gate is the port's own now: `adminUserService`
+    // is provided by `admin_users` and raises `ModuleDisabledError` when that
+    // module is off, so no root hard-codes `isPresent('admin_users')` here.
+    // The contribution itself stays a root's: `audit_logs` owns the name and
+    // defaults it absent, and it composes after `admin_users`, so a
+    // registration from the module would be overwritten by that default.
     auditActorResolver: async (ids: string[]) => {
-      if (!effectiveState.isPresent('admin_users')) throw new ModuleDisabledError('admin_users');
-      const users = await admin.handle.adminUserService.listByIds(ids);
+      const users = await (
+        container.cradle as unknown as AdminUsersCradle
+      ).adminUserService.listByIds(ids);
       return users.map((u) => ({
         id: u.id,
         firstName: u.firstName,
@@ -2239,7 +2236,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveAllowRegistrationWithoutOrganization: async () => {
       try {
         const { z } = await import('zod');
-        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return false;
         return await settings.handle.settingsService.get(
           CUSTOMERS_SETTING_CODES.ALLOW_REGISTRATION_WITHOUT_ORGANIZATION,
@@ -2267,7 +2264,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveDeletionRetentionDays: async () => {
       try {
         const { z } = await import('zod');
-        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return 365;
         return await settings.handle.settingsService.get(
           CUSTOMERS_SETTING_CODES.DELETION_RETENTION_DAYS,
@@ -2281,7 +2278,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolvePresenceFreshnessMinutes: async () => {
       try {
         const { z } = await import('zod');
-        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return 10;
         return await settings.handle.settingsService.get(
           CUSTOMERS_SETTING_CODES.PRESENCE_FRESHNESS_MINUTES,
@@ -2421,7 +2418,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return adapter;
       },
     },
-    salesChannelMembership: salesChannels.handle.membershipService,
+    salesChannelMembership: salesChannels.membershipService,
     pricingService: priceLists.handle.pricingService,
     taxService: taxesCradle.taxService,
     // Feature 070 — every secret a delivery target needs is stored through the
@@ -2561,14 +2558,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       em,
       eventBus as unknown as CatalogEventBus,
       auditLogService,
-      salesChannels.handle.membershipService,
+      salesChannels.membershipService,
       commandBus,
       catalogAttributeReadService,
       customFieldDefinitionService,
     ),
     categoryAdmin: new CategoryAdminService(
       em,
-      salesChannels.handle.membershipService,
+      salesChannels.membershipService,
       commandBus,
       customFieldValueService,
     ),
@@ -2725,8 +2722,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
       }),
       resolveDefaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.handle.membershipService,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.membershipService,
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     }),
   );
@@ -2744,8 +2741,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
       }),
       resolveDefaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.handle.membershipService,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.membershipService,
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
       publicApiBaseUrl:
         process.env['PUBLIC_API_BASE_URL'] ??
@@ -2767,8 +2764,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
       }),
       resolveDefaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.handle.membershipService,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.membershipService,
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
       publicApiBaseUrl:
         process.env['PUBLIC_API_BASE_URL'] ??
@@ -2790,8 +2787,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
       }),
       resolveDefaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.handle.membershipService,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.membershipService,
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     }),
   );
@@ -2838,9 +2835,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         process.env['SESSION_COOKIE_SECRET'] ??
         'newsletter-dev-secret',
       platformChannelId:
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
       resolveChannelIdByCode: async (code) =>
-        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        (await salesChannels.resolver.getByCode(code))?.id ?? null,
       publicBaseUrl:
         process.env['PUBLIC_API_BASE_URL'] ??
         process.env['STOREFRONT_BASE_URL'] ??
@@ -3015,7 +3012,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     events: eventBus,
     auditLogService,
-    salesChannelMembership: salesChannels.handle.membershipService,
+    salesChannelMembership: salesChannels.membershipService,
     redis,
   };
   // Feature 072 — the module composed itself in the late pass; what is left

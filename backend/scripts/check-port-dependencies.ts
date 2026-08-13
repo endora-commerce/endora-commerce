@@ -89,6 +89,10 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   'settingsChannelResolver',
   'salesChannelResolutionPort',
   'salesChannelMembershipPort',
+  // The channel cache the kernel resolver reads through. Composed by the root
+  // via `composeSalesChannelsKernel` (T110), because channel resolution backs
+  // every channel-scoped read and must not be gated on any one module.
+  'salesChannelsCache',
 ]);
 
 /**
@@ -108,7 +112,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   blogStorefrontDeps: 'blog',
   // `_i18n` reads it to serve the per-admin language preference; `admin_users`
   // owns the audited instance and is still hand-wired.
-  adminUserService: 'admin_users',
   // The lazy accessor `_i18n` walks to reconcile every module's bundles. The
   // registry does not exist until `_lifecycle` is constructed, which in a root
   // happens after the late pass, so a root supplies the accessor.

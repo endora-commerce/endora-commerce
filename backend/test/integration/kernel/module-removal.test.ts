@@ -422,6 +422,25 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `admin_users` (wave 2, T121). The two central registries name its entities
+  // and migrations; both roots contribute the late-bound MFA getter and the
+  // `auditActorResolver` adapter that `audit_logs` owns the name for. The
+  // second is a root's by design — see `audit_logs/backend.ts` — and the first
+  // goes when a deployment stops needing to say which module supplies MFA.
+  admin_users: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `sales_channels` (wave 2, T110). Both roots compose the kernel half —
+  // cache, resolver, membership, middleware — through
+  // `composeSalesChannelsKernel`, and build `salesChannelCodeIdPort` over the
+  // module's CRUD service. That is not residue of a half-finished conversion:
+  // channel resolution backs every channel-scoped read (Principle XII) and is
+  // kernel infrastructure by design since T019.
+  // Neither central registry names it: T019 moved the `SalesChannel` entity
+  // into the kernel and T020 moved its migrations with it.
+  sales_channels: ['src/composition.ts'],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 
