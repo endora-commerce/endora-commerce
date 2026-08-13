@@ -5,6 +5,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SessionService } from '../auth/services/session-service.js';
 import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
@@ -166,7 +167,7 @@ export function registerModule(ctx: ModuleContext): void {
 
     mfa: ctx
       .asFunction(
-        ({ emFactory, redis, auditLogService, sessionService }: MfaCradle) => {
+        ({ emFactory, redis, auditLogService }: MfaCradle) => {
           const secretEncryptionKey = process.env['MFA_SECRET_ENCRYPTION_KEY'];
           const {
             backend: backendBaseUrl,
@@ -193,7 +194,7 @@ export function registerModule(ctx: ModuleContext): void {
                 ctx.cradle<MfaCradle>().settingsReadPort.get(code, salesChannelId, schema),
             },
             auditLogService,
-            sessionService,
+            sessionService: lazyPort<SessionService>(ctx, 'sessionService'),
             resolveDefaultChannelId: () => ctx.cradle<MfaCradle>().mfaDefaultChannelIdResolver(),
             ...(secretEncryptionKey === undefined ? {} : { secretEncryptionKey }),
             ...(backendBaseUrl === undefined ? {} : { backendBaseUrl }),

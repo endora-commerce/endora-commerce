@@ -119,6 +119,17 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // it — well before the late pass. Registers no subscriber, so no ordering
   // hazard (see the note above).
   'credit_limits',
+  // `addresses` builds the one `AddressService` from `dictionaryValidator`, and
+  // both roots resolve that immediately after the early pass. Its subscribers
+  // are on `currencies.changed` / `languages.changed`, not `settings.value_changed`,
+  // so composing early cannot defer the settings-cache drop (see the note above).
+  'dictionaries',
+  // Both roots resolve `megamenuReferenceRegistry` to cross-register it with
+  // `cms`', before the late pass. Composing early also puts this module's own
+  // `megamenuCacheOptions` default ahead of the harness's contribution, which
+  // is the order a contribution point needs — the module declares the default,
+  // the root overrides it.
+  'megamenu',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

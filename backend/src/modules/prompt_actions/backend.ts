@@ -2,6 +2,7 @@ import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { effectiveState } from '../_lifecycle/services/effective-state.js';
 import type { PromptActionRequest } from './entities/prompt-action-request.entity.js';
@@ -106,11 +107,7 @@ export function registerModule(ctx: ModuleContext): void {
 
     llmProviderFactory: ctx
       .asFunction(
-        ({
-          settingsReadPort,
-          settingsChannelResolver,
-          promptActionsLlmFetch,
-        }: PromptActionsCradle) => {
+        ({ promptActionsLlmFetch }: PromptActionsCradle) => {
           // `credentialsService` is a **port**, so it is resolved per call
           // rather than captured. Awilix's strict mode refuses the capture
           // outright — a singleton may not hold a transient — and it is right
@@ -124,8 +121,12 @@ export function registerModule(ctx: ModuleContext): void {
               ctx.cradle<PromptActionsCradle>().credentialsService.resolve(configurationCode),
           };
           return new LlmProviderFactory({
-            settings: settingsReadPort,
-            resolveChannelId: settingsChannelResolver,
+            settings: lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'),
+            // A function-valued name, so it cannot go through `lazyPort` —
+            // that forwards method calls on an object. The closure is the same
+            // deferral by hand.
+            resolveChannelId: () =>
+              ctx.cradle<PromptActionsCradle>().settingsChannelResolver(),
             credentials,
             ...(promptActionsLlmFetch === undefined
               ? {}

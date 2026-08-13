@@ -35,7 +35,20 @@ export const manifest = defineModuleManifest({
   description:
     'Cross-module registry of countries, languages, and currencies — backs every dropdown, validator, and address-form picker on the storefront and admin.',
   version: '1.0.0',
-  dependencies: ['currencies', 'languages'],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by. Feature
+  // 072 made it a container resolution rather than an optional argument that
+  // decided whether the admin surface existed at all.
+  dependencies: ['currencies', 'languages', 'auth'],
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: DICTIONARY_PERMISSIONS.WRITE, label: 'Manage dictionary registry' }],
+  // Feature 073/072 (Constitution XVII). Country, region, currency and language
+  // codes are validated against this module on every address, organization,
+  // catalog and order write. A deployment with it off cannot validate any of
+  // them, which is not a smaller platform but one that accepts anything.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Validates the country, region, currency and language codes every address, ' +
+      'organization, catalog and order write is checked against.',
+  },
 });

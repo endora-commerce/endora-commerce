@@ -1,5 +1,6 @@
 import type Redis from 'ioredis';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import { GtmConfigService } from './services/gtm-config.service.js';
@@ -56,7 +57,7 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     googleTagManagerServices: ctx
       .asFunction(
-        ({ settingsReadPort, moduleQueueRedis }: GoogleTagManagerCradle): GtmServices => {
+        ({ moduleQueueRedis }: GoogleTagManagerCradle): GtmServices => {
           const revalidator = new StorefrontRevalidator({
             baseUrl: process.env['STOREFRONT_BASE_URL'],
             secret: process.env['REVALIDATE_SECRET'],
@@ -64,7 +65,7 @@ export function registerModule(ctx: ModuleContext): void {
           const invalidateConfig = (): void => {
             void revalidator.revalidate(['gtm:config']);
           };
-          const configService = new GtmConfigService(settingsReadPort);
+          const configService = new GtmConfigService(lazyPort<SettingsService>(ctx, 'settingsReadPort'));
           // Producer side: the API needs it to enqueue whether or not this
           // process also runs the consumer.
           const relayQueue = moduleQueueRedis

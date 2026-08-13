@@ -15,11 +15,11 @@ export async function registerMegamenuAdminRoutes(
   deps: {
     menuService: MegamenuService;
     itemService: MegamenuItemService;
-    requireAdmin?: RequireAdminFactory;
+    requireAdmin: RequireAdminFactory;
   },
 ): Promise<void> {
-  const requireRead = deps.requireAdmin?.('megamenu.read') ?? (async () => {});
-  const requireWrite = deps.requireAdmin?.('megamenu.write') ?? (async () => {});
+  const requireRead = deps.requireAdmin('megamenu.read');
+  const requireWrite = deps.requireAdmin('megamenu.write');
 
   app.get('/api/v1/admin/megamenu/menus', { preHandler: requireRead }, async () =>
     deps.menuService.list(),

@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
@@ -63,12 +64,12 @@ export function registerModule(ctx: ModuleContext): void {
     'comparisonService',
     ctx
       .asFunction(
-        ({ emFactory, settingsReadPort }: ComparisonsCradle) =>
+        ({ emFactory }: ComparisonsCradle) =>
           new ComparisonService(
             emFactory,
             new ComparableAttributeProjection(),
             ctx.cradle<ComparisonsCradle>().comparisonShareTokens,
-            settingsReadPort,
+            lazyPort<SettingsService>(ctx, 'settingsReadPort'),
             // Resolved per call: `catalog` is hand-wired and a root registers
             // this after the pass this module composes in.
             {

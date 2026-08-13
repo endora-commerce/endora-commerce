@@ -8,7 +8,6 @@ import { builtInPaymentAdapters } from '../../src/modules/payments/adapters/buil
 import type { ConfigurationTypeRegistry } from '../../src/modules/credentials/services/configuration-type-registry.js';
 import type { CredentialsService } from '../../src/modules/credentials/services/credentials.service.js';
 import type { AdminNotificationService } from '../../src/modules/admin_notifications/services/admin-notification-service.js';
-import { CURRENCY_CHANGED_EVENT } from '../../src/modules/currencies/backend.js';
 import type { CurrencyService } from '../../src/modules/currencies/services/currency-service.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
@@ -164,18 +163,18 @@ import type { CustomFieldDefinitionService } from '../../src/modules/custom_fiel
 import type { CustomFieldValueService } from '../../src/modules/custom_fields/services/custom-field-value.service.js';
 import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
-import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import type { LanguagesCradle } from '../../src/modules/languages/backend.js';
-import { LANGUAGE_CHANGED_EVENT } from '../../src/modules/languages/backend.js';
 import type { CmsCradle } from '../../src/modules/cms/backend.js';
-import { megamenuModule } from '../../src/modules/megamenu/plugin.js';
+import type { MegamenuCradle } from '../../src/modules/megamenu/backend.js';
+import type { TargetValidatorDeps } from '../../src/modules/megamenu/services/target-validator.js';
+import type { StorefrontDeps } from '../../src/modules/megamenu/services/storefront-resolver.js';
 import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/services/cms-references.js';
 // Feature 072 — the harness is a second composition root, so a module left
 // hand-wired here would keep passing against wiring nobody changed. It composes
 // the same generated list production does; only the host values differ.
 import type { BlogCradle } from '../../src/modules/blog/backend.js';
-import { dictionariesModule } from '../../src/modules/dictionaries/plugin.js';
+import type { DictionariesCradle } from '../../src/modules/dictionaries/backend.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import type { TaxesCradle } from '../../src/modules/taxes/backend.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
@@ -386,7 +385,10 @@ export interface BackendServerHandle {
   /** Feature 014 — CMS module handle (page builder registry, services, resolver). */
   cms: CmsCradle['cms']['handle'];
   /** Feature 015 — Megamenu module handle (reference registry, cache). */
-  megamenu: ReturnType<typeof megamenuModule>['handle'];
+  megamenu: {
+    referenceRegistry: MegamenuCradle['megamenuReferenceRegistry'];
+    cache: MegamenuCradle['megamenuServices']['cache'];
+  };
   /**
    * Feature 016 — Blog services, resolved out of the kernel container (feature
    * 072). Not a module handle any more: `blog` declares itself through
@@ -400,7 +402,10 @@ export interface BackendServerHandle {
   /** Feature 072 — the composed kernel container, disposed at teardown. */
   container: KernelContainer;
   /** Feature 017 — Dictionary module handle (cache + future validator). */
-  dictionaries: ReturnType<typeof dictionariesModule>['handle'];
+  dictionaries: {
+    validator: DictionariesCradle['dictionaryValidator'];
+    cache: DictionariesCradle['dictionaryCache'];
+  };
   /** Feature 021 — error-envelope i18n bridge. */
   adminI18n: { i18nService: AdminI18nCradle['adminI18nService'] };
   /** Feature 015+ — promotions module handle (exposes PromotionService). */
@@ -1032,10 +1037,7 @@ export async function setupBackendServer(
   // are unset by default so `buildForwarderFromEnv` returns a NoopForwarder.
 
   // Import/Export (Phase 10 / T240).
-  const importExport = importExportModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-  });
+  // Feature 072 (T122) — `import_export` owns its service and routes now.
 
   // SEO meta + sitemap (Phase 10 / T235). Stale-window dropped to zero in
   // tests so each test that calls regenerate sees a fresh payload.
@@ -1046,18 +1048,12 @@ export async function setupBackendServer(
   // Feature 072 (T105) — `languages` owns its services and routes now.
   const languagesCradle = container.cradle as unknown as LanguagesCradle;
 
-  const dictionaries = dictionariesModule({
-    emFactory: em,
-    currencyService,
-    requireAdmin: requireTestAdmin(permissionService),
-    redis,
-    auditLog: auditLogService,
-  });
+  // Feature 072 (T112) — `dictionaries` owns its services, its cache
+  // invalidation listeners and its routes now.
 
   // Registered here rather than with the other host values further down:
   // `addresses` reads it to build the one `AddressService`, and both `orders`
   // and `organizations` are constructed before that block runs.
-  registerValues(container, { dictionaryValidator: dictionaries.handle.validator });
   // Feature 072 (T090) — one `AddressService` for the whole composition.
   // `orders` and `organizations` used to build their own, and the constructor's
   // validator and audit writer are optional, so the instances were free to
@@ -1065,38 +1061,15 @@ export async function setupBackendServer(
   const addressService = (container.cradle as unknown as { addressService: AddressService })
     .addressService;
 
-  // Feature 072 (wave 1) — `currencies` resolves this per write. It is the same
-  // pair of drops `dictionariesModule` performs internally; registering it here
-  // is what lets a single `CurrencyService` serve both admin surfaces, which is
-  // the point of the conversion. It disappears when `dictionaries` converts and
-  // registers the invalidator itself.
   // Feature 072 (wave 1) — `dictionaries` reacts to a currency change instead
   // of `currencies` calling into it. The direction matters: declaring the call
   // as a dependency produced a real cycle, and the cycle was the design saying
   // a currency must not know a dictionary cache exists.
-  eventBus.on(CURRENCY_CHANGED_EVENT, () => {
-    dictionaries.handle.validator.invalidate();
-    // Swallowed rather than left floating: the handler is synchronous, so a
-    // drop that lands after the server closed would surface as an unhandled
-    // rejection from ioredis's socket-close path and fail an otherwise green
-    // run. A cache that could not be dropped because the process is going away
-    // has nothing to be stale for.
-    void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
-  });
   // Feature 072 (T105) — the language half of the same drop. `languages` used
   // to pass a hard-coded `undefined` for its invalidator, so a deactivated
   // language kept validating for up to the validator's 60 s TTL and kept being
   // served from the Redis dictionary cache for up to an hour, while a currency
   // change dropped both immediately.
-  eventBus.on(LANGUAGE_CHANGED_EVENT, () => {
-    dictionaries.handle.validator.invalidate();
-    // Swallowed rather than left floating: the handler is synchronous, so a
-    // drop that lands after the server closed would surface as an unhandled
-    // rejection from ioredis's socket-close path and fail an otherwise green
-    // run. A cache that could not be dropped because the process is going away
-    // has nothing to be stale for.
-    void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
-  });
 
   // Feature 005 — sales-channels module is built BEFORE every other module
   // that consumes its membership service in their composition (catalog,
@@ -1107,7 +1080,6 @@ export async function setupBackendServer(
     redis,
     auditLogService,
     requireAdmin: requireTestAdmin(permissionService),
-    dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
@@ -1167,7 +1139,6 @@ export async function setupBackendServer(
     // Feature 012 / US8 — wire the catalog read port so the rule-target
     // picker + criterion validation work in tests.
     catalogQueryService: new CatalogQueryService(em, undefined, undefined, catalogAttributeReadService),
-    dictionaryValidator: dictionaries.handle.validator,
     // Feature 026 US5 — org-targeted promotions skip when the Organization
     // is not active. Inlined as a raw SQL lookup to avoid coupling promotions
     // to the Organization entity at module-construction time.
@@ -1296,7 +1267,6 @@ export async function setupBackendServer(
     },
     admin.plugin,
     integrations.plugin,
-    importExport.plugin,
     priceLists.plugin,
     promotions.plugin,
     commerceModule({
@@ -1530,8 +1500,7 @@ export async function setupBackendServer(
           taxIdValidationService: testTaxIdValidationService,
           customFieldValues: customFieldValueService,
           exposeTestProbe: true,
-          dictionaryValidator: dictionaries.handle.validator,
-          mailer: injectedMailer,
+                mailer: injectedMailer,
           storefrontBaseUrl: 'http://localhost:3000',
           onLogin: async (ctx) => {
             let result: Record<string, unknown> = {};
@@ -1627,8 +1596,7 @@ export async function setupBackendServer(
         resolveLanguage: async (id) =>
           (await em().findOne(SalesChannel, { id }))?.defaultLanguage ?? 'en-US',
       }),
-      dictionaryValidator: dictionaries.handle.validator,
-      auditLogService,
+        auditLogService,
       resolveAdminAuditContext: (request) => ({
         actorAdminUserId:
           request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
@@ -1646,7 +1614,6 @@ export async function setupBackendServer(
     ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
       ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
       : {}),
-    dictionaryValidator: dictionaries.handle.validator,
     // Feature 073 — mirrors composition.ts: the effective-state reader that
     // classifies each setting and refuses writes an absent module owns.
     modulePresence: {
@@ -1875,12 +1842,16 @@ export async function setupBackendServer(
   // Feature 015 — Megamenu module. Wires the cross-module ports the
   // target validator + storefront resolver delegate to. v1 uses small
   // direct SQL lookups instead of forcing new upstream surfaces.
-  const megamenu = megamenuModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    redis,
-    dictionaryValidator: dictionaries.handle.validator,
-    validatorDeps: {
+  // Feature 072 (T107) — `megamenu` owns its services and routes now. These
+  // two bundles stay here: both are existence checks and URL lookups against
+  // OTHER modules' tables, so moving them into the module would give it
+  // direct reads of `catalog`, `cms` and `assets_library` storage.
+  //
+  // Registered after the late pass, where `megamenu` composes and declares
+  // its own defaults — contributing earlier would let the module overwrite
+  // the root.
+  registerValues(container, {
+    megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
         const rows = (await em().getConnection().execute(
           'select 1 from categories where id = ? limit 1',
@@ -1909,8 +1880,8 @@ export async function setupBackendServer(
         )) as Array<{ '?column?': number }>;
         return rows.length > 0;
       },
-    },
-    storefrontDeps: {
+    } satisfies TargetValidatorDeps,
+    megamenuStorefrontDeps: {
       resolveCategoryUrl: async (categoryId) => {
         const rows = (await em().getConnection().execute(
           'select slug from categories where id = ? limit 1',
@@ -1956,11 +1927,16 @@ export async function setupBackendServer(
           content: { schemaVersion: 1, data },
         };
       },
-    },
+    } satisfies StorefrontDeps,
   });
-  modules.push(megamenu.plugin);
-  registerMegamenuCmsReferences(cmsCradle.cmsReferenceRegistry, megamenu.handle.referenceRegistry);
-  if (megamenu.handle.cache) await megamenu.handle.cache.invalidateAll();
+  const megamenuCradle = container.cradle as unknown as MegamenuCradle;
+  registerMegamenuCmsReferences(
+    cmsCradle.cmsReferenceRegistry,
+    megamenuCradle.megamenuReferenceRegistry,
+  );
+  if (megamenuCradle.megamenuServices.cache) {
+    await megamenuCradle.megamenuServices.cache.invalidateAll();
+  }
 
   // Feature 072 — the late pass of the generated module list, at the same point
   // in the boot order `composition.ts` composes it. The host names below are the
@@ -2011,7 +1987,6 @@ export async function setupBackendServer(
     },
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
-    dictionaryValidator: dictionaries.handle.validator,
     blogStorefrontDeps: undefined,
   });
   const lateModules = composeModules(latePassModules(MODULES), {
@@ -2103,8 +2078,8 @@ export async function setupBackendServer(
   const blogCradle = container.cradle as unknown as BlogCradle;
   if (blogCradle.blogCacheService) await blogCradle.blogCacheService.invalidateAll();
 
-  modules.push(dictionaries.plugin);
-  if (dictionaries.handle.cache) await dictionaries.handle.cache.invalidateAll();
+  const dictionariesCradle = container.cradle as unknown as DictionariesCradle;
+  if (dictionariesCradle.dictionaryCache) await dictionariesCradle.dictionaryCache.invalidateAll();
 
   // Feature 006 — Search module. Owns the Meilisearch indexer + event
   // subscriber lifecycle. Wires the same settings-aware path the
@@ -2784,13 +2759,19 @@ export async function setupBackendServer(
     comparisons: { comparisonService: comparisonsCradle.comparisonService },
     assetsLibrary: assetsLibrary.handle,
     cms: cmsCradle.cms.handle,
-    megamenu: megamenu.handle,
+    megamenu: {
+      referenceRegistry: megamenuCradle.megamenuReferenceRegistry,
+      cache: megamenuCradle.megamenuServices.cache,
+    },
     blog: {
       cache: blogCradle.blogCacheService,
       storefrontResolver: blogCradle.blogStorefrontResolver,
     },
     container,
-    dictionaries: dictionaries.handle,
+    dictionaries: {
+      validator: dictionariesCradle.dictionaryValidator,
+      cache: dictionariesCradle.dictionaryCache,
+    },
     adminI18n: { i18nService: adminI18nCradle.adminI18nService },
     promotions: promotions.handle,
     customFields: {

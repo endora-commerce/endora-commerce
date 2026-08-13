@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DictionaryValidator } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import { Address } from './entities/address.entity.js';
 import { AddressService } from './services/address-service.js';
 
@@ -28,10 +29,14 @@ import { AddressService } from './services/address-service.js';
  * a module the operator switched off should get an explicit 503 rather than a
  * service that half-answers.
  *
- * `dictionaryValidator` is read from the cradle rather than destructured —
- * `dictionaries` is still hand-wired and registers it after this module
- * composes. Reading it lazily is also what the port will do once that module
- * converts, so nothing here changes again.
+ * `dictionaryValidator` goes through `lazyPort`, and the reason changed under
+ * it. It used to be read once in the factory body — `const validator =
+ * ctx.cradle<…>().dictionaryValidator` — which looks deferred and is not: the
+ * factory body runs when the registration is first constructed. That was
+ * harmless while `dictionaries` registered a plain value, and stopped being
+ * harmless the moment that module converted and made it a port, because a
+ * singleton may not hold a transient gate. `lazyPort` defers it per call, which
+ * is what the comment always claimed was happening.
  */
 
 export const entities = [Address];
@@ -47,10 +52,14 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort(
     'addressService',
     ctx
-      .asFunction(({ emFactory, auditLogService }: AddressesCradle) => {
-        const validator = ctx.cradle<AddressesCradle>().dictionaryValidator;
-        return new AddressService(emFactory, validator, auditLogService);
-      })
+      .asFunction(
+        ({ emFactory, auditLogService }: AddressesCradle) =>
+          new AddressService(
+            emFactory,
+            lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
+            auditLogService,
+          ),
+      )
       .singleton(),
   );
 }

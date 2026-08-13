@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
@@ -65,7 +66,7 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     metaAdsServices: ctx
       .asFunction(
-        ({ emFactory, auditLogService, settingsReadPort }: MetaAdsCradle): MetaAdsServices => {
+        ({ emFactory, auditLogService }: MetaAdsCradle): MetaAdsServices => {
           const revalidator = new StorefrontRevalidator({
             baseUrl: process.env['STOREFRONT_BASE_URL'],
             secret: process.env['REVALIDATE_SECRET'],
@@ -78,7 +79,9 @@ export function registerModule(ctx: ModuleContext): void {
             auditLogService,
             invalidateConfig,
           );
-          const configService = new MetaConfigService(settingsReadPort, (channelId) =>
+          const configService = new MetaConfigService(
+            lazyPort<SettingsService>(ctx, 'settingsReadPort'),
+            (channelId) =>
             mappings.loadForChannel(channelId),
           );
           return { revalidator, mappings, configService, invalidateConfig };

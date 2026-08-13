@@ -7,7 +7,6 @@ import type { ShippingMethodEligibilityService } from './modules/delivery_method
 import { builtInPaymentAdapters } from './modules/payments/adapters/built-in-adapters.js';
 import type { CredentialsService } from './modules/credentials/services/credentials.service.js';
 import type { AdminNotificationService } from './modules/admin_notifications/services/admin-notification-service.js';
-import { CURRENCY_CHANGED_EVENT } from './modules/currencies/backend.js';
 import type { CurrencyService } from './modules/currencies/services/currency-service.js';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
@@ -131,14 +130,13 @@ import {
 } from './modules/webhooks/services/webhook-queue.js';
 import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
 import type { WebhooksCradle } from './modules/webhooks/backend.js';
-import { importExportModule } from './modules/import_export/plugin.js';
 import type { LanguagesCradle } from './modules/languages/backend.js';
-import { LANGUAGE_CHANGED_EVENT } from './modules/languages/backend.js';
 import type { CmsCradle } from './modules/cms/backend.js';
-import { megamenuModule } from './modules/megamenu/plugin.js';
+import type { MegamenuCradle } from './modules/megamenu/backend.js';
+import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
+import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
-import { dictionariesModule } from './modules/dictionaries/plugin.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import type { TaxesCradle } from './modules/taxes/backend.js';
 import { promotionsModule } from './modules/promotions/plugin.js';
@@ -662,11 +660,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     customFieldDefinitionService,
   );
 
-  const importExport = importExportModule({ emFactory: em, requireAdmin });
-  // `seoModule` is instantiated AFTER settings (further below) so the
-  // sitemap generator can read the per-channel `sales_channels.storefront_url`
-  // setting via the SettingsService port. See `const seo = seoModule(...)` /
-  // `modules.push(seo.plugin)` further down.
+  // Feature 072 (T122) — `import_export` owns its service and routes now.
   // Feature 072 (T105) — `languages` owns its services and routes now.
   const languagesCradle = container.cradle as unknown as LanguagesCradle;
 
@@ -704,18 +698,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 017 — construct the Dictionary module before its validator
   // consumers so the shared port can be threaded through their services.
   // The plugin itself is still registered later to preserve route order.
-  const dictionaries = dictionariesModule({
-    emFactory: em,
-    currencyService,
-    requireAdmin,
-    redis,
-    auditLog: auditLogService,
-  });
+  // Feature 072 (T112) — `dictionaries` owns its services, its cache
+  // invalidation listeners and its routes now.
 
   // Registered here rather than with the other host values further down:
   // `addresses` reads it to build the one `AddressService`, and both `orders`
   // and `organizations` are constructed before that block runs.
-  registerValues(container, { dictionaryValidator: dictionaries.handle.validator });
   // Feature 072 (T090) — one `AddressService` for the whole composition.
   // `orders` and `organizations` used to build their own, and the constructor's
   // validator and audit writer are optional, so the instances were free to
@@ -723,38 +711,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const addressService = (container.cradle as unknown as { addressService: AddressService })
     .addressService;
 
-  // Feature 072 (wave 1) — `currencies` resolves this per write. It is the same
-  // pair of drops `dictionariesModule` performs internally; registering it here
-  // is what lets a single `CurrencyService` serve both admin surfaces, which is
-  // the point of the conversion. It disappears when `dictionaries` converts and
-  // registers the invalidator itself.
   // Feature 072 (wave 1) — `dictionaries` reacts to a currency change instead
   // of `currencies` calling into it. The direction matters: declaring the call
   // as a dependency produced a real cycle, and the cycle was the design saying
   // a currency must not know a dictionary cache exists.
-  eventBus.on(CURRENCY_CHANGED_EVENT, () => {
-    dictionaries.handle.validator.invalidate();
-    // Swallowed rather than left floating: the handler is synchronous, so a
-    // drop that lands after the server closed would surface as an unhandled
-    // rejection from ioredis's socket-close path and fail an otherwise green
-    // run. A cache that could not be dropped because the process is going away
-    // has nothing to be stale for.
-    void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
-  });
   // Feature 072 (T105) — the language half of the same drop. `languages` used
   // to pass a hard-coded `undefined` for its invalidator, so a deactivated
   // language kept validating for up to the validator's 60 s TTL and kept being
   // served from the Redis dictionary cache for up to an hour, while a currency
   // change dropped both immediately.
-  eventBus.on(LANGUAGE_CHANGED_EVENT, () => {
-    dictionaries.handle.validator.invalidate();
-    // Swallowed rather than left floating: the handler is synchronous, so a
-    // drop that lands after the server closed would surface as an unhandled
-    // rejection from ioredis's socket-close path and fail an otherwise green
-    // run. A cache that could not be dropped because the process is going away
-    // has nothing to be stale for.
-    void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
-  });
 
   const salesChannels = salesChannelsModule({
     emFactory: em,
@@ -762,7 +727,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     redis,
     auditLogService,
     requireAdmin,
-    dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => {
       if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
       return { actorAdminUserId: request.actor.adminUserId };
@@ -785,10 +749,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // contributes the asset resolver further below.
   const cmsCradle = container.cradle as unknown as CmsCradle;
 
-  // The Megamenu module is constructed later in this composition root —
-  // after the assetsLibrary module is built — so its `storefrontDeps`
-  // can resolve asset URLs through the assets-library service. Search
-  // for `megamenuModule(` below for the actual instantiation.
   const priceLists = priceListsModule({
     emFactory: em,
     requireAdmin,
@@ -825,7 +785,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     auditLog: auditLogService,
     salesChannelMembership: salesChannels.handle.membershipService,
     catalogQueryService: catalogQueryServiceForPromotions,
-    dictionaryValidator: dictionaries.handle.validator,
     // Feature 026 US5 — org-targeted promotions only fire for active Organizations.
     resolveOrganizationStatus: async (orgId) => {
       const row = (await em().getKnex()
@@ -883,7 +842,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
       ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
       : {}),
-    dictionaryValidator: dictionaries.handle.validator,
     // Feature 073 — the effective-state reader. Passed as a port rather than
     // imported inside the module so the dependency direction stays declared
     // here: `_lifecycle` reads this module's `Setting` rows, and this module
@@ -1343,7 +1301,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     admin.plugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
     integrations.plugin,
-    importExport.plugin,
     priceLists.plugin,
     promotions.plugin,
     commerceModule({
@@ -1647,8 +1604,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       effectivePriceListsService: organizationEffectivePriceListsService,
       taxIdValidationService: organizationTaxIdValidationService,
       customFieldValues: customFieldValueService,
-      dictionaryValidator: dictionaries.handle.validator,
-      ...(process.env['STOREFRONT_BASE_URL']
+        ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
         : {}),
       onLogin: async (ctx) => {
@@ -1763,8 +1719,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         resolveLanguage: resolveSalesChannelLanguage,
       }),
       settingsService: settings.handle.settingsService,
-      dictionaryValidator: dictionaries.handle.validator,
-      auditLogService,
+        auditLogService,
       resolveAdminAuditContext: (request) => {
         const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
         if (actor?.kind !== 'admin') {
@@ -1890,12 +1845,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 015 — Megamenu module. Wires the cross-module ports the
   // target validator + storefront resolver delegate to. v1 uses small
   // direct SQL lookups instead of forcing new upstream surfaces.
-  const megamenu = megamenuModule({
-    emFactory: em,
-    requireAdmin,
-    redis,
-    dictionaryValidator: dictionaries.handle.validator,
-    validatorDeps: {
+  // Feature 072 (T107) — `megamenu` owns its services and routes now. These
+  // two bundles stay here: both are existence checks and URL lookups against
+  // OTHER modules' tables, so moving them into the module would give it
+  // direct reads of `catalog`, `cms` and `assets_library` storage.
+  //
+  // Registered after the late pass, where `megamenu` composes and declares
+  // its own defaults — contributing earlier would let the module overwrite
+  // the root.
+  registerValues(container, {
+    megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
         const rows = (await em().getConnection().execute(
           'select 1 from categories where id = ? limit 1',
@@ -1924,8 +1883,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         )) as Array<{ '?column?': number }>;
         return rows.length > 0;
       },
-    },
-    storefrontDeps: {
+    } satisfies TargetValidatorDeps,
+    megamenuStorefrontDeps: {
       resolveCategoryUrl: async (categoryId) => {
         // Feature 068 — a megamenu item pointing at a deactivated (or deleted)
         // category resolves to null, which drops the item from the menu.
@@ -1973,12 +1932,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           content: { schemaVersion: 1, data },
         };
       },
-    },
+    } satisfies StorefrontDeps,
   });
-  modules.push(megamenu.plugin);
+  const megamenuCradle = container.cradle as unknown as MegamenuCradle;
   // Megamenu items that reference a CMS page or block block those entities'
   // deletion via the CMS module's reference registry.
-  registerMegamenuCmsReferences(cmsCradle.cmsReferenceRegistry, megamenu.handle.referenceRegistry);
+  registerMegamenuCmsReferences(
+    cmsCradle.cmsReferenceRegistry,
+    megamenuCradle.megamenuReferenceRegistry,
+  );
 
   // Feature 072 — the late pass of the generated module list. No converted
   // module is named here: what this root still owns are the **host values** any
@@ -2054,7 +2016,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-    dictionaryValidator: dictionaries.handle.validator,
     // Blog ships no storefront ports today — the factory defaulted this to `{}`
     // and neither composition root ever passed one.
     blogStorefrontDeps: undefined,
@@ -2104,7 +2065,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // HTTP routes ship in user-story phases (Phase 3+); the plugin
   // currently performs the seed reconciler on first registration so
   // the platform boots with a fully populated registry.
-  modules.push(dictionaries.plugin);
 
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
   // lifecycle (R-3 — moved out of catalog). Settings-aware suggest config

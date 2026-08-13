@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
@@ -80,8 +81,6 @@ export function registerModule(ctx: ModuleContext): void {
         ({
           emFactory,
           auditLogService,
-          settingsReadPort,
-          salesChannelCodeIdPort,
           moduleQueueRedis,
         }: GoogleAnalyticsCradle): GaServices => {
           const revalidator = new StorefrontRevalidator({
@@ -93,11 +92,13 @@ export function registerModule(ctx: ModuleContext): void {
           };
           const customEvents = new GaCustomEventsService(
             emFactory,
-            salesChannelCodeIdPort,
+            lazyPort<GaChannelPort>(ctx, 'salesChannelCodeIdPort'),
             auditLogService,
             invalidateConfig,
           );
-          const configService = new GaConfigService(settingsReadPort, (channelId) =>
+          const configService = new GaConfigService(
+            lazyPort<SettingsService>(ctx, 'settingsReadPort'),
+            (channelId) =>
             customEvents.loadForChannel(channelId),
           );
           // Producer side: the API enqueues whether or not this process also

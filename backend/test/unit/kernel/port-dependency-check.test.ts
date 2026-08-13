@@ -75,11 +75,16 @@ describe('resolvedNames — what a module reads back', () => {
 });
 
 describe('findViolations', () => {
-  const resolution = (moduleId: string, name: string): PortResolution => ({
+  const resolution = (
+    moduleId: string,
+    name: string,
+    kind: PortResolution['kind'] = 'deferred',
+  ): PortResolution => ({
     moduleId,
     name,
     file: `/repo/backend/src/modules/${moduleId}/backend.ts`,
     line: 1,
+    kind,
   });
 
   it('accepts a platform name with nothing declared', () => {
@@ -140,6 +145,69 @@ describe('findViolations', () => {
     expect(violations).toHaveLength(1);
     expect(violations[0]?.kind).toBe('unowned-name');
     expect(describeViolation(violations[0]!)).toContain('which no module registers');
+  });
+
+  it('refuses a captured name the module does not own', () => {
+    // The failure this prevents is not a type error and not visible at the call
+    // site: a captured port keeps answering after its module is switched off,
+    // and a captured root-registered name may not exist yet when the module
+    // composes. Both cost this feature several red runs.
+    const violations = findViolations({
+      resolutions: [resolution('blog', 'settingsReadPort', 'captured')],
+      owners: new Map(),
+      dependencies: new Map([['blog', []]]),
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.kind).toBe('captured-name');
+  });
+
+
+  it('allows the same name when it is read through the cradle', () => {
+    expect(
+      findViolations({
+        resolutions: [resolution('blog', 'settingsReadPort', 'deferred')],
+        owners: new Map(),
+        dependencies: new Map([['blog', []]]),
+      }),
+    ).toEqual([]);
+  });
+
+  it('allows a module to capture a name it owns itself', () => {
+    expect(
+      findViolations({
+        resolutions: [resolution('blog', 'blogCacheService', 'captured')],
+        owners: new Map([['blogCacheService', 'blog']]),
+        dependencies: new Map([['blog', []]]),
+      }),
+    ).toEqual([]);
+  });
+
+  it('allows capturing the eagerly-registered kernel names', () => {
+    // These exist before any module composes and none is a transient gate, so
+    // capturing them cannot resolve too early or outlive a module.
+    expect(
+      findViolations({
+        resolutions: [
+          resolution('blog', 'emFactory', 'captured'),
+          resolution('blog', 'auditLogService', 'captured'),
+          resolution('blog', 'eventBus', 'captured'),
+        ],
+        owners: new Map(),
+        dependencies: new Map([['blog', []]]),
+      }),
+    ).toEqual([]);
+  });
+
+  it('reports a capture even when the dependency is properly declared', () => {
+    // Declaring the dependency fixes *ownership*; it does nothing about
+    // lifetime or ordering, so the two rules are independent.
+    const violations = findViolations({
+      resolutions: [resolution('blog', 'dictionaryValidator', 'captured')],
+      owners: new Map([['dictionaryValidator', 'dictionaries']]),
+      dependencies: new Map([['blog', ['dictionaries']]]),
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.kind).toBe('captured-name');
   });
 });
 
