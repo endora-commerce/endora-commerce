@@ -101,9 +101,19 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // Both roots read `mfaLoginPort` well before the late pass, to contribute the
   // `mfaLoginPortGetter` that `customer_accounts` resolves at login.
   'mfa',
-  // Wave 2. Named up front rather than after a red run: the predictor in the
-  // note above says any module a root reads is affected, and the cost of an
-  // unnecessary entry is nil while the cost of a missing one is a failed boot.
+  // Wave 2. Both roots resolve `languageService` where this module used to be
+  // constructed, well before the late pass.
+  //
+  // An entry here is **not** free, which is a correction to what this comment
+  // said when `meta_ads` and `linkedin_ads` were briefly listed. The early pass
+  // composes before the hand-wired `settings` module, so an entry moves that
+  // module's EventBus subscribers ahead of the settings cache's own
+  // invalidation subscriber — and `subscribeForModule`'s state check awaits, so
+  // the invalidation lands a tick later and a synchronous read serves the
+  // pre-write value. Add an entry only when a root actually reads the module's
+  // registration, and prefer modules that register no subscriber. `languages`
+  // registers none.
+  'languages',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

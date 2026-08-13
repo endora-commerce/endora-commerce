@@ -125,7 +125,6 @@ import { invoicesModule } from '../../src/modules/invoices/plugin.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
-import { googleAnalyticsModule } from '../../src/modules/google_analytics/plugin.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
   ORDER_COMMENT_DEFAULT,
@@ -167,7 +166,8 @@ import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_field
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import { seoModule } from '../../src/modules/seo/plugin.js';
-import { i18nModule } from '../../src/modules/languages/plugin.js';
+import type { LanguagesCradle } from '../../src/modules/languages/backend.js';
+import { LANGUAGE_CHANGED_EVENT } from '../../src/modules/languages/backend.js';
 import type { CmsCradle } from '../../src/modules/cms/backend.js';
 import { megamenuModule } from '../../src/modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
@@ -178,7 +178,7 @@ import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/servic
 import type { BlogCradle } from '../../src/modules/blog/backend.js';
 import { dictionariesModule } from '../../src/modules/dictionaries/plugin.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
-import { taxesModule } from '../../src/modules/taxes/plugin.js';
+import type { TaxesCradle } from '../../src/modules/taxes/backend.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
 import { settingsModule } from '../../src/modules/settings/plugin.js';
 import type { MfaActorBridge, MfaCradle } from '../../src/modules/mfa/backend.js';
@@ -1058,12 +1058,8 @@ export async function setupBackendServer(
 
   // Languages + currencies (Phase 10 / T238). Static config, bootstrapped
   // by migration 012 with en-US + pl-PL languages and PLN + EUR currencies.
-  const i18n = i18nModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    auditLog: auditLogService,
-    currencyService,
-  });
+  // Feature 072 (T105) — `languages` owns its services and routes now.
+  const languagesCradle = container.cradle as unknown as LanguagesCradle;
 
   const dictionaries = dictionariesModule({
     emFactory: em,
@@ -1094,6 +1090,20 @@ export async function setupBackendServer(
   // as a dependency produced a real cycle, and the cycle was the design saying
   // a currency must not know a dictionary cache exists.
   eventBus.on(CURRENCY_CHANGED_EVENT, () => {
+    dictionaries.handle.validator.invalidate();
+    // Swallowed rather than left floating: the handler is synchronous, so a
+    // drop that lands after the server closed would surface as an unhandled
+    // rejection from ioredis's socket-close path and fail an otherwise green
+    // run. A cache that could not be dropped because the process is going away
+    // has nothing to be stale for.
+    void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
+  });
+  // Feature 072 (T105) — the language half of the same drop. `languages` used
+  // to pass a hard-coded `undefined` for its invalidator, so a deactivated
+  // language kept validating for up to the validator's 60 s TTL and kept being
+  // served from the Redis dictionary cache for up to an hour, while a currency
+  // change dropped both immediately.
+  eventBus.on(LANGUAGE_CHANGED_EVENT, () => {
     dictionaries.handle.validator.invalidate();
     // Swallowed rather than left floating: the handler is synchronous, so a
     // drop that lands after the server closed would surface as an unhandled
@@ -1162,13 +1172,8 @@ export async function setupBackendServer(
   });
 
   // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
-  const taxes = taxesModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    salesChannelMembership: salesChannels.handle.membershipService,
-    dictionaryValidator: dictionaries.handle.validator,
-    auditLog: auditLogService,
-  });
+  // Feature 072 (T119) — `taxes` owns its service and routes now.
+  const taxesCradle = container.cradle as unknown as TaxesCradle;
   const promotions = promotionsModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
@@ -1309,9 +1314,7 @@ export async function setupBackendServer(
     integrations.plugin,
     importExport.plugin,
     seo.plugin,
-    i18n.plugin,
     priceLists.plugin,
-    taxes.plugin,
     promotions.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
@@ -1338,7 +1341,7 @@ export async function setupBackendServer(
       // rate from the tax rules instead of a flat 23%.
       resolveTaxRate: async ({ country, productType, vatStatus }) => {
         try {
-          const resolved = await taxes.handle.taxService.taxRateFor({
+          const resolved = await taxesCradle.taxService.taxRateFor({
             country: country ?? 'PL',
             productType: productType as
               | 'simple'
@@ -1595,7 +1598,7 @@ export async function setupBackendServer(
         );
       },
       salesChannelMembership: salesChannels.handle.membershipService,
-      languageService: i18n.handle.languageService,
+      languageService: languagesCradle.languageService,
       // Tests assert the queued ack only: no `redis` is wired into the catalog
       // module here, so the producer's enqueue is a no-op and queued rows stay
       // `pending` (no BullMQ worker, no DB churn after a response or across
@@ -2010,6 +2013,15 @@ export async function setupBackendServer(
     // against its own bare instance instead. `redis` is registered above; this
     // is the name that says "but not for queues".
     moduleQueueRedis: undefined,
+    // Feature 072 (wave 2) — mirrors `composition.ts`.
+    salesChannelCodeIdPort: {
+      idByCode: async (code: string) =>
+        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+      codeById: async (id: string) => {
+        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        return items.find((c) => c.id === id)?.code ?? null;
+      },
+    },
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
     dictionaryValidator: dictionaries.handle.validator,
@@ -2176,7 +2188,7 @@ export async function setupBackendServer(
         const vatStatus = org?.vatStatus ?? 'vat_payer';
         if (vatStatus !== 'vat_payer') return 0;
         const country = org?.registeredAddress?.country ?? 'PL';
-        const resolved = await taxes.handle.taxService.taxRateFor({
+        const resolved = await taxesCradle.taxService.taxRateFor({
           country,
           productType: 'simple',
           vatStatus,
@@ -2377,7 +2389,7 @@ export async function setupBackendServer(
     },
     salesChannelMembership: salesChannels.handle.membershipService,
     pricingService: priceLists.handle.pricingService,
-    taxService: taxes.handle.taxService,
+    taxService: taxesCradle.taxService,
     resolveAvailability: async (productIds, salesChannelId) => {
       const warehouseIds =
         await new WarehouseChannelService(em).resolveCandidateWarehouseIds(salesChannelId);
@@ -2412,7 +2424,7 @@ export async function setupBackendServer(
       return out;
     },
     customFieldDefinitions: customFieldDefinitionService,
-    languageService: i18n.handle.languageService,
+    languageService: languagesCradle.languageService,
     // FR-056 — a failed run has to be able to raise the operator notification
     // the integration tests assert on. The module instance lives inside the
     // feature-026 wiring block above, which exposes it on this handle.
@@ -2479,8 +2491,8 @@ export async function setupBackendServer(
     grouped: new GroupedService(em, commandBus),
     assets: assetsLibrary.handle.service,
     priceLists: priceLists.handle.priceListService,
-    currencies: i18n.handle.currencyService,
-    languageService: i18n.handle.languageService,
+    currencies: currencyService,
+    languageService: languagesCradle.languageService,
     adminNotificationService: handleFeature026.adminNotificationService,
     settings: settings.handle.settingsService,
     // The egress seam. The default REFUSES every stream read rather than
@@ -2607,25 +2619,6 @@ export async function setupBackendServer(
 
   // Feature 049 — Google Analytics. No redis wired here, so /collect degrades
   // to 503 (queue producer absent); config + admin CRUD are fully exercised.
-  modules.push(
-    googleAnalyticsModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
-      requireAdmin: requireTestAdmin(permissionService),
-      channels: {
-        idByCode: async (code) =>
-          (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
-        codeById: async (id) => {
-          const { items } = await salesChannels.handle.salesChannelsService.list({});
-          return items.find((c) => c.id === id)?.code ?? null;
-        },
-      },
-      resolveAuditContext: (req) => ({
-        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
-      }),
-      auditLog: auditLogService,
-    }),
-  );
 
   // Feature 063 — LinkedIn Ads. Config + mapping CRUD are fully exercised.
 

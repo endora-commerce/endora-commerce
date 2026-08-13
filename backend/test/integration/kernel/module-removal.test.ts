@@ -257,6 +257,34 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // the third and fourth fully removable modules in this transition.
   meta_ads: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   linkedin_ads: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `google_analytics` (wave 2, T102). The two central registries name its
+  // entity and migrations. Unlike its three siblings it is not fully removable
+  // yet: a root still supplies `salesChannelCodeIdPort`, built from
+  // `sales_channels`' resolver — but that is a *root's* closure over another
+  // module's service and imports nothing from here, so it leaves no reference
+  // either. Both registry entries go when nothing owns the entity any more.
+  google_analytics: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `taxes` (wave 2, T119). The two central registries name its entity and
+  // migrations; `composition.ts` imports the cradle type to annotate the
+  // `taxService` port it resolves and threads into `orders` and `carts` for
+  // line pricing. That reference goes when those two convert.
+  taxes: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `languages` (wave 2, T105). The two central registries name its entity and
+  // migrations; `composition.ts` imports the cradle type and the
+  // `LANGUAGE_CHANGED_EVENT` name, because the root is what listens for the
+  // announcement and drops the dictionary caches. That listener is a root's
+  // job by design — a language must not know a dictionary cache exists, and
+  // declaring the call as a dependency produces a real cycle — so unlike most
+  // entries here, this one is not waiting on another conversion.
+  languages: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

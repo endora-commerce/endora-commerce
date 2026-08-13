@@ -133,6 +133,9 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // by nature — production reads `request.actor`, the harness `request.testActor`
   // — so it is a composition input rather than any module's property.
   adminAuditActorResolver: 'auth',
+  // The sales-channel code⇄id lookup. Owned by `sales_channels`, which is still
+  // hand-wired (T110); the entry goes when that module converts.
+  salesChannelCodeIdPort: 'sales_channels',
 };
 
 export interface PortResolution {

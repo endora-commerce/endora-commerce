@@ -133,14 +133,15 @@ import { createDeliveryProcessor } from './modules/webhooks/services/webhook-del
 import type { WebhooksCradle } from './modules/webhooks/backend.js';
 import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
-import { i18nModule } from './modules/languages/plugin.js';
+import type { LanguagesCradle } from './modules/languages/backend.js';
+import { LANGUAGE_CHANGED_EVENT } from './modules/languages/backend.js';
 import type { CmsCradle } from './modules/cms/backend.js';
 import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
 import { dictionariesModule } from './modules/dictionaries/plugin.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
-import { taxesModule } from './modules/taxes/plugin.js';
+import type { TaxesCradle } from './modules/taxes/backend.js';
 import { promotionsModule } from './modules/promotions/plugin.js';
 import { settingsModule } from './modules/settings/plugin.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
@@ -169,7 +170,6 @@ import type { BrandingService } from './modules/transactional_emails/services/br
 // Feature 048 — Newsletter.
 import { newsletterModule } from './modules/newsletter/plugin.js';
 // Feature 049 — Google Analytics.
-import { googleAnalyticsModule } from './modules/google_analytics/plugin.js';
 // Feature 063 — LinkedIn Ads.
 // Feature 064 — Meta Ads.
 // Feature 066 — Google Tag Manager.
@@ -676,12 +676,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // sitemap generator can read the per-channel `sales_channels.storefront_url`
   // setting via the SettingsService port. See `const seo = seoModule(...)` /
   // `modules.push(seo.plugin)` further down.
-  const i18n = i18nModule({
-    emFactory: em,
-    requireAdmin,
-    auditLog: auditLogService,
-    currencyService,
-  });
+  // Feature 072 (T105) — `languages` owns its services and routes now.
+  const languagesCradle = container.cradle as unknown as LanguagesCradle;
 
   // Feature 005 — Sales Channels module. The boot-time
   // DefaultChannelReconciler runs FIRST so every other module can rely on a
@@ -754,6 +750,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // has nothing to be stale for.
     void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
   });
+  // Feature 072 (T105) — the language half of the same drop. `languages` used
+  // to pass a hard-coded `undefined` for its invalidator, so a deactivated
+  // language kept validating for up to the validator's 60 s TTL and kept being
+  // served from the Redis dictionary cache for up to an hour, while a currency
+  // change dropped both immediately.
+  eventBus.on(LANGUAGE_CHANGED_EVENT, () => {
+    dictionaries.handle.validator.invalidate();
+    // Swallowed rather than left floating: the handler is synchronous, so a
+    // drop that lands after the server closed would surface as an unhandled
+    // rejection from ioredis's socket-close path and fail an otherwise green
+    // run. A cache that could not be dropped because the process is going away
+    // has nothing to be stale for.
+    void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
+  });
 
   const salesChannels = salesChannelsModule({
     emFactory: em,
@@ -806,13 +816,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // Feature 056 — inherited price lists resolve up the org tree (nearest-first).
     resolveOrgChain: (orgId) => organizationInheritanceService.priceListOrgChain(orgId),
   });
-  const taxes = taxesModule({
-    emFactory: em,
-    requireAdmin,
-    salesChannelMembership: salesChannels.handle.membershipService,
-    dictionaryValidator: dictionaries.handle.validator,
-    auditLog: auditLogService,
-  });
+  // Feature 072 (T119) — `taxes` owns its service and routes now.
+  const taxesCradle = container.cradle as unknown as TaxesCradle;
   // Feature 012 / US8 — promotions reads catalog through CatalogQueryService
   // (the documented cross-module port — Constitution I) so the rule editor
   // can list `isPromoRule` attributes and the resolver can validate
@@ -1362,9 +1367,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     integrations.plugin,
     importExport.plugin,
     seo.plugin,
-    i18n.plugin,
     priceLists.plugin,
-    taxes.plugin,
     promotions.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
@@ -1500,7 +1503,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // for VAT-exempt / reverse-charge orgs; failures degrade to a flat 23%.
       resolveTaxRate: async ({ country, productType, vatStatus }) => {
         try {
-          const resolved = await taxes.handle.taxService.taxRateFor({
+          const resolved = await taxesCradle.taxService.taxRateFor({
             country: country ?? 'PL',
             productType: productType as
               | 'simple'
@@ -1719,7 +1722,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         );
       },
       salesChannelMembership: salesChannels.handle.membershipService,
-      languageService: i18n.handle.languageService,
+      languageService: languagesCradle.languageService,
       adminNotificationService: adminNotificationService,
       mailer: platformMailer,
       // Principle X — durable BullMQ queue for bulk operations. The consumer
@@ -2052,6 +2055,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // "no queue in this composition" is a statement a root should be able to
     // make rather than something inferred from a missing option.
     moduleQueueRedis: redis,
+    // Feature 072 (wave 2) — the sales-channel code⇄id lookup `google_analytics`
+    // resolves. Owned by `sales_channels`, which is still hand-wired (T110).
+    salesChannelCodeIdPort: {
+      idByCode: async (code: string) =>
+        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+      codeById: async (id: string) => {
+        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        return items.find((c) => c.id === id)?.code ?? null;
+      },
+    },
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
     dictionaryValidator: dictionaries.handle.validator,
@@ -2289,7 +2302,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         const vatStatus = org?.vatStatus ?? 'vat_payer';
         if (vatStatus !== 'vat_payer') return 0;
         const country = org?.registeredAddress?.country ?? 'PL';
-        const resolved = await taxes.handle.taxService.taxRateFor({
+        const resolved = await taxesCradle.taxService.taxRateFor({
           country,
           productType: 'simple',
           vatStatus,
@@ -2532,7 +2545,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     salesChannelMembership: salesChannels.handle.membershipService,
     pricingService: priceLists.handle.pricingService,
-    taxService: taxes.handle.taxService,
+    taxService: taxesCradle.taxService,
     // Feature 070 — every secret a delivery target needs is stored through the
     // credentials module (FR-107); this module holds only the pointer.
     credentials: credentialsService,
@@ -2577,7 +2590,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       return out;
     },
     customFieldDefinitions: customFieldDefinitionService,
-    languageService: i18n.handle.languageService,
+    languageService: languagesCradle.languageService,
     adminNotificationService: adminNotificationService,
     settings: settings.handle.settingsService,
     // A feed URL exists to be pasted into Merchant Center, so a path-only one
@@ -2688,8 +2701,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     grouped: new GroupedService(em, commandBus),
     assets: assetsLibrary.handle.service,
     priceLists: priceLists.handle.priceListService,
-    currencies: i18n.handle.currencyService,
-    languageService: i18n.handle.languageService,
+    currencies: currencyService,
+    languageService: languagesCradle.languageService,
     adminNotificationService: adminNotificationService,
     settings: settings.handle.settingsService,
     redis,
@@ -2992,39 +3005,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 049 — Google Analytics. GA4 integration: per-channel activation +
   // Measurement ID, Enhanced Ecommerce, custom events, and server-side tagging.
   // Config lives in the Settings module; server-side delivery is queue-backed.
-  modules.push(
-    googleAnalyticsModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
-      requireAdmin,
-      channels: {
-        idByCode: async (code) =>
-          (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
-        codeById: async (id) => {
-          const { items } = await salesChannels.handle.salesChannelsService.list({});
-          return items.find((c) => c.id === id)?.code ?? null;
-        },
-      },
-      resolveAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      auditLog: auditLogService,
-      redis,
-      runWorkers,
-      // On-demand storefront cache invalidation: any google_analytics.* setting
-      // change (and custom-event CRUD) revalidates the storefront `ga:config`.
-      onSettingChanged: (handler) =>
-        eventBus.on('settings.value_changed', (payload) =>
-          handler((payload as unknown as { settingCode: string }).settingCode),
-        ),
-      ...(process.env['STOREFRONT_BASE_URL']
-        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
-        : {}),
-      ...(process.env['REVALIDATE_SECRET']
-        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
-        : {}),
-    }),
-  );
 
   // Feature 063 — LinkedIn Ads. Per-channel Insight Tag + conversion mappings.
   // Config lives in the Settings module; the access token is a `secret` setting.
