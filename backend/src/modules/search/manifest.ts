@@ -47,6 +47,16 @@ const settings = defineModuleSettingsManifest({
   ],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'search.enabled',
+      name: 'Search enabled',
+      description:
+        'Switches product search on or off: the storefront typeahead popup and result feed, the search-phrase analytics ingest, the admin LLM and reindex screens, and the catalogue indexer that keeps Meilisearch in step with product changes. Nothing is dropped — the indexes, the recorded phrases and the LLM configuration stay, and a reindex after switching back restores what changed while it was off.',
+      groupCode: 'search',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: SEARCH_SETTING_CODES.POPUP_SUGGESTION_COUNT,
       name: 'Suggestion popup — result count',
       description:
@@ -102,8 +112,9 @@ export const manifest = defineModuleManifest({
   description:
     'Per-channel Meilisearch indexes, suggest popup, and optional LLM-augmented search.',
   version: '1.0.0',
-  dependencies: ['credentials', 'sales_channels', 'settings'],
+  dependencies: ['catalog', 'credentials', 'price_lists', 'sales_channels', 'settings'],
   settings,
+  activation: { settingCode: 'search.enabled', default: true },
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: 'search:write', label: 'Configure search (LLM / indexing)' }],
 });

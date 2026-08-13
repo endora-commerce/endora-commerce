@@ -170,6 +170,8 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // policy rather than a KSeF concern.
   ksefSellerNipResolver: 'ksef',
   newsletterBridge: 'newsletter',
+  pricingService: 'price_lists',
+  searchRunWorkers: 'search',
 };
 
 export interface PortResolution {

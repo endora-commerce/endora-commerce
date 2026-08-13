@@ -96,12 +96,14 @@ import * as module36 from './modules/pwa/backend.js';
 import { manifest as manifest36 } from './modules/pwa/manifest.js';
 import * as module37 from './modules/returns/backend.js';
 import { manifest as manifest37 } from './modules/returns/manifest.js';
-import * as module38 from './modules/seo/backend.js';
-import { manifest as manifest38 } from './modules/seo/manifest.js';
-import * as module39 from './modules/taxes/backend.js';
-import { manifest as manifest39 } from './modules/taxes/manifest.js';
-import * as module40 from './modules/webhooks/backend.js';
-import { manifest as manifest40 } from './modules/webhooks/manifest.js';
+import * as module38 from './modules/search/backend.js';
+import { manifest as manifest38 } from './modules/search/manifest.js';
+import * as module39 from './modules/seo/backend.js';
+import { manifest as manifest39 } from './modules/seo/manifest.js';
+import * as module40 from './modules/taxes/backend.js';
+import { manifest as manifest40 } from './modules/taxes/manifest.js';
+import * as module41 from './modules/webhooks/backend.js';
+import { manifest as manifest41 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: 'admin_roles', version: manifest0.version, registerModule: module0.registerModule },
@@ -142,7 +144,8 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'prompt_actions', version: manifest35.version, registerModule: module35.registerModule },
   { id: 'pwa', version: manifest36.version, registerModule: module36.registerModule },
   { id: 'returns', version: manifest37.version, registerModule: module37.registerModule },
-  { id: 'seo', version: manifest38.version, registerModule: module38.registerModule },
-  { id: 'taxes', version: manifest39.version, registerModule: module39.registerModule },
-  { id: 'webhooks', version: manifest40.version, registerModule: module40.registerModule },
+  { id: 'search', version: manifest38.version, registerModule: module38.registerModule },
+  { id: 'seo', version: manifest39.version, registerModule: module39.registerModule },
+  { id: 'taxes', version: manifest40.version, registerModule: module40.registerModule },
+  { id: 'webhooks', version: manifest41.version, registerModule: module41.registerModule },
 ];

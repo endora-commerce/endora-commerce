@@ -183,8 +183,7 @@ import { hashPassword } from '../../src/modules/auth/services/password-hasher.js
 import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
 import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
 import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
-import { searchModule } from '../../src/modules/search/plugin.js';
-import { createSuggestionPricingEnricher } from '../../src/modules/search/services/suggestion-pricing-enricher.js';
+import type { SearchCradle } from '../../src/modules/search/backend.js';
 import type { PromptActionsCradle } from '../../src/modules/prompt_actions/backend.js';
 import type { PromptActionToolRegistry } from '../../src/modules/prompt_actions/services/tool-registry.js';
 import type { PromptRequestService } from '../../src/modules/prompt_actions/services/prompt-request.service.js';
@@ -384,7 +383,7 @@ export interface BackendServerHandle {
   };
   /** Feature 006 — exposes the indexer + suggest service for tests that
    *  want deterministic teardown or to exercise embedder attach/detach. */
-  search: ReturnType<typeof searchModule>['handle'];
+  search: SearchCradle['searchHandle'];
   /** Feature 007 — exposes the ComparisonService for tests. */
   comparisons: { comparisonService: ComparisonsCradle['comparisonService'] };
   /** Feature 013 — Assets Library handle (service, folders, registry, adapters). */
@@ -2088,24 +2087,14 @@ export async function setupBackendServer(
   // LLM-toggle wrapper end-to-end. Foundation tests don't need
   // Meilisearch up; the subscriber's handlers swallow Meilisearch
   // errors so a missing backend doesn't break catalog writes.
-  const search = searchModule({
-    emFactory: em,
-    eventBus,
-    catalogAttributeRead: catalogAttributeReadService,
-    settingsService: settings.handle.settingsService,
-    settingsAdminService: settings.handle.adminService,
-    credentials: credentialsService,
-    requireAdmin: requireTestAdmin(permissionService),
-    enrichSuggestionPricing: createSuggestionPricingEnricher({
-      emFactory: em,
-      pricingService: priceLists.handle.pricingService,
-    }),
-    resolveAdminAuditContext: (request) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
+  // Feature 072 (T123) — `search` owns its services and routes now. The
+  // harness runs no reindex sweep: it has no worker role, and a periodic
+  // Meilisearch pass per test file is exactly what `enableReindexScheduler`
+  // exists to keep out.
+  registerValues(container, {
+    searchRunWorkers: false,
+    pricingService: priceLists.handle.pricingService,
   });
-  modules.push(search.plugin);
 
   // Feature 007 — Comparisons module. Customer-facing CRUD endpoints
   // exercised by US1 contract + integration tests; share/PDF/admin land
@@ -2745,7 +2734,7 @@ export async function setupBackendServer(
       requireApiKey: apiKeysCradle.requireApiKey,
       requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
     },
-    search: search.handle,
+    search: (container.cradle as unknown as SearchCradle).searchHandle,
     comparisons: { comparisonService: comparisonsCradle.comparisonService },
     assetsLibrary: assetsLibrary.handle,
     cms: cmsCradle.cms.handle,
