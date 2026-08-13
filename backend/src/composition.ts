@@ -132,7 +132,6 @@ import {
 import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
 import type { WebhooksCradle } from './modules/webhooks/backend.js';
 import { importExportModule } from './modules/import_export/plugin.js';
-import { seoModule } from './modules/seo/plugin.js';
 import type { LanguagesCradle } from './modules/languages/backend.js';
 import { LANGUAGE_CHANGED_EVENT } from './modules/languages/backend.js';
 import type { CmsCradle } from './modules/cms/backend.js';
@@ -1068,19 +1067,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // SEO module — needs the SettingsService port for the per-channel
   // `sales_channels.storefront_url` setting that the sitemap generator
   // stamps into URLs. Plugin is pushed onto `modules` further below.
-  const seo = seoModule({
-    emFactory: em,
-    requireAdmin,
-    auditLog: auditLogService,
-    settings: {
-      get: (code, salesChannelId, schema) =>
-        settings.handle.settingsService.get(code, salesChannelId, schema),
-    },
-    sitemap: {
-      staleAfterMs: 60 * 60 * 1000,
-      baseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    },
-  });
+  // Feature 072 (T117) — `seo` owns its services and routes now.
 
   let cartService: CartService | null = null;
   let shoppingListService: ShoppingListService | null = null;
@@ -1366,7 +1353,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     creditLimits.plugin,
     integrations.plugin,
     importExport.plugin,
-    seo.plugin,
     priceLists.plugin,
     promotions.plugin,
     commerceModule({

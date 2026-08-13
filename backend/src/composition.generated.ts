@@ -70,10 +70,12 @@ import * as module23 from './modules/payment_methods/backend.js';
 import { manifest as manifest23 } from './modules/payment_methods/manifest.js';
 import * as module24 from './modules/prompt_actions/backend.js';
 import { manifest as manifest24 } from './modules/prompt_actions/manifest.js';
-import * as module25 from './modules/taxes/backend.js';
-import { manifest as manifest25 } from './modules/taxes/manifest.js';
-import * as module26 from './modules/webhooks/backend.js';
-import { manifest as manifest26 } from './modules/webhooks/manifest.js';
+import * as module25 from './modules/seo/backend.js';
+import { manifest as manifest25 } from './modules/seo/manifest.js';
+import * as module26 from './modules/taxes/backend.js';
+import { manifest as manifest26 } from './modules/taxes/manifest.js';
+import * as module27 from './modules/webhooks/backend.js';
+import { manifest as manifest27 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: 'addresses', version: manifest0.version, registerModule: module0.registerModule },
@@ -101,6 +103,7 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'mfa', version: manifest22.version, registerModule: module22.registerModule },
   { id: 'payment_methods', version: manifest23.version, registerModule: module23.registerModule },
   { id: 'prompt_actions', version: manifest24.version, registerModule: module24.registerModule },
-  { id: 'taxes', version: manifest25.version, registerModule: module25.registerModule },
-  { id: 'webhooks', version: manifest26.version, registerModule: module26.registerModule },
+  { id: 'seo', version: manifest25.version, registerModule: module25.registerModule },
+  { id: 'taxes', version: manifest26.version, registerModule: module26.registerModule },
+  { id: 'webhooks', version: manifest27.version, registerModule: module27.registerModule },
 ];
