@@ -100,6 +100,11 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // read backs behaviour in nearly every module.
   'settingsSecretEncryptionKey',
   'settingsModulePresence',
+  // How a committed activation flip reaches the rest of a deployment. Root-
+  // shaped by nature (T125): production refreshes from the database and drops
+  // the storefront cache, the harness refreshes through the cache seam because
+  // it never populates `module_registrations`.
+  'lifecycleActivationPropagation',
 ]);
 
 /**

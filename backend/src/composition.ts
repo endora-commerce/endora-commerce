@@ -54,6 +54,7 @@ import type { PermissionCatalogueService } from './modules/admin_roles/services/
 import type { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
 import type { AuthCradle } from './modules/auth/backend.js';
 import {
+  publishStateChanged,
   registryCache,
   STATE_CHANGED_CHANNEL,
 } from './modules/_lifecycle/services/registry-cache.js';
@@ -207,7 +208,6 @@ import type {
 } from './modules/prompt_actions/services/tool-registry.js';
 import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
-import { registerApiInterceptorAdminRoutes } from './modules/_lifecycle/routes.admin.js';
 import {
   REGISTERED_MANIFESTS,
   type RegisteredManifestEntry,
@@ -395,6 +395,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // and the client has existed since the top of this function.
   registerValues(container, {
     redis,
+    // Feature 072 (T125) — the interceptor registry, so `_lifecycle` can serve
+    // the read-only diagnostics screen over it. It was already declared
+    // platform-owned; until this conversion nothing resolved it by name, so
+    // nothing noticed that no root registered it.
+    apiInterceptors,
     // The one connection ioredis has put into subscriber mode. Shared, because
     // a subscriber connection cannot serve commands: a per-module one would
     // cost a socket per module and buy nothing.
@@ -2952,7 +2957,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       redisSubscriber,
       emFactory: em,
       auditLog: auditLogService,
-      requireAdmin,
       // Feature 019: hand the i18n reconciler to the orchestrator so
       // module:install and module:uninstall --hard keep
       // translation_bundles aligned with the lifecycle.
@@ -2961,15 +2965,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // orchestrator so module:install and module:uninstall --hard keep
       // module_actions aligned with the lifecycle.
       adminActionsReconciler: adminActionsCradle.adminActionsReconciler,
-      // Feature 073: the operator-activation write runs through the Command
-      // Bus, and a committed flip drops the storefront's presence cache so a
-      // toggle is visible on the next request without a rebuild.
-      commandBus,
-      revalidateStorefront: (tags) =>
-        new StorefrontRevalidator({
-          baseUrl: process.env['STOREFRONT_BASE_URL'],
-          secret: process.env['REVALIDATE_SECRET'],
-        }).revalidate(tags),
     },
     resolvedRegistry.map((e) => ({
       manifest: e.manifest,
@@ -2979,6 +2974,30 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     })),
   );
   lifecycleRef = lifecycle;
+  // Feature 072 (T125) — `_lifecycle` registers its own routes now, through
+  // `ctx.ungatedRoutes`. Two names stay a composition's, and both genuinely
+  // differ: this deployment boots an orchestrator (the harness does not, because
+  // it never populates `module_registrations`), and a committed flip propagates
+  // by refreshing from the database and dropping the storefront's cache.
+  registerValues(container, {
+    lifecycleOrchestrator: lifecycle.handle.orchestrator,
+    lifecycleActivationPropagation: {
+      commandBus,
+      propagation: {
+        // The writing process refreshes itself rather than waiting on its own
+        // pub/sub round trip, so the very next request it serves sees the
+        // new state.
+        refreshLocalState: () => registryCache.refreshFromDb(em),
+        publishStateChanged: (payload: Parameters<typeof publishStateChanged>[1]) =>
+          publishStateChanged(redis, payload),
+        revalidateStorefront: (tags: string[]) =>
+          new StorefrontRevalidator({
+            baseUrl: process.env['STOREFRONT_BASE_URL'],
+            secret: process.env['REVALIDATE_SECRET'],
+          }).revalidate(tags),
+      },
+    },
+  });
   // Feature 072 (T089) — the accessor `_i18n` walks to reconcile every module's
   // translation bundles. It stays an accessor rather than the registry itself
   // because of the order this file is written in: `_i18n` composes with the
@@ -2996,12 +3015,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }
   });
 
+  // The boot half only: reconciling first-boot registrations, warming the
+  // registry cache and resuming workers. Its routes are the module's own now.
   modules.push(lifecycle.plugin);
-  // Feature 060 — read-only interceptor diagnostics on the lifecycle admin
-  // surface (same permission gate as the modules listing).
-  modules.push(async (app) => {
-    registerApiInterceptorAdminRoutes(app, { registry: apiInterceptors, requireAdmin });
-  });
 
   // Feature 043 — prompt assistant for the admin command palette. The module
   // owns the registry port; catalog/inventory contribute their tool handlers

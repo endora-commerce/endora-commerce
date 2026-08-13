@@ -37,11 +37,6 @@ function inertRedisSubscriber(): Redis {
 import { buildServer, type ModulePlugin } from '../../src/http/server.js';
 import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
 import {
-  registerApiInterceptorAdminRoutes,
-  registerModulePresenceRoutes,
-} from '../../src/modules/_lifecycle/routes.admin.js';
-import { registerModulePresenceStorefrontRoutes } from '../../src/modules/_lifecycle/routes.storefront.js';
-import {
   publishStateChanged,
   STATE_CHANGED_CHANNEL,
 } from '../../src/modules/_lifecycle/services/registry-cache.js';
@@ -792,6 +787,11 @@ export async function setupBackendServer(
 
   registerValues(container, {
     redis,
+    // Feature 072 (T125) — the interceptor registry, so `_lifecycle` can serve
+    // the read-only diagnostics screen over it. It was already declared
+    // platform-owned; until this conversion nothing resolved it by name, so
+    // nothing noticed that no root registered it.
+    apiInterceptors,
     // Mirrors `composition.ts` — but only when a test asks for pub/sub.
     //
     // A converted module arms its own subscription from `onBoot`, which is
@@ -2595,32 +2595,24 @@ export async function setupBackendServer(
 
   if (options.extraModules) modules.push(...options.extraModules);
 
-  modules.push(async (app) => {
-    registerApiInterceptorAdminRoutes(app, {
-      registry: apiInterceptors,
-      requireAdmin: requireTestAdmin(permissionService),
-    });
-    // Feature 073 — the presence projections and the activation write. The
-    // harness does not boot the lifecycle orchestrator (it seeds the registry
-    // cache directly below), but every module's off-state test asserts against
-    // the admin projection, so these three routes have to exist here.
-    //
-    // Local refresh is deliberately the *cache seam* rather than a database
-    // read: the harness never populates `module_registrations`, so refreshing
-    // from the database would blank the seeded enabled-set and take every
-    // gated route down mid-run.
-    registerModulePresenceRoutes(app, {
-      requireAdmin: requireTestAdmin(permissionService),
-      activation: {
-        commandBus,
-        propagation: {
-          refreshLocalState: () => registryCache.__refreshActivationForTesting(em),
-          publishStateChanged: (payload) => publishStateChanged(redis, payload),
-          revalidateStorefront: async () => undefined,
-        },
+  // Feature 072 (T125) — `_lifecycle` registers these routes itself now,
+  // through `ctx.ungatedRoutes`. What stays here is the one thing that
+  // genuinely differs: local refresh goes through the *cache seam* rather than
+  // a database read, because this harness never populates
+  // `module_registrations` and refreshing from the database would blank the
+  // seeded enabled-set and take every gated route down mid-run. No
+  // `lifecycleOrchestrator` is contributed, so the module list is not served —
+  // which is exactly the composition this harness has always been.
+  registerValues(container, {
+    lifecycleActivationPropagation: {
+      commandBus,
+      propagation: {
+        refreshLocalState: () => registryCache.__refreshActivationForTesting(em),
+        publishStateChanged: (payload: Parameters<typeof publishStateChanged>[1]) =>
+          publishStateChanged(redis, payload),
+        revalidateStorefront: async () => undefined,
       },
-    });
-    registerModulePresenceStorefrontRoutes(app);
+    },
   });
   options.configureInterceptors?.(apiInterceptors);
 
