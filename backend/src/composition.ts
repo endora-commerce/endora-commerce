@@ -169,7 +169,6 @@ import type { BrandingService } from './modules/transactional_emails/services/br
 // Feature 048 — Newsletter.
 import { newsletterModule } from './modules/newsletter/plugin.js';
 // Feature 049 — Google Analytics.
-import { googleAnalyticsModule } from './modules/google_analytics/plugin.js';
 // Feature 063 — LinkedIn Ads.
 // Feature 064 — Meta Ads.
 // Feature 066 — Google Tag Manager.
@@ -2052,6 +2051,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // "no queue in this composition" is a statement a root should be able to
     // make rather than something inferred from a missing option.
     moduleQueueRedis: redis,
+    // Feature 072 (wave 2) — the sales-channel code⇄id lookup `google_analytics`
+    // resolves. Owned by `sales_channels`, which is still hand-wired (T110).
+    salesChannelCodeIdPort: {
+      idByCode: async (code: string) =>
+        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+      codeById: async (id: string) => {
+        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        return items.find((c) => c.id === id)?.code ?? null;
+      },
+    },
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
     dictionaryValidator: dictionaries.handle.validator,
@@ -2992,39 +3001,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 049 — Google Analytics. GA4 integration: per-channel activation +
   // Measurement ID, Enhanced Ecommerce, custom events, and server-side tagging.
   // Config lives in the Settings module; server-side delivery is queue-backed.
-  modules.push(
-    googleAnalyticsModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
-      requireAdmin,
-      channels: {
-        idByCode: async (code) =>
-          (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
-        codeById: async (id) => {
-          const { items } = await salesChannels.handle.salesChannelsService.list({});
-          return items.find((c) => c.id === id)?.code ?? null;
-        },
-      },
-      resolveAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      auditLog: auditLogService,
-      redis,
-      runWorkers,
-      // On-demand storefront cache invalidation: any google_analytics.* setting
-      // change (and custom-event CRUD) revalidates the storefront `ga:config`.
-      onSettingChanged: (handler) =>
-        eventBus.on('settings.value_changed', (payload) =>
-          handler((payload as unknown as { settingCode: string }).settingCode),
-        ),
-      ...(process.env['STOREFRONT_BASE_URL']
-        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
-        : {}),
-      ...(process.env['REVALIDATE_SECRET']
-        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
-        : {}),
-    }),
-  );
 
   // Feature 063 — LinkedIn Ads. Per-channel Insight Tag + conversion mappings.
   // Config lives in the Settings module; the access token is a `secret` setting.

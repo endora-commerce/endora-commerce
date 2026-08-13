@@ -125,7 +125,6 @@ import { invoicesModule } from '../../src/modules/invoices/plugin.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
-import { googleAnalyticsModule } from '../../src/modules/google_analytics/plugin.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
   ORDER_COMMENT_DEFAULT,
@@ -2010,6 +2009,15 @@ export async function setupBackendServer(
     // against its own bare instance instead. `redis` is registered above; this
     // is the name that says "but not for queues".
     moduleQueueRedis: undefined,
+    // Feature 072 (wave 2) — mirrors `composition.ts`.
+    salesChannelCodeIdPort: {
+      idByCode: async (code: string) =>
+        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+      codeById: async (id: string) => {
+        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        return items.find((c) => c.id === id)?.code ?? null;
+      },
+    },
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
     dictionaryValidator: dictionaries.handle.validator,
@@ -2607,25 +2615,6 @@ export async function setupBackendServer(
 
   // Feature 049 — Google Analytics. No redis wired here, so /collect degrades
   // to 503 (queue producer absent); config + admin CRUD are fully exercised.
-  modules.push(
-    googleAnalyticsModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
-      requireAdmin: requireTestAdmin(permissionService),
-      channels: {
-        idByCode: async (code) =>
-          (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
-        codeById: async (id) => {
-          const { items } = await salesChannels.handle.salesChannelsService.list({});
-          return items.find((c) => c.id === id)?.code ?? null;
-        },
-      },
-      resolveAuditContext: (req) => ({
-        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
-      }),
-      auditLog: auditLogService,
-    }),
-  );
 
   // Feature 063 — LinkedIn Ads. Config + mapping CRUD are fully exercised.
 

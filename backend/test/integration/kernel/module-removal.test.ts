@@ -257,6 +257,13 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // the third and fourth fully removable modules in this transition.
   meta_ads: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   linkedin_ads: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `google_analytics` (wave 2, T102). The two central registries name its
+  // entity and migrations. Unlike its three siblings it is not fully removable
+  // yet: a root still supplies `salesChannelCodeIdPort`, built from
+  // `sales_channels`' resolver — but that is a *root's* closure over another
+  // module's service and imports nothing from here, so it leaves no reference
+  // either. Both registry entries go when nothing owns the entity any more.
+  google_analytics: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 
