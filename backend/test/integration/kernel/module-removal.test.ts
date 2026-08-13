@@ -166,6 +166,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `webhooks` (wave 1, T098). Beyond the two central registries, the root
+  // keeps the delivery **worker** — whether workers run at all is a
+  // `BACKEND_ROLE` deployment decision, not the module's — so it imports the
+  // processor factory and the module's cradle type. That reference is expected
+  // to stay until workers themselves move behind a deployment-owned seam.
+  webhooks: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

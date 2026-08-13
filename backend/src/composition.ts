@@ -124,12 +124,11 @@ import { creditLimitsModule } from './modules/credit_limits/plugin.js';
 import { customFieldsModule } from './modules/custom_fields/plugin.js';
 import { integrationsModule } from './modules/api_keys/plugin.js';
 // Feature 062 (T029) — outbound webhook delivery pipeline.
-import { wireEventBridge } from './modules/webhooks/services/event-bridge.js';
 import {
-  createWebhookQueue,
   createWebhookWorker,
 } from './modules/webhooks/services/webhook-queue.js';
 import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
+import type { WebhooksCradle } from './modules/webhooks/backend.js';
 import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
 import { i18nModule } from './modules/languages/plugin.js';
@@ -572,19 +571,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // worker: HMAC signing + retries + `webhook_deliveries` bookkeeping) runs
   // co-located unless BACKEND_ROLE=api, exactly like the other workers
   // (Principle X — separable via `pnpm --filter backend run worker`).
-  const webhookQueue = createWebhookQueue(redis);
-  const unwireWebhookBridge = wireEventBridge({
-    eventBus,
-    queue: webhookQueue,
-    subscriptionLookup: integrations.handle.webhookService,
-    bridgedEventTypes: ['order.created.v1', 'order.status_changed.v1'],
-  });
+  // Feature 072 (T098) — the queue, the EventBus bridge and the admin routes
+  // are `webhooks`' own now; `api_keys` no longer builds its service either.
+  // Only the delivery worker stays here, because whether workers run at all is
+  // a deployment decision (`BACKEND_ROLE`), not the module's.
+  const webhooksCradle = container.cradle as unknown as WebhooksCradle;
   const webhookWorker = runWorkers
     ? createWebhookWorker(
         redis,
         createDeliveryProcessor({
           recordDelivery: async (input) => {
-            await integrations.handle.webhookService.recordDelivery(input);
+            await webhooksCradle.webhookService.recordDelivery(input);
           },
         }),
       )
@@ -3359,11 +3356,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     },
     dispose: async () => {
-      // Feature 062 — stop bridging + drain the webhook delivery pipeline
-      // before dropping the Redis connections (graceful shutdown).
-      unwireWebhookBridge();
+      // Feature 062 — drain the webhook delivery pipeline before dropping the
+      // Redis connections (graceful shutdown). Unbridging and closing the queue
+      // are the container's job since T098: `ctx.subscribe` unsubscribes with
+      // the module and the queue registration carries its own disposer.
       if (webhookWorker) await webhookWorker.close().catch(() => undefined);
-      await webhookQueue.close().catch(() => undefined);
       redis.disconnect();
       redisSubscriber.disconnect();
       await closeOrm();

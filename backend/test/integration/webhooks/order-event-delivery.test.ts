@@ -1,3 +1,4 @@
+import type { WebhookService } from '../../../src/modules/webhooks/services/webhook-service.js';
 import { createHmac, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Queue, Worker } from 'bullmq';
@@ -50,6 +51,15 @@ async function waitFor(cond: () => boolean, timeoutMs = 15_000): Promise<void> {
     if (Date.now() > deadline) throw new Error('waitFor: condition not met in time');
     await new Promise((r) => setTimeout(r, 50));
   }
+}
+
+/**
+ * Feature 072 (T098) — `webhooks` owns its service now, so it is resolved from
+ * the container rather than off the `api_keys` handle it used to be built on.
+ */
+function webhookServiceOf(handle: BackendServerHandle): WebhookService {
+  return (handle.container.cradle as unknown as { webhookService: WebhookService })
+    .webhookService;
 }
 
 describe('webhook delivery — org-scoped order events (062/T028)', () => {
@@ -172,7 +182,7 @@ describe('webhook delivery — org-scoped order events (062/T028)', () => {
     const processor = createDeliveryProcessor({
       fetchFn: fakeFetch,
       recordDelivery: async (input) => {
-        await h.integrations.webhookService.recordDelivery(input);
+        await webhookServiceOf(h).recordDelivery(input);
       },
     });
     worker = createWebhookWorker(h.redis, processor, { prefix, concurrency: 2 });
@@ -180,7 +190,7 @@ describe('webhook delivery — org-scoped order events (062/T028)', () => {
     unwire = wireEventBridge({
       eventBus: h.eventBus,
       queue,
-      subscriptionLookup: h.integrations.webhookService,
+      subscriptionLookup: webhookServiceOf(h),
       bridgedEventTypes: ['order.created.v1', 'order.status_changed.v1'],
     });
   }, 60_000);

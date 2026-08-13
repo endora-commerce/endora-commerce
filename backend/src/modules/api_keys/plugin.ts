@@ -3,9 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { ApiKeyService, type AuthenticatedApiKey } from './services/api-key-service.js';
-import { WebhookService } from '../webhooks/services/webhook-service.js';
 import { registerApiKeysAdminRoutes } from './routes.js';
-import { registerWebhooksAdminRoutes } from '../webhooks/routes.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
@@ -42,7 +40,6 @@ declare module 'fastify' {
 
 export interface IntegrationsModuleHandle {
   apiKeyService: ApiKeyService;
-  webhookService: WebhookService;
   /**
    * Pre-handler factory that authenticates a Bearer token via ApiKeyService
    * and gates on the requested scope. Used by api-key route surfaces (e.g.
@@ -67,7 +64,6 @@ export function integrationsModule(options: IntegrationsModuleOptions): {
   handle: IntegrationsModuleHandle;
 } {
   const apiKeyService = new ApiKeyService(options.emFactory, options.auditLogService);
-  const webhookService = new WebhookService(options.emFactory, options.auditLogService);
 
   // Shared authenticate + scope assertion used by both gates.
   const resolveScopedKey = async (
@@ -143,17 +139,12 @@ export function integrationsModule(options: IntegrationsModuleOptions): {
   return {
     handle: {
       apiKeyService,
-      webhookService,
       requireApiKey,
       requireBoundApiKey,
     },
     plugin: async (app) => {
       await registerApiKeysAdminRoutes(app, {
         apiKeyService,
-        requireAdmin: options.requireAdmin,
-      });
-      await registerWebhooksAdminRoutes(app, {
-        webhookService,
         requireAdmin: options.requireAdmin,
       });
     },

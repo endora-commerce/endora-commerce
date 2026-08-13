@@ -48,6 +48,8 @@ import * as module12 from './modules/payment_methods/backend.js';
 import { manifest as manifest12 } from './modules/payment_methods/manifest.js';
 import * as module13 from './modules/prompt_actions/backend.js';
 import { manifest as manifest13 } from './modules/prompt_actions/manifest.js';
+import * as module14 from './modules/webhooks/backend.js';
+import { manifest as manifest14 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: 'addresses', version: manifest0.version, registerModule: module0.registerModule },
@@ -64,4 +66,5 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'health_checks', version: manifest11.version, registerModule: module11.registerModule },
   { id: 'payment_methods', version: manifest12.version, registerModule: module12.registerModule },
   { id: 'prompt_actions', version: manifest13.version, registerModule: module13.registerModule },
+  { id: 'webhooks', version: manifest14.version, registerModule: module14.registerModule },
 ];

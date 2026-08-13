@@ -63,27 +63,42 @@ export interface BridgedEventPayload extends EventBase {
   [key: string]: unknown;
 }
 
-export function wireEventBridge(opts: EventBridgeOptions): () => void {
-  const unsubs: Array<() => void> = [];
-  for (const eventType of opts.bridgedEventTypes) {
-    const unsub = opts.eventBus.on(eventType, async (payload) => {
-      const subs = await opts.subscriptionLookup.findActiveByEventType(
+/**
+ * The per-event-type half of the bridge, extracted so a converted module can
+ * hand it to `ctx.subscribe` (feature 072, T098).
+ *
+ * That is the whole gating story for this module. A webhook subscription is a
+ * database row created at runtime, so there is no registration seam per
+ * subscription to gate — but there are exactly **two** EventBus subscriptions,
+ * and gating those stops every delivery at once. Gate the bridge, not the
+ * subscriptions.
+ */
+export function bridgeEventHandler(
+  eventType: string,
+  deps: Pick<EventBridgeOptions, 'queue' | 'subscriptionLookup'>,
+): (payload: unknown) => Promise<void> {
+  return async (payload) => {
+    const subs = await deps.subscriptionLookup.findActiveByEventType(
+      eventType,
+      extractOrganizationId(payload),
+    );
+    for (const sub of subs) {
+      const jobData: WebhookJobData = {
+        webhookId: sub.webhookId,
+        eventId: (payload as BridgedEventPayload).eventId ?? randomUUID(),
         eventType,
-        extractOrganizationId(payload),
-      );
-      for (const sub of subs) {
-        const jobData: WebhookJobData = {
-          webhookId: sub.webhookId,
-          eventId: (payload as BridgedEventPayload).eventId ?? randomUUID(),
-          eventType,
-          payload,
-          url: sub.url,
-          secret: sub.secret,
-        };
-        await opts.queue.add(`${eventType}.${jobData.eventId}`, jobData);
-      }
-    });
-    unsubs.push(unsub);
-  }
+        payload,
+        url: sub.url,
+        secret: sub.secret,
+      };
+      await deps.queue.add(`${eventType}.${jobData.eventId}`, jobData);
+    }
+  };
+}
+
+export function wireEventBridge(opts: EventBridgeOptions): () => void {
+  const unsubs = opts.bridgedEventTypes.map((eventType) =>
+    opts.eventBus.on(eventType, bridgeEventHandler(eventType, opts)),
+  );
   return () => unsubs.forEach((u) => u());
 }
