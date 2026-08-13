@@ -62,6 +62,13 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // pass. The module needs nothing but `emFactory`, the kernel audit writer and
   // a lazily-read dictionary validator, so composing it early costs nothing.
   'addresses',
+  // `orders` reads both method registries, both order-status registries and the
+  // shipping eligibility service for placement dispatch, and it is constructed
+  // before the late pass. Their *routes* are unaffected by joining early: a
+  // root pushes the early pass's route plugins after `auth`'s root plugin, so
+  // `requireAdmin` still reads an actor the auth hook has set.
+  'delivery_methods',
+  'payment_methods',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

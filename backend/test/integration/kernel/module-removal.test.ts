@@ -149,6 +149,23 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `organizations`. Those two took the service as an argument already; what
   // changed is that there is now one of it instead of three.
   addresses: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `delivery_methods` and `payment_methods` (wave 1, T095/T097), converted as
+  // a pair. Beyond the two central registries, both roots import their registry
+  // and order-status types to annotate what they resolve and hand to `orders`,
+  // which still dispatches placement through them. Those go when `orders`
+  // converts. `payment_methods` additionally keeps a root reference for the
+  // built-in adapters, which live in `payments` — supplying them is a
+  // deployment's job, not this module's, so that one is expected to stay.
+  delivery_methods: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  payment_methods: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

@@ -5,6 +5,10 @@ import type { CommandBus } from '../../commands/index.js';
 import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { PaymentAdapterRegistry } from '../payment_methods/services/payment-adapter-registry.js';
+import type { OrderStatusRegistry } from '../payment_methods/services/order-status-registry.port.js';
+import type { ShippingAdapterRegistry } from '../delivery_methods/services/shipping-adapter-registry.js';
+import type { ShippingMethodEligibilityService } from '../delivery_methods/services/shipping-method-eligibility.js';
 import { CartService } from '../carts/services/cart-service.js';
 import { CartUpsellService } from '../carts/services/cart-upsell-service.js';
 import { CartCouponService } from '../carts/services/cart-coupon-service.js';
@@ -47,26 +51,10 @@ import { Organization } from '../organizations/entities/organization.entity.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
-import {
-  registerDeliveryMethodsPublicRoutes,
-  registerDeliveryMethodsAdminRoutes,
-} from '../delivery_methods/routes.js';
-import {
-  registerPaymentMethodsPublicRoutes,
-  registerPaymentMethodsAdminRoutes,
-} from '../payment_methods/routes.js';
-import { paymentAdapterRegistry } from '../payment_methods/services/registry-singleton.js';
-import { EnumOrderStatusRegistry } from '../payment_methods/services/order-status-registry.port.js';
-import { PaymentMethodEligibilityService } from '../payment_methods/services/payment-method-eligibility.js';
-import { builtInPaymentAdapters } from '../payments/adapters/built-in-adapters.js';
 import { ReceivePaymentHandler, type PaymentEventBus } from '../payments/services/receive-payment-handler.js';
 import { PaymentService } from '../payments/services/payment-service.js';
 import { registerPaymentsRoutes } from '../payments/routes.js';
 // Feature 035 — shipping-method adapter framework + shipment lifecycle.
-import { shippingAdapterRegistry } from '../delivery_methods/services/registry-singleton.js';
-import { EnumOrderStatusRegistry as ShippingEnumOrderStatusRegistry } from '../delivery_methods/services/order-status-registry.port.js';
-import { ShippingMethodEligibilityService } from '../delivery_methods/services/shipping-method-eligibility.js';
-import { builtInShippingAdapters } from '../delivery_methods/adapters/built-in-adapters.js';
 import { ShipmentService } from '../shipments/services/shipment-service.js';
 import { ReceiveShipmentHandler } from '../shipments/services/receive-shipment-handler.js';
 import type { ShippingEventBus } from '../shipments/services/events.js';
@@ -141,6 +129,17 @@ export interface OrdersModuleOptions {
    * unvalidated, unaudited address writes on the checkout path.
    */
   addressService: AddressService;
+  /**
+   * Feature 072 (T095/T097) — the two method modules own these now. `orders`
+   * reads them for placement dispatch and for the `statusOn*` references, so it
+   * receives them instead of building them, and there is one of each per
+   * composition rather than one per host.
+   */
+  paymentAdapterRegistry: PaymentAdapterRegistry;
+  shippingAdapterRegistry: ShippingAdapterRegistry;
+  paymentOrderStatusRegistry: OrderStatusRegistry;
+  shippingOrderStatusRegistry: OrderStatusRegistry;
+  shippingMethodEligibility: ShippingMethodEligibilityService;
   /**
    * Feature 026 — optional gate that refuses cart-line-add, place-order, and
    * RFQ-submit when the Customer's Organization is not `active`. Threaded
@@ -341,37 +340,14 @@ export function commerceModule(options: OrdersModuleOptions) {
       cartAuditService,
       cartRecomputeCacheEarly,
     );
-    // Feature 034 — payment adapter framework. Built-in adapters are populated
-    // into the process-wide singleton (registry-singleton.ts) idempotently, so
-    // external payment-method modules that registered their adapter from a
-    // lifecycle install hook share the same instance the live routes use. The
-    // OrderStatusRegistry port resolves statusOn* references (enum-backed until
-    // the Orders module ships a configurable registry).
-    for (const adapter of builtInPaymentAdapters()) {
-      if (!paymentAdapterRegistry.isRegistered(adapter.adapterKey)) {
-        paymentAdapterRegistry.register(adapter);
-      }
-    }
-    const orderStatusRegistry = new EnumOrderStatusRegistry();
-    // Feature 034 FR-003/FR-011..FR-014 — the payment twin of
-    // `shippingEligibility` below. It was written and unit-tested with the rest
-    // of feature 034 and never constructed here, so the storefront offered a
-    // payment method whose adapter is not registered; the customer picked it
-    // and found out at placement.
-    const paymentEligibility = new PaymentMethodEligibilityService(paymentAdapterRegistry);
-
-    // Feature 035 — shipping-method adapter framework. Built-in offline adapters
-    // are populated into the process-wide singleton idempotently, so external
-    // shipping-method modules that registered their adapter from a lifecycle
-    // install hook share the same instance the live routes use. The shipping
-    // OrderStatusRegistry resolves statusOnSuccess/Failure references.
-    for (const adapter of builtInShippingAdapters()) {
-      if (!shippingAdapterRegistry.isRegistered(adapter.adapterKey)) {
-        shippingAdapterRegistry.register(adapter);
-      }
-    }
-    const shippingOrderStatusRegistry = new ShippingEnumOrderStatusRegistry();
-    const shippingEligibility = new ShippingMethodEligibilityService(shippingAdapterRegistry);
+    // Feature 072 (T095/T097) — the two method modules own their registries,
+    // their eligibility services and their routes now. `orders` still reads
+    // them for placement and for the order-status references, so it takes them
+    // as options rather than building them.
+    const paymentAdapterRegistry = options.paymentAdapterRegistry;
+    const shippingAdapterRegistry = options.shippingAdapterRegistry;
+    const orderStatusRegistry = options.paymentOrderStatusRegistry;
+    const shippingOrderStatusRegistry = options.shippingOrderStatusRegistry;
 
     // Feature 036 — business Order ID generator. Adapts the composition-wired
     // prefix/suffix resolver closures (SettingsService-backed) to the
@@ -602,40 +578,6 @@ export function commerceModule(options: OrdersModuleOptions) {
       });
     }
 
-    await registerDeliveryMethodsPublicRoutes(app, {
-      emFactory: options.emFactory,
-      registry: shippingAdapterRegistry,
-      eligibility: shippingEligibility,
-      ...(options.resolveOrganizationDeliveryMethodAllowList
-        ? { resolveOrganizationDeliveryMethodAllowList: options.resolveOrganizationDeliveryMethodAllowList }
-        : {}),
-    });
-    await registerPaymentMethodsPublicRoutes(app, {
-      emFactory: options.emFactory,
-      registry: paymentAdapterRegistry,
-      eligibility: paymentEligibility,
-      ...(options.resolveOrganizationPaymentMethodAllowList
-        ? { resolveOrganizationPaymentMethodAllowList: options.resolveOrganizationPaymentMethodAllowList }
-        : {}),
-    });
-    await registerDeliveryMethodsAdminRoutes(app, {
-      emFactory: options.emFactory,
-      requireAdmin: options.requireAdmin,
-      registry: shippingAdapterRegistry,
-      orderStatusRegistry: shippingOrderStatusRegistry,
-      ...(options.salesChannelMembership
-        ? { salesChannelMembership: options.salesChannelMembership }
-        : {}),
-    });
-    await registerPaymentMethodsAdminRoutes(app, {
-      emFactory: options.emFactory,
-      requireAdmin: options.requireAdmin,
-      registry: paymentAdapterRegistry,
-      orderStatusRegistry,
-      ...(options.salesChannelMembership
-        ? { salesChannelMembership: options.salesChannelMembership }
-        : {}),
-    });
     // Feature 034 — payment lifecycle: receive_payment ingress, retry, history.
     await registerPaymentsRoutes(app, {
       requireAdmin: options.requireAdmin,

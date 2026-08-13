@@ -1,3 +1,8 @@
+import type { PaymentAdapterRegistry } from '../../src/modules/payment_methods/services/payment-adapter-registry.js';
+import type { OrderStatusRegistry } from '../../src/modules/payment_methods/services/order-status-registry.port.js';
+import type { ShippingAdapterRegistry } from '../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
+import type { ShippingMethodEligibilityService } from '../../src/modules/delivery_methods/services/shipping-method-eligibility.js';
+import { builtInPaymentAdapters } from '../../src/modules/payments/adapters/built-in-adapters.js';
 import type { ConfigurationTypeRegistry } from '../../src/modules/credentials/services/configuration-type-registry.js';
 import type { CredentialsService } from '../../src/modules/credentials/services/credentials.service.js';
 import type { AdminNotificationService } from '../../src/modules/admin_notifications/services/admin-notification-service.js';
@@ -753,6 +758,27 @@ export async function setupBackendServer(
   });
   await earlyModules.runBootHooks();
 
+  // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
+  // their registries, eligibility services and routes now. `orders` still reads
+  // them for placement dispatch and `statusOn*` resolution, so the root hands
+  // over the container's instances rather than letting a second set exist.
+  const methodsCradle = container.cradle as unknown as {
+    paymentAdapterRegistry: PaymentAdapterRegistry;
+    shippingAdapterRegistry: ShippingAdapterRegistry;
+    paymentOrderStatusRegistry: OrderStatusRegistry;
+    shippingOrderStatusRegistry: OrderStatusRegistry;
+    shippingMethodEligibility: ShippingMethodEligibilityService;
+  };
+  // The payment built-ins live in `payments`, so `payment_methods` does not
+  // seed them — which module supplies an adapter is a deployment question, and
+  // that is this root's job. Idempotent: a provider plugin may have registered
+  // into the same instance already.
+  for (const adapter of builtInPaymentAdapters()) {
+    if (!methodsCradle.paymentAdapterRegistry.isRegistered(adapter.adapterKey)) {
+      methodsCradle.paymentAdapterRegistry.register(adapter);
+    }
+  }
+
   // Feature 072 (T078) — `auth` owns these. Resolved from the same registration
   // production resolves, which is the whole point of converging the roots: the
   // harness no longer builds its own SessionService.
@@ -837,6 +863,14 @@ export async function setupBackendServer(
   };
   const resolveOrganizationPaymentMethodAllowList = buildOrgAllowListResolver('paymentMethodIds');
   const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
+  // Contributed to the two method modules, which default them absent: the
+  // per-Organization allow-list is `organizations`' knowledge. Registered here,
+  // after the early pass, so it overrides the modules' defaults rather than
+  // being overwritten by them.
+  registerValues(container, {
+    organizationPaymentMethodAllowList: resolveOrganizationPaymentMethodAllowList,
+    organizationDeliveryMethodAllowList: resolveOrganizationDeliveryMethodAllowList,
+  });
   const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
 
   /**
@@ -1043,6 +1077,13 @@ export async function setupBackendServer(
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
   });
+  // Feature 072 — the kernel-reserved membership port. `payment_methods` and
+  // `delivery_methods` resolve it to auto-bind a new method to the system
+  // default channel; both are composed early, but they read it when their
+  // routes register, which is after this line.
+  registerValues(container, {
+    salesChannelMembershipPort: salesChannels.handle.membershipService,
+  });
 
   // Feature 014 — CMS module. Reconcile seeded Hooks once; the storefront
   // resolver wraps Redis as a read-through cache.
@@ -1235,6 +1276,11 @@ export async function setupBackendServer(
     taxes.plugin,
     promotions.plugin,
     commerceModule({
+      paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
+      shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
+      paymentOrderStatusRegistry: methodsCradle.paymentOrderStatusRegistry,
+      shippingOrderStatusRegistry: methodsCradle.shippingOrderStatusRegistry,
+      shippingMethodEligibility: methodsCradle.shippingMethodEligibility,
       commandBus,
       emFactory: em,
       eventBus,
