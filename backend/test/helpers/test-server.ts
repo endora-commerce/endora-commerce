@@ -224,7 +224,7 @@ import {
   catalogPromptResolverTools,
 } from '../../src/modules/catalog/prompt-tools.js';
 import { inventoryPromptTools } from '../../src/modules/inventory/prompt-tools.js';
-import { comparisonsModule } from '../../src/modules/comparisons/plugin.js';
+import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js';
 import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
@@ -380,7 +380,7 @@ export interface BackendServerHandle {
    *  want deterministic teardown or to exercise embedder attach/detach. */
   search: ReturnType<typeof searchModule>['handle'];
   /** Feature 007 — exposes the ComparisonService for tests. */
-  comparisons: ReturnType<typeof comparisonsModule>['handle'];
+  comparisons: { comparisonService: ComparisonsCradle['comparisonService'] };
   /** Feature 013 — Assets Library handle (service, folders, registry, adapters). */
   assetsLibrary: AssetsLibraryCradle['assetsLibrary']['handle'];
   /** Feature 014 — CMS module handle (page builder registry, services, resolver). */
@@ -1985,6 +1985,7 @@ export async function setupBackendServer(
     // Feature 072 (wave 2) — mirrors `composition.ts`.
     customerContextResolver: customerResolver,
     organizationInheritancePort: organizationInheritanceService,
+    catalogAttributeReadPort: catalogAttributeReadService,
     // Feature 072 (wave 2) — mirrors `composition.ts`, reading this harness's
     // own actor property. The ad modules resolve one name instead of each
     // taking its own identically-shaped `resolveAuditContext` option.
@@ -2133,17 +2134,11 @@ export async function setupBackendServer(
   // Feature 007 — Comparisons module. Customer-facing CRUD endpoints
   // exercised by US1 contract + integration tests; share/PDF/admin land
   // in subsequent stories.
-  const comparisons = comparisonsModule({
-    emFactory: em,
-    catalogQueryService: new CatalogQueryService(em, undefined, undefined, catalogAttributeReadService),
-    catalogAttributeRead: catalogAttributeReadService,
-    settingsService: settings.handle.settingsService,
-    requireAdmin: requireTestAdmin(permissionService),
-  });
-  modules.push(comparisons.plugin);
+  // Feature 072 (T111) — `comparisons` owns its services and routes now.
+  const comparisonsCradle = container.cradle as unknown as ComparisonsCradle;
   // Late-bind the comparisons adoption hook used by the login flow above.
-  comparisonAdoption = comparisons.handle.comparisonService.adoptAnonymousComparison.bind(
-    comparisons.handle.comparisonService,
+  comparisonAdoption = comparisonsCradle.comparisonService.adoptAnonymousComparison.bind(
+    comparisonsCradle.comparisonService,
   );
 
   // Feature 008 — Quote Requests workflow.
@@ -2786,7 +2781,7 @@ export async function setupBackendServer(
     salesChannels: salesChannels.handle,
     integrations: integrations.handle,
     search: search.handle,
-    comparisons: comparisons.handle,
+    comparisons: { comparisonService: comparisonsCradle.comparisonService },
     assetsLibrary: assetsLibrary.handle,
     cms: cmsCradle.cms.handle,
     megamenu: megamenu.handle,

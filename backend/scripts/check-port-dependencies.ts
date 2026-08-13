@@ -142,6 +142,9 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // Inherited credit limits (feature 056). Owned by `organizations`, still
   // hand-wired; the entry goes when that module converts.
   organizationInheritancePort: 'organizations',
+  // The composed attribute read model (feature 061). Owned by `catalog`, still
+  // hand-wired; the entry goes when that module converts.
+  catalogAttributeReadPort: 'catalog',
 };
 
 export interface PortResolution {
