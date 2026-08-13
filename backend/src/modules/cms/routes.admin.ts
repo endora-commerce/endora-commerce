@@ -30,11 +30,11 @@ export async function registerCmsAdminRoutes(
     pageBuilderRegistry: PageBuilderRegistry;
     getColorPaletteWriter?: () => ColorPaletteWriter | null;
     resolveAdminAuditContext?: (req: FastifyRequest) => ColorPaletteAuditContext;
-    requireAdmin?: RequireAdminFactory;
+    requireAdmin: RequireAdminFactory;
   },
 ): Promise<void> {
-  const requireRead = deps.requireAdmin?.('cms.read') ?? (async () => {});
-  const requireWrite = deps.requireAdmin?.('cms.write') ?? (async () => {});
+  const requireRead = deps.requireAdmin('cms.read');
+  const requireWrite = deps.requireAdmin('cms.write');
 
   app.get('/api/v1/admin/cms/pages', { preHandler: requireRead }, async (request) => {
     const query = (request.query ?? {}) as Record<string, string | undefined>;

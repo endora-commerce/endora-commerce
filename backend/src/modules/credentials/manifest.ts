@@ -22,7 +22,7 @@ export const manifest = defineModuleManifest({
   description:
     'Reusable credential configurations (LLM, email adapter, …) referenced by settings and resolved by consumers; secrets encrypted at rest and write-only at the boundary.',
   version: '1.0.0',
-  dependencies: ['_i18n', '_lifecycle', 'settings'],
+  dependencies: ['_i18n', '_lifecycle', 'auth', 'settings'],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     {

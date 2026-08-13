@@ -1,8 +1,8 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 3.10.0 → 3.11.0
-Rationale: MINOR bump. Principle XVII's "One toggle, **in Settings**, declared
+Version change: 3.11.0 → 4.0.0
+Rationale: MAJOR bump. Principle XVII's "One toggle, **in Settings**, declared
 by the module" clause named the Settings module's admin surface as the home of
 every module's activation control. That put the control that toggles modules
 inside a module: switch the Settings admin surface off and no activation
@@ -30,10 +30,25 @@ lives** — that is a layout problem, fixed by moving the screen — while the
 declaration must now be **enforced on the platform axis**, not only rendered in
 the Admin UI.
 
-Not MAJOR: no principle is removed or redefined in substance, and the only
-compliant implementation this invalidates — feature 073's Settings-hosted
-control — is corrected in the same change. Not PATCH: this is not a wording
-clarification; a compliant implementation has to move the control.
+MAJOR, and the earlier reading of this as MINOR was wrong. It rested on "no
+principle is removed or redefined in substance", which is true and is not the
+test the versioning policy sets. The policy's MAJOR clause has a second limb —
+"a change that invalidates prior compliant work" — and this change invalidates
+it squarely: an implementation that rendered its activation control on the
+Settings admin surface was **compliant with the previous wording** and is
+**non-compliant with this one**. That the one such implementation in the tree
+(feature 073's) is corrected in the same commit changes who had to do the work,
+not whether the rule moved under it.
+
+The distinction matters beyond bookkeeping. Endora Commerce is heading for an
+open-source release with third-party modules, and a module author reading
+"3.10 → 3.11" is told their activation control still belongs in Settings. The
+version number is the only signal such a reader gets before their module stops
+being conformant. Calling this MINOR would have made the first external
+breakage arrive unannounced.
+
+Not PATCH, a fortiori: this is not a wording clarification; a compliant
+implementation has to move the control.
 
 Modified principles:
   - XVII. Operator-Toggleable Modules & Disabled-Means-Absent — the surface
@@ -1198,4 +1213,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 3.11.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-08-12
+**Version**: 4.0.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-08-12

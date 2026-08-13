@@ -20,18 +20,69 @@
 
 import type { ModuleEntry } from './kernel/compose.js';
 
-import * as module0 from './modules/auth/backend.js';
-import { manifest as manifest0 } from './modules/auth/manifest.js';
-import * as module1 from './modules/blog/backend.js';
-import { manifest as manifest1 } from './modules/blog/manifest.js';
-import * as module2 from './modules/email/backend.js';
-import { manifest as manifest2 } from './modules/email/manifest.js';
-import * as module3 from './modules/health_checks/backend.js';
-import { manifest as manifest3 } from './modules/health_checks/manifest.js';
+import * as module0 from './modules/addresses/backend.js';
+import { manifest as manifest0 } from './modules/addresses/manifest.js';
+import * as module1 from './modules/admin_roles/backend.js';
+import { manifest as manifest1 } from './modules/admin_roles/manifest.js';
+import * as module2 from './modules/auth/backend.js';
+import { manifest as manifest2 } from './modules/auth/manifest.js';
+import * as module3 from './modules/_i18n/backend.js';
+import { manifest as manifest3 } from './modules/_i18n/manifest.js';
+import * as module4 from './modules/admin_notifications/backend.js';
+import { manifest as manifest4 } from './modules/admin_notifications/manifest.js';
+import * as module5 from './modules/analytics/backend.js';
+import { manifest as manifest5 } from './modules/analytics/manifest.js';
+import * as module6 from './modules/assets_library/backend.js';
+import { manifest as manifest6 } from './modules/assets_library/manifest.js';
+import * as module7 from './modules/audit_logs/backend.js';
+import { manifest as manifest7 } from './modules/audit_logs/manifest.js';
+import * as module8 from './modules/cms/backend.js';
+import { manifest as manifest8 } from './modules/cms/manifest.js';
+import * as module9 from './modules/blog/backend.js';
+import { manifest as manifest9 } from './modules/blog/manifest.js';
+import * as module10 from './modules/credentials/backend.js';
+import { manifest as manifest10 } from './modules/credentials/manifest.js';
+import * as module11 from './modules/currencies/backend.js';
+import { manifest as manifest11 } from './modules/currencies/manifest.js';
+import * as module12 from './modules/custom_fields/backend.js';
+import { manifest as manifest12 } from './modules/custom_fields/manifest.js';
+import * as module13 from './modules/customer_accounts/backend.js';
+import { manifest as manifest13 } from './modules/customer_accounts/manifest.js';
+import * as module14 from './modules/delivery_methods/backend.js';
+import { manifest as manifest14 } from './modules/delivery_methods/manifest.js';
+import * as module15 from './modules/email/backend.js';
+import { manifest as manifest15 } from './modules/email/manifest.js';
+import * as module16 from './modules/health_checks/backend.js';
+import { manifest as manifest16 } from './modules/health_checks/manifest.js';
+import * as module17 from './modules/mfa/backend.js';
+import { manifest as manifest17 } from './modules/mfa/manifest.js';
+import * as module18 from './modules/payment_methods/backend.js';
+import { manifest as manifest18 } from './modules/payment_methods/manifest.js';
+import * as module19 from './modules/prompt_actions/backend.js';
+import { manifest as manifest19 } from './modules/prompt_actions/manifest.js';
+import * as module20 from './modules/webhooks/backend.js';
+import { manifest as manifest20 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
-  { id: 'auth', version: manifest0.version, registerModule: module0.registerModule },
-  { id: 'blog', version: manifest1.version, registerModule: module1.registerModule },
-  { id: 'email', version: manifest2.version, registerModule: module2.registerModule },
-  { id: 'health_checks', version: manifest3.version, registerModule: module3.registerModule },
+  { id: 'addresses', version: manifest0.version, registerModule: module0.registerModule },
+  { id: 'admin_roles', version: manifest1.version, registerModule: module1.registerModule },
+  { id: 'auth', version: manifest2.version, registerModule: module2.registerModule },
+  { id: '_i18n', version: manifest3.version, registerModule: module3.registerModule },
+  { id: 'admin_notifications', version: manifest4.version, registerModule: module4.registerModule },
+  { id: 'analytics', version: manifest5.version, registerModule: module5.registerModule },
+  { id: 'assets_library', version: manifest6.version, registerModule: module6.registerModule },
+  { id: 'audit_logs', version: manifest7.version, registerModule: module7.registerModule },
+  { id: 'cms', version: manifest8.version, registerModule: module8.registerModule },
+  { id: 'blog', version: manifest9.version, registerModule: module9.registerModule },
+  { id: 'credentials', version: manifest10.version, registerModule: module10.registerModule },
+  { id: 'currencies', version: manifest11.version, registerModule: module11.registerModule },
+  { id: 'custom_fields', version: manifest12.version, registerModule: module12.registerModule },
+  { id: 'customer_accounts', version: manifest13.version, registerModule: module13.registerModule },
+  { id: 'delivery_methods', version: manifest14.version, registerModule: module14.registerModule },
+  { id: 'email', version: manifest15.version, registerModule: module15.registerModule },
+  { id: 'health_checks', version: manifest16.version, registerModule: module16.registerModule },
+  { id: 'mfa', version: manifest17.version, registerModule: module17.registerModule },
+  { id: 'payment_methods', version: manifest18.version, registerModule: module18.registerModule },
+  { id: 'prompt_actions', version: manifest19.version, registerModule: module19.registerModule },
+  { id: 'webhooks', version: manifest20.version, registerModule: module20.registerModule },
 ];

@@ -7,7 +7,7 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
-import { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
+import type { CustomerAuthService as CustomerAuthServiceType } from '../customer_accounts/services/customer-auth-service.js';
 import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
 import { SalesRepAssignmentService } from '../organizations/services/sales-rep-assignment-service.js';
 import { ImpersonationService } from '../admin_users/services/impersonation-service.js';
@@ -23,7 +23,7 @@ import { CustomerDeletionService } from './services/customer-deletion-service.js
 import { CustomerPresenceService } from './services/customer-presence-service.js';
 import { CartQueryService } from '../carts/services/cart-query-service.js';
 import { AnonymizationSweepWorker } from './workers/anonymization-sweep-worker.js';
-import { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
+import type { PasswordResetService as PasswordResetServiceType } from '../customer_accounts/services/password-reset-service.js';
 import type { VatValidator } from '../organizations/services/vat-validator-port.js';
 import type { Mailer } from '../email/services/mailer.js';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
@@ -46,6 +46,13 @@ import {
  * never imports another module's internals (Constitution Principle I).
  */
 export interface CustomersModuleOptions {
+  /**
+   * Feature 072 (T094) — `customer_accounts` owns these now. Injected rather
+   * than built here, because this host and `organizations` each built their own and the
+   * MFA argument differed between them.
+   */
+  customerAuthService: CustomerAuthServiceType;
+  passwordResetService: PasswordResetServiceType;
   emFactory: () => EntityManager;
   sessionService: SessionService;
   requireCustomer: RequireCustomerGuard;
@@ -84,12 +91,7 @@ export function customersModule(options: CustomersModuleOptions): {
   plugin: ModulePlugin;
   handle: () => CustomersModuleHandle;
 } {
-  const customerAuthService = new CustomerAuthService(
-    options.emFactory,
-    options.sessionService,
-    undefined, // getMfaLoginPort — not wired in the customers composition
-    options.auditLogService,
-  );
+  const customerAuthService = options.customerAuthService;
   const personalOrganizationService = new PersonalOrganizationService(options.emFactory);
   const registrationService = new CustomerRegistrationService({
     emFactory: options.emFactory,
@@ -154,7 +156,7 @@ export function customersModule(options: CustomersModuleOptions): {
     },
     options.resolvePresenceFreshnessMinutes,
   );
-  const passwordResetService = new PasswordResetService(options.emFactory, options.auditLogService);
+  const passwordResetService = options.passwordResetService;
   const anonymizationSweepWorker = new AnonymizationSweepWorker(
     deletionService,
     options.resolveDeletionRetentionDays,

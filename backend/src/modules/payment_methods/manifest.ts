@@ -14,5 +14,17 @@ export const manifest = defineModuleManifest({
   description:
     'Payment method definitions and per-channel availability.',
   version: '1.0.0',
-  dependencies: [],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by; the
+  // edge became real with the conversion (feature 072, T097).
+  dependencies: ['auth'],
+  // Feature 072/073 (Constitution XVII). Every checkout picks a payment method
+  // from this module's table, and `orders` resolves its adapter registry to
+  // dispatch on placement. A deployment with it switched off cannot take an
+  // order, so the orchestrator refuses to disable it.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Holds the payment methods every checkout selects from and the adapter registry orders ' +
+      'dispatches through; switched off, the platform cannot take an order.',
+  },
 });

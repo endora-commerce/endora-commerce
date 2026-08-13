@@ -1,6 +1,6 @@
 import { initOrm, closeOrm } from '../../../db/index.js';
 import { I18nService } from '../services/i18n-service.js';
-import { reconcileBundles } from '../plugin.js';
+import { reconcileBundles } from '../services/bundle-reconciler.js';
 import { REGISTERED_MANIFESTS } from '../../_lifecycle/registered-manifests.js';
 import { enterSystemScope } from '../../../kernel/scope.js';
 

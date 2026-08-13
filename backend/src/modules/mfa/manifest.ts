@@ -102,7 +102,10 @@ export const manifest = defineModuleManifest({
   description:
     'Two-factor authentication (TOTP + recovery codes) and Google/Microsoft sign-in, with per-scope enablement/enforcement and admin reset.',
   version: '1.0.0',
-  dependencies: ['admin_users', 'customer_accounts', 'organizations', 'settings'],
+  // `auth` owns `sessionService`, `requireAdmin` and the customer guard this
+  // module resolves; feature 072 made those container resolutions rather than
+  // constructor arguments, so the edge is real now and has to be declared.
+  dependencies: ['admin_users', 'customer_accounts', 'organizations', 'settings', 'auth'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

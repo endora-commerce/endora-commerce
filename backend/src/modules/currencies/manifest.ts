@@ -14,5 +14,11 @@ export const manifest = defineModuleManifest({
   description:
     'Currency reference data and per-channel currency configuration.',
   version: '1.0.0',
+  // Deliberately empty. `currencies` announces a change on the EventBus and
+  // `dictionaries` reacts by dropping its caches — a **notification**, not a
+  // query, which `contracts/module-context.md` says needs no dependency edge.
+  // Declaring one produced a real cycle (dictionaries → currencies →
+  // dictionaries) and the cycle was the design telling us the direction was
+  // wrong: a currency has no business knowing a dictionary cache exists.
   dependencies: [],
 });

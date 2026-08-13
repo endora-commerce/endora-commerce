@@ -5,13 +5,17 @@
 // `test/integration/dictionaries/seed.idempotent.test.ts` (T010); this
 // unit test only asserts the export contract.
 
+import { CurrencyService } from '../../../src/modules/currencies/services/currency-service.js';
 import { describe, it, expect } from 'vitest';
 import { dictionariesModule } from '../../../src/modules/dictionaries/plugin.js';
 
 describe('dictionariesModule (export shape)', () => {
   it('returns { plugin, handle } and the handle exposes the documented members', () => {
     const fakeEm = (() => ({})) as never;
-    const mod = dictionariesModule({ emFactory: fakeEm });
+    const mod = dictionariesModule({
+      emFactory: fakeEm,
+      currencyService: new CurrencyService(fakeEm),
+    });
 
     expect(typeof mod.plugin).toBe('function');
     expect(mod.handle).toBeDefined();

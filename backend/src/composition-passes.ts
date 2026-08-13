@@ -41,6 +41,66 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // That separation is what lets `health_checks` keep contributing its probe
   // ahead of the auth hook while `auth` registers first.
   'auth',
+  // `auth` resolves `permissionService` from it, and both roots resolve its
+  // three services immediately after this pass. The generated order already
+  // puts it ahead of `auth`, because `auth`'s manifest declares the dependency.
+  'admin_roles',
+  // `dictionaries` and `languages` are constructed well before the late pass
+  // and both take `currencyService` as an argument now, so the registration has
+  // to exist by then. It needs nothing but `emFactory`, the kernel audit writer
+  // and a lazily-read invalidator, so composing it early costs nothing.
+  'currencies',
+  // Both roots resolve `adminNotificationService` immediately after this pass
+  // and hand it to the four modules that write notifications.
+  'admin_notifications',
+  // `search`, `newsletter` and `prompt_actions` are hand-wired and take
+  // `credentialsService` as an argument, so it has to be registered before
+  // any of them is constructed.
+  'credentials',
+  // `orders` (as `commerceModule`) and `organizations` both take
+  // `addressService` as an argument and are constructed well before the late
+  // pass. The module needs nothing but `emFactory`, the kernel audit writer and
+  // a lazily-read dictionary validator, so composing it early costs nothing.
+  'addresses',
+  // `orders` reads both method registries, both order-status registries and the
+  // shipping eligibility service for placement dispatch, and it is constructed
+  // before the late pass. Their *routes* are unaffected by joining early: a
+  // root pushes the early pass's route plugins after `auth`'s root plugin, so
+  // `requireAdmin` still reads an actor the auth hook has set.
+  'delivery_methods',
+  'payment_methods',
+  // `customers` and `organizations` both take this module's services as
+  // arguments and are constructed before the late pass. It needs only
+  // `emFactory`, the kernel audit writer and `auth`'s `sessionService`, all of
+  // which exist by then.
+  'customer_accounts',
+  // Both roots resolve its handle to contribute `catalog`, `cms` and
+  // `megamenu` reference resolvers, well before the late pass. Named here from
+  // the conversion diff rather than after a red run — see the predictor in the
+  // note above this list.
+  'assets_library',
+  // Eight hand-wired modules take `customFieldValueService` or
+  // `customFieldDefinitionService` as a constructor argument — `catalog`,
+  // `orders`, `organizations`, `customers`, `quote_requests`, `product_feeds`
+  // and the two catalog admin services — and every one of them is built before
+  // the late pass. Named from the conversion diff, per the predictor above.
+  'custom_fields',
+  // I argued this one out of the list on the reasoning that its consumers sit
+  // near the *end* of a root, and was wrong: `container.cradle` is read there,
+  // but the read still has to find a registration, and the late pass composes
+  // after the harness's read. Ninth of fourteen conversions to need this entry.
+  //
+  // Joining early does not disturb the reconcile-timing this module is careful
+  // about (see `_i18n/backend.ts`): a pass decides when a module *registers*,
+  // while its route plugin is attached from the `modules` array at the end of
+  // `buildServer` either way.
+  '_i18n',
+  // `megamenu` cross-registers into this module's reference registry, and the
+  // root resolves that registry before the late pass. Named from the diff.
+  'cms',
+  // Both roots read `mfaLoginPort` well before the late pass, to contribute the
+  // `mfaLoginPortGetter` that `customer_accounts` resolves at login.
+  'mfa',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

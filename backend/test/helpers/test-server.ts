@@ -1,6 +1,40 @@
+import type { AssetsLibraryCradle } from '../../src/modules/assets_library/backend.js';
+import type { CustomerAccountsCradle } from '../../src/modules/customer_accounts/backend.js';
+import type { PaymentAdapterRegistry } from '../../src/modules/payment_methods/services/payment-adapter-registry.js';
+import type { OrderStatusRegistry } from '../../src/modules/payment_methods/services/order-status-registry.port.js';
+import type { ShippingAdapterRegistry } from '../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
+import type { ShippingMethodEligibilityService } from '../../src/modules/delivery_methods/services/shipping-method-eligibility.js';
+import { builtInPaymentAdapters } from '../../src/modules/payments/adapters/built-in-adapters.js';
+import type { ConfigurationTypeRegistry } from '../../src/modules/credentials/services/configuration-type-registry.js';
+import type { CredentialsService } from '../../src/modules/credentials/services/credentials.service.js';
+import type { AdminNotificationService } from '../../src/modules/admin_notifications/services/admin-notification-service.js';
+import { CURRENCY_CHANGED_EVENT } from '../../src/modules/currencies/backend.js';
+import type { CurrencyService } from '../../src/modules/currencies/services/currency-service.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import Redis from 'ioredis';
+
+/**
+ * A subscriber-shaped object that subscribes to nothing.
+ *
+ * Feature 072 (T087) — `custom_fields` arms its definition-invalidation
+ * channel from `onBoot`, so every composition now *asks* for a subscriber.
+ * Production hands it the real one. The harness hands it this unless the test
+ * opted into pub/sub, because a live subscription per composition is the leak
+ * the `exercisePubSub` opt-in was measured into existence to stop — and because
+ * a module that never receives an invalidation still behaves correctly, it just
+ * falls back to the cache's 5 s TTL.
+ */
+function inertRedisSubscriber(): Redis {
+  const inert = {
+    subscribe: async () => 0,
+    on: () => inert,
+    removeAllListeners: () => inert,
+    unsubscribe: async () => 0,
+    disconnect: () => undefined,
+  };
+  return inert as unknown as Redis;
+}
 import { buildServer, type ModulePlugin } from '../../src/http/server.js';
 import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
 import {
@@ -14,6 +48,7 @@ import {
 } from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { activationDeclarationsFrom } from '../../src/modules/_lifecycle/services/activation-resolver.js';
 import { effectiveState } from '../../src/modules/_lifecycle/services/effective-state.js';
+import { ModuleDisabledError } from '../../src/modules/_lifecycle/plugin-helpers.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { type TenantContext } from '../../src/tenancy/tenant-context.js';
 import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js';
@@ -38,9 +73,9 @@ import { EventBus } from '../../src/events/bus.js';
 import { CommandBus } from '../../src/commands/index.js';
 import type { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
-import { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
-import { PermissionCatalogueService } from '../../src/modules/admin_roles/services/permission-catalogue.service.js';
-import { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
+import type { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
+import type { PermissionCatalogueService } from '../../src/modules/admin_roles/services/permission-catalogue.service.js';
+import type { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
 import type { AuthCradle } from '../../src/modules/auth/backend.js';
 import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../src/modules/_lifecycle/services/registry-cache.js';
@@ -52,12 +87,10 @@ import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
-import { AdminUserService } from '../../src/modules/admin_users/services/admin-user-service.js';
-import { i18nModule as adminI18nModule } from '../../src/modules/_i18n/plugin.js';
+import type { AdminI18nCradle } from '../../src/modules/_i18n/backend.js';
 import { adminActionsModule } from '../../src/modules/admin_actions/plugin.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
-import { adminNotificationsModule } from '../../src/modules/admin_notifications/plugin.js';
 import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
 import { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
 import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
@@ -65,7 +98,7 @@ import { OrganizationRestrictionService } from '../../src/modules/organizations/
 import { SalesRepAssignmentService } from '../../src/modules/organizations/services/sales-rep-assignment-service.js';
 import { OrganizationTreeService } from '../../src/modules/organizations/services/organization-tree-service.js';
 import { OrganizationInheritanceService } from '../../src/modules/organizations/services/organization-inheritance-service.js';
-import { AddressService } from '../../src/modules/addresses/services/address-service.js';
+import type { AddressService } from '../../src/modules/addresses/services/address-service.js';
 import { ORGANIZATIONS_SETTING_CODES } from '../../src/modules/organizations/manifest.js';
 import { resolveCustomerRollupSubtreeIds } from '../../src/modules/customer_accounts/services/customer-rollup-scope.js';
 import { OrganizationEffectivePriceListsService } from '../../src/modules/organizations/services/organization-effective-pricelists-service.js';
@@ -130,13 +163,15 @@ import {
 import { CreditTopupProvider } from '../../src/modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from '../../src/modules/returns/services/return-email-notifier.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
-import { customFieldsModule } from '../../src/modules/custom_fields/plugin.js';
+import type { CustomFieldsCradle } from '../../src/modules/custom_fields/backend.js';
+import type { CustomFieldDefinitionService } from '../../src/modules/custom_fields/services/custom-field-definition.service.js';
+import type { CustomFieldValueService } from '../../src/modules/custom_fields/services/custom-field-value.service.js';
+import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
-import { analyticsModule } from '../../src/modules/analytics/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import { seoModule } from '../../src/modules/seo/plugin.js';
 import { i18nModule } from '../../src/modules/languages/plugin.js';
-import { cmsModule } from '../../src/modules/cms/plugin.js';
+import type { CmsCradle } from '../../src/modules/cms/backend.js';
 import { megamenuModule } from '../../src/modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/services/cms-references.js';
@@ -149,15 +184,18 @@ import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
 import { settingsModule } from '../../src/modules/settings/plugin.js';
-import { mfaModule } from '../../src/modules/mfa/plugin.js';
+import type { MfaActorBridge, MfaCradle } from '../../src/modules/mfa/backend.js';
 import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
 import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
 import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
 import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
 import { searchModule } from '../../src/modules/search/plugin.js';
 import { createSuggestionPricingEnricher } from '../../src/modules/search/services/suggestion-pricing-enricher.js';
-import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/modules/prompt_actions/plugin.js';
-import { credentialsModule } from '../../src/modules/credentials/plugin.js';
+import type { PromptActionsCradle } from '../../src/modules/prompt_actions/backend.js';
+import type { PromptActionToolRegistry } from '../../src/modules/prompt_actions/services/tool-registry.js';
+import type { PromptRequestService } from '../../src/modules/prompt_actions/services/prompt-request.service.js';
+import type { LlmProviderFactory } from '../../src/modules/prompt_actions/services/llm/provider-factory.js';
+import type { FetchLike } from '../../src/modules/prompt_actions/services/llm/provider.js';
 import { ksefModule } from '../../src/modules/ksef/plugin.js';
 import { productFeedsModule } from '../../src/modules/product_feeds/plugin.js';
 import type {
@@ -191,7 +229,6 @@ import {
 } from '../../src/modules/catalog/prompt-tools.js';
 import { inventoryPromptTools } from '../../src/modules/inventory/prompt-tools.js';
 import { comparisonsModule } from '../../src/modules/comparisons/plugin.js';
-import { assetsLibraryModule } from '../../src/modules/assets_library/plugin.js';
 import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
@@ -249,7 +286,7 @@ export interface BackendServerOptions {
    */
   commerceMailer?: Mailer;
   /** Feature 043 — scripted LLM fetch + clock/TTL seams for prompt-action tests. */
-  promptActionsLlmFetch?: PromptActionsModuleOptions['llmFetch'];
+  promptActionsLlmFetch?: FetchLike;
   promptActionsNow?: () => Date;
   promptActionsTtlMinutes?: number;
   /** Feature 059 — stub KSeF API client for submission/credential tests. */
@@ -313,6 +350,8 @@ export interface BackendServerHandle {
   redis: Redis;
   /** Feature 072 (T073) — the module-state pub/sub client, disconnected at teardown. */
   redisSubscriber: Redis;
+  /** Whether `exercisePubSub` armed a subscription, so teardown knows to undo it. */
+  pubSubArmed: boolean;
   sessionService: SessionService;
   auditLogService: AuditLogService;
   permissionService: PermissionService;
@@ -320,9 +359,13 @@ export interface BackendServerHandle {
   /** Feature 004 — exposes the universal getter and cache invalidator for tests. */
   settings: ReturnType<typeof settingsModule>['handle'];
   /** Feature 043 — prompt assistant handle (registry + request service). */
-  promptActions: ReturnType<typeof promptActionsModule>['handle'];
+  promptActions: {
+    registry: PromptActionToolRegistry;
+    requestService: PromptRequestService;
+    providerFactory: LlmProviderFactory;
+  };
   /** Feature 058 — credentials handle (config-type registry + service). */
-  credentials: ReturnType<typeof credentialsModule>['handle'];
+  credentials: { service: CredentialsService; configurationTypeRegistry: ConfigurationTypeRegistry };
   /** Feature 047 — invoices handle (issuance service, PDF renderer, number generator). */
   invoices: ReturnType<typeof invoicesModule>['handle'];
   /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
@@ -343,9 +386,9 @@ export interface BackendServerHandle {
   /** Feature 007 — exposes the ComparisonService for tests. */
   comparisons: ReturnType<typeof comparisonsModule>['handle'];
   /** Feature 013 — Assets Library handle (service, folders, registry, adapters). */
-  assetsLibrary: ReturnType<typeof assetsLibraryModule>['handle'];
+  assetsLibrary: AssetsLibraryCradle['assetsLibrary']['handle'];
   /** Feature 014 — CMS module handle (page builder registry, services, resolver). */
-  cms: ReturnType<typeof cmsModule>['handle'];
+  cms: CmsCradle['cms']['handle'];
   /** Feature 015 — Megamenu module handle (reference registry, cache). */
   megamenu: ReturnType<typeof megamenuModule>['handle'];
   /**
@@ -363,19 +406,21 @@ export interface BackendServerHandle {
   /** Feature 017 — Dictionary module handle (cache + future validator). */
   dictionaries: ReturnType<typeof dictionariesModule>['handle'];
   /** Feature 021 — error-envelope i18n bridge. */
-  adminI18n: ReturnType<typeof adminI18nModule>['handle'];
+  adminI18n: { i18nService: AdminI18nCradle['adminI18nService'] };
   /** Feature 015+ — promotions module handle (exposes PromotionService). */
   promotions: ReturnType<typeof promotionsModule>['handle'];
   /** Feature 055 — custom fields (definition + value services). */
-  customFields: ReturnType<typeof customFieldsModule>['handle'];
+  customFields: {
+    definitionService: CustomFieldDefinitionService;
+    valueService: CustomFieldValueService;
+    cache: CustomFieldDefinitionsCache;
+  };
   /** Feature 061 — the composed attribute read model (definition + extension views). */
   catalogAttributeRead: CatalogAttributeReadService;
   /** Feature 026 — moderation lifecycle, admin notifications, org context. */
   organizations: {
     moderationService: OrganizationModerationService;
-    adminNotificationService: ReturnType<
-      typeof adminNotificationsModule
-    >['handle']['adminNotificationService'];
+    adminNotificationService: AdminNotificationService;
     organizationContextService: OrganizationContextService;
     /** Feature 026 US4 — per-org allow-list service. */
     restrictionService: OrganizationRestrictionService;
@@ -646,16 +691,8 @@ export async function setupBackendServer(
   }
 
   const auditLogService = new AuditLogService(em);
-  const permissionService = new PermissionService(em);
-  const permissionCatalogueService = new PermissionCatalogueService({
-    registryEntries: REGISTERED_MANIFESTS,
-  });
-  // Feature 072 (T074) — production passes the audit log service here and the
-  // harness did not, so every audited role write in tests ran through a service
-  // with no audit writer: the audit rows the write is supposed to leave were
-  // asserted by nothing, in the one module whose whole point is authorisation.
-  const adminRoleService = new AdminRoleService(em, permissionCatalogueService, auditLogService);
-  const requireAdminAny = requireTestAdminAny(permissionService);
+
+
 
   const conn = orm.em.getConnection();
   await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
@@ -727,13 +764,30 @@ export async function setupBackendServer(
     activationDeclarationsFrom(REGISTERED_MANIFESTS.map((e) => e.manifest)),
   );
   registryCache.__setEnabledForTesting(REGISTERED_MANIFESTS.map((e) => e.manifest.id));
-  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
 
   registerValues(container, {
     redis,
-    // `admin_roles` owns this and is still hand-wired; `auth` resolves it to
-    // build the `requireAdmin` guard. Mirrors `composition.ts`.
-    permissionService,
+    // Mirrors `composition.ts` — but only when a test asks for pub/sub.
+    //
+    // A converted module arms its own subscription from `onBoot`, which is
+    // right in production and wrong here: one armed subscription per
+    // composition, across ~225 files, is how this harness accumulated ~1 GB of
+    // retention (task #32). Handing the module an inert subscriber keeps the
+    // module's code identical in both compositions and keeps the count of
+    // *real* subscriptions at "only where a test asks", which is the property
+    // `harness-parity` checks.
+    redisSubscriber:
+      options.exercisePubSub === true ? redisSubscriber : inertRedisSubscriber(),
+    // Modules announce on it; `ctx.subscribe` receives on it. A module that
+    // publishes needs it as a registration, not just as a composer option.
+    eventBus,
+    // The audited write path (Principle XIII). A converted module resolves it
+    // like any other platform service.
+    commandBus,
+    // Mirrors `composition.ts`: the resolved registry the permission catalogue
+    // is built from, and the kernel's audit writer.
+    resolvedModuleRegistry: REGISTERED_MANIFESTS,
+    auditLogService,
   });
   const earlyModules = composeModules(earlyPassModules(MODULES), {
     container,
@@ -743,11 +797,66 @@ export async function setupBackendServer(
     ownership: registrationOwnership,
   });
   await earlyModules.runBootHooks();
+  // Feature 072 (T094) — one `CustomerAuthService` for the composition.
+  // `customers` and `organizations` each built their own and the MFA argument
+  // differed between them; there is one now, and it can always reach the port.
+  const customerAccountsCradle = container.cradle as unknown as CustomerAccountsCradle;
+
+  // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
+  // their registries, eligibility services and routes now. `orders` still reads
+  // them for placement dispatch and `statusOn*` resolution, so the root hands
+  // over the container's instances rather than letting a second set exist.
+  const methodsCradle = container.cradle as unknown as {
+    paymentAdapterRegistry: PaymentAdapterRegistry;
+    shippingAdapterRegistry: ShippingAdapterRegistry;
+    paymentOrderStatusRegistry: OrderStatusRegistry;
+    shippingOrderStatusRegistry: OrderStatusRegistry;
+    shippingMethodEligibility: ShippingMethodEligibilityService;
+  };
+  // The payment built-ins live in `payments`, so `payment_methods` does not
+  // seed them — which module supplies an adapter is a deployment question, and
+  // that is this root's job. Idempotent: a provider plugin may have registered
+  // into the same instance already.
+  for (const adapter of builtInPaymentAdapters()) {
+    if (!methodsCradle.paymentAdapterRegistry.isRegistered(adapter.adapterKey)) {
+      methodsCradle.paymentAdapterRegistry.register(adapter);
+    }
+  }
 
   // Feature 072 (T078) — `auth` owns these. Resolved from the same registration
   // production resolves, which is the whole point of converging the roots: the
   // harness no longer builds its own SessionService.
   const sessionService = (container.cradle as unknown as AuthCradle).sessionService;
+
+  // Feature 072 (wave 1) — `admin_roles` owns these three. Resolved from the
+  // same registration production resolves, which is how the roots stop being
+  // able to differ: T074 found the harness building AdminRoleService without
+  // its audit writer, and a registration cannot be built two ways.
+  const rolesCradle = container.cradle as unknown as {
+    permissionService: PermissionService;
+    permissionCatalogueService: PermissionCatalogueService;
+    adminRoleService: AdminRoleService;
+  };
+  const permissionService = rolesCradle.permissionService;
+  const permissionCatalogueService = rolesCradle.permissionCatalogueService;
+  const adminRoleService = rolesCradle.adminRoleService;
+
+  // Feature 072 (wave 1) — one `CurrencyService`, where `dictionaries` and
+  // `languages` each built their own with different invalidators.
+  const currencyService = (container.cradle as unknown as { currencyService: CurrencyService })
+    .currencyService;
+
+  // Feature 072 (wave 1) — `admin_notifications` provides this as a port, so a
+  // cross-module write answers on its effective state rather than succeeding
+  // into a module the operator switched off.
+  const adminNotificationService = (
+    container.cradle as unknown as { adminNotificationService: AdminNotificationService }
+  ).adminNotificationService;
+  const requireAdminAny = requireTestAdminAny(permissionService);
+  // The enabled-set accessor is wired here rather than with the seeding above,
+  // because the catalogue it wires is `admin_roles`' registration and does not
+  // exist until the early pass has run.
+  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
 
   // The mailer the `email` module registered. `injectedMailer` is the same
   // instance unless a test supplied its own — the one seam that stays, because
@@ -798,6 +907,14 @@ export async function setupBackendServer(
   };
   const resolveOrganizationPaymentMethodAllowList = buildOrgAllowListResolver('paymentMethodIds');
   const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
+  // Contributed to the two method modules, which default them absent: the
+  // per-Organization allow-list is `organizations`' knowledge. Registered here,
+  // after the early pass, so it overrides the modules' defaults rather than
+  // being overwritten by them.
+  registerValues(container, {
+    organizationPaymentMethodAllowList: resolveOrganizationPaymentMethodAllowList,
+    organizationDeliveryMethodAllowList: resolveOrganizationDeliveryMethodAllowList,
+  });
   const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
 
   /**
@@ -827,15 +944,16 @@ export async function setupBackendServer(
     };
   };
 
-  // Standalone AdminUserService for modules that need direct service-level
-  // access to admin users (feature 019 — wires the preferred-language
-  // setter into the i18n module's PATCH route).
-  const testAdminUserService = new AdminUserService(em);
-
   // Feature 042 — late-bound MFA login port (the MFA module is built after
   // `settings` below; mirrors composition.ts).
   let testMfaLoginPort: MfaLoginPort | undefined;
   const getTestMfaLoginPort = (): MfaLoginPort | undefined => testMfaLoginPort;
+
+  // Feature 072 (T094) — contributed to `customer_accounts`, which defaults it
+  // absent. Registered after the early pass so it overrides the module's own
+  // default rather than being overwritten by it; the getter is late-bound, so
+  // `mfa` composing later is not a race.
+  registerValues(container, { mfaLoginPortGetter: getTestMfaLoginPort });
 
   // Build the admin module first so we can hand its handle (auditLogService,
   // permissionService) to other modules that need it.
@@ -892,28 +1010,26 @@ export async function setupBackendServer(
     inheritance: organizationInheritanceService,
   });
 
-  // Feature 055 — Custom Fields Layer. No Redis publisher in tests; the cache
-  // uses its in-process map + TTL. The value service is threaded into the
-  // organizations module below so org custom-field values validate on edit.
-  const customFields = customFieldsModule({
-    emFactory: em,
-    commandBus,
-    requireAdmin: requireTestAdmin(permissionService),
-  });
-  // Feature 072 (T073) — production starts this; the harness arms it only when
-  // a test asks (see `exercisePubSub`). Awaited rather than fire-and-forget,
-  // because a `subscribe` landing after teardown made ioredis reconnect and
-  // re-subscribe, leaving a live client pinning the whole composition.
-  if (options.exercisePubSub === true) {
-    await customFields.handle.cache.start(redisSubscriber);
-  }
+  // Feature 055 — Custom Fields Layer, converted in feature 072 (T087). The
+  // module owns its services and its cache subscription now; the harness reads
+  // the two ports host modules consume, exactly as `composition.ts` does.
+  //
+  // The subscription is no longer conditional on `exercisePubSub`. That flag
+  // existed because a fire-and-forget `subscribe` could land after teardown and
+  // make ioredis reconnect, pinning the composition; the module arms it from an
+  // **awaited** `onBoot` during setup instead, so there is no late landing to
+  // guard against, and it adds no connection — `redisSubscriber` is one the
+  // harness already opens.
+  const customFieldsCradle = container.cradle as unknown as CustomFieldsCradle;
+  const customFieldDefinitionService = customFieldsCradle.customFieldDefinitionService;
+  const customFieldValueService = customFieldsCradle.customFieldValueService;
 
   // Feature 061 — the composed attribute read model (mirrors composition.ts):
   // product-host custom-field definitions + catalog extension rows, threaded
   // into catalog, search, quick_order, and comparisons.
   const catalogAttributeReadService = new CatalogAttributeReadService(
     em,
-    customFields.handle.definitionService,
+    customFieldDefinitionService,
   );
 
   // US7 — API keys + webhooks. The handle exposes
@@ -927,10 +1043,6 @@ export async function setupBackendServer(
 
   // Analytics (Phase 10 / T237). No GA4 forwarder in tests — the env vars
   // are unset by default so `buildForwarderFromEnv` returns a NoopForwarder.
-  const analytics = analyticsModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-  });
 
   // Import/Export (Phase 10 / T240).
   const importExport = importExportModule({
@@ -953,13 +1065,45 @@ export async function setupBackendServer(
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
     auditLog: auditLogService,
+    currencyService,
   });
 
   const dictionaries = dictionariesModule({
     emFactory: em,
+    currencyService,
     requireAdmin: requireTestAdmin(permissionService),
     redis,
     auditLog: auditLogService,
+  });
+
+  // Registered here rather than with the other host values further down:
+  // `addresses` reads it to build the one `AddressService`, and both `orders`
+  // and `organizations` are constructed before that block runs.
+  registerValues(container, { dictionaryValidator: dictionaries.handle.validator });
+  // Feature 072 (T090) — one `AddressService` for the whole composition.
+  // `orders` and `organizations` used to build their own, and the constructor's
+  // validator and audit writer are optional, so the instances were free to
+  // disagree — and one did.
+  const addressService = (container.cradle as unknown as { addressService: AddressService })
+    .addressService;
+
+  // Feature 072 (wave 1) — `currencies` resolves this per write. It is the same
+  // pair of drops `dictionariesModule` performs internally; registering it here
+  // is what lets a single `CurrencyService` serve both admin surfaces, which is
+  // the point of the conversion. It disappears when `dictionaries` converts and
+  // registers the invalidator itself.
+  // Feature 072 (wave 1) — `dictionaries` reacts to a currency change instead
+  // of `currencies` calling into it. The direction matters: declaring the call
+  // as a dependency produced a real cycle, and the cycle was the design saying
+  // a currency must not know a dictionary cache exists.
+  eventBus.on(CURRENCY_CHANGED_EVENT, () => {
+    dictionaries.handle.validator.invalidate();
+    // Swallowed rather than left floating: the handler is synchronous, so a
+    // drop that lands after the server closed would surface as an unhandled
+    // rejection from ioredis's socket-close path and fail an otherwise green
+    // run. A cache that could not be dropped because the process is going away
+    // has nothing to be stale for.
+    void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
   });
 
   // Feature 005 — sales-channels module is built BEFORE every other module
@@ -977,18 +1121,24 @@ export async function setupBackendServer(
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
   });
+  // Feature 072 — the kernel-reserved membership port. `payment_methods` and
+  // `delivery_methods` resolve it to auto-bind a new method to the system
+  // default channel; both are composed early, but they read it when their
+  // routes register, which is after this line.
+  registerValues(container, {
+    salesChannelMembershipPort: salesChannels.handle.membershipService,
+  });
 
   // Feature 014 — CMS module. Reconcile seeded Hooks once; the storefront
   // resolver wraps Redis as a read-through cache.
-  const cms = cmsModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    redis,
-  });
-  await cms.handle.reconcile();
+  // Feature 072 (T093) — `cms` owns its services, resolvers, reconciliation
+  // and routes now. Notably it also owns the four late-bound resolvers this
+  // harness never wired: the colour-palette writer was absent here, so
+  // `PUT /admin/cms/page-builder/color-palette` answered 500 in every test run.
+  const cmsCradle = container.cradle as unknown as CmsCradle;
   // Tests rely on writes being immediately visible. Wipe the namespace
   // before each backend boot so a previous run's keys don't bleed in.
-  if (cms.handle.cache) await cms.handle.cache.invalidateAll();
+  if (cmsCradle.cms.handle.cache) await cmsCradle.cms.handle.cache.invalidateAll();
 
   // Pricing (T127 / FR-050).
   const priceLists = priceListsModule({
@@ -1159,22 +1309,24 @@ export async function setupBackendServer(
     },
     admin.plugin,
     creditLimits.plugin,
-    customFields.plugin,
     integrations.plugin,
-    analytics.plugin,
     importExport.plugin,
     seo.plugin,
     i18n.plugin,
-    cms.plugin,
     priceLists.plugin,
     taxes.plugin,
     promotions.plugin,
     commerceModule({
+      paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
+      shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
+      paymentOrderStatusRegistry: methodsCradle.paymentOrderStatusRegistry,
+      shippingOrderStatusRegistry: methodsCradle.shippingOrderStatusRegistry,
+      shippingMethodEligibility: methodsCradle.shippingMethodEligibility,
       commandBus,
       emFactory: em,
       eventBus,
       auditLogService,
-      customFieldValues: customFields.handle.valueService,
+      customFieldValues: customFieldValueService,
       getTransactionalEmailSender: () => transactionalEmailSender,
       creditLimit: creditLimits.handle.creditLimitService,
       requireCustomer: requireTestCustomer(),
@@ -1184,7 +1336,7 @@ export async function setupBackendServer(
       // Feature 072 (T072) — production passes this and the harness did not, so
       // every address path in checkout ran a shape no deployment runs. Same
       // three arguments as `composition.ts`.
-      addressService: new AddressService(em, dictionaries.handle.validator, auditLogService),
+      addressService,
       // Real per-product VAT — mirrors composition.ts so placeOrder resolves the
       // rate from the tax rules instead of a flat 23%.
       resolveTaxRate: async ({ country, productType, vatStatus }) => {
@@ -1310,10 +1462,6 @@ export async function setupBackendServer(
     // passed in. Subscribes the registration notifier + auto-approve
     // handler to the same event bus.
     ...(() => {
-      const adminNotifications = adminNotificationsModule({
-        emFactory: em,
-        requireAdmin: requireTestAdmin(permissionService),
-      });
       const moderationService = new OrganizationModerationService(
         em,
         auditLogService,
@@ -1327,7 +1475,7 @@ export async function setupBackendServer(
         (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
       const orgRegistrationNotifier = new OrgRegistrationNotifier({
         emFactory: em,
-        adminNotificationService: adminNotifications.handle.adminNotificationService,
+        adminNotificationService: adminNotificationService,
         mailer: injectedMailer,
         resolveRecipients: async () => [],
         templateEmail: makeOrgTemplateEmail({
@@ -1369,13 +1517,17 @@ export async function setupBackendServer(
       // services directly.
       handleFeature026 = {
         moderationService,
-        adminNotificationService: adminNotifications.handle.adminNotificationService,
+        adminNotificationService: adminNotificationService,
         organizationContextService: new OrganizationContextService(em),
         restrictionService,
       };
       return [
-        adminNotifications.plugin,
         organizationsModule({
+      customerAuthService: customerAccountsCradle.customerAuthService,
+      passwordResetService: customerAccountsCradle.passwordResetService,
+      customerRoleService: customerAccountsCradle.customerRoleService,
+      totpEnrolmentService: customerAccountsCradle.totpEnrolmentService,
+      addressService,
           emFactory: em,
           eventBus,
           commandBus,
@@ -1393,7 +1545,7 @@ export async function setupBackendServer(
           restrictionService,
           effectivePriceListsService,
           taxIdValidationService: testTaxIdValidationService,
-          customFieldValues: customFields.handle.valueService,
+          customFieldValues: customFieldValueService,
           exposeTestProbe: true,
           dictionaryValidator: dictionaries.handle.validator,
           mailer: injectedMailer,
@@ -1426,10 +1578,10 @@ export async function setupBackendServer(
       commandBus,
       requireAdmin: requireTestAdmin(permissionService),
       auditLogService,
-      customFieldValues: customFields.handle.valueService,
-      customFieldDefinitions: customFields.handle.definitionService,
+      customFieldValues: customFieldValueService,
+      customFieldDefinitions: customFieldDefinitionService,
       // Feature 061 — apply seam + composed attribute read model.
-      customFieldsPort: customFields.handle.definitionService,
+      customFieldsPort: customFieldDefinitionService,
       attributeReadService: catalogAttributeReadService,
       requireApiKey: integrations.handle.requireApiKey,
       // Feature 062 — external catalog namespace (mirrors composition.ts):
@@ -1526,59 +1678,28 @@ export async function setupBackendServer(
   // Feature 042 — MFA module (mirrors composition.ts). Built after `settings`
   // so it can read MFA settings; its login port is bound to the late-bound
   // `testMfaLoginPort` captured by the auth services above.
-  const mfa = mfaModule({
-    emFactory: em,
-    redis,
-    settingsService: settings.handle.settingsService,
-    auditLogService,
-    sessionService,
-    resolveDefaultChannelId: async () =>
+  // Feature 072 (T096) — `mfa` owns its services, routes and configuration.
+  // What this harness still owns is the actor shape: it authenticates through
+  // `request.testActor` where production uses `request.actor`, which is exactly
+  // why the bridge is contributed rather than built into the module.
+  registerValues(container, {
+    mfaDefaultChannelIdResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
-    secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
-    requireCustomer: requireTestCustomer(),
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveCustomerActor: (request) => {
-      if (request.testActor?.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      return {
-        customerAccountId: request.testActor.customerAccountId,
-        organizationId: request.testActor.organizationId ?? null,
-      };
-    },
-    resolveAdminActor: (request) => {
-      if (request.testActor?.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      return { adminUserId: request.testActor.adminUserId };
-    },
-    resolveOrganizationCustomerIds: async (organizationId) => {
-      const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
-      return rows.map((r) => r.id);
-    },
-    resolveOrgAdmin: async (request) => {
-      if (request.testActor?.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      const c = await em().findOne(CustomerAccount, { id: request.testActor.customerAccountId });
-      if (!c || c.role !== 'organization_admin' || !c.organizationId) {
-        throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
-      }
-      return { organizationId: c.organizationId, actor: c.id };
+    mfaBaseUrls: {
+      backend: 'http://localhost',
+      storefront: 'http://localhost:3000',
+      admin: 'http://localhost:3002',
     },
     // Feature 042 US4/US5 — deterministic fake provider. `exchangeCode` derives
     // the identity from the `code` query so tests control the resolved email;
     // `unverified@example.com` simulates an unverified provider email.
-    oauthProvider: fakeOAuthProvider,
-    backendBaseUrl: 'http://localhost',
-    storefrontBaseUrl: 'http://localhost:3000',
-    adminBaseUrl: 'http://localhost:3002',
-    socialAccountResolvers: {
-      resolveCustomerByEmail: async (email) => {
+    mfaOauthProvider: fakeOAuthProvider,
+    mfaSocialAccountResolvers: {
+      resolveCustomerByEmail: async (email: string) => {
         const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
         return c ? { id: c.id } : null;
       },
-      autoCreateCustomer: async (email) => {
+      autoCreateCustomer: async (email: string) => {
         const account = em().create(CustomerAccount, {
           email,
           passwordHash: await hashTestPassword(),
@@ -1591,35 +1712,58 @@ export async function setupBackendServer(
         await em().persistAndFlush(account);
         return { id: account.id };
       },
-      resolveAdminByEmail: async (email) => {
+      resolveAdminByEmail: async (email: string) => {
         const a = await em().findOne(AdminUser, { email, deletedAt: null, status: 'active' });
         return a ? { id: a.id } : null;
       },
     },
+    mfaActorBridge: {
+      resolveCustomerActor: (request: FastifyRequest) => {
+        if (request.testActor?.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        return {
+          customerAccountId: request.testActor.customerAccountId,
+          organizationId: request.testActor.organizationId ?? null,
+        };
+      },
+      resolveAdminActor: (request: FastifyRequest) => {
+        if (request.testActor?.kind !== 'admin') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+        }
+        return { adminUserId: request.testActor.adminUserId };
+      },
+      resolveOrganizationCustomerIds: async (organizationId: string) => {
+        const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+        return rows.map((r) => r.id);
+      },
+      resolveOrgAdmin: async (request: FastifyRequest) => {
+        if (request.testActor?.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        const c = await em().findOne(CustomerAccount, { id: request.testActor.customerAccountId });
+        if (!c || c.role !== 'organization_admin' || !c.organizationId) {
+          throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
+        }
+        return { organizationId: c.organizationId, actor: c.id };
+      },
+      // Deliberately omitted, as this harness always omitted them: with no
+      // password verifier, disabling 2FA requires a current code. Fail-closed,
+      // and the behaviour every MFA test has been written against.
+    } satisfies MfaActorBridge,
   });
-  testMfaLoginPort = mfa.handle().mfaLoginPort;
+  const mfaCradle = container.cradle as unknown as MfaCradle;
+  testMfaLoginPort = mfaCradle.mfaLoginPort;
 
   modules.push(salesChannels.plugin);
   modules.push(settings.plugin);
-  modules.push(mfa.plugin);
 
   // Feature 019 — Admin UI i18n. Test wiring uses no lifecycle registry
   // (the boot-time bundle reconciler is skipped), so route-level tests
   // exercise only the HTTP surface and the in-process resolver. Tests
   // that need bundle rows seed the table directly via `h.em()`.
-  const adminI18n = adminI18nModule({
-    orm,
-    emFactory: em,
-    adminUserService: testAdminUserService,
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminContext: (request) => ({
-      adminUserId:
-        request.testActor?.kind === 'admin'
-          ? request.testActor.adminUserId
-          : TEST_ADMIN_ID,
-    }),
-  });
-  modules.push(adminI18n.plugin);
+  // Feature 072 (T089) — `_i18n` owns its service, reconciler and routes now.
+  const adminI18nCradle = container.cradle as unknown as AdminI18nCradle;
 
   // Feature 020 — Admin Command Palette actions registry. Mounts the
   // GET /api/v1/admin/admin-actions read endpoint. Tests that need
@@ -1627,7 +1771,7 @@ export async function setupBackendServer(
   const adminActions = adminActionsModule({
     orm,
     emFactory: em,
-    i18nService: adminI18n.handle.i18nService,
+    i18nService: adminI18nCradle.adminI18nService,
     permissionService,
     requireAdmin: requireTestAdmin(permissionService),
     resolveAdminContext: (request) => ({
@@ -1644,7 +1788,7 @@ export async function setupBackendServer(
 
   // Feature 058 — Credentials module. Instantiated before the consumer modules
   // (prompt_actions, search, newsletter) so they can receive
-  // `credentials.handle.service` for the `credential_ref` resolution path.
+  // `credentialsService` for the `credential_ref` resolution path.
   if (!configurationTypeRegistry.isRegistered(llmConfigurationType.code)) {
     configurationTypeRegistry.register(llmConfigurationType);
   }
@@ -1663,75 +1807,26 @@ export async function setupBackendServer(
   if (!configurationTypeRegistry.isRegistered(feedDeliveryConfigurationType.code)) {
     configurationTypeRegistry.register(feedDeliveryConfigurationType);
   }
-  const credentials = credentialsModule({
-    emFactory: em,
-    settings: settings.handle.settingsService,
-    permissionService,
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminContext: (request) => ({
+  // Feature 072 (wave 1) — mirrors `composition.ts`: the root supplies the
+  // registry and the admin-context resolver, the module owns the service.
+  registerValues(container, {
+    configurationTypeRegistry,
+    adminContextResolver: (request: FastifyRequest) => ({
       adminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
-    commandBus,
-    configurationTypeRegistry,
-    auditLogService,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
+    credentialsSettingsPort: settings.handle.settingsService,
   });
-  modules.push(credentials.plugin);
-
-  // Feature 043 — prompt assistant (mirrors composition.ts). Tool handlers
-  // contributed by catalog/inventory; provider HTTP is injected by tests.
-  const catalogToolDeps = {
-    emFactory: em,
-    events: eventBus,
-    auditLogService,
-    salesChannelMembership: salesChannels.handle.membershipService,
-    redis,
-  };
-  const promptActions = promptActionsModule({
-    emFactory: em,
-    settings: settings.handle.settingsService,
-    resolveSettingsChannelId: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
-    permissionService,
-    isModuleInstalled: (moduleId) => registryCache.isEnabled(moduleId),
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminContext: (request) => ({
-      adminUserId:
-        request.testActor?.kind === 'admin'
-          ? request.testActor.adminUserId
-          : TEST_ADMIN_ID,
-    }),
-    auditLogService,
-    credentials: credentials.handle.service,
-    bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
-    ...(options.promptActionsLlmFetch !== undefined
-      ? { llmFetch: options.promptActionsLlmFetch }
-      : {}),
-    ...(options.promptActionsNow !== undefined ? { now: options.promptActionsNow } : {}),
-    ...(options.promptActionsTtlMinutes !== undefined
-      ? { ttlMinutes: options.promptActionsTtlMinutes }
-      : {}),
-  });
-  for (const tool of [
-    ...catalogPromptResolverTools(catalogToolDeps),
-    ...catalogPromptMutationTools(catalogToolDeps),
-    ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
-  ]) {
-    promptActions.handle.registry.register(tool);
-  }
-  modules.push(promptActions.plugin);
+  const credentialsService = (
+    container.cradle as unknown as { credentialsService: CredentialsService }
+  ).credentialsService;
 
   // Feature 013 — Assets Library. Routes mount under /api/v1/admin/assets/*
   // and /assets/file/:assetId.
-  const assetsLibrary = assetsLibraryModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    auditLog: auditLogService,
-  });
-  modules.push(assetsLibrary.plugin);
+  // Feature 072 (T092) — the module owns its plugin and its registry now; the
+  // root only contributes the reference resolvers of whichever modules this
+  // deployment ships.
+  const assetsLibrary = (container.cradle as unknown as AssetsLibraryCradle).assetsLibrary;
   registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
   registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
   registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
@@ -1881,7 +1976,7 @@ export async function setupBackendServer(
     },
   });
   modules.push(megamenu.plugin);
-  registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
+  registerMegamenuCmsReferences(cmsCradle.cmsReferenceRegistry, megamenu.handle.referenceRegistry);
   if (megamenu.handle.cache) await megamenu.handle.cache.invalidateAll();
 
   // Feature 072 — the late pass of the generated module list, at the same point
@@ -1893,13 +1988,19 @@ export async function setupBackendServer(
     // mirroring `composition.ts`.
     apiKeyResolver: async (token: string) =>
       integrations.handle.apiKeyService.authenticate(token),
-    customerOrgResolver: async (customerAccountId: string) => {
-      const customer = await em().findOne(CustomerAccount, { id: customerAccountId });
-      return customer?.organizationId ?? null;
-    },
     // `redis` is registered further up, where the client is created.
     settingsReadPort: settings.handle.settingsService,
-    assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
+    // Feature 072 (T093) — `composition.ts` has registered this since T086;
+    // the harness passed the same object to `searchModule` as an option but
+    // never registered it, so `cms`' colour-palette writer had nothing to
+    // resolve. Mirroring the root is the point of this block.
+    settingsAdminService: settings.handle.adminService,
+    // Feature 072 (T096) — the harness's own customer guard, which is a
+    // different implementation from the root's. Registering it is what makes
+    // that divergence visible in one place instead of twenty-seven.
+    requireCustomer: requireTestCustomer(),
+    settingsChannelResolver: async () =>
+      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
     dictionaryValidator: dictionaries.handle.validator,
     blogStorefrontDeps: undefined,
   });
@@ -1911,7 +2012,74 @@ export async function setupBackendServer(
     ownership: registrationOwnership,
   });
   modules.push(...lateModules.sink.plugins);
+
+  // Registered **after** the late pass on purpose: `audit_logs` registers its
+  // own empty default there, so a value written before composition would be
+  // overwritten by it (the same trap `prompt_actions` hit).
+  registerValues(container, {
+    // Feature 072 (T084) — `audit_logs` owns its routes now and no longer
+    // reaches into `admin_users` for identities. Turning an actor id into a
+    // name is a **contribution**, so it is gated here rather than declared as
+    // a dependency: the audit log must stay readable when `admin_users` is
+    // off, and it degrades to raw ids instead of refusing. Deciding what
+    // "`admin_users` is present" means is a root's job, not the reading
+    // module's; this entry disappears when `admin_users` converts and
+    // publishes the resolver itself.
+    // Feature 072 (T089) — mirrors `composition.ts`: `_i18n` reads it for the
+    // per-admin language preference, and it is `admin_users`' own instance.
+    // The harness used to build a third one for that module alone.
+    adminUserService: admin.handle.adminUserService,
+    // Feature 072 (T089) — the harness composes no `_lifecycle`, so there is no
+    // manifest registry to walk and `_i18n`'s reconcile is a no-op here. That
+    // was already true before the conversion (the old call site passed no
+    // `registry` option at all); making the absence an explicit registration is
+    // what lets the module resolve one name in both compositions.
+    lifecycleManifestRegistry: () => undefined,
+    auditActorResolver: async (ids: string[]) => {
+      if (!effectiveState.isPresent('admin_users')) throw new ModuleDisabledError('admin_users');
+      const users = await admin.handle.adminUserService.listByIds(ids);
+      return users.map((u) => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+      }));
+    },
+  });
   await lateModules.runBootHooks();
+
+  // Feature 043 / 072 — the assistant's contribution points, mirroring
+  // `composition.ts`. They are registered **after** the late pass because the
+  // module registers its own empty defaults there; a value written before
+  // composition would be overwritten by them.
+  const catalogToolDeps = {
+    emFactory: em,
+    events: eventBus,
+    auditLogService,
+    salesChannelMembership: salesChannels.handle.membershipService,
+    redis,
+  };
+  registerValues(container, {
+    promptActionsBulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
+    ...(options.promptActionsLlmFetch === undefined
+      ? {}
+      : { promptActionsLlmFetch: options.promptActionsLlmFetch }),
+    ...(options.promptActionsNow === undefined
+      ? {}
+      : { promptActionsNow: options.promptActionsNow }),
+    ...(options.promptActionsTtlMinutes === undefined
+      ? {}
+      : { promptActionsTtlMinutes: options.promptActionsTtlMinutes }),
+  });
+  const promptActionsCradle = container.cradle as unknown as PromptActionsCradle;
+  for (const tool of [
+    ...catalogPromptResolverTools(catalogToolDeps),
+    ...catalogPromptMutationTools(catalogToolDeps),
+    ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
+  ]) {
+    promptActionsCradle.promptActionToolRegistry.register(tool);
+  }
+
   const blogCradle = container.cradle as unknown as BlogCradle;
   if (blogCradle.blogCacheService) await blogCradle.blogCacheService.invalidateAll();
 
@@ -1930,7 +2098,7 @@ export async function setupBackendServer(
     catalogAttributeRead: catalogAttributeReadService,
     settingsService: settings.handle.settingsService,
     settingsAdminService: settings.handle.adminService,
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     requireAdmin: requireTestAdmin(permissionService),
     enrichSuggestionPricing: createSuggestionPricingEnricher({
       emFactory: em,
@@ -1965,7 +2133,7 @@ export async function setupBackendServer(
     eventBus,
     requireCustomer: requireTestCustomer(),
     requireAdmin: requireTestAdmin(permissionService),
-    customFieldValues: customFields.handle.valueService,
+    customFieldValues: customFieldValueService,
     resolveCustomerContext: async (request) => {
       const ctx = customerResolver(request);
       const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
@@ -2013,11 +2181,13 @@ export async function setupBackendServer(
 
   // Feature 040 — Customers module (mirrors composition.ts wiring).
   const customers = customersModule({
+      customerAuthService: customerAccountsCradle.customerAuthService,
+      passwordResetService: customerAccountsCradle.passwordResetService,
     emFactory: em,
     sessionService,
     requireCustomer: requireTestCustomer(),
     commandBus,
-    customFieldValues: customFields.handle.valueService,
+    customFieldValues: customFieldValueService,
     resolveCustomerActor: (request) => {
       if (request.testActor?.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
@@ -2230,7 +2400,7 @@ export async function setupBackendServer(
       }
       return out;
     },
-    customFieldDefinitions: customFields.handle.definitionService,
+    customFieldDefinitions: customFieldDefinitionService,
     languageService: i18n.handle.languageService,
     // FR-056 — a failed run has to be able to raise the operator notification
     // the integration tests assert on. The module instance lives inside the
@@ -2256,7 +2426,7 @@ export async function setupBackendServer(
     taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
     // Feature 070 — every delivery secret lives in the credentials module
     // (FR-107), so delivery exists only where that module is wired.
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     deliveryAdapters: options.feedDeliveryAdapters ?? refusingDeliveryAdapters(),
   });
   modules.push(productFeeds.plugin);
@@ -2275,7 +2445,7 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
     commandBus,
     eventBus,
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     catalogAdmin: new CatalogAdminService(
       em,
       eventBus as unknown as CatalogEventBus,
@@ -2283,13 +2453,13 @@ export async function setupBackendServer(
       salesChannels.handle.membershipService,
       commandBus,
       catalogAttributeReadService,
-      customFields.handle.definitionService,
+      customFieldDefinitionService,
     ),
     categoryAdmin: new CategoryAdminService(
       em,
       salesChannels.handle.membershipService,
       commandBus,
-      customFields.handle.valueService,
+      customFieldValueService,
     ),
     attributeSets: new AttributeSetService(em, commandBus, catalogAttributeReadService),
     gallery: new GalleryService(em, commandBus),
@@ -2420,7 +2590,7 @@ export async function setupBackendServer(
           occurredAt: new Date().toISOString(),
           ...payload,
         }),
-      credentials: credentials.handle.service,
+      credentials: credentialsService,
     }),
   );
 
@@ -2578,7 +2748,7 @@ export async function setupBackendServer(
         return adminUser?.preferredLanguage === 'pl' ? 'pl' : 'en';
       },
       translateErrorMessage: async ({ moduleId, key, language, originalMessage }) => {
-        const translated = await adminI18n.handle.i18nService.translate(
+        const translated = await adminI18nCradle.adminI18nService.translate(
           moduleId,
           key,
           language,
@@ -2623,10 +2793,15 @@ export async function setupBackendServer(
     apiInterceptors,
     redis,
     redisSubscriber,
+    pubSubArmed: options.exercisePubSub === true,
     sessionService,
     auditLogService,
-    promptActions: promptActions.handle,
-    credentials: credentials.handle,
+    promptActions: {
+      registry: promptActionsCradle.promptActionToolRegistry,
+      requestService: promptActionsCradle.promptRequestService,
+      providerFactory: promptActionsCradle.llmProviderFactory,
+    },
+    credentials: { service: credentialsService, configurationTypeRegistry },
     invoices: invoices.handle,
     ksef: ksef.handle,
     productFeeds: productFeeds.handle,
@@ -2640,7 +2815,7 @@ export async function setupBackendServer(
     search: search.handle,
     comparisons: comparisons.handle,
     assetsLibrary: assetsLibrary.handle,
-    cms: cms.handle,
+    cms: cmsCradle.cms.handle,
     megamenu: megamenu.handle,
     blog: {
       cache: blogCradle.blogCacheService,
@@ -2648,16 +2823,18 @@ export async function setupBackendServer(
     },
     container,
     dictionaries: dictionaries.handle,
-    adminI18n: adminI18n.handle,
+    adminI18n: { i18nService: adminI18nCradle.adminI18nService },
     promotions: promotions.handle,
-    customFields: customFields.handle,
+    customFields: {
+      definitionService: customFieldDefinitionService,
+      valueService: customFieldValueService,
+      cache: customFieldsCradle.customFieldDefinitionsCache,
+    },
     // Feature 061 — the composed attribute read model for test fixtures.
     catalogAttributeRead: catalogAttributeReadService,
     organizations: handleFeature026 ?? {
       moderationService: null as unknown as OrganizationModerationService,
-      adminNotificationService: null as unknown as ReturnType<
-        typeof adminNotificationsModule
-      >['handle']['adminNotificationService'],
+      adminNotificationService: null as unknown as AdminNotificationService,
       organizationContextService: null as unknown as OrganizationContextService,
       restrictionService: null as unknown as OrganizationRestrictionService,
     },
@@ -2695,10 +2872,16 @@ export async function teardownBackendServer(h: BackendServerHandle): Promise<voi
   // re-establishes it on any reconnect — which is how one armed subscription
   // per composition became ~1 GB of retention across a run.
   h.redisSubscriber.removeAllListeners('message');
-  try {
-    await h.redisSubscriber.unsubscribe();
-  } catch {
-    // Already closed — nothing to unsubscribe from.
+  // Only when something actually subscribed. `unsubscribe()` on a client that
+  // never entered subscriber mode rejects asynchronously from ioredis's socket
+  // close handler — a rejection no `try` around this call can catch, which
+  // surfaced as an unhandled rejection failing otherwise-green runs.
+  if (h.pubSubArmed) {
+    try {
+      await h.redisSubscriber.unsubscribe();
+    } catch {
+      // Already closed — nothing left to unsubscribe from.
+    }
   }
   h.redisSubscriber.disconnect();
   await closeOrm();

@@ -1,3 +1,4 @@
+import { CurrencyService } from '../../../src/modules/currencies/services/currency-service.js';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { dictionariesModule } from '../../../src/modules/dictionaries/plugin.js';
@@ -31,7 +32,12 @@ describe('dictionary SeedReconciler idempotency', () => {
 
   it('first run inserts the seed catalogue; second run is a no-op', async () => {
     const emFactory = (): typeof db.orm.em => db.orm.em;
-    const mod = dictionariesModule({ emFactory: emFactory as never });
+    const mod = dictionariesModule({
+      emFactory: emFactory as never,
+      // `currencies` owns the service now; these cases exercise the seed
+      // reconciler and never touch it.
+      currencyService: new CurrencyService(emFactory as never),
+    });
 
     // Wipe any seed state from prior tests so the first call is "fresh".
     const conn = db.orm.em.getConnection();
@@ -56,7 +62,12 @@ describe('dictionary SeedReconciler idempotency', () => {
 
   it('preserves operator edits to seeded country labels', async () => {
     const emFactory = (): typeof db.orm.em => db.orm.em;
-    const mod = dictionariesModule({ emFactory: emFactory as never });
+    const mod = dictionariesModule({
+      emFactory: emFactory as never,
+      // `currencies` owns the service now; these cases exercise the seed
+      // reconciler and never touch it.
+      currencyService: new CurrencyService(emFactory as never),
+    });
 
     // First boot — seeds the catalogue.
     await mod.handle.reconcile();
@@ -82,7 +93,12 @@ describe('dictionary SeedReconciler idempotency', () => {
 
   it('never updates an existing currency row (operator edits sticky by construction)', async () => {
     const emFactory = (): typeof db.orm.em => db.orm.em;
-    const mod = dictionariesModule({ emFactory: emFactory as never });
+    const mod = dictionariesModule({
+      emFactory: emFactory as never,
+      // `currencies` owns the service now; these cases exercise the seed
+      // reconciler and never touch it.
+      currencyService: new CurrencyService(emFactory as never),
+    });
 
     // Seed once, then operator edits JPY arbitrarily.
     await mod.handle.reconcile();
@@ -108,7 +124,12 @@ describe('dictionary SeedReconciler idempotency', () => {
 
   it('skips translation rows whose parent entry is missing (polymorphic FK at the service layer)', async () => {
     const emFactory = (): typeof db.orm.em => db.orm.em;
-    const mod = dictionariesModule({ emFactory: emFactory as never });
+    const mod = dictionariesModule({
+      emFactory: emFactory as never,
+      // `currencies` owns the service now; these cases exercise the seed
+      // reconciler and never touch it.
+      currencyService: new CurrencyService(emFactory as never),
+    });
 
     // Insert a country without translation, then add a translation row
     // for a non-seeded code — the reconciler must NOT create translations
@@ -132,7 +153,12 @@ describe('dictionary SeedReconciler idempotency', () => {
 
   it('honours the partial-unique-default invariant by leaving PL as the only default', async () => {
     const emFactory = (): typeof db.orm.em => db.orm.em;
-    const mod = dictionariesModule({ emFactory: emFactory as never });
+    const mod = dictionariesModule({
+      emFactory: emFactory as never,
+      // `currencies` owns the service now; these cases exercise the seed
+      // reconciler and never touch it.
+      currencyService: new CurrencyService(emFactory as never),
+    });
 
     await mod.handle.reconcile();
 
@@ -145,7 +171,12 @@ describe('dictionary SeedReconciler idempotency', () => {
 
   it('seeds en-US primary associations for the English-speaking subset', async () => {
     const emFactory = (): typeof db.orm.em => db.orm.em;
-    const mod = dictionariesModule({ emFactory: emFactory as never });
+    const mod = dictionariesModule({
+      emFactory: emFactory as never,
+      // `currencies` owns the service now; these cases exercise the seed
+      // reconciler and never touch it.
+      currencyService: new CurrencyService(emFactory as never),
+    });
 
     await mod.handle.reconcile();
     const conn = db.orm.em.getConnection();

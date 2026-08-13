@@ -1,3 +1,14 @@
+import type { AssetsLibraryCradle } from './modules/assets_library/backend.js';
+import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
+import type { PaymentAdapterRegistry } from './modules/payment_methods/services/payment-adapter-registry.js';
+import type { OrderStatusRegistry } from './modules/payment_methods/services/order-status-registry.port.js';
+import type { ShippingAdapterRegistry } from './modules/delivery_methods/services/shipping-adapter-registry.js';
+import type { ShippingMethodEligibilityService } from './modules/delivery_methods/services/shipping-method-eligibility.js';
+import { builtInPaymentAdapters } from './modules/payments/adapters/built-in-adapters.js';
+import type { CredentialsService } from './modules/credentials/services/credentials.service.js';
+import type { AdminNotificationService } from './modules/admin_notifications/services/admin-notification-service.js';
+import { CURRENCY_CHANGED_EVENT } from './modules/currencies/backend.js';
+import type { CurrencyService } from './modules/currencies/services/currency-service.js';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
@@ -8,7 +19,7 @@ import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
 import { Organization } from './modules/organizations/entities/organization.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, cmsColorPaletteSchema } from '@b2b/contracts';
+import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
 import { ApiInterceptorRegistry } from './http/interceptors/index.js';
@@ -39,20 +50,20 @@ import type {
   RequireAdminFactory,
 } from './kernel/ports/require-admin.js';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
-import { PermissionService } from './modules/admin_roles/services/permission-service.js';
-import { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
-import { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
+import type { PermissionService } from './modules/admin_roles/services/permission-service.js';
+import type { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
+import type { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
 import type { AuthCradle } from './modules/auth/backend.js';
 import {
   registryCache,
   STATE_CHANGED_CHANNEL,
 } from './modules/_lifecycle/services/registry-cache.js';
 import { effectiveState } from './modules/_lifecycle/services/effective-state.js';
+import { ModuleDisabledError } from './modules/_lifecycle/plugin-helpers.js';
 import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 import { catalogModule } from './modules/catalog/plugin.js';
 import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
-import { adminNotificationsModule } from './modules/admin_notifications/plugin.js';
 import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
 import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
 import { OrganizationEffectivePriceListsService } from './modules/organizations/services/organization-effective-pricelists-service.js';
@@ -91,7 +102,7 @@ import { ksefModule } from './modules/ksef/plugin.js';
 import { productFeedsModule } from './modules/product_feeds/plugin.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
-import { AddressService } from './modules/addresses/services/address-service.js';
+import type { AddressService } from './modules/addresses/services/address-service.js';
 import type { OrderListService } from './modules/orders/services/order-list-service.js';
 import type { OrderTransitionService } from './modules/orders/services/order-transition-service.js';
 import { customersModule } from './modules/customers/plugin.js';
@@ -99,7 +110,7 @@ import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
 import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
 import { adminModule } from './modules/admin_users/plugin.js';
-import { mfaModule } from './modules/mfa/plugin.js';
+import type { MfaActorBridge, MfaCradle } from './modules/mfa/backend.js';
 import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
 import { verifyPassword, hashPassword } from './modules/auth/services/password-hasher.js';
 import {
@@ -112,21 +123,18 @@ import { StockLevelService } from './modules/inventory/services/stock-level-serv
 import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from './modules/credit_limits/plugin.js';
-import { customFieldsModule } from './modules/custom_fields/plugin.js';
+import type { CustomFieldsCradle } from './modules/custom_fields/backend.js';
 import { integrationsModule } from './modules/api_keys/plugin.js';
 // Feature 062 (T029) — outbound webhook delivery pipeline.
-import { wireEventBridge } from './modules/webhooks/services/event-bridge.js';
 import {
-  createWebhookQueue,
   createWebhookWorker,
 } from './modules/webhooks/services/webhook-queue.js';
 import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
-import { analyticsModule } from './modules/analytics/plugin.js';
+import type { WebhooksCradle } from './modules/webhooks/backend.js';
 import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
 import { i18nModule } from './modules/languages/plugin.js';
-import { cmsModule } from './modules/cms/plugin.js';
-import { CMS_PAGE_BUILDER_SETTING_CODES } from './modules/cms/manifest.js';
+import type { CmsCradle } from './modules/cms/backend.js';
 import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
@@ -147,9 +155,7 @@ import {
 } from './modules/search/manifest.js';
 import { comparisonsModule } from './modules/comparisons/plugin.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
-import { promptActionsModule } from './modules/prompt_actions/plugin.js';
 // Feature 058 — Credentials (reusable credential configurations).
-import { credentialsModule } from './modules/credentials/plugin.js';
 import { configurationTypeRegistry } from './modules/credentials/services/registry-singleton.js';
 import { llmConfigurationType } from './modules/credentials/types/llm.type.js';
 import { emailAdapterConfigurationType } from './modules/credentials/types/email-adapter.type.js';
@@ -207,8 +213,10 @@ import {
 } from './modules/catalog/prompt-tools.js';
 import { inventoryPromptTools } from './modules/inventory/prompt-tools.js';
 import { ordersPromptTools } from './modules/orders/prompt-tools.js';
-import type { PromptActionTool } from './modules/prompt_actions/services/tool-registry.js';
-import { assetsLibraryModule } from './modules/assets_library/plugin.js';
+import type {
+  PromptActionTool,
+  PromptActionToolRegistry,
+} from './modules/prompt_actions/services/tool-registry.js';
 import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
 import { registerApiInterceptorAdminRoutes } from './modules/_lifecycle/routes.admin.js';
@@ -223,9 +231,8 @@ import {
   loadOverlayModulePlugins,
 } from './overlay/overlay-runtime.js';
 import type { PricingServiceContract } from './modules/price_lists/services/pricing-service.interface.js';
-import { i18nModule as adminI18nModule } from './modules/_i18n/plugin.js';
+import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 import { adminActionsModule } from './modules/admin_actions/plugin.js';
-import { AdminUserService } from './modules/admin_users/services/admin-user-service.js';
 import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
@@ -347,7 +354,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
 
   const auditLogService = new AuditLogService(em);
-  const permissionService = new PermissionService(em);
 
   // Feature 057 — resolve the per-deployment overlay once. For a bare-core
   // build (no DEPLOYMENT / no overlay dir) all of these are empty and the wiring
@@ -368,10 +374,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ...overlayModuleManifests.map((m) => ({ manifest: m.manifest, filePath: m.filePath })),
   ];
 
-  const permissionCatalogueService = new PermissionCatalogueService({
-    registryEntries: resolvedRegistry,
-  });
-  const adminRoleService = new AdminRoleService(em, permissionCatalogueService, auditLogService);
 
   const eventBus = new EventBus();
 
@@ -405,10 +407,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // and the client has existed since the top of this function.
   registerValues(container, {
     redis,
-    // `admin_roles` owns this and is still hand-wired; `auth` resolves it to
-    // build the `requireAdmin` guard, and its manifest declares the dependency
-    // (D-32). The entry disappears when `admin_roles` converts.
-    permissionService,
+    // The one connection ioredis has put into subscriber mode. Shared, because
+    // a subscriber connection cannot serve commands: a per-module one would
+    // cost a socket per module and buy nothing.
+    redisSubscriber,
+    // Modules announce on it; `ctx.subscribe` receives on it. A module that
+    // publishes needs it as a registration, not just as a composer option.
+    eventBus,
+    // The audited write path (Principle XIII). A converted module resolves it
+    // like any other platform service.
+    commandBus,
+    // The resolved registry — core manifests plus this deployment's overlay
+    // modules. `admin_roles` builds the permission catalogue from it and cannot
+    // see it itself: which modules a deployment ships is a composition-root
+    // input, not something a module decides.
+    resolvedModuleRegistry: resolvedRegistry,
+    auditLogService,
   });
   const earlyModules = composeModules(earlyPassModules(MODULES), {
     container,
@@ -419,6 +433,31 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ownership: registrationOwnership,
   });
   await earlyModules.runBootHooks();
+  // Feature 072 (T094) — one `CustomerAuthService` for the composition.
+  // `customers` and `organizations` each built their own and the MFA argument
+  // differed between them; there is one now, and it can always reach the port.
+  const customerAccountsCradle = container.cradle as unknown as CustomerAccountsCradle;
+
+  // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
+  // their registries, eligibility services and routes now. `orders` still reads
+  // them for placement dispatch and `statusOn*` resolution, so the root hands
+  // over the container's instances rather than letting a second set exist.
+  const methodsCradle = container.cradle as unknown as {
+    paymentAdapterRegistry: PaymentAdapterRegistry;
+    shippingAdapterRegistry: ShippingAdapterRegistry;
+    paymentOrderStatusRegistry: OrderStatusRegistry;
+    shippingOrderStatusRegistry: OrderStatusRegistry;
+    shippingMethodEligibility: ShippingMethodEligibilityService;
+  };
+  // The payment built-ins live in `payments`, so `payment_methods` does not
+  // seed them — which module supplies an adapter is a deployment question, and
+  // that is this root's job. Idempotent: a provider plugin may have registered
+  // into the same instance already.
+  for (const adapter of builtInPaymentAdapters()) {
+    if (!methodsCradle.paymentAdapterRegistry.isRegistered(adapter.adapterKey)) {
+      methodsCradle.paymentAdapterRegistry.register(adapter);
+    }
+  }
 
   // Feature 072 (T078) — `auth` owns these now. Resolved rather than
   // constructed, so production and the test harness get the same instances
@@ -428,6 +467,28 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdminAny: RequireAdminAnyFactory;
   };
   const sessionService = authCradle.sessionService;
+
+  // Feature 072 (wave 1) — `admin_roles` owns these three now.
+  const rolesCradle = container.cradle as unknown as {
+    permissionService: PermissionService;
+    permissionCatalogueService: PermissionCatalogueService;
+    adminRoleService: AdminRoleService;
+  };
+  const permissionService = rolesCradle.permissionService;
+  const permissionCatalogueService = rolesCradle.permissionCatalogueService;
+  const adminRoleService = rolesCradle.adminRoleService;
+
+  // Feature 072 (wave 1) — one `CurrencyService`, where `dictionaries` and
+  // `languages` each built their own with different invalidators.
+  const currencyService = (container.cradle as unknown as { currencyService: CurrencyService })
+    .currencyService;
+
+  // Feature 072 (wave 1) — `admin_notifications` provides this as a port, so a
+  // cross-module write answers on its effective state rather than succeeding
+  // into a module the operator switched off.
+  const adminNotificationService = (
+    container.cradle as unknown as { adminNotificationService: AdminNotificationService }
+  ).adminNotificationService;
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
@@ -517,19 +578,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // worker: HMAC signing + retries + `webhook_deliveries` bookkeeping) runs
   // co-located unless BACKEND_ROLE=api, exactly like the other workers
   // (Principle X — separable via `pnpm --filter backend run worker`).
-  const webhookQueue = createWebhookQueue(redis);
-  const unwireWebhookBridge = wireEventBridge({
-    eventBus,
-    queue: webhookQueue,
-    subscriptionLookup: integrations.handle.webhookService,
-    bridgedEventTypes: ['order.created.v1', 'order.status_changed.v1'],
-  });
+  // Feature 072 (T098) — the queue, the EventBus bridge and the admin routes
+  // are `webhooks`' own now; `api_keys` no longer builds its service either.
+  // Only the delivery worker stays here, because whether workers run at all is
+  // a deployment decision (`BACKEND_ROLE`), not the module's.
+  const webhooksCradle = container.cradle as unknown as WebhooksCradle;
   const webhookWorker = runWorkers
     ? createWebhookWorker(
         redis,
         createDeliveryProcessor({
           recordDelivery: async (input) => {
-            await integrations.handle.webhookService.recordDelivery(input);
+            await webhooksCradle.webhookService.recordDelivery(input);
           },
         }),
       )
@@ -548,6 +607,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // login port is late-bound here and resolved lazily by the auth services.
   let mfaLoginPort: MfaLoginPort | undefined;
   const getMfaLoginPort = (): MfaLoginPort | undefined => mfaLoginPort;
+
+  // Feature 072 (T094) — contributed to `customer_accounts`, which defaults it
+  // absent. Registered after the early pass so it overrides the module's own
+  // default rather than being overwritten by it; the getter is late-bound, so
+  // `mfa` composing later is not a race.
+  registerValues(container, { mfaLoginPortGetter: getMfaLoginPort });
 
   const admin = adminModule({
     emFactory: em,
@@ -594,33 +659,32 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     inheritance: organizationInheritanceService,
   });
 
-  // Feature 055 — Custom Fields Layer. Exposes the definition/value services as
-  // a handle consumed by host modules; registers the admin definition API. The
-  // per-entity-type cache subscribes to its own Redis channel for cross-process
-  // invalidation.
-  const customFields = customFieldsModule({
-    emFactory: em,
-    commandBus,
-    requireAdmin,
-    redis,
-  });
-  void customFields.handle.cache.start(redisSubscriber);
+  // Feature 055 — Custom Fields Layer, converted in feature 072 (T087). The
+  // module owns its services, its admin API and the cross-process cache
+  // subscription now; this root only reads the two ports host modules consume.
+  const customFieldsCradle = container.cradle as unknown as CustomFieldsCradle;
+  const customFieldDefinitionService = customFieldsCradle.customFieldDefinitionService;
+  const customFieldValueService = customFieldsCradle.customFieldValueService;
 
   // Feature 061 — the composed attribute read model (product-host custom-field
   // definitions + catalog extension rows). Built once, threaded into catalog,
   // search, quick_order, and comparisons as the sanctioned attribute read port.
   const catalogAttributeReadService = new CatalogAttributeReadService(
     em,
-    customFields.handle.definitionService,
+    customFieldDefinitionService,
   );
 
-  const analytics = analyticsModule({ emFactory: em, requireAdmin });
   const importExport = importExportModule({ emFactory: em, requireAdmin });
   // `seoModule` is instantiated AFTER settings (further below) so the
   // sitemap generator can read the per-channel `sales_channels.storefront_url`
   // setting via the SettingsService port. See `const seo = seoModule(...)` /
   // `modules.push(seo.plugin)` further down.
-  const i18n = i18nModule({ emFactory: em, requireAdmin, auditLog: auditLogService });
+  const i18n = i18nModule({
+    emFactory: em,
+    requireAdmin,
+    auditLog: auditLogService,
+    currencyService,
+  });
 
   // Feature 005 — Sales Channels module. The boot-time
   // DefaultChannelReconciler runs FIRST so every other module can rely on a
@@ -658,9 +722,40 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // The plugin itself is still registered later to preserve route order.
   const dictionaries = dictionariesModule({
     emFactory: em,
+    currencyService,
     requireAdmin,
     redis,
     auditLog: auditLogService,
+  });
+
+  // Registered here rather than with the other host values further down:
+  // `addresses` reads it to build the one `AddressService`, and both `orders`
+  // and `organizations` are constructed before that block runs.
+  registerValues(container, { dictionaryValidator: dictionaries.handle.validator });
+  // Feature 072 (T090) — one `AddressService` for the whole composition.
+  // `orders` and `organizations` used to build their own, and the constructor's
+  // validator and audit writer are optional, so the instances were free to
+  // disagree — and one did.
+  const addressService = (container.cradle as unknown as { addressService: AddressService })
+    .addressService;
+
+  // Feature 072 (wave 1) — `currencies` resolves this per write. It is the same
+  // pair of drops `dictionariesModule` performs internally; registering it here
+  // is what lets a single `CurrencyService` serve both admin surfaces, which is
+  // the point of the conversion. It disappears when `dictionaries` converts and
+  // registers the invalidator itself.
+  // Feature 072 (wave 1) — `dictionaries` reacts to a currency change instead
+  // of `currencies` calling into it. The direction matters: declaring the call
+  // as a dependency produced a real cycle, and the cycle was the design saying
+  // a currency must not know a dictionary cache exists.
+  eventBus.on(CURRENCY_CHANGED_EVENT, () => {
+    dictionaries.handle.validator.invalidate();
+    // Swallowed rather than left floating: the handler is synchronous, so a
+    // drop that lands after the server closed would surface as an unhandled
+    // rejection from ioredis's socket-close path and fail an otherwise green
+    // run. A cache that could not be dropped because the process is going away
+    // has nothing to be stale for.
+    void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
   });
 
   const salesChannels = salesChannelsModule({
@@ -675,17 +770,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       return { actorAdminUserId: request.actor.adminUserId };
     },
   });
+  // Feature 072 — the kernel-reserved membership port. `payment_methods` and
+  // `delivery_methods` resolve it to auto-bind a new method to the system
+  // default channel; both are composed early, but they read it when their
+  // routes register, which is after this line.
+  registerValues(container, {
+    salesChannelMembershipPort: salesChannels.handle.membershipService,
+  });
 
   // Feature 014 — CMS module (Pages, Blocks, Templates, Hooks, Page
   // Builder). Phase 2 ships module instantiation + seeded-Hook
   // reconciliation; admin/storefront routes land in subsequent phases.
-  const cms = cmsModule({ emFactory: em, requireAdmin, redis });
-  // Reconcile the 23 seeded Hook codes idempotently before HTTP starts.
-  // The same logic also runs inside migration 035 so first boot has the
-  // rows already; this call covers re-deploys when the seeded list grows.
-  await enterSystemScope('boot: reconcile seeded CMS hooks', () => cms.handle.reconcile(), {
-    entryPoint: 'boot',
-  });
+  // Feature 072 (T093) — `cms` owns its services, its four late-bound
+  // resolvers, its seeded-Hook reconciliation and its routes now. This root
+  // reads only the reference registry `megamenu` cross-registers into, and
+  // contributes the asset resolver further below.
+  const cmsCradle = container.cradle as unknown as CmsCradle;
 
   // The Megamenu module is constructed later in this composition root —
   // after the assetsLibrary module is built — so its `storefrontDeps`
@@ -823,7 +923,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   // Feature 058 — Credentials module. Instantiated right after `settings` (its
   // only hard dependency) so that consumer modules constructed further down
-  // (search, newsletter, prompt_actions) can receive `credentials.handle.service`
+  // (search, newsletter, prompt_actions) can receive `credentialsService`
   // for the `credential_ref` resolution path (feature 058 Phase 8). The
   // configuration-type registry is the process-wide cross-module seam; core
   // types are registered here at boot.
@@ -831,23 +931,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   configurationTypeRegistry.register(emailAdapterConfigurationType);
   configurationTypeRegistry.register(ergonodeConfigurationType);
   configurationTypeRegistry.register(feedDeliveryConfigurationType);
-  const credentials = credentialsModule({
-    emFactory: em,
+  // Feature 072 (wave 1) — `credentials` owns its service; the root supplies
+  // the two inputs that are properties of the deployment rather than of the
+  // module: the cross-module configuration-type registry, and how an admin
+  // actor is resolved from a request.
+  registerValues(container, {
+    configurationTypeRegistry,
+    adminContextResolver,
     // US2 — the delete-integrity guard reaches settings only through this port
     // (Principle I): `SettingsService.listReferencesToConfiguration`.
-    settings: settings.handle.settingsService,
-    permissionService,
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-    commandBus,
-    configurationTypeRegistry,
-    auditLogService,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
+    credentialsSettingsPort: settings.handle.settingsService,
   });
-  // `credentials.plugin` is added to the `modules` array below (declared later);
-  // the handle is used by the consumer modules constructed above/below.
+  const credentialsService = (
+    container.cradle as unknown as { credentialsService: CredentialsService }
+  ).credentialsService;
 
   // Feature 042 — MFA module. Constructed here (after `settings`) so it can
   // read the per-scope MFA settings; its login port is bound to the late-bound
@@ -898,72 +995,73 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
   };
 
-  const mfa = mfaModule({
-    emFactory: em,
-    redis,
-    settingsService: settings.handle.settingsService,
-    auditLogService,
-    sessionService,
-    resolveDefaultChannelId: async () =>
+  // Feature 072 (T096) — `mfa` owns its services, routes and configuration
+  // now. What a root still owns is the *shape this composition gives an actor*:
+  // production reads `request.actor`, the harness reads `request.testActor`.
+  // That is contributed whole rather than as ten separate names, because a
+  // composition either knows how to resolve an actor or it does not.
+  registerValues(container, {
+    mfaDefaultChannelIdResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
-    secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
-    ...(oauthProvider ? { oauthProvider } : {}),
-    socialAccountResolvers: mfaSocialResolvers,
-    ...(process.env['BACKEND_PUBLIC_URL'] ? { backendBaseUrl: process.env['BACKEND_PUBLIC_URL'] } : {}),
-    ...(process.env['STOREFRONT_BASE_URL'] ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] } : {}),
-    ...(process.env['ADMIN_BASE_URL'] ? { adminBaseUrl: process.env['ADMIN_BASE_URL'] } : {}),
-    requireCustomer,
-    requireAdmin,
-    resolveCustomerActor: (request) => {
-      if (request.actor.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      return {
-        customerAccountId: request.actor.customerAccountId,
-        organizationId: request.actor.organizationId ?? null,
-      };
-    },
-    resolveAdminActor: (request) => {
-      promoteAdminActor(request);
-      if (request.actor.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      return { adminUserId: request.actor.adminUserId };
-    },
-    resolveOrganizationCustomerIds: async (organizationId) => {
-      const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
-      return rows.map((r) => r.id);
-    },
-    resolveOrgAdmin: async (request) => {
-      if (request.actor.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      const c = await em().findOne(CustomerAccount, { id: request.actor.customerAccountId });
-      if (!c || c.role !== 'organization_admin' || !c.organizationId) {
-        throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
-      }
-      return { organizationId: c.organizationId, actor: c.id };
-    },
-    resolveAccountEmail: async (subjectType, subjectId) => {
-      const em2 = em();
-      if (subjectType === 'admin') {
-        const a = await em2.findOne(AdminUser, { id: subjectId });
-        return a?.email ?? null;
-      }
-      const c = await em2.findOne(CustomerAccount, { id: subjectId });
-      return c?.email ?? null;
-    },
-    verifyAccountPassword: async (subjectType, subjectId, password) => {
-      const em2 = em();
-      if (subjectType === 'admin') {
-        const a = await em2.findOne(AdminUser, { id: subjectId });
-        return a ? verifyPassword(a.passwordHash, password) : false;
-      }
-      const c = await em2.findOne(CustomerAccount, { id: subjectId });
-      return c ? verifyPassword(c.passwordHash, password) : false;
-    },
+    ...(oauthProvider ? { mfaOauthProvider: oauthProvider } : {}),
+    mfaSocialAccountResolvers: mfaSocialResolvers,
+    mfaActorBridge: {
+      resolveCustomerActor: (request: FastifyRequest) => {
+        if (request.actor.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        return {
+          customerAccountId: request.actor.customerAccountId,
+          organizationId: request.actor.organizationId ?? null,
+        };
+      },
+      resolveAdminActor: (request: FastifyRequest) => {
+        promoteAdminActor(request);
+        if (request.actor.kind !== 'admin') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+        }
+        return { adminUserId: request.actor.adminUserId };
+      },
+      resolveOrganizationCustomerIds: async (organizationId: string) => {
+        const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+        return rows.map((r) => r.id);
+      },
+      resolveOrgAdmin: async (request: FastifyRequest) => {
+        if (request.actor.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        const c = await em().findOne(CustomerAccount, { id: request.actor.customerAccountId });
+        if (!c || c.role !== 'organization_admin' || !c.organizationId) {
+          throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
+        }
+        return { organizationId: c.organizationId, actor: c.id };
+      },
+      resolveAccountEmail: async (subjectType: 'customer' | 'admin', subjectId: string) => {
+        const em2 = em();
+        if (subjectType === 'admin') {
+          const a = await em2.findOne(AdminUser, { id: subjectId });
+          return a?.email ?? null;
+        }
+        const c = await em2.findOne(CustomerAccount, { id: subjectId });
+        return c?.email ?? null;
+      },
+      verifyAccountPassword: async (
+        subjectType: 'customer' | 'admin',
+        subjectId: string,
+        password: string,
+      ) => {
+        const em2 = em();
+        if (subjectType === 'admin') {
+          const a = await em2.findOne(AdminUser, { id: subjectId });
+          return a ? verifyPassword(a.passwordHash, password) : false;
+        }
+        const c = await em2.findOne(CustomerAccount, { id: subjectId });
+        return c ? verifyPassword(c.passwordHash, password) : false;
+      },
+    } satisfies MfaActorBridge,
   });
-  mfaLoginPort = mfa.handle().mfaLoginPort;
+  const mfaCradle = container.cradle as unknown as MfaCradle;
+  mfaLoginPort = mfaCradle.mfaLoginPort;
 
   // SEO module — needs the SettingsService port for the per-channel
   // `sales_channels.storefront_url` setting that the sitemap generator
@@ -1012,55 +1110,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // and exposes the resulting transaction gate (assertOrganizationCanTransact)
   // for the carts / orders / quote_requests modules.
 
-  const adminNotifications = adminNotificationsModule({
-    emFactory: em,
-    requireAdmin,
-  });
 
   const platformSettingsChannelId = process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default';
-
-  const pageBuilderBreakpointSchema = z.number().int().positive();
-  cms.handle.setPageBuilderBreakpointsResolver(async () => {
-    try {
-      const [tabletMin, desktopMin] = await Promise.all([
-        settings.handle.settingsService.get(
-          CMS_PAGE_BUILDER_SETTING_CODES.BREAKPOINT_TABLET_MIN,
-          platformSettingsChannelId,
-          pageBuilderBreakpointSchema,
-        ),
-        settings.handle.settingsService.get(
-          CMS_PAGE_BUILDER_SETTING_CODES.BREAKPOINT_DESKTOP_MIN,
-          platformSettingsChannelId,
-          pageBuilderBreakpointSchema,
-        ),
-      ]);
-      return { tabletMin, desktopMin };
-    } catch {
-      return cms.handle.pageBuilderRegistry.getBreakpoints();
-    }
-  });
-
-  cms.handle.setColorPaletteResolver(async () => {
-    try {
-      return await settings.handle.settingsService.get(
-        CMS_PAGE_BUILDER_SETTING_CODES.COLOR_PALETTE,
-        platformSettingsChannelId,
-        cmsColorPaletteSchema,
-      );
-    } catch {
-      return [];
-    }
-  });
-
-  cms.handle.setColorPaletteWriter(async (entries, expectedVersion, actor) => {
-    await settings.handle.adminService.setValueForAllChannels(
-      CMS_PAGE_BUILDER_SETTING_CODES.COLOR_PALETTE,
-      entries,
-      expectedVersion,
-      actor,
-    );
-    return entries;
-  });
 
   const resolveModerationMode = async (): Promise<'auto' | 'manual'> => {
     try {
@@ -1104,7 +1155,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
   const orgRegistrationNotifier = new OrgRegistrationNotifier({
     emFactory: em,
-    adminNotificationService: adminNotifications.handle.adminNotificationService,
+    adminNotificationService: adminNotificationService,
     mailer: platformMailer,
     resolveRecipients: resolveRegistrationRecipients,
     templateEmail: makeOrgTemplateEmail({
@@ -1189,6 +1240,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   const resolveOrganizationPaymentMethodAllowList = buildOrgAllowListResolver('paymentMethodIds');
   const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
+  // Contributed to the two method modules, which default them absent: the
+  // per-Organization allow-list is `organizations`' knowledge. Registered here,
+  // after the early pass, so it overrides the modules' defaults rather than
+  // being overwritten by them.
+  registerValues(container, {
+    organizationPaymentMethodAllowList: resolveOrganizationPaymentMethodAllowList,
+    organizationDeliveryMethodAllowList: resolveOrganizationDeliveryMethodAllowList,
+  });
   const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
 
   const organizationEffectivePriceListsService = new OrganizationEffectivePriceListsService({
@@ -1302,24 +1361,25 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     tenantContextModulePlugin,
     admin.plugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
-    credentials.plugin,
     creditLimits.plugin,
-    customFields.plugin,
     integrations.plugin,
-    analytics.plugin,
     importExport.plugin,
     seo.plugin,
     i18n.plugin,
-    cms.plugin,
     priceLists.plugin,
     taxes.plugin,
     promotions.plugin,
     commerceModule({
+      paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
+      shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
+      paymentOrderStatusRegistry: methodsCradle.paymentOrderStatusRegistry,
+      shippingOrderStatusRegistry: methodsCradle.shippingOrderStatusRegistry,
+      shippingMethodEligibility: methodsCradle.shippingMethodEligibility,
       commandBus,
       emFactory: em,
       eventBus,
       auditLogService,
-      customFieldValues: customFields.handle.valueService,
+      customFieldValues: customFieldValueService,
       mailer: platformMailer,
       // Feature 047 — late-bound; set once the transactional_emails module builds.
       getTransactionalEmailSender: () => transactionalEmailSender,
@@ -1329,7 +1389,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
-      addressService: new AddressService(em, dictionaries.handle.validator, auditLogService),
+      addressService,
       promotionService: promotions.handle.promotionService,
       redis,
       // Feature 062 — external orders namespace (/api/v1/external/orders*):
@@ -1586,6 +1646,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     }),
     organizationsModule({
+      customerAuthService: customerAccountsCradle.customerAuthService,
+      passwordResetService: customerAccountsCradle.passwordResetService,
+      customerRoleService: customerAccountsCradle.customerRoleService,
+      totpEnrolmentService: customerAccountsCradle.totpEnrolmentService,
+      addressService,
       emFactory: em,
       eventBus,
       commandBus,
@@ -1604,7 +1669,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       restrictionService: organizationRestrictionService,
       effectivePriceListsService: organizationEffectivePriceListsService,
       taxIdValidationService: organizationTaxIdValidationService,
-      customFieldValues: customFields.handle.valueService,
+      customFieldValues: customFieldValueService,
       dictionaryValidator: dictionaries.handle.validator,
       ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
@@ -1637,10 +1702,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       commandBus,
       requireAdmin,
       auditLogService,
-      customFieldValues: customFields.handle.valueService,
-      customFieldDefinitions: customFields.handle.definitionService,
+      customFieldValues: customFieldValueService,
+      customFieldDefinitions: customFieldDefinitionService,
       // Feature 061 — apply seam + composed attribute read model.
-      customFieldsPort: customFields.handle.definitionService,
+      customFieldsPort: customFieldDefinitionService,
       attributeReadService: catalogAttributeReadService,
       requireApiKey: integrations.handle.requireApiKey,
       // Feature 062 — external catalog namespace (/api/v1/external/catalog/*):
@@ -1658,7 +1723,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
-      adminNotificationService: adminNotifications.handle.adminNotificationService,
+      adminNotificationService: adminNotificationService,
       mailer: platformMailer,
       // Principle X — durable BullMQ queue for bulk operations. The consumer
       // (BullMQ worker) runs co-located here unless BACKEND_ROLE=api, in which
@@ -1745,15 +1810,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // modules can read it at construction time. The boot-time reconciler
   // runs below before HTTP comes up.
   modules.push(settings.plugin);
-  modules.push(mfa.plugin);
 
   // Feature 013 — Assets Library. Phase 2 instantiates the module so its
   // manifest is reconciled and the AssetsLibraryService / referenceRegistry
   // are accessible to other modules. Routes (admin upload, public file
   // serving) and consumer wiring (Catalog / CMS reference descriptors) land
   // in subsequent phases (US1 + US2).
-  const assetsLibrary = assetsLibraryModule({ emFactory: em, requireAdmin, auditLog: auditLogService });
-  modules.push(assetsLibrary.plugin);
+  // Feature 072 (T092) — the module owns its plugin and its registry now; the
+  // root only contributes the reference resolvers of whichever modules this
+  // deployment ships.
+  const assetsLibrary = (container.cradle as unknown as AssetsLibraryCradle).assetsLibrary;
   // Register Catalog's reference descriptors so the Library's soft-delete
   // path (FR-030) blocks deletion of any asset still pointed at by a
   // gallery item / product attachment / virtual-download / category main
@@ -1762,19 +1828,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
   registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
 
-  cms.handle.setAssetResolver(async (assetId) => {
-    try {
-      const detail = await assetsLibrary.handle.service.getAsset(assetId);
-      return {
-        url: detail.url,
-        mimeType: detail.mimeType,
-        filename: detail.filename,
-        label: detail.label ?? null,
-        visibility: detail.visibility,
-      };
-    } catch {
-      return null;
-    }
+  // Feature 072 (T093) — contributed, not set: which modules a deployment
+  // ships is this root's business, and `cms` reads the contribution per call.
+  registerValues(container, {
+    cmsAssetResolver: async (assetId: string) => {
+      try {
+        const detail = await assetsLibrary.handle.service.getAsset(assetId);
+        return {
+          url: detail.url,
+          mimeType: detail.mimeType,
+          filename: detail.filename,
+          label: detail.label ?? null,
+          visibility: detail.visibility,
+        };
+      } catch {
+        return null;
+      }
+    },
   });
 
   // Feature 046 — PWA module. Owns the installable-app control plane (over the
@@ -1931,7 +2001,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   modules.push(megamenu.plugin);
   // Megamenu items that reference a CMS page or block block those entities'
   // deletion via the CMS module's reference registry.
-  registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
+  registerMegamenuCmsReferences(cmsCradle.cmsReferenceRegistry, megamenu.handle.referenceRegistry);
 
   // Feature 072 — the late pass of the generated module list. No converted
   // module is named here: what this root still owns are the **host values** any
@@ -1955,18 +2025,25 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // modules convert.
     apiKeyResolver: async (token: string) =>
       integrations.handle.apiKeyService.authenticate(token),
-    customerOrgResolver: async (customerAccountId: string) =>
-      // Feature 050 — runs in the auth hook, before the tenant context exists;
-      // identity resolution is a system-scoped read.
-      withSystemScope('auth: resolve customer org', async () => {
-        const customer = await em().findOne(CustomerAccount, { id: customerAccountId });
-        return customer?.organizationId ?? null;
-      }),
+    // Feature 072 (T089) — `_i18n` reads it to serve the per-admin language
+    // preference. This is `admin_users`' own audited instance: the root used to
+    // build a second, audit-less `AdminUserService` purely to hand to that
+    // module. The entry goes when `admin_users` converts and provides it.
+    adminUserService: admin.handle.adminUserService,
     // `redis` is registered further up, where the client is created.
     // The kernel's `SettingsService` already implements the read port; the
     // adapter object this replaces existed only to narrow it.
     settingsReadPort: settings.handle.settingsService,
-    assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
+    // Which channel a global-scope settings read resolves against. It is a
+    // property of the deployment — the system-default channel, or the env
+    // fallback when none is configured yet — not of any module, and this root
+    // had spelled the same expression out four times.
+    // Feature 072 (T096) — `mfa` resolves it. Owned by `auth` in principle and
+    // still declared inline above; see the task on unifying it with the
+    // harness's `requireTestCustomer()`.
+    requireCustomer,
+    settingsChannelResolver: async () =>
+      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
     dictionaryValidator: dictionaries.handle.validator,
     // Blog ships no storefront ports today — the factory defaulted this to `{}`
     // and neither composition root ever passed one.
@@ -1981,6 +2058,30 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ownership: registrationOwnership,
   });
   modules.push(...lateModules.sink.plugins);
+
+  // Registered **after** the late pass on purpose: `audit_logs` registers its
+  // own empty default there, so a value written before composition would be
+  // overwritten by it (the same trap `prompt_actions` hit).
+  registerValues(container, {
+    // Feature 072 (T084) — `audit_logs` owns its routes now and no longer
+    // reaches into `admin_users` for identities. Turning an actor id into a
+    // name is a **contribution**, so it is gated here rather than declared as
+    // a dependency: the audit log must stay readable when `admin_users` is
+    // off, and it degrades to raw ids instead of refusing. Deciding what
+    // "`admin_users` is present" means is a root's job, not the reading
+    // module's; this entry disappears when `admin_users` converts and
+    // publishes the resolver itself.
+    auditActorResolver: async (ids: string[]) => {
+      if (!effectiveState.isPresent('admin_users')) throw new ModuleDisabledError('admin_users');
+      const users = await admin.handle.adminUserService.listByIds(ids);
+      return users.map((u) => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+      }));
+    },
+  });
   // The explicit boot phase (FR-021): registration stays lazy, and the work
   // that genuinely has to run at boot runs here, in its own system scope.
   await lateModules.runBootHooks();
@@ -2006,7 +2107,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     settingsAdminService: settings.handle.adminService,
     // Feature 058 — resolve `search.llm.embedder_credentials`; legacy embedder
     // settings remain the per-field fallback.
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     requireAdmin,
     // Typeahead suggestions carry the per-customer price-list resolution so
     // the popup shows the price the searching user would actually pay,
@@ -2040,7 +2141,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 026 — Admin notifications bell. The plugin only mounts read
   // routes; writes happen via the handle (consumed above by the
   // OrgRegistrationNotifier and by future modules that emit notifications).
-  modules.push(adminNotifications.plugin);
 
   // Feature 007 — Comparisons module. US1 wires the customer-facing CRUD
   // endpoints; US2/US4/US5 extend the plugin with share, PDF, and admin
@@ -2077,7 +2177,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     eventBus,
     requireCustomer,
     requireAdmin,
-    customFieldValues: customFields.handle.valueService,
+    customFieldValues: customFieldValueService,
     resolveCustomerContext: async (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
@@ -2203,11 +2303,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // can reach the OrderListService (late-bound) and the RfqService for the
   // self-service order / RFQ history endpoints.
   const customers = customersModule({
+      customerAuthService: customerAccountsCradle.customerAuthService,
+      passwordResetService: customerAccountsCradle.passwordResetService,
     emFactory: em,
     sessionService,
     requireCustomer,
     commandBus,
-    customFieldValues: customFields.handle.valueService,
+    customFieldValues: customFieldValueService,
     resolveCustomerActor: (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(
@@ -2423,7 +2525,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     taxService: taxes.handle.taxService,
     // Feature 070 — every secret a delivery target needs is stored through the
     // credentials module (FR-107); this module holds only the pointer.
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     resolveAvailability: async (productIds, salesChannelId) => {
       const candidateWarehouseIds =
         await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
@@ -2464,9 +2566,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
       return out;
     },
-    customFieldDefinitions: customFields.handle.definitionService,
+    customFieldDefinitions: customFieldDefinitionService,
     languageService: i18n.handle.languageService,
-    adminNotificationService: adminNotifications.handle.adminNotificationService,
+    adminNotificationService: adminNotificationService,
     settings: settings.handle.settingsService,
     // A feed URL exists to be pasted into Merchant Center, so a path-only one
     // is useless to the operator who copies it. `PUBLIC_API_BASE_URL` is the
@@ -2553,7 +2655,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     commandBus,
     eventBus,
-    credentials: credentials.handle.service,
+    credentials: credentialsService,
     catalogAdmin: new CatalogAdminService(
       em,
       eventBus as unknown as CatalogEventBus,
@@ -2561,13 +2663,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       salesChannels.handle.membershipService,
       commandBus,
       catalogAttributeReadService,
-      customFields.handle.definitionService,
+      customFieldDefinitionService,
     ),
     categoryAdmin: new CategoryAdminService(
       em,
       salesChannels.handle.membershipService,
       commandBus,
-      customFields.handle.valueService,
+      customFieldValueService,
     ),
     attributeSets: new AttributeSetService(em, commandBus, catalogAttributeReadService),
     gallery: new GalleryService(em, commandBus),
@@ -2578,7 +2680,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     priceLists: priceLists.handle.priceListService,
     currencies: i18n.handle.currencyService,
     languageService: i18n.handle.languageService,
-    adminNotificationService: adminNotifications.handle.adminNotificationService,
+    adminNotificationService: adminNotificationService,
     settings: settings.handle.settingsService,
     redis,
     // Principle X — the import and reaper consumers run co-located unless
@@ -2866,7 +2968,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       runWorkers,
       // Feature 058 — resolve `newsletter.email_credentials` (email_adapter);
       // falls back to the legacy `newsletter.smtp.*` settings when unset.
-      credentials: credentials.handle.service,
+      credentials: credentialsService,
       resolveEmailBranding: async (salesChannelId) => {
         if (!emailBrandingService) {
           return { logoUrl: '', accentColor: '#1f2937' };
@@ -3039,14 +3141,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // lazy registry accessor (the lifecycle's registry is populated by
   // the time the plugin chain is registered).
   let lifecycleRef: typeof lifecycle | undefined;
-  const adminI18n = adminI18nModule({
-    orm,
-    emFactory: em,
-    registry: () => lifecycleRef?.handle.registry,
-    adminUserService: new AdminUserService(em),
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-  });
+  // Feature 072 (T089) — `_i18n` owns its service, its reconciler and its
+  // routes now. The root only reads the two the platform consumes.
+  const adminI18nCradle = container.cradle as unknown as AdminI18nCradle;
 
   // Feature 020 — Admin Command Palette actions registry. Built before
   // the lifecycle so its reconciler can be plugged into the orchestrator
@@ -3055,7 +3152,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     orm,
     emFactory: em,
     registry: () => lifecycleRef?.handle.registry,
-    i18nService: adminI18n.handle.i18nService,
+    i18nService: adminI18nCradle.adminI18nService,
     permissionService,
     redisSubscriber,
     requireAdmin,
@@ -3078,7 +3175,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // Feature 019: hand the i18n reconciler to the orchestrator so
       // module:install and module:uninstall --hard keep
       // translation_bundles aligned with the lifecycle.
-      i18nReconciler: adminI18n.handle.reconciler,
+      i18nReconciler: adminI18nCradle.adminI18nReconciler,
       // Feature 020: hand the admin-actions reconciler to the
       // orchestrator so module:install and module:uninstall --hard keep
       // module_actions aligned with the lifecycle.
@@ -3101,6 +3198,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     })),
   );
   lifecycleRef = lifecycle;
+  // Feature 072 (T089) — the accessor `_i18n` walks to reconcile every module's
+  // translation bundles. It stays an accessor rather than the registry itself
+  // because of the order this file is written in: `_i18n` composes with the
+  // late pass ~1100 lines above, and the registry it needs does not exist until
+  // the line above this one. `_i18n` resolves it at plugin-attach time, which
+  // is after this function returns. Goes when `_lifecycle` converts.
+  registerValues(container, {
+    lifecycleManifestRegistry: () => lifecycleRef?.handle.registry,
+  });
 
   permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
   redisSubscriber.on('message', (channel) => {
@@ -3115,7 +3221,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   modules.push(async (app) => {
     registerApiInterceptorAdminRoutes(app, { registry: apiInterceptors, requireAdmin });
   });
-  modules.push(adminI18n.plugin);
   modules.push(adminActions.plugin);
 
   // Feature 043 — prompt assistant for the admin command palette. The module
@@ -3128,21 +3233,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     salesChannelMembership: salesChannels.handle.membershipService,
     redis,
   };
-  const promptActions = promptActionsModule({
-    emFactory: em,
-    settings: settings.handle.settingsService,
-    resolveSettingsChannelId: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-    permissionService,
-    isModuleInstalled: (moduleId) => registryCache.isEnabled(moduleId),
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-    auditLogService,
-    // Feature 058 — resolve `prompt_actions.llm_credentials`; legacy settings
-    // remain the fallback when no credential reference is configured.
-    credentials: credentials.handle.service,
-    bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
+  // Feature 072 — the module composed itself in the late pass; what is left
+  // here is the one thing a module cannot do for itself: hand it the
+  // contributions of whichever modules this deployment happens to ship.
+  registerValues(container, {
+    promptActionsBulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
   });
+  const promptActionToolRegistry = (
+    container.cradle as unknown as { promptActionToolRegistry: PromptActionToolRegistry }
+  ).promptActionToolRegistry;
   // Feature 043 — per-module AI-assistant command registration.
   //
   // Each module contributes its prompt-action tools (resolvers + mutations) as
@@ -3160,9 +3259,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }),
   ];
   for (const tool of promptActionToolProviders) {
-    promptActions.handle.registry.register(tool);
+    promptActionToolRegistry.register(tool);
   }
-  modules.push(promptActions.plugin);
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings
@@ -3226,7 +3324,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return adminUser?.preferredLanguage === 'pl' ? 'pl' : 'en';
       },
       translateErrorMessage: async ({ moduleId, key, language, originalMessage }) => {
-        const translated = await adminI18n.handle.i18nService.translate(
+        const translated = await adminI18nCradle.adminI18nService.translate(
           moduleId,
           key,
           language,
@@ -3235,11 +3333,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     },
     dispose: async () => {
-      // Feature 062 — stop bridging + drain the webhook delivery pipeline
-      // before dropping the Redis connections (graceful shutdown).
-      unwireWebhookBridge();
+      // Feature 062 — drain the webhook delivery pipeline before dropping the
+      // Redis connections (graceful shutdown). Unbridging and closing the queue
+      // are the container's job since T098: `ctx.subscribe` unsubscribes with
+      // the module and the queue registration carries its own disposer.
       if (webhookWorker) await webhookWorker.close().catch(() => undefined);
-      await webhookQueue.close().catch(() => undefined);
       redis.disconnect();
       redisSubscriber.disconnect();
       await closeOrm();

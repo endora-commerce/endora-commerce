@@ -53,6 +53,17 @@ const SUBJECT = 'health_checks';
  * holds them. This is a ledger, not an allow-list: each entry names a real
  * residue that its owner's conversion has to clear, and the test fails both
  * when an entry becomes stale and when a new one appears.
+ *
+ * `audit_logs` (wave 1, T084) is the second module to be **absent from this
+ * ledger entirely**, and the first that got there by being disentangled rather
+ * than by having been simple all along. Before its conversion it was not even a
+ * candidate: `admin_users/plugin.ts` imported both its route files and
+ * constructed its service. It owns no entity (`AuditLogEntry` moved to the
+ * kernel in T016) and no migration, so neither central registry names it, and
+ * the `auditActorResolver` a root contributes is a closure over `admin_users`'
+ * own service — it imports nothing from `audit_logs`. Deleting the directory
+ * really is all there is to it. That is the target shape for the rest of the
+ * sweep.
  */
 const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `composition.ts` still reaches into `email` twice: for the `EmailCradle`
@@ -85,6 +96,153 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   //    before deciding whether a request carries a customer, and it leaves when
   //    `customer_accounts` converts.
   auth: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `admin_roles` (wave 1). Same two shapes as `auth`: its `AdminRole` entity
+  // is named by the hand-maintained ORM registry, and `composition.ts` imports
+  // its service types to annotate what it resolves out of the container. The
+  // second one is the ordinary shape of a root reading a module's
+  // registrations, and it leaves when nothing hand-wired needs the annotation.
+  admin_roles: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `currencies` (wave 1). Same two shapes again — the ORM registry names its
+  // entity, and `composition.ts` imports the service type to annotate what it
+  // resolves and hands to `dictionaries` and `languages`. Both hosts take the
+  // service as an argument now instead of each constructing one.
+  currencies: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `analytics` (wave 1) — the first converted module with **no reference from
+  // a composition root at all**. Only the two central registries hold it, and
+  // both are known structural holes rather than anything this module did: the
+  // ORM entity list is hand-maintained, and the migration registry names every
+  // migration on purpose (feature 065). This is the residue shape the rest of
+  // the sweep should be aiming at.
+  analytics: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `admin_notifications` (wave 1). Its service type is still imported by both
+  // roots, which annotate what they resolve out of the container and hand to
+  // the four modules that write notifications. It leaves when those convert.
+  admin_notifications: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `credentials` (wave 1). Beyond the two registries, `composition.ts` imports
+  // its service type and the four core configuration types it registers into
+  // the cross-module registry at boot — which is the root's job, not this
+  // module's, so that reference is expected to stay.
+  credentials: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `prompt_actions` (wave 1) — the inverted case, and the reason this ledger
+  // is worth keeping. Its `composition.ts` reference is not a leftover of the
+  // conversion: three *other* modules contribute tools into the registry this
+  // one owns, and the root is where "which modules does this deployment ship"
+  // is known. So the root imports `PromptActionTool` to type the contributions
+  // and `PromptActionToolRegistry` to type what it resolves. Both stay until
+  // `catalog`, `inventory` and `orders` convert and contribute for themselves.
+  prompt_actions: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `addresses` (wave 1, T090). The ORM registry names its `Address` entity —
+  // the hand-maintained list blog is caught by above — and both roots import
+  // the service type to annotate what they resolve and hand to `orders` and
+  // `organizations`. Those two took the service as an argument already; what
+  // changed is that there is now one of it instead of three.
+  addresses: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `delivery_methods` and `payment_methods` (wave 1, T095/T097), converted as
+  // a pair. Beyond the two central registries, both roots import their registry
+  // and order-status types to annotate what they resolve and hand to `orders`,
+  // which still dispatches placement through them. Those go when `orders`
+  // converts. `payment_methods` additionally keeps a root reference for the
+  // built-in adapters, which live in `payments` — supplying them is a
+  // deployment's job, not this module's, so that one is expected to stay.
+  delivery_methods: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  payment_methods: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `webhooks` (wave 1, T098). Beyond the two central registries, the root
+  // keeps the delivery **worker** — whether workers run at all is a
+  // `BACKEND_ROLE` deployment decision, not the module's — so it imports the
+  // processor factory and the module's cradle type. That reference is expected
+  // to stay until workers themselves move behind a deployment-owned seam.
+  webhooks: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `customer_accounts` (wave 1, T094). The ORM and migration registries name
+  // its two entities and five migrations; `composition.ts` imports the cradle
+  // type to annotate the services it resolves and hands to `customers` and
+  // `organizations`. Both of those built their own before this conversion, and
+  // the reference leaves when they convert.
+  customer_accounts: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `assets_library` (wave 1, T092). The two registries name its entities and
+  // migrations; `composition.ts` imports the cradle type to annotate the handle
+  // it resolves and hands the `catalog`, `cms` and `megamenu` reference
+  // resolvers to. Contributing those is a root's job — which modules a
+  // deployment ships is not this module's business — so that one stays.
+  assets_library: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `custom_fields` (wave 1, T087). The two registries name its entities and
+  // migrations. `composition.ts` imports the cradle type to annotate the two
+  // ports it resolves and threads into the eight hand-wired modules that
+  // validate writes through them — `catalog`, `orders`, `organizations`,
+  // `customers`, `quote_requests`, `product_feeds` and the two catalog admin
+  // services. That reference is the count of what is left to convert, and it
+  // goes when they do.
+  custom_fields: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `_i18n` (wave 1, T089). The two registries name its entity and migrations;
+  // `composition.ts` imports the cradle type to annotate the service it hands
+  // the error envelope and the reconciler it hands the lifecycle orchestrator.
+  // Both consumers are the root itself rather than a module, and the reconciler
+  // one goes when `_lifecycle` converts.
+  _i18n: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+    // The HTTP error envelope imports this module's `ERROR_TRANSLATION_KEYS`
+    // map to decide which envelope fields are translatable. That is a genuine
+    // coupling of the platform's error surface to the i18n module rather than a
+    // conversion leftover, and `_i18n` is `nonDeactivatable`, so it stays.
+    'src/http/error-envelope.ts',
+  ],
+  // `cms` (wave 1, T093). The two registries name its five entities and its
+  // migrations; `composition.ts` imports the cradle type to annotate the
+  // reference registry `megamenu` cross-registers into and the asset resolver
+  // it contributes. Both are a root's business — which modules a deployment
+  // ships is not this module's — so they stay until `megamenu` converts.
+  cms: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `mfa` (wave 1, T096). The two registries name its entities and migrations;
+  // `composition.ts` imports the cradle and bridge types to annotate what it
+  // contributes — the actor shape, which is a root's to know — and the login
+  // port it hands `customer_accounts` through `mfaLoginPortGetter`.
+  mfa: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 
 function walk(dir: string, out: string[] = []): string[] {

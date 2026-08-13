@@ -57,10 +57,30 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   'em',
   'emFactory',
   'redis',
+  // The one connection ioredis has put into subscriber mode. Process-level
+  // infrastructure exactly as `redis` is, and shared for the same reason a
+  // process has one of it: a subscriber connection cannot serve commands.
+  'redisSubscriber',
   'eventBus',
   'commandBus',
   'apiInterceptors',
   'settingsReadPort',
+  // The resolved module registry is a composition-root input by nature: which
+  // modules a deployment ships is not something a module may decide.
+  'resolvedModuleRegistry',
+  'auditLogService',
+  'commandBus',
+  // Who an admin actor is, resolved differently by production and the harness
+  // — which is exactly the difference a composition root exists to hold.
+  'adminContextResolver',
+  // The cross-module configuration-type seam: which types exist is decided by
+  // which modules a deployment ships, so the root creates and populates it.
+  'configurationTypeRegistry',
+  'credentialsSettingsPort',
+  // Which channel a global-scope settings read resolves against: the
+  // deployment's system-default channel, or its configured fallback. A
+  // property of the deployment, not of any module.
+  'settingsChannelResolver',
   'salesChannelResolutionPort',
   'salesChannelMembershipPort',
 ]);
@@ -77,12 +97,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // them itself since T078, and the staleness check below fails the build if an
   // entry outlives its owner's conversion.
   //
-  // `admin_roles` owns the permission checker and is still hand-wired, so both
-  // composition roots register it as a host value for `auth` to resolve. `auth`
-  // declares `admin_roles` in its manifest (D-32), which is what makes this a
-  // declared edge rather than an invisible one.
-  permissionService: 'admin_roles',
-  assetReferenceRegistry: 'assets_library',
   dictionaryValidator: 'dictionaries',
   // Registered as `undefined` today: blog ships no storefront ports and both
   // composition roots pass nothing. The name is blog's own.
@@ -90,7 +104,25 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // The two resolvers the auth plugin reads per request; their owners are
   // hand-wired and constructed after `auth`, so a root registers them.
   apiKeyResolver: 'api_keys',
-  customerOrgResolver: 'customer_accounts',
+  // `dictionaries` owns the validator + cache drop; `currencies` resolves it
+  // per write so one CurrencyService can serve both admin surfaces.
+  dictionaryInvalidator: 'dictionaries',
+  // `_i18n` reads it to serve the per-admin language preference; `admin_users`
+  // owns the audited instance and is still hand-wired.
+  adminUserService: 'admin_users',
+  // The lazy accessor `_i18n` walks to reconcile every module's bundles. The
+  // registry does not exist until `_lifecycle` is constructed, which in a root
+  // happens after the late pass, so a root supplies the accessor.
+  lifecycleManifestRegistry: '_lifecycle',
+  // The audited settings write path. `settingsReadPort` is platform-owned
+  // because the kernel holds the store (D-32), but the *admin* service is still
+  // the `settings` module's, and that module is hand-wired.
+  settingsAdminService: 'settings',
+  // `auth`'s customer-side guard, still declared inline in each root while the
+  // harness runs a separate `requireTestCustomer()` — the divergence T011/T012
+  // fixed for `requireAdmin` and never did for this one. Owner is `auth`; the
+  // entry goes when the two implementations are unified.
+  requireCustomer: 'auth',
 };
 
 export interface PortResolution {

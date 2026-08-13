@@ -22,5 +22,16 @@ export const manifest = defineModuleManifest({
   description:
     'Shipping/delivery method definitions and per-channel availability.',
   version: '1.0.0',
-  dependencies: [],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by; the
+  // edge became real with the conversion (feature 072, T095).
+  dependencies: ['auth'],
+  // Feature 072/073 (Constitution XVII) — the payment twin's reasoning applies
+  // unchanged: a checkout with no delivery method to choose is not a smaller
+  // platform, it is one that cannot complete an order.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Holds the delivery methods every checkout selects from and the shipping adapter registry ' +
+      'orders dispatches through; switched off, the platform cannot take an order.',
+  },
 });

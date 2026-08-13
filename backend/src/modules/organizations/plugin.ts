@@ -13,13 +13,13 @@ import {
   type OrganizationEventBus,
 } from './services/registration-service.js';
 import { EmailVerificationService } from './services/email-verification-service.js';
-import { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
-import { AddressService } from '../addresses/services/address-service.js';
+import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
+import type { AddressService } from '../addresses/services/address-service.js';
 import { InvitationService } from './services/invitation-service.js';
 import { makeOrgTemplateEmail } from './services/org-template-email.js';
-import { RoleService } from '../customer_accounts/services/role-service.js';
-import { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
-import { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
+import type { RoleService } from '../customer_accounts/services/role-service.js';
+import type { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
+import type { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
 import { ConsoleMailer, type Mailer } from '../email/services/mailer.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
@@ -42,6 +42,15 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
  */
 
 export interface OrganizationsModuleOptions {
+  /**
+   * Feature 072 (T094) — `customer_accounts` owns these now. Injected rather
+   * than built here, because this host and `customers` each built their own and the
+   * MFA argument differed between them.
+   */
+  customerAuthService: CustomerAuthService;
+  passwordResetService: PasswordResetService;
+  customerRoleService: RoleService;
+  totpEnrolmentService: TotpEnrolmentService;
   emFactory: () => EntityManager;
   eventBus: EventBus;
   sessionService: SessionService;
@@ -89,6 +98,8 @@ export interface OrganizationsModuleOptions {
   /** Required when `requireAdmin` is set — audit trail for admin org mutations. */
   auditLogService?: AuditLogService;
   dictionaryValidator?: DictionaryValidator;
+  /** Resolved from the container since feature 072 (T090) — one instance, always armed. */
+  addressService: AddressService;
   /**
    * Feature 026 — moderation service that owns approve / reject / block /
    * unblock. When provided alongside `requireAdmin`, the matching admin
@@ -148,13 +159,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.eventBus as OrganizationEventBus,
       options.auditLogService,
     );
-    const customerAuthService = new CustomerAuthService(
-      options.emFactory,
-      options.sessionService,
-      options.getMfaLoginPort,
-      options.auditLogService,
-    );
-    const addressService = new AddressService(options.emFactory, options.dictionaryValidator, options.auditLogService);
+    const customerAuthService = options.customerAuthService;
     const invitationService = new InvitationService(
       options.emFactory,
       mailer,
@@ -163,9 +168,10 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       orgTemplateEmail,
       options.auditLogService,
     );
-    const roleService = new RoleService(options.emFactory, options.auditLogService);
-    const passwordResetService = new PasswordResetService(options.emFactory, options.auditLogService);
-    const totpEnrolmentService = new TotpEnrolmentService(options.emFactory, options.auditLogService);
+    const roleService = options.customerRoleService;
+    const passwordResetService = options.passwordResetService;
+    const totpEnrolmentService = options.totpEnrolmentService;
+    const addressService = options.addressService;
     const latestInvitationToken: { value: string | null } = { value: null };
 
     await registerOrganizationsPublicRoutes(app, {
