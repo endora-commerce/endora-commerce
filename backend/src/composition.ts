@@ -173,7 +173,6 @@ import { googleAnalyticsModule } from './modules/google_analytics/plugin.js';
 // Feature 063 — LinkedIn Ads.
 // Feature 064 — Meta Ads.
 // Feature 066 — Google Tag Manager.
-import { googleTagManagerModule } from './modules/google_tag_manager/plugin.js';
 import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
@@ -2047,6 +2046,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     adminAuditActorResolver: (request: FastifyRequest) => ({
       actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
     }),
+    // Feature 072 (wave 2) — the connection a module may build a BullMQ
+    // producer queue on. Deliberately a different name from `redis`: the test
+    // harness registers `redis` but must NOT hand a queue to these modules, and
+    // "no queue in this composition" is a statement a root should be able to
+    // make rather than something inferred from a missing option.
+    moduleQueueRedis: redis,
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
     dictionaryValidator: dictionaries.handle.validator,
@@ -3029,25 +3034,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 066 — Google Tag Manager. Settings-only module: per-channel
   // container injection plus the optional server-side tagging relay. It owns
   // no table and no admin page, so no EntityManager and no requireAdmin here.
-  modules.push(
-    googleTagManagerModule({
-      settings: settings.handle.settingsService,
-      redis,
-      runWorkers,
-      // Any google_tag_manager.* setting change revalidates the storefront
-      // `gtm:config` cache tag.
-      onSettingChanged: (handler) =>
-        eventBus.on('settings.value_changed', (payload) =>
-          handler((payload as unknown as { settingCode: string }).settingCode),
-        ),
-      ...(process.env['STOREFRONT_BASE_URL']
-        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
-        : {}),
-      ...(process.env['REVALIDATE_SECRET']
-        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
-        : {}),
-    }),
-  );
 
   // Shopping lists / quick order — depends on the RFQ service built above
   // so the "convert to RFQ" flow goes through the new createForCustomer API.

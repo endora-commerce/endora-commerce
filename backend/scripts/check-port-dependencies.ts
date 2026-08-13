@@ -61,6 +61,12 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // infrastructure exactly as `redis` is, and shared for the same reason a
   // process has one of it: a subscriber connection cannot serve commands.
   'redisSubscriber',
+  // The connection a module may build a BullMQ *producer* queue on. Process
+  // infrastructure exactly as `redis` is, and a separate name from it because
+  // "this composition wants no queues" is a statement a root makes — the test
+  // harness registers `redis` but must hand out no queue, since one built per
+  // `setupBackendServer()` is never closed.
+  'moduleQueueRedis',
   'eventBus',
   'commandBus',
   'apiInterceptors',

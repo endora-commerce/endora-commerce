@@ -64,6 +64,14 @@ const SUBJECT = 'health_checks';
  * own service — it imports nothing from `audit_logs`. Deleting the directory
  * really is all there is to it. That is the target shape for the rest of the
  * sweep.
+ *
+ * `google_tag_manager` (wave 2, T103) is the third, and it reached the shape by
+ * being simple: it owns no entity and no migration, because its only persistent
+ * state is Settings values written and audited by the `settings` module. An
+ * absent key here means "no residue", which is not the same as a key with an
+ * empty list — the scan only reports modules something still refers to, so an
+ * empty array would be a key the scan never produces and the comparison would
+ * fail on the count alone. Absence is the record.
  */
 const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `composition.ts` still reaches into `email` twice: for the `EmailCradle`

@@ -126,7 +126,6 @@ import { transactionalEmailsModule } from '../../src/modules/transactional_email
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
 import { googleAnalyticsModule } from '../../src/modules/google_analytics/plugin.js';
-import { googleTagManagerModule } from '../../src/modules/google_tag_manager/plugin.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
   ORDER_COMMENT_DEFAULT,
@@ -2004,6 +2003,13 @@ export async function setupBackendServer(
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : null,
     }),
+    // Feature 072 (wave 2) — **undefined on purpose.** A BullMQ queue built per
+    // `setupBackendServer()` is never closed and this harness is constructed
+    // once per test file inside a single fork, so the ad modules must get no
+    // queue here. `/collect` therefore degrades to 503 and is contract-tested
+    // against its own bare instance instead. `redis` is registered above; this
+    // is the name that says "but not for queues".
+    moduleQueueRedis: undefined,
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
     dictionaryValidator: dictionaries.handle.validator,
@@ -2630,11 +2636,6 @@ export async function setupBackendServer(
   // once per test file inside a single fork. /collect therefore degrades to 503
   // here (queue producer absent) and is contract-tested against its own bare
   // instance in test/contract/google_tag_manager/collect.test.ts.
-  modules.push(
-    googleTagManagerModule({
-      settings: settings.handle.settingsService,
-    }),
-  );
 
   modules.push(
     shoppingListsModule({
