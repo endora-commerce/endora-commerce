@@ -213,7 +213,7 @@ import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef
 import { configurationTypeRegistry } from '../../src/modules/credentials/services/registry-singleton.js';
 import { llmConfigurationType } from '../../src/modules/credentials/types/llm.type.js';
 import { emailAdapterConfigurationType } from '../../src/modules/credentials/types/email-adapter.type.js';
-import { pwaModule } from '../../src/modules/pwa/plugin.js';
+import type { PwaBridge, PwaCradle } from '../../src/modules/pwa/backend.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import {
@@ -369,7 +369,7 @@ export interface BackendServerHandle {
   /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
   pimErgonode: ReturnType<typeof pimErgonodeModule>['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
-  pwa: ReturnType<typeof pwaModule>['handle'];
+  pwa: PwaCradle['pwa']['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
   salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
   /** Feature 062 — api-keys/webhooks handle (api-key gates). */
@@ -1774,60 +1774,67 @@ export async function setupBackendServer(
   // Feature 046 — PWA module (mirrors composition.ts). runWorkers:false so no
   // BullMQ consumer starts in tests; the delivery processor is invoked directly
   // by integration tests.
-  const pwa = pwaModule({
-    emFactory: em,
-    redis,
-    runWorkers: false,
-    settings: settings.handle.settingsService,
-    settingsWrite: settings.handle.adminService,
-    requireAdmin: requireTestAdmin(permissionService),
-    eventBus,
-    assetUpload: {
-      upload: async (input) => {
-        const detail = await assetsLibrary.handle.service.upload(input);
-        return { id: detail.id };
+  // Feature 072 (T116) — `pwa` owns its services, its queue and its routes
+  // now. What stays here is every way it reaches outside itself, contributed
+  // as one bridge: a composition knows how to reach `assets_library` and
+  // `sales_channels`, or it does not.
+  registerValues(container, {
+    // The harness has a producer and no consumer: it enqueues so the routes can
+    // assert the queued ack, and starting a delivery worker per test file would
+    // be a BullMQ consumer nothing ever closes.
+    pwaRunWorkers: false,
+    pwaBridge: {
+      assetUpload: {
+        upload: async (input) => {
+          const detail = await assetsLibrary.handle.service.upload(input);
+          return { id: detail.id };
+        },
       },
-    },
-    resolveAssetUrl: async (assetId) => {
-      try {
-        return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
-      } catch {
-        return null;
-      }
-    },
-    resolveChannelIdByCode: async (code) => {
-      if (code) {
-        const ch = await salesChannels.handle.resolver.getByCode(code);
-        if (ch) return ch.id;
-      }
-      return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default';
-    },
-    defaultChannelId: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
-    channelCodeForId: async (channelId) => {
-      const ch = await em().findOne(SalesChannel, { id: channelId });
-      return ch?.code ?? null;
-    },
-    resolveAuditContext: (request) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
-    vapidSubject: 'mailto:test@b2b-platform.local',
-    resolveCustomerAccountId: async (request) =>
-      request.testActor?.kind === 'customer' ? request.testActor.customerAccountId : null,
-    resolveOrderTarget: async (payload) => {
-      const order = await em().findOne(Order, { id: payload.orderId });
-      if (!order || !order.placedByCustomerAccountId) return null;
-      return {
-        salesChannelId: payload.salesChannelId,
-        customerAccountId: order.placedByCustomerAccountId,
-        title: 'Order update',
-        body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
-        url: `/account/orders/${order.businessId}`,
-      };
-    },
+      resolveAssetUrl: async (assetId: string) => {
+        try {
+          return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
+        } catch {
+          return null;
+        }
+      },
+      resolveChannelIdByCode: async (code: string | undefined) => {
+        if (code) {
+          const ch = await salesChannels.handle.resolver.getByCode(code);
+          if (ch) return ch.id;
+        }
+        return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default';
+      },
+      defaultChannelId: async () =>
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
+      channelCodeForId: async (channelId: string) => {
+        const ch = await em().findOne(SalesChannel, { id: channelId });
+        return ch?.code ?? null;
+      },
+      resolveAuditContext: (request: FastifyRequest) => ({
+        actorAdminUserId:
+          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+      }),
+      resolveCustomerAccountId: async (request: FastifyRequest) =>
+        request.testActor?.kind === 'customer' ? request.testActor.customerAccountId : null,
+      resolveOrderTarget: async (payload: {
+        orderId: string;
+        salesChannelId: string;
+        from: string;
+        to: string;
+      }) => {
+        const order = await em().findOne(Order, { id: payload.orderId });
+        if (!order || !order.placedByCustomerAccountId) return null;
+        return {
+          salesChannelId: payload.salesChannelId,
+          customerAccountId: order.placedByCustomerAccountId,
+          title: 'Order update',
+          body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
+          url: `/account/orders/${order.businessId}`,
+        };
+      },
+    } satisfies PwaBridge,
   });
-  modules.push(pwa.plugin);
+  const pwaCradle = container.cradle as unknown as PwaCradle;
 
   // Feature 015 — Megamenu module. Wires the cross-module ports the
   // target validator + storefront resolver delegate to. v1 uses small
@@ -2739,7 +2746,7 @@ export async function setupBackendServer(
     ksef: ksef.handle,
     productFeeds: productFeeds.handle,
     pimErgonode: pimErgonode.handle,
-    pwa: pwa.handle,
+    pwa: pwaCradle.pwa.handle,
     permissionService,
     permissionCatalogueService,
     settings: settings.handle,

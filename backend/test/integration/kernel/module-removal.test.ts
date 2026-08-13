@@ -361,6 +361,17 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `pwa` (wave 2, T116). The two central registries name its entities and
+  // migrations; `composition.ts` imports the bridge type to annotate the nine
+  // cross-module resolvers it contributes as one. Those are a root's by design
+  // — reaching `assets_library` and `sales_channels` is not this module's
+  // business — so unlike most entries here they do not go when another module
+  // converts.
+  pwa: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

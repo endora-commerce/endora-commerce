@@ -1,0 +1,130 @@
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type { FastifyRequest } from 'fastify';
+import type Redis from 'ioredis';
+import type { EventBus } from '../../events/bus.js';
+import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { PushSubscription } from './entities/push-subscription.entity.js';
+import { PushMessage } from './entities/push-message.entity.js';
+import { pwaModule, type PwaModuleOptions, type PwaModuleResult } from './plugin.js';
+
+/**
+ * `pwa` — twenty options, and nine of them are one idea (feature 072, wave 2,
+ * T116).
+ *
+ * The nine are every way this module reaches outside itself: uploading an icon
+ * through `assets_library`, turning a sales-channel code into an id and back,
+ * naming the acting admin, and resolving an order or quote event into a push
+ * target. They are contributed as a single {@link PwaBridge} for the reason
+ * `mfa`'s actor bridge is one name — they are always supplied together, by the
+ * same caller, and a composition that knows four of the nine is not a coherent
+ * state. Splitting them would produce nine registrations that can each go
+ * missing on their own.
+ *
+ * Three of the nine are optional *within* the bridge, and that is real rather
+ * than lazy: `resolveCustomerAccountId`, `resolveOrderTarget` and
+ * `resolveQuoteTarget` drive the FR-024 auto-trigger, and a deployment that
+ * does not push on order or quote events genuinely has nothing to supply. Their
+ * absence removes a trigger; it does not weaken a check.
+ *
+ * `vapidSubject` comes from the environment, read here rather than threaded
+ * from a root — a packaged module reads its own configuration.
+ *
+ * `runWorkers` is **root-supplied, not env-derived**, and that is a correction
+ * rather than a preference. My first attempt read `BACKEND_ROLE` here and gave
+ * the queue `moduleQueueRedis` — copying what `google_tag_manager` needed. Both
+ * were wrong for this module: the harness passes a real Redis *and*
+ * `runWorkers: false`, so it has a producer and no consumer. Deriving either
+ * from the environment made the harness start a delivery worker it never wants
+ * and hand BullMQ an undefined connection. What a composition does with queue
+ * consumers is a deployment decision, and the two deployments here genuinely
+ * differ.
+ */
+
+export const entities = [PushSubscription, PushMessage];
+
+/**
+ * Everything this module reaches outside itself, contributed whole.
+ *
+ * A composition knows how to reach `assets_library` and `sales_channels`, or it
+ * does not; there is no coherent state where it knows some of that and not the
+ * rest.
+ */
+export interface PwaBridge {
+  readonly assetUpload: PwaModuleOptions['assetUpload'];
+  readonly resolveAssetUrl: PwaModuleOptions['resolveAssetUrl'];
+  readonly resolveChannelIdByCode: PwaModuleOptions['resolveChannelIdByCode'];
+  readonly defaultChannelId: PwaModuleOptions['defaultChannelId'];
+  readonly channelCodeForId: PwaModuleOptions['channelCodeForId'];
+  readonly resolveAuditContext: PwaModuleOptions['resolveAuditContext'];
+  /** FR-024 auto-trigger; absent on a deployment that pushes on neither. */
+  readonly resolveCustomerAccountId?: PwaModuleOptions['resolveCustomerAccountId'];
+  readonly resolveOrderTarget?: PwaModuleOptions['resolveOrderTarget'];
+  readonly resolveQuoteTarget?: PwaModuleOptions['resolveQuoteTarget'];
+}
+
+export interface PwaCradle {
+  readonly emFactory: () => EntityManager;
+  readonly redis: Redis;
+  /**
+   * Whether this composition runs the push-delivery consumer (Principle X).
+   * Root-supplied rather than env-derived: the harness runs no consumer at all,
+   * and a module should not have to know which of its callers is a test.
+   */
+  readonly pwaRunWorkers: boolean;
+  readonly eventBus: EventBus;
+  readonly requireAdmin: RequireAdminFactory;
+  readonly settingsReadPort: PwaModuleOptions['settings'];
+  readonly settingsAdminService: PwaModuleOptions['settingsWrite'];
+  readonly pwaBridge: PwaBridge;
+  readonly pwa: PwaModuleResult;
+}
+
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.register({
+    pwa: ctx
+      .asFunction(({ emFactory, redis, eventBus, pwaRunWorkers }: PwaCradle): PwaModuleResult => {
+        const bridge = (): PwaBridge => ctx.cradle<PwaCradle>().pwaBridge;
+        const b = bridge();
+        return pwaModule({
+          emFactory,
+          redis,
+          runWorkers: pwaRunWorkers,
+          eventBus,
+          settings: lazyPort<PwaModuleOptions['settings']>(ctx, 'settingsReadPort'),
+          settingsWrite: lazyPort<PwaModuleOptions['settingsWrite']>(ctx, 'settingsAdminService'),
+          requireAdmin: (permission) => async (req, reply) =>
+            ctx.cradle<PwaCradle>().requireAdmin(permission)(req, reply),
+          vapidSubject:
+            process.env['PWA_VAPID_SUBJECT'] ?? 'mailto:admin@b2b-platform.local',
+          // Forwarded through the bridge so a root supplies them once, together.
+          assetUpload: b.assetUpload,
+          resolveAssetUrl: (assetId) => bridge().resolveAssetUrl(assetId),
+          resolveChannelIdByCode: (code) => bridge().resolveChannelIdByCode(code),
+          defaultChannelId: () => bridge().defaultChannelId(),
+          channelCodeForId: (channelId) => bridge().channelCodeForId(channelId),
+          resolveAuditContext: (request: FastifyRequest) =>
+            bridge().resolveAuditContext(request),
+          // Spread rather than assigned: `exactOptionalPropertyTypes` makes an
+          // omitted property and an explicit `undefined` different types, and
+          // these three are genuinely absent on a deployment that pushes on
+          // neither order nor quote events.
+          ...(b.resolveCustomerAccountId === undefined
+            ? {}
+            : { resolveCustomerAccountId: b.resolveCustomerAccountId }),
+          ...(b.resolveOrderTarget === undefined
+            ? {}
+            : { resolveOrderTarget: b.resolveOrderTarget }),
+          ...(b.resolveQuoteTarget === undefined
+            ? {}
+            : { resolveQuoteTarget: b.resolveQuoteTarget }),
+        });
+      })
+      .singleton(),
+  });
+
+  ctx.routes(async (app) => {
+    await ctx.cradle<PwaCradle>().pwa.plugin(app);
+  });
+}

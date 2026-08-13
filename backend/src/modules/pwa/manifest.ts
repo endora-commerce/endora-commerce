@@ -117,7 +117,22 @@ const pwaSettingEntries: SettingManifestEntry[] = [
 const settings = defineModuleSettingsManifest({
   moduleCode: 'pwa',
   groups: [{ code: 'pwa', name: 'Progressive Web App' }],
-  settings: pwaSettingEntries.map((entry) => ({ ...entry, hidden: true })),
+  settings: [
+    ...pwaSettingEntries.map((entry) => ({ ...entry, hidden: true })),
+    {
+      // Feature 073 — the operator's activation control. Deliberately NOT
+      // hidden: every other setting here is internal plumbing the PWA screen
+      // manages, while this one is the operator's own switch and belongs on
+      // `/platform/modules`.
+      code: 'pwa.enabled',
+      name: 'Progressive Web App enabled',
+      description:
+        'Switches the installable-app manifest, the push-subscription registry and push delivery on or off. Nothing is dropped: subscriptions and icons stay in the database, and pushes resume for the same subscribers when you switch it back on.',
+      groupCode: 'pwa',
+      valueType: 'boolean' as const,
+      defaultValue: true,
+    },
+  ],
 });
 
 /** Settings-only export consumed by the boot-time ManifestReconciler list. */
@@ -129,7 +144,9 @@ export const manifest = defineModuleManifest({
   description:
     'Installability, static-asset caching, controlled service-worker updates, and provider-agnostic push notifications for the storefront and admin.',
   version: '1.0.0',
-  dependencies: ['_i18n', '_lifecycle', 'assets_library', 'sales_channels', 'settings'],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by; feature
+  // 072 made it a container resolution rather than a constructor argument.
+  dependencies: ['_i18n', '_lifecycle', 'assets_library', 'sales_channels', 'settings', 'auth'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [
@@ -137,4 +154,5 @@ export const manifest = defineModuleManifest({
     { code: PWA_PERMISSIONS.WRITE, label: 'Configure PWA' },
     { code: PWA_PERMISSIONS.SEND_PUSH, label: 'Send push notifications' },
   ],
+  activation: { settingCode: 'pwa.enabled', default: true },
 });

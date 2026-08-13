@@ -160,7 +160,7 @@ import { emailAdapterConfigurationType } from './modules/credentials/types/email
 import { ergonodeConfigurationType } from './modules/pim_ergonode/services/ergonode-credential.type.js';
 import { feedDeliveryConfigurationType } from './modules/product_feeds/services/delivery/delivery-credential.type.js';
 // Feature 046 — Progressive Web App.
-import { pwaModule } from './modules/pwa/plugin.js';
+import type { PwaBridge } from './modules/pwa/backend.js';
 // Feature 047 — Transactional Emails.
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
 import type { BrandingService } from './modules/transactional_emails/services/branding.service.js';
@@ -1778,63 +1778,58 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // push fan-out (BullMQ; co-located unless BACKEND_ROLE=api), and the icon
   // rendition pipeline (sharp + assets_library). Channel/asset/customer coupling
   // is injected here so the module stays isolated (Principle I).
-  const pwa = pwaModule({
-    emFactory: em,
-    redis,
-    runWorkers,
-    settings: settings.handle.settingsService,
-    settingsWrite: settings.handle.adminService,
-    requireAdmin,
-    eventBus,
-    assetUpload: {
-      upload: async (input) => {
-        const detail = await assetsLibrary.handle.service.upload(input);
-        return { id: detail.id };
+  // Feature 072 (T116) — `pwa` owns its services, its queue and its routes
+  // now. What stays here is every way it reaches outside itself, contributed
+  // as one bridge: a composition knows how to reach `assets_library` and
+  // `sales_channels`, or it does not.
+  registerValues(container, {
+    pwaRunWorkers: runWorkers,
+    pwaBridge: {
+      assetUpload: {
+        upload: async (input) => {
+          const detail = await assetsLibrary.handle.service.upload(input);
+          return { id: detail.id };
+        },
       },
-    },
-    resolveAssetUrl: async (assetId) => {
-      try {
-        const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
-        return absolutizePublicUrl(resolved.url);
-      } catch {
-        return null;
-      }
-    },
-    resolveChannelIdByCode: async (code) => {
-      if (code) {
-        const ch = await salesChannels.handle.resolver.getByCode(code);
-        if (ch) return ch.id;
-      }
-      return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId;
-    },
-    defaultChannelId: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-    channelCodeForId: async (channelId) => {
-      const ch = await em().findOne(SalesChannel, { id: channelId });
-      return ch?.code ?? null;
-    },
-    resolveAuditContext: (request) => ({
-      actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-    }),
-    vapidSubject: process.env['PWA_VAPID_SUBJECT'] ?? 'mailto:admin@b2b-platform.local',
-    resolveCustomerAccountId: async (request) =>
-      request.actor.kind === 'customer' ? request.actor.customerAccountId : null,
-    // FR-024 auto-trigger — resolve an order-status event into a push target
-    // (the placing customer + a deep link to their order). Reading the Order
-    // entity here keeps the pwa module decoupled from the orders module.
-    resolveOrderTarget: async (payload) => {
-      const order = await em().findOne(Order, { id: payload.orderId });
-      if (!order || !order.placedByCustomerAccountId) return null;
-      return {
-        salesChannelId: payload.salesChannelId,
-        customerAccountId: order.placedByCustomerAccountId,
-        title: 'Order update',
-        body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
-        url: `/account/orders/${order.businessId}`,
-      };
-    },
+      resolveAssetUrl: async (assetId: string) => {
+        try {
+          const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
+          return absolutizePublicUrl(resolved.url);
+        } catch {
+          return null;
+        }
+      },
+      resolveChannelIdByCode: async (code: string | undefined) => {
+        if (code) {
+          const ch = await salesChannels.handle.resolver.getByCode(code);
+          if (ch) return ch.id;
+        }
+        return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId;
+      },
+      defaultChannelId: async () =>
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      channelCodeForId: async (channelId: string) => {
+        const ch = await em().findOne(SalesChannel, { id: channelId });
+        return ch?.code ?? null;
+      },
+      resolveAuditContext: (request: FastifyRequest) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      resolveCustomerAccountId: async (request: FastifyRequest) =>
+        request.actor.kind === 'customer' ? request.actor.customerAccountId : null,
+      resolveOrderTarget: async (payload) => {
+        const order = await em().findOne(Order, { id: payload.orderId });
+        if (!order || !order.placedByCustomerAccountId) return null;
+        return {
+          salesChannelId: payload.salesChannelId,
+          customerAccountId: order.placedByCustomerAccountId,
+          title: 'Order update',
+          body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
+          url: `/account/orders/${order.businessId}`,
+        };
+      },
+    } satisfies PwaBridge,
   });
-  modules.push(pwa.plugin);
 
   // Feature 015 — Megamenu module. Wires the cross-module ports the
   // target validator + storefront resolver delegate to. v1 uses small
@@ -2861,7 +2856,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       mailer: platformMailer,
       auditLog: auditLogService,
       settingsAdmin: settings.handle.adminService,
-      resolveAssetUrl: async (assetId) => {
+      resolveAssetUrl: async (assetId: string) => {
         try {
           const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
           return absolutizePublicUrl(resolved.url);
@@ -2903,7 +2898,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
       requireAdmin,
       settingsWrite: settings.handle.adminService,
-      resolveAuditContext: (request) => ({
+      resolveAuditContext: (request: FastifyRequest) => ({
         actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
       }),
       requireCustomer,

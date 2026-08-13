@@ -152,6 +152,13 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // The operator presence axis the command palette filters on. A root's to
   // supply — which modules a deployment ships is not a module's business.
   moduleActivationProbe: '_lifecycle',
+  // Every way `pwa` reaches outside itself — the `assets_library` upload facade,
+  // the sales-channel code⇄id helpers, the admin audit context and the FR-024
+  // push-target resolvers — contributed as one bridge by a root.
+  pwaBridge: 'pwa',
+  // Whether this composition runs the push-delivery consumer. A deployment
+  // decision: production follows `BACKEND_ROLE`, the harness runs none.
+  pwaRunWorkers: 'pwa',
 };
 
 export interface PortResolution {
