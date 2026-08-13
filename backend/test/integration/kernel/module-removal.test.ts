@@ -186,6 +186,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `assets_library` (wave 1, T092). The two registries name its entities and
+  // migrations; `composition.ts` imports the cradle type to annotate the handle
+  // it resolves and hands the `catalog`, `cms` and `megamenu` reference
+  // resolvers to. Contributing those is a root's job — which modules a
+  // deployment ships is not this module's business — so that one stays.
+  assets_library: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

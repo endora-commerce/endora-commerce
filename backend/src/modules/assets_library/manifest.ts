@@ -110,7 +110,10 @@ export const manifest = defineModuleManifest({
   description:
     'Storage adapter registry (local / S3 / GCS), asset upload, and reference tracking.',
   version: '1.0.0',
-  dependencies: [],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by; the
+  // edge became real with the conversion (feature 072, T092), which also made
+  // the gate non-optional.
+  dependencies: ['auth'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

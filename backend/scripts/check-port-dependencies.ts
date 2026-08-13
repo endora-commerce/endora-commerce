@@ -93,7 +93,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // them itself since T078, and the staleness check below fails the build if an
   // entry outlives its owner's conversion.
   //
-  assetReferenceRegistry: 'assets_library',
   dictionaryValidator: 'dictionaries',
   // Registered as `undefined` today: blog ships no storefront ports and both
   // composition roots pass nothing. The name is blog's own.

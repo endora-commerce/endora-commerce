@@ -74,6 +74,11 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // `emFactory`, the kernel audit writer and `auth`'s `sessionService`, all of
   // which exist by then.
   'customer_accounts',
+  // Both roots resolve its handle to contribute `catalog`, `cms` and
+  // `megamenu` reference resolvers, well before the late pass. Named here from
+  // the conversion diff rather than after a red run — see the predictor in the
+  // note above this list.
+  'assets_library',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

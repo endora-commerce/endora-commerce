@@ -1,3 +1,4 @@
+import type { AssetsLibraryCradle } from '../../src/modules/assets_library/backend.js';
 import type { CustomerAccountsCradle } from '../../src/modules/customer_accounts/backend.js';
 import type { PaymentAdapterRegistry } from '../../src/modules/payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from '../../src/modules/payment_methods/services/order-status-registry.port.js';
@@ -204,7 +205,7 @@ import {
 } from '../../src/modules/catalog/prompt-tools.js';
 import { inventoryPromptTools } from '../../src/modules/inventory/prompt-tools.js';
 import { comparisonsModule } from '../../src/modules/comparisons/plugin.js';
-import { assetsLibraryModule } from '../../src/modules/assets_library/plugin.js';
+import type { assetsLibraryModule } from '../../src/modules/assets_library/plugin.js';
 import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
@@ -1802,12 +1803,10 @@ export async function setupBackendServer(
 
   // Feature 013 — Assets Library. Routes mount under /api/v1/admin/assets/*
   // and /assets/file/:assetId.
-  const assetsLibrary = assetsLibraryModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    auditLog: auditLogService,
-  });
-  modules.push(assetsLibrary.plugin);
+  // Feature 072 (T092) — the module owns its plugin and its registry now; the
+  // root only contributes the reference resolvers of whichever modules this
+  // deployment ships.
+  const assetsLibrary = (container.cradle as unknown as AssetsLibraryCradle).assetsLibrary;
   registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
   registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
   registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
@@ -1973,7 +1972,6 @@ export async function setupBackendServer(
     settingsReadPort: settings.handle.settingsService,
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
-    assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
     dictionaryValidator: dictionaries.handle.validator,
     blogStorefrontDeps: undefined,
   });

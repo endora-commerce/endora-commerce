@@ -21,8 +21,14 @@ export interface AssetsLibraryModuleOptions {
   emFactory: () => EntityManager;
   /** HMAC signer for local-FS private URLs. Uses ASSETS_LIBRARY_HMAC_KEY by default. */
   signer?: HmacSigner;
-  /** Permission gate factory. When omitted, a permissive no-op is used (test default). */
-  requireAdmin?: RequireAdminFactory;
+  /**
+   * Permission gate factory. **Required** since feature 072 (T092): it used to
+   * default to a permissive no-op, so a caller that forgot it got an
+   * unguarded asset admin surface — silently, because the safe path is the one
+   * every test exercises. The container supplies it now; there is no omission
+   * left to be silent about.
+   */
+  requireAdmin: RequireAdminFactory;
   /** Feature 054 — audits asset/folder writes co-transactionally when provided. */
   auditLog?: AuditLogService;
 }
@@ -34,10 +40,6 @@ export interface AssetsLibraryModuleHandle {
   adapters: AdapterRegistry;
 }
 
-const noOpRequireAdmin: RequireAdminFactory =
-  () => async () => {
-    /* permissive default — production wiring overrides */
-  };
 
 async function loadUploadPolicy(emFactory: () => EntityManager): Promise<{
   allowedTypes: string[];
@@ -83,7 +85,7 @@ export function assetsLibraryModule(options: AssetsLibraryModuleOptions): {
   });
   const folders = new FoldersService(options.emFactory, referenceRegistry, options.auditLog);
 
-  const requireAdmin = options.requireAdmin ?? noOpRequireAdmin;
+  const requireAdmin = options.requireAdmin;
 
   const plugin = async (app: FastifyInstance) => {
     // Resolve the upload policy ONCE at registration so the multipart

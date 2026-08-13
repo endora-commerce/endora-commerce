@@ -1,3 +1,4 @@
+import type { AssetsLibraryCradle } from './modules/assets_library/backend.js';
 import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
 import type { PaymentAdapterRegistry } from './modules/payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from './modules/payment_methods/services/order-status-registry.port.js';
@@ -217,7 +218,6 @@ import type {
   PromptActionTool,
   PromptActionToolRegistry,
 } from './modules/prompt_actions/services/tool-registry.js';
-import { assetsLibraryModule } from './modules/assets_library/plugin.js';
 import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
 import { registerApiInterceptorAdminRoutes } from './modules/_lifecycle/routes.admin.js';
@@ -1866,8 +1866,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // are accessible to other modules. Routes (admin upload, public file
   // serving) and consumer wiring (Catalog / CMS reference descriptors) land
   // in subsequent phases (US1 + US2).
-  const assetsLibrary = assetsLibraryModule({ emFactory: em, requireAdmin, auditLog: auditLogService });
-  modules.push(assetsLibrary.plugin);
+  // Feature 072 (T092) — the module owns its plugin and its registry now; the
+  // root only contributes the reference resolvers of whichever modules this
+  // deployment ships.
+  const assetsLibrary = (container.cradle as unknown as AssetsLibraryCradle).assetsLibrary;
   // Register Catalog's reference descriptors so the Library's soft-delete
   // path (FR-030) blocks deletion of any asset still pointed at by a
   // gallery item / product attachment / virtual-download / category main
@@ -2079,7 +2081,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // had spelled the same expression out four times.
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-    assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
     dictionaryValidator: dictionaries.handle.validator,
     // Blog ships no storefront ports today — the factory defaulted this to `{}`
     // and neither composition root ever passed one.
