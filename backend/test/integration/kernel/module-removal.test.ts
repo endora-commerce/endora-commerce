@@ -299,6 +299,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `comparisons` (wave 2, T111). The two central registries name its two
+  // entities and its migrations; `composition.ts` imports the cradle type to
+  // annotate the `comparisonService` port it resolves and binds the login
+  // flow's anonymous-comparison adoption to. That reference goes when
+  // `organizations` converts and reads the port itself.
+  comparisons: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

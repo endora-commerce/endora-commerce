@@ -6,7 +6,6 @@ import type {
 } from '@b2b/contracts';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { CatalogQueryService } from '../../catalog/services/catalog-query.service.js';
 import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
 import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { Comparison } from '../entities/comparison.entity.js';
@@ -22,7 +21,7 @@ import {
  * ComparisonService — feature 007 / T023 + T024.
  *
  * Stateful service owning the Comparison resource. Cross-module reads go
- * through the documented service ports {@link CatalogQueryService} and
+ * through the documented service port {@link CatalogAttributeReadService} and
  * {@link SettingsService}; no entity imports from another module's
  * internals (Constitution I).
  *
@@ -51,8 +50,6 @@ import {
 export class ComparisonService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    /** Catalog read port (constructor contract kept; attribute reads moved to `catalogAttributes`). */
-    _catalogQuery: CatalogQueryService,
     private readonly projection: ComparableAttributeProjection,
     private readonly tokens: ShareTokenGenerator,
     /**

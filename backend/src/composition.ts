@@ -153,7 +153,7 @@ import {
   SEARCH_SETTING_CODES,
   DEFAULT_REINDEX_INTERVAL_MINUTES,
 } from './modules/search/manifest.js';
-import { comparisonsModule } from './modules/comparisons/plugin.js';
+import type { ComparisonsCradle } from './modules/comparisons/backend.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
 // Feature 058 — Credentials (reusable credential configurations).
 import { configurationTypeRegistry } from './modules/credentials/services/registry-singleton.js';
@@ -2026,6 +2026,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // Feature 072 (T101) — inherited credit limits. Owned by `organizations`,
     // which is still hand-wired; the entry goes when that module converts.
     organizationInheritancePort: organizationInheritanceService,
+    // Feature 072 (T111) — the composed attribute read model. Owned by
+    // `catalog`, which is still hand-wired; the entry goes when it converts.
+    catalogAttributeReadPort: catalogAttributeReadService,
     // Feature 072 (wave 2) — how this composition names the acting admin for an
     // audit record: the admin's id, or `null` for a non-admin caller. The ad
     // modules each declared an identically-shaped `resolveAuditContext` option
@@ -2154,25 +2157,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // routes respectively. Reads catalog through CatalogQueryService (the
   // documented service port — Constitution I) and `compare.max_products`
   // through SettingsService.
-  const catalogQueryServiceForCompare = new CatalogQueryService(
-    em,
-    undefined,
-    undefined,
-    catalogAttributeReadService,
-  );
-  const comparisons = comparisonsModule({
-    emFactory: em,
-    catalogQueryService: catalogQueryServiceForCompare,
-    catalogAttributeRead: catalogAttributeReadService,
-    settingsService: settings.handle.settingsService,
-    requireAdmin,
-  });
-  modules.push(comparisons.plugin);
+  // Feature 072 (T111) — the `CatalogQueryService` built here fed a parameter
+  // `ComparisonService` discarded (`_catalogQuery`). Both are gone.
+  // Feature 072 (T111) — `comparisons` owns its services and routes now.
+  const comparisonsCradle = container.cradle as unknown as ComparisonsCradle;
   // Late-bind the adoption hook captured by organizationsModule.onLogin
   // above; from this point onwards customer logins also adopt the
   // anonymous Comparison the caller was carrying (R-2 / spec FR-005).
-  comparisonAdoption = comparisons.handle.comparisonService.adoptAnonymousComparison.bind(
-    comparisons.handle.comparisonService,
+  comparisonAdoption = comparisonsCradle.comparisonService.adoptAnonymousComparison.bind(
+    comparisonsCradle.comparisonService,
   );
 
   // Feature 008 — Quote Requests workflow. Built after Settings so the
