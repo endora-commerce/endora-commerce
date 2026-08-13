@@ -58,7 +58,6 @@ import {
   STATE_CHANGED_CHANNEL,
 } from './modules/_lifecycle/services/registry-cache.js';
 import { effectiveState } from './modules/_lifecycle/services/effective-state.js';
-import { ModuleDisabledError } from './modules/_lifecycle/plugin-helpers.js';
 import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 import { catalogModule } from './modules/catalog/plugin.js';
 import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
@@ -108,7 +107,7 @@ import { customersModule } from './modules/customers/plugin.js';
 import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
 import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
-import { adminModule } from './modules/admin_users/plugin.js';
+import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge, MfaCradle } from './modules/mfa/backend.js';
 import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
 import { verifyPassword, hashPassword } from './modules/auth/services/password-hasher.js';
@@ -464,7 +463,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   };
   const permissionService = rolesCradle.permissionService;
   const permissionCatalogueService = rolesCradle.permissionCatalogueService;
-  const adminRoleService = rolesCradle.adminRoleService;
 
   // Feature 072 (wave 1) — one `CurrencyService`, where `dictionaries` and
   // `languages` each built their own with different invalidators.
@@ -600,17 +598,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `mfa` composing later is not a race.
   registerValues(container, { mfaLoginPortGetter: getMfaLoginPort });
 
-  const admin = adminModule({
-    emFactory: em,
-    sessionService,
-    auditLogService,
-    permissionService,
-    permissionCatalogueService,
-    adminRoleService,
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-    getMfaLoginPort,
-  });
 
   // Feature 056 — organization tree + inheritance resolution port (shared by
   // US2 scope expansion and US3 commercial-term inheritance). The global
@@ -1288,7 +1275,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ...earlyModules.sink.plugins,
     authModulePlugin,
     tenantContextModulePlugin,
-    admin.plugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
     priceLists.plugin,
     commerceModule({
@@ -1947,11 +1933,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // modules convert.
     apiKeyResolver: async (token: string) =>
       apiKeysCradle.apiKeyService.authenticate(token),
-    // Feature 072 (T089) — `_i18n` reads it to serve the per-admin language
-    // preference. This is `admin_users`' own audited instance: the root used to
-    // build a second, audit-less `AdminUserService` purely to hand to that
-    // module. The entry goes when `admin_users` converts and provides it.
-    adminUserService: admin.handle.adminUserService,
     // `redis` is registered further up, where the client is created.
     // The kernel's `SettingsService` already implements the read port; the
     // adapter object this replaces existed only to narrow it.
@@ -2011,6 +1992,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     interceptorRegistry: apiInterceptors,
     ownership: registrationOwnership,
   });
+  // Feature 072 (T121) — `admin_users` owns its services and routes now. The
+  // MFA getter is a contribution the module defaults absent, so it is
+  // registered **after the late pass** that composes `admin_users`: earlier and
+  // the module's own default would overwrite it and every admin login would
+  // silently go password-only. The getter is late-bound, so `mfa` composing
+  // later is not a race.
+  registerValues(container, { adminMfaLoginPortGetter: getMfaLoginPort });
   modules.push(...lateModules.sink.plugins);
 
   // Registered **after** the late pass on purpose: `audit_logs` registers its
@@ -2025,9 +2013,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // "`admin_users` is present" means is a root's job, not the reading
     // module's; this entry disappears when `admin_users` converts and
     // publishes the resolver itself.
+    // Feature 072 (T121) — the gate is the port's own now: `adminUserService`
+    // is provided by `admin_users` and raises `ModuleDisabledError` when that
+    // module is off, so no root hard-codes `isPresent('admin_users')` here.
+    // The contribution itself stays a root's: `audit_logs` owns the name and
+    // defaults it absent, and it composes after `admin_users`, so a
+    // registration from the module would be overwritten by that default.
     auditActorResolver: async (ids: string[]) => {
-      if (!effectiveState.isPresent('admin_users')) throw new ModuleDisabledError('admin_users');
-      const users = await admin.handle.adminUserService.listByIds(ids);
+      const users = await (
+        container.cradle as unknown as AdminUsersCradle
+      ).adminUserService.listByIds(ids);
       return users.map((u) => ({
         id: u.id,
         firstName: u.firstName,

@@ -47,7 +47,6 @@ import {
 } from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { activationDeclarationsFrom } from '../../src/modules/_lifecycle/services/activation-resolver.js';
 import { effectiveState } from '../../src/modules/_lifecycle/services/effective-state.js';
-import { ModuleDisabledError } from '../../src/modules/_lifecycle/plugin-helpers.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { type TenantContext } from '../../src/tenancy/tenant-context.js';
 import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js';
@@ -113,7 +112,7 @@ import type { OrganizationEventBus } from '../../src/modules/organizations/servi
 // proved nothing: every mail-sending suite runs against this root.
 import type { EmailCradle } from '../../src/modules/email/backend.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
-import { adminModule } from '../../src/modules/admin_users/plugin.js';
+import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
@@ -851,7 +850,6 @@ export async function setupBackendServer(
   };
   const permissionService = rolesCradle.permissionService;
   const permissionCatalogueService = rolesCradle.permissionCatalogueService;
-  const adminRoleService = rolesCradle.adminRoleService;
 
   // Feature 072 (wave 1) — one `CurrencyService`, where `dictionaries` and
   // `languages` each built their own with different invalidators.
@@ -967,22 +965,6 @@ export async function setupBackendServer(
   // `mfa` composing later is not a race.
   registerValues(container, { mfaLoginPortGetter: getTestMfaLoginPort });
 
-  // Build the admin module first so we can hand its handle (auditLogService,
-  // permissionService) to other modules that need it.
-  const admin = adminModule({
-    emFactory: em,
-    sessionService,
-    auditLogService,
-    permissionService,
-    permissionCatalogueService,
-    adminRoleService,
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminContext: (request) => ({
-      adminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
-    getMfaLoginPort: getTestMfaLoginPort,
-  });
 
   // Feature 056 — organization tree + inheritance resolution, built here for
   // the same reason production builds it (`composition.ts`): three consumers
@@ -1270,7 +1252,6 @@ export async function setupBackendServer(
       // request seam gets a leak that no test can see.
       await registerRequestScopeHook(app, { buildTenantContext: buildContext });
     },
-    admin.plugin,
     priceLists.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
@@ -1996,6 +1977,13 @@ export async function setupBackendServer(
     interceptorRegistry: apiInterceptors,
     ownership: registrationOwnership,
   });
+  // Feature 072 (T121) — `admin_users` owns its services and routes now. The
+  // MFA getter is a contribution the module defaults absent, so it is
+  // registered **after the late pass** that composes `admin_users`: earlier and
+  // the module's own default would overwrite it and every admin login would
+  // silently go password-only. The getter is late-bound, so `mfa` composing
+  // later is not a race.
+  registerValues(container, { adminMfaLoginPortGetter: getTestMfaLoginPort });
   modules.push(...lateModules.sink.plugins);
 
   // Registered **after** the late pass on purpose: `audit_logs` registers its
@@ -2012,27 +2000,22 @@ export async function setupBackendServer(
     // module overwrite the root — which is exactly what happened, and the
     // sitemap silently fell through to `http://localhost:3000`.
     sitemapOptions: { staleAfterMs: 0, baseUrl: 'http://test.local' },
-    // Feature 072 (T084) — `audit_logs` owns its routes now and no longer
-    // reaches into `admin_users` for identities. Turning an actor id into a
-    // name is a **contribution**, so it is gated here rather than declared as
-    // a dependency: the audit log must stay readable when `admin_users` is
-    // off, and it degrades to raw ids instead of refusing. Deciding what
-    // "`admin_users` is present" means is a root's job, not the reading
-    // module's; this entry disappears when `admin_users` converts and
-    // publishes the resolver itself.
-    // Feature 072 (T089) — mirrors `composition.ts`: `_i18n` reads it for the
-    // per-admin language preference, and it is `admin_users`' own instance.
-    // The harness used to build a third one for that module alone.
-    adminUserService: admin.handle.adminUserService,
     // Feature 072 (T089) — the harness composes no `_lifecycle`, so there is no
     // manifest registry to walk and `_i18n`'s reconcile is a no-op here. That
     // was already true before the conversion (the old call site passed no
     // `registry` option at all); making the absence an explicit registration is
     // what lets the module resolve one name in both compositions.
     lifecycleManifestRegistry: () => undefined,
+    // Feature 072 (T121) — the gate is the port's own now: `adminUserService`
+    // is provided by `admin_users` and raises `ModuleDisabledError` when that
+    // module is off, so no root hard-codes `isPresent('admin_users')` here.
+    // The contribution itself stays a root's: `audit_logs` owns the name and
+    // defaults it absent, and it composes after `admin_users`, so a
+    // registration from the module would be overwritten by that default.
     auditActorResolver: async (ids: string[]) => {
-      if (!effectiveState.isPresent('admin_users')) throw new ModuleDisabledError('admin_users');
-      const users = await admin.handle.adminUserService.listByIds(ids);
+      const users = await (
+        container.cradle as unknown as AdminUsersCradle
+      ).adminUserService.listByIds(ids);
       return users.map((u) => ({
         id: u.id,
         firstName: u.firstName,

@@ -108,7 +108,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   blogStorefrontDeps: 'blog',
   // `_i18n` reads it to serve the per-admin language preference; `admin_users`
   // owns the audited instance and is still hand-wired.
-  adminUserService: 'admin_users',
   // The lazy accessor `_i18n` walks to reconcile every module's bundles. The
   // registry does not exist until `_lifecycle` is constructed, which in a root
   // happens after the late pass, so a root supplies the accessor.
