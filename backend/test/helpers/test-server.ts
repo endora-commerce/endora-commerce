@@ -1936,6 +1936,12 @@ export async function setupBackendServer(
     requireCustomer: requireTestCustomer(),
     // Feature 072 (wave 2) — mirrors `composition.ts`.
     customerContextResolver: customerResolver,
+    // Feature 072 (wave 3) — how this composition names the calling customer as
+    // an id. The four payment gateways read it; before their conversion this
+    // harness composed none of them, which `harness-parity` recorded as an
+    // accepted divergence.
+    customerAccountIdResolver: (req: FastifyRequest) =>
+      req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
     organizationInheritancePort: organizationInheritanceService,
     catalogAttributeReadPort: catalogAttributeReadService,
     // Feature 072 (wave 2) — mirrors `composition.ts`, reading this harness's

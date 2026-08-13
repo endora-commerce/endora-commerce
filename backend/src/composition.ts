@@ -89,10 +89,6 @@ import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
 import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { ReturnsBridge } from './modules/returns/backend.js';
-import { stripeModule } from './modules/stripe/plugin.js';
-import { tpayModule } from './modules/tpay/plugin.js';
-import { payuModule } from './modules/payu/plugin.js';
-import { autopayModule } from './modules/autopay/plugin.js';
 import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
@@ -1952,6 +1948,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // customer. Root-shaped for the same reason `requireCustomer` is: five
     // modules take it as an option and each root spells it once.
     customerContextResolver: customerResolver,
+    // Feature 072 (wave 3) — how this composition names the calling customer,
+    // as an id. The four payment gateways each declared an identically-shaped
+    // `resolveCustomerAccountId` option and this root spelled the same
+    // reference once per module.
+    customerAccountIdResolver: resolveCustomerAccountId,
     // Feature 072 (T101) — inherited credit limits. Owned by `organizations`,
     // which is still hand-wired; the entry goes when that module converts.
     organizationInheritancePort: organizationInheritanceService,
@@ -2710,89 +2711,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // payment_methods row per Stripe method, and mounts the webhook / storefront /
   // admin routes. Coupling (settings, sales channels, default channel) is
   // injected so the module stays isolated (Principle I).
-  modules.push(
-    stripeModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.settingsService,
-      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
-      requireAdmin,
-      requireCustomer,
-      resolveCustomerAccountId,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveDefaultChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.membershipService,
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    }),
-  );
 
-  modules.push(
-    tpayModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.settingsService,
-      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
-      requireAdmin,
-      requireCustomer,
-      resolveCustomerAccountId,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveDefaultChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.membershipService,
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-      publicApiBaseUrl:
-        process.env['PUBLIC_API_BASE_URL'] ??
-        process.env['API_PUBLIC_URL'] ??
-        'http://localhost:3001',
-    }),
-  );
 
-  modules.push(
-    payuModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.settingsService,
-      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
-      requireAdmin,
-      requireCustomer,
-      resolveCustomerAccountId,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveDefaultChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.membershipService,
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-      publicApiBaseUrl:
-        process.env['PUBLIC_API_BASE_URL'] ??
-        process.env['API_PUBLIC_URL'] ??
-        'http://localhost:3001',
-    }),
-  );
 
-  modules.push(
-    autopayModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.settingsService,
-      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
-      requireAdmin,
-      requireCustomer,
-      resolveCustomerAccountId,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveDefaultChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.membershipService,
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    }),
-  );
 
   modules.push(
     transactionalEmailsModule({

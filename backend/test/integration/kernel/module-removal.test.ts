@@ -484,6 +484,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // The four payment gateways (wave 3, T128/T130/T134/T135). Identical entries
+  // because the conversion was identical: the two central registries name their
+  // entities and migrations, and no composition root refers to any of them any
+  // more — the twelve options each took were all names the container already
+  // knew.
+  autopay: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  payu: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  stripe: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  tpay: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

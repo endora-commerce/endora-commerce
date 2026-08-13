@@ -82,40 +82,48 @@ import * as module29 from './modules/prompt_actions/backend.js';
 import { manifest as manifest29 } from './modules/prompt_actions/manifest.js';
 import * as module30 from './modules/returns/backend.js';
 import { manifest as manifest30 } from './modules/returns/manifest.js';
-import * as module31 from './modules/sales_channels/backend.js';
-import { manifest as manifest31 } from './modules/sales_channels/manifest.js';
-import * as module32 from './modules/api_keys/backend.js';
-import { manifest as manifest32 } from './modules/api_keys/manifest.js';
-import * as module33 from './modules/cms/backend.js';
-import { manifest as manifest33 } from './modules/cms/manifest.js';
-import * as module34 from './modules/blog/backend.js';
-import { manifest as manifest34 } from './modules/blog/manifest.js';
-import * as module35 from './modules/comparisons/backend.js';
-import { manifest as manifest35 } from './modules/comparisons/manifest.js';
-import * as module36 from './modules/google_analytics/backend.js';
-import { manifest as manifest36 } from './modules/google_analytics/manifest.js';
-import * as module37 from './modules/google_tag_manager/backend.js';
-import { manifest as manifest37 } from './modules/google_tag_manager/manifest.js';
-import * as module38 from './modules/linkedin_ads/backend.js';
-import { manifest as manifest38 } from './modules/linkedin_ads/manifest.js';
-import * as module39 from './modules/megamenu/backend.js';
-import { manifest as manifest39 } from './modules/megamenu/manifest.js';
-import * as module40 from './modules/meta_ads/backend.js';
-import { manifest as manifest40 } from './modules/meta_ads/manifest.js';
-import * as module41 from './modules/newsletter/backend.js';
-import { manifest as manifest41 } from './modules/newsletter/manifest.js';
-import * as module42 from './modules/promotions/backend.js';
-import { manifest as manifest42 } from './modules/promotions/manifest.js';
-import * as module43 from './modules/pwa/backend.js';
-import { manifest as manifest43 } from './modules/pwa/manifest.js';
-import * as module44 from './modules/search/backend.js';
-import { manifest as manifest44 } from './modules/search/manifest.js';
-import * as module45 from './modules/shipments/backend.js';
-import { manifest as manifest45 } from './modules/shipments/manifest.js';
-import * as module46 from './modules/taxes/backend.js';
-import { manifest as manifest46 } from './modules/taxes/manifest.js';
-import * as module47 from './modules/webhooks/backend.js';
-import { manifest as manifest47 } from './modules/webhooks/manifest.js';
+import * as module31 from './modules/autopay/backend.js';
+import { manifest as manifest31 } from './modules/autopay/manifest.js';
+import * as module32 from './modules/payu/backend.js';
+import { manifest as manifest32 } from './modules/payu/manifest.js';
+import * as module33 from './modules/sales_channels/backend.js';
+import { manifest as manifest33 } from './modules/sales_channels/manifest.js';
+import * as module34 from './modules/api_keys/backend.js';
+import { manifest as manifest34 } from './modules/api_keys/manifest.js';
+import * as module35 from './modules/cms/backend.js';
+import { manifest as manifest35 } from './modules/cms/manifest.js';
+import * as module36 from './modules/blog/backend.js';
+import { manifest as manifest36 } from './modules/blog/manifest.js';
+import * as module37 from './modules/comparisons/backend.js';
+import { manifest as manifest37 } from './modules/comparisons/manifest.js';
+import * as module38 from './modules/google_analytics/backend.js';
+import { manifest as manifest38 } from './modules/google_analytics/manifest.js';
+import * as module39 from './modules/google_tag_manager/backend.js';
+import { manifest as manifest39 } from './modules/google_tag_manager/manifest.js';
+import * as module40 from './modules/linkedin_ads/backend.js';
+import { manifest as manifest40 } from './modules/linkedin_ads/manifest.js';
+import * as module41 from './modules/megamenu/backend.js';
+import { manifest as manifest41 } from './modules/megamenu/manifest.js';
+import * as module42 from './modules/meta_ads/backend.js';
+import { manifest as manifest42 } from './modules/meta_ads/manifest.js';
+import * as module43 from './modules/newsletter/backend.js';
+import { manifest as manifest43 } from './modules/newsletter/manifest.js';
+import * as module44 from './modules/promotions/backend.js';
+import { manifest as manifest44 } from './modules/promotions/manifest.js';
+import * as module45 from './modules/pwa/backend.js';
+import { manifest as manifest45 } from './modules/pwa/manifest.js';
+import * as module46 from './modules/search/backend.js';
+import { manifest as manifest46 } from './modules/search/manifest.js';
+import * as module47 from './modules/shipments/backend.js';
+import { manifest as manifest47 } from './modules/shipments/manifest.js';
+import * as module48 from './modules/stripe/backend.js';
+import { manifest as manifest48 } from './modules/stripe/manifest.js';
+import * as module49 from './modules/taxes/backend.js';
+import { manifest as manifest49 } from './modules/taxes/manifest.js';
+import * as module50 from './modules/tpay/backend.js';
+import { manifest as manifest50 } from './modules/tpay/manifest.js';
+import * as module51 from './modules/webhooks/backend.js';
+import { manifest as manifest51 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: '_lifecycle', version: manifest0.version, registerModule: module0.registerModule },
@@ -149,21 +157,25 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'mfa', version: manifest28.version, registerModule: module28.registerModule },
   { id: 'prompt_actions', version: manifest29.version, registerModule: module29.registerModule },
   { id: 'returns', version: manifest30.version, registerModule: module30.registerModule },
-  { id: 'sales_channels', version: manifest31.version, registerModule: module31.registerModule },
-  { id: 'api_keys', version: manifest32.version, registerModule: module32.registerModule },
-  { id: 'cms', version: manifest33.version, registerModule: module33.registerModule },
-  { id: 'blog', version: manifest34.version, registerModule: module34.registerModule },
-  { id: 'comparisons', version: manifest35.version, registerModule: module35.registerModule },
-  { id: 'google_analytics', version: manifest36.version, registerModule: module36.registerModule },
-  { id: 'google_tag_manager', version: manifest37.version, registerModule: module37.registerModule },
-  { id: 'linkedin_ads', version: manifest38.version, registerModule: module38.registerModule },
-  { id: 'megamenu', version: manifest39.version, registerModule: module39.registerModule },
-  { id: 'meta_ads', version: manifest40.version, registerModule: module40.registerModule },
-  { id: 'newsletter', version: manifest41.version, registerModule: module41.registerModule },
-  { id: 'promotions', version: manifest42.version, registerModule: module42.registerModule },
-  { id: 'pwa', version: manifest43.version, registerModule: module43.registerModule },
-  { id: 'search', version: manifest44.version, registerModule: module44.registerModule },
-  { id: 'shipments', version: manifest45.version, registerModule: module45.registerModule },
-  { id: 'taxes', version: manifest46.version, registerModule: module46.registerModule },
-  { id: 'webhooks', version: manifest47.version, registerModule: module47.registerModule },
+  { id: 'autopay', version: manifest31.version, registerModule: module31.registerModule },
+  { id: 'payu', version: manifest32.version, registerModule: module32.registerModule },
+  { id: 'sales_channels', version: manifest33.version, registerModule: module33.registerModule },
+  { id: 'api_keys', version: manifest34.version, registerModule: module34.registerModule },
+  { id: 'cms', version: manifest35.version, registerModule: module35.registerModule },
+  { id: 'blog', version: manifest36.version, registerModule: module36.registerModule },
+  { id: 'comparisons', version: manifest37.version, registerModule: module37.registerModule },
+  { id: 'google_analytics', version: manifest38.version, registerModule: module38.registerModule },
+  { id: 'google_tag_manager', version: manifest39.version, registerModule: module39.registerModule },
+  { id: 'linkedin_ads', version: manifest40.version, registerModule: module40.registerModule },
+  { id: 'megamenu', version: manifest41.version, registerModule: module41.registerModule },
+  { id: 'meta_ads', version: manifest42.version, registerModule: module42.registerModule },
+  { id: 'newsletter', version: manifest43.version, registerModule: module43.registerModule },
+  { id: 'promotions', version: manifest44.version, registerModule: module44.registerModule },
+  { id: 'pwa', version: manifest45.version, registerModule: module45.registerModule },
+  { id: 'search', version: manifest46.version, registerModule: module46.registerModule },
+  { id: 'shipments', version: manifest47.version, registerModule: module47.registerModule },
+  { id: 'stripe', version: manifest48.version, registerModule: module48.registerModule },
+  { id: 'taxes', version: manifest49.version, registerModule: module49.registerModule },
+  { id: 'tpay', version: manifest50.version, registerModule: module50.registerModule },
+  { id: 'webhooks', version: manifest51.version, registerModule: module51.registerModule },
 ];

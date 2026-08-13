@@ -153,6 +153,11 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // How a composition resolves the calling customer. Root-shaped for the same
   // reason `requireCustomer` is; owned by `auth` in principle.
   customerContextResolver: 'auth',
+  // The calling customer as a bare id. Root-shaped for the same reason
+  // `customerContextResolver` is — production reads `request.actor`, the harness
+  // `request.testActor` — and owned by `auth` in principle. Read by the four
+  // payment gateways (wave 3).
+  customerAccountIdResolver: 'auth',
   // Inherited credit limits (feature 056). Owned by `organizations`, still
   // hand-wired; the entry goes when that module converts.
   organizationInheritancePort: 'organizations',
