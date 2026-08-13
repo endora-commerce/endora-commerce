@@ -143,6 +143,12 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `addresses` (wave 1, T090). The ORM registry names its `Address` entity —
+  // the hand-maintained list blog is caught by above — and both roots import
+  // the service type to annotate what they resolve and hand to `orders` and
+  // `organizations`. Those two took the service as an argument already; what
+  // changed is that there is now one of it instead of three.
+  addresses: ['src/composition.ts', 'src/db/entities-registry.ts'],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

@@ -19,7 +19,7 @@ import { CartAbandonmentWorker } from '../carts/services/cart-abandonment-worker
 import { registerCartsAdminRoutes } from '../carts/routes.admin.js';
 import { registerCartsOrganizationRoutes } from '../carts/routes.organization.js';
 import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
-import { AddressService } from '../addresses/services/address-service.js';
+import type { AddressService } from '../addresses/services/address-service.js';
 import type { PromotionService } from '../promotions/services/promotion-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type Redis from 'ioredis';
@@ -133,7 +133,13 @@ export interface OrdersModuleOptions {
    * form. Optional so foundation tests that never create inline addresses can
    * omit it.
    */
-  addressService?: AddressService;
+  /**
+   * Required since feature 072 (T090). It used to fall back to a bare
+   * `AddressService` built from `emFactory` alone — no dictionary validator and
+   * no audit writer — so a caller that forgot the option got silently
+   * unvalidated, unaudited address writes on the checkout path.
+   */
+  addressService: AddressService;
   /**
    * Feature 026 — optional gate that refuses cart-line-add, place-order, and
    * RFQ-submit when the Customer's Organization is not `active`. Threaded
@@ -467,7 +473,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.emFactory,
       () => options.getRfqService?.() ?? null,
     );
-    const addressService = options.addressService ?? new AddressService(options.emFactory);
+    const addressService = options.addressService;
     const orderCreationAdminService = new OrderCreationAdminService(
       options.emFactory,
       cartService,

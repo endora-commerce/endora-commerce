@@ -57,6 +57,11 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // `credentialsService` as an argument, so it has to be registered before
   // any of them is constructed.
   'credentials',
+  // `orders` (as `commerceModule`) and `organizations` both take
+  // `addressService` as an argument and are constructed well before the late
+  // pass. The module needs nothing but `emFactory`, the kernel audit writer and
+  // a lazily-read dictionary validator, so composing it early costs nothing.
+  'addresses',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

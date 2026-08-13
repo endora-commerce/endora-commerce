@@ -95,7 +95,7 @@ import { ksefModule } from './modules/ksef/plugin.js';
 import { productFeedsModule } from './modules/product_feeds/plugin.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
-import { AddressService } from './modules/addresses/services/address-service.js';
+import type { AddressService } from './modules/addresses/services/address-service.js';
 import type { OrderListService } from './modules/orders/services/order-list-service.js';
 import type { OrderTransitionService } from './modules/orders/services/order-transition-service.js';
 import { customersModule } from './modules/customers/plugin.js';
@@ -697,6 +697,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     auditLog: auditLogService,
   });
 
+  // Registered here rather than with the other host values further down:
+  // `addresses` reads it to build the one `AddressService`, and both `orders`
+  // and `organizations` are constructed before that block runs.
+  registerValues(container, { dictionaryValidator: dictionaries.handle.validator });
+  // Feature 072 (T090) — one `AddressService` for the whole composition.
+  // `orders` and `organizations` used to build their own, and the constructor's
+  // validator and audit writer are optional, so the instances were free to
+  // disagree — and one did.
+  const addressService = (container.cradle as unknown as { addressService: AddressService })
+    .addressService;
+
   // Feature 072 (wave 1) — `currencies` resolves this per write. It is the same
   // pair of drops `dictionariesModule` performs internally; registering it here
   // is what lets a single `CurrencyService` serve both admin surfaces, which is
@@ -722,7 +733,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     redis,
     auditLogService,
     requireAdmin,
-    dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => {
       if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
       return { actorAdminUserId: request.actor.adminUserId };
@@ -1373,7 +1383,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
-      addressService: new AddressService(em, dictionaries.handle.validator, auditLogService),
+      addressService,
       promotionService: promotions.handle.promotionService,
       redis,
       // Feature 062 — external orders namespace (/api/v1/external/orders*):
@@ -1630,6 +1640,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     }),
     organizationsModule({
+      addressService,
       emFactory: em,
       eventBus,
       commandBus,

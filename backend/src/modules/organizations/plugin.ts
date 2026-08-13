@@ -14,7 +14,7 @@ import {
 } from './services/registration-service.js';
 import { EmailVerificationService } from './services/email-verification-service.js';
 import { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
-import { AddressService } from '../addresses/services/address-service.js';
+import type { AddressService } from '../addresses/services/address-service.js';
 import { InvitationService } from './services/invitation-service.js';
 import { makeOrgTemplateEmail } from './services/org-template-email.js';
 import { RoleService } from '../customer_accounts/services/role-service.js';
@@ -89,6 +89,8 @@ export interface OrganizationsModuleOptions {
   /** Required when `requireAdmin` is set — audit trail for admin org mutations. */
   auditLogService?: AuditLogService;
   dictionaryValidator?: DictionaryValidator;
+  /** Resolved from the container since feature 072 (T090) — one instance, always armed. */
+  addressService: AddressService;
   /**
    * Feature 026 — moderation service that owns approve / reject / block /
    * unblock. When provided alongside `requireAdmin`, the matching admin
@@ -154,7 +156,6 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.getMfaLoginPort,
       options.auditLogService,
     );
-    const addressService = new AddressService(options.emFactory, options.dictionaryValidator, options.auditLogService);
     const invitationService = new InvitationService(
       options.emFactory,
       mailer,
@@ -166,6 +167,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
     const roleService = new RoleService(options.emFactory, options.auditLogService);
     const passwordResetService = new PasswordResetService(options.emFactory, options.auditLogService);
     const totpEnrolmentService = new TotpEnrolmentService(options.emFactory, options.auditLogService);
+    const addressService = options.addressService;
     const latestInvitationToken: { value: string | null } = { value: null };
 
     await registerOrganizationsPublicRoutes(app, {

@@ -70,7 +70,7 @@ import { OrganizationRestrictionService } from '../../src/modules/organizations/
 import { SalesRepAssignmentService } from '../../src/modules/organizations/services/sales-rep-assignment-service.js';
 import { OrganizationTreeService } from '../../src/modules/organizations/services/organization-tree-service.js';
 import { OrganizationInheritanceService } from '../../src/modules/organizations/services/organization-inheritance-service.js';
-import { AddressService } from '../../src/modules/addresses/services/address-service.js';
+import type { AddressService } from '../../src/modules/addresses/services/address-service.js';
 import { ORGANIZATIONS_SETTING_CODES } from '../../src/modules/organizations/manifest.js';
 import { resolveCustomerRollupSubtreeIds } from '../../src/modules/customer_accounts/services/customer-rollup-scope.js';
 import { OrganizationEffectivePriceListsService } from '../../src/modules/organizations/services/organization-effective-pricelists-service.js';
@@ -999,6 +999,17 @@ export async function setupBackendServer(
     auditLog: auditLogService,
   });
 
+  // Registered here rather than with the other host values further down:
+  // `addresses` reads it to build the one `AddressService`, and both `orders`
+  // and `organizations` are constructed before that block runs.
+  registerValues(container, { dictionaryValidator: dictionaries.handle.validator });
+  // Feature 072 (T090) — one `AddressService` for the whole composition.
+  // `orders` and `organizations` used to build their own, and the constructor's
+  // validator and audit writer are optional, so the instances were free to
+  // disagree — and one did.
+  const addressService = (container.cradle as unknown as { addressService: AddressService })
+    .addressService;
+
   // Feature 072 (wave 1) — `currencies` resolves this per write. It is the same
   // pair of drops `dictionariesModule` performs internally; registering it here
   // is what lets a single `CurrencyService` serve both admin surfaces, which is
@@ -1027,7 +1038,6 @@ export async function setupBackendServer(
     redis,
     auditLogService,
     requireAdmin: requireTestAdmin(permissionService),
-    dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
@@ -1239,7 +1249,7 @@ export async function setupBackendServer(
       // Feature 072 (T072) — production passes this and the harness did not, so
       // every address path in checkout ran a shape no deployment runs. Same
       // three arguments as `composition.ts`.
-      addressService: new AddressService(em, dictionaries.handle.validator, auditLogService),
+      addressService,
       // Real per-product VAT — mirrors composition.ts so placeOrder resolves the
       // rate from the tax rules instead of a flat 23%.
       resolveTaxRate: async ({ country, productType, vatStatus }) => {
@@ -1426,6 +1436,7 @@ export async function setupBackendServer(
       };
       return [
         organizationsModule({
+      addressService,
           emFactory: em,
           eventBus,
           commandBus,
