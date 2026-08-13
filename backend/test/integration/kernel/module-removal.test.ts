@@ -372,6 +372,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `invoices` (wave 2, T113). The two central registries name its entities and
+  // migrations; `composition.ts` imports the bridge and cradle types to
+  // annotate what it contributes and the three ports it threads into `ksef`
+  // and the corrective-invoice payment provider. Those go when `ksef` and
+  // `payments` convert.
+  invoices: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

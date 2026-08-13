@@ -159,6 +159,11 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // Whether this composition runs the push-delivery consumer. A deployment
   // decision: production follows `BACKEND_ROLE`, the harness runs none.
   pwaRunWorkers: 'pwa',
+  // How this composition reaches outside the invoices module.
+  invoicesBridge: 'invoices',
+  // The KSeF verification block stamped into an invoice PDF. Owned by `ksef`,
+  // still hand-wired; absent on a deployment without it.
+  ksefVerificationResolver: 'ksef',
 };
 
 export interface PortResolution {

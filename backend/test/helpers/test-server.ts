@@ -119,7 +119,7 @@ import { StockLevelService } from '../../src/modules/inventory/services/stock-le
 import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
 import { returnsModule } from '../../src/modules/returns/plugin.js';
-import { invoicesModule } from '../../src/modules/invoices/plugin.js';
+import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
@@ -361,7 +361,11 @@ export interface BackendServerHandle {
   /** Feature 058 — credentials handle (config-type registry + service). */
   credentials: { service: CredentialsService; configurationTypeRegistry: ConfigurationTypeRegistry };
   /** Feature 047 — invoices handle (issuance service, PDF renderer, number generator). */
-  invoices: ReturnType<typeof invoicesModule>['handle'];
+  invoices: {
+    invoiceService: InvoicesCradle['invoiceService'];
+    numberGenerator: InvoicesCradle['invoiceNumberGenerator'];
+    pdfRenderer: InvoicesCradle['invoicePdfRenderer'];
+  };
   /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
   ksef: ReturnType<typeof ksefModule>['handle'];
   /** Feature 067 — Product Feed handle (feeds, generation, runs, token cache). */
@@ -2265,14 +2269,11 @@ export async function setupBackendServer(
   );
 
   // Feature 047 — Invoices.
-  const invoices = invoicesModule({
-      emFactory: em,
-      eventBus,
-      requireAdmin: requireTestAdmin(permissionService),
-      requireCustomer: requireTestCustomer(),
-      settingsService: settings.handle.settingsService,
-      audit: auditLogService,
-      auditLog: auditLogService,
+  // Feature 072 (T113) — `invoices` owns its services and routes now. What
+  // stays here is how this composition reaches outside the module,
+  // contributed as one bridge.
+  registerValues(container, {
+    invoicesBridge: {
       resolveAdminUserId: (req) =>
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
       resolveCustomerContext: (req) => ({
@@ -2290,8 +2291,9 @@ export async function setupBackendServer(
         (salesChannelId
           ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
           : null) ?? 'en-US',
+    } satisfies InvoicesBridge,
   });
-  modules.push(invoices.plugin);
+  const invoicesCradle = container.cradle as unknown as InvoicesCradle;
 
   // Feature 059 — KSeF. No redis queue in tests (submissions are processed by
   // driving `submissions.process(...)` directly); the sweep interval is off.
@@ -2302,9 +2304,9 @@ export async function setupBackendServer(
     commandBus,
     eventBus,
     invoices: {
-      buildDetail: (invoiceId) => invoices.handle.invoiceService.buildDetail(invoiceId),
+      buildDetail: (invoiceId) => invoicesCradle.invoiceService.buildDetail(invoiceId),
       recordKsefAssignment: (invoiceId, assignment) =>
-        invoices.handle.invoiceService.recordKsefAssignment(invoiceId, assignment),
+        invoicesCradle.invoiceService.recordKsefAssignment(invoiceId, assignment),
     },
     auditLogService,
     ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
@@ -2326,7 +2328,7 @@ export async function setupBackendServer(
     pollIntervalMs: 5,
   });
   modules.push(ksef.plugin);
-  invoices.handle.pdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
+  invoicesCradle.invoicePdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
 
   // Feature 067 — Product Feed. Deliberately NO `redis` and NO `runWorkers`:
   // `setupBackendServer()` runs once per test file in a single fork, and adding
@@ -2742,7 +2744,11 @@ export async function setupBackendServer(
       providerFactory: promptActionsCradle.llmProviderFactory,
     },
     credentials: { service: credentialsService, configurationTypeRegistry },
-    invoices: invoices.handle,
+    invoices: {
+      invoiceService: invoicesCradle.invoiceService,
+      numberGenerator: invoicesCradle.invoiceNumberGenerator,
+      pdfRenderer: invoicesCradle.invoicePdfRenderer,
+    },
     ksef: ksef.handle,
     productFeeds: productFeeds.handle,
     pimErgonode: pimErgonode.handle,

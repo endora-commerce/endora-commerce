@@ -96,7 +96,7 @@ import { autopayModule } from './modules/autopay/plugin.js';
 import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
-import { invoicesModule } from './modules/invoices/plugin.js';
+import type { InvoicesBridge, InvoicesCradle } from './modules/invoices/backend.js';
 import { ksefModule } from './modules/ksef/plugin.js';
 import { productFeedsModule } from './modules/product_feeds/plugin.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
@@ -2354,47 +2354,45 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 047 — Invoices. Owns issuance, numbering, PDF rendering, admin +
   // customer routes. Constructed before returns so the corrective-invoice
   // provider can draw correction numbers from the shared number generator.
-  const invoices = invoicesModule({
-    emFactory: em,
-    eventBus,
-    requireAdmin,
-    requireCustomer,
-    settingsService: settings.handle.settingsService,
-    audit: auditLogService,
-    auditLog: auditLogService,
-    resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
-    resolveCustomerContext: (req: FastifyRequest) => {
-      const c = customerResolver(req);
-      return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
-    },
-    getTransactionalEmailSender: () => transactionalEmailSender,
-    resolveRecipientEmail: async (order) =>
-      (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
-    resolveLanguage: async (salesChannelId) =>
-      (salesChannelId
-        ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
-        : null) ?? 'en-US',
-    loadAssetImage: async (assetId) => {
-      try {
-        const a = await em().findOne(Asset, { id: assetId, deletedAt: null });
-        if (!a || !a.mimeType.startsWith('image/')) return null;
-        const adapter = await assetsLibrary.handle.adapters.getForBackend(
-          a.storageBackend as 'local' | 's3' | 'gcs' | 'legacy',
-        );
-        // Legacy resolver only has resolveUrl — cannot stream bytes for PDF embed.
-        if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
-        const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
-        const chunks: Buffer[] = [];
-        for await (const chunk of stream) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  // Feature 072 (T113) — `invoices` owns its services and routes now. What
+  // stays here is how this composition reaches outside the module,
+  // contributed as one bridge.
+  registerValues(container, {
+    invoicesBridge: {
+      resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
+      resolveCustomerContext: (req: FastifyRequest) => {
+        const c = customerResolver(req);
+        return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
+      },
+      getTransactionalEmailSender: () => transactionalEmailSender,
+      resolveRecipientEmail: async (order) =>
+        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
+      resolveLanguage: async (salesChannelId) =>
+        (salesChannelId
+          ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
+          : null) ?? 'en-US',
+      loadAssetImage: async (assetId) => {
+        try {
+          const a = await em().findOne(Asset, { id: assetId, deletedAt: null });
+          if (!a || !a.mimeType.startsWith('image/')) return null;
+          const adapter = await assetsLibrary.handle.adapters.getForBackend(
+            a.storageBackend as 'local' | 's3' | 'gcs' | 'legacy',
+          );
+          // Legacy resolver only has resolveUrl — cannot stream bytes for PDF embed.
+          if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
+          const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
+          const chunks: Buffer[] = [];
+          for await (const chunk of stream) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          }
+          return { bytes: Buffer.concat(chunks), mimeType: a.mimeType };
+        } catch {
+          return null;
         }
-        return { bytes: Buffer.concat(chunks), mimeType: a.mimeType };
-      } catch {
-        return null;
-      }
-    },
+      },
+    } satisfies InvoicesBridge,
   });
-  modules.push(invoices.plugin);
+  const invoicesCradle = container.cradle as unknown as InvoicesCradle;
 
   // Feature 059 — KSeF (Krajowy System e-Faktur). Consumes the invoices
   // domain events, submits FA(3) documents through a durable queue, and feeds
@@ -2406,9 +2404,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     commandBus,
     eventBus,
     invoices: {
-      buildDetail: (invoiceId) => invoices.handle.invoiceService.buildDetail(invoiceId),
+      buildDetail: (invoiceId) => invoicesCradle.invoiceService.buildDetail(invoiceId),
       recordKsefAssignment: (invoiceId, assignment) =>
-        invoices.handle.invoiceService.recordKsefAssignment(invoiceId, assignment),
+        invoicesCradle.invoiceService.recordKsefAssignment(invoiceId, assignment),
     },
     auditLogService,
     redis,
@@ -2429,7 +2427,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   modules.push(ksef.plugin);
   // PDF QR seam (contracts/invoices-integration.md §3) — one resolver covers
   // every render path; absent/disabled module ⇒ pre-059 output.
-  invoices.handle.pdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
+  // Feature 072 (T113) — contributed, not set. `invoices` installs its own
+  // resolver at construction and reads this per call, so a deployment without
+  // KSeF simply has no verification block rather than an unset setter.
+  registerValues(container, {
+    ksefVerificationResolver: ksef.handle.buildVerification,
+  });
 
   // Feature 067 — Product Feed. Projects a sales channel's catalogue into
   // provider-shaped feed files published at a tokenised URL. Every cross-module
@@ -2673,7 +2676,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       orderContext: new OrderReturnContextProvider(em),
       paymentRefund: new PaymentRefundProvider(em),
-      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoices.handle.numberGenerator, auditLogService, eventBus),
+      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoicesCradle.invoiceNumberGenerator, auditLogService, eventBus),
       creditTopup: new CreditTopupProvider(creditLimitsCradle.creditLimitService),
       auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
