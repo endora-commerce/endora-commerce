@@ -118,7 +118,7 @@ import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
-import { returnsModule } from '../../src/modules/returns/plugin.js';
+import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
 import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
@@ -2235,13 +2235,12 @@ export async function setupBackendServer(
   modules.push(customers.plugin);
 
   // Feature 046 — Returns & Complaints (Refunds, RMA).
-  modules.push(
-    returnsModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.handle.settingsService,
-      requireCustomer: requireTestCustomer(),
-      requireAdmin: requireTestAdmin(permissionService),
+  // Feature 072 (T109) — `returns` owns its services and routes now. The
+  // four settlement adapters and the actor resolvers stay here as one
+  // bridge: each is a small adapter over `payments`, `invoices`,
+  // `credit_limits` and `orders`, and a composition supplies all or none.
+  registerValues(container, {
+    returnsBridge: {
       resolveCustomerAccountId: (req) =>
         req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
       resolveAdminUserId: (req) =>
@@ -2255,7 +2254,6 @@ export async function setupBackendServer(
         eventBus,
       ),
       creditTopup: new CreditTopupProvider(creditLimitsCradle.creditLimitService),
-      auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
         injectedMailer,
         async (cid) => (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
@@ -2265,8 +2263,8 @@ export async function setupBackendServer(
             (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
         },
       ),
-    }),
-  );
+    } satisfies ReturnsBridge,
+  });
 
   // Feature 047 — Invoices.
   // Feature 072 (T113) — `invoices` owns its services and routes now. What

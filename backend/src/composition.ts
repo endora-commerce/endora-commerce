@@ -88,7 +88,7 @@ import type { EmailCradle } from './modules/email/backend.js';
 import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
 import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
-import { returnsModule } from './modules/returns/plugin.js';
+import type { ReturnsBridge } from './modules/returns/backend.js';
 import { stripeModule } from './modules/stripe/plugin.js';
 import { tpayModule } from './modules/tpay/plugin.js';
 import { payuModule } from './modules/payu/plugin.js';
@@ -2665,20 +2665,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
   // through the OrderReturnContextPort (Principle I); settings drive the
   // free-return window and RMA prefix/suffix.
-  modules.push(
-    returnsModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.handle.settingsService,
-      requireCustomer,
-      requireAdmin,
+  // Feature 072 (T109) — `returns` owns its services and routes now. The
+  // four settlement adapters and the actor resolvers stay here as one
+  // bridge: each is a small adapter over `payments`, `invoices`,
+  // `credit_limits` and `orders`, and a composition supplies all or none.
+  registerValues(container, {
+    returnsBridge: {
       resolveCustomerAccountId,
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       orderContext: new OrderReturnContextProvider(em),
       paymentRefund: new PaymentRefundProvider(em),
       correctiveInvoice: new CorrectiveInvoiceProvider(em, invoicesCradle.invoiceNumberGenerator, auditLogService, eventBus),
       creditTopup: new CreditTopupProvider(creditLimitsCradle.creditLimitService),
-      auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
         platformMailer,
         async (customerAccountId) =>
@@ -2689,8 +2687,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
             (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
         },
       ),
-    }),
-  );
+    } satisfies ReturnsBridge,
+  });
 
   // Feature 047 — Transactional Emails. Owning modules register their default
   // subject + content here; the module reconciles all manifest-declared emails

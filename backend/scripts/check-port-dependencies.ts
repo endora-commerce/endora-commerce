@@ -164,6 +164,10 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // The KSeF verification block stamped into an invoice PDF. Owned by `ksef`,
   // still hand-wired; absent on a deployment without it.
   ksefVerificationResolver: 'ksef',
+  // How this composition settles a return and who is asking: four small
+  // adapters over `payments`, `invoices`, `credit_limits` and `orders`, plus
+  // the actor resolvers and the notifier.
+  returnsBridge: 'returns',
 };
 
 export interface PortResolution {
