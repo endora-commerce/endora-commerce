@@ -140,7 +140,7 @@ import { registerMegamenuAssetReferences } from './modules/megamenu/services/ass
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
 import { dictionariesModule } from './modules/dictionaries/plugin.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
-import { taxesModule } from './modules/taxes/plugin.js';
+import type { TaxesCradle } from './modules/taxes/backend.js';
 import { promotionsModule } from './modules/promotions/plugin.js';
 import { settingsModule } from './modules/settings/plugin.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
@@ -805,13 +805,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // Feature 056 — inherited price lists resolve up the org tree (nearest-first).
     resolveOrgChain: (orgId) => organizationInheritanceService.priceListOrgChain(orgId),
   });
-  const taxes = taxesModule({
-    emFactory: em,
-    requireAdmin,
-    salesChannelMembership: salesChannels.handle.membershipService,
-    dictionaryValidator: dictionaries.handle.validator,
-    auditLog: auditLogService,
-  });
+  // Feature 072 (T119) — `taxes` owns its service and routes now.
+  const taxesCradle = container.cradle as unknown as TaxesCradle;
   // Feature 012 / US8 — promotions reads catalog through CatalogQueryService
   // (the documented cross-module port — Constitution I) so the rule editor
   // can list `isPromoRule` attributes and the resolver can validate
@@ -1363,7 +1358,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     seo.plugin,
     i18n.plugin,
     priceLists.plugin,
-    taxes.plugin,
     promotions.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
@@ -1499,7 +1493,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // for VAT-exempt / reverse-charge orgs; failures degrade to a flat 23%.
       resolveTaxRate: async ({ country, productType, vatStatus }) => {
         try {
-          const resolved = await taxes.handle.taxService.taxRateFor({
+          const resolved = await taxesCradle.taxService.taxRateFor({
             country: country ?? 'PL',
             productType: productType as
               | 'simple'
@@ -2298,7 +2292,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         const vatStatus = org?.vatStatus ?? 'vat_payer';
         if (vatStatus !== 'vat_payer') return 0;
         const country = org?.registeredAddress?.country ?? 'PL';
-        const resolved = await taxes.handle.taxService.taxRateFor({
+        const resolved = await taxesCradle.taxService.taxRateFor({
           country,
           productType: 'simple',
           vatStatus,
@@ -2541,7 +2535,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     salesChannelMembership: salesChannels.handle.membershipService,
     pricingService: priceLists.handle.pricingService,
-    taxService: taxes.handle.taxService,
+    taxService: taxesCradle.taxService,
     // Feature 070 — every secret a delivery target needs is stored through the
     // credentials module (FR-107); this module holds only the pointer.
     credentials: credentialsService,

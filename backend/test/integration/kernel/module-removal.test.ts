@@ -264,6 +264,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // module's service and imports nothing from here, so it leaves no reference
   // either. Both registry entries go when nothing owns the entity any more.
   google_analytics: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `taxes` (wave 2, T119). The two central registries name its entity and
+  // migrations; `composition.ts` imports the cradle type to annotate the
+  // `taxService` port it resolves and threads into `orders` and `carts` for
+  // line pricing. That reference goes when those two convert.
+  taxes: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

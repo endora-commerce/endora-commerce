@@ -177,7 +177,7 @@ import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/servic
 import type { BlogCradle } from '../../src/modules/blog/backend.js';
 import { dictionariesModule } from '../../src/modules/dictionaries/plugin.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
-import { taxesModule } from '../../src/modules/taxes/plugin.js';
+import type { TaxesCradle } from '../../src/modules/taxes/backend.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
 import { settingsModule } from '../../src/modules/settings/plugin.js';
 import type { MfaActorBridge, MfaCradle } from '../../src/modules/mfa/backend.js';
@@ -1161,13 +1161,8 @@ export async function setupBackendServer(
   });
 
   // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
-  const taxes = taxesModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    salesChannelMembership: salesChannels.handle.membershipService,
-    dictionaryValidator: dictionaries.handle.validator,
-    auditLog: auditLogService,
-  });
+  // Feature 072 (T119) — `taxes` owns its service and routes now.
+  const taxesCradle = container.cradle as unknown as TaxesCradle;
   const promotions = promotionsModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
@@ -1310,7 +1305,6 @@ export async function setupBackendServer(
     seo.plugin,
     i18n.plugin,
     priceLists.plugin,
-    taxes.plugin,
     promotions.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
@@ -1337,7 +1331,7 @@ export async function setupBackendServer(
       // rate from the tax rules instead of a flat 23%.
       resolveTaxRate: async ({ country, productType, vatStatus }) => {
         try {
-          const resolved = await taxes.handle.taxService.taxRateFor({
+          const resolved = await taxesCradle.taxService.taxRateFor({
             country: country ?? 'PL',
             productType: productType as
               | 'simple'
@@ -2184,7 +2178,7 @@ export async function setupBackendServer(
         const vatStatus = org?.vatStatus ?? 'vat_payer';
         if (vatStatus !== 'vat_payer') return 0;
         const country = org?.registeredAddress?.country ?? 'PL';
-        const resolved = await taxes.handle.taxService.taxRateFor({
+        const resolved = await taxesCradle.taxService.taxRateFor({
           country,
           productType: 'simple',
           vatStatus,
@@ -2385,7 +2379,7 @@ export async function setupBackendServer(
     },
     salesChannelMembership: salesChannels.handle.membershipService,
     pricingService: priceLists.handle.pricingService,
-    taxService: taxes.handle.taxService,
+    taxService: taxesCradle.taxService,
     resolveAvailability: async (productIds, salesChannelId) => {
       const warehouseIds =
         await new WarehouseChannelService(em).resolveCandidateWarehouseIds(salesChannelId);

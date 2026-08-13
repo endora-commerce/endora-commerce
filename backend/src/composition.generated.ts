@@ -68,8 +68,10 @@ import * as module22 from './modules/payment_methods/backend.js';
 import { manifest as manifest22 } from './modules/payment_methods/manifest.js';
 import * as module23 from './modules/prompt_actions/backend.js';
 import { manifest as manifest23 } from './modules/prompt_actions/manifest.js';
-import * as module24 from './modules/webhooks/backend.js';
-import { manifest as manifest24 } from './modules/webhooks/manifest.js';
+import * as module24 from './modules/taxes/backend.js';
+import { manifest as manifest24 } from './modules/taxes/manifest.js';
+import * as module25 from './modules/webhooks/backend.js';
+import { manifest as manifest25 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: 'addresses', version: manifest0.version, registerModule: module0.registerModule },
@@ -96,5 +98,6 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'mfa', version: manifest21.version, registerModule: module21.registerModule },
   { id: 'payment_methods', version: manifest22.version, registerModule: module22.registerModule },
   { id: 'prompt_actions', version: manifest23.version, registerModule: module23.registerModule },
-  { id: 'webhooks', version: manifest24.version, registerModule: module24.registerModule },
+  { id: 'taxes', version: manifest24.version, registerModule: module24.registerModule },
+  { id: 'webhooks', version: manifest25.version, registerModule: module25.registerModule },
 ];
