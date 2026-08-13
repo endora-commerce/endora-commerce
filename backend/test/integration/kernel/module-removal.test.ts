@@ -176,6 +176,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `customer_accounts` (wave 1, T094). The ORM and migration registries name
+  // its two entities and five migrations; `composition.ts` imports the cradle
+  // type to annotate the services it resolves and hands to `customers` and
+  // `organizations`. Both of those built their own before this conversion, and
+  // the reference leaves when they convert.
+  customer_accounts: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

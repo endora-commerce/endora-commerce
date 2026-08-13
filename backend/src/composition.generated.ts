@@ -38,18 +38,20 @@ import * as module7 from './modules/credentials/backend.js';
 import { manifest as manifest7 } from './modules/credentials/manifest.js';
 import * as module8 from './modules/currencies/backend.js';
 import { manifest as manifest8 } from './modules/currencies/manifest.js';
-import * as module9 from './modules/delivery_methods/backend.js';
-import { manifest as manifest9 } from './modules/delivery_methods/manifest.js';
-import * as module10 from './modules/email/backend.js';
-import { manifest as manifest10 } from './modules/email/manifest.js';
-import * as module11 from './modules/health_checks/backend.js';
-import { manifest as manifest11 } from './modules/health_checks/manifest.js';
-import * as module12 from './modules/payment_methods/backend.js';
-import { manifest as manifest12 } from './modules/payment_methods/manifest.js';
-import * as module13 from './modules/prompt_actions/backend.js';
-import { manifest as manifest13 } from './modules/prompt_actions/manifest.js';
-import * as module14 from './modules/webhooks/backend.js';
-import { manifest as manifest14 } from './modules/webhooks/manifest.js';
+import * as module9 from './modules/customer_accounts/backend.js';
+import { manifest as manifest9 } from './modules/customer_accounts/manifest.js';
+import * as module10 from './modules/delivery_methods/backend.js';
+import { manifest as manifest10 } from './modules/delivery_methods/manifest.js';
+import * as module11 from './modules/email/backend.js';
+import { manifest as manifest11 } from './modules/email/manifest.js';
+import * as module12 from './modules/health_checks/backend.js';
+import { manifest as manifest12 } from './modules/health_checks/manifest.js';
+import * as module13 from './modules/payment_methods/backend.js';
+import { manifest as manifest13 } from './modules/payment_methods/manifest.js';
+import * as module14 from './modules/prompt_actions/backend.js';
+import { manifest as manifest14 } from './modules/prompt_actions/manifest.js';
+import * as module15 from './modules/webhooks/backend.js';
+import { manifest as manifest15 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: 'addresses', version: manifest0.version, registerModule: module0.registerModule },
@@ -61,10 +63,11 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'blog', version: manifest6.version, registerModule: module6.registerModule },
   { id: 'credentials', version: manifest7.version, registerModule: module7.registerModule },
   { id: 'currencies', version: manifest8.version, registerModule: module8.registerModule },
-  { id: 'delivery_methods', version: manifest9.version, registerModule: module9.registerModule },
-  { id: 'email', version: manifest10.version, registerModule: module10.registerModule },
-  { id: 'health_checks', version: manifest11.version, registerModule: module11.registerModule },
-  { id: 'payment_methods', version: manifest12.version, registerModule: module12.registerModule },
-  { id: 'prompt_actions', version: manifest13.version, registerModule: module13.registerModule },
-  { id: 'webhooks', version: manifest14.version, registerModule: module14.registerModule },
+  { id: 'customer_accounts', version: manifest9.version, registerModule: module9.registerModule },
+  { id: 'delivery_methods', version: manifest10.version, registerModule: module10.registerModule },
+  { id: 'email', version: manifest11.version, registerModule: module11.registerModule },
+  { id: 'health_checks', version: manifest12.version, registerModule: module12.registerModule },
+  { id: 'payment_methods', version: manifest13.version, registerModule: module13.registerModule },
+  { id: 'prompt_actions', version: manifest14.version, registerModule: module14.registerModule },
+  { id: 'webhooks', version: manifest15.version, registerModule: module15.registerModule },
 ];

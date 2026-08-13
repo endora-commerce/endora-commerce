@@ -69,6 +69,11 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // `requireAdmin` still reads an actor the auth hook has set.
   'delivery_methods',
   'payment_methods',
+  // `customers` and `organizations` both take this module's services as
+  // arguments and are constructed before the late pass. It needs only
+  // `emFactory`, the kernel audit writer and `auth`'s `sessionService`, all of
+  // which exist by then.
+  'customer_accounts',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

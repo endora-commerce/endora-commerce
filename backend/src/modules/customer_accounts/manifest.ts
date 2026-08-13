@@ -14,5 +14,17 @@ export const manifest = defineModuleManifest({
   description:
     'Customer (B2B) account records, including organization membership and role.',
   version: '1.0.0',
-  dependencies: ['organizations', 'price_lists'],
+  // `auth` owns `sessionService`, which `CustomerAuthService` takes; the edge
+  // became real with the conversion (feature 072, T094).
+  dependencies: ['auth'],
+  // Feature 072/073 (Constitution XVII). Every customer session, every
+  // storefront login and every organization membership resolves through this
+  // module's table. A deployment with it switched off has no customers, which
+  // is not a smaller platform but a broken one.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Holds the customer accounts every session, login and organization membership resolves ' +
+      'through; switched off, the storefront has no customers.',
+  },
 });

@@ -104,7 +104,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `dictionaries` owns the validator + cache drop; `currencies` resolves it
   // per write so one CurrencyService can serve both admin surfaces.
   dictionaryInvalidator: 'dictionaries',
-  customerOrgResolver: 'customer_accounts',
 };
 
 export interface PortResolution {

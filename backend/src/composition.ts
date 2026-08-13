@@ -1,3 +1,4 @@
+import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
 import type { PaymentAdapterRegistry } from './modules/payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from './modules/payment_methods/services/order-status-registry.port.js';
 import type { ShippingAdapterRegistry } from './modules/delivery_methods/services/shipping-adapter-registry.js';
@@ -430,6 +431,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ownership: registrationOwnership,
   });
   await earlyModules.runBootHooks();
+  // Feature 072 (T094) — one `CustomerAuthService` for the composition.
+  // `customers` and `organizations` each built their own and the MFA argument
+  // differed between them; there is one now, and it can always reach the port.
+  const customerAccountsCradle = container.cradle as unknown as CustomerAccountsCradle;
 
   // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
   // their registries, eligibility services and routes now. `orders` still reads
@@ -600,6 +605,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // login port is late-bound here and resolved lazily by the auth services.
   let mfaLoginPort: MfaLoginPort | undefined;
   const getMfaLoginPort = (): MfaLoginPort | undefined => mfaLoginPort;
+
+  // Feature 072 (T094) — contributed to `customer_accounts`, which defaults it
+  // absent. Registered after the early pass so it overrides the module's own
+  // default rather than being overwritten by it; the getter is late-bound, so
+  // `mfa` composing later is not a race.
+  registerValues(container, { mfaLoginPortGetter: getMfaLoginPort });
 
   const admin = adminModule({
     emFactory: em,
@@ -1684,6 +1695,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     }),
     organizationsModule({
+      customerAuthService: customerAccountsCradle.customerAuthService,
+      passwordResetService: customerAccountsCradle.passwordResetService,
+      customerRoleService: customerAccountsCradle.customerRoleService,
+      totpEnrolmentService: customerAccountsCradle.totpEnrolmentService,
       addressService,
       emFactory: em,
       eventBus,
@@ -2054,13 +2069,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // modules convert.
     apiKeyResolver: async (token: string) =>
       integrations.handle.apiKeyService.authenticate(token),
-    customerOrgResolver: async (customerAccountId: string) =>
-      // Feature 050 — runs in the auth hook, before the tenant context exists;
-      // identity resolution is a system-scoped read.
-      withSystemScope('auth: resolve customer org', async () => {
-        const customer = await em().findOne(CustomerAccount, { id: customerAccountId });
-        return customer?.organizationId ?? null;
-      }),
     // `redis` is registered further up, where the client is created.
     // The kernel's `SettingsService` already implements the read port; the
     // adapter object this replaces existed only to narrow it.
@@ -2331,6 +2339,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // can reach the OrderListService (late-bound) and the RfqService for the
   // self-service order / RFQ history endpoints.
   const customers = customersModule({
+      customerAuthService: customerAccountsCradle.customerAuthService,
+      passwordResetService: customerAccountsCradle.passwordResetService,
     emFactory: em,
     sessionService,
     requireCustomer,

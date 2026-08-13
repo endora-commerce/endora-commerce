@@ -1,3 +1,4 @@
+import type { CustomerAccountsCradle } from '../../src/modules/customer_accounts/backend.js';
 import type { PaymentAdapterRegistry } from '../../src/modules/payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from '../../src/modules/payment_methods/services/order-status-registry.port.js';
 import type { ShippingAdapterRegistry } from '../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
@@ -757,6 +758,10 @@ export async function setupBackendServer(
     ownership: registrationOwnership,
   });
   await earlyModules.runBootHooks();
+  // Feature 072 (T094) — one `CustomerAuthService` for the composition.
+  // `customers` and `organizations` each built their own and the MFA argument
+  // differed between them; there is one now, and it can always reach the port.
+  const customerAccountsCradle = container.cradle as unknown as CustomerAccountsCradle;
 
   // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
   // their registries, eligibility services and routes now. `orders` still reads
@@ -909,6 +914,12 @@ export async function setupBackendServer(
   // `settings` below; mirrors composition.ts).
   let testMfaLoginPort: MfaLoginPort | undefined;
   const getTestMfaLoginPort = (): MfaLoginPort | undefined => testMfaLoginPort;
+
+  // Feature 072 (T094) — contributed to `customer_accounts`, which defaults it
+  // absent. Registered after the early pass so it overrides the module's own
+  // default rather than being overwritten by it; the getter is late-bound, so
+  // `mfa` composing later is not a race.
+  registerValues(container, { mfaLoginPortGetter: getTestMfaLoginPort });
 
   // Build the admin module first so we can hand its handle (auditLogService,
   // permissionService) to other modules that need it.
@@ -1483,6 +1494,10 @@ export async function setupBackendServer(
       };
       return [
         organizationsModule({
+      customerAuthService: customerAccountsCradle.customerAuthService,
+      passwordResetService: customerAccountsCradle.passwordResetService,
+      customerRoleService: customerAccountsCradle.customerRoleService,
+      totpEnrolmentService: customerAccountsCradle.totpEnrolmentService,
       addressService,
           emFactory: em,
           eventBus,
@@ -1954,10 +1969,6 @@ export async function setupBackendServer(
     // mirroring `composition.ts`.
     apiKeyResolver: async (token: string) =>
       integrations.handle.apiKeyService.authenticate(token),
-    customerOrgResolver: async (customerAccountId: string) => {
-      const customer = await em().findOne(CustomerAccount, { id: customerAccountId });
-      return customer?.organizationId ?? null;
-    },
     // `redis` is registered further up, where the client is created.
     settingsReadPort: settings.handle.settingsService,
     settingsChannelResolver: async () =>
@@ -2133,6 +2144,8 @@ export async function setupBackendServer(
 
   // Feature 040 — Customers module (mirrors composition.ts wiring).
   const customers = customersModule({
+      customerAuthService: customerAccountsCradle.customerAuthService,
+      passwordResetService: customerAccountsCradle.passwordResetService,
     emFactory: em,
     sessionService,
     requireCustomer: requireTestCustomer(),

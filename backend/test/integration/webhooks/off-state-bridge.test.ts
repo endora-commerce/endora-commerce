@@ -46,7 +46,7 @@ describe('webhooks — the bridge is the gate [integration]', () => {
       secret: 'shhh',
       eventTypes: ['order.created.v1'],
       status: 'active',
-    } as Parameters<typeof em.create<Webhook>>[1]);
+    });
     await em.flush();
 
     // Count lookups through the live service the bridge actually resolves.
@@ -76,7 +76,7 @@ describe('webhooks — the bridge is the gate [integration]', () => {
       eventId: randomUUID(),
       organizationId: null,
       orderId: randomUUID(),
-    });
+    } as unknown as Parameters<typeof h.eventBus.emit>[1]);
     // The bus dispatches asynchronously; give the handler a turn to run.
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
