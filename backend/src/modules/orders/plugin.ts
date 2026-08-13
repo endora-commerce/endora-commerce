@@ -57,6 +57,7 @@ import {
 } from '../payment_methods/routes.js';
 import { paymentAdapterRegistry } from '../payment_methods/services/registry-singleton.js';
 import { EnumOrderStatusRegistry } from '../payment_methods/services/order-status-registry.port.js';
+import { PaymentMethodEligibilityService } from '../payment_methods/services/payment-method-eligibility.js';
 import { builtInPaymentAdapters } from '../payments/adapters/built-in-adapters.js';
 import { ReceivePaymentHandler, type PaymentEventBus } from '../payments/services/receive-payment-handler.js';
 import { PaymentService } from '../payments/services/payment-service.js';
@@ -352,6 +353,12 @@ export function commerceModule(options: OrdersModuleOptions) {
       }
     }
     const orderStatusRegistry = new EnumOrderStatusRegistry();
+    // Feature 034 FR-003/FR-011..FR-014 — the payment twin of
+    // `shippingEligibility` below. It was written and unit-tested with the rest
+    // of feature 034 and never constructed here, so the storefront offered a
+    // payment method whose adapter is not registered; the customer picked it
+    // and found out at placement.
+    const paymentEligibility = new PaymentMethodEligibilityService(paymentAdapterRegistry);
 
     // Feature 035 — shipping-method adapter framework. Built-in offline adapters
     // are populated into the process-wide singleton idempotently, so external
@@ -606,6 +613,7 @@ export function commerceModule(options: OrdersModuleOptions) {
     await registerPaymentMethodsPublicRoutes(app, {
       emFactory: options.emFactory,
       registry: paymentAdapterRegistry,
+      eligibility: paymentEligibility,
       ...(options.resolveOrganizationPaymentMethodAllowList
         ? { resolveOrganizationPaymentMethodAllowList: options.resolveOrganizationPaymentMethodAllowList }
         : {}),
