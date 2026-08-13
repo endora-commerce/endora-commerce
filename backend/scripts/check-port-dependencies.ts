@@ -149,6 +149,9 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // The organization-status gate feature 026 US5 added: an org-targeted
   // promotion only fires for an active Organization. Owned by `organizations`.
   organizationStatusResolver: 'organizations',
+  // The operator presence axis the command palette filters on. A root's to
+  // supply — which modules a deployment ships is not a module's business.
+  moduleActivationProbe: '_lifecycle',
 };
 
 export interface PortResolution {

@@ -87,7 +87,6 @@ import { randomUUID } from 'node:crypto';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
 import type { AdminI18nCradle } from '../../src/modules/_i18n/backend.js';
-import { adminActionsModule } from '../../src/modules/admin_actions/plugin.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
 import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
@@ -1719,23 +1718,13 @@ export async function setupBackendServer(
   // Feature 020 — Admin Command Palette actions registry. Mounts the
   // GET /api/v1/admin/admin-actions read endpoint. Tests that need
   // module_actions rows seed them directly via `h.em()`.
-  const adminActions = adminActionsModule({
-    orm,
-    emFactory: em,
-    i18nService: adminI18nCradle.adminI18nService,
-    permissionService,
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminContext: (request) => ({
-      adminUserId:
-        request.testActor?.kind === 'admin'
-          ? request.testActor.adminUserId
-          : TEST_ADMIN_ID,
-    }),
-    // Feature 073 — mirrors composition.ts: the palette's operator axis.
-    isModuleActivated: (moduleId) =>
+  // Feature 072 (T099) — `admin_actions` owns its service, its reconcile and
+  // its routes now. The operator presence axis stays a root's to supply:
+  // which modules a deployment ships is not this module's business.
+  registerValues(container, {
+    moduleActivationProbe: (moduleId: string) =>
       effectiveState.presence(moduleId)?.operatorActivated ?? true,
   });
-  modules.push(adminActions.plugin);
 
   // Feature 058 — Credentials module. Instantiated before the consumer modules
   // (prompt_actions, search, newsletter) so they can receive

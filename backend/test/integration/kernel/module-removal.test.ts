@@ -352,6 +352,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `admin_actions` (wave 2, T099). The two central registries name its
+  // `ModuleAction` entity and its migrations; `composition.ts` imports the
+  // cradle type to annotate the reconciler it hands the lifecycle
+  // orchestrator. That reference goes when `_lifecycle` converts.
+  admin_actions: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 
