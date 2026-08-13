@@ -110,7 +110,7 @@ import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
 import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
 import { adminModule } from './modules/admin_users/plugin.js';
-import { mfaModule } from './modules/mfa/plugin.js';
+import type { MfaActorBridge, MfaCradle } from './modules/mfa/backend.js';
 import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
 import { verifyPassword, hashPassword } from './modules/auth/services/password-hasher.js';
 import {
@@ -995,72 +995,73 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
   };
 
-  const mfa = mfaModule({
-    emFactory: em,
-    redis,
-    settingsService: settings.handle.settingsService,
-    auditLogService,
-    sessionService,
-    resolveDefaultChannelId: async () =>
+  // Feature 072 (T096) — `mfa` owns its services, routes and configuration
+  // now. What a root still owns is the *shape this composition gives an actor*:
+  // production reads `request.actor`, the harness reads `request.testActor`.
+  // That is contributed whole rather than as ten separate names, because a
+  // composition either knows how to resolve an actor or it does not.
+  registerValues(container, {
+    mfaDefaultChannelIdResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
-    secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
-    ...(oauthProvider ? { oauthProvider } : {}),
-    socialAccountResolvers: mfaSocialResolvers,
-    ...(process.env['BACKEND_PUBLIC_URL'] ? { backendBaseUrl: process.env['BACKEND_PUBLIC_URL'] } : {}),
-    ...(process.env['STOREFRONT_BASE_URL'] ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] } : {}),
-    ...(process.env['ADMIN_BASE_URL'] ? { adminBaseUrl: process.env['ADMIN_BASE_URL'] } : {}),
-    requireCustomer,
-    requireAdmin,
-    resolveCustomerActor: (request) => {
-      if (request.actor.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      return {
-        customerAccountId: request.actor.customerAccountId,
-        organizationId: request.actor.organizationId ?? null,
-      };
-    },
-    resolveAdminActor: (request) => {
-      promoteAdminActor(request);
-      if (request.actor.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      return { adminUserId: request.actor.adminUserId };
-    },
-    resolveOrganizationCustomerIds: async (organizationId) => {
-      const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
-      return rows.map((r) => r.id);
-    },
-    resolveOrgAdmin: async (request) => {
-      if (request.actor.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      const c = await em().findOne(CustomerAccount, { id: request.actor.customerAccountId });
-      if (!c || c.role !== 'organization_admin' || !c.organizationId) {
-        throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
-      }
-      return { organizationId: c.organizationId, actor: c.id };
-    },
-    resolveAccountEmail: async (subjectType, subjectId) => {
-      const em2 = em();
-      if (subjectType === 'admin') {
-        const a = await em2.findOne(AdminUser, { id: subjectId });
-        return a?.email ?? null;
-      }
-      const c = await em2.findOne(CustomerAccount, { id: subjectId });
-      return c?.email ?? null;
-    },
-    verifyAccountPassword: async (subjectType, subjectId, password) => {
-      const em2 = em();
-      if (subjectType === 'admin') {
-        const a = await em2.findOne(AdminUser, { id: subjectId });
-        return a ? verifyPassword(a.passwordHash, password) : false;
-      }
-      const c = await em2.findOne(CustomerAccount, { id: subjectId });
-      return c ? verifyPassword(c.passwordHash, password) : false;
-    },
+    ...(oauthProvider ? { mfaOauthProvider: oauthProvider } : {}),
+    mfaSocialAccountResolvers: mfaSocialResolvers,
+    mfaActorBridge: {
+      resolveCustomerActor: (request: FastifyRequest) => {
+        if (request.actor.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        return {
+          customerAccountId: request.actor.customerAccountId,
+          organizationId: request.actor.organizationId ?? null,
+        };
+      },
+      resolveAdminActor: (request: FastifyRequest) => {
+        promoteAdminActor(request);
+        if (request.actor.kind !== 'admin') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+        }
+        return { adminUserId: request.actor.adminUserId };
+      },
+      resolveOrganizationCustomerIds: async (organizationId: string) => {
+        const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+        return rows.map((r) => r.id);
+      },
+      resolveOrgAdmin: async (request: FastifyRequest) => {
+        if (request.actor.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        const c = await em().findOne(CustomerAccount, { id: request.actor.customerAccountId });
+        if (!c || c.role !== 'organization_admin' || !c.organizationId) {
+          throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
+        }
+        return { organizationId: c.organizationId, actor: c.id };
+      },
+      resolveAccountEmail: async (subjectType: 'customer' | 'admin', subjectId: string) => {
+        const em2 = em();
+        if (subjectType === 'admin') {
+          const a = await em2.findOne(AdminUser, { id: subjectId });
+          return a?.email ?? null;
+        }
+        const c = await em2.findOne(CustomerAccount, { id: subjectId });
+        return c?.email ?? null;
+      },
+      verifyAccountPassword: async (
+        subjectType: 'customer' | 'admin',
+        subjectId: string,
+        password: string,
+      ) => {
+        const em2 = em();
+        if (subjectType === 'admin') {
+          const a = await em2.findOne(AdminUser, { id: subjectId });
+          return a ? verifyPassword(a.passwordHash, password) : false;
+        }
+        const c = await em2.findOne(CustomerAccount, { id: subjectId });
+        return c ? verifyPassword(c.passwordHash, password) : false;
+      },
+    } satisfies MfaActorBridge,
   });
-  mfaLoginPort = mfa.handle().mfaLoginPort;
+  const mfaCradle = container.cradle as unknown as MfaCradle;
+  mfaLoginPort = mfaCradle.mfaLoginPort;
 
   // SEO module — needs the SettingsService port for the per-channel
   // `sales_channels.storefront_url` setting that the sitemap generator
@@ -1809,7 +1810,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // modules can read it at construction time. The boot-time reconciler
   // runs below before HTTP comes up.
   modules.push(settings.plugin);
-  modules.push(mfa.plugin);
 
   // Feature 013 — Assets Library. Phase 2 instantiates the module so its
   // manifest is reconciled and the AssetsLibraryService / referenceRegistry
@@ -2038,6 +2038,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // property of the deployment — the system-default channel, or the env
     // fallback when none is configured yet — not of any module, and this root
     // had spelled the same expression out four times.
+    // Feature 072 (T096) — `mfa` resolves it. Owned by `auth` in principle and
+    // still declared inline above; see the task on unifying it with the
+    // harness's `requireTestCustomer()`.
+    requireCustomer,
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
     dictionaryValidator: dictionaries.handle.validator,

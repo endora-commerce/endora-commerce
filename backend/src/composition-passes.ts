@@ -98,6 +98,9 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // `megamenu` cross-registers into this module's reference registry, and the
   // root resolves that registry before the late pass. Named from the diff.
   'cms',
+  // Both roots read `mfaLoginPort` well before the late pass, to contribute the
+  // `mfaLoginPortGetter` that `customer_accounts` resolves at login.
+  'mfa',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

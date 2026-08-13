@@ -118,6 +118,11 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // because the kernel holds the store (D-32), but the *admin* service is still
   // the `settings` module's, and that module is hand-wired.
   settingsAdminService: 'settings',
+  // `auth`'s customer-side guard, still declared inline in each root while the
+  // harness runs a separate `requireTestCustomer()` — the divergence T011/T012
+  // fixed for `requireAdmin` and never did for this one. Owner is `auth`; the
+  // entry goes when the two implementations are unified.
+  requireCustomer: 'auth',
 };
 
 export interface PortResolution {

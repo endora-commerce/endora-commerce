@@ -233,6 +233,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `mfa` (wave 1, T096). The two registries name its entities and migrations;
+  // `composition.ts` imports the cradle and bridge types to annotate what it
+  // contributes — the actor shape, which is a root's to know — and the login
+  // port it hands `customer_accounts` through `mfaLoginPortGetter`.
+  mfa: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

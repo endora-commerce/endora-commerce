@@ -184,7 +184,7 @@ import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
 import { settingsModule } from '../../src/modules/settings/plugin.js';
-import { mfaModule } from '../../src/modules/mfa/plugin.js';
+import type { MfaActorBridge, MfaCradle } from '../../src/modules/mfa/backend.js';
 import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
 import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
 import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
@@ -1678,59 +1678,28 @@ export async function setupBackendServer(
   // Feature 042 — MFA module (mirrors composition.ts). Built after `settings`
   // so it can read MFA settings; its login port is bound to the late-bound
   // `testMfaLoginPort` captured by the auth services above.
-  const mfa = mfaModule({
-    emFactory: em,
-    redis,
-    settingsService: settings.handle.settingsService,
-    auditLogService,
-    sessionService,
-    resolveDefaultChannelId: async () =>
+  // Feature 072 (T096) — `mfa` owns its services, routes and configuration.
+  // What this harness still owns is the actor shape: it authenticates through
+  // `request.testActor` where production uses `request.actor`, which is exactly
+  // why the bridge is contributed rather than built into the module.
+  registerValues(container, {
+    mfaDefaultChannelIdResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
-    secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
-    requireCustomer: requireTestCustomer(),
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveCustomerActor: (request) => {
-      if (request.testActor?.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      return {
-        customerAccountId: request.testActor.customerAccountId,
-        organizationId: request.testActor.organizationId ?? null,
-      };
-    },
-    resolveAdminActor: (request) => {
-      if (request.testActor?.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      return { adminUserId: request.testActor.adminUserId };
-    },
-    resolveOrganizationCustomerIds: async (organizationId) => {
-      const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
-      return rows.map((r) => r.id);
-    },
-    resolveOrgAdmin: async (request) => {
-      if (request.testActor?.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      const c = await em().findOne(CustomerAccount, { id: request.testActor.customerAccountId });
-      if (!c || c.role !== 'organization_admin' || !c.organizationId) {
-        throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
-      }
-      return { organizationId: c.organizationId, actor: c.id };
+    mfaBaseUrls: {
+      backend: 'http://localhost',
+      storefront: 'http://localhost:3000',
+      admin: 'http://localhost:3002',
     },
     // Feature 042 US4/US5 — deterministic fake provider. `exchangeCode` derives
     // the identity from the `code` query so tests control the resolved email;
     // `unverified@example.com` simulates an unverified provider email.
-    oauthProvider: fakeOAuthProvider,
-    backendBaseUrl: 'http://localhost',
-    storefrontBaseUrl: 'http://localhost:3000',
-    adminBaseUrl: 'http://localhost:3002',
-    socialAccountResolvers: {
-      resolveCustomerByEmail: async (email) => {
+    mfaOauthProvider: fakeOAuthProvider,
+    mfaSocialAccountResolvers: {
+      resolveCustomerByEmail: async (email: string) => {
         const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
         return c ? { id: c.id } : null;
       },
-      autoCreateCustomer: async (email) => {
+      autoCreateCustomer: async (email: string) => {
         const account = em().create(CustomerAccount, {
           email,
           passwordHash: await hashTestPassword(),
@@ -1743,17 +1712,51 @@ export async function setupBackendServer(
         await em().persistAndFlush(account);
         return { id: account.id };
       },
-      resolveAdminByEmail: async (email) => {
+      resolveAdminByEmail: async (email: string) => {
         const a = await em().findOne(AdminUser, { email, deletedAt: null, status: 'active' });
         return a ? { id: a.id } : null;
       },
     },
+    mfaActorBridge: {
+      resolveCustomerActor: (request: FastifyRequest) => {
+        if (request.testActor?.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        return {
+          customerAccountId: request.testActor.customerAccountId,
+          organizationId: request.testActor.organizationId ?? null,
+        };
+      },
+      resolveAdminActor: (request: FastifyRequest) => {
+        if (request.testActor?.kind !== 'admin') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+        }
+        return { adminUserId: request.testActor.adminUserId };
+      },
+      resolveOrganizationCustomerIds: async (organizationId: string) => {
+        const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+        return rows.map((r) => r.id);
+      },
+      resolveOrgAdmin: async (request: FastifyRequest) => {
+        if (request.testActor?.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        const c = await em().findOne(CustomerAccount, { id: request.testActor.customerAccountId });
+        if (!c || c.role !== 'organization_admin' || !c.organizationId) {
+          throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
+        }
+        return { organizationId: c.organizationId, actor: c.id };
+      },
+      // Deliberately omitted, as this harness always omitted them: with no
+      // password verifier, disabling 2FA requires a current code. Fail-closed,
+      // and the behaviour every MFA test has been written against.
+    } satisfies MfaActorBridge,
   });
-  testMfaLoginPort = mfa.handle().mfaLoginPort;
+  const mfaCradle = container.cradle as unknown as MfaCradle;
+  testMfaLoginPort = mfaCradle.mfaLoginPort;
 
   modules.push(salesChannels.plugin);
   modules.push(settings.plugin);
-  modules.push(mfa.plugin);
 
   // Feature 019 — Admin UI i18n. Test wiring uses no lifecycle registry
   // (the boot-time bundle reconciler is skipped), so route-level tests
@@ -1992,6 +1995,10 @@ export async function setupBackendServer(
     // never registered it, so `cms`' colour-palette writer had nothing to
     // resolve. Mirroring the root is the point of this block.
     settingsAdminService: settings.handle.adminService,
+    // Feature 072 (T096) — the harness's own customer guard, which is a
+    // different implementation from the root's. Registering it is what makes
+    // that divergence visible in one place instead of twenty-seven.
+    requireCustomer: requireTestCustomer(),
     settingsChannelResolver: async () =>
       (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
     dictionaryValidator: dictionaries.handle.validator,
