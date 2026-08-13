@@ -97,7 +97,7 @@ import { OrderReturnContextProvider } from './modules/orders/services/order-retu
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
 import type { InvoicesBridge, InvoicesCradle } from './modules/invoices/backend.js';
-import { ksefModule } from './modules/ksef/plugin.js';
+import type { KsefCradle } from './modules/ksef/backend.js';
 import { productFeedsModule } from './modules/product_feeds/plugin.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
@@ -2397,24 +2397,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 059 — KSeF (Krajowy System e-Faktur). Consumes the invoices
   // domain events, submits FA(3) documents through a durable queue, and feeds
   // the KSeF number/QR back through the invoices port + PDF-renderer seam.
-  const ksef = ksefModule({
-    emFactory: em,
-    requireAdmin,
-    settingsService: settings.handle.settingsService,
-    commandBus,
-    eventBus,
-    invoices: {
-      buildDetail: (invoiceId) => invoicesCradle.invoiceService.buildDetail(invoiceId),
-      recordKsefAssignment: (invoiceId, assignment) =>
-        invoicesCradle.invoiceService.recordKsefAssignment(invoiceId, assignment),
-    },
-    auditLogService,
-    redis,
-    runWorkers,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
-    resolveSellerNip: async () => {
+  // Feature 072 (T104) — `ksef` owns its services and routes now.
+  registerValues(container, {
+    ksefSellerNipResolver: async () => {
       try {
         const raw = await settings.handle.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', z.string());
         const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
@@ -2424,14 +2409,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
     },
   });
-  modules.push(ksef.plugin);
+  const ksefCradle = container.cradle as unknown as KsefCradle;
   // PDF QR seam (contracts/invoices-integration.md §3) — one resolver covers
   // every render path; absent/disabled module ⇒ pre-059 output.
   // Feature 072 (T113) — contributed, not set. `invoices` installs its own
   // resolver at construction and reads this per call, so a deployment without
   // KSeF simply has no verification block rather than an unset setter.
   registerValues(container, {
-    ksefVerificationResolver: ksef.handle.buildVerification,
+    ksefVerificationResolver: ksefCradle.ksef.handle.buildVerification,
   });
 
   // Feature 067 — Product Feed. Projects a sales channel's catalogue into

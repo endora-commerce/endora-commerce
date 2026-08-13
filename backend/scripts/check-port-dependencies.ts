@@ -161,13 +161,14 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   pwaRunWorkers: 'pwa',
   // How this composition reaches outside the invoices module.
   invoicesBridge: 'invoices',
-  // The KSeF verification block stamped into an invoice PDF. Owned by `ksef`,
-  // still hand-wired; absent on a deployment without it.
-  ksefVerificationResolver: 'ksef',
   // How this composition settles a return and who is asking: four small
   // adapters over `payments`, `invoices`, `credit_limits` and `orders`, plus
   // the actor resolvers and the notifier.
   returnsBridge: 'returns',
+  // The seller's NIP, read from the invoices seller settings. A root's, because
+  // the setting belongs to `invoices` and the format handling is composition
+  // policy rather than a KSeF concern.
+  ksefSellerNipResolver: 'ksef',
 };
 
 export interface PortResolution {

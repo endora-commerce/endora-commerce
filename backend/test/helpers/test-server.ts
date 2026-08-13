@@ -190,7 +190,7 @@ import type { PromptActionToolRegistry } from '../../src/modules/prompt_actions/
 import type { PromptRequestService } from '../../src/modules/prompt_actions/services/prompt-request.service.js';
 import type { LlmProviderFactory } from '../../src/modules/prompt_actions/services/llm/provider-factory.js';
 import type { FetchLike } from '../../src/modules/prompt_actions/services/llm/provider.js';
-import { ksefModule } from '../../src/modules/ksef/plugin.js';
+import type { KsefCradle } from '../../src/modules/ksef/backend.js';
 import { productFeedsModule } from '../../src/modules/product_feeds/plugin.js';
 import type {
   TaxonomyFetchResult,
@@ -367,7 +367,7 @@ export interface BackendServerHandle {
     pdfRenderer: InvoicesCradle['invoicePdfRenderer'];
   };
   /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
-  ksef: ReturnType<typeof ksefModule>['handle'];
+  ksef: KsefCradle['ksef']['handle'];
   /** Feature 067 — Product Feed handle (feeds, generation, runs, token cache). */
   productFeeds: ReturnType<typeof productFeedsModule>['handle'];
   /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
@@ -2295,22 +2295,9 @@ export async function setupBackendServer(
 
   // Feature 059 — KSeF. No redis queue in tests (submissions are processed by
   // driving `submissions.process(...)` directly); the sweep interval is off.
-  const ksef = ksefModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    settingsService: settings.handle.settingsService,
-    commandBus,
-    eventBus,
-    invoices: {
-      buildDetail: (invoiceId) => invoicesCradle.invoiceService.buildDetail(invoiceId),
-      recordKsefAssignment: (invoiceId, assignment) =>
-        invoicesCradle.invoiceService.recordKsefAssignment(invoiceId, assignment),
-    },
-    auditLogService,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
-    resolveSellerNip: async () => {
+  // Feature 072 (T104) — `ksef` owns its services and routes now.
+  registerValues(container, {
+    ksefSellerNipResolver: async () => {
       try {
         const { z: zod } = await import('zod');
         const raw = await settings.handle.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', zod.string());
@@ -2320,13 +2307,17 @@ export async function setupBackendServer(
         return null;
       }
     },
-    ...(options.ksefClientFactory ? { clientFactory: options.ksefClientFactory } : {}),
-    sweepIntervalMs: 0,
-    pollAttempts: 3,
-    pollIntervalMs: 5,
+    // The harness substitutes a deterministic client, drives sweeps itself and
+    // polls three times at 5 ms. Production contributes nothing and keeps the
+    // module's own cadence against the real API.
+    ksefTestOverrides: {
+      ...(options.ksefClientFactory ? { clientFactory: options.ksefClientFactory } : {}),
+      sweepIntervalMs: 0,
+      pollAttempts: 3,
+      pollIntervalMs: 5,
+    },
   });
-  modules.push(ksef.plugin);
-  invoicesCradle.invoicePdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
+  const ksefCradle = container.cradle as unknown as KsefCradle;
 
   // Feature 067 — Product Feed. Deliberately NO `redis` and NO `runWorkers`:
   // `setupBackendServer()` runs once per test file in a single fork, and adding
@@ -2747,7 +2738,7 @@ export async function setupBackendServer(
       numberGenerator: invoicesCradle.invoiceNumberGenerator,
       pdfRenderer: invoicesCradle.invoicePdfRenderer,
     },
-    ksef: ksef.handle,
+    ksef: ksefCradle.ksef.handle,
     productFeeds: productFeeds.handle,
     pimErgonode: pimErgonode.handle,
     pwa: pwaCradle.pwa.handle,

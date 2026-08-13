@@ -125,6 +125,9 @@ export const manifest = defineModuleManifest({
   version: '2.0.0',
   // `auth` owns the `requireAdmin` port and the customer guard this module
   // resolves; feature 072 made both container resolutions.
+  // `ksef` is deliberately absent: it reads `invoiceService`, so declaring it
+  // here would close a cycle. The KSeF verification block reaches this module
+  // as a contribution a root fills, not as a port this module resolves.
   dependencies: ['orders', 'settings', 'auth'],
   settings: invoicesSettingsManifest,
   i18n: { bundlesDir: 'i18n' },

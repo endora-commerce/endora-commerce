@@ -393,6 +393,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `ksef` (wave 2, T104). The two central registries name its entities and
+  // migrations; `composition.ts` imports the cradle type to annotate the seller
+  // NIP resolver it contributes and the verification block it contributes into
+  // `invoices`. The second is a root's by design: `ksef` reads `invoiceService`,
+  // so `invoices` resolving a `ksef` port would close a dependency cycle.
+  ksef: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 
