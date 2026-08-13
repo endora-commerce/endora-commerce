@@ -88,7 +88,7 @@ import type { EmailCradle } from './modules/email/backend.js';
 import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
 import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
-import { returnsModule } from './modules/returns/plugin.js';
+import type { ReturnsBridge } from './modules/returns/backend.js';
 import { stripeModule } from './modules/stripe/plugin.js';
 import { tpayModule } from './modules/tpay/plugin.js';
 import { payuModule } from './modules/payu/plugin.js';
@@ -96,8 +96,8 @@ import { autopayModule } from './modules/autopay/plugin.js';
 import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
-import { invoicesModule } from './modules/invoices/plugin.js';
-import { ksefModule } from './modules/ksef/plugin.js';
+import type { InvoicesBridge, InvoicesCradle } from './modules/invoices/backend.js';
+import type { KsefCradle } from './modules/ksef/backend.js';
 import { productFeedsModule } from './modules/product_feeds/plugin.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
@@ -160,7 +160,7 @@ import { emailAdapterConfigurationType } from './modules/credentials/types/email
 import { ergonodeConfigurationType } from './modules/pim_ergonode/services/ergonode-credential.type.js';
 import { feedDeliveryConfigurationType } from './modules/product_feeds/services/delivery/delivery-credential.type.js';
 // Feature 046 — Progressive Web App.
-import { pwaModule } from './modules/pwa/plugin.js';
+import type { PwaBridge } from './modules/pwa/backend.js';
 // Feature 047 — Transactional Emails.
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
 import type { BrandingService } from './modules/transactional_emails/services/branding.service.js';
@@ -1778,63 +1778,58 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // push fan-out (BullMQ; co-located unless BACKEND_ROLE=api), and the icon
   // rendition pipeline (sharp + assets_library). Channel/asset/customer coupling
   // is injected here so the module stays isolated (Principle I).
-  const pwa = pwaModule({
-    emFactory: em,
-    redis,
-    runWorkers,
-    settings: settings.handle.settingsService,
-    settingsWrite: settings.handle.adminService,
-    requireAdmin,
-    eventBus,
-    assetUpload: {
-      upload: async (input) => {
-        const detail = await assetsLibrary.handle.service.upload(input);
-        return { id: detail.id };
+  // Feature 072 (T116) — `pwa` owns its services, its queue and its routes
+  // now. What stays here is every way it reaches outside itself, contributed
+  // as one bridge: a composition knows how to reach `assets_library` and
+  // `sales_channels`, or it does not.
+  registerValues(container, {
+    pwaRunWorkers: runWorkers,
+    pwaBridge: {
+      assetUpload: {
+        upload: async (input) => {
+          const detail = await assetsLibrary.handle.service.upload(input);
+          return { id: detail.id };
+        },
       },
-    },
-    resolveAssetUrl: async (assetId) => {
-      try {
-        const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
-        return absolutizePublicUrl(resolved.url);
-      } catch {
-        return null;
-      }
-    },
-    resolveChannelIdByCode: async (code) => {
-      if (code) {
-        const ch = await salesChannels.handle.resolver.getByCode(code);
-        if (ch) return ch.id;
-      }
-      return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId;
-    },
-    defaultChannelId: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-    channelCodeForId: async (channelId) => {
-      const ch = await em().findOne(SalesChannel, { id: channelId });
-      return ch?.code ?? null;
-    },
-    resolveAuditContext: (request) => ({
-      actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-    }),
-    vapidSubject: process.env['PWA_VAPID_SUBJECT'] ?? 'mailto:admin@b2b-platform.local',
-    resolveCustomerAccountId: async (request) =>
-      request.actor.kind === 'customer' ? request.actor.customerAccountId : null,
-    // FR-024 auto-trigger — resolve an order-status event into a push target
-    // (the placing customer + a deep link to their order). Reading the Order
-    // entity here keeps the pwa module decoupled from the orders module.
-    resolveOrderTarget: async (payload) => {
-      const order = await em().findOne(Order, { id: payload.orderId });
-      if (!order || !order.placedByCustomerAccountId) return null;
-      return {
-        salesChannelId: payload.salesChannelId,
-        customerAccountId: order.placedByCustomerAccountId,
-        title: 'Order update',
-        body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
-        url: `/account/orders/${order.businessId}`,
-      };
-    },
+      resolveAssetUrl: async (assetId: string) => {
+        try {
+          const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
+          return absolutizePublicUrl(resolved.url);
+        } catch {
+          return null;
+        }
+      },
+      resolveChannelIdByCode: async (code: string | undefined) => {
+        if (code) {
+          const ch = await salesChannels.handle.resolver.getByCode(code);
+          if (ch) return ch.id;
+        }
+        return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId;
+      },
+      defaultChannelId: async () =>
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      channelCodeForId: async (channelId: string) => {
+        const ch = await em().findOne(SalesChannel, { id: channelId });
+        return ch?.code ?? null;
+      },
+      resolveAuditContext: (request: FastifyRequest) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      resolveCustomerAccountId: async (request: FastifyRequest) =>
+        request.actor.kind === 'customer' ? request.actor.customerAccountId : null,
+      resolveOrderTarget: async (payload) => {
+        const order = await em().findOne(Order, { id: payload.orderId });
+        if (!order || !order.placedByCustomerAccountId) return null;
+        return {
+          salesChannelId: payload.salesChannelId,
+          customerAccountId: order.placedByCustomerAccountId,
+          title: 'Order update',
+          body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
+          url: `/account/orders/${order.businessId}`,
+        };
+      },
+    } satisfies PwaBridge,
   });
-  modules.push(pwa.plugin);
 
   // Feature 015 — Megamenu module. Wires the cross-module ports the
   // target validator + storefront resolver delegate to. v1 uses small
@@ -2359,69 +2354,52 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 047 — Invoices. Owns issuance, numbering, PDF rendering, admin +
   // customer routes. Constructed before returns so the corrective-invoice
   // provider can draw correction numbers from the shared number generator.
-  const invoices = invoicesModule({
-    emFactory: em,
-    eventBus,
-    requireAdmin,
-    requireCustomer,
-    settingsService: settings.handle.settingsService,
-    audit: auditLogService,
-    auditLog: auditLogService,
-    resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
-    resolveCustomerContext: (req: FastifyRequest) => {
-      const c = customerResolver(req);
-      return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
-    },
-    getTransactionalEmailSender: () => transactionalEmailSender,
-    resolveRecipientEmail: async (order) =>
-      (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
-    resolveLanguage: async (salesChannelId) =>
-      (salesChannelId
-        ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
-        : null) ?? 'en-US',
-    loadAssetImage: async (assetId) => {
-      try {
-        const a = await em().findOne(Asset, { id: assetId, deletedAt: null });
-        if (!a || !a.mimeType.startsWith('image/')) return null;
-        const adapter = await assetsLibrary.handle.adapters.getForBackend(
-          a.storageBackend as 'local' | 's3' | 'gcs' | 'legacy',
-        );
-        // Legacy resolver only has resolveUrl — cannot stream bytes for PDF embed.
-        if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
-        const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
-        const chunks: Buffer[] = [];
-        for await (const chunk of stream) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  // Feature 072 (T113) — `invoices` owns its services and routes now. What
+  // stays here is how this composition reaches outside the module,
+  // contributed as one bridge.
+  registerValues(container, {
+    invoicesBridge: {
+      resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
+      resolveCustomerContext: (req: FastifyRequest) => {
+        const c = customerResolver(req);
+        return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
+      },
+      getTransactionalEmailSender: () => transactionalEmailSender,
+      resolveRecipientEmail: async (order) =>
+        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
+      resolveLanguage: async (salesChannelId) =>
+        (salesChannelId
+          ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
+          : null) ?? 'en-US',
+      loadAssetImage: async (assetId) => {
+        try {
+          const a = await em().findOne(Asset, { id: assetId, deletedAt: null });
+          if (!a || !a.mimeType.startsWith('image/')) return null;
+          const adapter = await assetsLibrary.handle.adapters.getForBackend(
+            a.storageBackend as 'local' | 's3' | 'gcs' | 'legacy',
+          );
+          // Legacy resolver only has resolveUrl — cannot stream bytes for PDF embed.
+          if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
+          const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
+          const chunks: Buffer[] = [];
+          for await (const chunk of stream) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          }
+          return { bytes: Buffer.concat(chunks), mimeType: a.mimeType };
+        } catch {
+          return null;
         }
-        return { bytes: Buffer.concat(chunks), mimeType: a.mimeType };
-      } catch {
-        return null;
-      }
-    },
+      },
+    } satisfies InvoicesBridge,
   });
-  modules.push(invoices.plugin);
+  const invoicesCradle = container.cradle as unknown as InvoicesCradle;
 
   // Feature 059 — KSeF (Krajowy System e-Faktur). Consumes the invoices
   // domain events, submits FA(3) documents through a durable queue, and feeds
   // the KSeF number/QR back through the invoices port + PDF-renderer seam.
-  const ksef = ksefModule({
-    emFactory: em,
-    requireAdmin,
-    settingsService: settings.handle.settingsService,
-    commandBus,
-    eventBus,
-    invoices: {
-      buildDetail: (invoiceId) => invoices.handle.invoiceService.buildDetail(invoiceId),
-      recordKsefAssignment: (invoiceId, assignment) =>
-        invoices.handle.invoiceService.recordKsefAssignment(invoiceId, assignment),
-    },
-    auditLogService,
-    redis,
-    runWorkers,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
-    resolveSellerNip: async () => {
+  // Feature 072 (T104) — `ksef` owns its services and routes now.
+  registerValues(container, {
+    ksefSellerNipResolver: async () => {
       try {
         const raw = await settings.handle.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', z.string());
         const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
@@ -2431,10 +2409,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
     },
   });
-  modules.push(ksef.plugin);
+  const ksefCradle = container.cradle as unknown as KsefCradle;
   // PDF QR seam (contracts/invoices-integration.md §3) — one resolver covers
   // every render path; absent/disabled module ⇒ pre-059 output.
-  invoices.handle.pdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
+  // Feature 072 (T113) — contributed, not set. `invoices` installs its own
+  // resolver at construction and reads this per call, so a deployment without
+  // KSeF simply has no verification block rather than an unset setter.
+  registerValues(container, {
+    ksefVerificationResolver: ksefCradle.ksef.handle.buildVerification,
+  });
 
   // Feature 067 — Product Feed. Projects a sales channel's catalogue into
   // provider-shaped feed files published at a tokenised URL. Every cross-module
@@ -2667,20 +2650,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
   // through the OrderReturnContextPort (Principle I); settings drive the
   // free-return window and RMA prefix/suffix.
-  modules.push(
-    returnsModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.handle.settingsService,
-      requireCustomer,
-      requireAdmin,
+  // Feature 072 (T109) — `returns` owns its services and routes now. The
+  // four settlement adapters and the actor resolvers stay here as one
+  // bridge: each is a small adapter over `payments`, `invoices`,
+  // `credit_limits` and `orders`, and a composition supplies all or none.
+  registerValues(container, {
+    returnsBridge: {
       resolveCustomerAccountId,
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       orderContext: new OrderReturnContextProvider(em),
       paymentRefund: new PaymentRefundProvider(em),
-      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoices.handle.numberGenerator, auditLogService, eventBus),
+      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoicesCradle.invoiceNumberGenerator, auditLogService, eventBus),
       creditTopup: new CreditTopupProvider(creditLimitsCradle.creditLimitService),
-      auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
         platformMailer,
         async (customerAccountId) =>
@@ -2691,8 +2672,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
             (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
         },
       ),
-    }),
-  );
+    } satisfies ReturnsBridge,
+  });
 
   // Feature 047 — Transactional Emails. Owning modules register their default
   // subject + content here; the module reconciles all manifest-declared emails
@@ -2861,7 +2842,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       mailer: platformMailer,
       auditLog: auditLogService,
       settingsAdmin: settings.handle.adminService,
-      resolveAssetUrl: async (assetId) => {
+      resolveAssetUrl: async (assetId: string) => {
         try {
           const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
           return absolutizePublicUrl(resolved.url);
@@ -2903,7 +2884,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
       requireAdmin,
       settingsWrite: settings.handle.adminService,
-      resolveAuditContext: (request) => ({
+      resolveAuditContext: (request: FastifyRequest) => ({
         actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
       }),
       requireCustomer,

@@ -361,6 +361,48 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `pwa` (wave 2, T116). The two central registries name its entities and
+  // migrations; `composition.ts` imports the bridge type to annotate the nine
+  // cross-module resolvers it contributes as one. Those are a root's by design
+  // — reaching `assets_library` and `sales_channels` is not this module's
+  // business — so unlike most entries here they do not go when another module
+  // converts.
+  pwa: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `invoices` (wave 2, T113). The two central registries name its entities and
+  // migrations; `composition.ts` imports the bridge and cradle types to
+  // annotate what it contributes and the three ports it threads into `ksef`
+  // and the corrective-invoice payment provider. Those go when `ksef` and
+  // `payments` convert.
+  invoices: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `returns` (wave 2, T109). The two central registries name its eleven
+  // entities and its migrations; `composition.ts` imports the bridge type to
+  // annotate the four settlement adapters it contributes. Those are a root's
+  // by design — each is an adapter over a module `returns` must not read
+  // directly — so unlike most entries here they do not go when another module
+  // converts.
+  returns: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `ksef` (wave 2, T104). The two central registries name its entities and
+  // migrations; `composition.ts` imports the cradle type to annotate the seller
+  // NIP resolver it contributes and the verification block it contributes into
+  // `invoices`. The second is a root's by design: `ksef` reads `invoiceService`,
+  // so `invoices` resolving a `ksef` port would close a dependency cycle.
+  ksef: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

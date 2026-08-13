@@ -64,34 +64,42 @@ import * as module20 from './modules/health_checks/backend.js';
 import { manifest as manifest20 } from './modules/health_checks/manifest.js';
 import * as module21 from './modules/import_export/backend.js';
 import { manifest as manifest21 } from './modules/import_export/manifest.js';
-import * as module22 from './modules/languages/backend.js';
-import { manifest as manifest22 } from './modules/languages/manifest.js';
-import * as module23 from './modules/dictionaries/backend.js';
-import { manifest as manifest23 } from './modules/dictionaries/manifest.js';
-import * as module24 from './modules/addresses/backend.js';
-import { manifest as manifest24 } from './modules/addresses/manifest.js';
-import * as module25 from './modules/blog/backend.js';
-import { manifest as manifest25 } from './modules/blog/manifest.js';
-import * as module26 from './modules/linkedin_ads/backend.js';
-import { manifest as manifest26 } from './modules/linkedin_ads/manifest.js';
-import * as module27 from './modules/megamenu/backend.js';
-import { manifest as manifest27 } from './modules/megamenu/manifest.js';
-import * as module28 from './modules/meta_ads/backend.js';
-import { manifest as manifest28 } from './modules/meta_ads/manifest.js';
-import * as module29 from './modules/mfa/backend.js';
-import { manifest as manifest29 } from './modules/mfa/manifest.js';
-import * as module30 from './modules/payment_methods/backend.js';
-import { manifest as manifest30 } from './modules/payment_methods/manifest.js';
-import * as module31 from './modules/promotions/backend.js';
-import { manifest as manifest31 } from './modules/promotions/manifest.js';
-import * as module32 from './modules/prompt_actions/backend.js';
-import { manifest as manifest32 } from './modules/prompt_actions/manifest.js';
-import * as module33 from './modules/seo/backend.js';
-import { manifest as manifest33 } from './modules/seo/manifest.js';
-import * as module34 from './modules/taxes/backend.js';
-import { manifest as manifest34 } from './modules/taxes/manifest.js';
-import * as module35 from './modules/webhooks/backend.js';
-import { manifest as manifest35 } from './modules/webhooks/manifest.js';
+import * as module22 from './modules/invoices/backend.js';
+import { manifest as manifest22 } from './modules/invoices/manifest.js';
+import * as module23 from './modules/ksef/backend.js';
+import { manifest as manifest23 } from './modules/ksef/manifest.js';
+import * as module24 from './modules/languages/backend.js';
+import { manifest as manifest24 } from './modules/languages/manifest.js';
+import * as module25 from './modules/dictionaries/backend.js';
+import { manifest as manifest25 } from './modules/dictionaries/manifest.js';
+import * as module26 from './modules/addresses/backend.js';
+import { manifest as manifest26 } from './modules/addresses/manifest.js';
+import * as module27 from './modules/blog/backend.js';
+import { manifest as manifest27 } from './modules/blog/manifest.js';
+import * as module28 from './modules/linkedin_ads/backend.js';
+import { manifest as manifest28 } from './modules/linkedin_ads/manifest.js';
+import * as module29 from './modules/megamenu/backend.js';
+import { manifest as manifest29 } from './modules/megamenu/manifest.js';
+import * as module30 from './modules/meta_ads/backend.js';
+import { manifest as manifest30 } from './modules/meta_ads/manifest.js';
+import * as module31 from './modules/mfa/backend.js';
+import { manifest as manifest31 } from './modules/mfa/manifest.js';
+import * as module32 from './modules/payment_methods/backend.js';
+import { manifest as manifest32 } from './modules/payment_methods/manifest.js';
+import * as module33 from './modules/promotions/backend.js';
+import { manifest as manifest33 } from './modules/promotions/manifest.js';
+import * as module34 from './modules/prompt_actions/backend.js';
+import { manifest as manifest34 } from './modules/prompt_actions/manifest.js';
+import * as module35 from './modules/pwa/backend.js';
+import { manifest as manifest35 } from './modules/pwa/manifest.js';
+import * as module36 from './modules/returns/backend.js';
+import { manifest as manifest36 } from './modules/returns/manifest.js';
+import * as module37 from './modules/seo/backend.js';
+import { manifest as manifest37 } from './modules/seo/manifest.js';
+import * as module38 from './modules/taxes/backend.js';
+import { manifest as manifest38 } from './modules/taxes/manifest.js';
+import * as module39 from './modules/webhooks/backend.js';
+import { manifest as manifest39 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: 'admin_roles', version: manifest0.version, registerModule: module0.registerModule },
@@ -116,18 +124,22 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'google_tag_manager', version: manifest19.version, registerModule: module19.registerModule },
   { id: 'health_checks', version: manifest20.version, registerModule: module20.registerModule },
   { id: 'import_export', version: manifest21.version, registerModule: module21.registerModule },
-  { id: 'languages', version: manifest22.version, registerModule: module22.registerModule },
-  { id: 'dictionaries', version: manifest23.version, registerModule: module23.registerModule },
-  { id: 'addresses', version: manifest24.version, registerModule: module24.registerModule },
-  { id: 'blog', version: manifest25.version, registerModule: module25.registerModule },
-  { id: 'linkedin_ads', version: manifest26.version, registerModule: module26.registerModule },
-  { id: 'megamenu', version: manifest27.version, registerModule: module27.registerModule },
-  { id: 'meta_ads', version: manifest28.version, registerModule: module28.registerModule },
-  { id: 'mfa', version: manifest29.version, registerModule: module29.registerModule },
-  { id: 'payment_methods', version: manifest30.version, registerModule: module30.registerModule },
-  { id: 'promotions', version: manifest31.version, registerModule: module31.registerModule },
-  { id: 'prompt_actions', version: manifest32.version, registerModule: module32.registerModule },
-  { id: 'seo', version: manifest33.version, registerModule: module33.registerModule },
-  { id: 'taxes', version: manifest34.version, registerModule: module34.registerModule },
-  { id: 'webhooks', version: manifest35.version, registerModule: module35.registerModule },
+  { id: 'invoices', version: manifest22.version, registerModule: module22.registerModule },
+  { id: 'ksef', version: manifest23.version, registerModule: module23.registerModule },
+  { id: 'languages', version: manifest24.version, registerModule: module24.registerModule },
+  { id: 'dictionaries', version: manifest25.version, registerModule: module25.registerModule },
+  { id: 'addresses', version: manifest26.version, registerModule: module26.registerModule },
+  { id: 'blog', version: manifest27.version, registerModule: module27.registerModule },
+  { id: 'linkedin_ads', version: manifest28.version, registerModule: module28.registerModule },
+  { id: 'megamenu', version: manifest29.version, registerModule: module29.registerModule },
+  { id: 'meta_ads', version: manifest30.version, registerModule: module30.registerModule },
+  { id: 'mfa', version: manifest31.version, registerModule: module31.registerModule },
+  { id: 'payment_methods', version: manifest32.version, registerModule: module32.registerModule },
+  { id: 'promotions', version: manifest33.version, registerModule: module33.registerModule },
+  { id: 'prompt_actions', version: manifest34.version, registerModule: module34.registerModule },
+  { id: 'pwa', version: manifest35.version, registerModule: module35.registerModule },
+  { id: 'returns', version: manifest36.version, registerModule: module36.registerModule },
+  { id: 'seo', version: manifest37.version, registerModule: module37.registerModule },
+  { id: 'taxes', version: manifest38.version, registerModule: module38.registerModule },
+  { id: 'webhooks', version: manifest39.version, registerModule: module39.registerModule },
 ];

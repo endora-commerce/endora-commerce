@@ -118,8 +118,8 @@ import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
-import { returnsModule } from '../../src/modules/returns/plugin.js';
-import { invoicesModule } from '../../src/modules/invoices/plugin.js';
+import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
+import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
@@ -190,7 +190,7 @@ import type { PromptActionToolRegistry } from '../../src/modules/prompt_actions/
 import type { PromptRequestService } from '../../src/modules/prompt_actions/services/prompt-request.service.js';
 import type { LlmProviderFactory } from '../../src/modules/prompt_actions/services/llm/provider-factory.js';
 import type { FetchLike } from '../../src/modules/prompt_actions/services/llm/provider.js';
-import { ksefModule } from '../../src/modules/ksef/plugin.js';
+import type { KsefCradle } from '../../src/modules/ksef/backend.js';
 import { productFeedsModule } from '../../src/modules/product_feeds/plugin.js';
 import type {
   TaxonomyFetchResult,
@@ -213,7 +213,7 @@ import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef
 import { configurationTypeRegistry } from '../../src/modules/credentials/services/registry-singleton.js';
 import { llmConfigurationType } from '../../src/modules/credentials/types/llm.type.js';
 import { emailAdapterConfigurationType } from '../../src/modules/credentials/types/email-adapter.type.js';
-import { pwaModule } from '../../src/modules/pwa/plugin.js';
+import type { PwaBridge, PwaCradle } from '../../src/modules/pwa/backend.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import {
@@ -361,15 +361,19 @@ export interface BackendServerHandle {
   /** Feature 058 — credentials handle (config-type registry + service). */
   credentials: { service: CredentialsService; configurationTypeRegistry: ConfigurationTypeRegistry };
   /** Feature 047 — invoices handle (issuance service, PDF renderer, number generator). */
-  invoices: ReturnType<typeof invoicesModule>['handle'];
+  invoices: {
+    invoiceService: InvoicesCradle['invoiceService'];
+    numberGenerator: InvoicesCradle['invoiceNumberGenerator'];
+    pdfRenderer: InvoicesCradle['invoicePdfRenderer'];
+  };
   /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
-  ksef: ReturnType<typeof ksefModule>['handle'];
+  ksef: KsefCradle['ksef']['handle'];
   /** Feature 067 — Product Feed handle (feeds, generation, runs, token cache). */
   productFeeds: ReturnType<typeof productFeedsModule>['handle'];
   /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
   pimErgonode: ReturnType<typeof pimErgonodeModule>['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
-  pwa: ReturnType<typeof pwaModule>['handle'];
+  pwa: PwaCradle['pwa']['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
   salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
   /** Feature 062 — api-keys/webhooks handle (api-key gates). */
@@ -1774,60 +1778,67 @@ export async function setupBackendServer(
   // Feature 046 — PWA module (mirrors composition.ts). runWorkers:false so no
   // BullMQ consumer starts in tests; the delivery processor is invoked directly
   // by integration tests.
-  const pwa = pwaModule({
-    emFactory: em,
-    redis,
-    runWorkers: false,
-    settings: settings.handle.settingsService,
-    settingsWrite: settings.handle.adminService,
-    requireAdmin: requireTestAdmin(permissionService),
-    eventBus,
-    assetUpload: {
-      upload: async (input) => {
-        const detail = await assetsLibrary.handle.service.upload(input);
-        return { id: detail.id };
+  // Feature 072 (T116) — `pwa` owns its services, its queue and its routes
+  // now. What stays here is every way it reaches outside itself, contributed
+  // as one bridge: a composition knows how to reach `assets_library` and
+  // `sales_channels`, or it does not.
+  registerValues(container, {
+    // The harness has a producer and no consumer: it enqueues so the routes can
+    // assert the queued ack, and starting a delivery worker per test file would
+    // be a BullMQ consumer nothing ever closes.
+    pwaRunWorkers: false,
+    pwaBridge: {
+      assetUpload: {
+        upload: async (input) => {
+          const detail = await assetsLibrary.handle.service.upload(input);
+          return { id: detail.id };
+        },
       },
-    },
-    resolveAssetUrl: async (assetId) => {
-      try {
-        return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
-      } catch {
-        return null;
-      }
-    },
-    resolveChannelIdByCode: async (code) => {
-      if (code) {
-        const ch = await salesChannels.handle.resolver.getByCode(code);
-        if (ch) return ch.id;
-      }
-      return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default';
-    },
-    defaultChannelId: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
-    channelCodeForId: async (channelId) => {
-      const ch = await em().findOne(SalesChannel, { id: channelId });
-      return ch?.code ?? null;
-    },
-    resolveAuditContext: (request) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
-    vapidSubject: 'mailto:test@b2b-platform.local',
-    resolveCustomerAccountId: async (request) =>
-      request.testActor?.kind === 'customer' ? request.testActor.customerAccountId : null,
-    resolveOrderTarget: async (payload) => {
-      const order = await em().findOne(Order, { id: payload.orderId });
-      if (!order || !order.placedByCustomerAccountId) return null;
-      return {
-        salesChannelId: payload.salesChannelId,
-        customerAccountId: order.placedByCustomerAccountId,
-        title: 'Order update',
-        body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
-        url: `/account/orders/${order.businessId}`,
-      };
-    },
+      resolveAssetUrl: async (assetId: string) => {
+        try {
+          return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
+        } catch {
+          return null;
+        }
+      },
+      resolveChannelIdByCode: async (code: string | undefined) => {
+        if (code) {
+          const ch = await salesChannels.handle.resolver.getByCode(code);
+          if (ch) return ch.id;
+        }
+        return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default';
+      },
+      defaultChannelId: async () =>
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
+      channelCodeForId: async (channelId: string) => {
+        const ch = await em().findOne(SalesChannel, { id: channelId });
+        return ch?.code ?? null;
+      },
+      resolveAuditContext: (request: FastifyRequest) => ({
+        actorAdminUserId:
+          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+      }),
+      resolveCustomerAccountId: async (request: FastifyRequest) =>
+        request.testActor?.kind === 'customer' ? request.testActor.customerAccountId : null,
+      resolveOrderTarget: async (payload: {
+        orderId: string;
+        salesChannelId: string;
+        from: string;
+        to: string;
+      }) => {
+        const order = await em().findOne(Order, { id: payload.orderId });
+        if (!order || !order.placedByCustomerAccountId) return null;
+        return {
+          salesChannelId: payload.salesChannelId,
+          customerAccountId: order.placedByCustomerAccountId,
+          title: 'Order update',
+          body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
+          url: `/account/orders/${order.businessId}`,
+        };
+      },
+    } satisfies PwaBridge,
   });
-  modules.push(pwa.plugin);
+  const pwaCradle = container.cradle as unknown as PwaCradle;
 
   // Feature 015 — Megamenu module. Wires the cross-module ports the
   // target validator + storefront resolver delegate to. v1 uses small
@@ -2224,13 +2235,12 @@ export async function setupBackendServer(
   modules.push(customers.plugin);
 
   // Feature 046 — Returns & Complaints (Refunds, RMA).
-  modules.push(
-    returnsModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.handle.settingsService,
-      requireCustomer: requireTestCustomer(),
-      requireAdmin: requireTestAdmin(permissionService),
+  // Feature 072 (T109) — `returns` owns its services and routes now. The
+  // four settlement adapters and the actor resolvers stay here as one
+  // bridge: each is a small adapter over `payments`, `invoices`,
+  // `credit_limits` and `orders`, and a composition supplies all or none.
+  registerValues(container, {
+    returnsBridge: {
       resolveCustomerAccountId: (req) =>
         req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
       resolveAdminUserId: (req) =>
@@ -2244,7 +2254,6 @@ export async function setupBackendServer(
         eventBus,
       ),
       creditTopup: new CreditTopupProvider(creditLimitsCradle.creditLimitService),
-      auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
         injectedMailer,
         async (cid) => (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
@@ -2254,18 +2263,15 @@ export async function setupBackendServer(
             (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
         },
       ),
-    }),
-  );
+    } satisfies ReturnsBridge,
+  });
 
   // Feature 047 — Invoices.
-  const invoices = invoicesModule({
-      emFactory: em,
-      eventBus,
-      requireAdmin: requireTestAdmin(permissionService),
-      requireCustomer: requireTestCustomer(),
-      settingsService: settings.handle.settingsService,
-      audit: auditLogService,
-      auditLog: auditLogService,
+  // Feature 072 (T113) — `invoices` owns its services and routes now. What
+  // stays here is how this composition reaches outside the module,
+  // contributed as one bridge.
+  registerValues(container, {
+    invoicesBridge: {
       resolveAdminUserId: (req) =>
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
       resolveCustomerContext: (req) => ({
@@ -2283,27 +2289,15 @@ export async function setupBackendServer(
         (salesChannelId
           ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
           : null) ?? 'en-US',
+    } satisfies InvoicesBridge,
   });
-  modules.push(invoices.plugin);
+  const invoicesCradle = container.cradle as unknown as InvoicesCradle;
 
   // Feature 059 — KSeF. No redis queue in tests (submissions are processed by
   // driving `submissions.process(...)` directly); the sweep interval is off.
-  const ksef = ksefModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    settingsService: settings.handle.settingsService,
-    commandBus,
-    eventBus,
-    invoices: {
-      buildDetail: (invoiceId) => invoices.handle.invoiceService.buildDetail(invoiceId),
-      recordKsefAssignment: (invoiceId, assignment) =>
-        invoices.handle.invoiceService.recordKsefAssignment(invoiceId, assignment),
-    },
-    auditLogService,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
-    resolveSellerNip: async () => {
+  // Feature 072 (T104) — `ksef` owns its services and routes now.
+  registerValues(container, {
+    ksefSellerNipResolver: async () => {
       try {
         const { z: zod } = await import('zod');
         const raw = await settings.handle.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', zod.string());
@@ -2313,13 +2307,17 @@ export async function setupBackendServer(
         return null;
       }
     },
-    ...(options.ksefClientFactory ? { clientFactory: options.ksefClientFactory } : {}),
-    sweepIntervalMs: 0,
-    pollAttempts: 3,
-    pollIntervalMs: 5,
+    // The harness substitutes a deterministic client, drives sweeps itself and
+    // polls three times at 5 ms. Production contributes nothing and keeps the
+    // module's own cadence against the real API.
+    ksefTestOverrides: {
+      ...(options.ksefClientFactory ? { clientFactory: options.ksefClientFactory } : {}),
+      sweepIntervalMs: 0,
+      pollAttempts: 3,
+      pollIntervalMs: 5,
+    },
   });
-  modules.push(ksef.plugin);
-  invoices.handle.pdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
+  const ksefCradle = container.cradle as unknown as KsefCradle;
 
   // Feature 067 — Product Feed. Deliberately NO `redis` and NO `runWorkers`:
   // `setupBackendServer()` runs once per test file in a single fork, and adding
@@ -2735,11 +2733,15 @@ export async function setupBackendServer(
       providerFactory: promptActionsCradle.llmProviderFactory,
     },
     credentials: { service: credentialsService, configurationTypeRegistry },
-    invoices: invoices.handle,
-    ksef: ksef.handle,
+    invoices: {
+      invoiceService: invoicesCradle.invoiceService,
+      numberGenerator: invoicesCradle.invoiceNumberGenerator,
+      pdfRenderer: invoicesCradle.invoicePdfRenderer,
+    },
+    ksef: ksefCradle.ksef.handle,
     productFeeds: productFeeds.handle,
     pimErgonode: pimErgonode.handle,
-    pwa: pwa.handle,
+    pwa: pwaCradle.pwa.handle,
     permissionService,
     permissionCatalogueService,
     settings: settings.handle,

@@ -152,6 +152,23 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // The operator presence axis the command palette filters on. A root's to
   // supply — which modules a deployment ships is not a module's business.
   moduleActivationProbe: '_lifecycle',
+  // Every way `pwa` reaches outside itself — the `assets_library` upload facade,
+  // the sales-channel code⇄id helpers, the admin audit context and the FR-024
+  // push-target resolvers — contributed as one bridge by a root.
+  pwaBridge: 'pwa',
+  // Whether this composition runs the push-delivery consumer. A deployment
+  // decision: production follows `BACKEND_ROLE`, the harness runs none.
+  pwaRunWorkers: 'pwa',
+  // How this composition reaches outside the invoices module.
+  invoicesBridge: 'invoices',
+  // How this composition settles a return and who is asking: four small
+  // adapters over `payments`, `invoices`, `credit_limits` and `orders`, plus
+  // the actor resolvers and the notifier.
+  returnsBridge: 'returns',
+  // The seller's NIP, read from the invoices seller settings. A root's, because
+  // the setting belongs to `invoices` and the format handling is composition
+  // policy rather than a KSeF concern.
+  ksefSellerNipResolver: 'ksef',
 };
 
 export interface PortResolution {

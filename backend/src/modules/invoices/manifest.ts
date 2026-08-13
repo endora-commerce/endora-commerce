@@ -27,6 +27,16 @@ export const invoicesSettingsManifest = defineModuleSettingsManifest({
   groups: [{ code: 'invoices', name: 'Invoices' }],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'invoices.enabled',
+      name: 'Invoices enabled',
+      description:
+        'Switches invoice issuance, corrections, the PDF renderer and the customer-facing invoice list on or off. Nothing is dropped: issued invoices, their numbering sequence and their templates stay in the database, and issuance resumes from the same sequence when you switch it back on.',
+      groupCode: 'invoices',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: INVOICES_SETTING_CODES.SELLER_TAX_ID,
       name: 'Seller VAT / NIP',
       description:
@@ -113,7 +123,12 @@ export const manifest = defineModuleManifest({
   name: 'Invoices',
   description: 'Invoice generation, numbering, PDF templates, corrections, and email delivery.',
   version: '2.0.0',
-  dependencies: ['orders', 'settings'],
+  // `auth` owns the `requireAdmin` port and the customer guard this module
+  // resolves; feature 072 made both container resolutions.
+  // `ksef` is deliberately absent: it reads `invoiceService`, so declaring it
+  // here would close a cycle. The KSeF verification block reaches this module
+  // as a contribution a root fills, not as a port this module resolves.
+  dependencies: ['orders', 'settings', 'auth'],
   settings: invoicesSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — admin-editable transactional email owned by this module.
@@ -157,4 +172,5 @@ export const manifest = defineModuleManifest({
       weight: 245,
     },
   ],
+  activation: { settingCode: 'invoices.enabled', default: true },
 });

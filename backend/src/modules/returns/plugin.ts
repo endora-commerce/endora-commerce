@@ -47,15 +47,9 @@ export interface ReturnsModuleOptions {
   correctiveInvoice: CorrectiveInvoicePort;
   creditTopup: CreditTopupPort;
   /** Audit-log writer (FR-041); status changes + settlement are recorded. */
-  auditLog?: AuditLogService;
+  auditLog: AuditLogService;
   /** Best-effort customer notifications on authorize/reject. */
   notifier?: ReturnNotifier;
-  /** Exposes the transition service back to composition (e.g. for settlement guards). */
-  exposeServices?: (services: {
-    graphService: ReturnStatusGraphService;
-    transitions: ReturnTransitionService;
-    caseService: ReturnCaseService;
-  }) => void;
 }
 
 /**
@@ -155,7 +149,6 @@ export function returnsModule(
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
-  options.exposeServices?.({ graphService, transitions, caseService });
 
   await registerReturnsCustomerRoutes(app, {
     caseService,
