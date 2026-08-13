@@ -290,6 +290,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // the conversion — they pushed its plugin and nothing else — so there was no
   // root reference to remove.
   seo: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `credit_limits` (wave 2, T101). The two central registries name its entity
+  // and migrations; `composition.ts` imports the cradle type to annotate the
+  // `creditLimitService` port it resolves and hands to `orders` and the
+  // credit-topup payment provider. That reference goes when those convert.
+  credit_limits: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

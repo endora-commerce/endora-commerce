@@ -42,40 +42,42 @@ import * as module9 from './modules/blog/backend.js';
 import { manifest as manifest9 } from './modules/blog/manifest.js';
 import * as module10 from './modules/credentials/backend.js';
 import { manifest as manifest10 } from './modules/credentials/manifest.js';
-import * as module11 from './modules/currencies/backend.js';
-import { manifest as manifest11 } from './modules/currencies/manifest.js';
-import * as module12 from './modules/custom_fields/backend.js';
-import { manifest as manifest12 } from './modules/custom_fields/manifest.js';
-import * as module13 from './modules/customer_accounts/backend.js';
-import { manifest as manifest13 } from './modules/customer_accounts/manifest.js';
-import * as module14 from './modules/delivery_methods/backend.js';
-import { manifest as manifest14 } from './modules/delivery_methods/manifest.js';
-import * as module15 from './modules/email/backend.js';
-import { manifest as manifest15 } from './modules/email/manifest.js';
-import * as module16 from './modules/google_analytics/backend.js';
-import { manifest as manifest16 } from './modules/google_analytics/manifest.js';
-import * as module17 from './modules/google_tag_manager/backend.js';
-import { manifest as manifest17 } from './modules/google_tag_manager/manifest.js';
-import * as module18 from './modules/health_checks/backend.js';
-import { manifest as manifest18 } from './modules/health_checks/manifest.js';
-import * as module19 from './modules/languages/backend.js';
-import { manifest as manifest19 } from './modules/languages/manifest.js';
-import * as module20 from './modules/linkedin_ads/backend.js';
-import { manifest as manifest20 } from './modules/linkedin_ads/manifest.js';
-import * as module21 from './modules/meta_ads/backend.js';
-import { manifest as manifest21 } from './modules/meta_ads/manifest.js';
-import * as module22 from './modules/mfa/backend.js';
-import { manifest as manifest22 } from './modules/mfa/manifest.js';
-import * as module23 from './modules/payment_methods/backend.js';
-import { manifest as manifest23 } from './modules/payment_methods/manifest.js';
-import * as module24 from './modules/prompt_actions/backend.js';
-import { manifest as manifest24 } from './modules/prompt_actions/manifest.js';
-import * as module25 from './modules/seo/backend.js';
-import { manifest as manifest25 } from './modules/seo/manifest.js';
-import * as module26 from './modules/taxes/backend.js';
-import { manifest as manifest26 } from './modules/taxes/manifest.js';
-import * as module27 from './modules/webhooks/backend.js';
-import { manifest as manifest27 } from './modules/webhooks/manifest.js';
+import * as module11 from './modules/credit_limits/backend.js';
+import { manifest as manifest11 } from './modules/credit_limits/manifest.js';
+import * as module12 from './modules/currencies/backend.js';
+import { manifest as manifest12 } from './modules/currencies/manifest.js';
+import * as module13 from './modules/custom_fields/backend.js';
+import { manifest as manifest13 } from './modules/custom_fields/manifest.js';
+import * as module14 from './modules/customer_accounts/backend.js';
+import { manifest as manifest14 } from './modules/customer_accounts/manifest.js';
+import * as module15 from './modules/delivery_methods/backend.js';
+import { manifest as manifest15 } from './modules/delivery_methods/manifest.js';
+import * as module16 from './modules/email/backend.js';
+import { manifest as manifest16 } from './modules/email/manifest.js';
+import * as module17 from './modules/google_analytics/backend.js';
+import { manifest as manifest17 } from './modules/google_analytics/manifest.js';
+import * as module18 from './modules/google_tag_manager/backend.js';
+import { manifest as manifest18 } from './modules/google_tag_manager/manifest.js';
+import * as module19 from './modules/health_checks/backend.js';
+import { manifest as manifest19 } from './modules/health_checks/manifest.js';
+import * as module20 from './modules/languages/backend.js';
+import { manifest as manifest20 } from './modules/languages/manifest.js';
+import * as module21 from './modules/linkedin_ads/backend.js';
+import { manifest as manifest21 } from './modules/linkedin_ads/manifest.js';
+import * as module22 from './modules/meta_ads/backend.js';
+import { manifest as manifest22 } from './modules/meta_ads/manifest.js';
+import * as module23 from './modules/mfa/backend.js';
+import { manifest as manifest23 } from './modules/mfa/manifest.js';
+import * as module24 from './modules/payment_methods/backend.js';
+import { manifest as manifest24 } from './modules/payment_methods/manifest.js';
+import * as module25 from './modules/prompt_actions/backend.js';
+import { manifest as manifest25 } from './modules/prompt_actions/manifest.js';
+import * as module26 from './modules/seo/backend.js';
+import { manifest as manifest26 } from './modules/seo/manifest.js';
+import * as module27 from './modules/taxes/backend.js';
+import { manifest as manifest27 } from './modules/taxes/manifest.js';
+import * as module28 from './modules/webhooks/backend.js';
+import { manifest as manifest28 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: 'addresses', version: manifest0.version, registerModule: module0.registerModule },
@@ -89,21 +91,22 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'cms', version: manifest8.version, registerModule: module8.registerModule },
   { id: 'blog', version: manifest9.version, registerModule: module9.registerModule },
   { id: 'credentials', version: manifest10.version, registerModule: module10.registerModule },
-  { id: 'currencies', version: manifest11.version, registerModule: module11.registerModule },
-  { id: 'custom_fields', version: manifest12.version, registerModule: module12.registerModule },
-  { id: 'customer_accounts', version: manifest13.version, registerModule: module13.registerModule },
-  { id: 'delivery_methods', version: manifest14.version, registerModule: module14.registerModule },
-  { id: 'email', version: manifest15.version, registerModule: module15.registerModule },
-  { id: 'google_analytics', version: manifest16.version, registerModule: module16.registerModule },
-  { id: 'google_tag_manager', version: manifest17.version, registerModule: module17.registerModule },
-  { id: 'health_checks', version: manifest18.version, registerModule: module18.registerModule },
-  { id: 'languages', version: manifest19.version, registerModule: module19.registerModule },
-  { id: 'linkedin_ads', version: manifest20.version, registerModule: module20.registerModule },
-  { id: 'meta_ads', version: manifest21.version, registerModule: module21.registerModule },
-  { id: 'mfa', version: manifest22.version, registerModule: module22.registerModule },
-  { id: 'payment_methods', version: manifest23.version, registerModule: module23.registerModule },
-  { id: 'prompt_actions', version: manifest24.version, registerModule: module24.registerModule },
-  { id: 'seo', version: manifest25.version, registerModule: module25.registerModule },
-  { id: 'taxes', version: manifest26.version, registerModule: module26.registerModule },
-  { id: 'webhooks', version: manifest27.version, registerModule: module27.registerModule },
+  { id: 'credit_limits', version: manifest11.version, registerModule: module11.registerModule },
+  { id: 'currencies', version: manifest12.version, registerModule: module12.registerModule },
+  { id: 'custom_fields', version: manifest13.version, registerModule: module13.registerModule },
+  { id: 'customer_accounts', version: manifest14.version, registerModule: module14.registerModule },
+  { id: 'delivery_methods', version: manifest15.version, registerModule: module15.registerModule },
+  { id: 'email', version: manifest16.version, registerModule: module16.registerModule },
+  { id: 'google_analytics', version: manifest17.version, registerModule: module17.registerModule },
+  { id: 'google_tag_manager', version: manifest18.version, registerModule: module18.registerModule },
+  { id: 'health_checks', version: manifest19.version, registerModule: module19.registerModule },
+  { id: 'languages', version: manifest20.version, registerModule: module20.registerModule },
+  { id: 'linkedin_ads', version: manifest21.version, registerModule: module21.registerModule },
+  { id: 'meta_ads', version: manifest22.version, registerModule: module22.registerModule },
+  { id: 'mfa', version: manifest23.version, registerModule: module23.registerModule },
+  { id: 'payment_methods', version: manifest24.version, registerModule: module24.registerModule },
+  { id: 'prompt_actions', version: manifest25.version, registerModule: module25.registerModule },
+  { id: 'seo', version: manifest26.version, registerModule: module26.registerModule },
+  { id: 'taxes', version: manifest27.version, registerModule: module27.registerModule },
+  { id: 'webhooks', version: manifest28.version, registerModule: module28.registerModule },
 ];
