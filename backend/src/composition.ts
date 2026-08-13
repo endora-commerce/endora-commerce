@@ -133,7 +133,8 @@ import { createDeliveryProcessor } from './modules/webhooks/services/webhook-del
 import type { WebhooksCradle } from './modules/webhooks/backend.js';
 import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
-import { i18nModule } from './modules/languages/plugin.js';
+import type { LanguagesCradle } from './modules/languages/backend.js';
+import { LANGUAGE_CHANGED_EVENT } from './modules/languages/backend.js';
 import type { CmsCradle } from './modules/cms/backend.js';
 import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
@@ -675,12 +676,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // sitemap generator can read the per-channel `sales_channels.storefront_url`
   // setting via the SettingsService port. See `const seo = seoModule(...)` /
   // `modules.push(seo.plugin)` further down.
-  const i18n = i18nModule({
-    emFactory: em,
-    requireAdmin,
-    auditLog: auditLogService,
-    currencyService,
-  });
+  // Feature 072 (T105) — `languages` owns its services and routes now.
+  const languagesCradle = container.cradle as unknown as LanguagesCradle;
 
   // Feature 005 — Sales Channels module. The boot-time
   // DefaultChannelReconciler runs FIRST so every other module can rely on a
@@ -745,6 +742,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // as a dependency produced a real cycle, and the cycle was the design saying
   // a currency must not know a dictionary cache exists.
   eventBus.on(CURRENCY_CHANGED_EVENT, () => {
+    dictionaries.handle.validator.invalidate();
+    // Swallowed rather than left floating: the handler is synchronous, so a
+    // drop that lands after the server closed would surface as an unhandled
+    // rejection from ioredis's socket-close path and fail an otherwise green
+    // run. A cache that could not be dropped because the process is going away
+    // has nothing to be stale for.
+    void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
+  });
+  // Feature 072 (T105) — the language half of the same drop. `languages` used
+  // to pass a hard-coded `undefined` for its invalidator, so a deactivated
+  // language kept validating for up to the validator's 60 s TTL and kept being
+  // served from the Redis dictionary cache for up to an hour, while a currency
+  // change dropped both immediately.
+  eventBus.on(LANGUAGE_CHANGED_EVENT, () => {
     dictionaries.handle.validator.invalidate();
     // Swallowed rather than left floating: the handler is synchronous, so a
     // drop that lands after the server closed would surface as an unhandled
@@ -1356,7 +1367,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     integrations.plugin,
     importExport.plugin,
     seo.plugin,
-    i18n.plugin,
     priceLists.plugin,
     promotions.plugin,
     commerceModule({
@@ -1712,7 +1722,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         );
       },
       salesChannelMembership: salesChannels.handle.membershipService,
-      languageService: i18n.handle.languageService,
+      languageService: languagesCradle.languageService,
       adminNotificationService: adminNotificationService,
       mailer: platformMailer,
       // Principle X — durable BullMQ queue for bulk operations. The consumer
@@ -2580,7 +2590,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       return out;
     },
     customFieldDefinitions: customFieldDefinitionService,
-    languageService: i18n.handle.languageService,
+    languageService: languagesCradle.languageService,
     adminNotificationService: adminNotificationService,
     settings: settings.handle.settingsService,
     // A feed URL exists to be pasted into Merchant Center, so a path-only one
@@ -2691,8 +2701,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     grouped: new GroupedService(em, commandBus),
     assets: assetsLibrary.handle.service,
     priceLists: priceLists.handle.priceListService,
-    currencies: i18n.handle.currencyService,
-    languageService: i18n.handle.languageService,
+    currencies: currencyService,
+    languageService: languagesCradle.languageService,
     adminNotificationService: adminNotificationService,
     settings: settings.handle.settingsService,
     redis,

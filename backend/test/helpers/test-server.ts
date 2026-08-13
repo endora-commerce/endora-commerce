@@ -166,7 +166,8 @@ import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_field
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import { seoModule } from '../../src/modules/seo/plugin.js';
-import { i18nModule } from '../../src/modules/languages/plugin.js';
+import type { LanguagesCradle } from '../../src/modules/languages/backend.js';
+import { LANGUAGE_CHANGED_EVENT } from '../../src/modules/languages/backend.js';
 import type { CmsCradle } from '../../src/modules/cms/backend.js';
 import { megamenuModule } from '../../src/modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
@@ -1057,12 +1058,8 @@ export async function setupBackendServer(
 
   // Languages + currencies (Phase 10 / T238). Static config, bootstrapped
   // by migration 012 with en-US + pl-PL languages and PLN + EUR currencies.
-  const i18n = i18nModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    auditLog: auditLogService,
-    currencyService,
-  });
+  // Feature 072 (T105) — `languages` owns its services and routes now.
+  const languagesCradle = container.cradle as unknown as LanguagesCradle;
 
   const dictionaries = dictionariesModule({
     emFactory: em,
@@ -1093,6 +1090,20 @@ export async function setupBackendServer(
   // as a dependency produced a real cycle, and the cycle was the design saying
   // a currency must not know a dictionary cache exists.
   eventBus.on(CURRENCY_CHANGED_EVENT, () => {
+    dictionaries.handle.validator.invalidate();
+    // Swallowed rather than left floating: the handler is synchronous, so a
+    // drop that lands after the server closed would surface as an unhandled
+    // rejection from ioredis's socket-close path and fail an otherwise green
+    // run. A cache that could not be dropped because the process is going away
+    // has nothing to be stale for.
+    void dictionaries.handle.cache?.invalidateAll().catch(() => undefined);
+  });
+  // Feature 072 (T105) — the language half of the same drop. `languages` used
+  // to pass a hard-coded `undefined` for its invalidator, so a deactivated
+  // language kept validating for up to the validator's 60 s TTL and kept being
+  // served from the Redis dictionary cache for up to an hour, while a currency
+  // change dropped both immediately.
+  eventBus.on(LANGUAGE_CHANGED_EVENT, () => {
     dictionaries.handle.validator.invalidate();
     // Swallowed rather than left floating: the handler is synchronous, so a
     // drop that lands after the server closed would surface as an unhandled
@@ -1303,7 +1314,6 @@ export async function setupBackendServer(
     integrations.plugin,
     importExport.plugin,
     seo.plugin,
-    i18n.plugin,
     priceLists.plugin,
     promotions.plugin,
     commerceModule({
@@ -1588,7 +1598,7 @@ export async function setupBackendServer(
         );
       },
       salesChannelMembership: salesChannels.handle.membershipService,
-      languageService: i18n.handle.languageService,
+      languageService: languagesCradle.languageService,
       // Tests assert the queued ack only: no `redis` is wired into the catalog
       // module here, so the producer's enqueue is a no-op and queued rows stay
       // `pending` (no BullMQ worker, no DB churn after a response or across
@@ -2414,7 +2424,7 @@ export async function setupBackendServer(
       return out;
     },
     customFieldDefinitions: customFieldDefinitionService,
-    languageService: i18n.handle.languageService,
+    languageService: languagesCradle.languageService,
     // FR-056 — a failed run has to be able to raise the operator notification
     // the integration tests assert on. The module instance lives inside the
     // feature-026 wiring block above, which exposes it on this handle.
@@ -2481,8 +2491,8 @@ export async function setupBackendServer(
     grouped: new GroupedService(em, commandBus),
     assets: assetsLibrary.handle.service,
     priceLists: priceLists.handle.priceListService,
-    currencies: i18n.handle.currencyService,
-    languageService: i18n.handle.languageService,
+    currencies: currencyService,
+    languageService: languagesCradle.languageService,
     adminNotificationService: handleFeature026.adminNotificationService,
     settings: settings.handle.settingsService,
     // The egress seam. The default REFUSES every stream read rather than

@@ -273,6 +273,18 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `languages` (wave 2, T105). The two central registries name its entity and
+  // migrations; `composition.ts` imports the cradle type and the
+  // `LANGUAGE_CHANGED_EVENT` name, because the root is what listens for the
+  // announcement and drops the dictionary caches. That listener is a root's
+  // job by design — a language must not know a dictionary cache exists, and
+  // declaring the call as a dependency produces a real cycle — so unlike most
+  // entries here, this one is not waiting on another conversion.
+  languages: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 
