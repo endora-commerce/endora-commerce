@@ -470,6 +470,20 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/kernel/module-context.ts',
     'src/kernel/ports/provide.ts',
   ],
+  // `price_lists` (wave 3, T127). The two central registries name its entities
+  // and migrations; both roots contribute the sweeper flag, the cache TTL and
+  // the admin audit shape, and production contributes the pricing decoration
+  // (D-28) — the seam this module exists in the feature to prove.
+  price_lists: [
+    // The overlay decoration itself — `decorate(inner)` written against
+    // `pricing-service.interface.ts`. It is the point of D-28 rather than
+    // residue: a deployment that wraps the pricing engine names the module it
+    // wraps, and `tsc` is the gate that keeps the wrapper assignable.
+    'src/apps/example/decorations/pricing-service.ts',
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

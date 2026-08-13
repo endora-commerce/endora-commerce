@@ -167,7 +167,7 @@ import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/servic
 // the same generated list production does; only the host values differ.
 import type { BlogCradle } from '../../src/modules/blog/backend.js';
 import type { DictionariesCradle } from '../../src/modules/dictionaries/backend.js';
-import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
+import type { PriceListsCradle } from '../../src/modules/price_lists/backend.js';
 import type { TaxesCradle } from '../../src/modules/taxes/backend.js';
 import type { PromotionsCradle } from '../../src/modules/promotions/backend.js';
 import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
@@ -1104,27 +1104,18 @@ export async function setupBackendServer(
   if (cmsCradle.cms.handle.cache) await cmsCradle.cms.handle.cache.invalidateAll();
 
   // Pricing (T127 / FR-050).
-  const priceLists = priceListsModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    // Tests drive the status worker via internal/sweep — keeping the
-    // wall-clock interval off avoids spurious DB writes during a run.
-    enableStatusSweeper: false,
-    // Tests rely on writes being immediately visible — disable the LRU
-    // so each contract/integration case sees fresh DB state. Production
-    // composition uses the default 60-s TTL.
-    pricingCacheTtlMs: 0,
-    auditLogService,
-    commandBus,
-    resolveAdminAuditContext: (request) => ({
+  // Feature 072 (T127) — `price_lists` owns its services and routes now. The
+  // harness drives the status worker through `internal/sweep`, so a wall-clock
+  // interval would only add spurious writes mid-run, and it disables the
+  // pricing LRU because a test writes a price and reads it back in the same
+  // breath. Production keeps the sweeper on and the default TTL.
+  registerValues(container, {
+    priceListsEnableStatusSweeper: false,
+    priceListsPricingCacheTtlMs: 0,
+    priceListsAdminAuditContext: (request: FastifyRequest) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
-    // Feature 072 (T072) — without this, inherited price lists (feature 056)
-    // resolved flat in every test: a descendant org never picked up an
-    // ancestor's org-named list, so the inheritance the feature exists for was
-    // exercised by nothing.
-    resolveOrgChain: (orgId) => organizationInheritanceService.priceListOrgChain(orgId),
   });
 
   // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
@@ -1148,7 +1139,7 @@ export async function setupBackendServer(
         return items.map((c) => ({ id: c.id, code: c.code, name: testAnyLabel(c.name) }));
       },
       customerGroups: async () => {
-        const groups = await priceLists.handle.customerGroupService.list();
+        const groups = await (container.cradle as unknown as PriceListsCradle).customerGroupService.list();
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {
@@ -1260,7 +1251,6 @@ export async function setupBackendServer(
       // request seam gets a leak that no test can see.
       await registerRequestScopeHook(app, { buildTenantContext: buildContext });
     },
-    priceLists.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
       shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
@@ -1300,7 +1290,7 @@ export async function setupBackendServer(
           return 0.23;
         }
       },
-      pricingService: priceLists.handle.pricingService,
+      pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
       promotionService: promotionsCradle.promotionService,
       redis,
       // Feature 062 — external orders namespace (mirrors composition.ts):
@@ -1531,7 +1521,7 @@ export async function setupBackendServer(
       // bound-key gate + the SAME pricing engine cart pricing uses + the
       // inventory availability port.
       requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
-      pricingService: priceLists.handle.pricingService,
+      pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
       resolveExternalAvailability: async (productIds, salesChannelId) => {
         const candidateWarehouseIds =
           await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
@@ -2081,7 +2071,6 @@ export async function setupBackendServer(
   // exists to keep out.
   registerValues(container, {
     searchRunWorkers: false,
-    pricingService: priceLists.handle.pricingService,
   });
 
   // Feature 007 — Comparisons module. Customer-facing CRUD endpoints
@@ -2319,7 +2308,7 @@ export async function setupBackendServer(
       },
     },
     salesChannelMembership: salesChannels.membershipService,
-    pricingService: priceLists.handle.pricingService,
+    pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
     taxService: taxesCradle.taxService,
     resolveAvailability: async (productIds, salesChannelId) => {
       const warehouseIds =
@@ -2421,7 +2410,7 @@ export async function setupBackendServer(
     productLinks: new ProductLinkService(em, commandBus),
     grouped: new GroupedService(em, commandBus),
     assets: assetsLibrary.handle.service,
-    priceLists: priceLists.handle.priceListService,
+    priceLists: (container.cradle as unknown as PriceListsCradle).priceListService,
     currencies: currencyService,
     languageService: languagesCradle.languageService,
     adminNotificationService: handleFeature026.adminNotificationService,

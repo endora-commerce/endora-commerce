@@ -105,6 +105,13 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // the storefront cache, the harness refreshes through the cache seam because
   // it never populates `module_registrations`.
   'lifecycleActivationPropagation',
+  // Three properties of a composition rather than of the pricing module: does
+  // this process run a wall-clock status sweeper, how long may a resolved price
+  // be cached, and how does this deployment name a non-admin caller on an audit
+  // record (T127).
+  'priceListsEnableStatusSweeper',
+  'priceListsPricingCacheTtlMs',
+  'priceListsAdminAuditContext',
 ]);
 
 /**
@@ -184,7 +191,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // policy rather than a KSeF concern.
   ksefSellerNipResolver: 'ksef',
   newsletterBridge: 'newsletter',
-  pricingService: 'price_lists',
   searchRunWorkers: 'search',
 };
 
@@ -244,6 +250,11 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // a module port, so capturing one cannot outlive a module being switched off.
   'settingsSecretEncryptionKey',
   'settingsModulePresence',
+  // Plain deployment values that decide what gets *constructed*, so they cannot
+  // be deferred past construction: whether a wall-clock sweeper interval starts
+  // at all, and the TTL the pricing LRU is built with (T127).
+  'priceListsEnableStatusSweeper',
+  'priceListsPricingCacheTtlMs',
 ]);
 
 /**

@@ -142,6 +142,11 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // actually matters is that the names exist before a request arrives, and an
   // entry here says that structurally rather than by line position.
   'api_keys',
+  // Both roots read `pricingService` while building `commerceModule`, which is
+  // hundreds of lines before the late pass. The factory itself still runs on
+  // first resolution, so the three composition values registered beside the old
+  // `priceListsModule` call are in place by then (T127).
+  'price_lists',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

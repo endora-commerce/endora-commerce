@@ -137,7 +137,8 @@ import type { TargetValidatorDeps } from './modules/megamenu/services/target-val
 import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
-import { priceListsModule } from './modules/price_lists/plugin.js';
+import type { PriceListsCradle } from './modules/price_lists/backend.js';
+import { DEFAULT_PRICING_CACHE_TTL_MS } from './modules/price_lists/services/pricing-cache.js';
 import type { TaxesCradle } from './modules/taxes/backend.js';
 import type { PromotionsCradle } from './modules/promotions/backend.js';
 import { composeSettingsKernel } from './kernel/settings/compose.js';
@@ -735,23 +736,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // contributes the asset resolver further below.
   const cmsCradle = container.cradle as unknown as CmsCradle;
 
-  const priceLists = priceListsModule({
-    emFactory: em,
-    requireAdmin,
-    auditLogService,
-    commandBus,
-    // Feature 072 — wrap the pricing engine in the deployment's override, if
-    // any. Core is constructed either way and stays in the call path.
-    ...(decoratePricingService ? { decoratePricingService } : {}),
-    resolveAdminAuditContext: (request) => {
+  // Feature 072 (T127) — `price_lists` owns its services and routes now. Three
+  // names stay a composition's: whether a wall-clock status sweeper runs, how
+  // long the pricing LRU holds, and how this deployment names a non-admin
+  // caller on an audit record. The pricing decoration (D-28) is contributed
+  // here too, when the deployment ships one.
+  registerValues(container, {
+    priceListsEnableStatusSweeper: true,
+    priceListsPricingCacheTtlMs: DEFAULT_PRICING_CACHE_TTL_MS,
+    priceListsAdminAuditContext: (request: FastifyRequest) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
       if (actor?.kind !== 'admin') {
         return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
       }
       return { actorAdminUserId: actor.adminUserId };
     },
-    // Feature 056 — inherited price lists resolve up the org tree (nearest-first).
-    resolveOrgChain: (orgId) => organizationInheritanceService.priceListOrgChain(orgId),
+    ...(decoratePricingService ? { decoratePricingService } : {}),
   });
   // Feature 072 (T119) — `taxes` owns its service and routes now.
   const taxesCradle = container.cradle as unknown as TaxesCradle;
@@ -783,7 +783,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return items.map((c) => ({ id: c.id, code: c.code, name: anyLabel(c.name) }));
       },
       customerGroups: async () => {
-        const groups = await priceLists.handle.customerGroupService.list();
+        const groups = await (container.cradle as unknown as PriceListsCradle).customerGroupService.list();
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {
@@ -1285,7 +1285,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     authModulePlugin,
     tenantContextModulePlugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
-    priceLists.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
       shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
@@ -1304,7 +1303,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireAdmin,
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.membershipService,
-      pricingService: priceLists.handle.pricingService,
+      pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
       addressService,
       promotionService: promotionsCradle.promotionService,
       redis,
@@ -1627,7 +1626,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // bound-key gate + the SAME pricing engine cart pricing uses (SC-001
       // parity by construction) + the inventory availability indication port.
       requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
-      pricingService: priceLists.handle.pricingService,
+      pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
       resolveExternalAvailability: async (productIds, salesChannelId) => {
         const candidateWarehouseIds =
           await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
@@ -2057,7 +2056,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // suggestion price.
   registerValues(container, {
     searchRunWorkers: runWorkers,
-    pricingService: priceLists.handle.pricingService,
   });
 
   // Feature 026 — Admin notifications bell. The plugin only mounts read
@@ -2421,7 +2419,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     },
     salesChannelMembership: salesChannels.membershipService,
-    pricingService: priceLists.handle.pricingService,
+    pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
     taxService: taxesCradle.taxService,
     // Feature 070 — every secret a delivery target needs is stored through the
     // credentials module (FR-107); this module holds only the pointer.
@@ -2577,7 +2575,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     productLinks: new ProductLinkService(em, commandBus),
     grouped: new GroupedService(em, commandBus),
     assets: assetsLibrary.handle.service,
-    priceLists: priceLists.handle.priceListService,
+    priceLists: (container.cradle as unknown as PriceListsCradle).priceListService,
     currencies: currencyService,
     languageService: languagesCradle.languageService,
     adminNotificationService: adminNotificationService,
