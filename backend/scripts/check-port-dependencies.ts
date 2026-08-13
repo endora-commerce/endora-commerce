@@ -152,10 +152,56 @@ export interface PortResolution {
   readonly name: string;
   readonly file: string;
   readonly line: number;
+  /**
+   * How the name is read, which is the whole point of the capture rule below.
+   *
+   *  - `captured` — destructured from a factory's cradle parameter, so Awilix
+   *    resolves it once, when the registration is first constructed.
+   *  - `deferred` — read through `ctx.cradle<C>()`, so it resolves at the
+   *    moment of use.
+   */
+  readonly kind: 'captured' | 'deferred';
 }
 
+/**
+ * The only names a module may safely **capture**.
+ *
+ * These are registered by a composition root before any module composes — the
+ * ORM-derived names and the process-level infrastructure created at the top of
+ * a root — so destructuring them in a factory cannot resolve too early, and
+ * none of them is a transient port gate.
+ *
+ * Every other name must be read through `ctx.cradle<C>()` at the point of use.
+ * Two distinct failures make this a rule rather than a preference, and feature
+ * 072 hit both repeatedly:
+ *
+ *  1. **Lifetime.** A port registered with `providePort` is a transient gate
+ *     that consults the module's effective state. Awilix's strict mode refuses
+ *     a singleton that captures one — correctly, because a captured gate keeps
+ *     answering after the operator switches its module off.
+ *  2. **Ordering.** A name a root registers may not exist yet when a module
+ *     composes; the early pass runs long before most of a root's
+ *     `registerValues` calls. Capturing resolves against a name that is not
+ *     there, and the failure is a boot crash rather than a type error.
+ *
+ * Both are invisible at the call site and neither is caught by `tsc`.
+ */
+export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
+  'orm',
+  'em',
+  'emFactory',
+  'redis',
+  'redisSubscriber',
+  'moduleQueueRedis',
+  'eventBus',
+  'commandBus',
+  'auditLogService',
+  'resolvedModuleRegistry',
+  'apiInterceptors',
+]);
+
 export interface PortViolation {
-  readonly kind: 'undeclared-dependency' | 'unowned-name';
+  readonly kind: 'undeclared-dependency' | 'unowned-name' | 'captured-name';
   readonly resolution: PortResolution;
   readonly owner: string | null;
 }
@@ -230,19 +276,23 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const found: PortResolution[] = [];
 
-  const record = (name: string, node: ts.Node): void => {
+  const record = (name: string, node: ts.Node, kind: PortResolution['kind']): void => {
     found.push({
       moduleId,
       name,
       file,
       line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+      kind,
     });
   };
 
-  const recordBindingPattern = (pattern: ts.ObjectBindingPattern): void => {
+  const recordBindingPattern = (
+    pattern: ts.ObjectBindingPattern,
+    kind: PortResolution['kind'],
+  ): void => {
     for (const element of pattern.elements) {
       const property = element.propertyName ?? element.name;
-      if (ts.isIdentifier(property)) record(property.text, element);
+      if (ts.isIdentifier(property)) record(property.text, element, kind);
     }
   };
 
@@ -256,7 +306,7 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
         if (factory && (ts.isArrowFunction(factory) || ts.isFunctionExpression(factory))) {
           const [parameter] = factory.parameters;
           if (parameter && ts.isObjectBindingPattern(parameter.name)) {
-            recordBindingPattern(parameter.name);
+            recordBindingPattern(parameter.name, 'captured');
           }
         }
       }
@@ -265,13 +315,13 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
       if (tail.endsWith('cradle')) {
         const parent = node.parent;
         if (parent && ts.isPropertyAccessExpression(parent)) {
-          record(parent.name.text, parent);
+          record(parent.name.text, parent, 'deferred');
         } else if (
           parent &&
           ts.isVariableDeclaration(parent) &&
           ts.isObjectBindingPattern(parent.name)
         ) {
-          recordBindingPattern(parent.name);
+          recordBindingPattern(parent.name, 'deferred');
         }
       }
     }
@@ -306,6 +356,20 @@ export interface CheckInput {
 export function findViolations(input: CheckInput): PortViolation[] {
   const violations: PortViolation[] = [];
   for (const resolution of input.resolutions) {
+    // The capture rule runs first and independently of ownership: a module may
+    // capture a name it owns, and nothing else outside `CAPTURABLE_NAMES`.
+    if (
+      resolution.kind === 'captured' &&
+      !CAPTURABLE_NAMES.has(resolution.name) &&
+      input.owners.get(resolution.name) !== resolution.moduleId
+    ) {
+      violations.push({
+        kind: 'captured-name',
+        resolution,
+        owner: input.owners.get(resolution.name) ?? null,
+      });
+      continue;
+    }
     if (PLATFORM_OWNED_NAMES.has(resolution.name)) continue;
     const owner = input.owners.get(resolution.name) ?? null;
     if (owner === null) {
@@ -322,6 +386,17 @@ export function findViolations(input: CheckInput): PortViolation[] {
 export function describe(violation: PortViolation, srcRoot = SRC_ROOT): string {
   const { resolution, owner } = violation;
   const where = `${resolution.file.replace(`${srcRoot}/`, 'src/')}:${resolution.line}`;
+  if (violation.kind === 'captured-name') {
+    return (
+      `  - ${resolution.moduleId} **captures** '${resolution.name}' (${where}).\n` +
+      `    A factory's cradle parameter resolves once, when the registration is first\n` +
+      `    constructed. That breaks two ways: a port is a transient gate, so Awilix's\n` +
+      `    strict mode refuses a singleton holding one (and a captured gate would keep\n` +
+      `    answering after its module is switched off); and a root-registered name may\n` +
+      `    not exist yet when this module composes.\n` +
+      `    Read it through \`ctx.cradle<C>()\` at the point of use instead.`
+    );
+  }
   if (violation.kind === 'unowned-name') {
     return (
       `  - ${resolution.moduleId} resolves '${resolution.name}' (${where}), which no module ` +

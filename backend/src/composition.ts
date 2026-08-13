@@ -663,10 +663,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   );
 
   const importExport = importExportModule({ emFactory: em, requireAdmin });
-  // `seoModule` is instantiated AFTER settings (further below) so the
-  // sitemap generator can read the per-channel `sales_channels.storefront_url`
-  // setting via the SettingsService port. See `const seo = seoModule(...)` /
-  // `modules.push(seo.plugin)` further down.
   // Feature 072 (T105) — `languages` owns its services and routes now.
   const languagesCradle = container.cradle as unknown as LanguagesCradle;
 

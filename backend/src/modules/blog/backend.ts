@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { DictionaryValidator } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
 
@@ -112,21 +113,29 @@ export function registerModule(ctx: ModuleContext): void {
 
     blogSettingsResolver: ctx
       .asFunction(
-        ({ settingsReadPort }: BlogCradle) => new BlogSettingsResolver(settingsReadPort),
+        () => new BlogSettingsResolver(lazyPort<SettingsServicePort>(ctx, 'settingsReadPort')),
       )
       .singleton(),
 
     blogPostService: ctx
       .asFunction(
-        ({ emFactory, blogCacheService, dictionaryValidator }: BlogCradle) =>
-          new BlogPostService(emFactory, blogCacheService, dictionaryValidator),
+        ({ emFactory, blogCacheService }: BlogCradle) =>
+          new BlogPostService(
+            emFactory,
+            blogCacheService,
+            lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
+          ),
       )
       .singleton(),
 
     blogCategoryService: ctx
       .asFunction(
-        ({ emFactory, blogCacheService, dictionaryValidator }: BlogCradle) =>
-          new BlogCategoryService(emFactory, blogCacheService, dictionaryValidator),
+        ({ emFactory, blogCacheService }: BlogCradle) =>
+          new BlogCategoryService(
+            emFactory,
+            blogCacheService,
+            lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
+          ),
       )
       .singleton(),
 

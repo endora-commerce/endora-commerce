@@ -2,6 +2,7 @@ import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { CredentialConfiguration } from './entities/credential-configuration.entity.js';
 import { registerCredentialsAdminRoutes } from './routes.admin.js';
@@ -53,7 +54,7 @@ export function registerModule(ctx: ModuleContext): void {
     'credentialsService',
     ctx
       .asFunction(
-        ({ emFactory, commandBus, configurationTypeRegistry }: CredentialsCradle) => {
+        ({ emFactory, commandBus }: CredentialsCradle) => {
           const key = process.env['SETTINGS_SECRET_ENCRYPTION_KEY'];
           // Read from the cradle rather than destructured, so a root that
           // registers the settings port after this module composed is still
@@ -65,7 +66,7 @@ export function registerModule(ctx: ModuleContext): void {
           return new CredentialsService({
             emFactory,
             commandBus,
-            registry: configurationTypeRegistry,
+            registry: lazyPort<ConfigurationTypeRegistry>(ctx, 'configurationTypeRegistry'),
             ...(key === undefined ? {} : { secretEncryptionKey: key }),
             ...(settings === undefined ? {} : { settings }),
           } as ConstructorParameters<typeof CredentialsService>[0]);

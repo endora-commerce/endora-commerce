@@ -150,3 +150,4 @@ export {
   type SalesChannelMembershipPort,
   type SalesChannelResolutionPort,
 } from './ports/sales-channel.js';
+export { lazyPort } from './lazy-port.js';

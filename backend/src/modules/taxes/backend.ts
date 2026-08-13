@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { DictionaryValidator } from '@b2b/contracts';
@@ -45,14 +46,12 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({
           emFactory,
-          salesChannelMembershipPort,
-          dictionaryValidator,
           auditLogService,
         }: TaxesCradle) =>
           new TaxService(
             emFactory,
-            salesChannelMembershipPort,
-            dictionaryValidator,
+            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+            lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
             auditLogService,
           ),
       )
