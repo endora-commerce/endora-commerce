@@ -165,7 +165,7 @@ import type { PwaBridge } from './modules/pwa/backend.js';
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
 import type { BrandingService } from './modules/transactional_emails/services/branding.service.js';
 // Feature 048 — Newsletter.
-import { newsletterModule } from './modules/newsletter/plugin.js';
+import type { NewsletterBridge } from './modules/newsletter/backend.js';
 // Feature 049 — Google Analytics.
 // Feature 063 — LinkedIn Ads.
 // Feature 064 — Meta Ads.
@@ -2863,16 +2863,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // signup (per-channel opt-in), campaigns, automations, and a configurable
   // sending provider. Channel/mailer/settings coupling is injected here so the
   // module stays isolated (Principle I).
-  modules.push(
-    newsletterModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
+  // Feature 072 (T114) — `newsletter` owns its services and routes now.
+  // These stay here because they are pinned per composition rather than
+  // derived: the token secret and base URLs decide what an unsubscribe link
+  // looks like, and the harness needs that predictable.
+  registerValues(container, {
+    newsletterBridge: {
       tokenSecret:
         process.env['NEWSLETTER_TOKEN_SECRET'] ??
         process.env['SESSION_COOKIE_SECRET'] ??
         'newsletter-dev-secret',
-      // Settings reads need a real channel UUID (the per-channel override
-      // lookup casts to uuid); the system default channel is the platform fallback.
       platformChannelId:
         (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
       resolveChannelIdByCode: async (code) =>
@@ -2882,37 +2882,27 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         process.env['STOREFRONT_BASE_URL'] ??
         'http://localhost:3000',
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-      requireAdmin,
-      settingsWrite: settings.handle.adminService,
-      resolveAuditContext: (request: FastifyRequest) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      requireCustomer,
-      resolveCustomerAccountId,
       loadCustomerEmail: async (customerAccountId) =>
         (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
       mailer: platformMailer,
-      auditLog: auditLogService,
       emitEvent: (name, payload) =>
         eventBus.emit(name, {
           eventId: randomUUID(),
           occurredAt: new Date().toISOString(),
           ...payload,
         }),
-      redis,
-      runWorkers,
-      // Feature 058 — resolve `newsletter.email_credentials` (email_adapter);
-      // falls back to the legacy `newsletter.smtp.*` settings when unset.
-      credentials: credentialsService,
-      resolveEmailBranding: async (salesChannelId) => {
-        if (!emailBrandingService) {
-          return { logoUrl: '', accentColor: '#1f2937' };
-        }
-        const branding = await emailBrandingService.resolve(salesChannelId);
-        return { logoUrl: branding.logoUrl, accentColor: branding.accentColor };
-      },
-    }),
-  );
+      resolveCustomerAccountId,
+    } satisfies NewsletterBridge,
+    // Contribution: campaign email carries this deployment's logo and accent,
+    // announced by `transactional_emails` after it is built.
+    newsletterEmailBranding: async (salesChannelId: string | null) => {
+      if (!emailBrandingService) {
+        return { logoUrl: '', accentColor: '#1f2937' };
+      }
+      const branding = await emailBrandingService.resolve(salesChannelId);
+      return { logoUrl: branding.logoUrl, accentColor: branding.accentColor };
+    },
+  });
 
   // Feature 049 — Google Analytics. GA4 integration: per-channel activation +
   // Measurement ID, Enhanced Ecommerce, custom events, and server-side tagging.

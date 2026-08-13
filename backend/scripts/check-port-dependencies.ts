@@ -169,6 +169,7 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // the setting belongs to `invoices` and the format handling is composition
   // policy rather than a KSeF concern.
   ksefSellerNipResolver: 'ksef',
+  newsletterBridge: 'newsletter',
 };
 
 export interface PortResolution {

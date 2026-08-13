@@ -15,6 +15,16 @@ export const newsletterSettingsManifest = defineModuleSettingsManifest({
   groups: [{ code: 'newsletter', name: 'Newsletter' }],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'newsletter.enabled',
+      name: 'Newsletter enabled',
+      description:
+        'Switches the newsletter on or off: the storefront signup and confirmation links, the admin subscriber, campaign and automation screens, and bulk dispatch. Nothing is dropped — subscribers, their consent history, campaigns and stats stay in the database, and a campaign left mid-send resumes where it stopped.',
+      groupCode: 'newsletter',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: NEWSLETTER_SETTING_CODES.OPT_IN_MODE,
       name: 'Opt-in mode',
       description: 'Single (immediate) or double (confirmation email) opt-in. Scopable per sales channel.',
@@ -79,6 +89,7 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: [
     'audit_logs',
+    'auth',
     'credentials',
     'customers',
     'email',
@@ -86,6 +97,7 @@ export const manifest = defineModuleManifest({
     'settings',
   ],
   settings: newsletterSettingsManifest,
+  activation: { settingCode: 'newsletter.enabled', default: true },
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'newsletter:read', label: 'View newsletter' },

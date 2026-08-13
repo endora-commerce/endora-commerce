@@ -122,7 +122,7 @@ import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
 import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
-import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
+import type { NewsletterBridge } from '../../src/modules/newsletter/backend.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
   ORDER_COMMENT_DEFAULT,
@@ -2539,37 +2539,31 @@ export async function setupBackendServer(
     }),
   );
 
-  modules.push(
-    newsletterModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
+  // Feature 072 (T114) — `newsletter` owns its services and routes now.
+  // These stay here because they are pinned per composition rather than
+  // derived: the token secret and base URLs decide what an unsubscribe link
+  // looks like, and the harness needs that predictable.
+  registerValues(container, {
+    newsletterBridge: {
       tokenSecret: 'test-newsletter-secret',
       platformChannelId: (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
       resolveChannelIdByCode: async (code) =>
         (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
       publicBaseUrl: 'http://localhost',
       storefrontBaseUrl: 'http://localhost',
-      requireAdmin: requireTestAdmin(permissionService),
-      settingsWrite: settings.handle.adminService,
-      resolveAuditContext: (req) => ({
-        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
-      }),
-      requireCustomer: requireTestCustomer(),
       resolveCustomerAccountId: (req) =>
         req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : '',
       loadCustomerEmail: async (customerAccountId) =>
         (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
       mailer: injectedMailer,
-      auditLog: auditLogService,
       emitEvent: (name, payload) =>
         eventBus.emit(name, {
           eventId: randomUUID(),
           occurredAt: new Date().toISOString(),
           ...payload,
         }),
-      credentials: credentialsService,
-    }),
-  );
+    } satisfies NewsletterBridge,
+  });
 
   // Feature 049 — Google Analytics. No redis wired here, so /collect degrades
   // to 503 (queue producer absent); config + admin CRUD are fully exercised.
