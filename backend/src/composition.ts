@@ -123,7 +123,7 @@ import { WarehouseChannelService } from './modules/inventory/services/warehouse-
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import type { CreditLimitsCradle } from './modules/credit_limits/backend.js';
 import type { CustomFieldsCradle } from './modules/custom_fields/backend.js';
-import { integrationsModule } from './modules/api_keys/plugin.js';
+import type { ApiKeysCradle } from './modules/api_keys/backend.js';
 // Feature 062 (T029) — outbound webhook delivery pipeline.
 import {
   createWebhookWorker,
@@ -557,11 +557,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Build the integrations module first so its API-key authenticator can be
   // injected into the auth plugin; that lets every Bearer-tokened request
   // resolve to an `actor.kind === 'api_key'` early in the request lifecycle.
-  const integrations = integrationsModule({
-    emFactory: em,
-    auditLogService,
-    requireAdmin,
-  });
+  // Feature 072 (T100) — `api_keys` owns its service, its two gates and its
+  // routes now, and provides `apiKeyResolver` itself.
+  const apiKeysCradle = container.cradle as unknown as ApiKeysCradle;
 
   // Feature 062 (T029 / FR-014) — outbound webhook delivery, org-scoped.
   // The bridge (producer) runs in every role: it maps bridged in-process
@@ -1298,7 +1296,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     tenantContextModulePlugin,
     admin.plugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
-    integrations.plugin,
     priceLists.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
@@ -1325,7 +1322,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       redis,
       // Feature 062 — external orders namespace (/api/v1/external/orders*):
       // bound-key gate + the org method allow-lists (FR-021 envelope).
-      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
       resolveOrganizationMethodAllowLists: async (organizationId: string) => {
         try {
           const lists = await organizationRestrictionService.readAllowLists(organizationId);
@@ -1637,11 +1634,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // Feature 061 — apply seam + composed attribute read model.
       customFieldsPort: customFieldDefinitionService,
       attributeReadService: catalogAttributeReadService,
-      requireApiKey: integrations.handle.requireApiKey,
+      requireApiKey: apiKeysCradle.requireApiKey,
       // Feature 062 — external catalog namespace (/api/v1/external/catalog/*):
       // bound-key gate + the SAME pricing engine cart pricing uses (SC-001
       // parity by construction) + the inventory availability indication port.
-      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
       pricingService: priceLists.handle.pricingService,
       resolveExternalAvailability: async (productIds, salesChannelId) => {
         const candidateWarehouseIds =
@@ -1960,7 +1957,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // late registration is invisible to it. Both entries disappear when those
     // modules convert.
     apiKeyResolver: async (token: string) =>
-      integrations.handle.apiKeyService.authenticate(token),
+      apiKeysCradle.apiKeyService.authenticate(token),
     // Feature 072 (T089) — `_i18n` reads it to serve the per-admin language
     // preference. This is `admin_users`' own audited instance: the root used to
     // build a second, audit-less `AdminUserService` purely to hand to that

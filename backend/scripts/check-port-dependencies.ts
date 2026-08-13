@@ -106,9 +106,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // Registered as `undefined` today: blog ships no storefront ports and both
   // composition roots pass nothing. The name is blog's own.
   blogStorefrontDeps: 'blog',
-  // The two resolvers the auth plugin reads per request; their owners are
-  // hand-wired and constructed after `auth`, so a root registers them.
-  apiKeyResolver: 'api_keys',
   // `_i18n` reads it to serve the per-admin language preference; `admin_users`
   // owns the audited instance and is still hand-wired.
   adminUserService: 'admin_users',
