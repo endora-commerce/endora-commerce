@@ -16,6 +16,23 @@ export const linkedInAdsSettingsManifest = defineModuleSettingsManifest({
   groups: [{ code: 'linkedin_ads', name: 'LinkedIn Ads' }],
   settings: [
     {
+      // Feature 073 — the operator's activation control. **Platform-wide, and
+      // deliberately NOT `linkedin_ads.enabled`.** That code already exists and
+      // means something else: it is per-sales-channel and answers "is the
+      // tag is live on a given storefront channel". This one answers "does this client have the LinkedIn Ads
+      // capability at all". Adopting the existing code would have collapsed two
+      // orthogonal questions into one switch — and, because an activation
+      // control may only be written through the activation endpoint, would have
+      // made the per-channel setting unwritable through the settings screen.
+      code: 'linkedin_ads.module_enabled',
+      name: 'LinkedIn Ads module enabled',
+      description:
+        'Switches the LinkedIn Insight Tag, the conversion mappings and the admin screen on or off for the whole platform. Separate from the per-channel switch, which decides where the tag actually loads. Nothing is dropped: mappings stay in the database and every setting keeps its value.',
+      groupCode: 'linkedin_ads',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: LINKEDIN_ADS_SETTING_CODES.ENABLED,
       name: 'Enable LinkedIn Ads',
       description: 'Master switch for the module. Per-channel overridable.',
@@ -71,7 +88,9 @@ export const manifest = defineModuleManifest({
   description:
     'LinkedIn Ads integration: per-sales-channel Insight Tag, consent-gated tracking, configurable conversion mappings, and optional server-side reporting through the Conversions API.',
   version: '1.0.0',
-  dependencies: ['audit_logs', 'sales_channels', 'settings'],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by; feature
+  // 072 made it a container resolution rather than a constructor argument.
+  dependencies: ['audit_logs', 'sales_channels', 'settings', 'auth'],
   settings: linkedInAdsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [
@@ -103,4 +122,5 @@ export const manifest = defineModuleManifest({
       weight: 243,
     },
   ],
+  activation: { settingCode: 'linkedin_ads.module_enabled', default: true },
 });

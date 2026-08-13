@@ -61,6 +61,12 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // infrastructure exactly as `redis` is, and shared for the same reason a
   // process has one of it: a subscriber connection cannot serve commands.
   'redisSubscriber',
+  // The connection a module may build a BullMQ *producer* queue on. Process
+  // infrastructure exactly as `redis` is, and a separate name from it because
+  // "this composition wants no queues" is a statement a root makes — the test
+  // harness registers `redis` but must hand out no queue, since one built per
+  // `setupBackendServer()` is never closed.
+  'moduleQueueRedis',
   'eventBus',
   'commandBus',
   'apiInterceptors',
@@ -123,6 +129,10 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // fixed for `requireAdmin` and never did for this one. Owner is `auth`; the
   // entry goes when the two implementations are unified.
   requireCustomer: 'auth',
+  // How a composition names the acting admin on an audit record. Root-shaped
+  // by nature — production reads `request.actor`, the harness `request.testActor`
+  // — so it is a composition input rather than any module's property.
+  adminAuditActorResolver: 'auth',
 };
 
 export interface PortResolution {
