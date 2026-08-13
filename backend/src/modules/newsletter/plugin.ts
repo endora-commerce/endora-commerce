@@ -62,7 +62,7 @@ export interface NewsletterModuleOptions {
   /** Resolve a customer account's email (cross-module lookup). */
   loadCustomerEmail: (customerAccountId: string) => Promise<string | null>;
   mailer?: Mailer;
-  auditLog?: AuditLogService;
+  auditLog: AuditLogService;
   /** Optional observability emitter (wraps the in-process EventBus). */
   emitEvent?: (name: string, payload: Record<string, unknown>) => void;
   /** Redis connection — when present, dispatch is queue-backed (Principle X). */

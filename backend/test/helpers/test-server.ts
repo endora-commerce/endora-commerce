@@ -122,7 +122,7 @@ import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
 import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
-import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
+import type { NewsletterBridge } from '../../src/modules/newsletter/backend.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
   ORDER_COMMENT_DEFAULT,
@@ -183,8 +183,7 @@ import { hashPassword } from '../../src/modules/auth/services/password-hasher.js
 import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
 import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
 import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
-import { searchModule } from '../../src/modules/search/plugin.js';
-import { createSuggestionPricingEnricher } from '../../src/modules/search/services/suggestion-pricing-enricher.js';
+import type { SearchCradle } from '../../src/modules/search/backend.js';
 import type { PromptActionsCradle } from '../../src/modules/prompt_actions/backend.js';
 import type { PromptActionToolRegistry } from '../../src/modules/prompt_actions/services/tool-registry.js';
 import type { PromptRequestService } from '../../src/modules/prompt_actions/services/prompt-request.service.js';
@@ -384,7 +383,7 @@ export interface BackendServerHandle {
   };
   /** Feature 006 — exposes the indexer + suggest service for tests that
    *  want deterministic teardown or to exercise embedder attach/detach. */
-  search: ReturnType<typeof searchModule>['handle'];
+  search: SearchCradle['searchHandle'];
   /** Feature 007 — exposes the ComparisonService for tests. */
   comparisons: { comparisonService: ComparisonsCradle['comparisonService'] };
   /** Feature 013 — Assets Library handle (service, folders, registry, adapters). */
@@ -2088,24 +2087,14 @@ export async function setupBackendServer(
   // LLM-toggle wrapper end-to-end. Foundation tests don't need
   // Meilisearch up; the subscriber's handlers swallow Meilisearch
   // errors so a missing backend doesn't break catalog writes.
-  const search = searchModule({
-    emFactory: em,
-    eventBus,
-    catalogAttributeRead: catalogAttributeReadService,
-    settingsService: settings.handle.settingsService,
-    settingsAdminService: settings.handle.adminService,
-    credentials: credentialsService,
-    requireAdmin: requireTestAdmin(permissionService),
-    enrichSuggestionPricing: createSuggestionPricingEnricher({
-      emFactory: em,
-      pricingService: priceLists.handle.pricingService,
-    }),
-    resolveAdminAuditContext: (request) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
+  // Feature 072 (T123) — `search` owns its services and routes now. The
+  // harness runs no reindex sweep: it has no worker role, and a periodic
+  // Meilisearch pass per test file is exactly what `enableReindexScheduler`
+  // exists to keep out.
+  registerValues(container, {
+    searchRunWorkers: false,
+    pricingService: priceLists.handle.pricingService,
   });
-  modules.push(search.plugin);
 
   // Feature 007 — Comparisons module. Customer-facing CRUD endpoints
   // exercised by US1 contract + integration tests; share/PDF/admin land
@@ -2539,37 +2528,31 @@ export async function setupBackendServer(
     }),
   );
 
-  modules.push(
-    newsletterModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
+  // Feature 072 (T114) — `newsletter` owns its services and routes now.
+  // These stay here because they are pinned per composition rather than
+  // derived: the token secret and base URLs decide what an unsubscribe link
+  // looks like, and the harness needs that predictable.
+  registerValues(container, {
+    newsletterBridge: {
       tokenSecret: 'test-newsletter-secret',
       platformChannelId: (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
       resolveChannelIdByCode: async (code) =>
         (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
       publicBaseUrl: 'http://localhost',
       storefrontBaseUrl: 'http://localhost',
-      requireAdmin: requireTestAdmin(permissionService),
-      settingsWrite: settings.handle.adminService,
-      resolveAuditContext: (req) => ({
-        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
-      }),
-      requireCustomer: requireTestCustomer(),
       resolveCustomerAccountId: (req) =>
         req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : '',
       loadCustomerEmail: async (customerAccountId) =>
         (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
       mailer: injectedMailer,
-      auditLog: auditLogService,
       emitEvent: (name, payload) =>
         eventBus.emit(name, {
           eventId: randomUUID(),
           occurredAt: new Date().toISOString(),
           ...payload,
         }),
-      credentials: credentialsService,
-    }),
-  );
+    } satisfies NewsletterBridge,
+  });
 
   // Feature 049 — Google Analytics. No redis wired here, so /collect degrades
   // to 503 (queue producer absent); config + admin CRUD are fully exercised.
@@ -2751,7 +2734,7 @@ export async function setupBackendServer(
       requireApiKey: apiKeysCradle.requireApiKey,
       requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
     },
-    search: search.handle,
+    search: (container.cradle as unknown as SearchCradle).searchHandle,
     comparisons: { comparisonService: comparisonsCradle.comparisonService },
     assetsLibrary: assetsLibrary.handle,
     cms: cmsCradle.cms.handle,

@@ -403,6 +403,25 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `newsletter` (wave 2, T114). The two central registries name its entities
+  // and migrations; `composition.ts` imports the bridge type to annotate the
+  // pinned token secret and base URLs, and contributes the email branding.
+  // Both are a root's by design: the branding source announces itself through a
+  // callback a root holds, so a port would point the dependency the wrong way.
+  newsletter: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `search` (wave 2, T123). The two central registries name its entities and
+  // migrations; `composition.ts` and the harness contribute the worker-role gate
+  // and `price_lists`' resolver. The second goes when `price_lists` converts;
+  // the first is a deployment decision and stays.
+  search: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

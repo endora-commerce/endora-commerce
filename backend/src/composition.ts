@@ -144,13 +144,7 @@ import { settingsModule } from './modules/settings/plugin.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
 import { salesChannelsModule } from './modules/sales_channels/plugin.js';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
-import { searchModule } from './modules/search/plugin.js';
-import { createSuggestionPricingEnricher } from './modules/search/services/suggestion-pricing-enricher.js';
 import { SearchIndexer } from './modules/search/services/search-indexer.js';
-import {
-  SEARCH_SETTING_CODES,
-  DEFAULT_REINDEX_INTERVAL_MINUTES,
-} from './modules/search/manifest.js';
 import type { ComparisonsCradle } from './modules/comparisons/backend.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
 // Feature 058 — Credentials (reusable credential configurations).
@@ -165,7 +159,7 @@ import type { PwaBridge } from './modules/pwa/backend.js';
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
 import type { BrandingService } from './modules/transactional_emails/services/branding.service.js';
 // Feature 048 — Newsletter.
-import { newsletterModule } from './modules/newsletter/plugin.js';
+import type { NewsletterBridge } from './modules/newsletter/backend.js';
 // Feature 049 — Google Analytics.
 // Feature 063 — LinkedIn Ads.
 // Feature 064 — Meta Ads.
@@ -2058,44 +2052,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
   // lifecycle (R-3 — moved out of catalog). Settings-aware suggest config
   // resolution + LLM-toggle wrapper hook in via the same handle.
-  const search = searchModule({
-    emFactory: em,
-    eventBus,
-    catalogAttributeRead: catalogAttributeReadService,
-    settingsService: settings.handle.settingsService,
-    settingsAdminService: settings.handle.adminService,
-    // Feature 058 — resolve `search.llm.embedder_credentials`; legacy embedder
-    // settings remain the per-field fallback.
-    credentials: credentialsService,
-    requireAdmin,
-    // Typeahead suggestions carry the per-customer price-list resolution so
-    // the popup shows the price the searching user would actually pay,
-    // honouring their price list and price-visibility (feature 011).
-    enrichSuggestionPricing: createSuggestionPricingEnricher({
-      emFactory: em,
-      pricingService: priceLists.handle.pricingService,
-    }),
-    resolveAdminAuditContext: (request) => {
-      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
-      return { actorAdminUserId: request.actor.adminUserId };
-    },
-    // Periodic full Meilisearch reindex — interval from Settings
-    // (`search.reindex_interval_minutes`, default 10; 0 disables). The sweep
-    // runs co-located unless BACKEND_ROLE=api, exactly like the other workers.
-    enableReindexScheduler: runWorkers,
-    resolveReindexIntervalMinutes: async () => {
-      try {
-        return await settings.handle.settingsService.get(
-          SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES,
-          'default',
-          z.number().int().nonnegative(),
-        );
-      } catch {
-        return DEFAULT_REINDEX_INTERVAL_MINUTES;
-      }
-    },
+  // Feature 072 (T123) — `search` owns its services, routes and reindex
+  // cadence now. Two names stay a composition's: whether this process runs the
+  // sweep, and `price_lists`' resolver, which the module narrows to a
+  // suggestion price.
+  registerValues(container, {
+    searchRunWorkers: runWorkers,
+    pricingService: priceLists.handle.pricingService,
   });
-  modules.push(search.plugin);
 
   // Feature 026 — Admin notifications bell. The plugin only mounts read
   // routes; writes happen via the handle (consumed above by the
@@ -2863,16 +2827,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // signup (per-channel opt-in), campaigns, automations, and a configurable
   // sending provider. Channel/mailer/settings coupling is injected here so the
   // module stays isolated (Principle I).
-  modules.push(
-    newsletterModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
+  // Feature 072 (T114) — `newsletter` owns its services and routes now.
+  // These stay here because they are pinned per composition rather than
+  // derived: the token secret and base URLs decide what an unsubscribe link
+  // looks like, and the harness needs that predictable.
+  registerValues(container, {
+    newsletterBridge: {
       tokenSecret:
         process.env['NEWSLETTER_TOKEN_SECRET'] ??
         process.env['SESSION_COOKIE_SECRET'] ??
         'newsletter-dev-secret',
-      // Settings reads need a real channel UUID (the per-channel override
-      // lookup casts to uuid); the system default channel is the platform fallback.
       platformChannelId:
         (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
       resolveChannelIdByCode: async (code) =>
@@ -2882,37 +2846,27 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         process.env['STOREFRONT_BASE_URL'] ??
         'http://localhost:3000',
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-      requireAdmin,
-      settingsWrite: settings.handle.adminService,
-      resolveAuditContext: (request: FastifyRequest) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      requireCustomer,
-      resolveCustomerAccountId,
       loadCustomerEmail: async (customerAccountId) =>
         (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
       mailer: platformMailer,
-      auditLog: auditLogService,
       emitEvent: (name, payload) =>
         eventBus.emit(name, {
           eventId: randomUUID(),
           occurredAt: new Date().toISOString(),
           ...payload,
         }),
-      redis,
-      runWorkers,
-      // Feature 058 — resolve `newsletter.email_credentials` (email_adapter);
-      // falls back to the legacy `newsletter.smtp.*` settings when unset.
-      credentials: credentialsService,
-      resolveEmailBranding: async (salesChannelId) => {
-        if (!emailBrandingService) {
-          return { logoUrl: '', accentColor: '#1f2937' };
-        }
-        const branding = await emailBrandingService.resolve(salesChannelId);
-        return { logoUrl: branding.logoUrl, accentColor: branding.accentColor };
-      },
-    }),
-  );
+      resolveCustomerAccountId,
+    } satisfies NewsletterBridge,
+    // Contribution: campaign email carries this deployment's logo and accent,
+    // announced by `transactional_emails` after it is built.
+    newsletterEmailBranding: async (salesChannelId: string | null) => {
+      if (!emailBrandingService) {
+        return { logoUrl: '', accentColor: '#1f2937' };
+      }
+      const branding = await emailBrandingService.resolve(salesChannelId);
+      return { logoUrl: branding.logoUrl, accentColor: branding.accentColor };
+    },
+  });
 
   // Feature 049 — Google Analytics. GA4 integration: per-channel activation +
   // Measurement ID, Enhanced Ecommerce, custom events, and server-side tagging.

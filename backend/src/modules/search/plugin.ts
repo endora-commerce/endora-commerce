@@ -26,7 +26,7 @@ import type {
   SettingsAdminService,
 } from '../settings/services/settings-admin.service.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
-import { SEARCH_SETTING_CODES } from './manifest.js';
+import { DEFAULT_REINDEX_INTERVAL_MINUTES, SEARCH_SETTING_CODES } from './manifest.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
@@ -59,48 +59,41 @@ export interface SearchModuleOptions {
    */
   catalogAttributeRead: CatalogAttributeReadService;
   /**
-   * Universal-getter for Settings. When provided, the suggest service
-   * resolves its per-channel popup-count + minimum-query-length from
-   * Settings, and the event subscriber attaches the `settings.value_changed`
-   * → embedder reactor. When absent, the module runs with manifest-time
-   * defaults and no LLM reactor — useful for foundation tests that
-   * predate Settings.
+   * Universal-getter for Settings. Backs the suggest service's per-channel
+   * popup-count + minimum-query-length, the `settings.value_changed` →
+   * embedder reactor, and the reindex interval.
+   *
+   * Required since feature 072 (T123). It was optional for "foundation tests
+   * that predate Settings", and no such caller was left: both composition
+   * roots passed it, and absence silently downgraded the module to manifest
+   * defaults with no LLM reactor — a state nothing asked for and nothing
+   * detected.
    */
-  settingsService?: SettingsService;
+  settingsService: SettingsService;
   /**
    * Feature 058 — resolves the `search.llm.embedder_credentials` reference into
    * the embedder config, falling back per field to the legacy embedder settings.
-   * Injected as a narrow port (Principle I); optional.
+   * Injected as a narrow port (Principle I).
    */
-  credentials?: CredentialResolvePort;
+  credentials: CredentialResolvePort;
+  /** Admin Settings service — drives the `LlmToggleService.toggle` write path. */
+  settingsAdminService: SettingsAdminService;
+  /** Admin routes mount under `/api/v1/admin/search/*`. */
+  requireAdmin: RequireAdminFactory;
+  resolveAdminAuditContext: (req: FastifyRequest) => AdminAuditContext;
   /**
-   * Admin Settings service — required when admin routes are mounted.
-   * Drives the `LlmToggleService.toggle` write path. Without it, only
-   * the public routes register.
+   * Typeahead suggestions carry the per-customer price-list resolution (SKU +
+   * image already ride on the summary), so the popup shows the price the
+   * searching user would actually pay.
    */
-  settingsAdminService?: SettingsAdminService;
-  /** When provided, admin routes mount under `/api/v1/admin/search/*`. */
-  requireAdmin?: RequireAdminFactory;
-  resolveAdminAuditContext?: (req: FastifyRequest) => AdminAuditContext;
+  enrichSuggestionPricing: SuggestionPricingEnricher;
   /**
-   * When provided, typeahead suggestions are enriched with the per-customer
-   * price-list resolution (SKU + image already ride on the summary). Wired
-   * from the composition root where the price-lists `PricingService` lives.
+   * When `true`, the module starts the periodic full-reindex sweep. The
+   * composition passes its deployment-role gate (`runWorkers`) here so the
+   * sweep only runs in worker/all processes, never in a dedicated
+   * `BACKEND_ROLE=api` process — and never in a test harness.
    */
-  enrichSuggestionPricing?: SuggestionPricingEnricher;
-  /**
-   * Resolves the current `search.reindex_interval_minutes` from settings.
-   * Implementation lives in the composition root so the module isn't coupled
-   * to the settings read API. A value `<= 0` disables the periodic sweep.
-   */
-  resolveReindexIntervalMinutes?: () => Promise<number>;
-  /**
-   * When `true` (and `resolveReindexIntervalMinutes` is wired), the module
-   * starts the periodic full-reindex sweep. The composition root passes the
-   * deployment-role gate (`runWorkers`) here so the sweep only runs in
-   * worker/all processes, never in a dedicated `BACKEND_ROLE=api` process.
-   */
-  enableReindexScheduler?: boolean;
+  enableReindexScheduler: boolean;
 }
 
 export interface SearchModuleHandle {
@@ -108,7 +101,7 @@ export interface SearchModuleHandle {
   subscriber: SearchEventSubscriber;
   searchQueryService: SearchQueryService;
   suggestService: SearchSuggestService;
-  llmToggleService?: LlmToggleService;
+  llmToggleService: LlmToggleService;
   reindexWorker: SearchReindexWorker;
   phraseRecorder: SearchPhraseRecorder;
 }
@@ -140,8 +133,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
   // when the resolver fails for any reason (e.g. Redis hiccup,
   // `SettingNotRegistered`). The popup must never 500 because of a
   // Settings glitch.
-  const resolveSuggestConfig = options.settingsService
-    ? async (ctx: {
+  const resolveSuggestConfig = async (ctx: {
         resolvedChannel: { id: string };
       }): Promise<SuggestionCountConfig> => {
         const fallback: SuggestionCountConfig = {
@@ -153,12 +145,12 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
           // resolved once upstream — no re-resolution here.
           const channelId = ctx.resolvedChannel.id;
           const [defaultLimit, minimumQueryLength] = await Promise.all([
-            options.settingsService!.get(
+            options.settingsService.get(
               SEARCH_SETTING_CODES.POPUP_SUGGESTION_COUNT,
               channelId,
               numberSchema,
             ),
-            options.settingsService!.get(
+            options.settingsService.get(
               SEARCH_SETTING_CODES.POPUP_MINIMUM_QUERY_LENGTH,
               channelId,
               numberSchema,
@@ -168,22 +160,33 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
         } catch {
           return fallback;
         }
-      }
-    : undefined;
+      };
 
-  const suggestService = resolveSuggestConfig
-    ? new SearchSuggestService(searchQueryService, resolveSuggestConfig)
-    : new SearchSuggestService(searchQueryService);
+  const suggestService = new SearchSuggestService(searchQueryService, resolveSuggestConfig);
 
-  const llmToggleService =
-    options.settingsService && options.settingsAdminService
-      ? new LlmToggleService(
-          options.emFactory,
-          options.settingsService,
-          options.settingsAdminService,
-          options.credentials,
-        )
-      : undefined;
+  const llmToggleService = new LlmToggleService(
+    options.emFactory,
+    options.settingsService,
+    options.settingsAdminService,
+    options.credentials,
+  );
+
+  /**
+   * The sweep's cadence is this module's own setting, so it reads it itself
+   * rather than taking a resolver from a composition root — which is where the
+   * identical `try`/`catch`-to-the-manifest-default lived before T123.
+   */
+  const resolveReindexIntervalMinutes = async (): Promise<number> => {
+    try {
+      return await options.settingsService.get(
+        SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES,
+        'default',
+        z.number().int().nonnegative(),
+      );
+    } catch {
+      return DEFAULT_REINDEX_INTERVAL_MINUTES;
+    }
+  };
 
   const phraseRecorder = new SearchPhraseRecorder(
     options.emFactory,
@@ -203,7 +206,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
       suggestService,
       reindexWorker,
       phraseRecorder,
-      ...(llmToggleService !== undefined ? { llmToggleService } : {}),
+      llmToggleService,
     },
     plugin: async (app) => {
       const teardown = subscriber.subscribe();
@@ -213,22 +216,16 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
       await registerSearchPublicRoutes(app, {
         suggestService,
         phraseRecorder,
-        ...(options.enrichSuggestionPricing !== undefined
-          ? { enrichSuggestionPricing: options.enrichSuggestionPricing }
-          : {}),
+        enrichSuggestionPricing: options.enrichSuggestionPricing,
       });
       // US2 — LLM toggle wrapper. Mounts only when the admin gate +
       // settings admin service are both wired (test-server passes them).
-      if (llmToggleService && options.requireAdmin) {
-        await registerSearchAdminRoutes(app, {
-          llmToggleService,
-          reindexWorker,
-          requireAdmin: options.requireAdmin,
-          ...(options.resolveAdminAuditContext !== undefined
-            ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
-            : {}),
-        });
-      }
+      await registerSearchAdminRoutes(app, {
+        llmToggleService,
+        reindexWorker,
+        requireAdmin: options.requireAdmin,
+        resolveAdminAuditContext: options.resolveAdminAuditContext,
+      });
 
       // Periodic full Meilisearch reindex (FR — keep the catalogue in sync
       // even when an incremental event was missed). The interval is read
@@ -236,8 +233,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
       // operator changing `search.reindex_interval_minutes` takes effect on
       // the next cycle without a restart. A value <= 0 disables the sweep but
       // the timer keeps polling the setting so it can be re-enabled live.
-      const resolveIntervalMinutes = options.resolveReindexIntervalMinutes;
-      if (options.enableReindexScheduler && resolveIntervalMinutes) {
+      if (options.enableReindexScheduler) {
         const DISABLED_POLL_MS = 60_000;
         let timer: ReturnType<typeof setTimeout> | undefined;
         let stopped = false;
@@ -252,7 +248,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
           void (async () => {
             let minutes = 0;
             try {
-              minutes = await resolveIntervalMinutes();
+              minutes = await resolveReindexIntervalMinutes();
             } catch (err) {
               app.log.error({ err }, 'search reindex: failed to resolve interval setting');
             }

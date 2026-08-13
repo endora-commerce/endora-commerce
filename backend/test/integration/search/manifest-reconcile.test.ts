@@ -36,7 +36,10 @@ describe('search manifest reconciliation (T020)', () => {
     // `search` setting no longer declared by the manifest so the exact-set and
     // zero-orphan assertions match CI.
     const em = h.em();
-    const validCodes = new Set<string>(Object.values(SEARCH_SETTING_CODES));
+    // Feature 073's activation control is a manifest setting like any other,
+    // but it is declared as a literal rather than through the codes map (the
+    // map is the module's own knobs), so name it explicitly here.
+    const validCodes = new Set<string>([...Object.values(SEARCH_SETTING_CODES), 'search.enabled']);
     const group = await em.findOne(SettingGroup, { code: 'search' });
     if (group) {
       const settings = await em.find(Setting, { group });
@@ -69,6 +72,8 @@ describe('search manifest reconciliation (T020)', () => {
         SEARCH_SETTING_CODES.POPUP_MINIMUM_QUERY_LENGTH,
         SEARCH_SETTING_CODES.POPUP_SUGGESTION_COUNT,
         SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES,
+        // Feature 073 — the operator's activation control (T123).
+        'search.enabled',
       ].sort(),
     );
 
