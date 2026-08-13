@@ -285,6 +285,11 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `seo` (wave 2, T117). Only the two central registries, for its two
+  // entities and its migrations: neither root consumed its handle even before
+  // the conversion — they pushed its plugin and nothing else — so there was no
+  // root reference to remove.
+  seo: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

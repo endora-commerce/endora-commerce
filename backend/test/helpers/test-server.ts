@@ -165,7 +165,6 @@ import type { CustomFieldValueService } from '../../src/modules/custom_fields/se
 import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
-import { seoModule } from '../../src/modules/seo/plugin.js';
 import type { LanguagesCradle } from '../../src/modules/languages/backend.js';
 import { LANGUAGE_CHANGED_EVENT } from '../../src/modules/languages/backend.js';
 import type { CmsCradle } from '../../src/modules/cms/backend.js';
@@ -1049,12 +1048,7 @@ export async function setupBackendServer(
 
   // SEO meta + sitemap (Phase 10 / T235). Stale-window dropped to zero in
   // tests so each test that calls regenerate sees a fresh payload.
-  const seo = seoModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    auditLog: auditLogService,
-    sitemap: { staleAfterMs: 0, baseUrl: 'http://test.local' },
-  });
+  // Feature 072 (T117) — `seo` owns its services and routes now.
 
   // Languages + currencies (Phase 10 / T238). Static config, bootstrapped
   // by migration 012 with en-US + pl-PL languages and PLN + EUR currencies.
@@ -1313,7 +1307,6 @@ export async function setupBackendServer(
     creditLimits.plugin,
     integrations.plugin,
     importExport.plugin,
-    seo.plugin,
     priceLists.plugin,
     promotions.plugin,
     commerceModule({
@@ -2040,6 +2033,16 @@ export async function setupBackendServer(
   // own empty default there, so a value written before composition would be
   // overwritten by it (the same trap `prompt_actions` hit).
   registerValues(container, {
+    // Feature 072 (T117) — composition-specific sitemap tuning: regeneration is
+    // deterministic with no staleness window, and a fixed base URL gives the
+    // assertions something stable. Production contributes nothing and takes the
+    // module's own `{}`.
+    //
+    // Registered **after** the late pass on purpose. `seo` composes there and
+    // registers its own `{}` default, so contributing earlier would have the
+    // module overwrite the root — which is exactly what happened, and the
+    // sitemap silently fell through to `http://localhost:3000`.
+    sitemapOptions: { staleAfterMs: 0, baseUrl: 'http://test.local' },
     // Feature 072 (T084) — `audit_logs` owns its routes now and no longer
     // reaches into `admin_users` for identities. Turning an actor id into a
     // name is a **contribution**, so it is gated here rather than declared as
