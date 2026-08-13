@@ -1,25 +1,53 @@
-// T004 — Verify the dictionaries module exports the documented shape so
-// downstream tasks can hang their implementations on a stable handle.
+// T004 — the dictionaries module exports the shape the kernel composes.
+//
+// This used to assert `dictionariesModule` returned `{ plugin, handle }` with a
+// `validator` and a `reconcile`. Feature 072 (T112) replaced that factory with
+// `registerModule(ctx)`, so the contract worth pinning changed with it: the
+// module now *registers* its validator rather than handing one back, and the
+// seed reconciler runs from a boot hook rather than from a handle a caller
+// remembers to call.
 //
 // `reconcile()` behaviour is exercised end-to-end in
-// `test/integration/dictionaries/seed.idempotent.test.ts` (T010); this
-// unit test only asserts the export contract.
+// `test/integration/dictionaries/seed.idempotent.test.ts` (T010), which calls
+// `runDictionarySeedReconciler` directly now that no handle wraps it.
 
-import { CurrencyService } from '../../../src/modules/currencies/services/currency-service.js';
+import { asValue } from 'awilix';
 import { describe, it, expect } from 'vitest';
-import { dictionariesModule } from '../../../src/modules/dictionaries/plugin.js';
+import {
+  createModuleContext,
+  createModuleRegistrationSink,
+  createRootContainer,
+} from '../../../src/kernel/index.js';
+import { EventBus } from '../../../src/events/bus.js';
+import { registerModule } from '../../../src/modules/dictionaries/backend.js';
 
-describe('dictionariesModule (export shape)', () => {
-  it('returns { plugin, handle } and the handle exposes the documented members', () => {
-    const fakeEm = (() => ({})) as never;
-    const mod = dictionariesModule({
-      emFactory: fakeEm,
-      currencyService: new CurrencyService(fakeEm),
+describe('dictionaries — what the module registers', () => {
+  it('provides the validator port and a boot hook, and subscribes to both announcements', () => {
+    const container = createRootContainer();
+    container.register({
+      emFactory: asValue(() => ({}) as never),
+      auditLogService: asValue({} as never),
+      redis: asValue(undefined),
+    });
+    const sink = createModuleRegistrationSink();
+    const ctx = createModuleContext({
+      module: { id: 'dictionaries', version: '1.0.0' },
+      container,
+      eventBus: new EventBus(),
+      sink,
+      log: { info: () => {}, warn: () => {}, error: () => {} },
     });
 
-    expect(typeof mod.plugin).toBe('function');
-    expect(mod.handle).toBeDefined();
-    expect('validator' in mod.handle).toBe(true);
-    expect(typeof mod.handle.reconcile).toBe('function');
+    registerModule(ctx);
+
+    expect(container.hasRegistration('dictionaryValidator')).toBe(true);
+    expect(container.hasRegistration('dictionaryInvalidator')).toBe(true);
+    // The seed reconciler moved off the handle and onto the boot hook, so it
+    // runs whether or not a composition root remembers it.
+    expect(sink.bootHooks).toHaveLength(1);
+    // `currencies.changed` and `languages.changed` — the two announcements that
+    // make this module drop its own caches. They used to be subscribed by each
+    // composition root reaching into this module's handle.
+    expect(sink.unsubscribes).toHaveLength(2);
   });
 });

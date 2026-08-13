@@ -56,9 +56,14 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({ emFactory, commandBus }: CredentialsCradle) => {
           const key = process.env['SETTINGS_SECRET_ENCRYPTION_KEY'];
-          // Read from the cradle rather than destructured, so a root that
-          // registers the settings port after this module composed is still
-          // seen — `settings` is not converted yet.
+          // Read at construction, and that is a real constraint rather than an
+          // oversight — see `ALLOWED_CAPTURES` in check-port-dependencies.ts.
+          // A presence test cannot be deferred: `lazyPort` would hand back a
+          // proxy that is always defined, so the "omit the property" branch
+          // below could never be taken. Both roots register this port two lines
+          // before they resolve `credentialsService`, and that ordering is what
+          // makes the read work. It stops being load-bearing when `settings`
+          // converts and provides the port itself.
           const settings = ctx.cradle<CredentialsCradle>().credentialsSettingsPort;
           // Spread-built so an absent key or port is an **omitted** property
           // rather than an explicit `undefined`, which `exactOptionalPropertyTypes`

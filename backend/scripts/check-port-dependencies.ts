@@ -103,16 +103,12 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // them itself since T078, and the staleness check below fails the build if an
   // entry outlives its owner's conversion.
   //
-  dictionaryValidator: 'dictionaries',
   // Registered as `undefined` today: blog ships no storefront ports and both
   // composition roots pass nothing. The name is blog's own.
   blogStorefrontDeps: 'blog',
   // The two resolvers the auth plugin reads per request; their owners are
   // hand-wired and constructed after `auth`, so a root registers them.
   apiKeyResolver: 'api_keys',
-  // `dictionaries` owns the validator + cache drop; `currencies` resolves it
-  // per write so one CurrencyService can serve both admin surfaces.
-  dictionaryInvalidator: 'dictionaries',
   // `_i18n` reads it to serve the per-admin language preference; `admin_users`
   // owns the audited instance and is still hand-wired.
   adminUserService: 'admin_users',
@@ -199,6 +195,29 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   'resolvedModuleRegistry',
   'apiInterceptors',
 ]);
+
+/**
+ * Captures that are allowed, keyed `<moduleId>:<name>`, each with the reason.
+ *
+ * The escape hatch exists because one thing genuinely cannot be deferred: a
+ * **presence** decision. `lazyPort` forwards method calls, so it can defer
+ * *what a collaborator does*; it cannot defer *whether a collaborator exists*,
+ * because a proxy is always there. A factory that branches on
+ * `x === undefined ? {} : { x }` has to read `x` at construction.
+ *
+ * Keep this list short and keep the reasons concrete. An entry is a statement
+ * that the composition order is load-bearing at that point, which is exactly
+ * the thing the rest of this check exists to eliminate — so each one is a debt,
+ * not a design.
+ */
+export const ALLOWED_CAPTURES: Readonly<Record<string, string>> = {
+  'credentials:credentialsSettingsPort':
+    'Presence decides the constructor shape: an absent port must be an omitted ' +
+    'property rather than an explicit `undefined`, which `exactOptionalPropertyTypes` ' +
+    'treats as a different type. Both roots register the port two lines before they ' +
+    'resolve `credentialsService`, and that ordering is load-bearing — it goes when ' +
+    '`settings` converts and the port stops being root-registered.',
+};
 
 export interface PortViolation {
   readonly kind: 'undeclared-dependency' | 'unowned-name' | 'captured-name';
@@ -296,6 +315,38 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
     }
   };
 
+  /**
+   * Is this `ctx.cradle()` call evaluated when the registration is built, or
+   * when somebody uses it?
+   *
+   * Walk out to the nearest enclosing function. If that function is the factory
+   * handed to `asFunction`, the call runs at construction — a capture. If any
+   * other function sits in between (a method, a route registrar, a subscriber
+   * handler, an arrow passed to a service), the call runs when that function
+   * does — a genuine deferral.
+   */
+  const readKindAt = (node: ts.Node): PortResolution['kind'] => {
+    let current: ts.Node | undefined = node.parent;
+    while (current) {
+      if (
+        ts.isArrowFunction(current) ||
+        ts.isFunctionExpression(current) ||
+        ts.isFunctionDeclaration(current) ||
+        ts.isMethodDeclaration(current)
+      ) {
+        const owner = current.parent;
+        const isFactoryOfAsFunction =
+          owner !== undefined &&
+          ts.isCallExpression(owner) &&
+          calleeTail(owner).endsWith('asFunction') &&
+          owner.arguments[0] === current;
+        return isFactoryOfAsFunction ? 'captured' : 'deferred';
+      }
+      current = current.parent;
+    }
+    return 'deferred';
+  };
+
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const tail = calleeTail(node);
@@ -311,17 +362,23 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
         }
       }
 
-      // The deferred resolution surface.
+      // The resolution surface — deferred *only* when the read happens inside a
+      // nested function. `ctx.cradle<C>().thing` written straight into a
+      // factory body looks deferred and is not: the body runs when Awilix first
+      // constructs the registration, so the read is every bit as eager as a
+      // destructured parameter. `addresses` had exactly that, and it survived
+      // until `dictionaries` turned the name it read into a port.
       if (tail.endsWith('cradle')) {
+        const kind = readKindAt(node);
         const parent = node.parent;
         if (parent && ts.isPropertyAccessExpression(parent)) {
-          record(parent.name.text, parent, 'deferred');
+          record(parent.name.text, parent, kind);
         } else if (
           parent &&
           ts.isVariableDeclaration(parent) &&
           ts.isObjectBindingPattern(parent.name)
         ) {
-          recordBindingPattern(parent.name, 'deferred');
+          recordBindingPattern(parent.name, kind);
         }
       }
     }
@@ -361,7 +418,8 @@ export function findViolations(input: CheckInput): PortViolation[] {
     if (
       resolution.kind === 'captured' &&
       !CAPTURABLE_NAMES.has(resolution.name) &&
-      input.owners.get(resolution.name) !== resolution.moduleId
+      input.owners.get(resolution.name) !== resolution.moduleId &&
+      ALLOWED_CAPTURES[`${resolution.moduleId}:${resolution.name}`] === undefined
     ) {
       violations.push({
         kind: 'captured-name',

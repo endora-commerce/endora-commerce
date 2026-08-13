@@ -309,6 +309,13 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `dictionaries` (wave 2, T112). Only the two central registries, for its
+  // `Country` entity and its migrations. Both roots stopped referring to it
+  // entirely: the `dictionaryValidator` they used to register on its behalf is
+  // a port this module provides now, and the currency/language invalidation
+  // listeners they ran moved inside — this module owns the cache they were
+  // dropping. Fifth fully-root-free module in the transition.
+  dictionaries: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 
