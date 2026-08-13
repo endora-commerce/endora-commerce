@@ -106,9 +106,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // Registered as `undefined` today: blog ships no storefront ports and both
   // composition roots pass nothing. The name is blog's own.
   blogStorefrontDeps: 'blog',
-  // The two resolvers the auth plugin reads per request; their owners are
-  // hand-wired and constructed after `auth`, so a root registers them.
-  apiKeyResolver: 'api_keys',
   // `_i18n` reads it to serve the per-admin language preference; `admin_users`
   // owns the audited instance and is still hand-wired.
   adminUserService: 'admin_users',
@@ -152,6 +149,9 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // The organization-status gate feature 026 US5 added: an org-targeted
   // promotion only fires for an active Organization. Owned by `organizations`.
   organizationStatusResolver: 'organizations',
+  // The operator presence axis the command palette filters on. A root's to
+  // supply — which modules a deployment ships is not a module's business.
+  moduleActivationProbe: '_lifecycle',
 };
 
 export interface PortResolution {

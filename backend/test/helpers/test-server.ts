@@ -87,7 +87,6 @@ import { randomUUID } from 'node:crypto';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
 import type { AdminI18nCradle } from '../../src/modules/_i18n/backend.js';
-import { adminActionsModule } from '../../src/modules/admin_actions/plugin.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
 import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
@@ -162,7 +161,7 @@ import type { CustomFieldsCradle } from '../../src/modules/custom_fields/backend
 import type { CustomFieldDefinitionService } from '../../src/modules/custom_fields/services/custom-field-definition.service.js';
 import type { CustomFieldValueService } from '../../src/modules/custom_fields/services/custom-field-value.service.js';
 import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
-import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
+import type { ApiKeysCradle } from '../../src/modules/api_keys/backend.js';
 import type { LanguagesCradle } from '../../src/modules/languages/backend.js';
 import type { CmsCradle } from '../../src/modules/cms/backend.js';
 import type { MegamenuCradle } from '../../src/modules/megamenu/backend.js';
@@ -374,7 +373,11 @@ export interface BackendServerHandle {
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
   salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
   /** Feature 062 — api-keys/webhooks handle (api-key gates). */
-  integrations: ReturnType<typeof integrationsModule>['handle'];
+  integrations: {
+    apiKeyService: ApiKeysCradle['apiKeyService'];
+    requireApiKey: ApiKeysCradle['requireApiKey'];
+    requireBoundApiKey: ApiKeysCradle['requireBoundApiKey'];
+  };
   /** Feature 006 — exposes the indexer + suggest service for tests that
    *  want deterministic teardown or to exercise embedder attach/detach. */
   search: ReturnType<typeof searchModule>['handle'];
@@ -1032,11 +1035,9 @@ export async function setupBackendServer(
   // US7 — API keys + webhooks. The handle exposes
   // requireApiKey, threaded into the catalog module's by-sku route so that
   // surface gets real bearer-token gating.
-  const integrations = integrationsModule({
-    emFactory: em,
-    auditLogService,
-    requireAdmin: requireTestAdmin(permissionService),
-  });
+  // Feature 072 (T100) — `api_keys` owns its service, its two gates and its
+  // routes now, and provides `apiKeyResolver` itself.
+  const apiKeysCradle = container.cradle as unknown as ApiKeysCradle;
 
   // Analytics (Phase 10 / T237). No GA4 forwarder in tests — the env vars
   // are unset by default so `buildForwarderFromEnv` returns a NoopForwarder.
@@ -1216,7 +1217,7 @@ export async function setupBackendServer(
         // Feature 062 — mirror production: Bearer sk_live_* resolves to an
         // api_key actor (incl. distributor binding) before the tenant hook
         // and the sales-channel resolver run.
-        apiKeyResolver: async (token) => integrations.handle.apiKeyService.authenticate(token),
+        apiKeyResolver: async (token) => apiKeysCradle.apiKeyService.authenticate(token),
       });
       // Feature 050 — establish the ambient TenantContext from the resolved test
       // actor, after registerTestAuth sets it. Mirrors composition.ts wiring
@@ -1267,7 +1268,6 @@ export async function setupBackendServer(
       await registerRequestScopeHook(app, { buildTenantContext: buildContext });
     },
     admin.plugin,
-    integrations.plugin,
     priceLists.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
@@ -1314,7 +1314,7 @@ export async function setupBackendServer(
       redis,
       // Feature 062 — external orders namespace (mirrors composition.ts):
       // bound-key gate + the org method allow-lists (FR-021 envelope).
-      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
       resolveOrganizationMethodAllowLists: async (organizationId: string) => {
         try {
           const lists = await sharedRestrictionService.readAllowLists(organizationId);
@@ -1535,11 +1535,11 @@ export async function setupBackendServer(
       // Feature 061 — apply seam + composed attribute read model.
       customFieldsPort: customFieldDefinitionService,
       attributeReadService: catalogAttributeReadService,
-      requireApiKey: integrations.handle.requireApiKey,
+      requireApiKey: apiKeysCradle.requireApiKey,
       // Feature 062 — external catalog namespace (mirrors composition.ts):
       // bound-key gate + the SAME pricing engine cart pricing uses + the
       // inventory availability port.
-      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
       pricingService: priceLists.handle.pricingService,
       resolveExternalAvailability: async (productIds, salesChannelId) => {
         const candidateWarehouseIds =
@@ -1718,23 +1718,13 @@ export async function setupBackendServer(
   // Feature 020 — Admin Command Palette actions registry. Mounts the
   // GET /api/v1/admin/admin-actions read endpoint. Tests that need
   // module_actions rows seed them directly via `h.em()`.
-  const adminActions = adminActionsModule({
-    orm,
-    emFactory: em,
-    i18nService: adminI18nCradle.adminI18nService,
-    permissionService,
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminContext: (request) => ({
-      adminUserId:
-        request.testActor?.kind === 'admin'
-          ? request.testActor.adminUserId
-          : TEST_ADMIN_ID,
-    }),
-    // Feature 073 — mirrors composition.ts: the palette's operator axis.
-    isModuleActivated: (moduleId) =>
+  // Feature 072 (T099) — `admin_actions` owns its service, its reconcile and
+  // its routes now. The operator presence axis stays a root's to supply:
+  // which modules a deployment ships is not this module's business.
+  registerValues(container, {
+    moduleActivationProbe: (moduleId: string) =>
       effectiveState.presence(moduleId)?.operatorActivated ?? true,
   });
-  modules.push(adminActions.plugin);
 
   // Feature 058 — Credentials module. Instantiated before the consumer modules
   // (prompt_actions, search, newsletter) so they can receive
@@ -1946,7 +1936,7 @@ export async function setupBackendServer(
     // Feature 072 (T078) — the two resolvers the auth plugin reads per request,
     // mirroring `composition.ts`.
     apiKeyResolver: async (token: string) =>
-      integrations.handle.apiKeyService.authenticate(token),
+      apiKeysCradle.apiKeyService.authenticate(token),
     // `redis` is registered further up, where the client is created.
     settingsReadPort: settings.handle.settingsService,
     // Feature 072 (T093) — `composition.ts` has registered this since T086;
@@ -2754,7 +2744,11 @@ export async function setupBackendServer(
     permissionCatalogueService,
     settings: settings.handle,
     salesChannels: salesChannels.handle,
-    integrations: integrations.handle,
+    integrations: {
+      apiKeyService: apiKeysCradle.apiKeyService,
+      requireApiKey: apiKeysCradle.requireApiKey,
+      requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
+    },
     search: search.handle,
     comparisons: { comparisonService: comparisonsCradle.comparisonService },
     assetsLibrary: assetsLibrary.handle,

@@ -135,6 +135,12 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // composing early also puts its own `promotionRuleTargets` default ahead of
   // the root's contribution, which is the order a contribution point needs.
   'promotions',
+  // `auth` resolves `apiKeyResolver` in its request hook, and `catalog`'s
+  // external namespace takes both gates as constructor arguments before the
+  // late pass. The task note asks that this module compose "first"; what
+  // actually matters is that the names exist before a request arrives, and an
+  // entry here says that structurally rather than by line position.
+  'api_keys',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

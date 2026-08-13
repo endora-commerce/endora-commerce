@@ -35,7 +35,7 @@ export interface AdminActionsModuleDeps {
   registry?: LoadedManifestRegistry | (() => LoadedManifestRegistry | undefined);
   i18nService: I18nService;
   permissionService: PermissionService;
-  redisSubscriber?: Redis;
+  redisSubscriber: Redis;
   requireAdmin: RequireAdminFactory;
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
   log?: { info(msg: string): void; warn(msg: string): void };
@@ -44,7 +44,7 @@ export interface AdminActionsModuleDeps {
    * service. See `AdminActionsServiceDeps.isModuleActivated` for why it is
    * injected rather than read from the lifecycle singleton.
    */
-  isModuleActivated?: (moduleId: string) => boolean;
+  isModuleActivated: (moduleId: string) => boolean;
 }
 
 export interface AdminActionsModuleHandle {

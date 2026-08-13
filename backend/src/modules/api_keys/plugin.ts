@@ -16,7 +16,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 export interface IntegrationsModuleOptions {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
-  auditLogService?: AuditLogService;
+  auditLogService: AuditLogService;
 }
 
 /**

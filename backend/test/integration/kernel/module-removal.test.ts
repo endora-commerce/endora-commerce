@@ -341,6 +341,26 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `api_keys` (wave 2, T100). The two central registries name its `ApiKey`
+  // entity and its migrations; `composition.ts` imports the cradle type to
+  // annotate the two gates it threads into `catalog`'s external namespace.
+  // That reference goes when `catalog` converts. The `apiKeyResolver` a root
+  // used to register on this module's behalf is a port it provides now, so
+  // that host entry is gone.
+  api_keys: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `admin_actions` (wave 2, T099). The two central registries name its
+  // `ModuleAction` entity and its migrations; `composition.ts` imports the
+  // cradle type to annotate the reconciler it hands the lifecycle
+  // orchestrator. That reference goes when `_lifecycle` converts.
+  admin_actions: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 
