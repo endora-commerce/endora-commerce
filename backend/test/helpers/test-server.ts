@@ -1072,6 +1072,7 @@ export async function setupBackendServer(
     redis,
     auditLogService,
     requireAdmin: requireTestAdmin(permissionService),
+    dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,

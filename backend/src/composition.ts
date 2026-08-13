@@ -759,6 +759,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     redis,
     auditLogService,
     requireAdmin,
+    dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => {
       if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
       return { actorAdminUserId: request.actor.adminUserId };
