@@ -145,7 +145,6 @@ import {
 import { PAYMENT_STATUS_CHANGED_DEFAULT } from '../../src/modules/payments/email-templates/transactional-defaults.js';
 import { SHIPMENT_CREATED_DEFAULT } from '../../src/modules/shipments/email-templates/transactional-defaults.js';
 import { PaymentEmailNotifier } from '../../src/modules/payments/services/payment-email-notifier.js';
-import { ShipmentEmailNotifier } from '../../src/modules/shipments/services/shipment-email-notifier.js';
 import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
@@ -1266,7 +1265,6 @@ export async function setupBackendServer(
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
       shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
       paymentOrderStatusRegistry: methodsCradle.paymentOrderStatusRegistry,
-      shippingOrderStatusRegistry: methodsCradle.shippingOrderStatusRegistry,
       shippingMethodEligibility: methodsCradle.shippingMethodEligibility,
       commandBus,
       emFactory: em,
@@ -2497,10 +2495,11 @@ export async function setupBackendServer(
     emFactory: em,
     getTransactionalEmailSender: () => transactionalEmailSender,
   }).attach(eventBus);
-  new ShipmentEmailNotifier({
-    emFactory: em,
-    getTransactionalEmailSender: () => transactionalEmailSender,
-  }).attach(eventBus);
+  // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
+  // subscribes through `ctx.subscribe`, so it stops when the module does. The
+  // sender stays a contribution: `transactional_emails` announces it through a
+  // callback this root holds, later than the module composes.
+  registerValues(container, { shipmentEmailSender: () => transactionalEmailSender });
   modules.push(
     transactionalEmailsModule({
       emFactory: em,

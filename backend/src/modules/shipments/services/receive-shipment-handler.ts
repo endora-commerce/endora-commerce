@@ -30,7 +30,7 @@ export interface ReceiveShipmentResult {
 export class ReceiveShipmentHandler {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly orderStatusRegistry?: OrderStatusRegistry,
+    private readonly orderStatusRegistry: OrderStatusRegistry,
     private readonly events?: ShippingEventBus,
   ) {}
 

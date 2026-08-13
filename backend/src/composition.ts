@@ -192,7 +192,6 @@ import { PAYMENT_STATUS_CHANGED_DEFAULT } from './modules/payments/email-templat
 import { SHIPMENT_CREATED_DEFAULT } from './modules/shipments/email-templates/transactional-defaults.js';
 import { INVOICE_ISSUED_DEFAULT } from './modules/invoices/email-templates/invoice-issued.default.js';
 import { PaymentEmailNotifier } from './modules/payments/services/payment-email-notifier.js';
-import { ShipmentEmailNotifier } from './modules/shipments/services/shipment-email-notifier.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
@@ -1286,7 +1285,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
       shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
       paymentOrderStatusRegistry: methodsCradle.paymentOrderStatusRegistry,
-      shippingOrderStatusRegistry: methodsCradle.shippingOrderStatusRegistry,
       shippingMethodEligibility: methodsCradle.shippingMethodEligibility,
       commandBus,
       emFactory: em,
@@ -2699,10 +2697,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     getTransactionalEmailSender: () => transactionalEmailSender,
   }).attach(eventBus);
-  new ShipmentEmailNotifier({
-    emFactory: em,
-    getTransactionalEmailSender: () => transactionalEmailSender,
-  }).attach(eventBus);
+  // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
+  // subscribes through `ctx.subscribe`, so it stops when the module does. The
+  // sender stays a contribution: `transactional_emails` announces it through a
+  // callback this root holds, later than the module composes.
+  registerValues(container, { shipmentEmailSender: () => transactionalEmailSender });
   // Feature 049 — Stripe payment gateway. Registers the Stripe PaymentAdapter
   // + gateway refund handler into the shared singletons, seeds one
   // payment_methods row per Stripe method, and mounts the webhook / storefront /

@@ -106,10 +106,12 @@ import * as module41 from './modules/pwa/backend.js';
 import { manifest as manifest41 } from './modules/pwa/manifest.js';
 import * as module42 from './modules/search/backend.js';
 import { manifest as manifest42 } from './modules/search/manifest.js';
-import * as module43 from './modules/taxes/backend.js';
-import { manifest as manifest43 } from './modules/taxes/manifest.js';
-import * as module44 from './modules/webhooks/backend.js';
-import { manifest as manifest44 } from './modules/webhooks/manifest.js';
+import * as module43 from './modules/shipments/backend.js';
+import { manifest as manifest43 } from './modules/shipments/manifest.js';
+import * as module44 from './modules/taxes/backend.js';
+import { manifest as manifest44 } from './modules/taxes/manifest.js';
+import * as module45 from './modules/webhooks/backend.js';
+import { manifest as manifest45 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: 'admin_roles', version: manifest0.version, registerModule: module0.registerModule },
@@ -155,6 +157,7 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'promotions', version: manifest40.version, registerModule: module40.registerModule },
   { id: 'pwa', version: manifest41.version, registerModule: module41.registerModule },
   { id: 'search', version: manifest42.version, registerModule: module42.registerModule },
-  { id: 'taxes', version: manifest43.version, registerModule: module43.registerModule },
-  { id: 'webhooks', version: manifest44.version, registerModule: module44.registerModule },
+  { id: 'shipments', version: manifest43.version, registerModule: module43.registerModule },
+  { id: 'taxes', version: manifest44.version, registerModule: module44.registerModule },
+  { id: 'webhooks', version: manifest45.version, registerModule: module45.registerModule },
 ];

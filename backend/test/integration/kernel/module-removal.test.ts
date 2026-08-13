@@ -448,6 +448,13 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // settings read backs behaviour in nearly every module and cannot be gated
   // on the settings screens.
   settings: ['src/composition.ts'],
+  // `shipments` (wave 2, T124). The entity registry names its entity; both
+  // roots still register its transactional-email default into the shared
+  // `emailDefaultsRegistry` and contribute the sender, which is the same shape
+  // `payments` and `invoices` have — a cross-module registry a root owns, not
+  // residue of a half-finished conversion. Its migrations live in `orders`'
+  // group (migration 052), which is why the migration registry does not name it.
+  shipments: ['src/composition.ts', 'src/db/entities-registry.ts'],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 
