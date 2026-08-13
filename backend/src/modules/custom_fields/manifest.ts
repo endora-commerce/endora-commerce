@@ -14,7 +14,8 @@ export const manifest = defineModuleManifest({
   name: 'Custom Fields',
   description: 'Entity-agnostic runtime custom fields for core entities.',
   version: '1.0.0',
-  dependencies: [],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by.
+  dependencies: ['auth'],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'custom_fields:read', label: 'View custom fields' },
@@ -32,6 +33,13 @@ export const manifest = defineModuleManifest({
       weight: 240,
     },
   ],
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Holds the definitions behind custom-field values on products, orders, organizations ' +
+      'and four other record types; switched off, those writes would drop the values and ' +
+      'those reads would hide them.',
+  },
 });
 
 /**

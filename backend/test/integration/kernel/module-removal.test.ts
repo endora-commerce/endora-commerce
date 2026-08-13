@@ -196,6 +196,18 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `custom_fields` (wave 1, T087). The two registries name its entities and
+  // migrations. `composition.ts` imports the cradle type to annotate the two
+  // ports it resolves and threads into the eight hand-wired modules that
+  // validate writes through them — `catalog`, `orders`, `organizations`,
+  // `customers`, `quote_requests`, `product_feeds` and the two catalog admin
+  // services. That reference is the count of what is left to convert, and it
+  // goes when they do.
+  custom_fields: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

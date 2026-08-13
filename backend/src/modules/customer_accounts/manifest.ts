@@ -16,7 +16,13 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // `auth` owns `sessionService`, which `CustomerAuthService` takes; the edge
   // became real with the conversion (feature 072, T094).
-  dependencies: ['auth'],
+  // `customer_accounts.organization_id` and `customer_accounts.customer_group_id`
+  // are real foreign keys, and feature 072 is what made them visible: the module
+  // exports its entities now, so the ORM registry attributes the table to it and
+  // the FK-drift check can see across the boundary. The edges predate the
+  // conversion — they were simply unattributable while the table belonged to
+  // nobody. `customer_groups` is owned by `price_lists`.
+  dependencies: ['auth', 'organizations', 'price_lists'],
   // Feature 072/073 (Constitution XVII). Every customer session, every
   // storefront login and every organization membership resolves through this
   // module's table. A deployment with it switched off has no customers, which

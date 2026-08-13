@@ -79,6 +79,12 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // the conversion diff rather than after a red run — see the predictor in the
   // note above this list.
   'assets_library',
+  // Eight hand-wired modules take `customFieldValueService` or
+  // `customFieldDefinitionService` as a constructor argument — `catalog`,
+  // `orders`, `organizations`, `customers`, `quote_requests`, `product_feeds`
+  // and the two catalog admin services — and every one of them is built before
+  // the late pass. Named from the conversion diff, per the predictor above.
+  'custom_fields',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

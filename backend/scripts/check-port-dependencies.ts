@@ -57,6 +57,10 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   'em',
   'emFactory',
   'redis',
+  // The one connection ioredis has put into subscriber mode. Process-level
+  // infrastructure exactly as `redis` is, and shared for the same reason a
+  // process has one of it: a subscriber connection cannot serve commands.
+  'redisSubscriber',
   'eventBus',
   'commandBus',
   'apiInterceptors',

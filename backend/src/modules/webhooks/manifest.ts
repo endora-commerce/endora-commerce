@@ -16,7 +16,9 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port the admin routes are gated by; the
   // edge became real with the conversion (feature 072, T098).
-  dependencies: ['auth'],
+  // `webhooks.organization_id` scopes a subscription to a tenant — a real
+  // foreign key, surfaced by feature 072 exporting this module's entities.
+  dependencies: ['auth', 'organizations'],
   settings: {
     moduleCode: 'webhooks',
     groups: [{ code: 'webhooks', name: 'Webhooks' }],

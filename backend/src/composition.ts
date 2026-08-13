@@ -123,7 +123,7 @@ import { StockLevelService } from './modules/inventory/services/stock-level-serv
 import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from './modules/credit_limits/plugin.js';
-import { customFieldsModule } from './modules/custom_fields/plugin.js';
+import type { CustomFieldsCradle } from './modules/custom_fields/backend.js';
 import { integrationsModule } from './modules/api_keys/plugin.js';
 // Feature 062 (T029) — outbound webhook delivery pipeline.
 import {
@@ -409,6 +409,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // and the client has existed since the top of this function.
   registerValues(container, {
     redis,
+    // The one connection ioredis has put into subscriber mode. Shared, because
+    // a subscriber connection cannot serve commands: a per-module one would
+    // cost a socket per module and buy nothing.
+    redisSubscriber,
     // Modules announce on it; `ctx.subscribe` receives on it. A module that
     // publishes needs it as a registration, not just as a composer option.
     eventBus,
@@ -657,24 +661,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     inheritance: organizationInheritanceService,
   });
 
-  // Feature 055 — Custom Fields Layer. Exposes the definition/value services as
-  // a handle consumed by host modules; registers the admin definition API. The
-  // per-entity-type cache subscribes to its own Redis channel for cross-process
-  // invalidation.
-  const customFields = customFieldsModule({
-    emFactory: em,
-    commandBus,
-    requireAdmin,
-    redis,
-  });
-  void customFields.handle.cache.start(redisSubscriber);
+  // Feature 055 — Custom Fields Layer, converted in feature 072 (T087). The
+  // module owns its services, its admin API and the cross-process cache
+  // subscription now; this root only reads the two ports host modules consume.
+  const customFieldsCradle = container.cradle as unknown as CustomFieldsCradle;
+  const customFieldDefinitionService = customFieldsCradle.customFieldDefinitionService;
+  const customFieldValueService = customFieldsCradle.customFieldValueService;
 
   // Feature 061 — the composed attribute read model (product-host custom-field
   // definitions + catalog extension rows). Built once, threaded into catalog,
   // search, quick_order, and comparisons as the sanctioned attribute read port.
   const catalogAttributeReadService = new CatalogAttributeReadService(
     em,
-    customFields.handle.definitionService,
+    customFieldDefinitionService,
   );
 
   const importExport = importExportModule({ emFactory: em, requireAdmin });
@@ -1409,7 +1408,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     admin.plugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
     creditLimits.plugin,
-    customFields.plugin,
     integrations.plugin,
     importExport.plugin,
     seo.plugin,
@@ -1428,7 +1426,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       emFactory: em,
       eventBus,
       auditLogService,
-      customFieldValues: customFields.handle.valueService,
+      customFieldValues: customFieldValueService,
       mailer: platformMailer,
       // Feature 047 — late-bound; set once the transactional_emails module builds.
       getTransactionalEmailSender: () => transactionalEmailSender,
@@ -1718,7 +1716,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       restrictionService: organizationRestrictionService,
       effectivePriceListsService: organizationEffectivePriceListsService,
       taxIdValidationService: organizationTaxIdValidationService,
-      customFieldValues: customFields.handle.valueService,
+      customFieldValues: customFieldValueService,
       dictionaryValidator: dictionaries.handle.validator,
       ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
@@ -1751,10 +1749,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       commandBus,
       requireAdmin,
       auditLogService,
-      customFieldValues: customFields.handle.valueService,
-      customFieldDefinitions: customFields.handle.definitionService,
+      customFieldValues: customFieldValueService,
+      customFieldDefinitions: customFieldDefinitionService,
       // Feature 061 — apply seam + composed attribute read model.
-      customFieldsPort: customFields.handle.definitionService,
+      customFieldsPort: customFieldDefinitionService,
       attributeReadService: catalogAttributeReadService,
       requireApiKey: integrations.handle.requireApiKey,
       // Feature 062 — external catalog namespace (/api/v1/external/catalog/*):
@@ -2214,7 +2212,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     eventBus,
     requireCustomer,
     requireAdmin,
-    customFieldValues: customFields.handle.valueService,
+    customFieldValues: customFieldValueService,
     resolveCustomerContext: async (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
@@ -2346,7 +2344,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     sessionService,
     requireCustomer,
     commandBus,
-    customFieldValues: customFields.handle.valueService,
+    customFieldValues: customFieldValueService,
     resolveCustomerActor: (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(
@@ -2603,7 +2601,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
       return out;
     },
-    customFieldDefinitions: customFields.handle.definitionService,
+    customFieldDefinitions: customFieldDefinitionService,
     languageService: i18n.handle.languageService,
     adminNotificationService: adminNotificationService,
     settings: settings.handle.settingsService,
@@ -2700,13 +2698,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       salesChannels.handle.membershipService,
       commandBus,
       catalogAttributeReadService,
-      customFields.handle.definitionService,
+      customFieldDefinitionService,
     ),
     categoryAdmin: new CategoryAdminService(
       em,
       salesChannels.handle.membershipService,
       commandBus,
-      customFields.handle.valueService,
+      customFieldValueService,
     ),
     attributeSets: new AttributeSetService(em, commandBus, catalogAttributeReadService),
     gallery: new GalleryService(em, commandBus),

@@ -13,6 +13,28 @@ import type { CurrencyService } from '../../src/modules/currencies/services/curr
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import Redis from 'ioredis';
+
+/**
+ * A subscriber-shaped object that subscribes to nothing.
+ *
+ * Feature 072 (T087) — `custom_fields` arms its definition-invalidation
+ * channel from `onBoot`, so every composition now *asks* for a subscriber.
+ * Production hands it the real one. The harness hands it this unless the test
+ * opted into pub/sub, because a live subscription per composition is the leak
+ * the `exercisePubSub` opt-in was measured into existence to stop — and because
+ * a module that never receives an invalidation still behaves correctly, it just
+ * falls back to the cache's 5 s TTL.
+ */
+function inertRedisSubscriber(): Redis {
+  const inert = {
+    subscribe: async () => 0,
+    on: () => inert,
+    removeAllListeners: () => inert,
+    unsubscribe: async () => 0,
+    disconnect: () => undefined,
+  };
+  return inert as unknown as Redis;
+}
 import { buildServer, type ModulePlugin } from '../../src/http/server.js';
 import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
 import {
@@ -142,7 +164,10 @@ import {
 import { CreditTopupProvider } from '../../src/modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from '../../src/modules/returns/services/return-email-notifier.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
-import { customFieldsModule } from '../../src/modules/custom_fields/plugin.js';
+import type { CustomFieldsCradle } from '../../src/modules/custom_fields/backend.js';
+import type { CustomFieldDefinitionService } from '../../src/modules/custom_fields/services/custom-field-definition.service.js';
+import type { CustomFieldValueService } from '../../src/modules/custom_fields/services/custom-field-value.service.js';
+import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import { seoModule } from '../../src/modules/seo/plugin.js';
@@ -205,7 +230,6 @@ import {
 } from '../../src/modules/catalog/prompt-tools.js';
 import { inventoryPromptTools } from '../../src/modules/inventory/prompt-tools.js';
 import { comparisonsModule } from '../../src/modules/comparisons/plugin.js';
-import type { assetsLibraryModule } from '../../src/modules/assets_library/plugin.js';
 import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
@@ -363,7 +387,7 @@ export interface BackendServerHandle {
   /** Feature 007 — exposes the ComparisonService for tests. */
   comparisons: ReturnType<typeof comparisonsModule>['handle'];
   /** Feature 013 — Assets Library handle (service, folders, registry, adapters). */
-  assetsLibrary: ReturnType<typeof assetsLibraryModule>['handle'];
+  assetsLibrary: AssetsLibraryCradle['assetsLibrary']['handle'];
   /** Feature 014 — CMS module handle (page builder registry, services, resolver). */
   cms: ReturnType<typeof cmsModule>['handle'];
   /** Feature 015 — Megamenu module handle (reference registry, cache). */
@@ -387,7 +411,11 @@ export interface BackendServerHandle {
   /** Feature 015+ — promotions module handle (exposes PromotionService). */
   promotions: ReturnType<typeof promotionsModule>['handle'];
   /** Feature 055 — custom fields (definition + value services). */
-  customFields: ReturnType<typeof customFieldsModule>['handle'];
+  customFields: {
+    definitionService: CustomFieldDefinitionService;
+    valueService: CustomFieldValueService;
+    cache: CustomFieldDefinitionsCache;
+  };
   /** Feature 061 — the composed attribute read model (definition + extension views). */
   catalogAttributeRead: CatalogAttributeReadService;
   /** Feature 026 — moderation lifecycle, admin notifications, org context. */
@@ -740,6 +768,17 @@ export async function setupBackendServer(
 
   registerValues(container, {
     redis,
+    // Mirrors `composition.ts` — but only when a test asks for pub/sub.
+    //
+    // A converted module arms its own subscription from `onBoot`, which is
+    // right in production and wrong here: one armed subscription per
+    // composition, across ~225 files, is how this harness accumulated ~1 GB of
+    // retention (task #32). Handing the module an inert subscriber keeps the
+    // module's code identical in both compositions and keeps the count of
+    // *real* subscriptions at "only where a test asks", which is the property
+    // `harness-parity` checks.
+    redisSubscriber:
+      options.exercisePubSub === true ? redisSubscriber : inertRedisSubscriber(),
     // Modules announce on it; `ctx.subscribe` receives on it. A module that
     // publishes needs it as a registration, not just as a composer option.
     eventBus,
@@ -977,28 +1016,26 @@ export async function setupBackendServer(
     inheritance: organizationInheritanceService,
   });
 
-  // Feature 055 — Custom Fields Layer. No Redis publisher in tests; the cache
-  // uses its in-process map + TTL. The value service is threaded into the
-  // organizations module below so org custom-field values validate on edit.
-  const customFields = customFieldsModule({
-    emFactory: em,
-    commandBus,
-    requireAdmin: requireTestAdmin(permissionService),
-  });
-  // Feature 072 (T073) — production starts this; the harness arms it only when
-  // a test asks (see `exercisePubSub`). Awaited rather than fire-and-forget,
-  // because a `subscribe` landing after teardown made ioredis reconnect and
-  // re-subscribe, leaving a live client pinning the whole composition.
-  if (options.exercisePubSub === true) {
-    await customFields.handle.cache.start(redisSubscriber);
-  }
+  // Feature 055 — Custom Fields Layer, converted in feature 072 (T087). The
+  // module owns its services and its cache subscription now; the harness reads
+  // the two ports host modules consume, exactly as `composition.ts` does.
+  //
+  // The subscription is no longer conditional on `exercisePubSub`. That flag
+  // existed because a fire-and-forget `subscribe` could land after teardown and
+  // make ioredis reconnect, pinning the composition; the module arms it from an
+  // **awaited** `onBoot` during setup instead, so there is no late landing to
+  // guard against, and it adds no connection — `redisSubscriber` is one the
+  // harness already opens.
+  const customFieldsCradle = container.cradle as unknown as CustomFieldsCradle;
+  const customFieldDefinitionService = customFieldsCradle.customFieldDefinitionService;
+  const customFieldValueService = customFieldsCradle.customFieldValueService;
 
   // Feature 061 — the composed attribute read model (mirrors composition.ts):
   // product-host custom-field definitions + catalog extension rows, threaded
   // into catalog, search, quick_order, and comparisons.
   const catalogAttributeReadService = new CatalogAttributeReadService(
     em,
-    customFields.handle.definitionService,
+    customFieldDefinitionService,
   );
 
   // US7 — API keys + webhooks. The handle exposes
@@ -1279,7 +1316,6 @@ export async function setupBackendServer(
     },
     admin.plugin,
     creditLimits.plugin,
-    customFields.plugin,
     integrations.plugin,
     importExport.plugin,
     seo.plugin,
@@ -1298,7 +1334,7 @@ export async function setupBackendServer(
       emFactory: em,
       eventBus,
       auditLogService,
-      customFieldValues: customFields.handle.valueService,
+      customFieldValues: customFieldValueService,
       getTransactionalEmailSender: () => transactionalEmailSender,
       creditLimit: creditLimits.handle.creditLimitService,
       requireCustomer: requireTestCustomer(),
@@ -1517,7 +1553,7 @@ export async function setupBackendServer(
           restrictionService,
           effectivePriceListsService,
           taxIdValidationService: testTaxIdValidationService,
-          customFieldValues: customFields.handle.valueService,
+          customFieldValues: customFieldValueService,
           exposeTestProbe: true,
           dictionaryValidator: dictionaries.handle.validator,
           mailer: injectedMailer,
@@ -1550,10 +1586,10 @@ export async function setupBackendServer(
       commandBus,
       requireAdmin: requireTestAdmin(permissionService),
       auditLogService,
-      customFieldValues: customFields.handle.valueService,
-      customFieldDefinitions: customFields.handle.definitionService,
+      customFieldValues: customFieldValueService,
+      customFieldDefinitions: customFieldDefinitionService,
       // Feature 061 — apply seam + composed attribute read model.
-      customFieldsPort: customFields.handle.definitionService,
+      customFieldsPort: customFieldDefinitionService,
       attributeReadService: catalogAttributeReadService,
       requireApiKey: integrations.handle.requireApiKey,
       // Feature 062 — external catalog namespace (mirrors composition.ts):
@@ -2094,7 +2130,7 @@ export async function setupBackendServer(
     eventBus,
     requireCustomer: requireTestCustomer(),
     requireAdmin: requireTestAdmin(permissionService),
-    customFieldValues: customFields.handle.valueService,
+    customFieldValues: customFieldValueService,
     resolveCustomerContext: async (request) => {
       const ctx = customerResolver(request);
       const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
@@ -2148,7 +2184,7 @@ export async function setupBackendServer(
     sessionService,
     requireCustomer: requireTestCustomer(),
     commandBus,
-    customFieldValues: customFields.handle.valueService,
+    customFieldValues: customFieldValueService,
     resolveCustomerActor: (request) => {
       if (request.testActor?.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
@@ -2361,7 +2397,7 @@ export async function setupBackendServer(
       }
       return out;
     },
-    customFieldDefinitions: customFields.handle.definitionService,
+    customFieldDefinitions: customFieldDefinitionService,
     languageService: i18n.handle.languageService,
     // FR-056 — a failed run has to be able to raise the operator notification
     // the integration tests assert on. The module instance lives inside the
@@ -2414,13 +2450,13 @@ export async function setupBackendServer(
       salesChannels.handle.membershipService,
       commandBus,
       catalogAttributeReadService,
-      customFields.handle.definitionService,
+      customFieldDefinitionService,
     ),
     categoryAdmin: new CategoryAdminService(
       em,
       salesChannels.handle.membershipService,
       commandBus,
-      customFields.handle.valueService,
+      customFieldValueService,
     ),
     attributeSets: new AttributeSetService(em, commandBus, catalogAttributeReadService),
     gallery: new GalleryService(em, commandBus),
@@ -2786,7 +2822,11 @@ export async function setupBackendServer(
     dictionaries: dictionaries.handle,
     adminI18n: adminI18n.handle,
     promotions: promotions.handle,
-    customFields: customFields.handle,
+    customFields: {
+      definitionService: customFieldDefinitionService,
+      valueService: customFieldValueService,
+      cache: customFieldsCradle.customFieldDefinitionsCache,
+    },
     // Feature 061 — the composed attribute read model for test fixtures.
     catalogAttributeRead: catalogAttributeReadService,
     organizations: handleFeature026 ?? {

@@ -185,20 +185,28 @@ describe('T076 — what one composition costs, before the 555× multiplier', () 
 
   it('arms the subscription only where a test asks for it', () => {
     expect(PUBSUB_IS_OPT_IN).toBe(true);
-    // Both subscribing sites — the custom-field cache and the module-state
-    // channel — sit behind the guard. Counting them is the checkable form of
-    // "no bare subscribe": a new one added without a guard moves the counts
-    // apart and fails here.
-    // Three occurrences: the two subscribing sites, plus the handle flag that
-    // tells teardown whether there is anything to unsubscribe from. The flag
-    // exists because `unsubscribe()` on a client that never subscribed rejects
-    // asynchronously from ioredis's socket close handler, where no `try` can
-    // reach it.
+    // One subscribing site is left in the harness — the module-state channel.
+    // The custom-field cache moved into `custom_fields`' own `onBoot` when the
+    // module was converted (feature 072, T087), which is where it belongs and
+    // which is also why the guard could not follow it: a module must not know
+    // it is being composed by a test harness.
+    //
+    // So the guard moved to the *input* instead. The harness registers the real
+    // `redisSubscriber` only under `exercisePubSub` and an inert stand-in
+    // otherwise, and the module arms whichever it is handed. That keeps the
+    // property this test exists for — a live subscription only where a test
+    // asks for one — without the module carrying a test flag.
+    //
+    // Three occurrences: the remaining subscribing site, the registration
+    // ternary, and the handle flag that tells teardown whether there is
+    // anything to unsubscribe from. The flag exists because `unsubscribe()` on
+    // a client that never subscribed rejects asynchronously from ioredis's
+    // socket close handler, where no `try` can reach it.
     const guards = [...harness.matchAll(/options\.exercisePubSub === true/g)].length;
     const subscribes = [...harness.matchAll(/\.(subscribe|start)\(redisSubscriber|redisSubscriber\.subscribe\(/g)]
       .length;
     expect(guards).toBe(3);
-    expect(subscribes).toBe(2);
+    expect(subscribes).toBe(1);
   });
 
   it('unsubscribes and drops listeners before disconnecting', () => {
