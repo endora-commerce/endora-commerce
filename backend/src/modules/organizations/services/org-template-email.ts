@@ -9,6 +9,12 @@
 // import of another module's helper.
 
 export interface OrgTemplateEmail {
+  /**
+   * `true` means "handled — do not use the legacy in-code builder", which
+   * includes an email the operator deactivated: off must stay off rather than
+   * silently degrade to the in-code version. Only a code with no definition at
+   * all answers `false`.
+   */
   trySend(input: {
     code: string;
     to: string;

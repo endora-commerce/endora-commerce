@@ -263,6 +263,31 @@ export interface TransactionalEmailSendInput {
   meta?: Record<string, unknown>;
 }
 
+/**
+ * Why a send did — or did not — reach the transport.
+ *
+ * `send` used to answer `Promise<void>` for four unrelated situations, so a
+ * caller could not tell "the operator switched this email off" from "no
+ * template exists for this code yet". Only the latter justifies falling back to
+ * a caller's legacy in-code builder; the others mean the platform deliberately
+ * sent nothing and a fallback would send mail the operator did not ask for.
+ */
+export type TransactionalSendOutcome =
+  /** Handed to the transport. */
+  | { status: 'sent' }
+  /** The definition exists and an operator set `active = false`. */
+  | { status: 'deactivated' }
+  /** No mailer is wired in this composition — nothing can be delivered. */
+  | { status: 'no_transport' }
+  /** No definition for this code: the caller may use its own builder. */
+  | { status: 'no_definition' };
+
 export interface TransactionalEmailSender {
-  send(input: TransactionalEmailSendInput): Promise<void>;
+  /**
+   * An implementor must say which of the four happened — reporting nothing
+   * while delivering nothing is the defect this type exists to close. A
+   * deployment decoration that still answers `void` stops compiling against
+   * this interface, and that compile break is the intended signal.
+   */
+  send(input: TransactionalEmailSendInput): Promise<TransactionalSendOutcome>;
 }
