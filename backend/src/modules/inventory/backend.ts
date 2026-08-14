@@ -12,6 +12,8 @@ import { inventoryModule, type InventoryModuleOptions } from './plugin.js';
 import { StockLevelService } from './services/stock-level-service.js';
 import { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import { WarehouseChannelReconciler } from './services/warehouse-channel-reconciler.js';
+import { AVAILABILITY_BACK_IN_STOCK_DEFAULT, LOW_STOCK_ALERT_DEFAULT } from './email-templates/transactional-defaults.js';
+import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 
 /**
  * `inventory` — three capabilities the test harness never had (feature 072,
@@ -176,4 +178,25 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.onBoot(async () => {
     await new WarehouseChannelReconciler(ctx.cradle<InventoryCradle>().emFactory()).run();
   });
+
+  /**
+   * The default subject and content for the 2 transactional emails this
+   * module declares in its manifest (T143a).
+   *
+   * These were fourteen `emailDefaultsRegistry.register(...)` calls in
+   * `composition.ts`, each importing a template constant out of the module that
+   * owns it — a root reaching into seven modules to hand their own content to
+   * an eighth. Each module registers its own now.
+   *
+   * `ctx.onBoot` rather than a registration: the registry is *read* once, by
+   * `transactional_emails`' boot reconciler inside its plugin body. Boot hooks
+   * run during composition and plugin bodies only when the Fastify app is
+   * built, so this always lands first — by construction, not by ordering luck.
+   */
+  ctx.onBoot(async () => {
+    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    defaults.register('low_stock_alert', LOW_STOCK_ALERT_DEFAULT, 'inventory');
+    defaults.register('availability_back_in_stock', AVAILABILITY_BACK_IN_STOCK_DEFAULT, 'inventory');
+  });
+
 }

@@ -8,6 +8,8 @@ import type { FastifyRequest } from 'fastify';
 import { Invoice } from './entities/invoice.entity.js';
 import { InvoiceTemplate } from './entities/invoice-template.entity.js';
 import { invoicesModule, type InvoicesModuleOptions, type InvoicesModuleHandle } from './plugin.js';
+import { INVOICE_ISSUED_DEFAULT } from './email-templates/invoice-issued.default.js';
+import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 
 /**
  * `invoices` — a document module with a late-bound verifier (feature 072,
@@ -142,4 +144,24 @@ export function registerModule(ctx: ModuleContext): void {
     ) => Promise<void>;
     await plugin(app);
   });
+
+  /**
+   * The default subject and content for the 1 transactional email this
+   * module declares in its manifest (T143a).
+   *
+   * These were fourteen `emailDefaultsRegistry.register(...)` calls in
+   * `composition.ts`, each importing a template constant out of the module that
+   * owns it — a root reaching into seven modules to hand their own content to
+   * an eighth. Each module registers its own now.
+   *
+   * `ctx.onBoot` rather than a registration: the registry is *read* once, by
+   * `transactional_emails`' boot reconciler inside its plugin body. Boot hooks
+   * run during composition and plugin bodies only when the Fastify app is
+   * built, so this always lands first — by construction, not by ordering luck.
+   */
+  ctx.onBoot(async () => {
+    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    defaults.register('invoice_issued', INVOICE_ISSUED_DEFAULT, 'invoices');
+  });
+
 }

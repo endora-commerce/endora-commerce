@@ -32,6 +32,8 @@ import { MinisterstwoFinansowClient } from './integrations/ministerstwo-finansow
 import type { TemplateEmail } from '../transactional_emails/services/template-email.js';
 import type { OrganizationEventBus } from './services/registration-service.js';
 import { organizationsModule, type OrganizationsModuleOptions } from './plugin.js';
+import { EMAIL_VERIFICATION_DEFAULT, NEW_ORG_REGISTRATION_DEFAULT, ORGANIZATION_INVITATION_DEFAULT } from './email-templates/transactional-defaults.js';
+import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 
 /**
  * `organizations` — the tenancy root, and seven container names claimed by a
@@ -389,4 +391,26 @@ export function registerModule(ctx: ModuleContext): void {
     const { organizationId } = payload as unknown as { organizationId: string };
     await cradle().organizationModerationService.handleNewlyRegistered(organizationId);
   });
+
+  /**
+   * The default subject and content for the 3 transactional emails this
+   * module declares in its manifest (T143a).
+   *
+   * These were fourteen `emailDefaultsRegistry.register(...)` calls in
+   * `composition.ts`, each importing a template constant out of the module that
+   * owns it — a root reaching into seven modules to hand their own content to
+   * an eighth. Each module registers its own now.
+   *
+   * `ctx.onBoot` rather than a registration: the registry is *read* once, by
+   * `transactional_emails`' boot reconciler inside its plugin body. Boot hooks
+   * run during composition and plugin bodies only when the Fastify app is
+   * built, so this always lands first — by construction, not by ordering luck.
+   */
+  ctx.onBoot(async () => {
+    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    defaults.register('email_verification', EMAIL_VERIFICATION_DEFAULT, 'organizations');
+    defaults.register('organization_invitation', ORGANIZATION_INVITATION_DEFAULT, 'organizations');
+    defaults.register('new_org_registration', NEW_ORG_REGISTRATION_DEFAULT, 'organizations');
+  });
+
 }

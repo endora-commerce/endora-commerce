@@ -12,7 +12,7 @@ import { TransactionalEmailService } from './services/transactional-email.servic
 import { EmailBlockService } from './services/email-block.service.js';
 import { EmailTemplateService } from './services/email-template.service.js';
 import { TransactionalEmailReconciler } from './services/manifest-reconciler.js';
-import { emailDefaultsRegistry } from './services/email-defaults-registry.js';
+import type { EmailDefaultsRegistry } from './services/email-defaults-registry.js';
 import { registerTransactionalEmailsAdminRoutes } from './routes.admin.js';
 
 export interface TransactionalEmailsModuleOptions {
@@ -22,6 +22,14 @@ export interface TransactionalEmailsModuleOptions {
   resolveAdminUserId: (req: FastifyRequest) => string | null;
   /** All registered module manifests — drives boot reconciliation of definitions. */
   manifests: ReadonlyArray<ModuleManifest>;
+  /**
+   * The registry the owning modules pushed their defaults into (T143a).
+   *
+   * Supplied rather than imported, so it is **one per composition**. The
+   * module-level singleton this replaced was shared by every composition in the
+   * process.
+   */
+  defaultsRegistry: EmailDefaultsRegistry;
   mailer?: Mailer;
   auditLog?: AuditLogService;
   resolveAssetUrl?: AssetUrlResolver;
@@ -63,7 +71,10 @@ export function transactionalEmailsModule(
     const templates = new EmailTemplateService(options.emFactory, options.auditLog);
 
     // Boot reconciliation: upsert definitions from manifests + registered defaults.
-    const reconciler = new TransactionalEmailReconciler(options.emFactory, emailDefaultsRegistry);
+    const reconciler = new TransactionalEmailReconciler(
+      options.emFactory,
+      options.defaultsRegistry,
+    );
     try {
       await reconciler.reconcile(options.manifests);
     } catch (err) {

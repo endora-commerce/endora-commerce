@@ -30,7 +30,13 @@ export const manifest = defineModuleManifest({
   description:
     'Payment driver abstraction and PSP integrations.',
   version: '1.0.0',
-  dependencies: ['auth', 'delivery_methods', 'orders', 'payment_methods'],
+  dependencies: [
+    'auth',
+    'delivery_methods',
+    'orders',
+    'payment_methods',
+    'transactional_emails',
+  ],
   // Feature 073 (Constitution XVII) — the operator's activation control. It only
   // became real in T126: until this module registered its own routes there was
   // no seam for a gate to sit on.

@@ -17,6 +17,8 @@ import { ReturnShipment } from './entities/return-shipment.entity.js';
 import { ReturnCaseAttachment } from './entities/return-case-attachment.entity.js';
 import { ReturnListSavedView } from './entities/return-list-saved-view.entity.js';
 import { returnsModule, type ReturnsModuleOptions } from './plugin.js';
+import { RETURN_AUTHORIZED_DEFAULT, RETURN_REJECTED_DEFAULT } from './email-templates/transactional-defaults.js';
+import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 
 /**
  * `returns` — four settlement ports and a dead callback (feature 072, wave 2,
@@ -116,4 +118,25 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.routes(async (app) => {
     await ctx.cradle<ReturnsCradle>().returns(app);
   });
+
+  /**
+   * The default subject and content for the 2 transactional emails this
+   * module declares in its manifest (T143a).
+   *
+   * These were fourteen `emailDefaultsRegistry.register(...)` calls in
+   * `composition.ts`, each importing a template constant out of the module that
+   * owns it — a root reaching into seven modules to hand their own content to
+   * an eighth. Each module registers its own now.
+   *
+   * `ctx.onBoot` rather than a registration: the registry is *read* once, by
+   * `transactional_emails`' boot reconciler inside its plugin body. Boot hooks
+   * run during composition and plugin bodies only when the Fastify app is
+   * built, so this always lands first — by construction, not by ordering luck.
+   */
+  ctx.onBoot(async () => {
+    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    defaults.register('return_authorized', RETURN_AUTHORIZED_DEFAULT, 'returns');
+    defaults.register('return_rejected', RETURN_REJECTED_DEFAULT, 'returns');
+  });
+
 }
