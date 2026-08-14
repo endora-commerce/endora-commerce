@@ -16,7 +16,11 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port the admin routes are gated by; the
   // edge became real with the conversion (feature 072, T097).
-  dependencies: ['auth'],
+  // `organizations` since feature 072 (T138): the public method list is
+  // filtered by the caller's per-Organization allow-list, which this module
+  // reads through `organizationRestrictionPort`. The edge existed before as a
+  // root-supplied closure and was therefore invisible to the manifest.
+  dependencies: ['auth', 'organizations'],
   // Feature 072/073 (Constitution XVII). Every checkout picks a payment method
   // from this module's table, and `orders` resolves its adapter registry to
   // dispatch on placement. A deployment with it switched off cannot take an

@@ -52,10 +52,19 @@ export interface QuoteRequestsCradle {
   /** Contributed: the organization's effective tax rate for a quoted line. */
   readonly rfqTaxRateResolver: NonNullable<QuoteRequestsModuleOptions['resolveTaxRate']>;
   /**
-   * Contributed: the org tree plus the rollup permission check. Absent, the RFQ
-   * admin scope stops being subtree-aware — which is what the harness ran.
+   * The two ports the sales-rep roll-up scope is built from (T138). They used
+   * to arrive fused as a root-built `rfqSalesRepSubtree` object, which no
+   * `HOST_REGISTERED_PORTS` owner column could describe honestly: the tree
+   * belongs to `organizations`, the permission check to `admin_roles`. Split,
+   * each is an ordinary port and this module writes the one line of policy it
+   * already owns — that a rep holding the roll-up capability sees the subtree.
    */
-  readonly rfqSalesRepSubtree: NonNullable<QuoteRequestsModuleOptions['salesRepSubtree']>;
+  readonly organizationTreeService: NonNullable<
+    QuoteRequestsModuleOptions['salesRepSubtree']
+  >['treeService'];
+  readonly permissionService: {
+    hasPermission(adminUserId: string, permission: string): Promise<boolean>;
+  };
   readonly quoteRequests: ReturnType<typeof quoteRequestsModule>;
   readonly rfqService: ReturnType<typeof quoteRequestsModule>['handle'] extends () => infer H
     ? H extends { rfqService: infer S }
@@ -102,19 +111,23 @@ export function registerModule(ctx: ModuleContext): void {
           resolveTaxRate: (organizationId) =>
             ctx.cradle<QuoteRequestsCradle>().rfqTaxRateResolver(organizationId),
           salesRepSubtree: {
-            // Read off the contribution rather than resolved under its own
-            // name. The first attempt used `lazyPort(ctx, 'organizationTreeService')`
-            // and declared that name's owner in `HOST_REGISTERED_PORTS` — but a
-            // table entry is a claim about who *would* own it, not a
-            // registration, and no root registered one. The port check passed
-            // and the sales-rep reverse-list route answered 500 (issue #49).
-            treeService: lazyPort<
-              QuoteRequestsCradle['rfqSalesRepSubtree']['treeService']
-            >(ctx, 'rfqSalesRepSubtreeTreeService'),
+            // Resolved under the owner's own name. T132 tried exactly this
+            // spelling and it answered 500: the name was declared in
+            // `HOST_REGISTERED_PORTS` and registered by nobody, because a table
+            // entry is a claim about who *would* own it (issue #49). T138 made
+            // the claim true — `organizations` provides it — so the workaround
+            // that read it off a fused root contribution is gone.
+            treeService: lazyPort<QuoteRequestsCradle['organizationTreeService']>(
+              ctx,
+              'organizationTreeService',
+            ),
+            // `organizations:rollup` is a core `PERMISSION_CATALOGUE` code, not
+            // another module's private string, so naming it here crosses no
+            // boundary.
             hasRollupCapability: (adminUserId: string) =>
               ctx
                 .cradle<QuoteRequestsCradle>()
-                .rfqSalesRepSubtree.hasRollupCapability(adminUserId),
+                .permissionService.hasPermission(adminUserId, 'organizations:rollup'),
           },
           resolveExpiryDays: () =>
             setting(QUOTE_REQUESTS_SETTING_CODES.EXPIRY_DAYS, z.number().int().nonnegative(), 0),

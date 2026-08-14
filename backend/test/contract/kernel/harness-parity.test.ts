@@ -98,8 +98,18 @@ describe('T075 — a converted module costs no test-helper edit', () => {
  * is the point.
  */
 const PRODUCTION_ONLY_CONSTRUCTS: Readonly<Record<string, string>> = {
-  MinisterstwoFinansowClient: 'replaced by FakeVatValidator — a deliberate egress seam',
-  ViesClient: 'replaced by FakeVatValidator — a deliberate egress seam',
+  // `MinisterstwoFinansowClient` left this ledger in T138. It was never really
+  // a *root* construct — both roots built the pair of VAT clients only to hand
+  // them to `organizations`. That module registers them as its own default now
+  // and the harness overrides the pair through `organizationsTaxIdClients`, so
+  // neither root names the class and the egress seam is declared in one place
+  // instead of asserted in two.
+  //
+  // `ViesClient` stays, for a different reason: production still builds one
+  // directly for `customers`, which has not converted (T140). It drains there.
+  ViesClient:
+    'still built by the production root for the unconverted `customers` module — ' +
+    'replaced by FakeVatValidator in the harness, a deliberate egress seam',
   OpenIdOAuthProvider: 'replaced by fakeOAuthProvider — a deliberate egress seam',
   SearchIndexer:
     'built inside a production-only closure; the harness builds its own through searchModule',

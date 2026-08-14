@@ -47,20 +47,11 @@ export interface AcknowledgedFkEdge {
 
 export const ACKNOWLEDGED_FK_EDGES: readonly AcknowledgedFkEdge[] = [
   // ── Rule 3 — organizations is the tenancy root (Principle XI) ────────────
-  {
-    from: 'organizations',
-    to: 'admin_users',
-    via: ['organizations → admin_users', 'organization_tax_id_validations → admin_users'],
-    reason:
-      'Sales-rep assignment and tax-id validation attribution are optional admin ' +
-      'annotations on an organization; an organization exists and transacts ' +
-      'without either. The tenancy root must stay installable before the admin ' +
-      'domain.',
-    rule: 'tenancy-root',
-    cycle:
-      'no cycle on its own — dropped because a tenancy root that cannot install ' +
-      'before an optional admin module is not a root',
-  },
+  // `organizations → admin_users` used to sit here. Feature 072 (T138) retired
+  // it: converting the module made its dependency on `admin_notifications`
+  // explicit — the new-registration notice is an in-app admin notification —
+  // and that edge satisfies `admin_users` transitively. The exception became
+  // dead weight and M2 said so, which is the whole point of M2.
   {
     from: 'organizations',
     to: 'customer_accounts',

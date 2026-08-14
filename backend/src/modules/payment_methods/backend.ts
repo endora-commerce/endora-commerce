@@ -44,9 +44,21 @@ export interface PaymentMethodsCradle {
   readonly emFactory: () => EntityManager;
   readonly requireAdmin: RequireAdminFactory;
   readonly salesChannelMembershipPort: SalesChannelMembershipService | undefined;
-  readonly organizationPaymentMethodAllowList:
-    | ((req: FastifyRequest) => Promise<string[] | null>)
-    | undefined;
+  /**
+   * The two halves the allow-list is composed from (T138). This used to be one
+   * `organizationPaymentMethodAllowList` contribution point that a root filled
+   * with a closure fusing an actor read and an `organizations` table read.
+   * `organizations` could not fill it once converted — a module may not write a
+   * name another module owns — and the fusion was the defect anyway: one half
+   * is a deployment input, the other is a port.
+   */
+  readonly customerOrganizationIdResolver: (req: FastifyRequest) => string | null;
+  readonly organizationRestrictionPort: {
+    allowedIdsFor(
+      organizationId: string,
+      kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
+    ): Promise<string[] | null>;
+  };
   readonly paymentAdapterRegistry: typeof paymentAdapterRegistry;
   readonly paymentMethodEligibility: PaymentMethodEligibilityService;
   readonly paymentOrderStatusRegistry: EnumOrderStatusRegistry;
@@ -70,12 +82,6 @@ export function registerModule(ctx: ModuleContext): void {
 
     paymentOrderStatusRegistry: ctx.asFunction(() => new EnumOrderStatusRegistry()).singleton(),
 
-    // Contribution point, defaulted absent by its owner: the per-Organization
-    // allow-list is `organizations`' knowledge, and a deployment without it
-    // offers every active method rather than none.
-    organizationPaymentMethodAllowList: ctx
-      .asFunction((): ((req: FastifyRequest) => Promise<string[] | null>) | undefined => undefined)
-      .singleton(),
   });
 
   ctx.routes(async (app) => {
@@ -86,16 +92,29 @@ export function registerModule(ctx: ModuleContext): void {
       paymentMethodEligibility,
       paymentOrderStatusRegistry,
     } = ctx.cradle<PaymentMethodsCradle>();
-    const allowList = ctx.cradle<PaymentMethodsCradle>().organizationPaymentMethodAllowList;
     const membership = ctx.cradle<PaymentMethodsCradle>().salesChannelMembershipPort;
+
+    /**
+     * Composed here from the two halves, and deliberately without a `catch`.
+     * The root closure this replaces wrapped the read in one, so a
+     * `ModuleDisabledError` from the port would have read as "no restriction" —
+     * fail-open on the one path whose whole job is to restrict. The single
+     * degrade that belongs here ("this caller has no Organization") is the
+     * resolver's own `null`, and the other ("the Organization is gone") is in
+     * `allowedIdsFor`'s return type.
+     */
+    const resolveAllowList = async (req: FastifyRequest): Promise<string[] | null> => {
+      const cradle = ctx.cradle<PaymentMethodsCradle>();
+      const organizationId = cradle.customerOrganizationIdResolver(req);
+      if (organizationId === null) return null;
+      return cradle.organizationRestrictionPort.allowedIdsFor(organizationId, 'paymentMethodIds');
+    };
 
     await registerPaymentMethodsPublicRoutes(app, {
       emFactory,
       registry,
       eligibility: paymentMethodEligibility,
-      ...(allowList === undefined
-        ? {}
-        : { resolveOrganizationPaymentMethodAllowList: allowList }),
+      resolveOrganizationPaymentMethodAllowList: resolveAllowList,
     });
 
     await registerPaymentMethodsAdminRoutes(app, {

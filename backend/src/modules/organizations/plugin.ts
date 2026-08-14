@@ -2,8 +2,6 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CartMergeOutcome } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
-import type { SessionService } from '../auth/services/session-service.js';
-import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
 import type { OrganizationModerationService } from './services/organization-moderation-service.js';
 import type { OrganizationRestrictionService } from './services/organization-restriction-service.js';
 import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
@@ -53,9 +51,6 @@ export interface OrganizationsModuleOptions {
   totpEnrolmentService: TotpEnrolmentService;
   emFactory: () => EntityManager;
   eventBus: EventBus;
-  sessionService: SessionService;
-  /** Feature 042 — lazily resolved MFA login port (absent ⇒ password-only). */
-  getMfaLoginPort?: () => MfaLoginPort | undefined;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;

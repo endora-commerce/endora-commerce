@@ -56,10 +56,14 @@ export interface InventoryCradle {
   >;
   /** Contributed: built over `transactional_emails`' late-announced sender. */
   readonly inventoryTemplateEmail: NonNullable<InventoryModuleOptions['templateEmail']>;
-  /** Contributed: built over `organizations`' warehouse assignment. */
-  readonly inventoryWarehouseAllowList: NonNullable<
-    InventoryModuleOptions['resolveOrganizationWarehouseAllowList']
-  >;
+  /** The two halves the warehouse allow-list is composed from (T138). */
+  readonly customerOrganizationIdResolver: (req: FastifyRequest) => string | null;
+  readonly organizationRestrictionPort: {
+    allowedIdsFor(
+      organizationId: string,
+      kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
+    ): Promise<string[] | null>;
+  };
   readonly inventory: ReturnType<typeof inventoryModule>;
 }
 
@@ -92,8 +96,15 @@ export function registerModule(ctx: ModuleContext): void {
               NonNullable<InventoryModuleOptions['templateEmail']>['trySend']
             >[0]) => ctx.cradle<InventoryCradle>().inventoryTemplateEmail.trySend(input),
           },
-          resolveOrganizationWarehouseAllowList: (req: FastifyRequest) =>
-            ctx.cradle<InventoryCradle>().inventoryWarehouseAllowList(req),
+          // Composed from the two halves, without a `catch` — the root closure
+          // this replaces had one, which would have read a disabled-module
+          // throw as "every warehouse is allowed" (T138).
+          resolveOrganizationWarehouseAllowList: async (req: FastifyRequest) => {
+            const cradle = ctx.cradle<InventoryCradle>();
+            const organizationId = cradle.customerOrganizationIdResolver(req);
+            if (organizationId === null) return null;
+            return cradle.organizationRestrictionPort.allowedIdsFor(organizationId, 'warehouseIds');
+          },
         }),
       )
       .singleton(),

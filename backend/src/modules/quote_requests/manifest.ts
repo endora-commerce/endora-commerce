@@ -96,7 +96,19 @@ export const manifest = defineModuleManifest({
   description:
     'Customer-initiated RFQ workflow with admin pricing, approvals, and expiry.',
   version: '1.0.0',
-  dependencies: ['auth', 'catalog', 'custom_fields', 'organizations', 'settings', 'taxes'],
+  // `admin_roles` since feature 072 (T138): the sales-rep roll-up scope reads
+  // `permissionService` directly now, rather than through a root-built bundle.
+  // It was already satisfied transitively via `auth`; the edge is declared
+  // because a manifest is what an operator reads.
+  dependencies: [
+    'admin_roles',
+    'auth',
+    'catalog',
+    'custom_fields',
+    'organizations',
+    'settings',
+    'taxes',
+  ],
   settings,
   // Feature 073 (Constitution XVII) — the operator's activation control.
   activation: { settingCode: 'quote_requests.enabled', default: true },

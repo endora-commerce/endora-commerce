@@ -24,7 +24,8 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port the admin routes are gated by; the
   // edge became real with the conversion (feature 072, T095).
-  dependencies: ['auth'],
+  // `organizations` since feature 072 (T138) — see the payment twin.
+  dependencies: ['auth', 'organizations'],
   // Feature 072/073 (Constitution XVII) — the payment twin's reasoning applies
   // unchanged: a checkout with no delivery method to choose is not a smaller
   // platform, it is one that cannot complete an order.

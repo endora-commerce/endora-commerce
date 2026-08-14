@@ -8,7 +8,7 @@ export const shoppingListsSettingsManifest = defineModuleSettingsManifest({
       code: 'shopping_lists.enabled',
       name: 'Shopping lists enabled',
       description:
-        'Switches customer shopping lists on or off: creating and sharing lists, saving a cart line to one, converting a list into a quote request, and the quick-order surfaces this module hosts. Nothing is dropped — every list, its items and its sharing state stay in the database.',
+        'Switches customer shopping lists on or off: creating and sharing lists, saving a cart line to one, and converting a list into a quote request. Nothing is dropped — every list, its items and its sharing state stay in the database.',
       groupCode: 'shopping_lists',
       valueType: 'boolean',
       defaultValue: true,
@@ -37,7 +37,7 @@ export const manifest = defineModuleManifest({
   dependencies: ['auth', 'catalog', 'orders', 'organizations', 'quote_requests', 'settings'],
   settings: shoppingListsSettingsManifest,
   // Feature 073 (Constitution XVII) — the operator's activation control. It
-  // covers the quick-order surfaces too while this module hosts them; T139
-  // separates them.
+  // covered the quick-order surfaces too while this module hosted them; T139
+  // separated the two, so this now switches shopping lists and nothing else.
   activation: { settingCode: 'shopping_lists.enabled', default: true },
 });

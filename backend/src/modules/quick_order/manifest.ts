@@ -50,7 +50,30 @@ export const manifest = defineModuleManifest({
   description:
     'Bulk Cart / Quote Request import (CSV + Excel, with variants), quick product search, reorder, default ordering preferences, and one-click buy.',
   version: '2.0.0',
-  dependencies: ['addresses', 'delivery_methods', 'payment_methods'],
+  // Feature 072 (T139) — the six edges the module actually resolves, declared
+  // now that it composes itself rather than being mounted by `shopping_lists`.
+  // `carts`, `catalog`, `orders`, `organizations` and `quote_requests` were all
+  // reached before through options the host passed down, which is why none of
+  // them appeared here.
+  dependencies: [
+    'addresses',
+    'carts',
+    'catalog',
+    'delivery_methods',
+    'orders',
+    'organizations',
+    'payment_methods',
+    'quote_requests',
+    'settings',
+  ],
+  // Feature 073 (Constitution XVII) — its own activation control at last.
+  // Until T139 this module had no presence of its own: `shopping_lists` mounted
+  // its routes, so `shopping_lists.enabled` switched both off together and
+  // there was no way to run CSV import without shopping lists, or the reverse.
+  // Deactivatable, and not close to the line — bulk import, reorder and
+  // one-click buy are a convenience layer over ordering, and a deployment whose
+  // buyers order line by line is an ordinary one.
+  activation: { settingCode: 'quick_order.enabled', default: true },
   settings,
   i18n: { bundlesDir: 'i18n' },
   actions: [

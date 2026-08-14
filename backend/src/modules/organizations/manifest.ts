@@ -73,16 +73,44 @@ export const manifest = defineModuleManifest({
   //                        cycles as soon as the sales_channels bridge edge is
   //                        also declared: organizations → inventory →
   //                        sales_channels → organizations
-  //   → admin_users        (organizations.assigned_sales_rep_id,
-  //                         organization_tax_id_validations.validated_by)
   //   → delivery_methods   (organization_delivery_methods.delivery_method_id)
   //   → payment_methods    (organization_payment_methods.payment_method_id)
-  // The last three close no cycle on their own; they are dropped because a
+  // The last two close no cycle on their own; they are dropped because a
   // tenancy root that cannot install before an optional commercial module is
-  // not a root. All five are recorded in
+  // not a root. (A third, `admin_users`, was here until T138 declared
+  // `admin_notifications` — which depends on it — and made the edge
+  // transitively satisfied.) All four are recorded in
   // test/unit/db/acknowledged-fk-edges.ts, which asserts each is still real and
   // still an exception.
-  dependencies: ['settings'],
+  // `dictionaries` since feature 072 (T138): registration validates the
+  // Organization's country code against the dictionary. `RegistrationService`
+  // has always taken the validator and neither root ever passed one, so the
+  // check was dead and the edge undeclared.
+  // `email` and `admin_notifications` since feature 072 (T138): the invitation,
+  // verification and new-registration mails, and the in-app admin notification
+  // that accompanies the last of them. `addresses` is deliberately absent for
+  // the same reason the five FK edges above are — it declares this module, so
+  // the edge is mutual and declaring it back closes the cycle; it is recorded
+  // in `ACKNOWLEDGED_PORT_EDGES` instead.
+  dependencies: ['admin_notifications', 'custom_fields', 'dictionaries', 'email', 'settings'],
+  // Feature 072/073 (Constitution XVII). The Organization is the single unit of
+  // tenancy (Principle XI): every transacting customer has one, every
+  // tenant-scoped entity carries its id, and the global-filter guard in
+  // `src/tenancy/` resolves against this module's table. Principle XI states
+  // outright that a design with a "no-organization" path is invalid, so there is
+  // no coherent deployment with this switched off — it is not a smaller platform
+  // but one with no tenant.
+  //
+  // The declaration is also forced from above: `customer_accounts` is itself
+  // non-deactivatable and depends on this module, and dependencies fail closed.
+  // Without it, switching `organizations` off would break a module the operator
+  // was promised could not be broken.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'The single unit of tenancy — every organization-scoped entity, membership and ' +
+      'transacting customer resolves through it; switched off, the platform has no tenant.',
+  },
   settings,
   // Feature 047 — admin-editable transactional emails owned by this module.
   transactionalEmails: [

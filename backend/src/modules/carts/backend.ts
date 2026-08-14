@@ -7,6 +7,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { CARTS_SETTING_CODES } from './manifest.js';
@@ -89,7 +90,14 @@ export interface CartsCradle {
   readonly rfqService: ConstructorParameters<typeof CartConversionService>[2];
   /** Root-shaped: production reads `request.actor`, the harness `request.testActor`. */
   readonly cartActorResolver: CartsDeps['resolveCartActor'];
-  readonly organizationTransactGuard: NonNullable<CartsDeps['assertOrganizationCanTransact']>;
+  /**
+   * The tenancy read port (T138). Was `organizationTransactGuard`, a closure
+   * each root wrote over `OrganizationContextService` — and which the harness
+   * registered as `async () => undefined`, so feature 026's rule that an
+   * unapproved Organization may not transact was enforced in production and by
+   * no test at all.
+   */
+  readonly organizationReadPort: OrganizationReadPort;
   /** Contribution point: absent means save-to-list and list-to-cart refuse. */
   readonly cartShoppingListBridge: CartShoppingListBridge;
   /** Contribution point: absent means the sweep flips status and sends nothing. */
@@ -232,8 +240,9 @@ export function registerModule(ctx: ModuleContext): void {
         lazyPort<CartsCradle['pricingService'] & object>(ctx, 'pricingService'),
         cradle.cartRecomputeCache,
       ),
-      assertOrganizationCanTransact: (organizationId) =>
-        ctx.cradle<CartsCradle>().organizationTransactGuard(organizationId),
+      assertOrganizationCanTransact: async (organizationId) => {
+        await ctx.cradle<CartsCradle>().organizationReadPort.assertCanTransact(organizationId);
+      },
       pushLineToShoppingList: (input) =>
         ctx.cradle<CartsCradle>().cartShoppingListBridge.pushLineToShoppingList(input),
       appendShoppingListToCart: (input) =>

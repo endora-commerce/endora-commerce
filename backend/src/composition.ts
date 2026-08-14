@@ -61,24 +61,14 @@ import { effectiveState } from './modules/_lifecycle/services/effective-state.js
 import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 import { catalogModule } from './modules/catalog/plugin.js';
 import type { QuoteRequestsCradle } from './modules/quote_requests/backend.js';
-import { organizationsModule } from './modules/organizations/plugin.js';
-import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
-import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
-import { OrganizationEffectivePriceListsService } from './modules/organizations/services/organization-effective-pricelists-service.js';
-import { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
-import { OrganizationInheritanceService } from './modules/organizations/services/organization-inheritance-service.js';
+// Feature 072 (T138) — `organizations` owns its eight services, its routes and
+// its two event subscriptions now. What is left here is the sales-rep
+// assignment scope `orders` still takes as an argument (drains in T141) and the
+// VIES client the `customers` module is handed directly.
+import type { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
 import { SalesRepAssignmentService } from './modules/organizations/services/sales-rep-assignment-service.js';
-import { OrganizationTaxIdValidationService } from './modules/organizations/services/organization-tax-id-validation-service.js';
 import { ViesClient } from './modules/organizations/integrations/vies-client.js';
-import { MinisterstwoFinansowClient } from './modules/organizations/integrations/ministerstwo-finansow-client.js';
-import type { OrganizationEventBus } from './modules/organizations/services/registration-service.js';
-import { OrgRegistrationNotifier } from './modules/organizations/services/org-registration-notifier.js';
-import { OrganizationContextService } from './modules/organizations/services/organization-context-service.js';
-import {
-  moderationModeSchema,
-  notificationRecipientsSchema,
-} from './modules/organizations/schemas/settings.js';
-import { ORGANIZATIONS_SETTING_CODES } from './modules/organizations/manifest.js';
+import type { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
 // `backend.ts`; what stays here is the pure URL helper, which is a function,
@@ -185,6 +175,7 @@ import { PAYMENT_STATUS_CHANGED_DEFAULT } from './modules/payments/email-templat
 import { SHIPMENT_CREATED_DEFAULT } from './modules/shipments/email-templates/transactional-defaults.js';
 import { INVOICE_ISSUED_DEFAULT } from './modules/invoices/email-templates/invoice-issued.default.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
+import type { OrganizationReadPort } from './kernel/ports/organizations.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
   catalogBulkProgressResolver,
@@ -413,6 +404,26 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // input, not something a module decides.
     resolvedModuleRegistry: resolvedRegistry,
     auditLogService,
+    // Feature 072 (T138) — the four `organizations` inputs, registered here
+    // because that module composes in the early pass.
+    //
+    // `customerOrganizationIdResolver` is the actor half of what used to be
+    // `buildOrgAllowListResolver`: who is asking, as a bare Organization id.
+    // Soft by contract — `null` for anonymous traffic *and* for a Customer with
+    // no Organization — which is why it cannot reuse `customerContextResolver`,
+    // that one throwing 401/422 for both. Catching that to mean "unrestricted"
+    // is the fail-open hazard this split exists to remove.
+    customerOrganizationIdResolver: (request: FastifyRequest): string | null => {
+      const actor = (request as { actor?: { kind: string; organizationId?: string | null } })
+        .actor;
+      return actor?.kind === 'customer' ? actor.organizationId ?? null : null;
+    },
+    organizationsStorefrontBaseUrl:
+      process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+    // No verification-token probe outside the harness.
+    organizationsExposeTestProbe: false,
+    organizationsSettingsChannelId:
+      process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default',
   });
   const earlyModules = composeModules(earlyPassModules(MODULES), {
     container,
@@ -491,7 +502,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // harness ran its own copy that read a different request property and took
   // `permissionService` as optional.
   const requireAdmin = authCradle.requireAdmin;
-  const requireAdminAny = authCradle.requireAdminAny;
 
   /**
    * Resolver for routes that require an authenticated Customer **with** an
@@ -601,27 +611,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   registerValues(container, { mfaLoginPortGetter: getMfaLoginPort });
 
 
-  // Feature 056 — organization tree + inheritance resolution port (shared by
-  // US2 scope expansion and US3 commercial-term inheritance). The global
-  // credit-mode default is read from Settings at call time (settings module is
-  // constructed further below; the closure runs at request time).
-  const organizationTreeService = new OrganizationTreeService(em);
-  const organizationInheritanceService = new OrganizationInheritanceService(
-    em,
-    organizationTreeService,
-    async () => {
-      try {
-        const { z } = await import('zod');
-        return await settings.settingsService.get(
-          ORGANIZATIONS_SETTING_CODES.CREDIT_INHERITANCE_MODE,
-          'default',
-          z.enum(['shared_pool', 'independent_default']),
-        );
-      } catch {
-        return 'shared_pool';
-      }
-    },
-  );
+  // Feature 056 — organization tree + inheritance resolution. Both are
+  // `organizations`' own services and both are gated ports since T138; this
+  // root reads them lazily for the hand-wired remainder that still takes them
+  // as arguments.
+  const organizationTreeService = (): OrganizationTreeService =>
+    (container.cradle as never as { organizationTreeService: OrganizationTreeService })
+      .organizationTreeService;
 
   // Feature 072 (T101) — `credit_limits` owns its service and routes now.
   const creditLimitsCradle = container.cradle as unknown as CreditLimitsCradle;
@@ -720,6 +716,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // default channel; both are composed early, but they read it when their
     // routes register, which is after this line.
     salesChannelMembershipPort: salesChannels.membershipService,
+    // The channel resolver itself. `inventory` has resolved this name since
+    // T129 and neither root registered it, so the channel-scoped storefront
+    // stock read threw `AwilixResolutionError` on its first call — in
+    // production only, because the harness exercises no channel-scoped read.
+    // It went unseen because the name is on `PLATFORM_OWNED_NAMES`, and
+    // `check-port-dependencies` skips those rather than verifying them (#49).
+    salesChannelResolutionPort: salesChannels.resolver,
   });
 
   // Feature 014 — CMS module (Pages, Blocks, Templates, Hooks, Page
@@ -767,11 +770,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Registered after the late pass, where the module declares its defaults.
   registerValues(container, {
     catalogQueryPort: catalogQueryServiceForPromotions,
-    organizationStatusResolver: async (orgId: string) => {
-      const row = (await em().getKnex()
-        .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
-      return row.rows[0]?.status ?? null;
-    },
     promotionRuleTargets: {
       salesChannels: async () => {
         const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
@@ -1021,70 +1019,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // is safe at request time.
   let comparisonAdoption: ((customerAccountId: string, anonymousToken: string) => Promise<void>) | null = null;
 
-  // ── Feature 026 — Organizations moderation lifecycle ────────────────────
+  // Feature 026's moderation lifecycle — the moderation service, the
+  // registration notifier, their two `organization.registered.v1`
+  // subscriptions and the transaction gate — moved into
+  // `organizations/backend.ts` in T138. The subscriptions in particular were
+  // bare `eventBus.on` calls here, so they fired whether or not the module was
+  // present.
   //
-  // Builds the admin_notifications sub-module + the moderation service +
-  // the registration notifier, subscribes both to organization.registered.v1,
-  // and exposes the resulting transaction gate (assertOrganizationCanTransact)
-  // for the carts / orders / quote_requests modules.
-
-
+  // What remains is the settings channel the *kernel* resolver falls back to.
   const platformSettingsChannelId = process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default';
 
-  const resolveModerationMode = async (): Promise<'auto' | 'manual'> => {
-    try {
-      return await settings.settingsService.get(
-        ORGANIZATIONS_SETTING_CODES.MODERATION_MODE,
-        platformSettingsChannelId,
-        moderationModeSchema,
-      );
-    } catch {
-      // Setting not seeded / out-of-scope for the channel — degrade safely
-      // to the most restrictive option so brand-new installs never grant
-      // unverified Organizations transaction rights by accident.
-      return 'manual';
-    }
-  };
-
-  const resolveRegistrationRecipients = async (): Promise<string[]> => {
-    try {
-      return await settings.settingsService.get(
-        ORGANIZATIONS_SETTING_CODES.NEW_REGISTRATION_RECIPIENTS,
-        platformSettingsChannelId,
-        notificationRecipientsSchema,
-      );
-    } catch {
-      return [];
-    }
-  };
-
-  const organizationModerationService = new OrganizationModerationService(
-    em,
-    auditLogService,
-    eventBus as unknown as OrganizationEventBus,
-    platformMailer,
-    resolveModerationMode,
-  );
-
-  // Feature 047 — org emails resolve against the system-default sales channel.
-  const resolveScopeSalesChannelId = async (): Promise<string | null> =>
-    (await em().findOne(SalesChannel, { systemDefault: true }))?.id ?? null;
-  const resolveSalesChannelLanguage = async (salesChannelId: string): Promise<string> =>
-    (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
-  const orgRegistrationNotifier = new OrgRegistrationNotifier({
-    emFactory: em,
-    adminNotificationService: adminNotificationService,
-    mailer: platformMailer,
-    resolveRecipients: resolveRegistrationRecipients,
-    templateEmail: makeOrgTemplateEmail({
-      getSender: () => transactionalEmailSender,
-      resolveScopeSalesChannelId,
-      resolveLanguage: resolveSalesChannelLanguage,
-    }),
-  });
-
-  const organizationContextService = new OrganizationContextService(em);
-  const organizationRestrictionService = new OrganizationRestrictionService(em, auditLogService);
 
   // Feature 056 — subtree-aware assignment service. When a scoped sales-rep
   // actor holds the `organizations:rollup` capability, `listAssignedOrganizationIds`
@@ -1093,7 +1037,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Without the capability, behavior is byte-for-byte the pre-feature flat set.
   // (`organizationTreeService` is constructed above, before creditLimits.)
   const scopedSalesRepAssignment = new SalesRepAssignmentService(em, auditLogService, {
-    treeService: organizationTreeService,
+    treeService: organizationTreeService(),
     hasRollupCapability: (adminUserId) =>
       permissionService.hasPermission(adminUserId, 'organizations:rollup'),
   });
@@ -1129,77 +1073,31 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   };
 
   /**
-   * Builds per-request resolvers that fetch the caller's Organization
-   * allow-list for one of the three restriction kinds. Anonymous requests
-   * and no-org Customers return `null` (no filter applied; platform defaults).
-   * Production wiring resolves the actor via `request.actor`; the test
-   * harness uses `request.testActor` — both shapes are checked.
+   * Feature 072 (T138) — what `orders` still needs, composed from the same two
+   * halves the three converted consumers compose themselves. It stays here only
+   * until `orders` converts in T141; the shape is identical so that conversion
+   * is a move, not a redesign.
+   *
+   * No `catch`: `organizationRestrictionPort` is gated, and swallowing its
+   * `ModuleDisabledError` would read as "no restriction" — fail-open on a
+   * restriction check. The two legitimate degrades are the resolver's own
+   * `null` and `allowedIdsFor`'s.
    */
-  const buildOrgAllowListResolver = (
-    kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
-  ) => async (request: FastifyRequest): Promise<string[] | null> => {
-    const r = request as FastifyRequest & {
-      testActor?: { kind: string; organizationId?: string | null };
-      actor?: { kind: string; organizationId?: string | null };
+  const orgCradle = (): {
+    customerOrganizationIdResolver: (request: FastifyRequest) => string | null;
+    organizationRestrictionPort: OrganizationRestrictionService;
+    organizationReadPort: OrganizationReadPort;
+  } => container.cradle as never;
+  const resolveOrgAllowList =
+    (kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds') =>
+    async (request: FastifyRequest): Promise<string[] | null> => {
+      const organizationId = orgCradle().customerOrganizationIdResolver(request);
+      if (organizationId === null) return null;
+      return orgCradle().organizationRestrictionPort.allowedIdsFor(organizationId, kind);
     };
-    const orgId =
-      (r.testActor?.kind === 'customer' && r.testActor.organizationId) ||
-      (r.actor?.kind === 'customer' && r.actor.organizationId) ||
-      null;
-    if (!orgId) return null;
-    try {
-      const lists = await organizationRestrictionService.readAllowLists(orgId);
-      return lists[kind];
-    } catch {
-      // Org not found / soft-deleted — degrade to "no restriction".
-      return null;
-    }
-  };
+  const resolveOrganizationPaymentMethodAllowList = resolveOrgAllowList('paymentMethodIds');
+  const resolveOrganizationDeliveryMethodAllowList = resolveOrgAllowList('deliveryMethodIds');
 
-  const resolveOrganizationPaymentMethodAllowList = buildOrgAllowListResolver('paymentMethodIds');
-  const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
-  // Contributed to the two method modules, which default them absent: the
-  // per-Organization allow-list is `organizations`' knowledge. Registered here,
-  // after the early pass, so it overrides the modules' defaults rather than
-  // being overwritten by them.
-  registerValues(container, {
-    organizationPaymentMethodAllowList: resolveOrganizationPaymentMethodAllowList,
-    organizationDeliveryMethodAllowList: resolveOrganizationDeliveryMethodAllowList,
-  });
-  const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
-
-  const organizationEffectivePriceListsService = new OrganizationEffectivePriceListsService({
-    emFactory: em,
-    resolveDefaultSalesChannelId: async () => {
-      const channel = await salesChannels.resolver.getSystemDefault();
-      return channel?.id ?? 'default';
-    },
-  });
-
-  // Feature 026 US7 — tax-ID validation. The two real clients hit VIES +
-  // Ministerstwo Finansów. Both degrade safely on outage; the service
-  // persists a record regardless of outcome and never throws upstream.
-  const organizationTaxIdValidationService = new OrganizationTaxIdValidationService({
-    emFactory: em,
-    vies: new ViesClient(),
-    mfPl: new MinisterstwoFinansowClient(),
-    auditLog: auditLogService,
-  });
-  const assertOrganizationCanTransact = async (organizationId: string): Promise<void> => {
-    await organizationContextService.assertCanTransact(organizationId);
-  };
-
-  // Subscribe the two reactors to the registration event. Failures inside
-  // either reactor never poison the registration itself — the EventBus
-  // catches handler throws and logs them.
-  eventBus.on('organization.registered.v1', async (payload) => {
-    const orgId = (payload as unknown as { organizationId: string }).organizationId;
-    await orgRegistrationNotifier.handleRegistered(orgId);
-  });
-  eventBus.on('organization.registered.v1', async (payload) => {
-    const orgId = (payload as unknown as { organizationId: string }).organizationId;
-    await organizationModerationService.handleNewlyRegistered(orgId);
-  });
 
   // Feature 047 — late-bound transactional-email sender. commerceModule (and
   // other owning modules) read it via a getter; the transactional_emails module
@@ -1225,7 +1123,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         // subtree (server-derived). Absent the capability, stays single-org.
         const rollupSubtree = await resolveCustomerRollupSubtreeIds(
           em,
-          (id) => organizationTreeService.subtreeIds(id),
+          (id) => organizationTreeService().subtreeIds(id),
           actor.customerAccountId,
           orgId,
         );
@@ -1306,7 +1204,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
       resolveOrganizationMethodAllowLists: async (organizationId: string) => {
         try {
-          const lists = await organizationRestrictionService.readAllowLists(organizationId);
+          const lists = await orgCradle().organizationRestrictionPort.readAllowLists(
+            organizationId,
+          );
           return {
             paymentMethodIds: lists.paymentMethodIds,
             deliveryMethodIds: lists.deliveryMethodIds,
@@ -1464,63 +1364,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       exposeOrderTransitionService: (svc) => {
         orderTransitionServiceForPrompts = svc;
       },
-      assertOrganizationCanTransact,
+      // T138 — through the tenancy read port, like every other consumer. Moves
+      // into `orders` itself in T141.
+      assertOrganizationCanTransact: async (organizationId: string): Promise<void> => {
+        await orgCradle().organizationReadPort.assertCanTransact(organizationId);
+      },
       resolveOrganizationPaymentMethodAllowList,
       resolveOrganizationDeliveryMethodAllowList,
       resolveAdminOrdersScope,
       // Feature 027 — `Save to shopping list` bridge. Late-bound via
       // closure so the shopping_lists module (constructed below) can
       // inject the real service after this point.
-    }),
-    organizationsModule({
-      customerAuthService: customerAccountsCradle.customerAuthService,
-      passwordResetService: customerAccountsCradle.passwordResetService,
-      customerRoleService: customerAccountsCradle.customerRoleService,
-      totpEnrolmentService: customerAccountsCradle.totpEnrolmentService,
-      addressService,
-      emFactory: em,
-      eventBus,
-      commandBus,
-      sessionService,
-      getMfaLoginPort,
-      requireCustomer,
-      requireAdmin,
-      requireAdminAny,
-      resolveCustomerContext: customerResolver,
-      mailer: platformMailer,
-      getTransactionalEmailSender: () => transactionalEmailSender,
-      resolveScopeSalesChannelId,
-      resolveSalesChannelLanguage,
-      auditLogService,
-      moderationService: organizationModerationService,
-      restrictionService: organizationRestrictionService,
-      effectivePriceListsService: organizationEffectivePriceListsService,
-      taxIdValidationService: organizationTaxIdValidationService,
-      customFieldValues: customFieldValueService,
-        ...(process.env['STOREFRONT_BASE_URL']
-        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
-        : {}),
-      onLogin: async (ctx) => {
-        let cartMerge: Awaited<
-          ReturnType<CartsCradle['cartService']['mergeAnonymousIntoCustomer']>
-        > | undefined;
-        if (ctx.anonymousCartToken) {
-          cartMerge = await (container.cradle as unknown as CartsCradle).cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
-            customerAccountId: ctx.customerAccountId,
-            organizationId: ctx.organizationId,
-          });
-        }
-        // Comparisons module's anonymous→authenticated adoption (R-2 /
-        // FR-005). The hook is late-bound below once `comparisons` is
-        // constructed; before then it's a no-op.
-        if (comparisonAdoption && ctx.anonymousCompareToken) {
-          await comparisonAdoption(
-            ctx.customerAccountId,
-            ctx.anonymousCompareToken,
-          );
-        }
-        return cartMerge ? { cartMerge } : {};
-      },
     }),
     catalogModule({
       emFactory: em,
@@ -1848,7 +1702,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     customerAccountIdResolver: resolveCustomerAccountId,
     // Feature 072 (T101) — inherited credit limits. Owned by `organizations`,
     // which is still hand-wired; the entry goes when that module converts.
-    organizationInheritancePort: organizationInheritanceService,
     // Feature 072 (T111) — the composed attribute read model. Owned by
     // `catalog`, which is still hand-wired; the entry goes when it converts.
     catalogAttributeReadPort: catalogAttributeReadService,
@@ -1935,7 +1788,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `request.actor`, the harness `request.testActor`), and the bridge into
   // `shopping_lists`, which points outward and so cannot be a port.
   registerValues(container, {
-    organizationTransactGuard: assertOrganizationCanTransact,
     cartActorResolver: (request: FastifyRequest) => {
       if (request.actor.kind === 'customer') {
         return {
@@ -2023,11 +1875,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // root's to build; how this deployment names a non-admin caller on an audit
   // record is too.
   registerValues(container, {
-    inventoryWarehouseAllowList: resolveOrganizationWarehouseAllowList,
+    // Feature 072 (T138) — the admin-editable sender `organizations` sends its
+    // verification, invitation and new-registration emails through. A getter
+    // because `transactional_emails` announces the sender well after this
+    // point; same shape and owner as `inventoryTemplateEmail`.
+    organizationsTransactionalEmailSender: () => transactionalEmailSender,
     inventoryTemplateEmail: makeOrgTemplateEmail({
       getSender: () => transactionalEmailSender,
-      resolveScopeSalesChannelId,
-      resolveLanguage: resolveSalesChannelLanguage,
+      // Read off the kernel resolver since T138, which is what `organizations`
+      // itself now does — the two ad-hoc `em().findOne(SalesChannel, …)`
+      // closures this replaces were defined in that module's block.
+      resolveScopeSalesChannelId: async () =>
+        (await salesChannels.resolver.getSystemDefault())?.id ?? null,
+      resolveLanguage: async (salesChannelId: string) =>
+        (await salesChannels.resolver.getById(salesChannelId))?.defaultLanguage ?? 'en-US',
     }),
     inventoryAdminAuditContext: (request: FastifyRequest) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
@@ -2123,11 +1984,40 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return 0;
         }
       },
-    rfqSalesRepSubtreeTreeService: organizationTreeService,
-    rfqSalesRepSubtree: {
-      treeService: organizationTreeService,
-      hasRollupCapability: (adminUserId: string) =>
-        permissionService.hasPermission(adminUserId, 'organizations:rollup'),
+  });
+
+  // Feature 072 (T138) — what a login does beyond logging in. Points *outward*
+  // from `organizations` to two modules that depend on it, so it cannot be a
+  // port; the module defaults it to a no-op and this overwrites that default.
+  //
+  // Registered after the early pass that composes `organizations` rather than
+  // before it, because a value registered before is what the module's own
+  // default then overwrites. It is safe this late for the reason it is safe at
+  // all: the hook is read at login time, not at construction.
+  registerValues(container, {
+    organizationsLoginHook: async (loginCtx: {
+      customerAccountId: string;
+      organizationId: string | null;
+      anonymousCartToken?: string;
+      anonymousCompareToken?: string;
+    }) => {
+      let cartMerge:
+        | Awaited<ReturnType<CartsCradle['cartService']['mergeAnonymousIntoCustomer']>>
+        | undefined;
+      if (loginCtx.anonymousCartToken) {
+        cartMerge = await (
+          container.cradle as unknown as CartsCradle
+        ).cartService.mergeAnonymousIntoCustomer(loginCtx.anonymousCartToken, {
+          customerAccountId: loginCtx.customerAccountId,
+          organizationId: loginCtx.organizationId,
+        });
+      }
+      // Comparisons' anonymous→authenticated adoption (R-2 / FR-005). The hook
+      // is late-bound once `comparisons` is constructed; before then a no-op.
+      if (comparisonAdoption && loginCtx.anonymousCompareToken) {
+        await comparisonAdoption(loginCtx.customerAccountId, loginCtx.anonymousCompareToken);
+      }
+      return cartMerge ? { cartMerge } : {};
     },
   });
 
@@ -2178,7 +2068,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     rfqService: (container.cradle as unknown as QuoteRequestsCradle).rfqService,
     auditLogService,
-    organizationRestrictionService,
+    organizationRestrictionService: orgCradle().organizationRestrictionPort,
     requireAdmin,
     vatValidator: new ViesClient(),
     mailer: platformMailer,
@@ -2625,7 +2515,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // two cross-module services it must not reach for directly, and the sink that
   // hands its own service back to `carts` until that module converts.
   registerValues(container, {
-    organizationRestrictionPort: organizationRestrictionService,
     oneClickOrderServiceGetter: () => orderServiceForOneClick,
     shoppingListServiceSink: (svc: ShoppingListService) => {
       shoppingListService = svc;
