@@ -150,7 +150,7 @@ late:  register all late modules  → runBootHooks()   (late hooks only)
                                   → the Fastify app is built, plugin bodies run
 ```
 
-Three consequences, in the order they bite:
+Four consequences, in the order they bite:
 
 **1. A late-pass registration does not exist during an early-pass boot hook.**
 Not "runs later" — *does not exist*. If an early-pass module's `ctx.onBoot`
