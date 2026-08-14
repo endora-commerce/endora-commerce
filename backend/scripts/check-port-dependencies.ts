@@ -112,6 +112,9 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   'priceListsEnableStatusSweeper',
   'priceListsPricingCacheTtlMs',
   'priceListsAdminAuditContext',
+  // Same shape for `inventory` (T129): how this deployment names a non-admin
+  // caller on an audit record.
+  'inventoryAdminAuditContext',
 ]);
 
 /**
@@ -158,6 +161,13 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `request.testActor` — and owned by `auth` in principle. Read by the four
   // payment gateways (wave 3).
   customerAccountIdResolver: 'auth',
+  // `inventory`'s two root-built adapters (T129): the admin-editable
+  // transactional-email path, and the Organization's warehouse assignment that
+  // scopes a storefront stock read. Each is an adapter over a module
+  // `inventory` must not reach through directly; both owners are still
+  // hand-wired.
+  inventoryTemplateEmail: 'transactional_emails',
+  inventoryWarehouseAllowList: 'organizations',
   // Inherited credit limits (feature 056). Owned by `organizations`, still
   // hand-wired; the entry goes when that module converts.
   organizationInheritancePort: 'organizations',

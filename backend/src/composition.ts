@@ -113,7 +113,6 @@ import {
   readOAuthConfigFromEnv,
   type OAuthProviderPort,
 } from './modules/mfa/services/oauth-provider-service.js';
-import { inventoryModule } from './modules/inventory/plugin.js';
 import { StockLevelService } from './modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
@@ -1683,29 +1682,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         }
       },
     }),
-    inventoryModule({
-      emFactory: em,
-      requireCustomer,
-      resolveCustomerContext: customerResolver,
-      requireAdmin,
-      eventBus,
-      channelResolver: salesChannels.resolver,
-      templateEmail: makeOrgTemplateEmail({
-        getSender: () => transactionalEmailSender,
-        resolveScopeSalesChannelId,
-        resolveLanguage: resolveSalesChannelLanguage,
-      }),
-      settingsService: settings.settingsService,
-        auditLogService,
-      resolveAdminAuditContext: (request) => {
-        const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
-        if (actor?.kind !== 'admin') {
-          return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
-        }
-        return { actorAdminUserId: actor.adminUserId };
-      },
-      resolveOrganizationWarehouseAllowList,
-    }),
   ];
 
   // Feature 005 — Sales Channels plugin (resolver middleware on every
@@ -2057,6 +2033,27 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // suggestion price.
   registerValues(container, {
     searchRunWorkers: runWorkers,
+  });
+
+  // Feature 072 (T129) — the two adapters `inventory` reaches outside itself
+  // through: the transactional-email sender that `transactional_emails`
+  // announces late, and the Organization's warehouse assignment. Both are a
+  // root's to build; how this deployment names a non-admin caller on an audit
+  // record is too.
+  registerValues(container, {
+    inventoryWarehouseAllowList: resolveOrganizationWarehouseAllowList,
+    inventoryTemplateEmail: makeOrgTemplateEmail({
+      getSender: () => transactionalEmailSender,
+      resolveScopeSalesChannelId,
+      resolveLanguage: resolveSalesChannelLanguage,
+    }),
+    inventoryAdminAuditContext: (request: FastifyRequest) => {
+      const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
+      if (actor?.kind !== 'admin') {
+        return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
+      }
+      return { actorAdminUserId: actor.adminUserId };
+    },
   });
 
   // Feature 026 — Admin notifications bell. The plugin only mounts read

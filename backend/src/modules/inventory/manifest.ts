@@ -26,6 +26,16 @@ const settings = defineModuleSettingsManifest({
   groups: [{ code: 'inventory', name: 'Inventory' }],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'inventory.enabled',
+      name: 'Inventory enabled',
+      description:
+        'Switches stock management on or off: warehouses, stock levels and their adjustments, low-stock alerts, the back-in-stock notification flow and the storefront stock figure. Nothing is dropped — every warehouse, stock row and pending notification stays in the database and resumes where it was.',
+      groupCode: 'inventory',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: INVENTORY_SETTING_CODES.DISPLAY_MODE,
       name: 'Storefront stock display mode',
       description:
@@ -103,8 +113,18 @@ export const manifest = defineModuleManifest({
   description:
     'Multi-warehouse stock levels, fulfilment strategy, and storefront display modes.',
   version: '1.0.0',
-  dependencies: ['catalog', 'dictionaries', 'sales_channels', 'settings'],
+  dependencies: [
+    'auth',
+    'catalog',
+    'dictionaries',
+    'organizations',
+    'sales_channels',
+    'settings',
+    'transactional_emails',
+  ],
   settings,
+  // Feature 073 (Constitution XVII) — the operator's activation control.
+  activation: { settingCode: 'inventory.enabled', default: true },
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — admin-editable transactional emails owned by this module.
   transactionalEmails: [

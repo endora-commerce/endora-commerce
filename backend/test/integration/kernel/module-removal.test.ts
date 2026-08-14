@@ -493,6 +493,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   payu: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   stripe: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   tpay: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `inventory` (wave 3, T129). The two central registries name its entities
+  // and migrations; both roots contribute the two adapters it reaches outside
+  // itself through — the transactional-email sender and the Organization's
+  // warehouse assignment — plus the admin audit shape.
+  inventory: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

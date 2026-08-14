@@ -108,7 +108,6 @@ import type { OrganizationEventBus } from '../../src/modules/organizations/servi
 import type { EmailCradle } from '../../src/modules/email/backend.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
-import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
@@ -1565,25 +1564,6 @@ export async function setupBackendServer(
         return { actorAdminUserId: request.testActor.adminUserId };
       },
     }),
-    inventoryModule({
-      emFactory: em,
-      requireCustomer: requireTestCustomer(),
-      resolveCustomerContext: customerResolver,
-      requireAdmin: requireTestAdmin(permissionService),
-      templateEmail: makeOrgTemplateEmail({
-        getSender: () => transactionalEmailSender,
-        resolveScopeSalesChannelId: async () =>
-          (await salesChannels.resolver.getSystemDefault())?.id ?? null,
-        resolveLanguage: async (id) =>
-          (await em().findOne(SalesChannel, { id }))?.defaultLanguage ?? 'en-US',
-      }),
-        auditLogService,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId:
-          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-      }),
-      resolveOrganizationWarehouseAllowList,
-    }),
   ];
 
   // Feature 072 (T118) — the kernel composes the settings reader; the module
@@ -2077,6 +2057,25 @@ export async function setupBackendServer(
   // exists to keep out.
   registerValues(container, {
     searchRunWorkers: false,
+  });
+
+  // Feature 072 (T129) — mirrors `composition.ts`. The harness used to pass no
+  // event bus, channel resolver or settings reader to this module at all, so
+  // three of its behaviours were exercised by nothing; the module reads all
+  // three from the container now.
+  registerValues(container, {
+    inventoryWarehouseAllowList: resolveOrganizationWarehouseAllowList,
+    inventoryTemplateEmail: makeOrgTemplateEmail({
+      getSender: () => transactionalEmailSender,
+      resolveScopeSalesChannelId: async () =>
+        (await salesChannels.resolver.getSystemDefault())?.id ?? null,
+      resolveLanguage: async (id) =>
+        (await em().findOne(SalesChannel, { id }))?.defaultLanguage ?? 'en-US',
+    }),
+    inventoryAdminAuditContext: (request: FastifyRequest) => ({
+      actorAdminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+    }),
   });
 
   // Feature 007 — Comparisons module. Customer-facing CRUD endpoints
