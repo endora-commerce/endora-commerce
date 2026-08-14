@@ -1416,8 +1416,6 @@ export async function setupBackendServer(
           emFactory: em,
           eventBus,
           commandBus,
-          sessionService,
-          getMfaLoginPort: getTestMfaLoginPort,
           getTransactionalEmailSender: () => transactionalEmailSender,
           resolveScopeSalesChannelId,
           resolveSalesChannelLanguage,

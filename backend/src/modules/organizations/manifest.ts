@@ -83,6 +83,24 @@ export const manifest = defineModuleManifest({
   // test/unit/db/acknowledged-fk-edges.ts, which asserts each is still real and
   // still an exception.
   dependencies: ['settings'],
+  // Feature 072/073 (Constitution XVII). The Organization is the single unit of
+  // tenancy (Principle XI): every transacting customer has one, every
+  // tenant-scoped entity carries its id, and the global-filter guard in
+  // `src/tenancy/` resolves against this module's table. Principle XI states
+  // outright that a design with a "no-organization" path is invalid, so there is
+  // no coherent deployment with this switched off — it is not a smaller platform
+  // but one with no tenant.
+  //
+  // The declaration is also forced from above: `customer_accounts` is itself
+  // non-deactivatable and depends on this module, and dependencies fail closed.
+  // Without it, switching `organizations` off would break a module the operator
+  // was promised could not be broken.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'The single unit of tenancy — every organization-scoped entity, membership and ' +
+      'transacting customer resolves through it; switched off, the platform has no tenant.',
+  },
   settings,
   // Feature 047 — admin-editable transactional emails owned by this module.
   transactionalEmails: [

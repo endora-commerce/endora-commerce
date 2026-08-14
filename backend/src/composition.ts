@@ -1481,8 +1481,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       emFactory: em,
       eventBus,
       commandBus,
-      sessionService,
-      getMfaLoginPort,
       requireCustomer,
       requireAdmin,
       requireAdminAny,
