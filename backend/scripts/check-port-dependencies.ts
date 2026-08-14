@@ -180,7 +180,7 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   rfqAdminContextResolver: 'auth',
   rfqTaxRateResolver: 'taxes',
   rfqSalesRepSubtree: 'organizations',
-  organizationTreeService: 'organizations',
+  rfqSalesRepSubtreeTreeService: 'organizations',
   oneClickOrderServiceGetter: 'orders',
   shoppingListServiceSink: 'carts',
   // Inherited credit limits (feature 056). Owned by `organizations`, still

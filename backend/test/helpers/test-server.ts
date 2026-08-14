@@ -2132,6 +2132,7 @@ export async function setupBackendServer(
           return 0;
         }
       },
+    rfqSalesRepSubtreeTreeService: new OrganizationTreeService(em),
     rfqSalesRepSubtree: {
       treeService: new OrganizationTreeService(em),
       hasRollupCapability: (adminUserId: string) =>

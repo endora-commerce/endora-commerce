@@ -2137,6 +2137,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return 0;
         }
       },
+    rfqSalesRepSubtreeTreeService: organizationTreeService,
     rfqSalesRepSubtree: {
       treeService: organizationTreeService,
       hasRollupCapability: (adminUserId: string) =>

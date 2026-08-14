@@ -102,14 +102,15 @@ export function registerModule(ctx: ModuleContext): void {
           resolveTaxRate: (organizationId) =>
             ctx.cradle<QuoteRequestsCradle>().rfqTaxRateResolver(organizationId),
           salesRepSubtree: {
-            // Forwarded whole rather than projected: the option's `treeService`
-            // is typed as the concrete `OrganizationTreeService` rather than a
-            // narrow port, so there is no interface to project onto. Worth
-            // fixing when `organizations` converts; `lazyPort` keeps the read
-            // per call in the meantime.
+            // Read off the contribution rather than resolved under its own
+            // name. The first attempt used `lazyPort(ctx, 'organizationTreeService')`
+            // and declared that name's owner in `HOST_REGISTERED_PORTS` — but a
+            // table entry is a claim about who *would* own it, not a
+            // registration, and no root registered one. The port check passed
+            // and the sales-rep reverse-list route answered 500 (issue #49).
             treeService: lazyPort<
               QuoteRequestsCradle['rfqSalesRepSubtree']['treeService']
-            >(ctx, 'organizationTreeService'),
+            >(ctx, 'rfqSalesRepSubtreeTreeService'),
             hasRollupCapability: (adminUserId: string) =>
               ctx
                 .cradle<QuoteRequestsCradle>()
