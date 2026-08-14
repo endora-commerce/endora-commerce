@@ -73,7 +73,6 @@ import type { AuthCradle } from '../../src/modules/auth/backend.js';
 import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { catalogModule } from '../../src/modules/catalog/plugin.js';
-import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js';
 import { customersModule } from '../../src/modules/customers/plugin.js';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
@@ -108,10 +107,10 @@ import type { OrganizationEventBus } from '../../src/modules/organizations/servi
 import type { EmailCradle } from '../../src/modules/email/backend.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
-import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
-import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
+import type { ShoppingListService } from '../../src/modules/shopping_lists/services/shopping-list-service.js';
+import type { QuoteRequestsCradle } from '../../src/modules/quote_requests/backend.js';
 import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
 import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
@@ -139,7 +138,6 @@ import {
 } from '../../src/modules/inventory/email-templates/transactional-defaults.js';
 import { PAYMENT_STATUS_CHANGED_DEFAULT } from '../../src/modules/payments/email-templates/transactional-defaults.js';
 import { SHIPMENT_CREATED_DEFAULT } from '../../src/modules/shipments/email-templates/transactional-defaults.js';
-import { PaymentEmailNotifier } from '../../src/modules/payments/services/payment-email-notifier.js';
 import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
@@ -167,7 +165,7 @@ import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/servic
 // the same generated list production does; only the host values differ.
 import type { BlogCradle } from '../../src/modules/blog/backend.js';
 import type { DictionariesCradle } from '../../src/modules/dictionaries/backend.js';
-import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
+import type { PriceListsCradle } from '../../src/modules/price_lists/backend.js';
 import type { TaxesCradle } from '../../src/modules/taxes/backend.js';
 import type { PromotionsCradle } from '../../src/modules/promotions/backend.js';
 import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
@@ -1104,27 +1102,18 @@ export async function setupBackendServer(
   if (cmsCradle.cms.handle.cache) await cmsCradle.cms.handle.cache.invalidateAll();
 
   // Pricing (T127 / FR-050).
-  const priceLists = priceListsModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    // Tests drive the status worker via internal/sweep — keeping the
-    // wall-clock interval off avoids spurious DB writes during a run.
-    enableStatusSweeper: false,
-    // Tests rely on writes being immediately visible — disable the LRU
-    // so each contract/integration case sees fresh DB state. Production
-    // composition uses the default 60-s TTL.
-    pricingCacheTtlMs: 0,
-    auditLogService,
-    commandBus,
-    resolveAdminAuditContext: (request) => ({
+  // Feature 072 (T127) — `price_lists` owns its services and routes now. The
+  // harness drives the status worker through `internal/sweep`, so a wall-clock
+  // interval would only add spurious writes mid-run, and it disables the
+  // pricing LRU because a test writes a price and reads it back in the same
+  // breath. Production keeps the sweeper on and the default TTL.
+  registerValues(container, {
+    priceListsEnableStatusSweeper: false,
+    priceListsPricingCacheTtlMs: 0,
+    priceListsAdminAuditContext: (request: FastifyRequest) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
-    // Feature 072 (T072) — without this, inherited price lists (feature 056)
-    // resolved flat in every test: a descendant org never picked up an
-    // ancestor's org-named list, so the inheritance the feature exists for was
-    // exercised by nothing.
-    resolveOrgChain: (orgId) => organizationInheritanceService.priceListOrgChain(orgId),
   });
 
   // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
@@ -1148,7 +1137,7 @@ export async function setupBackendServer(
         return items.map((c) => ({ id: c.id, code: c.code, name: testAnyLabel(c.name) }));
       },
       customerGroups: async () => {
-        const groups = await priceLists.handle.customerGroupService.list();
+        const groups = await (container.cradle as unknown as PriceListsCradle).customerGroupService.list();
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {
@@ -1260,7 +1249,6 @@ export async function setupBackendServer(
       // request seam gets a leak that no test can see.
       await registerRequestScopeHook(app, { buildTenantContext: buildContext });
     },
-    priceLists.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
       shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
@@ -1300,7 +1288,7 @@ export async function setupBackendServer(
           return 0.23;
         }
       },
-      pricingService: priceLists.handle.pricingService,
+      pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
       promotionService: promotionsCradle.promotionService,
       redis,
       // Feature 062 — external orders namespace (mirrors composition.ts):
@@ -1318,7 +1306,7 @@ export async function setupBackendServer(
         }
       },
       ...(options.commerceMailer ? { mailer: options.commerceMailer } : {}),
-      getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      getRfqService: () => (container.cradle as unknown as QuoteRequestsCradle).rfqService,
       // Global backorder gate — resolved at request time via the Settings
       // module (declared below; the closure runs well after setup completes).
       resolveChannelAllowNegativeStock: async (salesChannelId: string) => {
@@ -1531,7 +1519,7 @@ export async function setupBackendServer(
       // bound-key gate + the SAME pricing engine cart pricing uses + the
       // inventory availability port.
       requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
-      pricingService: priceLists.handle.pricingService,
+      pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
       resolveExternalAvailability: async (productIds, salesChannelId) => {
         const candidateWarehouseIds =
           await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
@@ -1574,25 +1562,6 @@ export async function setupBackendServer(
         }
         return { actorAdminUserId: request.testActor.adminUserId };
       },
-    }),
-    inventoryModule({
-      emFactory: em,
-      requireCustomer: requireTestCustomer(),
-      resolveCustomerContext: customerResolver,
-      requireAdmin: requireTestAdmin(permissionService),
-      templateEmail: makeOrgTemplateEmail({
-        getSender: () => transactionalEmailSender,
-        resolveScopeSalesChannelId: async () =>
-          (await salesChannels.resolver.getSystemDefault())?.id ?? null,
-        resolveLanguage: async (id) =>
-          (await em().findOne(SalesChannel, { id }))?.defaultLanguage ?? 'en-US',
-      }),
-        auditLogService,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId:
-          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-      }),
-      resolveOrganizationWarehouseAllowList,
     }),
   ];
 
@@ -1946,6 +1915,12 @@ export async function setupBackendServer(
     requireCustomer: requireTestCustomer(),
     // Feature 072 (wave 2) — mirrors `composition.ts`.
     customerContextResolver: customerResolver,
+    // Feature 072 (wave 3) — how this composition names the calling customer as
+    // an id. The four payment gateways read it; before their conversion this
+    // harness composed none of them, which `harness-parity` recorded as an
+    // accepted divergence.
+    customerAccountIdResolver: (req: FastifyRequest) =>
+      req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
     organizationInheritancePort: organizationInheritanceService,
     catalogAttributeReadPort: catalogAttributeReadService,
     // Feature 072 (wave 2) — mirrors `composition.ts`, reading this harness's
@@ -2081,7 +2056,25 @@ export async function setupBackendServer(
   // exists to keep out.
   registerValues(container, {
     searchRunWorkers: false,
-    pricingService: priceLists.handle.pricingService,
+  });
+
+  // Feature 072 (T129) — mirrors `composition.ts`. The harness used to pass no
+  // event bus, channel resolver or settings reader to this module at all, so
+  // three of its behaviours were exercised by nothing; the module reads all
+  // three from the container now.
+  registerValues(container, {
+    inventoryWarehouseAllowList: resolveOrganizationWarehouseAllowList,
+    inventoryTemplateEmail: makeOrgTemplateEmail({
+      getSender: () => transactionalEmailSender,
+      resolveScopeSalesChannelId: async () =>
+        (await salesChannels.resolver.getSystemDefault())?.id ?? null,
+      resolveLanguage: async (id) =>
+        (await em().findOne(SalesChannel, { id }))?.defaultLanguage ?? 'en-US',
+    }),
+    inventoryAdminAuditContext: (request: FastifyRequest) => ({
+      actorAdminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+    }),
   });
 
   // Feature 007 — Comparisons module. Customer-facing CRUD endpoints
@@ -2095,56 +2088,57 @@ export async function setupBackendServer(
   );
 
   // Feature 008 — Quote Requests workflow.
-  const quoteRequests = quoteRequestsModule({
-    emFactory: em,
-    eventBus,
-    requireCustomer: requireTestCustomer(),
-    requireAdmin: requireTestAdmin(permissionService),
-    customFieldValues: customFieldValueService,
-    resolveCustomerContext: async (request) => {
-      const ctx = customerResolver(request);
-      const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
-      return {
-        customerAccountId: ctx.customerAccountId,
-        organizationId: ctx.organizationId,
-        isOrgAdmin: account?.role === 'organization_admin',
-      };
+  // Feature 072 (T132) — `quote_requests` owns its services, routes and the
+  // four settings reads now. What stays is a composition's answer to who is
+  // asking, the organization's tax rate, and the subtree the RFQ admin scope
+  // rolls up over.
+  registerValues(container, {
+      rfqCustomerContextResolver: async (request: FastifyRequest) => {
+        const ctx = customerResolver(request);
+        const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
+        return {
+          customerAccountId: ctx.customerAccountId,
+          organizationId: ctx.organizationId,
+          isOrgAdmin: account?.role === 'organization_admin',
+        };
+      },
+      rfqAdminContextResolver: async (request: FastifyRequest) => {
+        const adminUserId = request.testActor?.kind === 'admin'
+          ? request.testActor.adminUserId
+          : TEST_ADMIN_ID;
+        const adminUser = await em().findOne(AdminUser, { id: adminUserId });
+        const role = adminUser?.adminRoleId
+          ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+          : null;
+        return {
+          adminUserId,
+          isPlatformAdmin: role?.code === 'platform_admin' || true,
+          roleLabel: role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
+        };
+      },
+      rfqTaxRateResolver: async (organizationId: string) => {
+        try {
+          const org = await em().findOne(Organization, { id: organizationId });
+          const vatStatus = org?.vatStatus ?? 'vat_payer';
+          if (vatStatus !== 'vat_payer') return 0;
+          const country = org?.registeredAddress?.country ?? 'PL';
+          const resolved = await taxesCradle.taxService.taxRateFor({
+            country,
+            productType: 'simple',
+            vatStatus,
+          });
+          return resolved.rate;
+        } catch {
+          return 0;
+        }
+      },
+    rfqSalesRepSubtreeTreeService: new OrganizationTreeService(em),
+    rfqSalesRepSubtree: {
+      treeService: new OrganizationTreeService(em),
+      hasRollupCapability: (adminUserId: string) =>
+        permissionService.hasPermission(adminUserId, 'organizations:rollup'),
     },
-    resolveAdminContext: async (request) => {
-      const adminUserId = request.testActor?.kind === 'admin'
-        ? request.testActor.adminUserId
-        : TEST_ADMIN_ID;
-      const adminUser = await em().findOne(AdminUser, { id: adminUserId });
-      const role = adminUser?.adminRoleId
-        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
-        : null;
-      return {
-        adminUserId,
-        isPlatformAdmin: role?.code === 'platform_admin' || true,
-        roleLabel: role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
-      };
-    },
-    resolveExpiryDays: async () => 0,
-    resolveBoolSetting: async () => true,
-    resolveTaxRate: async (organizationId: string) => {
-      try {
-        const org = await em().findOne(Organization, { id: organizationId });
-        const vatStatus = org?.vatStatus ?? 'vat_payer';
-        if (vatStatus !== 'vat_payer') return 0;
-        const country = org?.registeredAddress?.country ?? 'PL';
-        const resolved = await taxesCradle.taxService.taxRateFor({
-          country,
-          productType: 'simple',
-          vatStatus,
-        });
-        return resolved.rate;
-      } catch {
-        return 0;
-      }
-    },
-    auditLog: auditLogService,
   });
-  modules.push(quoteRequests.register);
 
   // Feature 040 — Customers module (mirrors composition.ts wiring).
   const customers = customersModule({
@@ -2184,7 +2178,7 @@ export async function setupBackendServer(
       }
       return orderListServiceForCustomers;
     },
-    rfqService: quoteRequests.handle().rfqService,
+    rfqService: (container.cradle as unknown as QuoteRequestsCradle).rfqService,
     auditLogService,
     organizationRestrictionService: sharedRestrictionService,
     requireAdmin: requireTestAdmin(permissionService),
@@ -2319,7 +2313,7 @@ export async function setupBackendServer(
       },
     },
     salesChannelMembership: salesChannels.membershipService,
-    pricingService: priceLists.handle.pricingService,
+    pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
     taxService: taxesCradle.taxService,
     resolveAvailability: async (productIds, salesChannelId) => {
       const warehouseIds =
@@ -2421,7 +2415,7 @@ export async function setupBackendServer(
     productLinks: new ProductLinkService(em, commandBus),
     grouped: new GroupedService(em, commandBus),
     assets: assetsLibrary.handle.service,
-    priceLists: priceLists.handle.priceListService,
+    priceLists: (container.cradle as unknown as PriceListsCradle).priceListService,
     currencies: currencyService,
     languageService: languagesCradle.languageService,
     adminNotificationService: handleFeature026.adminNotificationService,
@@ -2491,10 +2485,11 @@ export async function setupBackendServer(
     defaultSubject: SHIPMENT_CREATED_DEFAULT.defaultSubject,
     defaultContent: SHIPMENT_CREATED_DEFAULT.defaultContent,
   });
-  new PaymentEmailNotifier({
-    emFactory: em,
-    getTransactionalEmailSender: () => transactionalEmailSender,
-  }).attach(eventBus);
+  // Feature 072 (T126) — `payments` owns the payment-status notifier now and
+  // subscribes through `ctx.subscribe`, so it stops when the module does. The
+  // sender stays a contribution: `transactional_emails` announces it through a
+  // callback this root holds, later than the module composes.
+  registerValues(container, { paymentEmailSender: () => transactionalEmailSender });
   // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
   // subscribes through `ctx.subscribe`, so it stops when the module does. The
   // sender stays a contribution: `transactional_emails` announces it through a
@@ -2556,42 +2551,16 @@ export async function setupBackendServer(
   // here (queue producer absent) and is contract-tested against its own bare
   // instance in test/contract/google_tag_manager/collect.test.ts.
 
-  modules.push(
-    shoppingListsModule({
-      emFactory: em,
-      rfqService: quoteRequests.handle().rfqService,
-      catalogAttributeRead: catalogAttributeReadService,
-      requireCustomer: requireTestCustomer(),
-      resolveCustomerContext: customerResolver,
-      eventBus,
-      exposeShoppingListService: (svc) => {
-        shoppingListServiceRef = svc;
-      },
-      // Feature 039 — register the admin on-behalf quick-order routes and
-      // the default-preferences routes.
-      requireAdmin: requireTestAdmin(permissionService),
-      auditLog: auditLogService,
-      organizationRestriction: sharedRestrictionService,
-      resolveAdminContext: (request) => ({
-        adminUserId:
-          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-      }),
-      // Feature 039 — one-click buy wiring.
-      getOrderService: () => orderServiceForOneClick,
-      resolveOneClickEnabled: async (salesChannelId) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'quick_order.one_click_buy_enabled',
-            salesChannelId,
-            z.boolean(),
-          );
-        } catch {
-          return false;
-        }
-      },
-    }),
-  );
+  // Feature 072 (T133) — mirrors `composition.ts`. The harness passed no
+  // `settingsService` here, so the quick-order import cap fell back to its
+  // manifest default in every test while production read it per channel.
+  registerValues(container, {
+    organizationRestrictionPort: sharedRestrictionService,
+    oneClickOrderServiceGetter: () => orderServiceForOneClick,
+    shoppingListServiceSink: (svc: ShoppingListService) => {
+      shoppingListServiceRef = svc;
+    },
+  });
 
   if (options.extraModules) modules.push(...options.extraModules);
 

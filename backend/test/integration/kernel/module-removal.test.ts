@@ -470,6 +470,64 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/kernel/module-context.ts',
     'src/kernel/ports/provide.ts',
   ],
+  // `price_lists` (wave 3, T127). The two central registries name its entities
+  // and migrations; both roots contribute the sweeper flag, the cache TTL and
+  // the admin audit shape, and production contributes the pricing decoration
+  // (D-28) — the seam this module exists in the feature to prove.
+  price_lists: [
+    // The overlay decoration itself — `decorate(inner)` written against
+    // `pricing-service.interface.ts`. It is the point of D-28 rather than
+    // residue: a deployment that wraps the pricing engine names the module it
+    // wraps, and `tsc` is the gate that keeps the wrapper assignable.
+    'src/apps/example/decorations/pricing-service.ts',
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // The four payment gateways (wave 3, T128/T130/T134/T135). Identical entries
+  // because the conversion was identical: the two central registries name their
+  // entities and migrations, and no composition root refers to any of them any
+  // more — the twelve options each took were all names the container already
+  // knew.
+  autopay: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  payu: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  stripe: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  tpay: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `inventory` (wave 3, T129). The two central registries name its entities
+  // and migrations; both roots contribute the two adapters it reaches outside
+  // itself through — the transactional-email sender and the Organization's
+  // warehouse assignment — plus the admin audit shape.
+  inventory: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `payments` (wave 3, T126). Same shape as `shipments`: the entity registry
+  // names its entities, both roots register its transactional-email default
+  // into the shared `emailDefaultsRegistry` and contribute the sender. Its
+  // migrations live in `orders`' group, which is why the migration registry
+  // does not name it.
+  payments: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `shopping_lists` (wave 3, T133). The two central registries name its
+  // entities and migrations; both roots contribute the four cross-module names
+  // it must not reach for directly — the RFQ service, the org restriction, the
+  // lazy order service, and the sink that hands its own service to `carts`.
+  // Each goes when its owner converts.
+  shopping_lists: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `quote_requests` (wave 3, T132). The two central registries name its
+  // entities and migrations; both roots contribute who is asking, the
+  // organization's tax rate and the sales-rep subtree. The first is a root's by
+  // nature — production reads `request.actor`, the harness `request.testActor`
+  // — and the other two go when `taxes` and `organizations` convert.
+  quote_requests: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

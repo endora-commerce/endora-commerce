@@ -111,13 +111,16 @@ const PRODUCTION_ONLY_CONSTRUCTS: Readonly<Record<string, string>> = {
     'it would repair is invisible',
 };
 
-/** Module factories production composes and the harness does not. */
-const PRODUCTION_ONLY_MODULES: Readonly<Record<string, string>> = {
-  stripeModule: 'no payment provider composes in tests',
-  tpayModule: 'no payment provider composes in tests',
-  payuModule: 'no payment provider composes in tests',
-  autopayModule: 'no payment provider composes in tests',
-};
+/**
+ * Module factories production composes and the harness does not.
+ *
+ * Empty since feature 072 wave 3 (T128/T130/T134/T135). The four payment
+ * gateways were the entire list, recorded as "no payment provider composes in
+ * tests" — which is exactly the shape a conversion removes: each module
+ * registers itself now, so both compositions get it from the same generated
+ * list and neither root can forget one.
+ */
+const PRODUCTION_ONLY_MODULES: Readonly<Record<string, string>> = {};
 
 describe('T076 — the drift between the roots is an exact ledger', () => {
   it('lists every construct production builds and the harness does not', () => {

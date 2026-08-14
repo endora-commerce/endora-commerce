@@ -29,6 +29,21 @@ import {
  * Do that when a feature genuinely adds or changes API surface, and review the
  * fixture diff as part of that change. Never do it to make this test pass while
  * converting a module — a conversion that moves the document is a bug.
+ *
+ * One exception has come up, and naming it is cheaper than the next person
+ * rediscovering it. This document is recorded from the **test harness**, and
+ * until feature 072 wave 3 the harness composed no payment provider at all —
+ * `harness-parity` carried the four as an accepted divergence. Converting them
+ * (T128/T130/T134/T135) made the harness compose what production always had, so
+ * the fixture gained 348 lines: thirty paths, every one under `stripe`, `tpay`,
+ * `payu` or `autopay`, with **zero deletions and no change to any existing
+ * path, parameter, body or schema**. Production's surface did not move; the
+ * baseline had simply been frozen against an incomplete composition.
+ *
+ * That is the shape to check for before regenerating during a conversion:
+ * additions only, all under the converted module's own prefix. Anything else —
+ * a removal, a renamed parameter, a moved schema — is the bug this test exists
+ * to catch.
  */
 
 const FIXTURE_PATH = join(

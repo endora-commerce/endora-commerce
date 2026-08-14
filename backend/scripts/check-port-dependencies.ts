@@ -105,6 +105,16 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // the storefront cache, the harness refreshes through the cache seam because
   // it never populates `module_registrations`.
   'lifecycleActivationPropagation',
+  // Three properties of a composition rather than of the pricing module: does
+  // this process run a wall-clock status sweeper, how long may a resolved price
+  // be cached, and how does this deployment name a non-admin caller on an audit
+  // record (T127).
+  'priceListsEnableStatusSweeper',
+  'priceListsPricingCacheTtlMs',
+  'priceListsAdminAuditContext',
+  // Same shape for `inventory` (T129): how this deployment names a non-admin
+  // caller on an audit record.
+  'inventoryAdminAuditContext',
 ]);
 
 /**
@@ -146,6 +156,33 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // How a composition resolves the calling customer. Root-shaped for the same
   // reason `requireCustomer` is; owned by `auth` in principle.
   customerContextResolver: 'auth',
+  // The calling customer as a bare id. Root-shaped for the same reason
+  // `customerContextResolver` is — production reads `request.actor`, the harness
+  // `request.testActor` — and owned by `auth` in principle. Read by the four
+  // payment gateways (wave 3).
+  customerAccountIdResolver: 'auth',
+  // `inventory`'s two root-built adapters (T129): the admin-editable
+  // transactional-email path, and the Organization's warehouse assignment that
+  // scopes a storefront stock read. Each is an adapter over a module
+  // `inventory` must not reach through directly; both owners are still
+  // hand-wired.
+  inventoryTemplateEmail: 'transactional_emails',
+  inventoryWarehouseAllowList: 'organizations',
+  // `shopping_lists`' two cross-module reaches (T133): the RFQ service a list
+  // converts into, the org restriction the preference routes re-check against,
+  // the lazy order service one-click buy places through, and the sink that
+  // hands its own service back to `carts`. All four owners are still hand-wired.
+  organizationRestrictionPort: 'organizations',
+  // `quote_requests`' three composition-shaped inputs (T132): who is asking
+  // (production reads `request.actor`, the harness `request.testActor`), the
+  // organization's tax rate, and the subtree the RFQ admin scope rolls up over.
+  rfqCustomerContextResolver: 'auth',
+  rfqAdminContextResolver: 'auth',
+  rfqTaxRateResolver: 'taxes',
+  rfqSalesRepSubtree: 'organizations',
+  rfqSalesRepSubtreeTreeService: 'organizations',
+  oneClickOrderServiceGetter: 'orders',
+  shoppingListServiceSink: 'carts',
   // Inherited credit limits (feature 056). Owned by `organizations`, still
   // hand-wired; the entry goes when that module converts.
   organizationInheritancePort: 'organizations',
@@ -184,7 +221,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // policy rather than a KSeF concern.
   ksefSellerNipResolver: 'ksef',
   newsletterBridge: 'newsletter',
-  pricingService: 'price_lists',
   searchRunWorkers: 'search',
 };
 
@@ -244,6 +280,11 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // a module port, so capturing one cannot outlive a module being switched off.
   'settingsSecretEncryptionKey',
   'settingsModulePresence',
+  // Plain deployment values that decide what gets *constructed*, so they cannot
+  // be deferred past construction: whether a wall-clock sweeper interval starts
+  // at all, and the TTL the pricing LRU is built with (T127).
+  'priceListsEnableStatusSweeper',
+  'priceListsPricingCacheTtlMs',
 ]);
 
 /**
@@ -571,7 +612,7 @@ export function rootRegisteredNames(source: string, file: string): string[] {
 }
 
 export interface RootRegistrationIssue {
-  readonly kind: 'root-shadows-module-port' | 'root-divergence';
+  readonly kind: 'root-shadows-module-port' | 'root-divergence' | 'root-supplies-nothing';
   readonly name: string;
   /** Roots involved: the shadowing ones, or the ones that *do* register it. */
   readonly roots: readonly string[];
@@ -584,6 +625,8 @@ export interface RootCheckInput {
   /** Root label → the names that root registers. */
   readonly rootNames: ReadonlyMap<string, ReadonlySet<string>>;
   readonly hostRegistered: Readonly<Record<string, string>>;
+  /** Names some module actually resolves. A table entry nothing reads is dead weight, not a bug. */
+  readonly resolvedNames: ReadonlySet<string>;
 }
 
 /**
@@ -596,6 +639,13 @@ export interface RootCheckInput {
  * Nothing else notices: the types match, and the port resolves. A root
  * overriding a `di.register` **contribution point** is deliberately not flagged
  * — that is what a contribution point is for.
+ *
+ * **Unsupplied** (issue #49) — a `HOST_REGISTERED_PORTS` name that **no** root
+ * registers, which some module resolves anyway. The table entry names who
+ * *would* own it; it is not a registration, and the check used to read the entry
+ * and conclude the name was accounted for. `organizationTreeService` went in
+ * that way during T132 and the sales-rep reverse-list route answered 500 —
+ * typecheck, lint and this check all green.
  *
  * **Divergence** (issue #48) — a `HOST_REGISTERED_PORTS` name that only one root
  * registers. The table says "some root supplies this", and the check used to
@@ -620,7 +670,15 @@ export function findRootIssues(input: RootCheckInput): RootRegistrationIssue[] {
     const supplying = [...input.rootNames]
       .filter(([, names]) => names.has(name))
       .map(([label]) => label);
-    if (supplying.length > 0 && supplying.length < input.rootNames.size) {
+    if (supplying.length === 0) {
+      // Only a bug if something reads it: an entry nothing resolves is stale,
+      // and the staleness sweep in `main` is where that belongs.
+      if (input.resolvedNames.has(name)) {
+        issues.push({ kind: 'root-supplies-nothing', name, roots: [], owner });
+      }
+      continue;
+    }
+    if (supplying.length < input.rootNames.size) {
       issues.push({ kind: 'root-divergence', name, roots: supplying, owner });
     }
   }
@@ -636,6 +694,15 @@ export function describeRootIssue(issue: RootRegistrationIssue): string {
       `    A root registration overwrites the module's, replacing a gated port with a plain\n` +
       `    value — the module's off-state gate stops firing and nothing else notices.\n` +
       `    Delete the root entry; the module provides it.`
+    );
+  }
+  if (issue.kind === 'root-supplies-nothing') {
+    return (
+      `  - '${issue.name}' is resolved by a module and registered by no composition root, ` +
+      `though\n    HOST_REGISTERED_PORTS names '${issue.owner}' as its owner.\n` +
+      `    That entry is a claim about who would own the name, not a registration. Resolving\n` +
+      `    it throws AwilixResolutionError at the first call. Register it in both roots, or\n` +
+      `    resolve an existing name instead.`
     );
   }
   return (
@@ -726,6 +793,7 @@ async function main(): Promise<void> {
     moduleRegistered,
     rootNames,
     hostRegistered: HOST_REGISTERED_PORTS,
+    resolvedNames: new Set(resolutions.map((r) => r.name)),
   });
 
   if (process.argv.includes('--list')) {

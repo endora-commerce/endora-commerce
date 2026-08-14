@@ -61,7 +61,7 @@ import {
 import { effectiveState } from './modules/_lifecycle/services/effective-state.js';
 import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 import { catalogModule } from './modules/catalog/plugin.js';
-import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
+import type { QuoteRequestsCradle } from './modules/quote_requests/backend.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
 import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
 import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
@@ -89,10 +89,6 @@ import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
 import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { ReturnsBridge } from './modules/returns/backend.js';
-import { stripeModule } from './modules/stripe/plugin.js';
-import { tpayModule } from './modules/tpay/plugin.js';
-import { payuModule } from './modules/payu/plugin.js';
-import { autopayModule } from './modules/autopay/plugin.js';
 import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
@@ -107,7 +103,6 @@ import type { OrderTransitionService } from './modules/orders/services/order-tra
 import { customersModule } from './modules/customers/plugin.js';
 import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
-import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge, MfaCradle } from './modules/mfa/backend.js';
 import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
@@ -117,10 +112,8 @@ import {
   readOAuthConfigFromEnv,
   type OAuthProviderPort,
 } from './modules/mfa/services/oauth-provider-service.js';
-import { inventoryModule } from './modules/inventory/plugin.js';
 import { StockLevelService } from './modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
-import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import type { CreditLimitsCradle } from './modules/credit_limits/backend.js';
 import type { CustomFieldsCradle } from './modules/custom_fields/backend.js';
 import type { ApiKeysCradle } from './modules/api_keys/backend.js';
@@ -137,7 +130,8 @@ import type { TargetValidatorDeps } from './modules/megamenu/services/target-val
 import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
-import { priceListsModule } from './modules/price_lists/plugin.js';
+import type { PriceListsCradle } from './modules/price_lists/backend.js';
+import { DEFAULT_PRICING_CACHE_TTL_MS } from './modules/price_lists/services/pricing-cache.js';
 import type { TaxesCradle } from './modules/taxes/backend.js';
 import type { PromotionsCradle } from './modules/promotions/backend.js';
 import { composeSettingsKernel } from './kernel/settings/compose.js';
@@ -148,7 +142,6 @@ import type { SalesChannelsCradle } from './modules/sales_channels/backend.js';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
 import { SearchIndexer } from './modules/search/services/search-indexer.js';
 import type { ComparisonsCradle } from './modules/comparisons/backend.js';
-import { QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
 // Feature 058 — Credentials (reusable credential configurations).
 import { configurationTypeRegistry } from './modules/credentials/services/registry-singleton.js';
 import { llmConfigurationType } from './modules/credentials/types/llm.type.js';
@@ -192,7 +185,6 @@ import {
 import { PAYMENT_STATUS_CHANGED_DEFAULT } from './modules/payments/email-templates/transactional-defaults.js';
 import { SHIPMENT_CREATED_DEFAULT } from './modules/shipments/email-templates/transactional-defaults.js';
 import { INVOICE_ISSUED_DEFAULT } from './modules/invoices/email-templates/invoice-issued.default.js';
-import { PaymentEmailNotifier } from './modules/payments/services/payment-email-notifier.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
@@ -735,23 +727,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // contributes the asset resolver further below.
   const cmsCradle = container.cradle as unknown as CmsCradle;
 
-  const priceLists = priceListsModule({
-    emFactory: em,
-    requireAdmin,
-    auditLogService,
-    commandBus,
-    // Feature 072 — wrap the pricing engine in the deployment's override, if
-    // any. Core is constructed either way and stays in the call path.
-    ...(decoratePricingService ? { decoratePricingService } : {}),
-    resolveAdminAuditContext: (request) => {
+  // Feature 072 (T127) — `price_lists` owns its services and routes now. Three
+  // names stay a composition's: whether a wall-clock status sweeper runs, how
+  // long the pricing LRU holds, and how this deployment names a non-admin
+  // caller on an audit record. The pricing decoration (D-28) is contributed
+  // here too, when the deployment ships one.
+  registerValues(container, {
+    priceListsEnableStatusSweeper: true,
+    priceListsPricingCacheTtlMs: DEFAULT_PRICING_CACHE_TTL_MS,
+    priceListsAdminAuditContext: (request: FastifyRequest) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
       if (actor?.kind !== 'admin') {
         return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
       }
       return { actorAdminUserId: actor.adminUserId };
     },
-    // Feature 056 — inherited price lists resolve up the org tree (nearest-first).
-    resolveOrgChain: (orgId) => organizationInheritanceService.priceListOrgChain(orgId),
+    ...(decoratePricingService ? { decoratePricingService } : {}),
   });
   // Feature 072 (T119) — `taxes` owns its service and routes now.
   const taxesCradle = container.cradle as unknown as TaxesCradle;
@@ -783,7 +774,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return items.map((c) => ({ id: c.id, code: c.code, name: anyLabel(c.name) }));
       },
       customerGroups: async () => {
-        const groups = await priceLists.handle.customerGroupService.list();
+        const groups = await (container.cradle as unknown as PriceListsCradle).customerGroupService.list();
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {
@@ -1285,7 +1276,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     authModulePlugin,
     tenantContextModulePlugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
-    priceLists.plugin,
     commerceModule({
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
       shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
@@ -1304,7 +1294,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireAdmin,
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.membershipService,
-      pricingService: priceLists.handle.pricingService,
+      pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
       addressService,
       promotionService: promotionsCradle.promotionService,
       redis,
@@ -1481,7 +1471,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return false;
         }
       },
-      getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      getRfqService: () => (container.cradle as unknown as QuoteRequestsCradle).rfqService,
       // Feature 039 — expose OrderService for the quick_order one-click flow.
       exposeOrderService: (svc) => {
         orderServiceForOneClick = svc;
@@ -1627,7 +1617,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // bound-key gate + the SAME pricing engine cart pricing uses (SC-001
       // parity by construction) + the inventory availability indication port.
       requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
-      pricingService: priceLists.handle.pricingService,
+      pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
       resolveExternalAvailability: async (productIds, salesChannelId) => {
         const candidateWarehouseIds =
           await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
@@ -1687,29 +1677,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return null;
         }
       },
-    }),
-    inventoryModule({
-      emFactory: em,
-      requireCustomer,
-      resolveCustomerContext: customerResolver,
-      requireAdmin,
-      eventBus,
-      channelResolver: salesChannels.resolver,
-      templateEmail: makeOrgTemplateEmail({
-        getSender: () => transactionalEmailSender,
-        resolveScopeSalesChannelId,
-        resolveLanguage: resolveSalesChannelLanguage,
-      }),
-      settingsService: settings.settingsService,
-        auditLogService,
-      resolveAdminAuditContext: (request) => {
-        const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
-        if (actor?.kind !== 'admin') {
-          return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
-        }
-        return { actorAdminUserId: actor.adminUserId };
-      },
-      resolveOrganizationWarehouseAllowList,
     }),
   ];
 
@@ -1953,6 +1920,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // customer. Root-shaped for the same reason `requireCustomer` is: five
     // modules take it as an option and each root spells it once.
     customerContextResolver: customerResolver,
+    // Feature 072 (wave 3) — how this composition names the calling customer,
+    // as an id. The four payment gateways each declared an identically-shaped
+    // `resolveCustomerAccountId` option and this root spelled the same
+    // reference once per module.
+    customerAccountIdResolver: resolveCustomerAccountId,
     // Feature 072 (T101) — inherited credit limits. Owned by `organizations`,
     // which is still hand-wired; the entry goes when that module converts.
     organizationInheritancePort: organizationInheritanceService,
@@ -2057,7 +2029,27 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // suggestion price.
   registerValues(container, {
     searchRunWorkers: runWorkers,
-    pricingService: priceLists.handle.pricingService,
+  });
+
+  // Feature 072 (T129) — the two adapters `inventory` reaches outside itself
+  // through: the transactional-email sender that `transactional_emails`
+  // announces late, and the Organization's warehouse assignment. Both are a
+  // root's to build; how this deployment names a non-admin caller on an audit
+  // record is too.
+  registerValues(container, {
+    inventoryWarehouseAllowList: resolveOrganizationWarehouseAllowList,
+    inventoryTemplateEmail: makeOrgTemplateEmail({
+      getSender: () => transactionalEmailSender,
+      resolveScopeSalesChannelId,
+      resolveLanguage: resolveSalesChannelLanguage,
+    }),
+    inventoryAdminAuditContext: (request: FastifyRequest) => {
+      const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
+      if (actor?.kind !== 'admin') {
+        return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
+      }
+      return { actorAdminUserId: actor.adminUserId };
+    },
   });
 
   // Feature 026 — Admin notifications bell. The plugin only mounts read
@@ -2084,132 +2076,74 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // expiry worker can read `quote_requests.expiryDays` through the
   // settings service. Customer + admin context resolvers look up the
   // caller's role for visibility scoping (research §R2 / FR-011 / FR-013).
-  const quoteRequests = quoteRequestsModule({
-    emFactory: em,
-    eventBus,
-    requireCustomer,
-    requireAdmin,
-    customFieldValues: customFieldValueService,
-    resolveCustomerContext: async (request) => {
-      if (request.actor.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      if (!request.actor.organizationId) {
-        throw new HttpError(
-          422,
-          ERROR_CODES.VALIDATION_FAILED,
-          'Quote Requests require an Organization attached to your account.',
-          { code: 'organization_required' },
-        );
-      }
-      const account = await em().findOne(CustomerAccount, {
-        id: request.actor.customerAccountId,
-      });
-      return {
-        customerAccountId: request.actor.customerAccountId,
-        organizationId: request.actor.organizationId,
-        isOrgAdmin: account?.role === 'organization_admin',
-      };
-    },
-    resolveAdminContext: async (request) => {
-      if (request.actor.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
-      const role = adminUser?.adminRoleId
-        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
-        : null;
-      return {
-        adminUserId: request.actor.adminUserId,
-        isPlatformAdmin: role?.code === 'platform_admin',
-        roleLabel:
-          role?.code === 'platform_admin'
-            ? 'Platform administrator'
-            : role?.code === 'sales_representative'
-              ? 'Sales representative'
-              : (role?.name ?? 'Administrator'),
-      };
-    },
-    resolveExpiryDays: async () => {
-      try {
-        const { z } = await import('zod');
-        const value = await settings.settingsService.get(
-          QUOTE_REQUESTS_SETTING_CODES.EXPIRY_DAYS,
-          'default',
-          z.number().int().nonnegative(),
-        );
-        return value;
-      } catch {
-        return 0;
-      }
-    },
-    resolveBoolSetting: async (key) => {
-      try {
-        const { z } = await import('zod');
-        const code =
-          key === 'show_add_to_quote_on_card'
-            ? QUOTE_REQUESTS_SETTING_CODES.SHOW_ADD_TO_QUOTE_ON_CARD
-            : QUOTE_REQUESTS_SETTING_CODES.SHOW_ADD_TO_QUOTE_ON_PDP;
-        return await settings.settingsService.get(code, 'default', z.boolean());
-      } catch {
-        return true;
-      }
-    },
-    // Business Quote Request ID prefix/suffix — global (not Sales-Channel
-    // scoped). Missing settings resolve to '' (bare numeric ID).
-    resolveBusinessIdPrefix: async () => {
-      try {
-        const { z } = await import('zod');
-        return await settings.settingsService.get(
-          QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_PREFIX,
-          'default',
-          z.string(),
-        );
-      } catch {
-        return '';
-      }
-    },
-    resolveBusinessIdSuffix: async () => {
-      try {
-        const { z } = await import('zod');
-        return await settings.settingsService.get(
-          QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_SUFFIX,
-          'default',
-          z.string(),
-        );
-      } catch {
-        return '';
-      }
-    },
-    assertOrganizationCanTransact,
-    // Quote Request prices are net; the VAT rate is resolved from the
-    // Organization's VAT status + tax rules at read time (mirrors Orders).
-    // VAT-exempt / reverse-charge Organizations resolve to 0.
-    resolveTaxRate: async (organizationId: string) => {
-      try {
-        const org = await em().findOne(Organization, { id: organizationId });
-        const vatStatus = org?.vatStatus ?? 'vat_payer';
-        if (vatStatus !== 'vat_payer') return 0;
-        const country = org?.registeredAddress?.country ?? 'PL';
-        const resolved = await taxesCradle.taxService.taxRateFor({
-          country,
-          productType: 'simple',
-          vatStatus,
+  // Feature 072 (T132) — `quote_requests` owns its services, routes and the
+  // four settings reads now. What stays is a composition's answer to who is
+  // asking, the organization's tax rate, and the subtree the RFQ admin scope
+  // rolls up over.
+  registerValues(container, {
+      rfqCustomerContextResolver: async (request: FastifyRequest) => {
+        if (request.actor.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        if (!request.actor.organizationId) {
+          throw new HttpError(
+            422,
+            ERROR_CODES.VALIDATION_FAILED,
+            'Quote Requests require an Organization attached to your account.',
+            { code: 'organization_required' },
+          );
+        }
+        const account = await em().findOne(CustomerAccount, {
+          id: request.actor.customerAccountId,
         });
-        return resolved.rate;
-      } catch {
-        return 0;
-      }
-    },
-    auditLog: auditLogService,
-    // Feature 056 — RFQ admin scope is subtree-aware for reps holding roll-up.
-    salesRepSubtree: {
+        return {
+          customerAccountId: request.actor.customerAccountId,
+          organizationId: request.actor.organizationId,
+          isOrgAdmin: account?.role === 'organization_admin',
+        };
+      },
+      rfqAdminContextResolver: async (request: FastifyRequest) => {
+        if (request.actor.kind !== 'admin') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+        }
+        const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
+        const role = adminUser?.adminRoleId
+          ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+          : null;
+        return {
+          adminUserId: request.actor.adminUserId,
+          isPlatformAdmin: role?.code === 'platform_admin',
+          roleLabel:
+            role?.code === 'platform_admin'
+              ? 'Platform administrator'
+              : role?.code === 'sales_representative'
+                ? 'Sales representative'
+                : (role?.name ?? 'Administrator'),
+        };
+      },
+      rfqTaxRateResolver: async (organizationId: string) => {
+        try {
+          const org = await em().findOne(Organization, { id: organizationId });
+          const vatStatus = org?.vatStatus ?? 'vat_payer';
+          if (vatStatus !== 'vat_payer') return 0;
+          const country = org?.registeredAddress?.country ?? 'PL';
+          const resolved = await taxesCradle.taxService.taxRateFor({
+            country,
+            productType: 'simple',
+            vatStatus,
+          });
+          return resolved.rate;
+        } catch {
+          return 0;
+        }
+      },
+    rfqSalesRepSubtreeTreeService: organizationTreeService,
+    rfqSalesRepSubtree: {
       treeService: organizationTreeService,
-      hasRollupCapability: (adminUserId) =>
+      hasRollupCapability: (adminUserId: string) =>
         permissionService.hasPermission(adminUserId, 'organizations:rollup'),
     },
   });
-  modules.push(quoteRequests.register);
 
   // Feature 040 — Customers module. Built after orders + quote_requests so it
   // can reach the OrderListService (late-bound) and the RfqService for the
@@ -2256,7 +2190,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
       return orderListServiceForCustomers;
     },
-    rfqService: quoteRequests.handle().rfqService,
+    rfqService: (container.cradle as unknown as QuoteRequestsCradle).rfqService,
     auditLogService,
     organizationRestrictionService,
     requireAdmin,
@@ -2421,7 +2355,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     },
     salesChannelMembership: salesChannels.membershipService,
-    pricingService: priceLists.handle.pricingService,
+    pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
     taxService: taxesCradle.taxService,
     // Feature 070 — every secret a delivery target needs is stored through the
     // credentials module (FR-107); this module holds only the pointer.
@@ -2577,7 +2511,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     productLinks: new ProductLinkService(em, commandBus),
     grouped: new GroupedService(em, commandBus),
     assets: assetsLibrary.handle.service,
-    priceLists: priceLists.handle.priceListService,
+    priceLists: (container.cradle as unknown as PriceListsCradle).priceListService,
     currencies: currencyService,
     languageService: languagesCradle.languageService,
     adminNotificationService: adminNotificationService,
@@ -2698,10 +2632,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     defaultContent: INVOICE_ISSUED_DEFAULT.defaultContent,
   });
   // Feature 047 — net-new email subscribers (payment status + shipment created).
-  new PaymentEmailNotifier({
-    emFactory: em,
-    getTransactionalEmailSender: () => transactionalEmailSender,
-  }).attach(eventBus);
+  // Feature 072 (T126) — `payments` owns the payment-status notifier now and
+  // subscribes through `ctx.subscribe`, so it stops when the module does. The
+  // sender stays a contribution: `transactional_emails` announces it through a
+  // callback this root holds, later than the module composes.
+  registerValues(container, { paymentEmailSender: () => transactionalEmailSender });
   // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
   // subscribes through `ctx.subscribe`, so it stops when the module does. The
   // sender stays a contribution: `transactional_emails` announces it through a
@@ -2712,89 +2647,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // payment_methods row per Stripe method, and mounts the webhook / storefront /
   // admin routes. Coupling (settings, sales channels, default channel) is
   // injected so the module stays isolated (Principle I).
-  modules.push(
-    stripeModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.settingsService,
-      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
-      requireAdmin,
-      requireCustomer,
-      resolveCustomerAccountId,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveDefaultChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.membershipService,
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    }),
-  );
 
-  modules.push(
-    tpayModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.settingsService,
-      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
-      requireAdmin,
-      requireCustomer,
-      resolveCustomerAccountId,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveDefaultChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.membershipService,
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-      publicApiBaseUrl:
-        process.env['PUBLIC_API_BASE_URL'] ??
-        process.env['API_PUBLIC_URL'] ??
-        'http://localhost:3001',
-    }),
-  );
 
-  modules.push(
-    payuModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.settingsService,
-      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
-      requireAdmin,
-      requireCustomer,
-      resolveCustomerAccountId,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveDefaultChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.membershipService,
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-      publicApiBaseUrl:
-        process.env['PUBLIC_API_BASE_URL'] ??
-        process.env['API_PUBLIC_URL'] ??
-        'http://localhost:3001',
-    }),
-  );
 
-  modules.push(
-    autopayModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.settingsService,
-      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
-      requireAdmin,
-      requireCustomer,
-      resolveCustomerAccountId,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveDefaultChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.membershipService,
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    }),
-  );
 
   modules.push(
     transactionalEmailsModule({
@@ -2883,44 +2738,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   // Shopping lists / quick order — depends on the RFQ service built above
   // so the "convert to RFQ" flow goes through the new createForCustomer API.
-  modules.push(
-    shoppingListsModule({
-      emFactory: em,
-      rfqService: quoteRequests.handle().rfqService,
-      catalogAttributeRead: catalogAttributeReadService,
-      requireCustomer,
-      resolveCustomerContext: customerResolver,
-      // Provision the customer's default shopping list eagerly on creation.
-      eventBus,
-      // Feature 027 — late-bind the service for the carts module's
-      // save-to-list bridge (commerceModule's pushLineToShoppingList).
-      exposeShoppingListService: (svc) => {
-        shoppingListService = svc;
-      },
-      // Feature 039 — resolve the quick-order import row cap from settings,
-      // register the admin on-behalf quick-order routes, and wire the
-      // default-preferences routes (audit + org allow-list eligibility).
-      settingsService: settings.settingsService,
-      requireAdmin,
-      auditLog: auditLogService,
-      organizationRestriction: organizationRestrictionService,
-      resolveAdminContext: adminContextResolver,
-      // Feature 039 — one-click buy: lazy OrderService + the enabled setting.
-      getOrderService: () => orderServiceForOneClick,
-      resolveOneClickEnabled: async (salesChannelId) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            QUICK_ORDER_SETTING_CODES.ONE_CLICK_BUY_ENABLED,
-            salesChannelId,
-            z.boolean(),
-          );
-        } catch {
-          return false;
-        }
-      },
-    }),
-  );
+  // Feature 072 (T133) — `shopping_lists` owns its services and routes now, and
+  // reads the quick-order settings itself. Three names stay a composition's:
+  // two cross-module services it must not reach for directly, and the sink that
+  // hands its own service back to `carts` until that module converts.
+  registerValues(container, {
+    organizationRestrictionPort: organizationRestrictionService,
+    oneClickOrderServiceGetter: () => orderServiceForOneClick,
+    shoppingListServiceSink: (svc: ShoppingListService) => {
+      shoppingListService = svc;
+    },
+  });
 
   // Feature 018 — Module Lifecycle. Builds the static manifest registry
   // from every module's `manifest` export, exposes the orchestrator handle,

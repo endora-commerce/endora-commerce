@@ -37,7 +37,7 @@ interface CachedEntry<T> {
   expiresAt: number;
 }
 
-const DEFAULT_TTL_MS = 60_000;
+export const DEFAULT_PRICING_CACHE_TTL_MS = 60_000;
 const DEFAULT_CAPACITY = 5_000;
 
 export class PricingCache<T> {
@@ -48,7 +48,7 @@ export class PricingCache<T> {
   private missCount = 0;
 
   constructor(options: { ttlMs?: number; capacity?: number } = {}) {
-    this.ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
+    this.ttlMs = options.ttlMs ?? DEFAULT_PRICING_CACHE_TTL_MS;
     this.capacity = options.capacity ?? DEFAULT_CAPACITY;
   }
 

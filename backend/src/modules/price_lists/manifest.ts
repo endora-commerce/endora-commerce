@@ -15,6 +15,16 @@ const settings = defineModuleSettingsManifest({
   groups: [{ code: 'pricing', name: 'Pricing' }],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'price_lists.enabled',
+      name: 'Price lists enabled',
+      description:
+        'Switches customer-specific pricing on or off: price lists and their tiers, customer groups, the admin pricing screens and the resolved price a signed-in customer sees. Nothing is dropped — every list, tier and group stays in the database and resumes on the next request after switching back.',
+      groupCode: 'pricing',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: PRICING_SETTING_CODES.DEFAULT_DISPLAY_MODE,
       name: 'Default price display mode',
       description:
@@ -44,8 +54,10 @@ export const manifest = defineModuleManifest({
   description:
     'Customer-group pricing, brackets, display modes, and rule-based engine.',
   version: '1.0.0',
-  dependencies: ['catalog', 'settings'],
+  dependencies: ['catalog', 'organizations', 'settings'],
   settings,
+  // Feature 073 (Constitution XVII) — the operator's activation control.
+  activation: { settingCode: 'price_lists.enabled', default: true },
   i18n: { bundlesDir: 'i18n' },
 });
 
