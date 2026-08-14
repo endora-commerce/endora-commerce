@@ -612,7 +612,7 @@ export function rootRegisteredNames(source: string, file: string): string[] {
 }
 
 export interface RootRegistrationIssue {
-  readonly kind: 'root-shadows-module-port' | 'root-divergence';
+  readonly kind: 'root-shadows-module-port' | 'root-divergence' | 'root-supplies-nothing';
   readonly name: string;
   /** Roots involved: the shadowing ones, or the ones that *do* register it. */
   readonly roots: readonly string[];
@@ -625,6 +625,8 @@ export interface RootCheckInput {
   /** Root label → the names that root registers. */
   readonly rootNames: ReadonlyMap<string, ReadonlySet<string>>;
   readonly hostRegistered: Readonly<Record<string, string>>;
+  /** Names some module actually resolves. A table entry nothing reads is dead weight, not a bug. */
+  readonly resolvedNames: ReadonlySet<string>;
 }
 
 /**
@@ -637,6 +639,13 @@ export interface RootCheckInput {
  * Nothing else notices: the types match, and the port resolves. A root
  * overriding a `di.register` **contribution point** is deliberately not flagged
  * — that is what a contribution point is for.
+ *
+ * **Unsupplied** (issue #49) — a `HOST_REGISTERED_PORTS` name that **no** root
+ * registers, which some module resolves anyway. The table entry names who
+ * *would* own it; it is not a registration, and the check used to read the entry
+ * and conclude the name was accounted for. `organizationTreeService` went in
+ * that way during T132 and the sales-rep reverse-list route answered 500 —
+ * typecheck, lint and this check all green.
  *
  * **Divergence** (issue #48) — a `HOST_REGISTERED_PORTS` name that only one root
  * registers. The table says "some root supplies this", and the check used to
@@ -661,7 +670,15 @@ export function findRootIssues(input: RootCheckInput): RootRegistrationIssue[] {
     const supplying = [...input.rootNames]
       .filter(([, names]) => names.has(name))
       .map(([label]) => label);
-    if (supplying.length > 0 && supplying.length < input.rootNames.size) {
+    if (supplying.length === 0) {
+      // Only a bug if something reads it: an entry nothing resolves is stale,
+      // and the staleness sweep in `main` is where that belongs.
+      if (input.resolvedNames.has(name)) {
+        issues.push({ kind: 'root-supplies-nothing', name, roots: [], owner });
+      }
+      continue;
+    }
+    if (supplying.length < input.rootNames.size) {
       issues.push({ kind: 'root-divergence', name, roots: supplying, owner });
     }
   }
@@ -677,6 +694,15 @@ export function describeRootIssue(issue: RootRegistrationIssue): string {
       `    A root registration overwrites the module's, replacing a gated port with a plain\n` +
       `    value — the module's off-state gate stops firing and nothing else notices.\n` +
       `    Delete the root entry; the module provides it.`
+    );
+  }
+  if (issue.kind === 'root-supplies-nothing') {
+    return (
+      `  - '${issue.name}' is resolved by a module and registered by no composition root, ` +
+      `though\n    HOST_REGISTERED_PORTS names '${issue.owner}' as its owner.\n` +
+      `    That entry is a claim about who would own the name, not a registration. Resolving\n` +
+      `    it throws AwilixResolutionError at the first call. Register it in both roots, or\n` +
+      `    resolve an existing name instead.`
     );
   }
   return (
@@ -767,6 +793,7 @@ async function main(): Promise<void> {
     moduleRegistered,
     rootNames,
     hostRegistered: HOST_REGISTERED_PORTS,
+    resolvedNames: new Set(resolutions.map((r) => r.name)),
   });
 
   if (process.argv.includes('--list')) {

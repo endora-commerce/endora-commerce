@@ -293,6 +293,7 @@ describe('findRootIssues', () => {
       moduleRegistered: new Map([['apiKeyResolver', 'api_keys']]),
       rootNames: roots(['apiKeyResolver'], ['apiKeyResolver']),
       hostRegistered: {},
+        resolvedNames: new Set<string>(),
     });
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({
@@ -311,6 +312,7 @@ describe('findRootIssues', () => {
         moduleRegistered: new Map(),
         rootNames: roots(['ksefVerificationResolver'], []),
         hostRegistered: {},
+        resolvedNames: new Set<string>(),
       }),
     ).toEqual([]);
   });
@@ -320,6 +322,7 @@ describe('findRootIssues', () => {
       moduleRegistered: new Map(),
       rootNames: roots([], ['settingsAdminService']),
       hostRegistered: { settingsAdminService: 'settings' },
+      resolvedNames: new Set(['settingsAdminService']),
     });
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({
@@ -336,6 +339,7 @@ describe('findRootIssues', () => {
         moduleRegistered: new Map(),
         rootNames: roots(['requireCustomer'], ['requireCustomer']),
         hostRegistered: { requireCustomer: 'auth' },
+        resolvedNames: new Set<string>(),
       }),
     ).toEqual([]);
   });
@@ -348,6 +352,45 @@ describe('findRootIssues', () => {
         moduleRegistered: new Map(),
         rootNames: roots([], []),
         hostRegistered: { somePort: 'somewhere' },
+        // Nothing resolves it, so the entry is stale rather than broken.
+        resolvedNames: new Set<string>(),
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe('findRootIssues — a table entry no root supplies', () => {
+  it('flags a host-registered port that neither root registers and a module resolves', () => {
+    // Issue #49, found the hard way: `organizationTreeService` was declared in
+    // HOST_REGISTERED_PORTS during T132 and registered by nobody, so the
+    // sales-rep reverse-list route answered 500 with every static check green.
+    const issues = findRootIssues({
+      moduleRegistered: new Map(),
+      rootNames: new Map([
+        ['production', new Set<string>()],
+        ['harness', new Set<string>()],
+      ]),
+      hostRegistered: { organizationTreeService: 'organizations' },
+      resolvedNames: new Set(['organizationTreeService']),
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      kind: 'root-supplies-nothing',
+      name: 'organizationTreeService',
+      owner: 'organizations',
+    });
+  });
+
+  it('stays quiet when nothing resolves the name', () => {
+    expect(
+      findRootIssues({
+        moduleRegistered: new Map(),
+        rootNames: new Map([
+          ['production', new Set<string>()],
+          ['harness', new Set<string>()],
+        ]),
+        hostRegistered: { organizationTreeService: 'organizations' },
+        resolvedNames: new Set<string>(),
       }),
     ).toEqual([]);
   });
