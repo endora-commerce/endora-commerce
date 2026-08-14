@@ -207,9 +207,9 @@ import { inventoryPromptTools } from '../../src/modules/inventory/prompt-tools.j
 import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js';
 import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
-import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
+import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { z } from 'zod';
-import { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
+import type { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
 import { collectRegisteredSettingsManifests } from '../../src/modules/settings/services/registered-settings-manifests.js';
@@ -981,10 +981,6 @@ export async function setupBackendServer(
   // Feature 061 — the composed attribute read model (mirrors composition.ts):
   // product-host custom-field definitions + catalog extension rows, threaded
   // into catalog, search, quick_order, and comparisons.
-  const catalogAttributeReadService = new CatalogAttributeReadService(
-    em,
-    customFieldDefinitionService,
-  );
 
   // US7 — API keys + webhooks. The handle exposes
   // requireApiKey, threaded into the catalog module's by-sku route so that
@@ -2114,7 +2110,10 @@ export async function setupBackendServer(
         );
       },
       expandCategoryProductIds: (categoryIds: string[]) =>
-        new CatalogQueryService(em).expandCategoryProductIds(categoryIds),
+        // T143a — `catalog`'s port, mirroring `composition.ts`. This built a
+        // throwaway `CatalogQueryService` per call.
+        (container.cradle as never as { catalogQueryPort: CatalogQueryService })
+          .catalogQueryPort.expandCategoryProductIds(categoryIds),
       resolvePublicImageUrls: async (assetIds: string[]) => {
         const out = new Map<string, string>();
         if (assetIds.length === 0) return out;
@@ -2437,7 +2436,12 @@ export async function setupBackendServer(
       cache: customFieldsCradle.customFieldDefinitionsCache,
     },
     // Feature 061 — the composed attribute read model for test fixtures.
-    catalogAttributeRead: catalogAttributeReadService,
+    // T143a — the port `catalog` provides, so a fixture reads the same instance
+    // the module does rather than a second one built here.
+    get catalogAttributeRead(): CatalogAttributeReadService {
+      return (container.cradle as never as { catalogAttributeReadPort: CatalogAttributeReadService })
+        .catalogAttributeReadPort;
+    },
     // Feature 072 (T138) — read off the container rather than off a handle the
     // module block used to fill in. The `?? null as unknown as …` fallbacks are
     // gone with it: they existed because the block was conditional, and a test
