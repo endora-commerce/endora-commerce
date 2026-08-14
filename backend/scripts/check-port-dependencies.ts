@@ -224,6 +224,13 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   searchRunWorkers: 'search',
 };
 
+/**
+ * Stand-in recorded when a `lazyPort` name is not a string literal. It is owned
+ * by nobody on purpose, so it surfaces as an `unowned-name` violation naming the
+ * file and line — the same way a genuinely unregistered name does.
+ */
+export const NON_LITERAL_PORT_NAME = '<computed>';
+
 export interface PortResolution {
   readonly moduleId: string;
   readonly name: string;
@@ -496,6 +503,31 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
           recordBindingPattern(parent.name, kind);
         }
       }
+
+      // `lazyPort<T>(ctx, 'name')` — the shape the conversions were told to
+      // prefer, and the one this check could not see until feature 072 wave 3.
+      // Every read through it went unchecked: `pim_ergonode` resolved fourteen
+      // names this way, several registered by nobody, and the check reported a
+      // clean bill while the media pipeline produced no assets.
+      //
+      // Always `deferred`: the proxy resolves the name on each method call, not
+      // when it is constructed. That is the whole point of the helper, and it
+      // is why capturing one is safe where capturing a port is not.
+      const calleeName = ts.isIdentifier(node.expression) ? node.expression.text : tail;
+      if (calleeName === 'lazyPort') {
+        const [, nameArgument] = node.arguments;
+        if (nameArgument !== undefined) {
+          if (ts.isStringLiteralLike(nameArgument)) {
+            record(nameArgument.text, nameArgument, 'deferred');
+          } else {
+            // A name this check cannot read statically must not pass silently.
+            // A generic `port(ctx, name)` helper written during T131 hid twelve
+            // resolutions behind a variable; the fix is to refuse the shape,
+            // not to guess at it.
+            record(NON_LITERAL_PORT_NAME, nameArgument, 'deferred');
+          }
+        }
+      }
     }
     node.forEachChild(visit);
   };
@@ -726,6 +758,14 @@ export function describe(violation: PortViolation, srcRoot = SRC_ROOT): string {
       `    answering after its module is switched off); and a root-registered name may\n` +
       `    not exist yet when this module composes.\n` +
       `    Read it through \`ctx.cradle<C>()\` at the point of use instead.`
+    );
+  }
+  if (violation.kind === 'unowned-name' && resolution.name === NON_LITERAL_PORT_NAME) {
+    return (
+      `  - ${resolution.moduleId} calls lazyPort with a computed name (${where}).\n` +
+      `    A name assembled at runtime is a name this check cannot verify, so it would pass\n` +
+      `    whether or not anything registers it. Pass a string literal — one call per port,\n` +
+      `    even where a helper would be shorter.`
     );
   }
   if (violation.kind === 'unowned-name') {
