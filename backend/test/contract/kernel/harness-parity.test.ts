@@ -115,9 +115,14 @@ const PRODUCTION_ONLY_CONSTRUCTS: Readonly<Record<string, string>> = {
   StorefrontRevalidator:
     'outbound revalidation to the storefront is never exercised, so a broken ' +
     'revalidation payload cannot fail the suite',
-  WarehouseChannelReconciler:
-    'the boot-time reconciler never runs in tests, so a warehouse/channel drift ' +
-    'it would repair is invisible',
+  // `WarehouseChannelReconciler` left this ledger in T143a, and its entry is
+  // the clearest example of what the ledger is for. It read "the boot-time
+  // reconciler never runs in tests, so a warehouse/channel drift it would
+  // repair is invisible" — an accepted blind spot in a repair that exists
+  // because migration 030 seeds the Default warehouse before the system
+  // channel exists. It is `inventory`'s `ctx.onBoot` now, so it runs in both
+  // compositions, and it stops running when that module is switched off, which
+  // the root's call never did.
 };
 
 /**
