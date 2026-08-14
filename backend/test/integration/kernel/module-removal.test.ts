@@ -502,6 +502,12 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `payments` (wave 3, T126). Same shape as `shipments`: the entity registry
+  // names its entities, both roots register its transactional-email default
+  // into the shared `emailDefaultsRegistry` and contribute the sender. Its
+  // migrations live in `orders`' group, which is why the migration registry
+  // does not name it.
+  payments: ['src/composition.ts', 'src/db/entities-registry.ts'],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

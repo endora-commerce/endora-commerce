@@ -51,9 +51,6 @@ import { Organization } from '../organizations/entities/organization.entity.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
-import { ReceivePaymentHandler, type PaymentEventBus } from '../payments/services/receive-payment-handler.js';
-import { PaymentService } from '../payments/services/payment-service.js';
-import { registerPaymentsRoutes } from '../payments/routes.js';
 // Feature 035 — shipping-method adapter framework + shipment lifecycle.
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
@@ -572,16 +569,10 @@ export function commerceModule(options: OrdersModuleOptions) {
       });
     }
 
-    // Feature 034 — payment lifecycle: receive_payment ingress, retry, history.
-    await registerPaymentsRoutes(app, {
-      requireAdmin: options.requireAdmin,
-      receiveHandler: new ReceivePaymentHandler(
-        options.emFactory,
-        orderStatusRegistry,
-        options.eventBus as PaymentEventBus,
-      ),
-      paymentService: new PaymentService(options.emFactory),
-    });
+    // Feature 034 — the payment lifecycle moved out in feature 072 (T126), for
+    // the same reason the shipment lifecycle did in T124: this root constructed
+    // both services and mounted the routes, so switching `payments` off did
+    // nothing at all.
 
     // Feature 035 — the shipment lifecycle moved out in feature 072 (T124).
     // `shipments` owns its services and its routes now, and gates them on its

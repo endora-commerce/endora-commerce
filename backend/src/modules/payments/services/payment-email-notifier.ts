@@ -5,7 +5,6 @@
 
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { TransactionalEmailSender } from '@b2b/contracts';
-import type { EventBus } from '../../../events/bus.js';
 import { Order } from '../../orders/entities/order.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
@@ -18,18 +17,13 @@ export interface PaymentEmailNotifierDeps {
 export class PaymentEmailNotifier {
   constructor(private readonly deps: PaymentEmailNotifierDeps) {}
 
-  attach(eventBus: EventBus): void {
-    eventBus.on('payment.received.v1', (payload) => {
-      const p = payload as unknown as { orderId: string };
-      void this.notify(p.orderId, 'paid', null);
-    });
-    eventBus.on('payment.failed.v1', (payload) => {
-      const p = payload as unknown as { orderId: string; failureReason: string | null };
-      void this.notify(p.orderId, 'failed', p.failureReason ?? null);
-    });
-  }
-
-  private async notify(orderId: string, status: 'paid' | 'failed', failureReason: string | null): Promise<void> {
+  /**
+   * Public since feature 072 (T126), and `attach(eventBus)` is gone with it.
+   * That method subscribed to the raw bus, which is how a payment-status
+   * e-mail went out while this module was switched off; the module now
+   * subscribes through `ctx.subscribe`, which stops with it.
+   */
+  async notify(orderId: string, status: 'paid' | 'failed', failureReason: string | null): Promise<void> {
     const sender = this.deps.getTransactionalEmailSender();
     if (!sender) return;
     try {

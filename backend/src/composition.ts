@@ -188,7 +188,6 @@ import {
 import { PAYMENT_STATUS_CHANGED_DEFAULT } from './modules/payments/email-templates/transactional-defaults.js';
 import { SHIPMENT_CREATED_DEFAULT } from './modules/shipments/email-templates/transactional-defaults.js';
 import { INVOICE_ISSUED_DEFAULT } from './modules/invoices/email-templates/invoice-issued.default.js';
-import { PaymentEmailNotifier } from './modules/payments/services/payment-email-notifier.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
@@ -2694,10 +2693,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     defaultContent: INVOICE_ISSUED_DEFAULT.defaultContent,
   });
   // Feature 047 — net-new email subscribers (payment status + shipment created).
-  new PaymentEmailNotifier({
-    emFactory: em,
-    getTransactionalEmailSender: () => transactionalEmailSender,
-  }).attach(eventBus);
+  // Feature 072 (T126) — `payments` owns the payment-status notifier now and
+  // subscribes through `ctx.subscribe`, so it stops when the module does. The
+  // sender stays a contribution: `transactional_emails` announces it through a
+  // callback this root holds, later than the module composes.
+  registerValues(container, { paymentEmailSender: () => transactionalEmailSender });
   // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
   // subscribes through `ctx.subscribe`, so it stops when the module does. The
   // sender stays a contribution: `transactional_emails` announces it through a
