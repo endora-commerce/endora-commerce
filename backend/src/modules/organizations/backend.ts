@@ -122,7 +122,7 @@ export interface OrganizationsCradle {
    * environment fact; the probe is a harness fact — a route that hands back the
    * last verification token must never exist in production.
    */
-  readonly organizationsStorefrontBaseUrl: string;
+  readonly storefrontBaseUrl: string;
   readonly organizationsExposeTestProbe: boolean;
   /**
    * The channel scope this module's own settings are read at. Root-supplied
@@ -303,7 +303,7 @@ export function registerModule(ctx: ModuleContext): void {
             resolveSalesChannelLanguage: async (salesChannelId: string) =>
               (await cradle().salesChannelResolutionPort.getById(salesChannelId))
                 ?.defaultLanguage ?? 'en-US',
-            storefrontBaseUrl: cradle().organizationsStorefrontBaseUrl,
+            storefrontBaseUrl: cradle().storefrontBaseUrl,
             exposeTestProbe: cradle().organizationsExposeTestProbe,
             requireAdmin: (permission) => async (req, reply) =>
               cradle().requireAdmin(permission)(req, reply),

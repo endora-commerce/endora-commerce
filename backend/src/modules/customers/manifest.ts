@@ -66,7 +66,25 @@ export const manifest = defineModuleManifest({
   description:
     'Customer lifecycle business logic: registration, self-service, blocking, impersonation, groups, deletion, and presence.',
   version: '1.0.0',
-  dependencies: ['customer_accounts', 'organizations', 'settings'],
+  // Feature 072 (T140) — the edges the module actually resolves. `auth`
+  // (sessions), `email` (the set-password mail), `quote_requests` (the RFQ
+  // history surface) and `custom_fields` were all reached through options a
+  // root passed down, which is why none of them appeared here.
+  // Feature 073 (Constitution XVII) — the operator's activation control. This
+  // is the *management* surface over customer accounts: the admin CRM screens,
+  // moderation, self-service profile and deletion. The accounts themselves live
+  // in `customer_accounts`, which is non-deactivatable, so switching this off
+  // removes screens and self-service rather than the ability to log in.
+  activation: { settingCode: 'customers.enabled', default: true },
+  dependencies: [
+    'auth',
+    'custom_fields',
+    'customer_accounts',
+    'email',
+    'organizations',
+    'quote_requests',
+    'settings',
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
   actions: [

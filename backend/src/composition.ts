@@ -1,6 +1,5 @@
 import type { AssetsLibraryCradle } from './modules/assets_library/backend.js';
 import type { CartShoppingListBridge, CartsCradle } from './modules/carts/backend.js';
-import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
 import type { PaymentAdapterRegistry } from './modules/payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from './modules/payment_methods/services/order-status-registry.port.js';
 import type { ShippingAdapterRegistry } from './modules/delivery_methods/services/shipping-adapter-registry.js';
@@ -67,7 +66,6 @@ import type { QuoteRequestsCradle } from './modules/quote_requests/backend.js';
 // VIES client the `customers` module is handed directly.
 import type { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
 import { SalesRepAssignmentService } from './modules/organizations/services/sales-rep-assignment-service.js';
-import { ViesClient } from './modules/organizations/integrations/vies-client.js';
 import type { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
@@ -89,8 +87,6 @@ import { ReturnEmailNotifier } from './modules/returns/services/return-email-not
 import type { AddressService } from './modules/addresses/services/address-service.js';
 import type { OrderListService } from './modules/orders/services/order-list-service.js';
 import type { OrderTransitionService } from './modules/orders/services/order-transition-service.js';
-import { customersModule } from './modules/customers/plugin.js';
-import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge, MfaCradle } from './modules/mfa/backend.js';
@@ -418,7 +414,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         .actor;
       return actor?.kind === 'customer' ? actor.organizationId ?? null : null;
     },
-    organizationsStorefrontBaseUrl:
+    storefrontBaseUrl:
       process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     // No verification-token probe outside the harness.
     organizationsExposeTestProbe: false,
@@ -437,8 +433,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   await earlyModules.runBootHooks();
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument
-  // differed between them; there is one now, and it can always reach the port.
-  const customerAccountsCradle = container.cradle as unknown as CustomerAccountsCradle;
+  // differed between them; there is one now, and both modules resolve it as a
+  // port rather than being handed it (T138/T140).
 
   // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
   // their registries, eligibility services and routes now. `orders` still reads
@@ -468,7 +464,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin: RequireAdminFactory;
     requireAdminAny: RequireAdminAnyFactory;
   };
-  const sessionService = authCradle.sessionService;
 
   // Feature 072 (wave 1) — `admin_roles` owns these three now.
   const rolesCradle = container.cradle as unknown as {
@@ -2024,84 +2019,27 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 040 — Customers module. Built after orders + quote_requests so it
   // can reach the OrderListService (late-bound) and the RfqService for the
   // self-service order / RFQ history endpoints.
-  const customers = customersModule({
-      customerAuthService: customerAccountsCradle.customerAuthService,
-      passwordResetService: customerAccountsCradle.passwordResetService,
-    emFactory: em,
-    sessionService,
-    requireCustomer,
-    commandBus,
-    customFieldValues: customFieldValueService,
-    resolveCustomerActor: (request) => {
+  // Feature 072 (T140) — `customers` owns its services, its routes and its
+  // three settings reads now. Three names stay a composition's: who is asking,
+  // who is moderating (both actor-shaped, owner `auth`), and the late-bound
+  // order-list service `orders` builds.
+  registerValues(container, {
+    customerActorResolver: (request: FastifyRequest) => {
       if (request.actor.kind !== 'customer') {
-        throw new HttpError(
-          401,
-          ERROR_CODES.UNAUTHORIZED,
-          'Customer session required.',
-        );
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
       }
       return {
         customerAccountId: request.actor.customerAccountId,
         organizationId: request.actor.organizationId ?? null,
       };
     },
-    resolveAllowRegistrationWithoutOrganization: async () => {
-      try {
-        const { z } = await import('zod');
-        const channel = await salesChannels.resolver.getSystemDefault();
-        if (!channel) return false;
-        return await settings.settingsService.get(
-          CUSTOMERS_SETTING_CODES.ALLOW_REGISTRATION_WITHOUT_ORGANIZATION,
-          channel.id,
-          z.boolean(),
-        );
-      } catch {
-        // Setting not seeded / out-of-scope — default closed (org required).
-        return false;
-      }
-    },
-    getOrderListService: () => {
+    customerOrderListServiceGetter: () => {
       if (!orderListServiceForCustomers) {
         throw new Error('OrderListService not yet bound');
       }
       return orderListServiceForCustomers;
     },
-    rfqService: (container.cradle as unknown as QuoteRequestsCradle).rfqService,
-    auditLogService,
-    organizationRestrictionService: orgCradle().organizationRestrictionPort,
-    requireAdmin,
-    vatValidator: new ViesClient(),
-    mailer: platformMailer,
-    storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    resolveDeletionRetentionDays: async () => {
-      try {
-        const { z } = await import('zod');
-        const channel = await salesChannels.resolver.getSystemDefault();
-        if (!channel) return 365;
-        return await settings.settingsService.get(
-          CUSTOMERS_SETTING_CODES.DELETION_RETENTION_DAYS,
-          channel.id,
-          z.number(),
-        );
-      } catch {
-        return 365;
-      }
-    },
-    resolvePresenceFreshnessMinutes: async () => {
-      try {
-        const { z } = await import('zod');
-        const channel = await salesChannels.resolver.getSystemDefault();
-        if (!channel) return 10;
-        return await settings.settingsService.get(
-          CUSTOMERS_SETTING_CODES.PRESENCE_FRESHNESS_MINUTES,
-          channel.id,
-          z.number(),
-        );
-      } catch {
-        return 10;
-      }
-    },
-    resolveModerationActor: async (request) => {
+    customerModerationActorResolver: async (request: FastifyRequest) => {
       const actor = request.actor;
       if (actor.kind !== 'admin') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
@@ -2122,7 +2060,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       return { adminUserId: actor.adminUserId, isPlatformAdmin, allowedOrganizationIds };
     },
   });
-  modules.push(customers.plugin);
 
   // Feature 047 — Invoices. Owns issuance, numbering, PDF rendering, admin +
   // customer routes. Constructed before returns so the corrective-invoice

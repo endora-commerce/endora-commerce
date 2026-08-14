@@ -1,6 +1,5 @@
 import type { AssetsLibraryCradle } from '../../src/modules/assets_library/backend.js';
 import type { CartShoppingListBridge, CartsCradle } from '../../src/modules/carts/backend.js';
-import type { CustomerAccountsCradle } from '../../src/modules/customer_accounts/backend.js';
 import type { PaymentAdapterRegistry } from '../../src/modules/payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from '../../src/modules/payment_methods/services/order-status-registry.port.js';
 import type { ShippingAdapterRegistry } from '../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
@@ -73,7 +72,6 @@ import type { AuthCradle } from '../../src/modules/auth/backend.js';
 import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { catalogModule } from '../../src/modules/catalog/plugin.js';
-import { customersModule } from '../../src/modules/customers/plugin.js';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
@@ -820,7 +818,7 @@ export async function setupBackendServer(
     // Customer with no Organization.
     customerOrganizationIdResolver: (request: FastifyRequest): string | null =>
       request.testActor?.kind === 'customer' ? request.testActor.organizationId ?? null : null,
-    organizationsStorefrontBaseUrl: 'http://localhost:3000',
+    storefrontBaseUrl: 'http://localhost:3000',
     // The one composition allowed to serve `/api/v1/_test/latest-verification-token`.
     organizationsExposeTestProbe: true,
     organizationsSettingsChannelId: 'default',
@@ -837,7 +835,6 @@ export async function setupBackendServer(
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument
   // differed between them; there is one now, and it can always reach the port.
-  const customerAccountsCradle = container.cradle as unknown as CustomerAccountsCradle;
 
   // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
   // their registries, eligibility services and routes now. `orders` still reads
@@ -2096,15 +2093,13 @@ export async function setupBackendServer(
   });
 
   // Feature 040 — Customers module (mirrors composition.ts wiring).
-  const customers = customersModule({
-      customerAuthService: customerAccountsCradle.customerAuthService,
-      passwordResetService: customerAccountsCradle.passwordResetService,
-    emFactory: em,
-    sessionService,
-    requireCustomer: requireTestCustomer(),
-    commandBus,
-    customFieldValues: customFieldValueService,
-    resolveCustomerActor: (request) => {
+  // Feature 072 (T140) — mirrors `composition.ts`: three names stay this
+  // composition's, and the fake VAT validator is contributed rather than passed
+  // as an argument, so it is the same instance `organizations` gets by
+  // construction rather than by a comment asking for it.
+  registerValues(container, {
+    customersVatValidator: new FakeVatValidator('vies'),
+    customerActorResolver: (request: FastifyRequest) => {
       if (request.testActor?.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
       }
@@ -2113,38 +2108,13 @@ export async function setupBackendServer(
         organizationId: request.testActor.organizationId ?? null,
       };
     },
-    resolveAllowRegistrationWithoutOrganization: async () => {
-      try {
-        const { z } = await import('zod');
-        const channel = await salesChannels.resolver.getSystemDefault();
-        if (!channel) return false;
-        return await settings.settingsService.get(
-          'customers.allow_registration_without_organization',
-          channel.id,
-          z.boolean(),
-        );
-      } catch {
-        return false;
-      }
-    },
-    getOrderListService: () => {
+    customerOrderListServiceGetter: () => {
       if (!orderListServiceForCustomers) {
         throw new Error('OrderListService not yet bound');
       }
       return orderListServiceForCustomers;
     },
-    rfqService: (container.cradle as unknown as QuoteRequestsCradle).rfqService,
-    auditLogService,
-    organizationRestrictionService: sharedRestrictionService,
-    requireAdmin: requireTestAdmin(permissionService),
-    mailer: emailMailer,
-    storefrontBaseUrl: 'http://localhost:3000',
-    resolveDeletionRetentionDays: async () => 365,
-    resolvePresenceFreshnessMinutes: async () => 10,
-    // Feature 072 (T071) — the same fake the organizations wiring gets, rather
-    // than a second one that answered differently for the same tax id.
-    vatValidator: new FakeVatValidator('vies'),
-    resolveModerationActor: async (request) => {
+    customerModerationActorResolver: async (request: FastifyRequest) => {
       const adminUserId =
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
       const adminUser = await em().findOne(AdminUser, { id: adminUserId });
@@ -2158,7 +2128,6 @@ export async function setupBackendServer(
       return { adminUserId, isPlatformAdmin, allowedOrganizationIds };
     },
   });
-  modules.push(customers.plugin);
 
   // Feature 046 — Returns & Complaints (Refunds, RMA).
   // Feature 072 (T109) — `returns` owns its services and routes now. The

@@ -112,36 +112,38 @@ import * as module44 from './modules/megamenu/backend.js';
 import { manifest as manifest44 } from './modules/megamenu/manifest.js';
 import * as module45 from './modules/meta_ads/backend.js';
 import { manifest as manifest45 } from './modules/meta_ads/manifest.js';
-import * as module46 from './modules/newsletter/backend.js';
-import { manifest as manifest46 } from './modules/newsletter/manifest.js';
-import * as module47 from './modules/pim_ergonode/backend.js';
-import { manifest as manifest47 } from './modules/pim_ergonode/manifest.js';
-import * as module48 from './modules/promotions/backend.js';
-import { manifest as manifest48 } from './modules/promotions/manifest.js';
-import * as module49 from './modules/pwa/backend.js';
-import { manifest as manifest49 } from './modules/pwa/manifest.js';
-import * as module50 from './modules/search/backend.js';
-import { manifest as manifest50 } from './modules/search/manifest.js';
-import * as module51 from './modules/shipments/backend.js';
-import { manifest as manifest51 } from './modules/shipments/manifest.js';
-import * as module52 from './modules/stripe/backend.js';
-import { manifest as manifest52 } from './modules/stripe/manifest.js';
-import * as module53 from './modules/taxes/backend.js';
-import { manifest as manifest53 } from './modules/taxes/manifest.js';
-import * as module54 from './modules/product_feeds/backend.js';
-import { manifest as manifest54 } from './modules/product_feeds/manifest.js';
-import * as module55 from './modules/quote_requests/backend.js';
-import { manifest as manifest55 } from './modules/quote_requests/manifest.js';
-import * as module56 from './modules/carts/backend.js';
-import { manifest as manifest56 } from './modules/carts/manifest.js';
-import * as module57 from './modules/quick_order/backend.js';
-import { manifest as manifest57 } from './modules/quick_order/manifest.js';
-import * as module58 from './modules/shopping_lists/backend.js';
-import { manifest as manifest58 } from './modules/shopping_lists/manifest.js';
-import * as module59 from './modules/tpay/backend.js';
-import { manifest as manifest59 } from './modules/tpay/manifest.js';
-import * as module60 from './modules/webhooks/backend.js';
-import { manifest as manifest60 } from './modules/webhooks/manifest.js';
+import * as module46 from './modules/pim_ergonode/backend.js';
+import { manifest as manifest46 } from './modules/pim_ergonode/manifest.js';
+import * as module47 from './modules/promotions/backend.js';
+import { manifest as manifest47 } from './modules/promotions/manifest.js';
+import * as module48 from './modules/pwa/backend.js';
+import { manifest as manifest48 } from './modules/pwa/manifest.js';
+import * as module49 from './modules/search/backend.js';
+import { manifest as manifest49 } from './modules/search/manifest.js';
+import * as module50 from './modules/shipments/backend.js';
+import { manifest as manifest50 } from './modules/shipments/manifest.js';
+import * as module51 from './modules/stripe/backend.js';
+import { manifest as manifest51 } from './modules/stripe/manifest.js';
+import * as module52 from './modules/taxes/backend.js';
+import { manifest as manifest52 } from './modules/taxes/manifest.js';
+import * as module53 from './modules/product_feeds/backend.js';
+import { manifest as manifest53 } from './modules/product_feeds/manifest.js';
+import * as module54 from './modules/quote_requests/backend.js';
+import { manifest as manifest54 } from './modules/quote_requests/manifest.js';
+import * as module55 from './modules/carts/backend.js';
+import { manifest as manifest55 } from './modules/carts/manifest.js';
+import * as module56 from './modules/customers/backend.js';
+import { manifest as manifest56 } from './modules/customers/manifest.js';
+import * as module57 from './modules/newsletter/backend.js';
+import { manifest as manifest57 } from './modules/newsletter/manifest.js';
+import * as module58 from './modules/quick_order/backend.js';
+import { manifest as manifest58 } from './modules/quick_order/manifest.js';
+import * as module59 from './modules/shopping_lists/backend.js';
+import { manifest as manifest59 } from './modules/shopping_lists/manifest.js';
+import * as module60 from './modules/tpay/backend.js';
+import { manifest as manifest60 } from './modules/tpay/manifest.js';
+import * as module61 from './modules/webhooks/backend.js';
+import { manifest as manifest61 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: '_lifecycle', version: manifest0.version, registerModule: module0.registerModule },
@@ -190,19 +192,20 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'linkedin_ads', version: manifest43.version, registerModule: module43.registerModule },
   { id: 'megamenu', version: manifest44.version, registerModule: module44.registerModule },
   { id: 'meta_ads', version: manifest45.version, registerModule: module45.registerModule },
-  { id: 'newsletter', version: manifest46.version, registerModule: module46.registerModule },
-  { id: 'pim_ergonode', version: manifest47.version, registerModule: module47.registerModule },
-  { id: 'promotions', version: manifest48.version, registerModule: module48.registerModule },
-  { id: 'pwa', version: manifest49.version, registerModule: module49.registerModule },
-  { id: 'search', version: manifest50.version, registerModule: module50.registerModule },
-  { id: 'shipments', version: manifest51.version, registerModule: module51.registerModule },
-  { id: 'stripe', version: manifest52.version, registerModule: module52.registerModule },
-  { id: 'taxes', version: manifest53.version, registerModule: module53.registerModule },
-  { id: 'product_feeds', version: manifest54.version, registerModule: module54.registerModule },
-  { id: 'quote_requests', version: manifest55.version, registerModule: module55.registerModule },
-  { id: 'carts', version: manifest56.version, registerModule: module56.registerModule },
-  { id: 'quick_order', version: manifest57.version, registerModule: module57.registerModule },
-  { id: 'shopping_lists', version: manifest58.version, registerModule: module58.registerModule },
-  { id: 'tpay', version: manifest59.version, registerModule: module59.registerModule },
-  { id: 'webhooks', version: manifest60.version, registerModule: module60.registerModule },
+  { id: 'pim_ergonode', version: manifest46.version, registerModule: module46.registerModule },
+  { id: 'promotions', version: manifest47.version, registerModule: module47.registerModule },
+  { id: 'pwa', version: manifest48.version, registerModule: module48.registerModule },
+  { id: 'search', version: manifest49.version, registerModule: module49.registerModule },
+  { id: 'shipments', version: manifest50.version, registerModule: module50.registerModule },
+  { id: 'stripe', version: manifest51.version, registerModule: module51.registerModule },
+  { id: 'taxes', version: manifest52.version, registerModule: module52.registerModule },
+  { id: 'product_feeds', version: manifest53.version, registerModule: module53.registerModule },
+  { id: 'quote_requests', version: manifest54.version, registerModule: module54.registerModule },
+  { id: 'carts', version: manifest55.version, registerModule: module55.registerModule },
+  { id: 'customers', version: manifest56.version, registerModule: module56.registerModule },
+  { id: 'newsletter', version: manifest57.version, registerModule: module57.registerModule },
+  { id: 'quick_order', version: manifest58.version, registerModule: module58.registerModule },
+  { id: 'shopping_lists', version: manifest59.version, registerModule: module59.registerModule },
+  { id: 'tpay', version: manifest60.version, registerModule: module60.registerModule },
+  { id: 'webhooks', version: manifest61.version, registerModule: module61.registerModule },
 ];

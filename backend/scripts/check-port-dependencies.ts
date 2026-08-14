@@ -126,12 +126,15 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // Same shape for `inventory` (T129): how this deployment names a non-admin
   // caller on an audit record.
   'inventoryAdminAuditContext',
-  // Feature 072 (T138) — `organizations`' three root-supplied inputs. The
-  // storefront origin an invitation link points at is an environment fact and
-  // the settings channel is an env knob; the verification-token probe is a
-  // harness fact, and a route that hands back the last token must not exist in
-  // production. None of the three is something the module could default.
-  'organizationsStorefrontBaseUrl',
+  // The storefront origin a customer-facing link points at — an invitation, a
+  // set-password mail. One name, because it is one environment fact:
+  // `organizations` (T138) and `customers` (T140) both send such links, and two
+  // names for `STOREFRONT_BASE_URL` would be two things to keep in step.
+  'storefrontBaseUrl',
+  // `organizations`' other two root-supplied inputs (T138). The settings
+  // channel is an env knob; the verification-token probe is a harness fact, and
+  // a route that hands back the last token must not exist in production.
+  // Neither is something the module could default.
   'organizationsExposeTestProbe',
   'organizationsSettingsChannelId',
 ]);
