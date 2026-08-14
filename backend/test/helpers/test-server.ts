@@ -869,12 +869,28 @@ export async function setupBackendServer(
   // exist until the early pass has run.
   permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
 
-  // The mailer the `email` module registered. `injectedMailer` is the same
-  // instance unless a test supplied its own — the one seam that stays, because
-  // asserting on sent mail needs a handle on the sender, and the modules that
-  // take it are not converted yet.
+  // The mailer this composition sends through. A test that asserts on sent mail
+  // supplies its own; otherwise it is the one the `email` module registered.
+  //
+  // Feature 072 (T120) — **registered back into the container**, not just held
+  // as a local. The comment here used to say this was "the one seam that stays,
+  // because the modules that take it are not converted yet"; every module is
+  // converted now, and each resolves `emailMailer` as a port. Holding the spy
+  // in a variable and passing it to two module factories was what kept it
+  // reachable, and as those factories disappeared the spy went blind one path
+  // at a time — silently, because the mail was still being sent, just to the
+  // container's `ConsoleMailer`.
+  //
+  // `emailMailer` is a `ctx.di.register` contribution point rather than a
+  // `providePort`, so overwriting it is the sanctioned move rather than a root
+  // shadowing a module's port. It is registered after the early pass that
+  // composes `email`, so this overrides that module's default rather than being
+  // overwritten by it.
   const emailMailer = (container.cradle as unknown as EmailCradle).emailMailer;
   const injectedMailer = options.organizationsMailer ?? emailMailer;
+  if (options.organizationsMailer) {
+    registerValues(container, { emailMailer: injectedMailer });
+  }
 
   // CartService is exposed by the commerce module so the login handler in
   // organizations can merge anonymous baskets after sign-in.
