@@ -11,11 +11,8 @@ import type {
 import {
   registryCache
 } from './services/registry-cache.js';
-import { activationDeclarationsFrom } from './services/activation-resolver.js';
 import { buildStaticRegistry } from './services/static-registry.js';
 import type { LoadedManifestRegistry } from './services/manifest-loader.js';
-import { ModuleRegistration } from './entities/module-registration.entity.js';
-import { resumeWorkersFor } from './plugin-helpers.js';
 
 export interface LifecycleModuleDeps {
   orm: MikroORM;
@@ -71,97 +68,41 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
       : {}),
   } satisfies OrchestratorDeps);
 
-  // Plugin warms the registry cache on first registration and registers
-  // the read-only admin endpoint (US4 / contracts/admin-http.md E-1).
+  // Feature 072 (D-38) — what is left of the boot half: arming the pub/sub
+  // subscriber that keeps the loaded presence fresh.
+  //
+  // The load itself is gone from here, and that is the point. Loading at plugin
+  // attach means loading inside `buildServer`, i.e. after `composeApp()` has
+  // registered every module and run every boot hook — while eleven of those
+  // hooks resolve a gated port. `loadModulePresence()` now runs as a
+  // composition step before the first module registers; see
+  // `services/presence-load.ts`.
+  //
+  // Three things went with it:
+  //   - the first-boot reconciler, which is the load's first half;
+  //   - `registryCache.start`, split into `load()` (fatal, PostgreSQL) and
+  //     `watch()` (non-fatal, Redis);
+  //   - the resume-everything worker loop. It existed to undo the pauses a cold
+  //     cache caused at registration, and it iterated `enabledIds()` — the
+  //     platform axis alone — so it resumed the workers of a module the
+  //     operator had deactivated (a live Constitution XVII hole). With presence
+  //     loaded before composition, `defineModuleWorker` sees the true effective
+  //     state at registration and there is nothing to undo.
   const plugin: ModulePlugin = async () => {
-    // The boot-time "module on disk but not in the registry" warning is gone
-    // with feature 072's generated registry: `REGISTERED_MANIFESTS` **is** the
-    // filesystem walk it used to be compared against, so the warning could no
-    // longer fire and a warning that cannot fire trains readers to ignore boot
-    // warnings. The one drift that remains possible — a committed artefact that
-    // is stale with respect to the tree — is caught by
-    // `pnpm --filter backend run overlay:check`, in CI, before boot.
-
-    // First-boot reconciler: existing modules that don't yet have a row
-    // in `module_registrations` get one with state='installed' so the
-    // request-time enabled-check returns true. Without this every
-    // pre-feature-018 deployment would 503 the moment defineModuleRoutes
-    // was wired into a module's routes file.
-    await reconcileExistingModules(deps.emFactory, deps.registry);
-
-    await registryCache.start({
+    await registryCache.watch({
       redisSubscriber: deps.redisSubscriber,
       em: deps.emFactory,
-      // Feature 073 — the operator-activation axis. Declarations come from the
-      // loaded manifests, so there is no hand-maintained list: a module that
-      // declares no control is governed by the platform axis alone.
-      activationDeclarations: activationDeclarationsFrom(
-        [...deps.registry.modules.values()].map((entry) => entry.manifest),
-      ),
     });
-
-    // Resume any BullMQ workers that registered *before* this plugin warmed
-    // the cache. `defineModuleWorker` starts a worker paused when its module
-    // reads as disabled at registration time; modules wired earlier in the
-    // composition (e.g. `catalog`, which owns the bulk-operation /
-    // search-reindex worker) hit that branch because the enabled-set was
-    // still empty. The orchestrator only resumes workers on an explicit
-    // enable transition, so without this an already-installed module's
-    // worker would stay paused for the whole process lifetime and its queue
-    // (e.g. `catalog.bulk-operation`) would never drain. Resuming is a no-op
-    // for workers that were already running.
-    for (const moduleId of registryCache.enabledIds()) {
-      await resumeWorkersFor(moduleId);
-    }
 
     // Feature 072 (T125) — the four route registrations moved to
     // `backend.ts`, where they are declared through `ctx.ungatedRoutes` with
-    // the reason attached. What stays here is the boot work above, which is the
-    // half a composition genuinely differs on: the test harness seeds the
-    // registry cache directly and must never refresh it from a database it
-    // never populates.
+    // the reason attached.
   };
 
   return {
     handle: { orchestrator, registryCache, registry: deps.registry },
     plugin,
   };
-}
-
-/**
- * First-boot reconciler — idempotent.
- *
- * For every manifest in the registry that has NO row in
- * `module_registrations`, inserts one with `state='installed'`. This
- * lets feature 018 land on a running platform without breaking the
- * gating wrappers (defineModuleRoutes, defineModuleWorker,
- * subscribeForModule) — pre-existing modules continue serving traffic
- * because their auto-created row marks them installed-and-enabled.
- *
- * Modules added AFTER feature 018 ships go through the explicit
- * `module:install <id>` flow.
- */
-async function reconcileExistingModules(
-  emFactory: () => EntityManager,
-  registry: LoadedManifestRegistry,
-): Promise<void> {
-  const em = emFactory();
-  const existing = await em.find(ModuleRegistration, {});
-  const existingIds = new Set(existing.map((r) => r.moduleId));
-  const now = new Date();
-  for (const entry of registry.modules.values()) {
-    if (existingIds.has(entry.manifest.id)) continue;
-    em.create(ModuleRegistration, {
-      moduleId: entry.manifest.id,
-      state: 'installed',
-      version: entry.manifest.version,
-      installedAt: now,
-      lastStateChangeAt: now,
-      lastInstallFailedAt: null,
-      lastInstallError: null,
-    });
-  }
-  await em.flush();
 }
 
 /**

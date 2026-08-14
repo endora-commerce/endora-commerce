@@ -2244,16 +2244,20 @@ export async function setupBackendServer(
     },
   });
   // Seed the in-process module registry as "all modules enabled". Production
-  // cold-starts this from the `module_registrations` table via
-  // `registryCache.start()`, but the test harness never boots the lifecycle
-  // orchestrator. Without this, every route wrapped in `defineModuleRoutes`
-  // (e.g. the entire `blog` surface) 503s with MODULE_DISABLED, and the
-  // permission catalogue would report zero enabled modules. Lifecycle tests
-  // that need a specific module disabled override this within their own setup.
+  // loads it from `module_registrations` in `loadModulePresence()`, a
+  // composition step in `composeApp()`, but the test harness never boots the
+  // lifecycle orchestrator and never populates that table. Without this, every
+  // route wrapped in `defineModuleRoutes` (e.g. the entire `blog` surface) 503s
+  // with MODULE_DISABLED, and the permission catalogue would report zero
+  // enabled modules. Lifecycle tests that need a specific module disabled
+  // override this within their own setup.
   // Feature 073 — install the activation declarations the manifests carry.
-  // Production does this inside `registryCache.start()`; without it the
-  // operator axis has nothing to resolve, the settings write guards never fire
-  // and the activation endpoint reports every module as having no control.
+  // Production does this inside the same load; without it the operator axis has
+  // nothing to resolve, the settings write guards never fire and the activation
+  // endpoint reports every module as having no control.
+  // Feature 072 (D-38) — the seeding above happens before the early pass, which
+  // is the same order production now runs in: presence is a composition input,
+  // and `__setEnabledForTesting` is the load without a database.
   // Feature 072 (T073) — the other half of the pub/sub path production runs: a
   // module-state change invalidates the permission catalogue.
   //

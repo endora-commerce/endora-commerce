@@ -663,17 +663,35 @@ export interface CheckInput {
   readonly resolutions: readonly PortResolution[];
   readonly owners: ReadonlyMap<string, string>;
   readonly dependencies: ReadonlyMap<string, readonly string[]>;
+  /**
+   * Name → module id, for the names registered with `di.providePort`.
+   *
+   * Only the capture rule reads it, and it is what narrows the "a module may
+   * capture what it owns" exemption (feature 072, D-38b). The exemption is
+   * right for a `di.register` name — a plain registration whose lifetime the
+   * module chose — and wrong for a port: `providePort` wraps the resolver in a
+   * transient gate whoever owns it, and awilix strict mode refuses a singleton
+   * that captures one, **unconditionally**. `_i18n` shipped exactly that and
+   * the backend stopped booting with `AwilixResolutionError: … has a shorter
+   * lifetime than its ancestor: 'adminI18nReconciler$ungated$'`, with every
+   * static check green.
+   */
+  readonly providedPorts?: ReadonlyMap<string, string> | undefined;
 }
 
 export function findViolations(input: CheckInput): PortViolation[] {
   const violations: PortViolation[] = [];
+  const providedPorts = input.providedPorts ?? new Map<string, string>();
   for (const resolution of input.resolutions) {
     // The capture rule runs first and independently of ownership: a module may
-    // capture a name it owns, and nothing else outside `CAPTURABLE_NAMES`.
+    // capture a name it owns **and did not provide as a port**, and nothing
+    // else outside `CAPTURABLE_NAMES`.
+    const ownsName = input.owners.get(resolution.name) === resolution.moduleId;
+    const ownsItAsPort = providedPorts.get(resolution.name) === resolution.moduleId;
     if (
       resolution.kind === 'captured' &&
       !CAPTURABLE_NAMES.has(resolution.name) &&
-      input.owners.get(resolution.name) !== resolution.moduleId &&
+      !(ownsName && !ownsItAsPort) &&
       ALLOWED_CAPTURES[`${resolution.moduleId}:${resolution.name}`] === undefined
     ) {
       violations.push({
@@ -868,7 +886,10 @@ export function describe(violation: PortViolation, srcRoot = SRC_ROOT): string {
       `    strict mode refuses a singleton holding one (and a captured gate would keep\n` +
       `    answering after its module is switched off); and a root-registered name may\n` +
       `    not exist yet when this module composes.\n` +
-      `    Read it through \`ctx.cradle<C>()\` at the point of use instead.`
+      `    It holds for a port the module provides itself: \`providePort\` makes the name a\n` +
+      `    gate whoever owns it, and strict mode refuses the capture warm or cold.\n` +
+      `    Read it through \`ctx.cradle<C>()\` — or \`lazyPort<T>(ctx, '${resolution.name}')\` —\n` +
+      `    at the point of use instead.`
     );
   }
   if (violation.kind === 'unowned-name' && resolution.name === NON_LITERAL_PORT_NAME) {
@@ -920,11 +941,11 @@ async function main(): Promise<void> {
     return existsSync(backend) && registeredNames(readFileSync(backend, 'utf8'), backend).includes(name);
   });
 
-  const violations = findViolations({ resolutions, owners, dependencies });
-
   // What each composition root registers, and what each converted module
   // registers for itself — the two sets whose overlap and whose difference are
-  // both bugs. See `findRootIssues`.
+  // both bugs. See `findRootIssues`. The capture rule reads the same map: a
+  // name its owner provides as a port is a gate, and capturing a gate is
+  // refused even for the module that owns it (D-38b).
   const moduleRegistered = new Map<string, string>();
   for (const file of files) {
     if (!file.endsWith('/backend.ts')) continue;
@@ -934,6 +955,13 @@ async function main(): Promise<void> {
       moduleRegistered.set(name, moduleId);
     }
   }
+
+  const violations = findViolations({
+    resolutions,
+    owners,
+    dependencies,
+    providedPorts: moduleRegistered,
+  });
   const rootNames = new Map<string, ReadonlySet<string>>();
   for (const [label, relative] of Object.entries(ROOT_FILES)) {
     const full = join(SRC_ROOT, '..', relative);

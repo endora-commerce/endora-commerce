@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { LoadedManifestRegistry } from '../_lifecycle/services/manifest-loader.js';
 import type { AdminUserService } from '../admin_users/services/admin-user-service.js';
@@ -91,21 +91,33 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort(
     'adminI18nReconciler',
     ctx
-      .asFunction(({ adminI18nService }: AdminI18nCradle): AdminI18nReconciler => ({
-        install: async ({ moduleId, modulePath, bundlesDir }) => {
-          const result = await adminI18nService.installBundlesForModule(
-            moduleId,
-            modulePath,
-            bundlesDir,
-          );
-          return { installed: result.installed };
-        },
-        remove: async (moduleId) => adminI18nService.removeBundlesForModule(moduleId),
-        // Resolved per call, not captured: `reloadAll` is reachable from the
-        // admin endpoint and the CLI at any time after boot, and the registry
-        // accessor answers `undefined` until `_lifecycle` is built.
-        reloadAll: async () => runReconcile(ctx),
-      }))
+      .asFunction((): AdminI18nReconciler => {
+        // Feature 072 (D-38b) — `adminI18nService` is resolved per call, not
+        // captured in this factory. It is a `providePort` name, so it is a
+        // transient gate; awilix strict mode refuses a **singleton** that
+        // captures one, and it refuses it unconditionally — warm registry cache
+        // or cold. Destructuring it here therefore threw
+        // `AwilixResolutionError: … has a shorter lifetime than its ancestor:
+        // 'adminI18nReconciler$ungated$'` at every boot, which is the second
+        // half of why the backend would not start.
+        const i18n = lazyPort<I18nService>(ctx, 'adminI18nService');
+        return {
+          install: async ({ moduleId, modulePath, bundlesDir }) => {
+            const result = await i18n.installBundlesForModule(
+              moduleId,
+              modulePath,
+              bundlesDir,
+            );
+            return { installed: result.installed };
+          },
+          remove: async (moduleId) => i18n.removeBundlesForModule(moduleId),
+          // Resolved per call for a second reason as well: `reloadAll` is
+          // reachable from the admin endpoint and the CLI at any time after
+          // boot, and the registry accessor answers `undefined` until
+          // `_lifecycle` is built.
+          reloadAll: async () => runReconcile(ctx),
+        };
+      })
       .singleton(),
   );
 
