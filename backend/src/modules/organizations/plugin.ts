@@ -14,7 +14,7 @@ import { EmailVerificationService } from './services/email-verification-service.
 import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import type { AddressService } from '../addresses/services/address-service.js';
 import { InvitationService } from './services/invitation-service.js';
-import { makeOrgTemplateEmail } from './services/org-template-email.js';
+import { noopOrgTemplateEmail, type OrgTemplateEmail } from './services/org-template-email.js';
 import type { RoleService } from '../customer_accounts/services/role-service.js';
 import type { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
 import type { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
@@ -82,12 +82,16 @@ export interface OrganizationsModuleOptions {
   requireAdminAny?: RequireAdminAnyFactory;
   /** Mailer used to dispatch invitation + verification emails. Defaults to ConsoleMailer. */
   mailer?: Mailer;
-  /** Feature 047 — late-bound transactional-email sender (admin-editable templates). */
-  getTransactionalEmailSender?: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
-  /** Feature 047 — resolves the scope channel for org emails (system-default). */
-  resolveScopeSalesChannelId?: () => Promise<string | null>;
-  /** Feature 047 — resolves the email language for a sales channel. */
-  resolveSalesChannelLanguage?: (salesChannelId: string) => Promise<string>;
+  /**
+   * Feature 047 / 072 (T120) — the template-routed sender, supplied by
+   * `transactional_emails` through `templateEmailPort`. Absent, every
+   * template-routed send falls back to the legacy in-code builder.
+   */
+  templateEmail?: OrgTemplateEmail;
+  // `resolveScopeSalesChannelId` and `resolveSalesChannelLanguage` were here
+  // until T120. They existed only to feed the template adapter this module used
+  // to assemble; `transactional_emails` resolves both inside the one adapter it
+  // now owns.
   /** Storefront base URL for the invitation accept link. */
   storefrontBaseUrl?: string;
   /** Required when `requireAdmin` is set — audit trail for admin org mutations. */
@@ -132,15 +136,11 @@ export interface OrganizationsModuleOptions {
 export function organizationsModule(options: OrganizationsModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
     const mailer = options.mailer ?? new ConsoleMailer();
-    const orgTemplateEmail = makeOrgTemplateEmail({
-      ...(options.getTransactionalEmailSender ? { getSender: options.getTransactionalEmailSender } : {}),
-      ...(options.resolveScopeSalesChannelId
-        ? { resolveScopeSalesChannelId: options.resolveScopeSalesChannelId }
-        : {}),
-      ...(options.resolveSalesChannelLanguage
-        ? { resolveLanguage: options.resolveSalesChannelLanguage }
-        : {}),
-    });
+    // Feature 072 (T120) — supplied rather than assembled. This used to build
+    // its own adapter from three options; `transactional_emails` owns the
+    // implementation now and every module that sends template-routed mail
+    // resolves the same one.
+    const orgTemplateEmail = options.templateEmail ?? noopOrgTemplateEmail;
     const storefrontBaseUrl = options.storefrontBaseUrl ?? 'http://localhost:3000';
     const latestTokenByEmail = new Map<string, string>();
     const registrationService = new RegistrationService(

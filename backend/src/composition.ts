@@ -111,7 +111,6 @@ import type { PriceListsCradle } from './modules/price_lists/backend.js';
 import { DEFAULT_PRICING_CACHE_TTL_MS } from './modules/price_lists/services/pricing-cache.js';
 import type { TaxesCradle } from './modules/taxes/backend.js';
 import { composeSettingsKernel } from './kernel/settings/compose.js';
-import type { SettingsCradle } from './modules/settings/backend.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
 import { composeSalesChannelsKernel } from './kernel/sales-channels/compose.js';
 import type { SalesChannelsCradle } from './modules/sales_channels/backend.js';
@@ -127,8 +126,6 @@ import { feedDeliveryConfigurationType } from './modules/product_feeds/services/
 // Feature 046 — Progressive Web App.
 import type { PwaBridge } from './modules/pwa/backend.js';
 // Feature 047 — Transactional Emails.
-import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
-import type { BrandingService } from './modules/transactional_emails/services/branding.service.js';
 // Feature 048 — Newsletter.
 import type { NewsletterBridge } from './modules/newsletter/backend.js';
 // Feature 049 — Google Analytics.
@@ -136,7 +133,6 @@ import type { NewsletterBridge } from './modules/newsletter/backend.js';
 // Feature 064 — Meta Ads.
 // Feature 066 — Google Tag Manager.
 import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
-import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
 import {
@@ -153,7 +149,6 @@ import {
   ORGANIZATION_INVITATION_DEFAULT,
   NEW_ORG_REGISTRATION_DEFAULT,
 } from './modules/organizations/email-templates/transactional-defaults.js';
-import { makeOrgTemplateEmail } from './modules/organizations/services/org-template-email.js';
 import {
   LOW_STOCK_ALERT_DEFAULT,
   AVAILABILITY_BACK_IN_STOCK_DEFAULT,
@@ -1036,8 +1031,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 047 — late-bound transactional-email sender. `orders` (and
   // other owning modules) read it via a getter; the transactional_emails module
   // sets it through exposeSender once built.
-  let transactionalEmailSender: TransactionalEmailSender | undefined;
-  let emailBrandingService: BrandingService | undefined;
+  // Feature 072 (T120) — `transactional_emails` owns the binding now and
+  // publishes both services as accessor ports; this root reads them like any
+  // other consumer instead of holding the variables its callbacks filled in.
+  const emailCradle = (): {
+    transactionalEmailSenderAccessor: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
+    emailBrandingAccessor: () =>
+      | { resolve(salesChannelId: string | null): Promise<{ logoUrl: string; accentColor: string }> }
+      | undefined;
+  } => container.cradle as never;
 
   // Feature 050 — establish the ambient TenantContext for every request from the
   // already-authenticated actor (never from request inputs). Registered right
@@ -1443,6 +1445,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // files now. What stays a composition's: who is asking (production reads
   // `request.actor`, the harness `request.testActor`), and the bridge into
   // `shopping_lists`, which points outward and so cannot be a port.
+  // Feature 072 (T120) — how an asset id becomes a public URL inside an email.
+  // It reaches `assets_library`, which `transactional_emails` must not read
+  // through directly, so it stays a composition's to supply.
+  registerValues(container, {
+    transactionalEmailAssetUrl: async (assetId: string): Promise<string | null> => {
+      try {
+        const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
+        return absolutizePublicUrl(resolved.url);
+      } catch {
+        return null;
+      }
+    },
+  });
+
   // Feature 072 (T142) — `catalog` owns its services and routes now, and the
   // seven `pim_ergonode` reads through are its ports rather than a second
   // instance built here. What stays a composition's: whether this process runs
@@ -1511,7 +1527,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // publishes it after this module composes.
   registerValues(container, {
     ordersAdminScopeResolver: resolveAdminOrdersScope,
-    ordersTransactionalEmailSender: () => transactionalEmailSender,
   });
 
   registerValues(container, {
@@ -1606,17 +1621,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // verification, invitation and new-registration emails through. A getter
     // because `transactional_emails` announces the sender well after this
     // point; same shape and owner as `inventoryTemplateEmail`.
-    organizationsTransactionalEmailSender: () => transactionalEmailSender,
-    inventoryTemplateEmail: makeOrgTemplateEmail({
-      getSender: () => transactionalEmailSender,
-      // Read off the kernel resolver since T138, which is what `organizations`
-      // itself now does — the two ad-hoc `em().findOne(SalesChannel, …)`
-      // closures this replaces were defined in that module's block.
-      resolveScopeSalesChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? null,
-      resolveLanguage: async (salesChannelId: string) =>
-        (await salesChannels.resolver.getById(salesChannelId))?.defaultLanguage ?? 'en-US',
-    }),
     inventoryAdminAuditContext: (request: FastifyRequest) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
       if (actor?.kind !== 'admin') {
@@ -1800,7 +1804,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         const c = customerResolver(req);
         return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
       },
-      getTransactionalEmailSender: () => transactionalEmailSender,
+      getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
       resolveRecipientEmail: async (order) =>
         (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
       resolveLanguage: async (salesChannelId) =>
@@ -1980,7 +1984,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         async (customerAccountId) =>
           (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
         {
-          getTransactionalEmailSender: () => transactionalEmailSender,
+          getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
           resolveLanguage: async (salesChannelId) =>
             (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
         },
@@ -2052,12 +2056,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // subscribes through `ctx.subscribe`, so it stops when the module does. The
   // sender stays a contribution: `transactional_emails` announces it through a
   // callback this root holds, later than the module composes.
-  registerValues(container, { paymentEmailSender: () => transactionalEmailSender });
+  registerValues(container, { paymentEmailSender: () => emailCradle().transactionalEmailSenderAccessor() });
   // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
   // subscribes through `ctx.subscribe`, so it stops when the module does. The
   // sender stays a contribution: `transactional_emails` announces it through a
   // callback this root holds, later than the module composes.
-  registerValues(container, { shipmentEmailSender: () => transactionalEmailSender });
+  registerValues(container, { shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor() });
   // Feature 049 — Stripe payment gateway. Registers the Stripe PaymentAdapter
   // + gateway refund handler into the shared singletons, seeds one
   // payment_methods row per Stripe method, and mounts the webhook / storefront /
@@ -2068,30 +2072,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
 
   modules.push(
-    transactionalEmailsModule({
-      emFactory: em,
-      settingsService: settings.settingsService,
-      requireAdmin,
-      resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
-      manifests: resolvedRegistry.map((e) => e.manifest),
-      mailer: platformMailer,
-      auditLog: auditLogService,
-      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
-      resolveAssetUrl: async (assetId: string) => {
-        try {
-          const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
-          return absolutizePublicUrl(resolved.url);
-        } catch {
-          return null;
-        }
-      },
-      exposeSender: (sender) => {
-        transactionalEmailSender = sender;
-      },
-      exposeBranding: (branding) => {
-        emailBrandingService = branding;
-      },
-    }),
   );
 
   // Feature 048 — Newsletter. Own-infrastructure bulk email: subscriber
@@ -2131,11 +2111,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // Contribution: campaign email carries this deployment's logo and accent,
     // announced by `transactional_emails` after it is built.
     newsletterEmailBranding: async (salesChannelId: string | null) => {
-      if (!emailBrandingService) {
-        return { logoUrl: '', accentColor: '#1f2937' };
-      }
-      const branding = await emailBrandingService.resolve(salesChannelId);
-      return { logoUrl: branding.logoUrl, accentColor: branding.accentColor };
+      const branding = emailCradle().emailBrandingAccessor();
+      if (!branding) return { logoUrl: '', accentColor: '#1f2937' };
+      return branding.resolve(salesChannelId);
     },
   });
 

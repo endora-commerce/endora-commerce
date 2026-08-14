@@ -54,8 +54,13 @@ export interface InventoryCradle {
   readonly inventoryAdminAuditContext: NonNullable<
     InventoryModuleOptions['resolveAdminAuditContext']
   >;
-  /** Contributed: built over `transactional_emails`' late-announced sender. */
-  readonly inventoryTemplateEmail: NonNullable<InventoryModuleOptions['templateEmail']>;
+  /**
+   * `transactional_emails`' shared template adapter (T120). It used to be
+   * `inventoryTemplateEmail`, built by each root from a helper `organizations`
+   * owned and passed down — one converted module's helper reaching another
+   * through the composition root.
+   */
+  readonly templateEmailPort: NonNullable<InventoryModuleOptions['templateEmail']>;
   /** The two halves the warehouse allow-list is composed from (T138). */
   readonly customerOrganizationIdResolver: (req: FastifyRequest) => string | null;
   readonly organizationRestrictionPort: {
@@ -94,7 +99,7 @@ export function registerModule(ctx: ModuleContext): void {
           templateEmail: {
             trySend: (input: Parameters<
               NonNullable<InventoryModuleOptions['templateEmail']>['trySend']
-            >[0]) => ctx.cradle<InventoryCradle>().inventoryTemplateEmail.trySend(input),
+            >[0]) => ctx.cradle<InventoryCradle>().templateEmailPort.trySend(input),
           },
           // Composed from the two halves, without a `catch` — the root closure
           // this replaces had one, which would have read a disabled-module
