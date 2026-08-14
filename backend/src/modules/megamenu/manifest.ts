@@ -14,7 +14,11 @@ export const manifest = defineModuleManifest({
   // `auth` owns the `requireAdmin` port the admin routes are gated by — feature
   // 072 made it required rather than defaulting to a permissive no-op.
   // `dictionaries` owns the validator the menu service checks languages with.
-  dependencies: ['cms', 'sales_channels', 'auth', 'dictionaries'],
+  // `assets_library` owns the reference registry this module contributes its
+  // asset-and-icon scan to (T143a); `cms` owns the one it contributes the
+  // page/block scan to. Both edges existed as composition-root
+  // cross-registrations, which is to say nowhere an operator could see them.
+  dependencies: ['assets_library', 'cms', 'sales_channels', 'auth', 'dictionaries'],
   settings: {
     moduleCode: 'megamenu',
     groups: [{ code: 'megamenu', name: 'Megamenu' }],

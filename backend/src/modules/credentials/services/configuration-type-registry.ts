@@ -41,7 +41,17 @@ export class ConfigurationTypeRegistry {
   constructor(private readonly log: RegistryLogger = consoleLogger) {}
 
   register(descriptor: ConfigurationTypeDescriptor): void {
-    if (this.types.has(descriptor.code)) {
+    const existing = this.types.get(descriptor.code);
+    // Re-registering the *same* descriptor overwrites nothing, so it warns
+    // about nothing. That distinction started to matter in T143a, when the four
+    // core registrations moved out of the composition roots and into the boot
+    // hooks of the modules that own the types: this registry is process-wide
+    // (it is the seam an overlay module's install hook imports), while a test
+    // run composes it several hundred times, so each of those hooks re-declares
+    // an identical descriptor once per composition. A genuine override — a
+    // different descriptor under a code someone already claimed — still warns.
+    if (existing === descriptor) return;
+    if (existing !== undefined) {
       this.log.warn(
         `ConfigurationTypeRegistry: type "${descriptor.code}" re-registered; overwriting previous registration.`,
       );

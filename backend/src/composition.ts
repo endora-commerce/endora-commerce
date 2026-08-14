@@ -98,12 +98,8 @@ import {
 } from './modules/webhooks/services/webhook-queue.js';
 import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
 import type { WebhooksCradle } from './modules/webhooks/backend.js';
-import type { CmsCradle } from './modules/cms/backend.js';
-import type { MegamenuCradle } from './modules/megamenu/backend.js';
 import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
 import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
-import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
-import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
 import type { PriceListsCradle } from './modules/price_lists/backend.js';
 import { DEFAULT_PRICING_CACHE_TTL_MS } from './modules/price_lists/services/pricing-cache.js';
 import type { TaxesCradle } from './modules/taxes/backend.js';
@@ -114,12 +110,6 @@ import type { SalesChannelsCradle } from './modules/sales_channels/backend.js';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
 import { SearchIndexer } from './modules/search/services/search-indexer.js';
 import type { ComparisonsCradle } from './modules/comparisons/backend.js';
-// Feature 058 — Credentials (reusable credential configurations).
-import { configurationTypeRegistry } from './modules/credentials/services/registry-singleton.js';
-import { llmConfigurationType } from './modules/credentials/types/llm.type.js';
-import { emailAdapterConfigurationType } from './modules/credentials/types/email-adapter.type.js';
-import { ergonodeConfigurationType } from './modules/pim_ergonode/services/ergonode-credential.type.js';
-import { feedDeliveryConfigurationType } from './modules/product_feeds/services/delivery/delivery-credential.type.js';
 // Feature 046 — Progressive Web App.
 import type { PwaBridge } from './modules/pwa/backend.js';
 // Feature 047 — Transactional Emails.
@@ -158,8 +148,6 @@ import {
 import type { PricingServiceContract } from './modules/price_lists/services/pricing-service.interface.js';
 import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 import type { AdminActionsCradle } from './modules/admin_actions/backend.js';
-import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
-import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
 import type { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { CatalogAttributeReadService } from './modules/catalog/services/catalog-attribute-read.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
@@ -659,10 +647,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Builder). Phase 2 ships module instantiation + seeded-Hook
   // reconciliation; admin/storefront routes land in subsequent phases.
   // Feature 072 (T093) — `cms` owns its services, its four late-bound
-  // resolvers, its seeded-Hook reconciliation and its routes now. This root
-  // reads only the reference registry `megamenu` cross-registers into, and
-  // contributes the asset resolver further below.
-  const cmsCradle = container.cradle as unknown as CmsCradle;
+  // resolvers, its seeded-Hook reconciliation and its routes now. T143a — and
+  // the reference registry too: `megamenu` cross-registers into it from its own
+  // boot hook, so this root reads nothing of the module and only contributes
+  // the asset resolver further below.
 
   // Feature 072 (T127) — `price_lists` owns its services and routes now. Three
   // names stay a composition's: whether a wall-clock status sweeper runs, how
@@ -773,22 +761,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     );
   }
 
-  // Feature 058 — Credentials module. Instantiated right after `settings` (its
-  // only hard dependency) so that consumer modules constructed further down
-  // (search, newsletter, prompt_actions) can receive `credentialsService`
-  // for the `credential_ref` resolution path (feature 058 Phase 8). The
-  // configuration-type registry is the process-wide cross-module seam; core
-  // types are registered here at boot.
-  configurationTypeRegistry.register(llmConfigurationType);
-  configurationTypeRegistry.register(emailAdapterConfigurationType);
-  configurationTypeRegistry.register(ergonodeConfigurationType);
-  configurationTypeRegistry.register(feedDeliveryConfigurationType);
-  // Feature 072 (wave 1) — `credentials` owns its service; the root supplies
-  // the two inputs that are properties of the deployment rather than of the
-  // module: the cross-module configuration-type registry, and how an admin
-  // actor is resolved from a request.
+  // Feature 058 — Credentials module. Feature 072 (T143a) — the
+  // configuration-type registry and the four core descriptors are gone from
+  // here: `credentials` declares the registry it owns, and each of the four
+  // types is declared by the module whose manifest already claims it
+  // (`credentials` for LLM and the e-mail adapter, `pim_ergonode`,
+  // `product_feeds`), from that module's own boot hook. What stays is how an
+  // admin actor is resolved from a request, which production and the harness
+  // genuinely answer differently.
   registerValues(container, {
-    configurationTypeRegistry,
     adminContextResolver,
     // US2 — the delete-integrity guard reaches settings only through this port
     // (Principle I): `SettingsService.listReferencesToConfiguration`.
@@ -1093,20 +1074,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   // Feature 013 — Assets Library. Phase 2 instantiates the module so its
   // manifest is reconciled and the AssetsLibraryService / referenceRegistry
-  // are accessible to other modules. Routes (admin upload, public file
-  // serving) and consumer wiring (Catalog / CMS reference descriptors) land
-  // in subsequent phases (US1 + US2).
-  // Feature 072 (T092) — the module owns its plugin and its registry now; the
-  // root only contributes the reference resolvers of whichever modules this
-  // deployment ships.
+  // are accessible to other modules.
+  // Feature 072 (T092) — the module owns its plugin and its registry now.
+  // T143a — and the reference descriptors are gone from here too: `catalog`,
+  // `cms` and `megamenu` each push their own from `ctx.onBoot`, so which edges
+  // block an asset delete follows from which modules are present rather than
+  // from what this root was taught.
   const assetsLibrary = (container.cradle as unknown as AssetsLibraryCradle).assetsLibrary;
-  // Register Catalog's reference descriptors so the Library's soft-delete
-  // path (FR-030) blocks deletion of any asset still pointed at by a
-  // gallery item / product attachment / virtual-download / category main
-  // image.
-  registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
-  registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
-  registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
 
   // Feature 072 (T093) — contributed, not set: which modules a deployment
   // ships is this root's business, and `cms` reads the contribution per call.
@@ -1277,13 +1251,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     } satisfies StorefrontDeps,
   });
-  const megamenuCradle = container.cradle as unknown as MegamenuCradle;
-  // Megamenu items that reference a CMS page or block block those entities'
-  // deletion via the CMS module's reference registry.
-  registerMegamenuCmsReferences(
-    cmsCradle.cmsReferenceRegistry,
-    megamenuCradle.megamenuReferenceRegistry,
-  );
 
   // Feature 072 — the late pass of the generated module list. No converted
   // module is named here: what this root still owns are the **host values** any

@@ -118,11 +118,11 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `quick_order` (wave 4, T139). The registries only — it took its five route
   // files back from `shopping_lists` and needs nothing from a root.
   quick_order: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `transactional_emails` (T120, the last module). The registries;
-  // `composition.ts` supplies the asset-URL resolver, which reaches
-  // `assets_library` — a boundary this module must not cross directly.
+  // `transactional_emails` (T120, the last module). The registries only, since
+  // T143a: the fourteen e-mail defaults left `composition.ts` for the boot
+  // hooks of the seven modules that own them, and the asset-URL resolver a root
+  // supplies is a closure that names nothing of this module.
   transactional_emails: [
-    'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
@@ -186,12 +186,13 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
-  // `credentials` (wave 1). Beyond the two registries, `composition.ts` imports
-  // its service type and the four core configuration types it registers into
-  // the cross-module registry at boot — which is the root's job, not this
-  // module's, so that reference is expected to stay.
+  // `credentials` (wave 1). The two registries only, since T143a. The
+  // `composition.ts` reference was the configuration-type registry and the four
+  // core descriptors a root pushed into it, recorded here as "the root's job,
+  // not this module's" — which was true of *which modules a deployment ships*
+  // and not of the registrations themselves. Each type is declared by the
+  // module that owns it now, and the registry by this one.
   credentials: [
-    'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
@@ -265,10 +266,9 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // ports it resolves and threads into the eight hand-wired modules that
   // validate writes through them — `catalog`, `orders`, `organizations`,
   // `customers`, `quote_requests`, `product_feeds` and the two catalog admin
-  // services. That reference is the count of what is left to convert, and it
-  // goes when they do.
+  // services. That reference is gone as of the wave-4 conversions: every one of
+  // those eight modules resolves the two ports itself.
   custom_fields: [
-    'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
@@ -287,13 +287,11 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     // conversion leftover, and `_i18n` is `nonDeactivatable`, so it stays.
     'src/http/error-envelope.ts',
   ],
-  // `cms` (wave 1, T093). The two registries name its five entities and its
-  // migrations; `composition.ts` imports the cradle type to annotate the
-  // reference registry `megamenu` cross-registers into and the asset resolver
-  // it contributes. Both are a root's business — which modules a deployment
-  // ships is not this module's — so they stay until `megamenu` converts.
+  // `cms` (wave 1, T093). The two registries only, since T143a: `megamenu`
+  // cross-registers into this module's reference registry from its own boot
+  // hook, so no root types that registry any more, and the asset resolver a
+  // root contributes is a closure that names nothing of this module.
   cms: [
-    'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
@@ -501,13 +499,11 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // settings read backs behaviour in nearly every module and cannot be gated
   // on the settings screens.
   settings: ['src/composition.ts'],
-  // `shipments` (wave 2, T124). The entity registry names its entity; both
-  // roots still register its transactional-email default into the shared
-  // `emailDefaultsRegistry` and contribute the sender, which is the same shape
-  // `payments` and `invoices` have — a cross-module registry a root owns, not
-  // residue of a half-finished conversion. Its migrations live in `orders`'
-  // group (migration 052), which is why the migration registry does not name it.
-  shipments: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `shipments` (wave 2, T124). The entity registry only, since T143a: its
+  // transactional-email default is registered from this module's own boot hook
+  // rather than by both roots. Its migrations live in `orders`' group
+  // (migration 052), which is why the migration registry does not name it.
+  shipments: ['src/db/entities-registry.ts'],
   // `_lifecycle` (wave 2, T125). The longest entry here, and every line of it
   // is the subsystem being the subsystem rather than residue. `composition.ts`
   // composes the boot half — the first-boot reconciler, the registry-cache warm
@@ -580,14 +576,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
-  // `pim_ergonode` (wave 3, T131). The two central registries name its entities
-  // and migrations; both roots register the seven `catalog` services and the
-  // asset service it reads — the seven used to be constructed here a second
-  // time, purely for this module — plus the worker-role gate and, in the
-  // harness, the scripted source client. They go when `catalog` and
-  // `assets_library` convert.
+  // `pim_ergonode` (wave 3, T131). The two central registries only. The
+  // `composition.ts` reference recorded the seven `catalog` services a root
+  // built a second time for this module; `catalog`'s conversion (T142) took
+  // those, and T143a took the last one — the Ergonode credential type, which
+  // both roots used to push into `credentials`' registry and which this module
+  // now declares from its own boot hook. What a root still supplies for it —
+  // the worker-role gate, the harness's scripted source client — is a value,
+  // and names nothing of this module.
   pim_ergonode: [
-    'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],

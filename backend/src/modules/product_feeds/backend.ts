@@ -5,7 +5,9 @@ import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { ConfigurationTypeRegistry } from '../credentials/services/configuration-type-registry.js';
 import { productFeedsModule, type ProductFeedsModuleOptions } from './plugin.js';
+import { feedDeliveryConfigurationType } from './services/delivery/delivery-credential.type.js';
 
 /**
  * `product_feeds` — four adapters a root builds, and three seams only a test
@@ -200,5 +202,24 @@ export function registerModule(ctx: ModuleContext): void {
     await reconcile('predefined-template', () => handle.reconcileTemplates());
     await reconcile('taxonomy', () => handle.reconcileTaxonomies());
     if (runWorkers) await reconcile('schedule', () => handle.reconcileSchedules());
+  });
+
+  /**
+   * FR-041 — the delivery target's credential type (T143a).
+   *
+   * Both roots used to push this descriptor into `credentials`' registry, so a
+   * configuration type belonging to a module the operator had switched off was
+   * still offered by `GET /credentials/types` and still writable. It is
+   * declared by the module that owns it now.
+   *
+   * A second hook rather than a line in the one above, because the two have
+   * nothing to do with each other: that one is the worker-role reconcile and
+   * returns early on an API process, this one has to run in every process that
+   * serves the credentials admin surface.
+   */
+  ctx.onBoot(() => {
+    lazyPort<ConfigurationTypeRegistry>(ctx, 'configurationTypeRegistry').register(
+      feedDeliveryConfigurationType,
+    );
   });
 }
