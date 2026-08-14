@@ -126,6 +126,16 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // Same shape for `inventory` (T129): how this deployment names a non-admin
   // caller on an audit record.
   'inventoryAdminAuditContext',
+  // Same shape for `catalog` (T142): whether this process runs the
+  // bulk-operation consumer (Principle X), how it names an acting admin on an
+  // audit record, and the three adapters that reach modules `catalog` must not
+  // read through directly — availability bands, the image placeholder, and the
+  // Meilisearch reindex production runs and the harness must not.
+  'catalogRunBulkOperationWorker',
+  'catalogAdminAuditContext',
+  'catalogExternalAvailability',
+  'catalogImagePlaceholderUrl',
+  'catalogSearchReindex',
   // The storefront origin a customer-facing link points at — an invitation, a
   // set-password mail. One name, because it is one environment fact:
   // `organizations` (T138) and `customers` (T140) both send such links, and two
@@ -215,17 +225,9 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `inventory` must not reach through directly; both owners are still
   // hand-wired.
   inventoryTemplateEmail: 'transactional_emails',
-  // The seven `catalog` services `pim_ergonode` reads (T131). Each root used to
-  // construct a second instance of every one of them, purely to hand to that
-  // module, while `catalog` built its own. These entries go when `catalog`
-  // converts in T142 and provides them itself.
-  catalogAdminService: 'catalog',
-  categoryAdminService: 'catalog',
-  attributeSetService: 'catalog',
-  galleryService: 'catalog',
-  attachmentService: 'catalog',
-  productLinkService: 'catalog',
-  groupedService: 'catalog',
+  // The seven `catalog` services `pim_ergonode` reads drained in T142, along
+  // with `catalogAttributeReadPort` and `catalogQueryPort` — that module
+  // provides all nine now.
   // The asset service the Ergonode media pipeline stores through.
   assetsLibraryService: 'assets_library',
   // How this composition assembles a feed row: opening a storage backend,
@@ -247,7 +249,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // hand-wired; the entry goes when that module converts.
   // The composed attribute read model (feature 061). Owned by `catalog`, still
   // hand-wired; the entry goes when that module converts.
-  catalogAttributeReadPort: 'catalog',
   // `megamenu`'s existence checks and URL lookups against `catalog`, `cms` and
   // `assets_library` tables. Root-owned by design — see the note in
   // `megamenu/backend.ts` on why they must not move into the module.
@@ -255,7 +256,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   megamenuStorefrontDeps: 'megamenu',
   // `catalog`'s query service. Root-built until that module converts — see the
   // note in `promotions/backend.ts` on why this is the last live instance of it.
-  catalogQueryPort: 'catalog',
   // The organization-status gate feature 026 US5 added: an org-targeted
   // promotion only fires for an active Organization. Owned by `organizations`.
   // The operator presence axis the command palette filters on. A root's to
@@ -358,6 +358,9 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // consumers, read at construction because it decides whether they are built
   // at all (T137).
   'productFeedsRunWorkers',
+  // Same category again: whether this process runs the bulk-operation consumer,
+  // read at construction because it decides whether it is built at all (T142).
+  'catalogRunBulkOperationWorker',
   // Pinned per composition and read at construction, so they are registered
   // early alongside the worker flag: production derives the feed base URL from
   // the environment, the harness pins one because a test asserts the exact link
@@ -410,6 +413,13 @@ export const ACKNOWLEDGED_PORT_EDGES: Readonly<Record<string, string>> = {
   'organizations:passwordResetService': 'see `organizations:addressService`',
   'organizations:customerRoleService': 'see `organizations:addressService`',
   'organizations:totpEnrolmentService': 'see `organizations:addressService`',
+  'catalog:pricingService':
+    'Mutual by nature, and the mirror of `organizations:addressService`. ' +
+    '`price_lists` declares `catalog` — a price list is a list of prices for ' +
+    'products, and it must install after them — while the external catalog ' +
+    'namespace prices its responses through the pricing engine. Declaring the ' +
+    'second direction closes the cycle, and `migration-order` fails the build ' +
+    'on it, which is how this was found.',
   'organizations:addressService':
     'Mutual by nature. `addresses` declares `organizations` because every stored ' +
     'address is organization-scoped, and it must install after the tenancy root. ' +

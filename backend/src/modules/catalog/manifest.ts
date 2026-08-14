@@ -26,7 +26,23 @@ export const manifest = defineModuleManifest({
   // Feature 061 (FR-020) — product attributes are catalog extensions of
   // product-host Custom Field definitions; the lifecycle must install
   // custom_fields first and must not hard-uninstall it under a live catalog.
-  dependencies: ['admin_users', 'assets_library', 'custom_fields', 'sales_channels'],
+  // Feature 072 (T142) — `admin_notifications` and `email` were reached through
+  // options a root passed down, so neither appeared here: a finished bulk
+  // operation notifies and mails.
+  //
+  // `price_lists` is deliberately absent and recorded in
+  // `ACKNOWLEDGED_PORT_EDGES` instead. The external catalog namespace prices
+  // through the pricing engine, but `price_lists` declares *this* module — a
+  // price list is a list of prices for products — so the edge is mutual and
+  // declaring it back closes a cycle. Catalog installs first.
+  dependencies: [
+    'admin_notifications',
+    'admin_users',
+    'assets_library',
+    'custom_fields',
+    'email',
+    'sales_channels',
+  ],
   i18n: { bundlesDir: 'i18n' },
   actions: [
     {

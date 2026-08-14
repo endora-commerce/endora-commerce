@@ -48,104 +48,106 @@ import * as module12 from './modules/email/backend.js';
 import { manifest as manifest12 } from './modules/email/manifest.js';
 import * as module13 from './modules/health_checks/backend.js';
 import { manifest as manifest13 } from './modules/health_checks/manifest.js';
-import * as module14 from './modules/import_export/backend.js';
-import { manifest as manifest14 } from './modules/import_export/manifest.js';
-import * as module15 from './modules/languages/backend.js';
-import { manifest as manifest15 } from './modules/languages/manifest.js';
-import * as module16 from './modules/dictionaries/backend.js';
-import { manifest as manifest16 } from './modules/dictionaries/manifest.js';
-import * as module17 from './modules/seo/backend.js';
-import { manifest as manifest17 } from './modules/seo/manifest.js';
-import * as module18 from './modules/settings/backend.js';
-import { manifest as manifest18 } from './modules/settings/manifest.js';
-import * as module19 from './modules/credentials/backend.js';
-import { manifest as manifest19 } from './modules/credentials/manifest.js';
-import * as module20 from './modules/organizations/backend.js';
-import { manifest as manifest20 } from './modules/organizations/manifest.js';
-import * as module21 from './modules/addresses/backend.js';
-import { manifest as manifest21 } from './modules/addresses/manifest.js';
-import * as module22 from './modules/credit_limits/backend.js';
-import { manifest as manifest22 } from './modules/credit_limits/manifest.js';
-import * as module23 from './modules/delivery_methods/backend.js';
-import { manifest as manifest23 } from './modules/delivery_methods/manifest.js';
-import * as module24 from './modules/payment_methods/backend.js';
-import { manifest as manifest24 } from './modules/payment_methods/manifest.js';
-import * as module25 from './modules/price_lists/backend.js';
-import { manifest as manifest25 } from './modules/price_lists/manifest.js';
-import * as module26 from './modules/customer_accounts/backend.js';
-import { manifest as manifest26 } from './modules/customer_accounts/manifest.js';
-import * as module27 from './modules/mfa/backend.js';
-import { manifest as manifest27 } from './modules/mfa/manifest.js';
-import * as module28 from './modules/prompt_actions/backend.js';
-import { manifest as manifest28 } from './modules/prompt_actions/manifest.js';
-import * as module29 from './modules/sales_channels/backend.js';
-import { manifest as manifest29 } from './modules/sales_channels/manifest.js';
-import * as module30 from './modules/api_keys/backend.js';
-import { manifest as manifest30 } from './modules/api_keys/manifest.js';
-import * as module31 from './modules/cms/backend.js';
-import { manifest as manifest31 } from './modules/cms/manifest.js';
-import * as module32 from './modules/blog/backend.js';
-import { manifest as manifest32 } from './modules/blog/manifest.js';
-import * as module33 from './modules/comparisons/backend.js';
-import { manifest as manifest33 } from './modules/comparisons/manifest.js';
-import * as module34 from './modules/google_analytics/backend.js';
-import { manifest as manifest34 } from './modules/google_analytics/manifest.js';
-import * as module35 from './modules/google_tag_manager/backend.js';
-import { manifest as manifest35 } from './modules/google_tag_manager/manifest.js';
-import * as module36 from './modules/inventory/backend.js';
-import { manifest as manifest36 } from './modules/inventory/manifest.js';
-import * as module37 from './modules/linkedin_ads/backend.js';
-import { manifest as manifest37 } from './modules/linkedin_ads/manifest.js';
-import * as module38 from './modules/megamenu/backend.js';
-import { manifest as manifest38 } from './modules/megamenu/manifest.js';
-import * as module39 from './modules/meta_ads/backend.js';
-import { manifest as manifest39 } from './modules/meta_ads/manifest.js';
-import * as module40 from './modules/pim_ergonode/backend.js';
-import { manifest as manifest40 } from './modules/pim_ergonode/manifest.js';
-import * as module41 from './modules/promotions/backend.js';
-import { manifest as manifest41 } from './modules/promotions/manifest.js';
-import * as module42 from './modules/pwa/backend.js';
-import { manifest as manifest42 } from './modules/pwa/manifest.js';
-import * as module43 from './modules/search/backend.js';
-import { manifest as manifest43 } from './modules/search/manifest.js';
-import * as module44 from './modules/taxes/backend.js';
-import { manifest as manifest44 } from './modules/taxes/manifest.js';
-import * as module45 from './modules/product_feeds/backend.js';
-import { manifest as manifest45 } from './modules/product_feeds/manifest.js';
-import * as module46 from './modules/quote_requests/backend.js';
-import { manifest as manifest46 } from './modules/quote_requests/manifest.js';
-import * as module47 from './modules/carts/backend.js';
-import { manifest as manifest47 } from './modules/carts/manifest.js';
-import * as module48 from './modules/customers/backend.js';
-import { manifest as manifest48 } from './modules/customers/manifest.js';
-import * as module49 from './modules/newsletter/backend.js';
-import { manifest as manifest49 } from './modules/newsletter/manifest.js';
-import * as module50 from './modules/orders/backend.js';
-import { manifest as manifest50 } from './modules/orders/manifest.js';
-import * as module51 from './modules/invoices/backend.js';
-import { manifest as manifest51 } from './modules/invoices/manifest.js';
-import * as module52 from './modules/ksef/backend.js';
-import { manifest as manifest52 } from './modules/ksef/manifest.js';
-import * as module53 from './modules/payments/backend.js';
-import { manifest as manifest53 } from './modules/payments/manifest.js';
-import * as module54 from './modules/quick_order/backend.js';
-import { manifest as manifest54 } from './modules/quick_order/manifest.js';
-import * as module55 from './modules/returns/backend.js';
-import { manifest as manifest55 } from './modules/returns/manifest.js';
-import * as module56 from './modules/autopay/backend.js';
-import { manifest as manifest56 } from './modules/autopay/manifest.js';
-import * as module57 from './modules/payu/backend.js';
-import { manifest as manifest57 } from './modules/payu/manifest.js';
-import * as module58 from './modules/shipments/backend.js';
-import { manifest as manifest58 } from './modules/shipments/manifest.js';
-import * as module59 from './modules/shopping_lists/backend.js';
-import { manifest as manifest59 } from './modules/shopping_lists/manifest.js';
-import * as module60 from './modules/stripe/backend.js';
-import { manifest as manifest60 } from './modules/stripe/manifest.js';
-import * as module61 from './modules/tpay/backend.js';
-import { manifest as manifest61 } from './modules/tpay/manifest.js';
-import * as module62 from './modules/webhooks/backend.js';
-import { manifest as manifest62 } from './modules/webhooks/manifest.js';
+import * as module14 from './modules/languages/backend.js';
+import { manifest as manifest14 } from './modules/languages/manifest.js';
+import * as module15 from './modules/dictionaries/backend.js';
+import { manifest as manifest15 } from './modules/dictionaries/manifest.js';
+import * as module16 from './modules/seo/backend.js';
+import { manifest as manifest16 } from './modules/seo/manifest.js';
+import * as module17 from './modules/settings/backend.js';
+import { manifest as manifest17 } from './modules/settings/manifest.js';
+import * as module18 from './modules/credentials/backend.js';
+import { manifest as manifest18 } from './modules/credentials/manifest.js';
+import * as module19 from './modules/organizations/backend.js';
+import { manifest as manifest19 } from './modules/organizations/manifest.js';
+import * as module20 from './modules/addresses/backend.js';
+import { manifest as manifest20 } from './modules/addresses/manifest.js';
+import * as module21 from './modules/credit_limits/backend.js';
+import { manifest as manifest21 } from './modules/credit_limits/manifest.js';
+import * as module22 from './modules/delivery_methods/backend.js';
+import { manifest as manifest22 } from './modules/delivery_methods/manifest.js';
+import * as module23 from './modules/payment_methods/backend.js';
+import { manifest as manifest23 } from './modules/payment_methods/manifest.js';
+import * as module24 from './modules/prompt_actions/backend.js';
+import { manifest as manifest24 } from './modules/prompt_actions/manifest.js';
+import * as module25 from './modules/sales_channels/backend.js';
+import { manifest as manifest25 } from './modules/sales_channels/manifest.js';
+import * as module26 from './modules/catalog/backend.js';
+import { manifest as manifest26 } from './modules/catalog/manifest.js';
+import * as module27 from './modules/cms/backend.js';
+import { manifest as manifest27 } from './modules/cms/manifest.js';
+import * as module28 from './modules/blog/backend.js';
+import { manifest as manifest28 } from './modules/blog/manifest.js';
+import * as module29 from './modules/google_analytics/backend.js';
+import { manifest as manifest29 } from './modules/google_analytics/manifest.js';
+import * as module30 from './modules/google_tag_manager/backend.js';
+import { manifest as manifest30 } from './modules/google_tag_manager/manifest.js';
+import * as module31 from './modules/import_export/backend.js';
+import { manifest as manifest31 } from './modules/import_export/manifest.js';
+import * as module32 from './modules/inventory/backend.js';
+import { manifest as manifest32 } from './modules/inventory/manifest.js';
+import * as module33 from './modules/linkedin_ads/backend.js';
+import { manifest as manifest33 } from './modules/linkedin_ads/manifest.js';
+import * as module34 from './modules/megamenu/backend.js';
+import { manifest as manifest34 } from './modules/megamenu/manifest.js';
+import * as module35 from './modules/meta_ads/backend.js';
+import { manifest as manifest35 } from './modules/meta_ads/manifest.js';
+import * as module36 from './modules/price_lists/backend.js';
+import { manifest as manifest36 } from './modules/price_lists/manifest.js';
+import * as module37 from './modules/customer_accounts/backend.js';
+import { manifest as manifest37 } from './modules/customer_accounts/manifest.js';
+import * as module38 from './modules/api_keys/backend.js';
+import { manifest as manifest38 } from './modules/api_keys/manifest.js';
+import * as module39 from './modules/comparisons/backend.js';
+import { manifest as manifest39 } from './modules/comparisons/manifest.js';
+import * as module40 from './modules/mfa/backend.js';
+import { manifest as manifest40 } from './modules/mfa/manifest.js';
+import * as module41 from './modules/pim_ergonode/backend.js';
+import { manifest as manifest41 } from './modules/pim_ergonode/manifest.js';
+import * as module42 from './modules/promotions/backend.js';
+import { manifest as manifest42 } from './modules/promotions/manifest.js';
+import * as module43 from './modules/pwa/backend.js';
+import { manifest as manifest43 } from './modules/pwa/manifest.js';
+import * as module44 from './modules/search/backend.js';
+import { manifest as manifest44 } from './modules/search/manifest.js';
+import * as module45 from './modules/taxes/backend.js';
+import { manifest as manifest45 } from './modules/taxes/manifest.js';
+import * as module46 from './modules/product_feeds/backend.js';
+import { manifest as manifest46 } from './modules/product_feeds/manifest.js';
+import * as module47 from './modules/quote_requests/backend.js';
+import { manifest as manifest47 } from './modules/quote_requests/manifest.js';
+import * as module48 from './modules/carts/backend.js';
+import { manifest as manifest48 } from './modules/carts/manifest.js';
+import * as module49 from './modules/customers/backend.js';
+import { manifest as manifest49 } from './modules/customers/manifest.js';
+import * as module50 from './modules/newsletter/backend.js';
+import { manifest as manifest50 } from './modules/newsletter/manifest.js';
+import * as module51 from './modules/orders/backend.js';
+import { manifest as manifest51 } from './modules/orders/manifest.js';
+import * as module52 from './modules/invoices/backend.js';
+import { manifest as manifest52 } from './modules/invoices/manifest.js';
+import * as module53 from './modules/ksef/backend.js';
+import { manifest as manifest53 } from './modules/ksef/manifest.js';
+import * as module54 from './modules/payments/backend.js';
+import { manifest as manifest54 } from './modules/payments/manifest.js';
+import * as module55 from './modules/quick_order/backend.js';
+import { manifest as manifest55 } from './modules/quick_order/manifest.js';
+import * as module56 from './modules/returns/backend.js';
+import { manifest as manifest56 } from './modules/returns/manifest.js';
+import * as module57 from './modules/autopay/backend.js';
+import { manifest as manifest57 } from './modules/autopay/manifest.js';
+import * as module58 from './modules/payu/backend.js';
+import { manifest as manifest58 } from './modules/payu/manifest.js';
+import * as module59 from './modules/shipments/backend.js';
+import { manifest as manifest59 } from './modules/shipments/manifest.js';
+import * as module60 from './modules/shopping_lists/backend.js';
+import { manifest as manifest60 } from './modules/shopping_lists/manifest.js';
+import * as module61 from './modules/stripe/backend.js';
+import { manifest as manifest61 } from './modules/stripe/manifest.js';
+import * as module62 from './modules/tpay/backend.js';
+import { manifest as manifest62 } from './modules/tpay/manifest.js';
+import * as module63 from './modules/webhooks/backend.js';
+import { manifest as manifest63 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: '_lifecycle', version: manifest0.version, registerModule: module0.registerModule },
@@ -162,53 +164,54 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'custom_fields', version: manifest11.version, registerModule: module11.registerModule },
   { id: 'email', version: manifest12.version, registerModule: module12.registerModule },
   { id: 'health_checks', version: manifest13.version, registerModule: module13.registerModule },
-  { id: 'import_export', version: manifest14.version, registerModule: module14.registerModule },
-  { id: 'languages', version: manifest15.version, registerModule: module15.registerModule },
-  { id: 'dictionaries', version: manifest16.version, registerModule: module16.registerModule },
-  { id: 'seo', version: manifest17.version, registerModule: module17.registerModule },
-  { id: 'settings', version: manifest18.version, registerModule: module18.registerModule },
-  { id: 'credentials', version: manifest19.version, registerModule: module19.registerModule },
-  { id: 'organizations', version: manifest20.version, registerModule: module20.registerModule },
-  { id: 'addresses', version: manifest21.version, registerModule: module21.registerModule },
-  { id: 'credit_limits', version: manifest22.version, registerModule: module22.registerModule },
-  { id: 'delivery_methods', version: manifest23.version, registerModule: module23.registerModule },
-  { id: 'payment_methods', version: manifest24.version, registerModule: module24.registerModule },
-  { id: 'price_lists', version: manifest25.version, registerModule: module25.registerModule },
-  { id: 'customer_accounts', version: manifest26.version, registerModule: module26.registerModule },
-  { id: 'mfa', version: manifest27.version, registerModule: module27.registerModule },
-  { id: 'prompt_actions', version: manifest28.version, registerModule: module28.registerModule },
-  { id: 'sales_channels', version: manifest29.version, registerModule: module29.registerModule },
-  { id: 'api_keys', version: manifest30.version, registerModule: module30.registerModule },
-  { id: 'cms', version: manifest31.version, registerModule: module31.registerModule },
-  { id: 'blog', version: manifest32.version, registerModule: module32.registerModule },
-  { id: 'comparisons', version: manifest33.version, registerModule: module33.registerModule },
-  { id: 'google_analytics', version: manifest34.version, registerModule: module34.registerModule },
-  { id: 'google_tag_manager', version: manifest35.version, registerModule: module35.registerModule },
-  { id: 'inventory', version: manifest36.version, registerModule: module36.registerModule },
-  { id: 'linkedin_ads', version: manifest37.version, registerModule: module37.registerModule },
-  { id: 'megamenu', version: manifest38.version, registerModule: module38.registerModule },
-  { id: 'meta_ads', version: manifest39.version, registerModule: module39.registerModule },
-  { id: 'pim_ergonode', version: manifest40.version, registerModule: module40.registerModule },
-  { id: 'promotions', version: manifest41.version, registerModule: module41.registerModule },
-  { id: 'pwa', version: manifest42.version, registerModule: module42.registerModule },
-  { id: 'search', version: manifest43.version, registerModule: module43.registerModule },
-  { id: 'taxes', version: manifest44.version, registerModule: module44.registerModule },
-  { id: 'product_feeds', version: manifest45.version, registerModule: module45.registerModule },
-  { id: 'quote_requests', version: manifest46.version, registerModule: module46.registerModule },
-  { id: 'carts', version: manifest47.version, registerModule: module47.registerModule },
-  { id: 'customers', version: manifest48.version, registerModule: module48.registerModule },
-  { id: 'newsletter', version: manifest49.version, registerModule: module49.registerModule },
-  { id: 'orders', version: manifest50.version, registerModule: module50.registerModule },
-  { id: 'invoices', version: manifest51.version, registerModule: module51.registerModule },
-  { id: 'ksef', version: manifest52.version, registerModule: module52.registerModule },
-  { id: 'payments', version: manifest53.version, registerModule: module53.registerModule },
-  { id: 'quick_order', version: manifest54.version, registerModule: module54.registerModule },
-  { id: 'returns', version: manifest55.version, registerModule: module55.registerModule },
-  { id: 'autopay', version: manifest56.version, registerModule: module56.registerModule },
-  { id: 'payu', version: manifest57.version, registerModule: module57.registerModule },
-  { id: 'shipments', version: manifest58.version, registerModule: module58.registerModule },
-  { id: 'shopping_lists', version: manifest59.version, registerModule: module59.registerModule },
-  { id: 'stripe', version: manifest60.version, registerModule: module60.registerModule },
-  { id: 'tpay', version: manifest61.version, registerModule: module61.registerModule },
-  { id: 'webhooks', version: manifest62.version, registerModule: module62.registerModule },
+  { id: 'languages', version: manifest14.version, registerModule: module14.registerModule },
+  { id: 'dictionaries', version: manifest15.version, registerModule: module15.registerModule },
+  { id: 'seo', version: manifest16.version, registerModule: module16.registerModule },
+  { id: 'settings', version: manifest17.version, registerModule: module17.registerModule },
+  { id: 'credentials', version: manifest18.version, registerModule: module18.registerModule },
+  { id: 'organizations', version: manifest19.version, registerModule: module19.registerModule },
+  { id: 'addresses', version: manifest20.version, registerModule: module20.registerModule },
+  { id: 'credit_limits', version: manifest21.version, registerModule: module21.registerModule },
+  { id: 'delivery_methods', version: manifest22.version, registerModule: module22.registerModule },
+  { id: 'payment_methods', version: manifest23.version, registerModule: module23.registerModule },
+  { id: 'prompt_actions', version: manifest24.version, registerModule: module24.registerModule },
+  { id: 'sales_channels', version: manifest25.version, registerModule: module25.registerModule },
+  { id: 'catalog', version: manifest26.version, registerModule: module26.registerModule },
+  { id: 'cms', version: manifest27.version, registerModule: module27.registerModule },
+  { id: 'blog', version: manifest28.version, registerModule: module28.registerModule },
+  { id: 'google_analytics', version: manifest29.version, registerModule: module29.registerModule },
+  { id: 'google_tag_manager', version: manifest30.version, registerModule: module30.registerModule },
+  { id: 'import_export', version: manifest31.version, registerModule: module31.registerModule },
+  { id: 'inventory', version: manifest32.version, registerModule: module32.registerModule },
+  { id: 'linkedin_ads', version: manifest33.version, registerModule: module33.registerModule },
+  { id: 'megamenu', version: manifest34.version, registerModule: module34.registerModule },
+  { id: 'meta_ads', version: manifest35.version, registerModule: module35.registerModule },
+  { id: 'price_lists', version: manifest36.version, registerModule: module36.registerModule },
+  { id: 'customer_accounts', version: manifest37.version, registerModule: module37.registerModule },
+  { id: 'api_keys', version: manifest38.version, registerModule: module38.registerModule },
+  { id: 'comparisons', version: manifest39.version, registerModule: module39.registerModule },
+  { id: 'mfa', version: manifest40.version, registerModule: module40.registerModule },
+  { id: 'pim_ergonode', version: manifest41.version, registerModule: module41.registerModule },
+  { id: 'promotions', version: manifest42.version, registerModule: module42.registerModule },
+  { id: 'pwa', version: manifest43.version, registerModule: module43.registerModule },
+  { id: 'search', version: manifest44.version, registerModule: module44.registerModule },
+  { id: 'taxes', version: manifest45.version, registerModule: module45.registerModule },
+  { id: 'product_feeds', version: manifest46.version, registerModule: module46.registerModule },
+  { id: 'quote_requests', version: manifest47.version, registerModule: module47.registerModule },
+  { id: 'carts', version: manifest48.version, registerModule: module48.registerModule },
+  { id: 'customers', version: manifest49.version, registerModule: module49.registerModule },
+  { id: 'newsletter', version: manifest50.version, registerModule: module50.registerModule },
+  { id: 'orders', version: manifest51.version, registerModule: module51.registerModule },
+  { id: 'invoices', version: manifest52.version, registerModule: module52.registerModule },
+  { id: 'ksef', version: manifest53.version, registerModule: module53.registerModule },
+  { id: 'payments', version: manifest54.version, registerModule: module54.registerModule },
+  { id: 'quick_order', version: manifest55.version, registerModule: module55.registerModule },
+  { id: 'returns', version: manifest56.version, registerModule: module56.registerModule },
+  { id: 'autopay', version: manifest57.version, registerModule: module57.registerModule },
+  { id: 'payu', version: manifest58.version, registerModule: module58.registerModule },
+  { id: 'shipments', version: manifest59.version, registerModule: module59.registerModule },
+  { id: 'shopping_lists', version: manifest60.version, registerModule: module60.registerModule },
+  { id: 'stripe', version: manifest61.version, registerModule: module61.registerModule },
+  { id: 'tpay', version: manifest62.version, registerModule: module62.registerModule },
+  { id: 'webhooks', version: manifest63.version, registerModule: module63.registerModule },
 ];
