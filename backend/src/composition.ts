@@ -5,7 +5,6 @@ import type { OrderStatusRegistry } from './modules/payment_methods/services/ord
 import type { ShippingAdapterRegistry } from './modules/delivery_methods/services/shipping-adapter-registry.js';
 import type { ShippingMethodEligibilityService } from './modules/delivery_methods/services/shipping-method-eligibility.js';
 import { builtInPaymentAdapters } from './modules/payments/adapters/built-in-adapters.js';
-import type { AdminNotificationService } from './modules/admin_notifications/services/admin-notification-service.js';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
@@ -58,7 +57,6 @@ import {
 } from './modules/_lifecycle/services/registry-cache.js';
 import { effectiveState } from './modules/_lifecycle/services/effective-state.js';
 import { StorefrontRevalidator } from './http/storefront-revalidator.js';
-import { catalogModule } from './modules/catalog/plugin.js';
 // Feature 072 (T138) — `organizations` owns its eight services, its routes and
 // its two event subscriptions now. What is left here is the sales-rep
 // assignment scope `orders` still takes as an argument (drains in T141) and the
@@ -97,14 +95,12 @@ import { StockLevelService } from './modules/inventory/services/stock-level-serv
 import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
 import type { CreditLimitsCradle } from './modules/credit_limits/backend.js';
 import type { CustomFieldsCradle } from './modules/custom_fields/backend.js';
-import type { ApiKeysCradle } from './modules/api_keys/backend.js';
 // Feature 062 (T029) — outbound webhook delivery pipeline.
 import {
   createWebhookWorker,
 } from './modules/webhooks/services/webhook-queue.js';
 import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
 import type { WebhooksCradle } from './modules/webhooks/backend.js';
-import type { LanguagesCradle } from './modules/languages/backend.js';
 import type { CmsCradle } from './modules/cms/backend.js';
 import type { MegamenuCradle } from './modules/megamenu/backend.js';
 import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
@@ -198,17 +194,6 @@ import { registerCmsAssetReferences } from './modules/cms/services/asset-referen
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import { CatalogAttributeReadService } from './modules/catalog/services/catalog-attribute-read.service.js';
-// Feature 068 — the catalogue write surface the Ergonode connector imports through.
-import {
-  CatalogAdminService,
-  type CatalogEventBus,
-} from './modules/catalog/services/catalog-admin.service.js';
-import { CategoryAdminService } from './modules/catalog/services/category-admin.service.js';
-import { AttributeSetService } from './modules/catalog/services/attribute-set.service.js';
-import { GalleryService } from './modules/catalog/services/gallery.service.js';
-import { AttachmentService } from './modules/catalog/services/attachment.service.js';
-import { ProductLinkService } from './modules/catalog/services/product-link.service.js';
-import { GroupedService } from './modules/catalog/services/grouped.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
 
@@ -473,10 +458,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   // Feature 072 (wave 1) — `admin_notifications` provides this as a port, so a
   // cross-module write answers on its effective state rather than succeeding
-  // into a module the operator switched off.
-  const adminNotificationService = (
-    container.cradle as unknown as { adminNotificationService: AdminNotificationService }
-  ).adminNotificationService;
+  // into a module the operator switched off. Resolved where it is needed since
+  // T142; nothing in this file reads it any more.
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
@@ -552,7 +535,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // resolve to an `actor.kind === 'api_key'` early in the request lifecycle.
   // Feature 072 (T100) — `api_keys` owns its service, its two gates and its
   // routes now, and provides `apiKeyResolver` itself.
-  const apiKeysCradle = container.cradle as unknown as ApiKeysCradle;
 
   // Feature 062 (T029 / FR-014) — outbound webhook delivery, org-scoped.
   // The bridge (producer) runs in every role: it maps bridged in-process
@@ -616,7 +598,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // subscription now; this root only reads the two ports host modules consume.
   const customFieldsCradle = container.cradle as unknown as CustomFieldsCradle;
   const customFieldDefinitionService = customFieldsCradle.customFieldDefinitionService;
-  const customFieldValueService = customFieldsCradle.customFieldValueService;
 
   // Feature 061 — the composed attribute read model (product-host custom-field
   // definitions + catalog extension rows). Built once, threaded into catalog,
@@ -628,7 +609,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   // Feature 072 (T122) — `import_export` owns its service and routes now.
   // Feature 072 (T105) — `languages` owns its services and routes now.
-  const languagesCradle = container.cradle as unknown as LanguagesCradle;
 
   // Feature 005 — Sales Channels module. The boot-time
   // DefaultChannelReconciler runs FIRST so every other module can rely on a
@@ -744,19 +724,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // (the documented cross-module port — Constitution I) so the rule editor
   // can list `isPromoRule` attributes and the resolver can validate
   // `attribute` criteria against the authoritative option list.
-  const catalogQueryServiceForPromotions = new CatalogQueryService(
-    em,
-    undefined,
-    undefined,
-    catalogAttributeReadService,
-  );
   // Feature 072 (T115) — `promotions` owns its services and routes now.
   // These three stay here: the org-status gate and the Rule Builder picker
   // sources read `organizations`, `categories`, `payment_methods` and
   // `delivery_methods` directly, and the catalog read port is `catalog`'s.
   // Registered after the late pass, where the module declares its defaults.
   registerValues(container, {
-    catalogQueryPort: catalogQueryServiceForPromotions,
     promotionRuleTargets: {
       salesChannels: async () => {
         const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
@@ -1137,83 +1110,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     authModulePlugin,
     tenantContextModulePlugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
-    catalogModule({
-      emFactory: em,
-      eventBus,
-      commandBus,
-      requireAdmin,
-      auditLogService,
-      customFieldValues: customFieldValueService,
-      customFieldDefinitions: customFieldDefinitionService,
-      // Feature 061 — apply seam + composed attribute read model.
-      customFieldsPort: customFieldDefinitionService,
-      attributeReadService: catalogAttributeReadService,
-      requireApiKey: apiKeysCradle.requireApiKey,
-      // Feature 062 — external catalog namespace (/api/v1/external/catalog/*):
-      // bound-key gate + the SAME pricing engine cart pricing uses (SC-001
-      // parity by construction) + the inventory availability indication port.
-      requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
-      pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
-      resolveExternalAvailability: async (productIds, salesChannelId) => {
-        const candidateWarehouseIds =
-          await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
-        return externalAvailabilityStockLevels.resolveAvailabilityBands(
-          productIds,
-          candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
-        );
-      },
-      salesChannelMembership: salesChannels.membershipService,
-      languageService: languagesCradle.languageService,
-      adminNotificationService: adminNotificationService,
-      mailer: platformMailer,
-      // Principle X — durable BullMQ queue for bulk operations. The consumer
-      // (BullMQ worker) runs co-located here unless BACKEND_ROLE=api, in which
-      // case it runs only in the separate `pnpm worker` process.
-      redis,
-      runBulkOperationWorker: runWorkers,
-      // Full Meilisearch reindex (the `search:reindex` CLI equivalent),
-      // run as a `search_reindex` bulk operation when an attribute's
-      // `searchable` flag flips. A fresh indexer reads Meili config from env,
-      // exactly like the CLI.
-      reindexSearchIndexes: async () => {
-        const indexer = new SearchIndexer({ attributeRead: catalogAttributeReadService });
-        const results = await indexer.reindexAllChannels(em());
-        const documentCount = results.reduce((sum, r) => sum + r.documentCount, 0);
-        return { documentCount };
-      },
-      resolveAdminAuditContext: (request) => {
-        if (request.actor.kind !== 'admin') {
-          // Auditing an anonymous mutation shouldn't happen — the admin gate
-          // refuses these — but if it ever does, fall back to a sentinel.
-          return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
-        }
-        return {
-          actorAdminUserId: request.actor.adminUserId,
-          impersonatedCustomerAccountId: null,
-        };
-      },
-      // Storefront product-image placeholder (general.product_image_placeholder_url),
-      // resolved global-or-per-channel through the SettingsService. Returns null
-      // (no placeholder) when unset or on any resolution error so a settings
-      // hiccup can never break product listings.
-      resolveProductImagePlaceholderUrl: async (salesChannelCode) => {
-        try {
-          const channel = salesChannelCode
-            ? await salesChannels.resolver.getByCode(salesChannelCode)
-            : await salesChannels.resolver.getSystemDefault();
-          const channelId = channel?.id ?? platformSettingsChannelId;
-          const url = await settings.settingsService.get(
-            'product_image_placeholder_url',
-            channelId,
-            z.string(),
-          );
-          const trimmed = url.trim();
-          return trimmed === '' ? null : trimmed;
-        } catch {
-          return null;
-        }
-      },
-    }),
   ];
 
   // Feature 005 — Sales Channels plugin (resolver middleware on every
@@ -1465,7 +1361,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // which is still hand-wired; the entry goes when that module converts.
     // Feature 072 (T111) — the composed attribute read model. Owned by
     // `catalog`, which is still hand-wired; the entry goes when it converts.
-    catalogAttributeReadPort: catalogAttributeReadService,
     // Feature 072 (wave 2) — how this composition names the acting admin for an
     // audit record: the admin's id, or `null` for a non-admin caller. The ad
     // modules each declared an identically-shaped `resolveAuditContext` option
@@ -1548,6 +1443,68 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // files now. What stays a composition's: who is asking (production reads
   // `request.actor`, the harness `request.testActor`), and the bridge into
   // `shopping_lists`, which points outward and so cannot be a port.
+  // Feature 072 (T142) — `catalog` owns its services and routes now, and the
+  // seven `pim_ergonode` reads through are its ports rather than a second
+  // instance built here. What stays a composition's: whether this process runs
+  // the bulk-operation consumer (Principle X), how this deployment names an
+  // acting admin on an audit record, and the three adapters that reach modules
+  // `catalog` must not read through directly.
+  registerValues(container, {
+    catalogRunBulkOperationWorker: runWorkers,
+    catalogAdminAuditContext: (request: FastifyRequest) => {
+      if (request.actor.kind !== 'admin') {
+        // Auditing an anonymous mutation shouldn't happen — the admin gate
+        // refuses these — but if it ever does, fall back to a sentinel.
+        return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
+      }
+      return {
+        actorAdminUserId: request.actor.adminUserId,
+        impersonatedCustomerAccountId: null,
+      };
+    },
+    catalogExternalAvailability: async (productIds: string[], salesChannelId: string) => {
+      const candidateWarehouseIds =
+        await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
+      return externalAvailabilityStockLevels.resolveAvailabilityBands(
+        productIds,
+        candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+      );
+    },
+    // Full Meilisearch reindex (the `search:reindex` CLI equivalent), run as a
+    // `search_reindex` bulk operation when an attribute's `searchable` flag
+    // flips. A fresh indexer reads Meili config from env, exactly like the CLI.
+    catalogSearchReindex: async () => {
+      const indexer = new SearchIndexer({
+        attributeRead: (container.cradle as never as { catalogAttributeReadPort: CatalogAttributeReadService })
+          .catalogAttributeReadPort,
+      });
+      const results = await indexer.reindexAllChannels(em());
+      const documentCount = results.reduce((sum, r) => sum + r.documentCount, 0);
+      return { documentCount };
+    },
+    // Storefront product-image placeholder (general.product_image_placeholder_url),
+    // resolved global-or-per-channel through the SettingsService. Returns null
+    // (no placeholder) when unset or on any resolution error so a settings
+    // hiccup can never break product listings.
+    catalogImagePlaceholderUrl: async (salesChannelCode?: string) => {
+      try {
+        const channel = salesChannelCode
+          ? await salesChannels.resolver.getByCode(salesChannelCode)
+          : await salesChannels.resolver.getSystemDefault();
+        const channelId = channel?.id ?? platformSettingsChannelId;
+        const url = await settings.settingsService.get(
+          'product_image_placeholder_url',
+          channelId,
+          z.string(),
+        );
+        const trimmed = url.trim();
+        return trimmed === '' ? null : trimmed;
+      } catch {
+        return null;
+      }
+    },
+  });
+
   // Feature 072 (T141) — the two names `orders` still takes from a composition:
   // which organizations a sales-rep admin may see (actor-shaped, owner `auth`),
   // and the admin-editable sender, late-bound because `transactional_emails`
@@ -1990,32 +1947,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // cross-module ports (Principle I), and sharing one instance between two
   // unrelated consumers would make a wiring change to one a silent change to the
   // other.
-  // Feature 072 (T131) — the eight services `pim_ergonode` reads across a
-  // module boundary. Seven are `catalog`'s and were constructed here a
-  // second time, purely for this module, while `catalog` built its own;
-  // registering them means one instance each per composition. They go when
-  // `catalog` and `assets_library` convert.
+  // Feature 072 (T142) — the seven `catalog` services this block used to build
+  // a **second** time, purely to hand to `pim_ergonode` while `catalog` built
+  // its own set inside its plugin, are gone: that module provides them as
+  // ports, so there is one instance of each per composition and the Ergonode
+  // importer writes through the same one the admin API does. `assetsLibrary`'s
+  // is the last one left here, and it drains when that module converts.
   registerValues(container, {
-    catalogAdminService: new CatalogAdminService(
-      em,
-      eventBus as unknown as CatalogEventBus,
-      auditLogService,
-      salesChannels.membershipService,
-      commandBus,
-      catalogAttributeReadService,
-      customFieldDefinitionService,
-    ),
-    categoryAdminService: new CategoryAdminService(
-      em,
-      salesChannels.membershipService,
-      commandBus,
-      customFieldValueService,
-    ),
-    attributeSetService: new AttributeSetService(em, commandBus, catalogAttributeReadService),
-    galleryService: new GalleryService(em, commandBus),
-    attachmentService: new AttachmentService(em, commandBus),
-    productLinkService: new ProductLinkService(em, commandBus),
-    groupedService: new GroupedService(em, commandBus),
     assetsLibraryService: assetsLibrary.handle.service,
   });
   // FR-005 — the boot-time schedule reconcile moved into the module's own

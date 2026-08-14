@@ -71,7 +71,6 @@ import type { AdminRoleService } from '../../src/modules/admin_roles/services/ad
 import type { AuthCradle } from '../../src/modules/auth/backend.js';
 import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../src/modules/_lifecycle/services/registry-cache.js';
-import { catalogModule } from '../../src/modules/catalog/plugin.js';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
@@ -142,7 +141,6 @@ import type { CustomFieldDefinitionService } from '../../src/modules/custom_fiel
 import type { CustomFieldValueService } from '../../src/modules/custom_fields/services/custom-field-value.service.js';
 import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
 import type { ApiKeysCradle } from '../../src/modules/api_keys/backend.js';
-import type { LanguagesCradle } from '../../src/modules/languages/backend.js';
 import type { CmsCradle } from '../../src/modules/cms/backend.js';
 import type { MegamenuCradle } from '../../src/modules/megamenu/backend.js';
 import type { TargetValidatorDeps } from '../../src/modules/megamenu/services/target-validator.js';
@@ -212,18 +210,8 @@ import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js
 import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
+import { z } from 'zod';
 import { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
-// Feature 068 — the catalogue write surface the Ergonode connector imports through.
-import {
-  CatalogAdminService,
-  type CatalogEventBus,
-} from '../../src/modules/catalog/services/catalog-admin.service.js';
-import { CategoryAdminService } from '../../src/modules/catalog/services/category-admin.service.js';
-import { AttributeSetService } from '../../src/modules/catalog/services/attribute-set.service.js';
-import { GalleryService } from '../../src/modules/catalog/services/gallery.service.js';
-import { AttachmentService } from '../../src/modules/catalog/services/attachment.service.js';
-import { ProductLinkService } from '../../src/modules/catalog/services/product-link.service.js';
-import { GroupedService } from '../../src/modules/catalog/services/grouped.service.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
 import { collectRegisteredSettingsManifests } from '../../src/modules/settings/services/registered-settings-manifests.js';
@@ -1005,7 +993,6 @@ export async function setupBackendServer(
   // Languages + currencies (Phase 10 / T238). Static config, bootstrapped
   // by migration 012 with en-US + pl-PL languages and PLN + EUR currencies.
   // Feature 072 (T105) — `languages` owns its services and routes now.
-  const languagesCradle = container.cradle as unknown as LanguagesCradle;
 
   // Feature 072 (T112) — `dictionaries` owns its services, its cache
   // invalidation listeners and its routes now.
@@ -1083,7 +1070,6 @@ export async function setupBackendServer(
   // `delivery_methods` directly, and the catalog read port is `catalog`'s.
   // Registered after the late pass, where the module declares its defaults.
   registerValues(container, {
-    catalogQueryPort: new CatalogQueryService(em, undefined, undefined, catalogAttributeReadService),
     organizationStatusResolver: async (orgId: string) => {
       const row = (await em().getKnex()
         .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
@@ -1207,66 +1193,6 @@ export async function setupBackendServer(
       // request seam gets a leak that no test can see.
       await registerRequestScopeHook(app, { buildTenantContext: buildContext });
     },
-    catalogModule({
-      emFactory: em,
-      eventBus,
-      commandBus,
-      requireAdmin: requireTestAdmin(permissionService),
-      auditLogService,
-      customFieldValues: customFieldValueService,
-      customFieldDefinitions: customFieldDefinitionService,
-      // Feature 061 — apply seam + composed attribute read model.
-      customFieldsPort: customFieldDefinitionService,
-      attributeReadService: catalogAttributeReadService,
-      requireApiKey: apiKeysCradle.requireApiKey,
-      // Feature 062 — external catalog namespace (mirrors composition.ts):
-      // bound-key gate + the SAME pricing engine cart pricing uses + the
-      // inventory availability port.
-      requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
-      pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
-      resolveExternalAvailability: async (productIds, salesChannelId) => {
-        const candidateWarehouseIds =
-          await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
-        return externalAvailabilityStockLevels.resolveAvailabilityBands(
-          productIds,
-          candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
-        );
-      },
-      salesChannelMembership: salesChannels.membershipService,
-      languageService: languagesCradle.languageService,
-      // Tests assert the queued ack only: no `redis` is wired into the catalog
-      // module here, so the producer's enqueue is a no-op and queued rows stay
-      // `pending` (no BullMQ worker, no DB churn after a response or across
-      // teardown). Stub reindex runner so the `search_reindex` enqueuer is
-      // wired (the attribute-searchable flip path); it never hits Meilisearch.
-      reindexSearchIndexes: async () => ({ documentCount: 0 }),
-      // Storefront product-image placeholder resolver (mirrors composition.ts);
-      // `settings` is declared below — the closure runs at request time.
-      resolveProductImagePlaceholderUrl: async (salesChannelCode) => {
-        try {
-          const { z } = await import('zod');
-          const channel = salesChannelCode
-            ? await salesChannels.resolver.getByCode(salesChannelCode)
-            : await salesChannels.resolver.getSystemDefault();
-          if (!channel) return null;
-          const url = await settings.settingsService.get(
-            'product_image_placeholder_url',
-            channel.id,
-            z.string(),
-          );
-          const trimmed = url.trim();
-          return trimmed === '' ? null : trimmed;
-        } catch {
-          return null;
-        }
-      },
-      resolveAdminAuditContext: (request) => {
-        if (request.testActor?.kind !== 'admin') {
-          return { actorAdminUserId: TEST_ADMIN_ID };
-        }
-        return { actorAdminUserId: request.testActor.adminUserId };
-      },
-    }),
   ];
 
   // Feature 072 (T118) — the kernel composes the settings reader; the module
@@ -1625,7 +1551,6 @@ export async function setupBackendServer(
     // accepted divergence.
     customerAccountIdResolver: (req: FastifyRequest) =>
       req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
-    catalogAttributeReadPort: catalogAttributeReadService,
     // Feature 072 (wave 2) — mirrors `composition.ts`, reading this harness's
     // own actor property. The ad modules resolve one name instead of each
     // taking its own identically-shaped `resolveAuditContext` option.
@@ -1740,6 +1665,44 @@ export async function setupBackendServer(
   // files now. What stays a composition's: who is asking (production reads
   // `request.actor`, the harness `request.testActor`), and the bridge into
   // `shopping_lists`, which points outward and so cannot be a port.
+  // Feature 072 (T142) — mirrors `composition.ts`. The harness runs no
+  // bulk-operation consumer and must not reindex Meilisearch, which is exactly
+  // what these two say; the other three are the same adapters, reading this
+  // harness's own actor property where one is involved.
+  registerValues(container, {
+    catalogRunBulkOperationWorker: false,
+    catalogSearchReindex: async () => ({ documentCount: 0 }),
+    catalogAdminAuditContext: (request: FastifyRequest) => ({
+      actorAdminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+      impersonatedCustomerAccountId: null,
+    }),
+    catalogExternalAvailability: async (productIds: string[], salesChannelId: string) => {
+      const candidateWarehouseIds =
+        await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
+      return externalAvailabilityStockLevels.resolveAvailabilityBands(
+        productIds,
+        candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+      );
+    },
+    catalogImagePlaceholderUrl: async (salesChannelCode?: string) => {
+      try {
+        const channel = salesChannelCode
+          ? await salesChannels.resolver.getByCode(salesChannelCode)
+          : await salesChannels.resolver.getSystemDefault();
+        const url = await settings.settingsService.get(
+          'product_image_placeholder_url',
+          channel?.id ?? 'default',
+          z.string(),
+        );
+        const trimmed = url.trim();
+        return trimmed === '' ? null : trimmed;
+      } catch {
+        return null;
+      }
+    },
+  });
+
   // Feature 072 (T141) — mirrors `composition.ts`: the sales-rep admin scope
   // (reading this harness's own actor property) and the late-bound sender.
   registerValues(container, {
@@ -2175,26 +2138,9 @@ export async function setupBackendServer(
   // registering them means one instance each per composition. They go when
   // `catalog` and `assets_library` convert.
   registerValues(container, {
-    catalogAdminService: new CatalogAdminService(
-      em,
-      eventBus as unknown as CatalogEventBus,
-      auditLogService,
-      salesChannels.membershipService,
-      commandBus,
-      catalogAttributeReadService,
-      customFieldDefinitionService,
-    ),
-    categoryAdminService: new CategoryAdminService(
-      em,
-      salesChannels.membershipService,
-      commandBus,
-      customFieldValueService,
-    ),
-    attributeSetService: new AttributeSetService(em, commandBus, catalogAttributeReadService),
-    galleryService: new GalleryService(em, commandBus),
-    attachmentService: new AttachmentService(em, commandBus),
-    productLinkService: new ProductLinkService(em, commandBus),
-    groupedService: new GroupedService(em, commandBus),
+    // Mirrors `composition.ts`: the seven `catalog` services this block built a
+    // second time are that module's ports since T142. Only `assets_library`'s
+    // is left, and it drains when that module converts.
     assetsLibraryService: assetsLibrary.handle.service,
   });
 
