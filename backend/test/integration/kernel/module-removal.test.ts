@@ -518,6 +518,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `quote_requests` (wave 3, T132). The two central registries name its
+  // entities and migrations; both roots contribute who is asking, the
+  // organization's tax rate and the sales-rep subtree. The first is a root's by
+  // nature — production reads `request.actor`, the harness `request.testActor`
+  // — and the other two go when `taxes` and `organizations` convert.
+  quote_requests: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

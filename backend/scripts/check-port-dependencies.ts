@@ -172,8 +172,15 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // converts into, the org restriction the preference routes re-check against,
   // the lazy order service one-click buy places through, and the sink that
   // hands its own service back to `carts`. All four owners are still hand-wired.
-  rfqService: 'quote_requests',
   organizationRestrictionPort: 'organizations',
+  // `quote_requests`' three composition-shaped inputs (T132): who is asking
+  // (production reads `request.actor`, the harness `request.testActor`), the
+  // organization's tax rate, and the subtree the RFQ admin scope rolls up over.
+  rfqCustomerContextResolver: 'auth',
+  rfqAdminContextResolver: 'auth',
+  rfqTaxRateResolver: 'taxes',
+  rfqSalesRepSubtree: 'organizations',
+  organizationTreeService: 'organizations',
   oneClickOrderServiceGetter: 'orders',
   shoppingListServiceSink: 'carts',
   // Inherited credit limits (feature 056). Owned by `organizations`, still

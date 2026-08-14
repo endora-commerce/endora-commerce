@@ -61,7 +61,7 @@ import {
 import { effectiveState } from './modules/_lifecycle/services/effective-state.js';
 import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 import { catalogModule } from './modules/catalog/plugin.js';
-import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
+import type { QuoteRequestsCradle } from './modules/quote_requests/backend.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
 import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
 import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
@@ -142,7 +142,6 @@ import type { SalesChannelsCradle } from './modules/sales_channels/backend.js';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
 import { SearchIndexer } from './modules/search/services/search-indexer.js';
 import type { ComparisonsCradle } from './modules/comparisons/backend.js';
-import { QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
 // Feature 058 — Credentials (reusable credential configurations).
 import { configurationTypeRegistry } from './modules/credentials/services/registry-singleton.js';
 import { llmConfigurationType } from './modules/credentials/types/llm.type.js';
@@ -1472,7 +1471,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return false;
         }
       },
-      getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      getRfqService: () => (container.cradle as unknown as QuoteRequestsCradle).rfqService,
       // Feature 039 — expose OrderService for the quick_order one-click flow.
       exposeOrderService: (svc) => {
         orderServiceForOneClick = svc;
@@ -2077,132 +2076,73 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // expiry worker can read `quote_requests.expiryDays` through the
   // settings service. Customer + admin context resolvers look up the
   // caller's role for visibility scoping (research §R2 / FR-011 / FR-013).
-  const quoteRequests = quoteRequestsModule({
-    emFactory: em,
-    eventBus,
-    requireCustomer,
-    requireAdmin,
-    customFieldValues: customFieldValueService,
-    resolveCustomerContext: async (request) => {
-      if (request.actor.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      if (!request.actor.organizationId) {
-        throw new HttpError(
-          422,
-          ERROR_CODES.VALIDATION_FAILED,
-          'Quote Requests require an Organization attached to your account.',
-          { code: 'organization_required' },
-        );
-      }
-      const account = await em().findOne(CustomerAccount, {
-        id: request.actor.customerAccountId,
-      });
-      return {
-        customerAccountId: request.actor.customerAccountId,
-        organizationId: request.actor.organizationId,
-        isOrgAdmin: account?.role === 'organization_admin',
-      };
-    },
-    resolveAdminContext: async (request) => {
-      if (request.actor.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
-      const role = adminUser?.adminRoleId
-        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
-        : null;
-      return {
-        adminUserId: request.actor.adminUserId,
-        isPlatformAdmin: role?.code === 'platform_admin',
-        roleLabel:
-          role?.code === 'platform_admin'
-            ? 'Platform administrator'
-            : role?.code === 'sales_representative'
-              ? 'Sales representative'
-              : (role?.name ?? 'Administrator'),
-      };
-    },
-    resolveExpiryDays: async () => {
-      try {
-        const { z } = await import('zod');
-        const value = await settings.settingsService.get(
-          QUOTE_REQUESTS_SETTING_CODES.EXPIRY_DAYS,
-          'default',
-          z.number().int().nonnegative(),
-        );
-        return value;
-      } catch {
-        return 0;
-      }
-    },
-    resolveBoolSetting: async (key) => {
-      try {
-        const { z } = await import('zod');
-        const code =
-          key === 'show_add_to_quote_on_card'
-            ? QUOTE_REQUESTS_SETTING_CODES.SHOW_ADD_TO_QUOTE_ON_CARD
-            : QUOTE_REQUESTS_SETTING_CODES.SHOW_ADD_TO_QUOTE_ON_PDP;
-        return await settings.settingsService.get(code, 'default', z.boolean());
-      } catch {
-        return true;
-      }
-    },
-    // Business Quote Request ID prefix/suffix — global (not Sales-Channel
-    // scoped). Missing settings resolve to '' (bare numeric ID).
-    resolveBusinessIdPrefix: async () => {
-      try {
-        const { z } = await import('zod');
-        return await settings.settingsService.get(
-          QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_PREFIX,
-          'default',
-          z.string(),
-        );
-      } catch {
-        return '';
-      }
-    },
-    resolveBusinessIdSuffix: async () => {
-      try {
-        const { z } = await import('zod');
-        return await settings.settingsService.get(
-          QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_SUFFIX,
-          'default',
-          z.string(),
-        );
-      } catch {
-        return '';
-      }
-    },
-    assertOrganizationCanTransact,
-    // Quote Request prices are net; the VAT rate is resolved from the
-    // Organization's VAT status + tax rules at read time (mirrors Orders).
-    // VAT-exempt / reverse-charge Organizations resolve to 0.
-    resolveTaxRate: async (organizationId: string) => {
-      try {
-        const org = await em().findOne(Organization, { id: organizationId });
-        const vatStatus = org?.vatStatus ?? 'vat_payer';
-        if (vatStatus !== 'vat_payer') return 0;
-        const country = org?.registeredAddress?.country ?? 'PL';
-        const resolved = await taxesCradle.taxService.taxRateFor({
-          country,
-          productType: 'simple',
-          vatStatus,
+  // Feature 072 (T132) — `quote_requests` owns its services, routes and the
+  // four settings reads now. What stays is a composition's answer to who is
+  // asking, the organization's tax rate, and the subtree the RFQ admin scope
+  // rolls up over.
+  registerValues(container, {
+      rfqCustomerContextResolver: async (request: FastifyRequest) => {
+        if (request.actor.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        if (!request.actor.organizationId) {
+          throw new HttpError(
+            422,
+            ERROR_CODES.VALIDATION_FAILED,
+            'Quote Requests require an Organization attached to your account.',
+            { code: 'organization_required' },
+          );
+        }
+        const account = await em().findOne(CustomerAccount, {
+          id: request.actor.customerAccountId,
         });
-        return resolved.rate;
-      } catch {
-        return 0;
-      }
-    },
-    auditLog: auditLogService,
-    // Feature 056 — RFQ admin scope is subtree-aware for reps holding roll-up.
-    salesRepSubtree: {
+        return {
+          customerAccountId: request.actor.customerAccountId,
+          organizationId: request.actor.organizationId,
+          isOrgAdmin: account?.role === 'organization_admin',
+        };
+      },
+      rfqAdminContextResolver: async (request: FastifyRequest) => {
+        if (request.actor.kind !== 'admin') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+        }
+        const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
+        const role = adminUser?.adminRoleId
+          ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+          : null;
+        return {
+          adminUserId: request.actor.adminUserId,
+          isPlatformAdmin: role?.code === 'platform_admin',
+          roleLabel:
+            role?.code === 'platform_admin'
+              ? 'Platform administrator'
+              : role?.code === 'sales_representative'
+                ? 'Sales representative'
+                : (role?.name ?? 'Administrator'),
+        };
+      },
+      rfqTaxRateResolver: async (organizationId: string) => {
+        try {
+          const org = await em().findOne(Organization, { id: organizationId });
+          const vatStatus = org?.vatStatus ?? 'vat_payer';
+          if (vatStatus !== 'vat_payer') return 0;
+          const country = org?.registeredAddress?.country ?? 'PL';
+          const resolved = await taxesCradle.taxService.taxRateFor({
+            country,
+            productType: 'simple',
+            vatStatus,
+          });
+          return resolved.rate;
+        } catch {
+          return 0;
+        }
+      },
+    rfqSalesRepSubtree: {
       treeService: organizationTreeService,
-      hasRollupCapability: (adminUserId) =>
+      hasRollupCapability: (adminUserId: string) =>
         permissionService.hasPermission(adminUserId, 'organizations:rollup'),
     },
   });
-  modules.push(quoteRequests.register);
 
   // Feature 040 — Customers module. Built after orders + quote_requests so it
   // can reach the OrderListService (late-bound) and the RfqService for the
@@ -2249,7 +2189,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
       return orderListServiceForCustomers;
     },
-    rfqService: quoteRequests.handle().rfqService,
+    rfqService: (container.cradle as unknown as QuoteRequestsCradle).rfqService,
     auditLogService,
     organizationRestrictionService,
     requireAdmin,
@@ -2802,7 +2742,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // two cross-module services it must not reach for directly, and the sink that
   // hands its own service back to `carts` until that module converts.
   registerValues(container, {
-    rfqService: quoteRequests.handle().rfqService,
     organizationRestrictionPort: organizationRestrictionService,
     oneClickOrderServiceGetter: () => orderServiceForOneClick,
     shoppingListServiceSink: (svc: ShoppingListService) => {

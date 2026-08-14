@@ -73,7 +73,6 @@ import type { AuthCradle } from '../../src/modules/auth/backend.js';
 import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { catalogModule } from '../../src/modules/catalog/plugin.js';
-import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js';
 import { customersModule } from '../../src/modules/customers/plugin.js';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
@@ -111,6 +110,7 @@ import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js'
 import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
 import type { ShoppingListService } from '../../src/modules/shopping_lists/services/shopping-list-service.js';
+import type { QuoteRequestsCradle } from '../../src/modules/quote_requests/backend.js';
 import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
 import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
@@ -1306,7 +1306,7 @@ export async function setupBackendServer(
         }
       },
       ...(options.commerceMailer ? { mailer: options.commerceMailer } : {}),
-      getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      getRfqService: () => (container.cradle as unknown as QuoteRequestsCradle).rfqService,
       // Global backorder gate — resolved at request time via the Settings
       // module (declared below; the closure runs well after setup completes).
       resolveChannelAllowNegativeStock: async (salesChannelId: string) => {
@@ -2088,56 +2088,56 @@ export async function setupBackendServer(
   );
 
   // Feature 008 — Quote Requests workflow.
-  const quoteRequests = quoteRequestsModule({
-    emFactory: em,
-    eventBus,
-    requireCustomer: requireTestCustomer(),
-    requireAdmin: requireTestAdmin(permissionService),
-    customFieldValues: customFieldValueService,
-    resolveCustomerContext: async (request) => {
-      const ctx = customerResolver(request);
-      const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
-      return {
-        customerAccountId: ctx.customerAccountId,
-        organizationId: ctx.organizationId,
-        isOrgAdmin: account?.role === 'organization_admin',
-      };
+  // Feature 072 (T132) — `quote_requests` owns its services, routes and the
+  // four settings reads now. What stays is a composition's answer to who is
+  // asking, the organization's tax rate, and the subtree the RFQ admin scope
+  // rolls up over.
+  registerValues(container, {
+      rfqCustomerContextResolver: async (request: FastifyRequest) => {
+        const ctx = customerResolver(request);
+        const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
+        return {
+          customerAccountId: ctx.customerAccountId,
+          organizationId: ctx.organizationId,
+          isOrgAdmin: account?.role === 'organization_admin',
+        };
+      },
+      rfqAdminContextResolver: async (request: FastifyRequest) => {
+        const adminUserId = request.testActor?.kind === 'admin'
+          ? request.testActor.adminUserId
+          : TEST_ADMIN_ID;
+        const adminUser = await em().findOne(AdminUser, { id: adminUserId });
+        const role = adminUser?.adminRoleId
+          ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+          : null;
+        return {
+          adminUserId,
+          isPlatformAdmin: role?.code === 'platform_admin' || true,
+          roleLabel: role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
+        };
+      },
+      rfqTaxRateResolver: async (organizationId: string) => {
+        try {
+          const org = await em().findOne(Organization, { id: organizationId });
+          const vatStatus = org?.vatStatus ?? 'vat_payer';
+          if (vatStatus !== 'vat_payer') return 0;
+          const country = org?.registeredAddress?.country ?? 'PL';
+          const resolved = await taxesCradle.taxService.taxRateFor({
+            country,
+            productType: 'simple',
+            vatStatus,
+          });
+          return resolved.rate;
+        } catch {
+          return 0;
+        }
+      },
+    rfqSalesRepSubtree: {
+      treeService: new OrganizationTreeService(em),
+      hasRollupCapability: (adminUserId: string) =>
+        permissionService.hasPermission(adminUserId, 'organizations:rollup'),
     },
-    resolveAdminContext: async (request) => {
-      const adminUserId = request.testActor?.kind === 'admin'
-        ? request.testActor.adminUserId
-        : TEST_ADMIN_ID;
-      const adminUser = await em().findOne(AdminUser, { id: adminUserId });
-      const role = adminUser?.adminRoleId
-        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
-        : null;
-      return {
-        adminUserId,
-        isPlatformAdmin: role?.code === 'platform_admin' || true,
-        roleLabel: role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
-      };
-    },
-    resolveExpiryDays: async () => 0,
-    resolveBoolSetting: async () => true,
-    resolveTaxRate: async (organizationId: string) => {
-      try {
-        const org = await em().findOne(Organization, { id: organizationId });
-        const vatStatus = org?.vatStatus ?? 'vat_payer';
-        if (vatStatus !== 'vat_payer') return 0;
-        const country = org?.registeredAddress?.country ?? 'PL';
-        const resolved = await taxesCradle.taxService.taxRateFor({
-          country,
-          productType: 'simple',
-          vatStatus,
-        });
-        return resolved.rate;
-      } catch {
-        return 0;
-      }
-    },
-    auditLog: auditLogService,
   });
-  modules.push(quoteRequests.register);
 
   // Feature 040 — Customers module (mirrors composition.ts wiring).
   const customers = customersModule({
@@ -2177,7 +2177,7 @@ export async function setupBackendServer(
       }
       return orderListServiceForCustomers;
     },
-    rfqService: quoteRequests.handle().rfqService,
+    rfqService: (container.cradle as unknown as QuoteRequestsCradle).rfqService,
     auditLogService,
     organizationRestrictionService: sharedRestrictionService,
     requireAdmin: requireTestAdmin(permissionService),
@@ -2554,7 +2554,6 @@ export async function setupBackendServer(
   // `settingsService` here, so the quick-order import cap fell back to its
   // manifest default in every test while production read it per channel.
   registerValues(container, {
-    rfqService: quoteRequests.handle().rfqService,
     organizationRestrictionPort: sharedRestrictionService,
     oneClickOrderServiceGetter: () => orderServiceForOneClick,
     shoppingListServiceSink: (svc: ShoppingListService) => {

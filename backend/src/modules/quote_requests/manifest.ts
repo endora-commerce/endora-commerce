@@ -34,6 +34,16 @@ const settings = defineModuleSettingsManifest({
   ],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'quote_requests.enabled',
+      name: 'Quote requests enabled',
+      description:
+        'Switches the RFQ flow on or off: the customer request surfaces, the add-to-quote controls on the product card and PDP, the admin quote desk, and the worker that expires pending requests. Nothing is dropped — every request, its revisions and its messages stay in the database and resume where they were.',
+      groupCode: 'quote_requests',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: QUOTE_REQUESTS_SETTING_CODES.EXPIRY_DAYS,
       name: 'Auto-expire pending after (days)',
       description:
@@ -86,8 +96,10 @@ export const manifest = defineModuleManifest({
   description:
     'Customer-initiated RFQ workflow with admin pricing, approvals, and expiry.',
   version: '1.0.0',
-  dependencies: ['catalog', 'settings'],
+  dependencies: ['auth', 'catalog', 'custom_fields', 'organizations', 'settings', 'taxes'],
   settings,
+  // Feature 073 (Constitution XVII) — the operator's activation control.
+  activation: { settingCode: 'quote_requests.enabled', default: true },
   i18n: { bundlesDir: 'i18n' },
   actions: [
     {
