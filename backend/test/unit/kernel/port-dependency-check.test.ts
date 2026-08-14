@@ -4,6 +4,7 @@ import {
   describe as describeViolation,
   findViolations,
   findRootIssues,
+  NON_LITERAL_PORT_NAME,
   providedPortNames,
   registeredNames,
   resolvedNames,
@@ -393,5 +394,59 @@ describe('findRootIssues — a table entry no root supplies', () => {
         resolvedNames: new Set<string>(),
       }),
     ).toEqual([]);
+  });
+});
+
+describe('resolvedNames — lazyPort', () => {
+  const file = '/repo/backend/src/modules/blog/backend.ts';
+
+  it('sees a lazyPort read and calls it deferred', () => {
+    // Deferred by construction: the proxy resolves on each method call, which
+    // is why capturing one is safe where capturing a port is not.
+    const source = `
+      export function registerModule(ctx: ModuleContext): void {
+        ctx.di.register({
+          thing: ctx.asFunction(() => build({
+            settings: lazyPort<SettingsService>(ctx, 'settingsReadPort'),
+          })).singleton(),
+        });
+      }
+    `;
+    const found = resolvedNames(source, file);
+    expect(found).toContainEqual(
+      expect.objectContaining({ name: 'settingsReadPort', kind: 'deferred' }),
+    );
+  });
+
+  it('records a computed name under the sentinel so it cannot pass', () => {
+    // A generic `port(ctx, name)` helper hid twelve resolutions during T131.
+    // The check refuses the shape rather than guessing at it.
+    const source = `
+      export function registerModule(ctx: ModuleContext): void {
+        const port = (name: string) => lazyPort<never>(ctx, name);
+      }
+    `;
+    expect(resolvedNames(source, file)).toContainEqual(
+      expect.objectContaining({ name: NON_LITERAL_PORT_NAME }),
+    );
+  });
+
+  it('leaves a computed name owned by nobody, so findViolations reports it', () => {
+    const violations = findViolations({
+      resolutions: [
+        {
+          moduleId: 'blog',
+          name: NON_LITERAL_PORT_NAME,
+          file,
+          line: 3,
+          kind: 'deferred',
+        },
+      ],
+      owners: new Map(),
+      dependencies: new Map(),
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ kind: 'unowned-name' });
+    expect(describeViolation(violations[0]!)).toContain('computed name');
   });
 });
