@@ -1,6 +1,5 @@
 import type { AssetsLibraryCradle } from './modules/assets_library/backend.js';
 import type { CartShoppingListBridge, CartsCradle } from './modules/carts/backend.js';
-import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
 import type { PaymentAdapterRegistry } from './modules/payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from './modules/payment_methods/services/order-status-registry.port.js';
 import type { ShippingAdapterRegistry } from './modules/delivery_methods/services/shipping-adapter-registry.js';
@@ -60,22 +59,18 @@ import {
 import { effectiveState } from './modules/_lifecycle/services/effective-state.js';
 import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 import { catalogModule } from './modules/catalog/plugin.js';
-import type { QuoteRequestsCradle } from './modules/quote_requests/backend.js';
 // Feature 072 (T138) — `organizations` owns its eight services, its routes and
 // its two event subscriptions now. What is left here is the sales-rep
 // assignment scope `orders` still takes as an argument (drains in T141) and the
 // VIES client the `customers` module is handed directly.
 import type { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
 import { SalesRepAssignmentService } from './modules/organizations/services/sales-rep-assignment-service.js';
-import { ViesClient } from './modules/organizations/integrations/vies-client.js';
-import type { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
 // `backend.ts`; what stays here is the pure URL helper, which is a function,
 // not a service, and the cradle shape the senders below resolve through.
 import type { EmailCradle } from './modules/email/backend.js';
 import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
-import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { ReturnsBridge } from './modules/returns/backend.js';
 import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
@@ -86,11 +81,8 @@ import type { KsefCradle } from './modules/ksef/backend.js';
 import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
-import type { AddressService } from './modules/addresses/services/address-service.js';
 import type { OrderListService } from './modules/orders/services/order-list-service.js';
 import type { OrderTransitionService } from './modules/orders/services/order-transition-service.js';
-import { customersModule } from './modules/customers/plugin.js';
-import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge, MfaCradle } from './modules/mfa/backend.js';
@@ -122,7 +114,6 @@ import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-r
 import type { PriceListsCradle } from './modules/price_lists/backend.js';
 import { DEFAULT_PRICING_CACHE_TTL_MS } from './modules/price_lists/services/pricing-cache.js';
 import type { TaxesCradle } from './modules/taxes/backend.js';
-import type { PromotionsCradle } from './modules/promotions/backend.js';
 import { composeSettingsKernel } from './kernel/settings/compose.js';
 import type { SettingsCradle } from './modules/settings/backend.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
@@ -175,7 +166,6 @@ import { PAYMENT_STATUS_CHANGED_DEFAULT } from './modules/payments/email-templat
 import { SHIPMENT_CREATED_DEFAULT } from './modules/shipments/email-templates/transactional-defaults.js';
 import { INVOICE_ISSUED_DEFAULT } from './modules/invoices/email-templates/invoice-issued.default.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
-import type { OrganizationReadPort } from './kernel/ports/organizations.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
   catalogBulkProgressResolver,
@@ -418,7 +408,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         .actor;
       return actor?.kind === 'customer' ? actor.organizationId ?? null : null;
     },
-    organizationsStorefrontBaseUrl:
+    storefrontBaseUrl:
       process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     // No verification-token probe outside the harness.
     organizationsExposeTestProbe: false,
@@ -437,8 +427,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   await earlyModules.runBootHooks();
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument
-  // differed between them; there is one now, and it can always reach the port.
-  const customerAccountsCradle = container.cradle as unknown as CustomerAccountsCradle;
+  // differed between them; there is one now, and both modules resolve it as a
+  // port rather than being handed it (T138/T140).
 
   // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
   // their registries, eligibility services and routes now. `orders` still reads
@@ -468,7 +458,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin: RequireAdminFactory;
     requireAdminAny: RequireAdminAnyFactory;
   };
-  const sessionService = authCradle.sessionService;
 
   // Feature 072 (wave 1) — `admin_roles` owns these three now.
   const rolesCradle = container.cradle as unknown as {
@@ -685,8 +674,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `orders` and `organizations` used to build their own, and the constructor's
   // validator and audit writer are optional, so the instances were free to
   // disagree — and one did.
-  const addressService = (container.cradle as unknown as { addressService: AddressService })
-    .addressService;
 
   // Feature 072 (wave 1) — `dictionaries` reacts to a currency change instead
   // of `currencies` calling into it. The direction matters: declaring the call
@@ -805,7 +792,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     },
   });
-  const promotionsCradle = container.cradle as unknown as PromotionsCradle;
 
   // Settings module is constructed up here (rather than further down) so its
   // SettingsService handle can be threaded into inventory + search at module
@@ -998,14 +984,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // stamps into URLs. Plugin is pushed onto `modules` further below.
   // Feature 072 (T117) — `seo` owns its services and routes now.
   let shoppingListService: ShoppingListService | null = null;
-  // Feature 039 — late-bound OrderService for the quick_order one-click flow.
-  let orderServiceForOneClick: OrderService | null = null;
-  // Feature 040 — late-bound OrderListService for the customers module's
-  // self-service + admin order-history panels.
-  let orderListServiceForCustomers: OrderListService | null = null;
-  // Feature 043 — late-bound OrderTransitionService for the orders
-  // prompt-action status tools.
-  let orderTransitionServiceForPrompts: OrderTransitionService | null = null;
+  // Feature 072 (T141) — the three services `orders` used to hand out through
+  // `expose…` callbacks into variables held here are ports now. The module owns
+  // the binding; this root reads the accessors like any other consumer.
+  const ordersCradle = (): {
+    orderServiceAccessor: () => OrderService | null;
+    orderListServiceAccessor: () => OrderListService | null;
+    orderTransitionServiceAccessor: () => OrderTransitionService | null;
+  } => container.cradle as never;
 
   // Feature 072 (T079) — the platform mailer, resolved from the container the
   // `email` module registered it into. Six senders share it, which is why it
@@ -1072,34 +1058,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     return { allowAll: false, allowedOrganizationIds };
   };
 
-  /**
-   * Feature 072 (T138) — what `orders` still needs, composed from the same two
-   * halves the three converted consumers compose themselves. It stays here only
-   * until `orders` converts in T141; the shape is identical so that conversion
-   * is a move, not a redesign.
-   *
-   * No `catch`: `organizationRestrictionPort` is gated, and swallowing its
-   * `ModuleDisabledError` would read as "no restriction" — fail-open on a
-   * restriction check. The two legitimate degrades are the resolver's own
-   * `null` and `allowedIdsFor`'s.
-   */
-  const orgCradle = (): {
-    customerOrganizationIdResolver: (request: FastifyRequest) => string | null;
-    organizationRestrictionPort: OrganizationRestrictionService;
-    organizationReadPort: OrganizationReadPort;
-  } => container.cradle as never;
-  const resolveOrgAllowList =
-    (kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds') =>
-    async (request: FastifyRequest): Promise<string[] | null> => {
-      const organizationId = orgCradle().customerOrganizationIdResolver(request);
-      if (organizationId === null) return null;
-      return orgCradle().organizationRestrictionPort.allowedIdsFor(organizationId, kind);
-    };
-  const resolveOrganizationPaymentMethodAllowList = resolveOrgAllowList('paymentMethodIds');
-  const resolveOrganizationDeliveryMethodAllowList = resolveOrgAllowList('deliveryMethodIds');
 
 
-  // Feature 047 — late-bound transactional-email sender. commerceModule (and
+  // Feature 047 — late-bound transactional-email sender. `orders` (and
   // other owning modules) read it via a getter; the transactional_emails module
   // sets it through exposeSender once built.
   let transactionalEmailSender: TransactionalEmailSender | undefined;
@@ -1176,206 +1137,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     authModulePlugin,
     tenantContextModulePlugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
-    commerceModule({
-      cartService: (container.cradle as unknown as CartsCradle).cartService,
-      paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
-      shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
-      paymentOrderStatusRegistry: methodsCradle.paymentOrderStatusRegistry,
-      shippingMethodEligibility: methodsCradle.shippingMethodEligibility,
-      commandBus,
-      emFactory: em,
-      eventBus,
-      auditLogService,
-      customFieldValues: customFieldValueService,
-      mailer: platformMailer,
-      // Feature 047 — late-bound; set once the transactional_emails module builds.
-      getTransactionalEmailSender: () => transactionalEmailSender,
-      creditLimit: creditLimitsCradle.creditLimitService,
-      requireCustomer,
-      requireAdmin,
-      resolveCustomerContext: customerResolver,
-      salesChannelMembership: salesChannels.membershipService,
-      pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
-      addressService,
-      promotionService: promotionsCradle.promotionService,
-      redis,
-      // Feature 062 — external orders namespace (/api/v1/external/orders*):
-      // bound-key gate + the org method allow-lists (FR-021 envelope).
-      requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
-      resolveOrganizationMethodAllowLists: async (organizationId: string) => {
-        try {
-          const lists = await orgCradle().organizationRestrictionPort.readAllowLists(
-            organizationId,
-          );
-          return {
-            paymentMethodIds: lists.paymentMethodIds,
-            deliveryMethodIds: lists.deliveryMethodIds,
-          };
-        } catch {
-          return null;
-        }
-      },
-      // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.
-      // Feature 036 — business Order ID prefix/suffix, resolved per Sales
-      // Channel. Missing/out-of-scope settings resolve to '' (bare numeric ID).
-      resolveOrderBusinessIdPrefix: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'orders.business_id.prefix',
-            salesChannelId,
-            z.string(),
-          );
-        } catch {
-          return '';
-        }
-      },
-      resolveOrderBusinessIdSuffix: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'orders.business_id.suffix',
-            salesChannelId,
-            z.string(),
-          );
-        } catch {
-          return '';
-        }
-      },
-      // Feature 038 US6 — reorder enable flag, resolved per Sales Channel.
-      // Missing/out-of-scope settings resolve to enabled (the default).
-      resolveReorderEnabled: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'orders.reorder_enabled',
-            salesChannelId,
-            z.boolean(),
-          );
-        } catch {
-          return true;
-        }
-      },
-      // Feature 038 US4 — additional order-confirmation recipients per scope.
-      resolveOrderConfirmationRecipients: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'orders.confirmation_recipients',
-            salesChannelId,
-            z.array(z.string()),
-          );
-        } catch {
-          return [];
-        }
-      },
-      // Feature 038 US3 / FR-035 — minimum order value per scope (0 = none).
-      resolveMinOrderValue: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'orders.min_order_value',
-            salesChannelId,
-            z.number(),
-          );
-        } catch {
-          return 0;
-        }
-      },
-      // Real per-product VAT — resolve the rate from the product's tax class
-      // (its `type`), the billing country, and the org VAT status, against the
-      // `taxes` rules (mirrors Quote Requests). order-service already returns 0
-      // for VAT-exempt / reverse-charge orgs; failures degrade to a flat 23%.
-      resolveTaxRate: async ({ country, productType, vatStatus }) => {
-        try {
-          const resolved = await taxesCradle.taxService.taxRateFor({
-            country: country ?? 'PL',
-            productType: productType as
-              | 'simple'
-              | 'configurable'
-              | 'grouped'
-              | 'bundle'
-              | 'virtual',
-            vatStatus: vatStatus as 'vat_payer' | 'vat_exempt' | 'reverse_charge',
-          });
-          return resolved.rate;
-        } catch {
-          return 0.23;
-        }
-      },
-      // Sales-channel layer of the fulfilment-strategy precedence chain — the
-      // SettingsService collapses per-channel value → global value → manifest
-      // default ('default_first'). Failures degrade to that same default.
-      resolveChannelFulfilmentStrategy: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'inventory.fulfilment_strategy',
-            salesChannelId,
-            z.enum([
-              'any',
-              'default_first',
-              'lowest_stock_first',
-              'highest_stock_first',
-              'defined_order',
-            ]),
-          );
-        } catch {
-          return 'default_first';
-        }
-      },
-      resolveChannelFulfilmentWarehouseOrder: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'inventory.fulfilment_strategy_warehouse_order',
-            salesChannelId,
-            z.array(z.string()),
-          );
-        } catch {
-          return [];
-        }
-      },
-      // Global backorder gate — collapses per-channel value → global value →
-      // manifest default (false). Failures degrade to false (never oversell).
-      resolveChannelAllowNegativeStock: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'inventory.allow_negative_stock',
-            salesChannelId,
-            z.boolean(),
-          );
-        } catch {
-          return false;
-        }
-      },
-      getRfqService: () => (container.cradle as unknown as QuoteRequestsCradle).rfqService,
-      // Feature 039 — expose OrderService for the quick_order one-click flow.
-      exposeOrderService: (svc) => {
-        orderServiceForOneClick = svc;
-      },
-      // Feature 040 — expose OrderListService for the customers module.
-      exposeOrderListService: (svc) => {
-        orderListServiceForCustomers = svc;
-      },
-      // Feature 043 — capture the configured transition engine for the orders
-      // prompt-action tools (reuses its guards + cancel side-effects).
-      exposeOrderTransitionService: (svc) => {
-        orderTransitionServiceForPrompts = svc;
-      },
-      // T138 — through the tenancy read port, like every other consumer. Moves
-      // into `orders` itself in T141.
-      assertOrganizationCanTransact: async (organizationId: string): Promise<void> => {
-        await orgCradle().organizationReadPort.assertCanTransact(organizationId);
-      },
-      resolveOrganizationPaymentMethodAllowList,
-      resolveOrganizationDeliveryMethodAllowList,
-      resolveAdminOrdersScope,
-      // Feature 027 — `Save to shopping list` bridge. Late-bound via
-      // closure so the shopping_lists module (constructed below) can
-      // inject the real service after this point.
-    }),
     catalogModule({
       emFactory: em,
       eventBus,
@@ -1787,6 +1548,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // files now. What stays a composition's: who is asking (production reads
   // `request.actor`, the harness `request.testActor`), and the bridge into
   // `shopping_lists`, which points outward and so cannot be a port.
+  // Feature 072 (T141) — the two names `orders` still takes from a composition:
+  // which organizations a sales-rep admin may see (actor-shaped, owner `auth`),
+  // and the admin-editable sender, late-bound because `transactional_emails`
+  // publishes it after this module composes.
+  registerValues(container, {
+    ordersAdminScopeResolver: resolveAdminOrdersScope,
+    ordersTransactionalEmailSender: () => transactionalEmailSender,
+  });
+
   registerValues(container, {
     cartActorResolver: (request: FastifyRequest) => {
       if (request.actor.kind === 'customer') {
@@ -2024,84 +1794,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 040 — Customers module. Built after orders + quote_requests so it
   // can reach the OrderListService (late-bound) and the RfqService for the
   // self-service order / RFQ history endpoints.
-  const customers = customersModule({
-      customerAuthService: customerAccountsCradle.customerAuthService,
-      passwordResetService: customerAccountsCradle.passwordResetService,
-    emFactory: em,
-    sessionService,
-    requireCustomer,
-    commandBus,
-    customFieldValues: customFieldValueService,
-    resolveCustomerActor: (request) => {
+  // Feature 072 (T140) — `customers` owns its services, its routes and its
+  // three settings reads now. Three names stay a composition's: who is asking,
+  // who is moderating (both actor-shaped, owner `auth`), and the late-bound
+  // order-list service `orders` builds.
+  registerValues(container, {
+    customerActorResolver: (request: FastifyRequest) => {
       if (request.actor.kind !== 'customer') {
-        throw new HttpError(
-          401,
-          ERROR_CODES.UNAUTHORIZED,
-          'Customer session required.',
-        );
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
       }
       return {
         customerAccountId: request.actor.customerAccountId,
         organizationId: request.actor.organizationId ?? null,
       };
     },
-    resolveAllowRegistrationWithoutOrganization: async () => {
-      try {
-        const { z } = await import('zod');
-        const channel = await salesChannels.resolver.getSystemDefault();
-        if (!channel) return false;
-        return await settings.settingsService.get(
-          CUSTOMERS_SETTING_CODES.ALLOW_REGISTRATION_WITHOUT_ORGANIZATION,
-          channel.id,
-          z.boolean(),
-        );
-      } catch {
-        // Setting not seeded / out-of-scope — default closed (org required).
-        return false;
-      }
-    },
-    getOrderListService: () => {
-      if (!orderListServiceForCustomers) {
-        throw new Error('OrderListService not yet bound');
-      }
-      return orderListServiceForCustomers;
-    },
-    rfqService: (container.cradle as unknown as QuoteRequestsCradle).rfqService,
-    auditLogService,
-    organizationRestrictionService: orgCradle().organizationRestrictionPort,
-    requireAdmin,
-    vatValidator: new ViesClient(),
-    mailer: platformMailer,
-    storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    resolveDeletionRetentionDays: async () => {
-      try {
-        const { z } = await import('zod');
-        const channel = await salesChannels.resolver.getSystemDefault();
-        if (!channel) return 365;
-        return await settings.settingsService.get(
-          CUSTOMERS_SETTING_CODES.DELETION_RETENTION_DAYS,
-          channel.id,
-          z.number(),
-        );
-      } catch {
-        return 365;
-      }
-    },
-    resolvePresenceFreshnessMinutes: async () => {
-      try {
-        const { z } = await import('zod');
-        const channel = await salesChannels.resolver.getSystemDefault();
-        if (!channel) return 10;
-        return await settings.settingsService.get(
-          CUSTOMERS_SETTING_CODES.PRESENCE_FRESHNESS_MINUTES,
-          channel.id,
-          z.number(),
-        );
-      } catch {
-        return 10;
-      }
-    },
-    resolveModerationActor: async (request) => {
+    customerModerationActorResolver: async (request: FastifyRequest) => {
       const actor = request.actor;
       if (actor.kind !== 'admin') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
@@ -2122,7 +1829,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       return { adminUserId: actor.adminUserId, isPlatformAdmin, allowedOrganizationIds };
     },
   });
-  modules.push(customers.plugin);
 
   // Feature 047 — Invoices. Owns issuance, numbering, PDF rendering, admin +
   // customer routes. Constructed before returns so the corrective-invoice
@@ -2515,7 +2221,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // two cross-module services it must not reach for directly, and the sink that
   // hands its own service back to `carts` until that module converts.
   registerValues(container, {
-    oneClickOrderServiceGetter: () => orderServiceForOneClick,
     shoppingListServiceSink: (svc: ShoppingListService) => {
       shoppingListService = svc;
     },
@@ -2650,7 +2355,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
     ...ordersPromptTools({
       emFactory: em,
-      getTransitionService: () => orderTransitionServiceForPrompts,
+      getTransitionService: () => ordersCradle().orderTransitionServiceAccessor(),
     }),
   ];
   for (const tool of promptActionToolProviders) {

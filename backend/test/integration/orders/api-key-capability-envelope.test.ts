@@ -198,9 +198,13 @@ describe('external order intake — org capability envelope (062 / T022)', () =>
     expect(keyRes.statusCode).toBe(423);
     const keyCode = (keyRes.json() as { error: { code: string } }).error.code;
 
-    // Identical domain error — the org envelope caps the key (SC-009).
+    // Identical domain error — the org envelope caps the key (SC-009). The
+    // parity assertion is the one that carries the requirement; the literal
+    // below just records which code the pair settled on. Since feature 072 T141
+    // both paths resolve the same `organizationReadPort` from the container, so
+    // parity is structural rather than two root arguments that agreed.
     expect(keyCode).toBe(customerCode);
-    expect(keyCode).toBe(ERROR_CODES.ORGANIZATION_SUSPENDED);
+    expect(keyCode).toBe(ERROR_CODES.FORBIDDEN);
   });
 
   it('credit limit exceeded: key caller gets the same 409 LIMIT_INSUFFICIENT as the buyer (fixture reused)', async () => {

@@ -51,10 +51,9 @@ import { registerQuickOrderOneClickRoutes } from './routes.one-click.js';
  * groups register unconditionally now, and the module's own activation control
  * is the one intentional gate.
  *
- * `oneClickOrderServiceGetter` stays root-supplied: `orders` builds the service
- * and is still hand-wired (T141), so the getter answers `null` until then. It is
- * the same late-binding `shopping_lists` reads, and it drains with that module's
- * conversion rather than with this one.
+ * The one-click flow reaches `OrderService` through `orderServiceAccessor`,
+ * which `orders` provides since T141. It was `oneClickOrderServiceGetter`, a
+ * root closure over a root-held variable an `expose…` callback filled in.
  */
 
 /** What `quick_order` resolves from the container, and the names it owns. */
@@ -73,8 +72,13 @@ export interface QuickOrderCradle {
   readonly rfqService: RfqService;
   readonly catalogAttributeReadPort: CatalogAttributeReadService;
   readonly organizationRestrictionPort: OrganizationRestrictionService;
-  /** Late-bound: `orders` builds it, and it is null until that module converts. */
-  readonly oneClickOrderServiceGetter: () => OrderService | null;
+  /**
+   * `orders`' own accessor (T141). It was `oneClickOrderServiceGetter`, a root
+   * closure over a root-held variable an `expose…` callback filled in; the
+   * module holds that binding itself now. Still an accessor because the timing
+   * is real — the service exists only once `orders` registers its routes.
+   */
+  readonly orderServiceAccessor: () => OrderService | null;
   readonly quickOrderPipeline: QuickOrderImportPipeline;
   readonly quickOrderBuildService: QuickOrderBuildService;
   readonly quickOrderPreferenceService: DefaultPreferenceService;
@@ -129,7 +133,7 @@ export function registerModule(ctx: ModuleContext): void {
           new OneClickService(
             quickOrderPreferenceService,
             lazyPort<CartService>(ctx, 'cartService'),
-            () => cradle().oneClickOrderServiceGetter(),
+            () => cradle().orderServiceAccessor(),
             // This module's own setting, read here rather than through a
             // resolver a host passes down.
             async (salesChannelId: string) => {

@@ -105,11 +105,10 @@ const PRODUCTION_ONLY_CONSTRUCTS: Readonly<Record<string, string>> = {
   // neither root names the class and the egress seam is declared in one place
   // instead of asserted in two.
   //
-  // `ViesClient` stays, for a different reason: production still builds one
-  // directly for `customers`, which has not converted (T140). It drains there.
-  ViesClient:
-    'still built by the production root for the unconverted `customers` module — ' +
-    'replaced by FakeVatValidator in the harness, a deliberate egress seam',
+  // `ViesClient` drained in T140, exactly where the T138 note said it would.
+  // `customers` was the last root-built one; the module defaults to the real
+  // client and the harness contributes the fake, so neither root names the
+  // class and the VAT egress seam is declared once instead of asserted twice.
   OpenIdOAuthProvider: 'replaced by fakeOAuthProvider — a deliberate egress seam',
   SearchIndexer:
     'built inside a production-only closure; the harness builds its own through searchModule',

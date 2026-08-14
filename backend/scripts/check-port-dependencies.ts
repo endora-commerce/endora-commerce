@@ -126,12 +126,15 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // Same shape for `inventory` (T129): how this deployment names a non-admin
   // caller on an audit record.
   'inventoryAdminAuditContext',
-  // Feature 072 (T138) — `organizations`' three root-supplied inputs. The
-  // storefront origin an invitation link points at is an environment fact and
-  // the settings channel is an env knob; the verification-token probe is a
-  // harness fact, and a route that hands back the last token must not exist in
-  // production. None of the three is something the module could default.
-  'organizationsStorefrontBaseUrl',
+  // The storefront origin a customer-facing link points at — an invitation, a
+  // set-password mail. One name, because it is one environment fact:
+  // `organizations` (T138) and `customers` (T140) both send such links, and two
+  // names for `STOREFRONT_BASE_URL` would be two things to keep in step.
+  'storefrontBaseUrl',
+  // `organizations`' other two root-supplied inputs (T138). The settings
+  // channel is an env knob; the verification-token probe is a harness fact, and
+  // a route that hands back the last token must not exist in production.
+  // Neither is something the module could default.
   'organizationsExposeTestProbe',
   'organizationsSettingsChannelId',
 ]);
@@ -180,6 +183,13 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `request.testActor` — and owned by `auth` in principle. Read by the four
   // payment gateways (wave 3).
   customerAccountIdResolver: 'auth',
+  // Which organizations a sales-rep admin may see, and the admin-editable
+  // sender `orders` mails through (T141). The first is actor-shaped like the
+  // four above; the second drains with `inventoryTemplateEmail` and
+  // `organizationsTransactionalEmailSender` when `transactional_emails`
+  // converts.
+  ordersAdminScopeResolver: 'auth',
+  ordersTransactionalEmailSender: 'transactional_emails',
   // The calling customer's Organization, or `null`. The fourth member of the
   // family above and root-shaped for the same reason, but softer than all of
   // them on purpose: it answers `null` for anonymous traffic *and* for a
@@ -233,7 +243,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   rfqCustomerContextResolver: 'auth',
   rfqAdminContextResolver: 'auth',
   rfqTaxRateResolver: 'taxes',
-  oneClickOrderServiceGetter: 'orders',
   // Inherited credit limits (feature 056). Owned by `organizations`, still
   // hand-wired; the entry goes when that module converts.
   // The composed attribute read model (feature 061). Owned by `catalog`, still

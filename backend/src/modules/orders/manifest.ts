@@ -81,7 +81,19 @@ export const manifest = defineModuleManifest({
   name: 'Orders',
   description: 'Order placement, lifecycle, and history.',
   version: '1.3.0',
-  dependencies: ['api_keys', 'carts', 'organizations', 'promotions', 'settings'],
+  // Feature 072 (T141) — `addresses` and `credit_limits` were reached through
+  // options a root passed down, so neither appeared here. Order placement
+  // resolves a delivery address and reserves against the credit limit; both are
+  // as real as the edges already listed.
+  dependencies: [
+    'addresses',
+    'api_keys',
+    'carts',
+    'credit_limits',
+    'organizations',
+    'promotions',
+    'settings',
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — transactional emails owned by this module. Default subject +
