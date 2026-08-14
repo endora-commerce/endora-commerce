@@ -65,7 +65,23 @@ export interface OrdersCradle {
   readonly commandBus: CommandBus;
   readonly auditLogService: AuditLogService;
   readonly settingsReadPort: SettingsService;
-  readonly moduleQueueRedis: Redis | undefined;
+  /**
+   * The platform Redis connection, **not** `moduleQueueRedis`.
+   *
+   * `orders` builds no queue — its only use of Redis is the distributed lock
+   * that makes concurrent external intakes with the same Idempotency-Key
+   * resolve to one order (`order-api-intake-service.ts#acquireLock`, which
+   * returns `null` and skips locking entirely when Redis is absent).
+   *
+   * T141 first wired this to `moduleQueueRedis`, which is the connection a
+   * module may build a BullMQ *producer* on and which the harness sets to
+   * `undefined` on purpose — "this composition wants no queues". That silently
+   * removed the lock from every test, and the concurrent-duplicate case went
+   * from asserting `intake_busy` to two intakes proceeding side by side. A lock
+   * is not a queue, and the two names exist precisely so a composition can
+   * refuse one without losing the other.
+   */
+  readonly redis: Redis;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: OrdersModuleOptions['requireCustomer'];
   readonly customerContextResolver: OrdersModuleOptions['resolveCustomerContext'];
@@ -139,13 +155,13 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     orders: ctx
       .asFunction(
-        ({ emFactory, eventBus, commandBus, auditLogService, moduleQueueRedis }: OrdersCradle) =>
+        ({ emFactory, eventBus, commandBus, auditLogService, redis }: OrdersCradle) =>
           commerceModule({
             emFactory,
             eventBus,
             commandBus,
             auditLogService,
-            ...(moduleQueueRedis === undefined ? {} : { redis: moduleQueueRedis }),
+            redis,
             // Ports, every one of them read lazily: this registration is a
             // singleton and a gate may not be frozen inside one.
             cartService: lazyPort<OrdersCradle['cartService']>(ctx, 'cartService'),
