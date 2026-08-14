@@ -96,8 +96,6 @@ import type {
 // proved nothing: every mail-sending suite runs against this root.
 import type { EmailCradle } from '../../src/modules/email/backend.js';
 import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
-import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
-import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
 import type { ShoppingListService } from '../../src/modules/shopping_lists/services/shopping-list-service.js';
 import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
 import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
@@ -804,6 +802,16 @@ export async function setupBackendServer(
     organizationsExposeTestProbe: true,
     organizationsSettingsChannelId: 'default',
   });
+  // T143a — `inventory`'s availability port, mirroring `composition.ts`.
+  const inventoryCradle = (): {
+    inventoryAvailabilityPort: {
+      resolveAvailabilityBands(
+        productIds: string[],
+        salesChannelId: string,
+      ): Promise<Map<string, { band: string; inStock: boolean }>>;
+    };
+  } => container.cradle as never;
+
   const earlyModules = composeModules(earlyPassModules(MODULES), {
     container,
     eventBus,
@@ -1132,8 +1140,6 @@ export async function setupBackendServer(
 
   // Feature 062 — read-only inventory accessors backing the external catalog
   // namespace's availability indication (mirrors composition.ts).
-  const externalAvailabilityStockLevels = new StockLevelService(em);
-  const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
 
   const modules: ModulePlugin[] = [
     // Feature 072 — the early pass's route contribution, ahead of the auth
@@ -1700,11 +1706,9 @@ export async function setupBackendServer(
       impersonatedCustomerAccountId: null,
     }),
     catalogExternalAvailability: async (productIds: string[], salesChannelId: string) => {
-      const candidateWarehouseIds =
-        await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
-      return externalAvailabilityStockLevels.resolveAvailabilityBands(
+      return inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
         productIds,
-        candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+        salesChannelId,
       );
     },
     catalogImagePlaceholderUrl: async (salesChannelCode?: string) => {
@@ -2101,14 +2105,14 @@ export async function setupBackendServer(
           return adapter;
         },
       },
-      resolveAvailability: async (productIds: string[], salesChannelId: string) => {
-        const warehouseIds =
-          await new WarehouseChannelService(em).resolveCandidateWarehouseIds(salesChannelId);
-        return new StockLevelService(em).resolveAvailabilityBands(
+      resolveAvailability: async (productIds: string[], salesChannelId: string) =>
+        // T143a — `inventory`'s port. This built a fresh `WarehouseChannelService`
+        // *and* `StockLevelService` on every call, each with only `em` where the
+        // module passes the event bus and audit writer too.
+        inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
           productIds,
-          warehouseIds.length > 0 ? warehouseIds : undefined,
-        );
-      },
+          salesChannelId,
+        ),
       expandCategoryProductIds: (categoryIds: string[]) =>
         // T143a — `catalog`'s port, mirroring `composition.ts`. This built a
         // throwaway `CatalogQueryService` per call.

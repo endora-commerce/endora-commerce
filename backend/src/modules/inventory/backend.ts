@@ -9,6 +9,9 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { inventoryModule, type InventoryModuleOptions } from './plugin.js';
+import { StockLevelService } from './services/stock-level-service.js';
+import { WarehouseChannelService } from './services/warehouse-channel-service.js';
+import { WarehouseChannelReconciler } from './services/warehouse-channel-reconciler.js';
 
 /**
  * `inventory` — three capabilities the test harness never had (feature 072,
@@ -70,6 +73,26 @@ export interface InventoryCradle {
     ): Promise<string[] | null>;
   };
   readonly inventory: ReturnType<typeof inventoryModule>;
+  /**
+   * Availability bands for a set of products, scoped to the warehouses the
+   * caller's sales channel is bound to (T143a).
+   *
+   * `catalog`'s external namespace and `product_feeds` both need exactly this,
+   * and both got it from a root that built a **second** `StockLevelService` and
+   * `WarehouseChannelService` — while this module built its own pair inside its
+   * plugin — then spelled the same two-step lookup twice. The two-step is the
+   * port: a caller has a channel, not a warehouse list.
+   *
+   * The root's copies were also ungated. They kept answering with `inventory`
+   * switched off, because only a module's own registration goes through
+   * `providePort`.
+   */
+  readonly inventoryAvailabilityPort: {
+    resolveAvailabilityBands(
+      productIds: string[],
+      salesChannelId: string,
+    ): Promise<Awaited<ReturnType<StockLevelService['resolveAvailabilityBands']>>>;
+  };
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -115,7 +138,42 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
+  ctx.di.providePort(
+    'inventoryAvailabilityPort',
+    ctx
+      .asFunction(({ emFactory, eventBus, auditLogService }: InventoryCradle) => {
+        const warehouseChannels = new WarehouseChannelService(emFactory, auditLogService);
+        const stockLevels = new StockLevelService(emFactory, eventBus, auditLogService);
+        return {
+          async resolveAvailabilityBands(productIds: string[], salesChannelId: string) {
+            const candidateWarehouseIds =
+              await warehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
+            return stockLevels.resolveAvailabilityBands(
+              productIds,
+              candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+            );
+          },
+        };
+      })
+      .singleton(),
+  );
+
   ctx.routes(async (app) => {
     await ctx.cradle<InventoryCradle>().inventory(app);
+  });
+
+  /**
+   * Migration 030 seeds the Default warehouse and tries to bind it to every
+   * channel, but it runs *before* the default-channel reconciler creates the
+   * system channel at boot. This catches up at runtime so a channel is never
+   * seen without at least one warehouse assignment (feature 026 US3).
+   *
+   * It ran from `composition.ts` until T143a — which meant it ran with this
+   * module switched off, and did not run in the harness at all
+   * (`harness-parity` carried it as a production-only construct). As a boot
+   * hook it does neither.
+   */
+  ctx.onBoot(async () => {
+    await new WarehouseChannelReconciler(ctx.cradle<InventoryCradle>().emFactory()).run();
   });
 }

@@ -91,8 +91,6 @@ import {
   readOAuthConfigFromEnv,
   type OAuthProviderPort,
 } from './modules/mfa/services/oauth-provider-service.js';
-import { StockLevelService } from './modules/inventory/services/stock-level-service.js';
-import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
 import type { CreditLimitsCradle } from './modules/credit_limits/backend.js';
 // Feature 062 (T029) — outbound webhook delivery pipeline.
 import {
@@ -185,7 +183,6 @@ import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 import type { AdminActionsCradle } from './modules/admin_actions/backend.js';
 import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
-import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
 import type { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { CatalogAttributeReadService } from './modules/catalog/services/catalog-attribute-read.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
@@ -394,6 +391,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     organizationsSettingsChannelId:
       process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default',
   });
+  // T143a — `inventory`'s availability port, read lazily.
+  const inventoryCradle = (): {
+    inventoryAvailabilityPort: {
+      resolveAvailabilityBands(
+        productIds: string[],
+        salesChannelId: string,
+      ): Promise<Map<string, { band: string; inStock: boolean }>>;
+    };
+  } => container.cradle as never;
+
   const earlyModules = composeModules(earlyPassModules(MODULES), {
     container,
     eventBus,
@@ -619,11 +626,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // the seed runs BEFORE DefaultChannelReconciler creates the system channel
   // at boot. This reconciler catches up at runtime so US3 (channel→warehouse)
   // never sees a channel without at least one (default) assignment.
-  await enterSystemScope(
-    'boot: reconcile channel warehouses',
-    () => new WarehouseChannelReconciler(em()).run(),
-    { entryPoint: 'boot' },
-  );
 
   // Feature 017 — construct the Dictionary module before its validator
   // consumers so the shared port can be threaded through their services.
@@ -1088,8 +1090,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // namespace's availability indication (channel-candidate warehouses +
   // cumulative on-hand → display band). Standalone instances: reads only,
   // no event emission, no audit.
-  const externalAvailabilityStockLevels = new StockLevelService(em);
-  const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
 
   const modules: ModulePlugin[] = [
     // Feature 072 — the early pass's route contribution: `health_checks`. It
@@ -1468,11 +1468,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       };
     },
     catalogExternalAvailability: async (productIds: string[], salesChannelId: string) => {
-      const candidateWarehouseIds =
-        await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
-      return externalAvailabilityStockLevels.resolveAvailabilityBands(
+      return inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
         productIds,
-        candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+        salesChannelId,
       );
     },
     // Full Meilisearch reindex (the `search:reindex` CLI equivalent), run as a
@@ -1881,11 +1879,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         },
       },
       resolveAvailability: async (productIds: string[], salesChannelId: string) => {
-        const candidateWarehouseIds =
-          await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
-        return externalAvailabilityStockLevels.resolveAvailabilityBands(
+        // T143a — `inventory`'s port. Both roots built a second
+        // `StockLevelService` + `WarehouseChannelService` here and spelled this
+        // two-step twice; the module owns one pair now, and it stops answering
+        // when `inventory` is switched off.
+        return inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
           productIds,
-          candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+          salesChannelId,
         );
       },
       // Feature 072 (T143a) — `catalog`'s own port. This root used to build a
