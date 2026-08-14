@@ -116,6 +116,13 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // (Principle X). A deployment decision, read at construction because it
   // decides whether the consumers are built at all (T131).
   'pimErgonodeRunWorkers',
+  'productFeedsRunWorkers',
+  // Pinned per composition and read at construction, so each root registers
+  // them early beside the worker flag: production derives the feed base URL
+  // from the environment, the harness pins one because a test asserts the
+  // exact link an administrator is handed (T137).
+  'productFeedsPublicBaseUrl',
+  'productFeedsTokenEncryptionKey',
   // Same shape for `inventory` (T129): how this deployment names a non-admin
   // caller on an audit record.
   'inventoryAdminAuditContext',
@@ -165,6 +172,14 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `request.testActor` — and owned by `auth` in principle. Read by the four
   // payment gateways (wave 3).
   customerAccountIdResolver: 'auth',
+  // Who is asking, in the cart's own shape (signed-in customer or anonymous
+  // cookie token). The identical divergence already recorded for
+  // `customerContextResolver` and `customerAccountIdResolver`, same owner, and
+  // it drains with them (T136).
+  cartActorResolver: 'auth',
+  // The guard that refuses a cart mutation for an organization that may not
+  // transact. Owned by `organizations`, still hand-wired.
+  organizationTransactGuard: 'organizations',
   // `inventory`'s two root-built adapters (T129): the admin-editable
   // transactional-email path, and the Organization's warehouse assignment that
   // scopes a storefront stock read. Each is an adapter over a module
@@ -185,6 +200,11 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   groupedService: 'catalog',
   // The asset service the Ergonode media pipeline stores through.
   assetsLibraryService: 'assets_library',
+  // How this composition assembles a feed row: opening a storage backend,
+  // resolving availability bands, expanding a category through the catalog
+  // port, and turning asset ids into stable public URLs (T137). Each crosses a
+  // boundary `product_feeds` must not reach through directly.
+  productFeedsBridge: 'product_feeds',
   // `shopping_lists`' two cross-module reaches (T133): the RFQ service a list
   // converts into, the org restriction the preference routes re-check against,
   // the lazy order service one-click buy places through, and the sink that
@@ -199,7 +219,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   rfqSalesRepSubtree: 'organizations',
   rfqSalesRepSubtreeTreeService: 'organizations',
   oneClickOrderServiceGetter: 'orders',
-  shoppingListServiceSink: 'carts',
   // Inherited credit limits (feature 056). Owned by `organizations`, still
   // hand-wired; the entry goes when that module converts.
   organizationInheritancePort: 'organizations',
@@ -313,6 +332,16 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // reaper consumers are constructed at all, so it cannot be deferred past
   // construction (T131).
   'pimErgonodeRunWorkers',
+  // Same category: whether this process runs the feed generation and reaper
+  // consumers, read at construction because it decides whether they are built
+  // at all (T137).
+  'productFeedsRunWorkers',
+  // Pinned per composition and read at construction, so they are registered
+  // early alongside the worker flag: production derives the feed base URL from
+  // the environment, the harness pins one because a test asserts the exact link
+  // an administrator is handed (T137).
+  'productFeedsPublicBaseUrl',
+  'productFeedsTokenEncryptionKey',
 ]);
 
 /**

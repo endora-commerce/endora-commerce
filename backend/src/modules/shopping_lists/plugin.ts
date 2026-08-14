@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type { EventBus } from '../../events/bus.js';
 import { QUICK_ORDER_SETTING_CODES } from '../quick_order/manifest.js';
-import { CartService } from '../carts/services/cart-service.js';
+import type { CartService } from '../carts/services/cart-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { ShoppingListService } from './services/shopping-list-service.js';
@@ -39,6 +39,18 @@ const DEFAULT_IMPORT_MAX_ROWS = 2000;
 
 export interface ShoppingListsModuleOptions {
   emFactory: () => EntityManager;
+  /**
+   * Feature 072 (T136) — the composed `CartService`, resolved as a port.
+   *
+   * This module used to build its own with `new CartService(options.emFactory)`
+   * — no pricing service, no approval service, no audit service, no recompute
+   * cache. Every line added through save-to-list, quick-order import or
+   * one-click buy therefore skipped the pending-approval re-arm, wrote no cart
+   * audit row, and left `b2b:cart:recompute:*` un-invalidated, so the *other*
+   * instance kept serving a stale recomputed cart for the cache TTL. A shipped
+   * defect, not a composition-shape smell.
+   */
+  cartService: CartService;
   rfqService: RfqService;
   /**
    * Feature 061 — the catalog's composed attribute read model, threaded into
@@ -96,8 +108,9 @@ export interface ShoppingListsModuleOptions {
 }
 
 export function shoppingListsModule(options: ShoppingListsModuleOptions) {
+  const cartService = options.cartService;
+
   return async (app: FastifyInstance): Promise<void> => {
-    const cartService = new CartService(options.emFactory);
     const shoppingListService = new ShoppingListService(
       options.emFactory,
       cartService,

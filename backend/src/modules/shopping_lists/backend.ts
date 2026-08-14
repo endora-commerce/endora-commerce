@@ -30,12 +30,18 @@ import type { ShoppingListService } from './services/shopping-list-service.js';
  * test composition as the exception, when the test composition is the one that
  * should look like production.
  *
- * Three names stay a composition's, and each is a genuine cross-module reach
- * this module must not make directly: the RFQ service it converts a list into,
- * the order service one-click buy places through, and the callback that hands
- * its own `ShoppingListService` back so `carts` can push a line into a list.
- * The last is a contribution *outward* — the only one of its kind so far — and
- * it stays until `carts` converts and can resolve the port instead.
+ * Two names stay a composition's, and each is a genuine cross-module reach this
+ * module must not make directly: the RFQ service it converts a list into, and
+ * the order service one-click buy places through.
+ *
+ * The third is gone. `exposeShoppingListService` was a contribution pointing
+ * *outward*, and T136 inverted it: `carts` owns the bridge now and this module
+ * provides `shoppingListService` as an ordinary port, which is what the comment
+ * here predicted would happen when `carts` converted.
+ *
+ * `cartService` is read as a port for the same reason — and deleting the
+ * degraded copy this module used to build is the substantive half of that
+ * change, not the tidy half.
  */
 
 /** What `shopping_lists` resolves from the container, and the names it owns. */
@@ -51,6 +57,11 @@ export interface ShoppingListsCradle {
   readonly settingsChannelResolver: () => Promise<string | null>;
   readonly catalogAttributeReadPort: ShoppingListsModuleOptions['catalogAttributeRead'];
   readonly rfqService: ShoppingListsModuleOptions['rfqService'];
+  /**
+   * The composed cart service. Until T136 this module built its own, degraded
+   * copy — see the option's own comment for what that skipped.
+   */
+  readonly cartService: ShoppingListsModuleOptions['cartService'];
   readonly organizationRestrictionPort: NonNullable<
     ShoppingListsModuleOptions['organizationRestriction']
   >;
@@ -83,6 +94,7 @@ export function registerModule(ctx: ModuleContext): void {
             'catalogAttributeReadPort',
           ),
           rfqService: lazyPort<ShoppingListsCradle['rfqService']>(ctx, 'rfqService'),
+          cartService: lazyPort<ShoppingListsCradle['cartService']>(ctx, 'cartService'),
           organizationRestriction: lazyPort<
             ShoppingListsCradle['organizationRestrictionPort']
           >(ctx, 'organizationRestrictionPort'),

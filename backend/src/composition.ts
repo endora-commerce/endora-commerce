@@ -1,11 +1,11 @@
 import type { AssetsLibraryCradle } from './modules/assets_library/backend.js';
+import type { CartShoppingListBridge, CartsCradle } from './modules/carts/backend.js';
 import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
 import type { PaymentAdapterRegistry } from './modules/payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from './modules/payment_methods/services/order-status-registry.port.js';
 import type { ShippingAdapterRegistry } from './modules/delivery_methods/services/shipping-adapter-registry.js';
 import type { ShippingMethodEligibilityService } from './modules/delivery_methods/services/shipping-method-eligibility.js';
 import { builtInPaymentAdapters } from './modules/payments/adapters/built-in-adapters.js';
-import type { CredentialsService } from './modules/credentials/services/credentials.service.js';
 import type { AdminNotificationService } from './modules/admin_notifications/services/admin-notification-service.js';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
@@ -93,7 +93,7 @@ import { PaymentRefundProvider } from './modules/payments/services/payment-refun
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
 import type { InvoicesBridge, InvoicesCradle } from './modules/invoices/backend.js';
 import type { KsefCradle } from './modules/ksef/backend.js';
-import { productFeedsModule } from './modules/product_feeds/plugin.js';
+import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
 import type { AddressService } from './modules/addresses/services/address-service.js';
@@ -229,7 +229,6 @@ import { AttachmentService } from './modules/catalog/services/attachment.service
 import { ProductLinkService } from './modules/catalog/services/product-link.service.js';
 import { GroupedService } from './modules/catalog/services/grouped.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
-import type { CartService } from './modules/carts/services/cart-service.js';
 import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
 
 /**
@@ -394,6 +393,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // `ctx.onBoot` schedule reconcile resolves this, and boot hooks run
     // several hundred lines before that block (T131).
     pimErgonodeRunWorkers: runWorkers,
+    productFeedsRunWorkers: runWorkers,
+    productFeedsPublicBaseUrl: process.env['PUBLIC_API_BASE_URL'] ??
+        `http://localhost:${process.env['PORT'] ?? '3001'}`,
+    productFeedsTokenEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
     // The one connection ioredis has put into subscriber mode. Shared, because
     // a subscriber connection cannot serve commands: a per-module one would
     // cost a socket per module and buy nothing.
@@ -419,6 +422,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     interceptorRegistry: apiInterceptors,
     ownership: registrationOwnership,
   });
+
   await earlyModules.runBootHooks();
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument
@@ -870,9 +874,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // (Principle I): `SettingsService.listReferencesToConfiguration`.
     credentialsSettingsPort: settings.settingsService,
   });
-  const credentialsService = (
-    container.cradle as unknown as { credentialsService: CredentialsService }
-  ).credentialsService;
+  // `credentialsService` is resolved from the container where it is needed —
+  // `product_feeds` read it as a port since T137, and it was this root's last
+  // consumer.
 
   // Feature 042 — MFA module. Constructed here (after `settings`) so it can
   // read the per-scope MFA settings; its login port is bound to the late-bound
@@ -995,8 +999,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `sales_channels.storefront_url` setting that the sitemap generator
   // stamps into URLs. Plugin is pushed onto `modules` further below.
   // Feature 072 (T117) — `seo` owns its services and routes now.
-
-  let cartService: CartService | null = null;
   let shoppingListService: ShoppingListService | null = null;
   // Feature 039 — late-bound OrderService for the quick_order one-click flow.
   let orderServiceForOneClick: OrderService | null = null;
@@ -1277,6 +1279,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     tenantContextModulePlugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
     commerceModule({
+      cartService: (container.cradle as unknown as CartsCradle).cartService,
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
       shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
       paymentOrderStatusRegistry: methodsCradle.paymentOrderStatusRegistry,
@@ -1313,30 +1316,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         }
       },
       // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.
-      resolveCartAbandonmentInactivityMinutes: async () => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'carts.abandonment.inactivity_minutes',
-            'default',
-            z.number().int().nonnegative(),
-          );
-        } catch {
-          return 0;
-        }
-      },
-      resolveCartAbandonmentNotificationRecipient: async () => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'carts.abandonment.notification_recipient',
-            'default',
-            z.string(),
-          );
-        } catch {
-          return '';
-        }
-      },
       // Feature 036 — business Order ID prefix/suffix, resolved per Sales
       // Channel. Missing/out-of-scope settings resolve to '' (bare numeric ID).
       resolveOrderBusinessIdPrefix: async (salesChannelId: string) => {
@@ -1485,47 +1464,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       exposeOrderTransitionService: (svc) => {
         orderTransitionServiceForPrompts = svc;
       },
-      appendShoppingListToCart: async (input) => {
-        if (!shoppingListService) {
-          throw new Error('shopping_lists module not initialized');
-        }
-        const res = await shoppingListService.convertToCart(
-          {
-            customerAccountId: input.customerAccountId,
-            organizationId: input.organizationId ?? '',
-          },
-          input.shoppingListId,
-          undefined,
-        );
-        // Map ShoppingListService.convertToCart's shape onto the carts
-        // module's uniform return shape across the three conversions.
-        return {
-          cartId: '',
-          appendedLineCount: res.added,
-          droppedLines: res.skipped.map((it) => ({
-            productId: it.productId,
-            productName: it.productId,
-            reason: 'not_purchasable',
-          })),
-        };
-      },
-      resolveCartActor: (request) => {
-        if (request.actor.kind === 'customer') {
-          return {
-            customer: {
-              customerAccountId: request.actor.customerAccountId,
-              organizationId: request.actor.organizationId,
-            },
-          };
-        }
-        const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
-        const anon = cookies?.['b2b_cart_anon'];
-        if (anon) return { anonymousToken: anon };
-        return {};
-      },
-      exposeCartService: (cs) => {
-        cartService = cs;
-      },
       assertOrganizationCanTransact,
       resolveOrganizationPaymentMethodAllowList,
       resolveOrganizationDeliveryMethodAllowList,
@@ -1533,23 +1471,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // Feature 027 — `Save to shopping list` bridge. Late-bound via
       // closure so the shopping_lists module (constructed below) can
       // inject the real service after this point.
-      pushLineToShoppingList: async (input) => {
-        if (!shoppingListService) {
-          throw new Error('shopping_lists module not initialized');
-        }
-        await shoppingListService.addItem(
-          {
-            customerAccountId: input.customerAccountId,
-            organizationId: input.organizationId ?? '',
-          },
-          input.shoppingListId,
-          {
-            productId: input.productId,
-            ...(input.variantId ? { variantId: input.variantId } : {}),
-            quantity: input.quantity,
-          },
-        );
-      },
     }),
     organizationsModule({
       customerAuthService: customerAccountsCradle.customerAuthService,
@@ -1581,10 +1502,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         : {}),
       onLogin: async (ctx) => {
         let cartMerge: Awaited<
-          ReturnType<NonNullable<typeof cartService>['mergeAnonymousIntoCustomer']>
+          ReturnType<CartsCradle['cartService']['mergeAnonymousIntoCustomer']>
         > | undefined;
-        if (cartService && ctx.anonymousCartToken) {
-          cartMerge = await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
+        if (ctx.anonymousCartToken) {
+          cartMerge = await (container.cradle as unknown as CartsCradle).cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
             customerAccountId: ctx.customerAccountId,
             organizationId: ctx.organizationId,
           });
@@ -2009,6 +1930,71 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   // The explicit boot phase (FR-021): registration stays lazy, and the work
   // that genuinely has to run at boot runs here, in its own system scope.
+  // Feature 072 (T136) — `carts` owns its thirteen services and three route
+  // files now. What stays a composition's: who is asking (production reads
+  // `request.actor`, the harness `request.testActor`), and the bridge into
+  // `shopping_lists`, which points outward and so cannot be a port.
+  registerValues(container, {
+    organizationTransactGuard: assertOrganizationCanTransact,
+    cartActorResolver: (request: FastifyRequest) => {
+      if (request.actor.kind === 'customer') {
+        return {
+          customer: {
+            customerAccountId: request.actor.customerAccountId,
+            organizationId: request.actor.organizationId,
+          },
+        };
+      }
+      const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
+      const anon = cookies?.['b2b_cart_anon'];
+      if (anon) return { anonymousToken: anon };
+      return {};
+    },
+    cartShoppingListBridge: {
+      pushLineToShoppingList: async (input) => {
+        if (!shoppingListService) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        await shoppingListService.addItem(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          {
+            productId: input.productId,
+            ...(input.variantId ? { variantId: input.variantId } : {}),
+            quantity: input.quantity,
+          },
+        );
+      },
+      appendShoppingListToCart: async (input) => {
+        if (!shoppingListService) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        const res = await shoppingListService.convertToCart(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          undefined,
+        );
+        // Map ShoppingListService.convertToCart's shape onto the carts
+        // module's uniform return shape across the three conversions.
+        return {
+          cartId: '',
+          appendedLineCount: res.added,
+          droppedLines: res.skipped.map((it) => ({
+            productId: it.productId,
+            productName: it.productId,
+            reason: 'not_purchasable',
+          })),
+        };
+      },
+    } satisfies CartShoppingListBridge,
+  });
+
   await lateModules.runBootHooks();
 
   // Feature 017 — Dictionary module. Boot reconciler populates the
@@ -2333,144 +2319,68 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     undefined,
     catalogAttributeReadService,
   );
-  const productFeeds = productFeedsModule({
-    emFactory: em,
-    requireAdmin,
-    commandBus,
-    eventBus,
-    storageAdapters: {
-      getActive: () => assetsLibrary.handle.adapters.getActive(),
-      getForBackend: async (backend) => {
-        const adapter = await assetsLibrary.handle.adapters.getForBackend(backend);
-        // `getForBackend` also answers the legacy resolver, which can only
-        // build URLs. A feed artefact is always written by a real adapter, so
-        // reaching this branch means the row is corrupt — fail loudly rather
-        // than serving nothing.
-        if (!('open' in adapter) || typeof adapter.open !== 'function') {
-          throw new Error(
-            `product_feeds: storage backend "${backend}" cannot stream artefact bytes.`,
-          );
-        }
-        return adapter;
+  // Feature 072 (T137) — `product_feeds` owns its services and routes now.
+  // The four adapters it reaches outside itself through stay a root's: each
+  // crosses a boundary the module must not reach through directly.
+  registerValues(container, {
+    productFeedsBridge: {
+      storageAdapters: {
+        getActive: () => assetsLibrary.handle.adapters.getActive(),
+        getForBackend: async (backend) => {
+          const adapter = await assetsLibrary.handle.adapters.getForBackend(backend);
+          // `getForBackend` also answers the legacy resolver, which can only
+          // build URLs. A feed artefact is always written by a real adapter, so
+          // reaching this branch means the row is corrupt — fail loudly rather
+          // than serving nothing.
+          if (!('open' in adapter) || typeof adapter.open !== 'function') {
+            throw new Error(
+              `product_feeds: storage backend "${backend}" cannot stream artefact bytes.`,
+            );
+          }
+          return adapter;
+        },
       },
-    },
-    salesChannelMembership: salesChannels.membershipService,
-    pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
-    taxService: taxesCradle.taxService,
-    // Feature 070 — every secret a delivery target needs is stored through the
-    // credentials module (FR-107); this module holds only the pointer.
-    credentials: credentialsService,
-    resolveAvailability: async (productIds, salesChannelId) => {
-      const candidateWarehouseIds =
-        await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
-      return externalAvailabilityStockLevels.resolveAvailabilityBands(
-        productIds,
-        candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
-      );
-    },
-    // FR-025 — "category membership, including descendants" through the
-    // documented catalog port, never a `product_categories` read from here.
-    expandCategoryProductIds: (categoryIds) =>
-      catalogQueryServiceForProductFeeds.expandCategoryProductIds(categoryIds),
-    // FR-043 — only stable, PUBLIC URLs reach a feed file. A private asset is
-    // absent from the map rather than present as an expiring signed URL, which
-    // would survive token rotation and break as soon as it expired.
-    resolvePublicImageUrls: async (assetIds) => {
-      const out = new Map<string, string>();
-      if (assetIds.length === 0) return out;
-      const assets = await em().find(Asset, {
-        id: { $in: assetIds },
-        visibility: 'public',
-        deletedAt: null,
-      });
-      const apiOrigin = (process.env['PUBLIC_API_BASE_URL'] ?? '').replace(/\/+$/, '');
-      for (const asset of assets) {
-        try {
-          const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
-          if (resolved.expiresAt !== null) continue; // signed ⇒ not stable
-          const url = /^https?:\/\//i.test(resolved.url)
-            ? resolved.url
-            : apiOrigin === ''
-              ? null
-              : `${apiOrigin}/${resolved.url.replace(/^\/+/, '')}`;
-          if (url) out.set(asset.id, url);
-        } catch {
-          // An unresolvable asset is simply not an image for this feed.
+      resolveAvailability: async (productIds: string[], salesChannelId: string) => {
+        const candidateWarehouseIds =
+          await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
+        return externalAvailabilityStockLevels.resolveAvailabilityBands(
+          productIds,
+          candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+        );
+      },
+      expandCategoryProductIds: (categoryIds: string[]) =>
+        catalogQueryServiceForProductFeeds.expandCategoryProductIds(categoryIds),
+      resolvePublicImageUrls: async (assetIds: string[]) => {
+        const out = new Map<string, string>();
+        if (assetIds.length === 0) return out;
+        const assets = await em().find(Asset, {
+          id: { $in: assetIds },
+          visibility: 'public',
+          deletedAt: null,
+        });
+        const apiOrigin = (process.env['PUBLIC_API_BASE_URL'] ?? '').replace(/\/+$/, '');
+        for (const asset of assets) {
+          try {
+            const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
+            if (resolved.expiresAt !== null) continue; // signed ⇒ not stable
+            const url = /^https?:\/\//i.test(resolved.url)
+              ? resolved.url
+              : apiOrigin === ''
+                ? null
+                : `${apiOrigin}/${resolved.url.replace(/^\/+/, '')}`;
+            if (url) out.set(asset.id, url);
+          } catch {
+            // An unresolvable asset is simply not an image for this feed.
+          }
         }
-      }
-      return out;
-    },
-    customFieldDefinitions: customFieldDefinitionService,
-    languageService: languagesCradle.languageService,
-    adminNotificationService: adminNotificationService,
-    settings: settings.settingsService,
-    // A feed URL exists to be pasted into Merchant Center, so a path-only one
-    // is useless to the operator who copies it. `PUBLIC_API_BASE_URL` is the
-    // deployment's answer; the local backend origin is the honest fallback,
-    // because this is an API route on this process — not a storefront page.
-    publicBaseUrl:
-      process.env['PUBLIC_API_BASE_URL'] ??
-      `http://localhost:${process.env['PORT'] ?? '3001'}`,
-    tokenEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
-    redis,
-    // Principle X — the generation and reaper consumers run co-located unless
-    // BACKEND_ROLE=api, in which case only the separate `pnpm worker` process
-    // owns them.
-    runWorkers,
+        return out;
+      },
+    } satisfies ProductFeedsBridge,
   });
-  modules.push(productFeeds.plugin);
-  // FR-007 / FR-008 — install any missing predefined template. Non-destructive
-  // (an existing `system_code` is left alone) and log-and-continue on failure,
-  // the same posture as the `_i18n` bundle reconciler: a missing predefined
-  // template is an inconvenience, an unbootable API is an outage.
-  void productFeeds.handle.reconcileTemplates().catch((err: unknown) => {
-    console.warn(
-      JSON.stringify({
-        level: 'warn',
-        msg: 'product_feeds predefined-template reconcile failed',
-        error: String(err),
-      }),
-    );
-  });
-  // FR-077 / FR-078 / FR-086 — install any bundled taxonomy revision the
-  // database does not have and re-evaluate mappings for staleness. **This path
-  // reads files only and opens no socket**; a bundled revision becomes the one
-  // in force only when the provider has none, so a platform upgrade never
-  // activates a revision an operator did not choose. An installation with no
-  // bundled data simply installs nothing.
-  //
-  // The other way a revision can arrive is the optional taxonomy check, which
-  // ships **off** (`product_feeds.taxonomy_fetch_enabled` defaults to `false`):
-  // its scheduler is asserted by `reconcileSchedules` below and exists only
-  // while the setting is on, and a check it runs may only add an **inactive**
-  // revision. Feed generation reads the revision in force from Postgres and
-  // contacts nobody, however either arrived.
-  void productFeeds.handle.reconcileTaxonomies().catch((err: unknown) => {
-    console.warn(
-      JSON.stringify({
-        level: 'warn',
-        msg: 'product_feeds taxonomy reconcile failed',
-        error: String(err),
-      }),
-    );
-  });
-  // FR-031 / research §R5.2 — Postgres is the source of truth for schedules and
-  // Redis is a derived index. Re-asserting every per-feed Job Scheduler on each
-  // worker boot is what makes a flushed Redis, an old snapshot, or a crash
-  // between the Postgres commit and the Redis call cost at most one missed
-  // tick instead of a feed that silently stops regenerating. Only the worker
-  // role does it: an API-only process must not own schedules.
-  if (runWorkers) {
-    void productFeeds.handle.reconcileSchedules().catch((err: unknown) => {
-      console.warn(
-        JSON.stringify({
-          level: 'warn',
-          msg: 'product_feeds schedule reconcile failed',
-          error: String(err),
-        }),
-      );
-    });
-  }
+  // Feature 072 (T137) — the three boot reconciles (predefined templates,
+  // bundled taxonomies, per-feed schedules) moved into the module's own
+  // `ctx.onBoot`, where the schedule one reads the same `runWorkers` decision
+  // this root contributes.
 
   // Feature 068 — Ergonode PIM integration. A read-only inbound connector that
   // walks Ergonode's cursor-based change streams and keeps the catalogue in step
