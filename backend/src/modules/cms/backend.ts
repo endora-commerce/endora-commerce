@@ -12,6 +12,8 @@ import { CmsHook } from './entities/cms-hook.entity.js';
 import { CmsHookBlockAttachment } from './entities/cms-hook-block-attachment.entity.js';
 import { cmsModule } from './plugin.js';
 import type { CmsAssetResolver } from './services/storefront-resolver.js';
+import { registerCmsAssetReferences } from './services/asset-references.js';
+import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
 
 /**
  * `cms` — the endpoint that only worked in production (feature 072, wave 1,
@@ -87,6 +89,11 @@ export interface CmsCradle {
   readonly settingsChannelResolver: () => Promise<string>;
   /** Contribution point: absent unless a root supplies one. */
   readonly cmsAssetResolver: CmsAssetResolver | undefined;
+  /**
+   * Owned by `assets_library`: the registry that refuses to delete an asset a
+   * page, block or template embeds.
+   */
+  readonly assetReferenceRegistry: AssetReferenceRegistry;
   readonly cms: CmsResult;
   readonly cmsReferenceRegistry: CmsResult['handle']['referenceRegistry'];
 }
@@ -189,6 +196,14 @@ export function registerModule(ctx: ModuleContext): void {
     // nothing but its own tables, so it is safe in a boot hook wherever the
     // pass places it.
     await ctx.cradle<CmsCradle>().cms.handle.reconcile();
+
+    // R12 — the edge that blocks deleting an asset embedded in a page, a block
+    // or a template (T143a). Both roots used to push this descriptor into
+    // `assets_library`' registry: the scan belongs to whoever owns the columns
+    // it reads, and a root's registration survives this module being switched
+    // off, which is the Constitution XVII hole the cluster closes.
+    const { assetReferenceRegistry, emFactory } = ctx.cradle<CmsCradle>();
+    registerCmsAssetReferences(assetReferenceRegistry, emFactory);
   });
 
   ctx.routes(async (app) => {

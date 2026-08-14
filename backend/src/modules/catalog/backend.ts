@@ -19,6 +19,8 @@ import { GroupedService } from './services/grouped.service.js';
 import { CatalogAttributeReadService } from './services/catalog-attribute-read.service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import type { CatalogEventBus } from './services/catalog-admin.service.js';
+import { registerCatalogAssetReferences } from './services/asset-references.js';
+import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
 
 /**
  * `catalog` — seven services each composition built **twice** (feature 072,
@@ -91,6 +93,11 @@ export interface CatalogCradle {
   >;
   /** Contributed: production runs a real Meilisearch reindex; the harness must not. */
   readonly catalogSearchReindex: NonNullable<CatalogModuleOptions['reindexSearchIndexes']>;
+  /**
+   * Owned by `assets_library`: the registry that refuses to delete an asset a
+   * product gallery, attachment, virtual download or category image points at.
+   */
+  readonly assetReferenceRegistry: AssetReferenceRegistry;
   readonly catalogAttributeReadPort: CatalogAttributeReadService;
   readonly catalogQueryPort: CatalogQueryService;
   readonly catalogAdminService: CatalogAdminService;
@@ -294,6 +301,27 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton(),
   );
+
+  /**
+   * FR-030 — the four edges that block deleting an asset this module points at
+   * (T143a): a gallery item, a product attachment, a virtual download and a
+   * category's main image.
+   *
+   * Both roots pushed these descriptors into `assets_library`' registry, so the
+   * "in use by" answer an operator got was assembled from whichever modules the
+   * *root* had been taught about — and `catalog` being switched off did not
+   * remove its four edges, because a root's registration passes through no
+   * lifecycle seam.
+   *
+   * `ctx.onBoot` rather than a registration: the registry is *read*, once per
+   * delete, by the module that owns it. Boot hooks run after every module has
+   * registered and before any request is served, so the edges are in place from
+   * the first delete on.
+   */
+  ctx.onBoot(() => {
+    const { assetReferenceRegistry, emFactory } = cradle();
+    registerCatalogAssetReferences(assetReferenceRegistry, emFactory);
+  });
 
   ctx.routes(async (app) => {
     await cradle().catalog(app);

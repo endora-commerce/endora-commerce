@@ -8,8 +8,6 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { configurationTypeRegistry } from '../../../src/modules/credentials/services/registry-singleton.js';
-import { ergonodeConfigurationType } from '../../../src/modules/pim_ergonode/services/ergonode-credential.type.js';
 
 /**
  * Feature 068 T068 — the `pim_ergonode` configuration type is registered on the
@@ -21,9 +19,12 @@ import { ergonodeConfigurationType } from '../../../src/modules/pim_ergonode/ser
  * The plaintext key must appear in no response body, which is asserted against
  * the raw body rather than the parsed DTO.
  *
- * The descriptor is registered here on the process-wide singleton because
- * `test-server.ts` mirrors `composition.ts` rather than importing it; that the
- * production boot registers it too is asserted separately, against the source.
+ * Feature 072 (T143a) — this file used to register the descriptor itself,
+ * because both composition roots did it on `pim_ergonode`'s behalf and the
+ * harness's copy was written separately from production's. The module declares
+ * its own type now, from `ctx.onBoot`, so the registration under test is the
+ * one a deployment runs: nothing here touches the registry, and `GET /types`
+ * offering the type is the assertion that the module did.
  */
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const CODE = 'contract-pim-ergonode';
@@ -34,27 +35,29 @@ type FieldDto = { key: string; secret: boolean; isSet?: boolean; value?: unknown
 
 describe('Ergonode credential type [contract]', () => {
   let h: BackendServerHandle;
-  let registeredHere = false;
 
   beforeAll(async () => {
     process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] =
       process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ?? randomBytes(32).toString('base64');
-    if (!configurationTypeRegistry.isRegistered(ergonodeConfigurationType.code)) {
-      configurationTypeRegistry.register(ergonodeConfigurationType);
-      registeredHere = true;
-    }
     h = await setupBackendServer();
   });
   afterAll(async () => {
     await h.app.inject({ method: 'DELETE', url: `/api/v1/admin/credentials/${CODE}`, ...ADMIN });
     await teardownBackendServer(h);
-    if (registeredHere) configurationTypeRegistry.unregister(ergonodeConfigurationType.code);
   });
 
-  it('is registered at boot by composition.ts', () => {
+  it('is registered at boot by the module that owns it, not by a composition root', () => {
     const here = dirname(fileURLToPath(import.meta.url));
-    const composition = readFileSync(join(here, '..', '..', '..', 'src', 'composition.ts'), 'utf8');
-    expect(composition).toContain('configurationTypeRegistry.register(ergonodeConfigurationType)');
+    const src = join(here, '..', '..', '..', 'src');
+    const backend = readFileSync(join(src, 'modules', 'pim_ergonode', 'backend.ts'), 'utf8');
+    expect(backend).toContain('ergonodeConfigurationType');
+    expect(backend).toContain('ctx.onBoot(');
+    for (const root of [
+      join(src, 'composition.ts'),
+      join(here, '..', '..', 'helpers', 'test-server.ts'),
+    ]) {
+      expect(readFileSync(root, 'utf8')).not.toContain('ergonodeConfigurationType');
+    }
   });
 
   it('GET /types offers pim_ergonode with the ergonode provider and its two fields', async () => {

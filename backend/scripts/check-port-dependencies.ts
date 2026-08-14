@@ -79,9 +79,11 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // Who an admin actor is, resolved differently by production and the harness
   // — which is exactly the difference a composition root exists to hold.
   'adminContextResolver',
-  // The cross-module configuration-type seam: which types exist is decided by
-  // which modules a deployment ships, so the root creates and populates it.
-  'configurationTypeRegistry',
+  // `configurationTypeRegistry` left this list in T143a. It read "the root
+  // creates and populates it", and the second half stopped being true: each
+  // configuration type is declared by the module that owns it, from that
+  // module's boot hook, so the name is `credentials`' own registration and the
+  // two other contributors declare that dependency like any other.
   'credentialsSettingsPort',
   // Which channel a global-scope settings read resolves against: the
   // deployment's system-default channel, or its configured fallback. A

@@ -119,8 +119,6 @@ import type { CmsCradle } from '../../src/modules/cms/backend.js';
 import type { MegamenuCradle } from '../../src/modules/megamenu/backend.js';
 import type { TargetValidatorDeps } from '../../src/modules/megamenu/services/target-validator.js';
 import type { StorefrontDeps } from '../../src/modules/megamenu/services/storefront-resolver.js';
-import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
-import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/services/cms-references.js';
 // Feature 072 — the harness is a second composition root, so a module left
 // hand-wired here would keep passing against wiring nobody changed. It composes
 // the same generated list production does; only the host values differ.
@@ -154,7 +152,6 @@ import type {
   TaxonomyFetchResult,
   TaxonomySourceFetcherPort,
 } from '../../src/modules/product_feeds/services/taxonomy-source-fetcher.interface.js';
-import { feedDeliveryConfigurationType } from '../../src/modules/product_feeds/services/delivery/delivery-credential.type.js';
 import {
   FeedDeliveryError,
   type FeedDeliveryAdapter,
@@ -162,15 +159,11 @@ import {
 import type { FeedDeliveryProtocol } from '@b2b/contracts';
 import type { PimErgonodeCradle } from '../../src/modules/pim_ergonode/backend.js';
 import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services/ergonode-client.port.js';
-import { ergonodeConfigurationType } from '../../src/modules/pim_ergonode/services/ergonode-credential.type.js';
 import type { ErgonodeMediaFetcherPort } from '../../src/modules/pim_ergonode/services/ergonode-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
 import { Asset } from '../../src/modules/assets_library/entities/asset.entity.js';
 import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
-import { configurationTypeRegistry } from '../../src/modules/credentials/services/registry-singleton.js';
-import { llmConfigurationType } from '../../src/modules/credentials/types/llm.type.js';
-import { emailAdapterConfigurationType } from '../../src/modules/credentials/types/email-adapter.type.js';
 import type { PwaBridge, PwaCradle } from '../../src/modules/pwa/backend.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
@@ -181,8 +174,6 @@ import {
 } from '../../src/modules/catalog/prompt-tools.js';
 import { inventoryPromptTools } from '../../src/modules/inventory/prompt-tools.js';
 import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js';
-import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
-import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { z } from 'zod';
 import type { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
@@ -1313,31 +1304,22 @@ export async function setupBackendServer(
       effectiveState.presence(moduleId)?.operatorActivated ?? true,
   });
 
-  // Feature 058 — Credentials module. Instantiated before the consumer modules
-  // (prompt_actions, search, newsletter) so they can receive
-  // `credentialsService` for the `credential_ref` resolution path.
-  if (!configurationTypeRegistry.isRegistered(llmConfigurationType.code)) {
-    configurationTypeRegistry.register(llmConfigurationType);
-  }
-  if (!configurationTypeRegistry.isRegistered(emailAdapterConfigurationType.code)) {
-    configurationTypeRegistry.register(emailAdapterConfigurationType);
-  }
-  // Feature 068 — this harness MIRRORS `composition.ts` rather than importing
-  // it, so a descriptor registered only there is absent for an injected
-  // request. Without this line every `pim_ergonode` connection write resolves
-  // to an inert configuration type and fails with a misleading error.
-  if (!configurationTypeRegistry.isRegistered(ergonodeConfigurationType.code)) {
-    configurationTypeRegistry.register(ergonodeConfigurationType);
-  }
-  // Feature 070 — same reason: without this the delivery configuration's
-  // password resolves to an inert type and every write fails misleadingly.
-  if (!configurationTypeRegistry.isRegistered(feedDeliveryConfigurationType.code)) {
-    configurationTypeRegistry.register(feedDeliveryConfigurationType);
-  }
-  // Feature 072 (wave 1) — mirrors `composition.ts`: the root supplies the
-  // registry and the admin-context resolver, the module owns the service.
+  // Feature 058 — Credentials module.
+  //
+  // Feature 072 (T143a) — the four configuration-type registrations are gone
+  // from here, and with them the `isRegistered` guards each one needed. This
+  // harness mirrored `composition.ts` by hand, and the mirror was **worse than
+  // the original in two ways**: it re-registered core descriptors on a
+  // process-wide singleton once per composition, guarding each one so the
+  // duplicate did not warn, and the comments record two features (068, 070)
+  // where a type registered only in production made every write against it fail
+  // misleadingly until somebody added the mirroring line here. Each type is
+  // declared by the module that owns it now, from that module's boot hook, so
+  // there is one registration and both compositions get it.
+  //
+  // What stays is how an admin actor is resolved from a request, which the two
+  // compositions genuinely answer differently.
   registerValues(container, {
-    configurationTypeRegistry,
     adminContextResolver: (request: FastifyRequest) => ({
       adminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
@@ -1350,13 +1332,11 @@ export async function setupBackendServer(
 
   // Feature 013 — Assets Library. Routes mount under /api/v1/admin/assets/*
   // and /assets/file/:assetId.
-  // Feature 072 (T092) — the module owns its plugin and its registry now; the
-  // root only contributes the reference resolvers of whichever modules this
-  // deployment ships.
+  // Feature 072 (T092) — the module owns its plugin and its registry now.
+  // T143a — and each of `catalog`, `cms` and `megamenu` pushes its own
+  // reference descriptors from its boot hook, so neither root decides which
+  // edges block an asset delete.
   const assetsLibrary = (container.cradle as unknown as AssetsLibraryCradle).assetsLibrary;
-  registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
-  registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
-  registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
 
   // Feature 046 — PWA module (mirrors composition.ts). runWorkers:false so no
   // BullMQ consumer starts in tests; the delivery processor is invoked directly
@@ -1513,11 +1493,10 @@ export async function setupBackendServer(
       },
     } satisfies StorefrontDeps,
   });
+  // T143a — `megamenu` cross-registers into `cms`' reference registry from its
+  // own boot hook now, so this root only drops the cache a previous
+  // composition in the same process may have left in Redis.
   const megamenuCradle = container.cradle as unknown as MegamenuCradle;
-  registerMegamenuCmsReferences(
-    cmsCradle.cmsReferenceRegistry,
-    megamenuCradle.megamenuReferenceRegistry,
-  );
   if (megamenuCradle.megamenuServices.cache) {
     await megamenuCradle.megamenuServices.cache.invalidateAll();
   }
@@ -2308,7 +2287,14 @@ export async function setupBackendServer(
       requestService: promptActionsCradle.promptRequestService,
       providerFactory: promptActionsCradle.llmProviderFactory,
     },
-    credentials: { service: credentialsService, configurationTypeRegistry },
+    credentials: {
+      service: credentialsService,
+      // Resolved from the container rather than imported: `credentials`
+      // declares the registry it owns since T143a.
+      configurationTypeRegistry: (
+        container.cradle as unknown as { configurationTypeRegistry: ConfigurationTypeRegistry }
+      ).configurationTypeRegistry,
+    },
     invoices: {
       invoiceService: invoicesCradle.invoiceService,
       numberGenerator: invoicesCradle.invoiceNumberGenerator,

@@ -63,7 +63,11 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port both route files are gated by, and
   // `settings` owns the store the page-builder resolvers read and write.
-  dependencies: ['sales_channels', 'auth', 'settings'],
+  // `assets_library` owns the reference registry this module contributes its
+  // embedded-asset scan to (T143a) — the edge existed as a composition root's
+  // cross-registration, which is to say it existed nowhere an operator, the
+  // lifecycle or the migration order could see it.
+  dependencies: ['assets_library', 'sales_channels', 'auth', 'settings'],
   i18n: { bundlesDir: 'i18n' },
   settings,
   permissions: [
