@@ -183,6 +183,13 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `request.testActor` — and owned by `auth` in principle. Read by the four
   // payment gateways (wave 3).
   customerAccountIdResolver: 'auth',
+  // Which organizations a sales-rep admin may see, and the admin-editable
+  // sender `orders` mails through (T141). The first is actor-shaped like the
+  // four above; the second drains with `inventoryTemplateEmail` and
+  // `organizationsTransactionalEmailSender` when `transactional_emails`
+  // converts.
+  ordersAdminScopeResolver: 'auth',
+  ordersTransactionalEmailSender: 'transactional_emails',
   // The calling customer's Organization, or `null`. The fourth member of the
   // family above and root-shaped for the same reason, but softer than all of
   // them on purpose: it answers `null` for anonymous traffic *and* for a
@@ -236,7 +243,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   rfqCustomerContextResolver: 'auth',
   rfqAdminContextResolver: 'auth',
   rfqTaxRateResolver: 'taxes',
-  oneClickOrderServiceGetter: 'orders',
   // Inherited credit limits (feature 056). Owned by `organizations`, still
   // hand-wired; the entry goes when that module converts.
   // The composed attribute read model (feature 061). Owned by `catalog`, still

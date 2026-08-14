@@ -779,6 +779,31 @@ export class OrderService {
     const order = await em.transactional(async (tx) => {
       const org = await tx.findOne(Organization, { id: ctx.organizationId });
       if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+      // **The service-seam guard. Not dead code — do not delete it.**
+      //
+      // `POST /api/v1/orders` and the external intake route both refuse a
+      // suspended Organization before reaching this method, with
+      // `FORBIDDEN` + `organization_cannot_transact` (the code the 062
+      // contract and the published integration docs specify). This check is
+      // for the callers that reach `placeOrder` *without* passing a route
+      // gate, and there are three:
+      //
+      //   - `quick_order/services/one-click-service.ts` — a live,
+      //     storefront-reachable placement endpoint with no transact guard of
+      //     its own, so this is the only thing standing between a suspended
+      //     Organization and a one-click order;
+      //   - `orders/services/order-api-intake-service.ts`;
+      //   - `orders/services/order-creation-admin-service.ts`.
+      //
+      // It keeps `ORGANIZATION_SUSPENDED` deliberately: at this seam the
+      // refusal is a statement about the Organization's status, not about the
+      // caller's permission — which is also the right reading for an
+      // admin-created order, where "forbidden" would be actively misleading.
+      //
+      // Feature 072 (T141) is what made this worth writing down: until then
+      // the test harness never wired the route gate, so the suite reached this
+      // branch on the ordinary checkout path and it looked like the main
+      // implementation rather than the fallback.
       if (org.status !== 'active') {
         throw new HttpError(
           423,

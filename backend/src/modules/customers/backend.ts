@@ -71,8 +71,14 @@ export interface CustomersCradle {
   readonly customerActorResolver: CustomersModuleOptions['resolveCustomerActor'];
   /** Root-shaped, owner `auth`: the moderating admin and the scope they see. */
   readonly customerModerationActorResolver: CustomersModuleOptions['resolveModerationActor'];
-  /** Late-bound: `orders` builds it and is still hand-wired (T141). */
-  readonly customerOrderListServiceGetter: CustomersModuleOptions['getOrderListService'];
+  /**
+   * `orders`' own accessor (T141), replacing the root getter this module used
+   * to read. Answers `null` until `orders` registers its routes, so the
+   * throwing wrapper below is what turns "not yet bound" into an error.
+   */
+  readonly orderListServiceAccessor: () => ReturnType<
+    CustomersModuleOptions['getOrderListService']
+  > | null;
   /**
    * Contribution point: production talks to VIES, the harness scripts it —
    * the same validator `organizations` gets, by construction.
@@ -144,7 +150,11 @@ export function registerModule(ctx: ModuleContext): void {
             resolveCustomerActor: (req: FastifyRequest) => cradle().customerActorResolver(req),
             resolveModerationActor: (req: FastifyRequest) =>
               cradle().customerModerationActorResolver(req),
-            getOrderListService: () => cradle().customerOrderListServiceGetter(),
+            getOrderListService: () => {
+              const service = cradle().orderListServiceAccessor();
+              if (!service) throw new Error('OrderListService not yet bound');
+              return service;
+            },
             // The three reads that used to be a root's, one of them exercised
             // by no test at all — see the note above.
             resolveAllowRegistrationWithoutOrganization: () =>

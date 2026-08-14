@@ -331,9 +331,18 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
       `suspended-${randomUUID()}`,
     );
     expect(res.statusCode).toBe(423);
-    expect((res.json() as { error: { code: string } }).error.code).toBe(
-      ERROR_CODES.ORGANIZATION_SUSPENDED,
-    );
+    // `FORBIDDEN` + `organization_cannot_transact`, which is what this feature's
+    // own contract specifies (`specs/062-distributor-api/contracts/
+    // orders-api-key-intake.md` error vocabulary) and what the published
+    // `docs/docs/integrations/api-access.md` documents to distributors. SC-009
+    // requires this to be identical to what the Organization's own buyer gets,
+    // and since T141 both paths are fed from the same container binding rather
+    // than from two root arguments that happened to agree.
+    const body = res.json() as {
+      error: { code: string; details?: { code?: string } };
+    };
+    expect(body.error.code).toBe(ERROR_CODES.FORBIDDEN);
+    expect(body.error.details?.code).toBe('organization_cannot_transact');
   });
 
   it('insufficient stock ⇒ 409 STOCK_UNAVAILABLE (existing placement semantics)', async () => {

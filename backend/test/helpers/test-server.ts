@@ -83,11 +83,9 @@ import type { OrganizationsCradle } from '../../src/modules/organizations/backen
 import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
 import type { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
 import type { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
-import { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
+import type { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
 import { SalesRepAssignmentService } from '../../src/modules/organizations/services/sales-rep-assignment-service.js';
 import { OrganizationTreeService } from '../../src/modules/organizations/services/organization-tree-service.js';
-import type { OrganizationReadPort } from '../../src/kernel/ports/organizations.js';
-import type { AddressService } from '../../src/modules/addresses/services/address-service.js';
 import { resolveCustomerRollupSubtreeIds } from '../../src/modules/customer_accounts/services/customer-rollup-scope.js';
 import type {
   VatValidator,
@@ -98,12 +96,10 @@ import type {
 // replaced were the reason a conversion of `composition.ts` alone would have
 // proved nothing: every mail-sending suite runs against this root.
 import type { EmailCradle } from '../../src/modules/email/backend.js';
-import { commerceModule } from '../../src/modules/orders/plugin.js';
 import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
 import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
 import type { ShoppingListService } from '../../src/modules/shopping_lists/services/shopping-list-service.js';
-import type { QuoteRequestsCradle } from '../../src/modules/quote_requests/backend.js';
 import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
 import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
@@ -912,33 +908,8 @@ export async function setupBackendServer(
   // Feature 026 US4 — restriction service + per-request allow-list resolvers.
   // Mirrors the composition.ts pattern: production wiring reads
   // `request.actor`; the test harness uses `request.testActor`.
-  const sharedRestrictionService = new OrganizationRestrictionService(em, auditLogService);
   const sharedSalesRepAssignment = new SalesRepAssignmentService(em, auditLogService);
 
-  /**
-   * Feature 072 (T138) — mirrors `composition.ts`: what `orders` still needs,
-   * composed from the two halves, without a `catch`. Moves into that module in
-   * T141.
-   */
-  const orgCradle = (): {
-    customerOrganizationIdResolver: (request: FastifyRequest) => string | null;
-    organizationRestrictionPort: {
-      allowedIdsFor(
-        organizationId: string,
-        kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
-      ): Promise<string[] | null>;
-    };
-    organizationReadPort: OrganizationReadPort;
-  } => container.cradle as never;
-  const resolveOrgAllowList =
-    (kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds') =>
-    async (request: FastifyRequest): Promise<string[] | null> => {
-      const organizationId = orgCradle().customerOrganizationIdResolver(request);
-      if (organizationId === null) return null;
-      return orgCradle().organizationRestrictionPort.allowedIdsFor(organizationId, kind);
-    };
-  const resolveOrganizationPaymentMethodAllowList = resolveOrgAllowList('paymentMethodIds');
-  const resolveOrganizationDeliveryMethodAllowList = resolveOrgAllowList('deliveryMethodIds');
 
   /**
    * Feature 026 US6 — admin orders/RFQ scope for the test harness. Mirrors
@@ -1046,8 +1017,6 @@ export async function setupBackendServer(
   // `orders` and `organizations` used to build their own, and the constructor's
   // validator and audit writer are optional, so the instances were free to
   // disagree — and one did.
-  const addressService = (container.cradle as unknown as { addressService: AddressService })
-    .addressService;
 
   // Feature 072 (wave 1) — `dictionaries` reacts to a currency change instead
   // of `currencies` calling into it. The direction matters: declaring the call
@@ -1238,91 +1207,6 @@ export async function setupBackendServer(
       // request seam gets a leak that no test can see.
       await registerRequestScopeHook(app, { buildTenantContext: buildContext });
     },
-    commerceModule({
-      cartService: (container.cradle as unknown as CartsCradle).cartService,
-      paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
-      shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
-      paymentOrderStatusRegistry: methodsCradle.paymentOrderStatusRegistry,
-      shippingMethodEligibility: methodsCradle.shippingMethodEligibility,
-      commandBus,
-      emFactory: em,
-      eventBus,
-      auditLogService,
-      customFieldValues: customFieldValueService,
-      getTransactionalEmailSender: () => transactionalEmailSender,
-      creditLimit: creditLimitsCradle.creditLimitService,
-      requireCustomer: requireTestCustomer(),
-      requireAdmin: requireTestAdmin(permissionService),
-      resolveCustomerContext: customerResolver,
-      salesChannelMembership: salesChannels.membershipService,
-      // Feature 072 (T072) — production passes this and the harness did not, so
-      // every address path in checkout ran a shape no deployment runs. Same
-      // three arguments as `composition.ts`.
-      addressService,
-      // Real per-product VAT — mirrors composition.ts so placeOrder resolves the
-      // rate from the tax rules instead of a flat 23%.
-      resolveTaxRate: async ({ country, productType, vatStatus }) => {
-        try {
-          const resolved = await taxesCradle.taxService.taxRateFor({
-            country: country ?? 'PL',
-            productType: productType as
-              | 'simple'
-              | 'configurable'
-              | 'grouped'
-              | 'bundle'
-              | 'virtual',
-            vatStatus: vatStatus as 'vat_payer' | 'vat_exempt' | 'reverse_charge',
-          });
-          return resolved.rate;
-        } catch {
-          return 0.23;
-        }
-      },
-      pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
-      promotionService: promotionsCradle.promotionService,
-      redis,
-      // Feature 062 — external orders namespace (mirrors composition.ts):
-      // bound-key gate + the org method allow-lists (FR-021 envelope).
-      requireBoundApiKey: apiKeysCradle.requireBoundApiKey,
-      resolveOrganizationMethodAllowLists: async (organizationId: string) => {
-        try {
-          const lists = await sharedRestrictionService.readAllowLists(organizationId);
-          return {
-            paymentMethodIds: lists.paymentMethodIds,
-            deliveryMethodIds: lists.deliveryMethodIds,
-          };
-        } catch {
-          return null;
-        }
-      },
-      ...(options.commerceMailer ? { mailer: options.commerceMailer } : {}),
-      getRfqService: () => (container.cradle as unknown as QuoteRequestsCradle).rfqService,
-      // Global backorder gate — resolved at request time via the Settings
-      // module (declared below; the closure runs well after setup completes).
-      resolveChannelAllowNegativeStock: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'inventory.allow_negative_stock',
-            salesChannelId,
-            z.boolean(),
-          );
-        } catch {
-          return false;
-        }
-      },
-      // Feature 039 — expose OrderService for the quick_order one-click flow.
-      exposeOrderService: (svc) => {
-        orderServiceForOneClick = svc;
-      },
-      // Feature 040 — expose OrderListService for the customers module.
-      exposeOrderListService: (svc) => {
-        orderListServiceForCustomers = svc;
-      },
-      resolveOrganizationPaymentMethodAllowList,
-      resolveOrganizationDeliveryMethodAllowList,
-      resolveAdminOrdersScope: resolveTestAdminOrdersScope,
-    }),
     catalogModule({
       emFactory: em,
       eventBus,
@@ -1856,13 +1740,18 @@ export async function setupBackendServer(
   // files now. What stays a composition's: who is asking (production reads
   // `request.actor`, the harness `request.testActor`), and the bridge into
   // `shopping_lists`, which points outward and so cannot be a port.
+  // Feature 072 (T141) — mirrors `composition.ts`: the sales-rep admin scope
+  // (reading this harness's own actor property) and the late-bound sender.
   registerValues(container, {
-    // A no-op, and deliberately explicit rather than an omitted argument. This
-    // harness has never wired the organization transact guard — the option was
-    // optional and only production passed it — so cart mutations here are not
-    // refused for a suspended organization. Naming it keeps that divergence
-    // visible instead of leaving it as an absent check; it goes when
-    // `organizations` converts (T138) and provides the real guard as a port.
+    ordersAdminScopeResolver: resolveTestAdminOrdersScope,
+    ordersTransactionalEmailSender: () => transactionalEmailSender,
+  });
+
+  registerValues(container, {
+    // The organization transact guard used to be a no-op here, named
+    // explicitly so the divergence stayed visible. T138 removed it: the guard
+    // is `organizationReadPort.assertCanTransact` now, provided by the module
+    // and resolved identically by both compositions.
     cartActorResolver: (request: FastifyRequest) => {
       if (request.testActor?.kind === 'customer') {
         return {
