@@ -134,12 +134,14 @@ import * as module55 from './modules/quote_requests/backend.js';
 import { manifest as manifest55 } from './modules/quote_requests/manifest.js';
 import * as module56 from './modules/carts/backend.js';
 import { manifest as manifest56 } from './modules/carts/manifest.js';
-import * as module57 from './modules/shopping_lists/backend.js';
-import { manifest as manifest57 } from './modules/shopping_lists/manifest.js';
-import * as module58 from './modules/tpay/backend.js';
-import { manifest as manifest58 } from './modules/tpay/manifest.js';
-import * as module59 from './modules/webhooks/backend.js';
-import { manifest as manifest59 } from './modules/webhooks/manifest.js';
+import * as module57 from './modules/quick_order/backend.js';
+import { manifest as manifest57 } from './modules/quick_order/manifest.js';
+import * as module58 from './modules/shopping_lists/backend.js';
+import { manifest as manifest58 } from './modules/shopping_lists/manifest.js';
+import * as module59 from './modules/tpay/backend.js';
+import { manifest as manifest59 } from './modules/tpay/manifest.js';
+import * as module60 from './modules/webhooks/backend.js';
+import { manifest as manifest60 } from './modules/webhooks/manifest.js';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: '_lifecycle', version: manifest0.version, registerModule: module0.registerModule },
@@ -199,7 +201,8 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'product_feeds', version: manifest54.version, registerModule: module54.registerModule },
   { id: 'quote_requests', version: manifest55.version, registerModule: module55.registerModule },
   { id: 'carts', version: manifest56.version, registerModule: module56.registerModule },
-  { id: 'shopping_lists', version: manifest57.version, registerModule: module57.registerModule },
-  { id: 'tpay', version: manifest58.version, registerModule: module58.registerModule },
-  { id: 'webhooks', version: manifest59.version, registerModule: module59.registerModule },
+  { id: 'quick_order', version: manifest57.version, registerModule: module57.registerModule },
+  { id: 'shopping_lists', version: manifest58.version, registerModule: module58.registerModule },
+  { id: 'tpay', version: manifest59.version, registerModule: module59.registerModule },
+  { id: 'webhooks', version: manifest60.version, registerModule: module60.registerModule },
 ];

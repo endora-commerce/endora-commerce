@@ -391,6 +391,16 @@ export const ALLOWED_CAPTURES: Readonly<Record<string, string>> = {
  * that the edge is real and mutual, not that nobody has looked.
  */
 export const ACKNOWLEDGED_PORT_EDGES: Readonly<Record<string, string>> = {
+  // The same mutual pair, four names over. `customer_accounts` declares
+  // `organizations` — every account belongs to one, and feature 051 made that
+  // the tenancy direction — while this module's public registration, login,
+  // password-reset and TOTP routes are served by those four services. The
+  // manifest already records the mirror of this as an acknowledged FK edge
+  // (`email_verification_tokens.customer_account_id`).
+  'organizations:customerAuthService': 'see `organizations:addressService`',
+  'organizations:passwordResetService': 'see `organizations:addressService`',
+  'organizations:customerRoleService': 'see `organizations:addressService`',
+  'organizations:totpEnrolmentService': 'see `organizations:addressService`',
   'organizations:addressService':
     'Mutual by nature. `addresses` declares `organizations` because every stored ' +
     'address is organization-scoped, and it must install after the tenancy root. ' +

@@ -92,7 +92,7 @@ export const manifest = defineModuleManifest({
   // the same reason the five FK edges above are — it declares this module, so
   // the edge is mutual and declaring it back closes the cycle; it is recorded
   // in `ACKNOWLEDGED_PORT_EDGES` instead.
-  dependencies: ['admin_notifications', 'dictionaries', 'email', 'settings'],
+  dependencies: ['admin_notifications', 'custom_fields', 'dictionaries', 'email', 'settings'],
   // Feature 072/073 (Constitution XVII). The Organization is the single unit of
   // tenancy (Principle XI): every transacting customer has one, every
   // tenant-scoped entity carries its id, and the global-filter guard in
