@@ -74,6 +74,59 @@ const SUBJECT = 'health_checks';
  * fail on the count alone. Absence is the record.
  */
 const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
+  // ── Wave 4 and T120: the last six conversions ──────────────────────────
+  //
+  // Every entry below is a converted module's *structural* residue rather than
+  // a leftover: `entities-registry.ts` and `migrations-registry.ts` are
+  // explicit core-owned lists by design (feature 065 — an unregistered
+  // migration does not run, and the registry exists so it cannot be forgotten),
+  // so every converted module names itself there and always will.
+  //
+  // `catalog` (wave 4, T142). The two registries; `composition.ts` types the
+  // five contributions a root supplies — the bulk-operation worker flag, the
+  // admin audit actor shape, availability bands, the image placeholder, and the
+  // Meilisearch reindex production runs and the harness must not.
+  catalog: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `customers` (wave 4, T140). The registries only — its three root-supplied
+  // names are actor-shaped closures the root writes inline, so nothing imports
+  // this module to spell them.
+  customers: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `orders` (wave 4, T141). The registries; `composition.ts` types the
+  // sales-rep admin scope it still supplies, which drains when `auth`'s actor
+  // resolution unifies.
+  orders: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `organizations` (wave 4, T138). The registries, and `composition.ts` for
+  // the deployment inputs and the login hook. The fourth is the interesting one
+  // and it is not a leftover: the **kernel** imports the `Organization` entity
+  // type to declare `OrganizationReadPort`. That is the D-32 shape — the kernel
+  // owns the port's shape, this module registers the implementation — so it is
+  // the one entry here that is meant to be permanent.
+  organizations: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+    'src/kernel/ports/organizations.ts',
+  ],
+  // `quick_order` (wave 4, T139). The registries only — it took its five route
+  // files back from `shopping_lists` and needs nothing from a root.
+  quick_order: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `transactional_emails` (T120, the last module). The registries;
+  // `composition.ts` supplies the asset-URL resolver, which reaches
+  // `assets_library` — a boundary this module must not cross directly.
+  transactional_emails: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+
   // `composition.ts` still reaches into `email` twice: for the `EmailCradle`
   // type it resolves the mailer with, and for `absolutizePublicUrl`, a URL
   // helper it applies on behalf of modules that are still hand-wired. Both
@@ -130,7 +183,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // roots, which annotate what they resolve out of the container and hand to
   // the four modules that write notifications. It leaves when those convert.
   admin_notifications: [
-    'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
@@ -160,7 +212,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // the service type to annotate what they resolve and hand to `orders` and
   // `organizations`. Those two took the service as an argument already; what
   // changed is that there is now one of it instead of three.
-  addresses: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  addresses: ['src/db/entities-registry.ts'],
   // `delivery_methods` and `payment_methods` (wave 1, T095/T097), converted as
   // a pair. Beyond the two central registries, both roots import their registry
   // and order-status types to annotate what they resolve and hand to `orders`,
@@ -285,7 +337,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // declaring the call as a dependency produces a real cycle — so unlike most
   // entries here, this one is not waiting on another conversion.
   languages: [
-    'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
@@ -341,7 +392,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // The first goes when `catalog` converts, the second when `organizations`
   // does; the pickers are a root's by design, like `megamenu`'s.
   promotions: [
-    'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
@@ -352,7 +402,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // used to register on this module's behalf is a port it provides now, so
   // that host entry is gone.
   api_keys: [
-    'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
@@ -528,7 +577,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // nature — production reads `request.actor`, the harness `request.testActor`
   // — and the other two go when `taxes` and `organizations` convert.
   quote_requests: [
-    'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
