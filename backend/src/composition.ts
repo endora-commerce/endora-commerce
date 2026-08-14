@@ -1,4 +1,5 @@
 import type { AssetsLibraryCradle } from './modules/assets_library/backend.js';
+import type { CartShoppingListBridge, CartsCradle } from './modules/carts/backend.js';
 import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
 import type { PaymentAdapterRegistry } from './modules/payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from './modules/payment_methods/services/order-status-registry.port.js';
@@ -228,7 +229,6 @@ import { AttachmentService } from './modules/catalog/services/attachment.service
 import { ProductLinkService } from './modules/catalog/services/product-link.service.js';
 import { GroupedService } from './modules/catalog/services/grouped.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
-import type { CartService } from './modules/carts/services/cart-service.js';
 import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
 
 /**
@@ -422,6 +422,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     interceptorRegistry: apiInterceptors,
     ownership: registrationOwnership,
   });
+
   await earlyModules.runBootHooks();
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument
@@ -998,8 +999,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `sales_channels.storefront_url` setting that the sitemap generator
   // stamps into URLs. Plugin is pushed onto `modules` further below.
   // Feature 072 (T117) — `seo` owns its services and routes now.
-
-  let cartService: CartService | null = null;
   let shoppingListService: ShoppingListService | null = null;
   // Feature 039 — late-bound OrderService for the quick_order one-click flow.
   let orderServiceForOneClick: OrderService | null = null;
@@ -1280,6 +1279,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     tenantContextModulePlugin,
     // Feature 058 — Credentials (instantiated earlier, right after settings).
     commerceModule({
+      cartService: (container.cradle as unknown as CartsCradle).cartService,
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
       shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
       paymentOrderStatusRegistry: methodsCradle.paymentOrderStatusRegistry,
@@ -1316,30 +1316,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         }
       },
       // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.
-      resolveCartAbandonmentInactivityMinutes: async () => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'carts.abandonment.inactivity_minutes',
-            'default',
-            z.number().int().nonnegative(),
-          );
-        } catch {
-          return 0;
-        }
-      },
-      resolveCartAbandonmentNotificationRecipient: async () => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'carts.abandonment.notification_recipient',
-            'default',
-            z.string(),
-          );
-        } catch {
-          return '';
-        }
-      },
       // Feature 036 — business Order ID prefix/suffix, resolved per Sales
       // Channel. Missing/out-of-scope settings resolve to '' (bare numeric ID).
       resolveOrderBusinessIdPrefix: async (salesChannelId: string) => {
@@ -1488,47 +1464,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       exposeOrderTransitionService: (svc) => {
         orderTransitionServiceForPrompts = svc;
       },
-      appendShoppingListToCart: async (input) => {
-        if (!shoppingListService) {
-          throw new Error('shopping_lists module not initialized');
-        }
-        const res = await shoppingListService.convertToCart(
-          {
-            customerAccountId: input.customerAccountId,
-            organizationId: input.organizationId ?? '',
-          },
-          input.shoppingListId,
-          undefined,
-        );
-        // Map ShoppingListService.convertToCart's shape onto the carts
-        // module's uniform return shape across the three conversions.
-        return {
-          cartId: '',
-          appendedLineCount: res.added,
-          droppedLines: res.skipped.map((it) => ({
-            productId: it.productId,
-            productName: it.productId,
-            reason: 'not_purchasable',
-          })),
-        };
-      },
-      resolveCartActor: (request) => {
-        if (request.actor.kind === 'customer') {
-          return {
-            customer: {
-              customerAccountId: request.actor.customerAccountId,
-              organizationId: request.actor.organizationId,
-            },
-          };
-        }
-        const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
-        const anon = cookies?.['b2b_cart_anon'];
-        if (anon) return { anonymousToken: anon };
-        return {};
-      },
-      exposeCartService: (cs) => {
-        cartService = cs;
-      },
       assertOrganizationCanTransact,
       resolveOrganizationPaymentMethodAllowList,
       resolveOrganizationDeliveryMethodAllowList,
@@ -1536,23 +1471,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // Feature 027 — `Save to shopping list` bridge. Late-bound via
       // closure so the shopping_lists module (constructed below) can
       // inject the real service after this point.
-      pushLineToShoppingList: async (input) => {
-        if (!shoppingListService) {
-          throw new Error('shopping_lists module not initialized');
-        }
-        await shoppingListService.addItem(
-          {
-            customerAccountId: input.customerAccountId,
-            organizationId: input.organizationId ?? '',
-          },
-          input.shoppingListId,
-          {
-            productId: input.productId,
-            ...(input.variantId ? { variantId: input.variantId } : {}),
-            quantity: input.quantity,
-          },
-        );
-      },
     }),
     organizationsModule({
       customerAuthService: customerAccountsCradle.customerAuthService,
@@ -1584,10 +1502,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         : {}),
       onLogin: async (ctx) => {
         let cartMerge: Awaited<
-          ReturnType<NonNullable<typeof cartService>['mergeAnonymousIntoCustomer']>
+          ReturnType<CartsCradle['cartService']['mergeAnonymousIntoCustomer']>
         > | undefined;
-        if (cartService && ctx.anonymousCartToken) {
-          cartMerge = await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
+        if (ctx.anonymousCartToken) {
+          cartMerge = await (container.cradle as unknown as CartsCradle).cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
             customerAccountId: ctx.customerAccountId,
             organizationId: ctx.organizationId,
           });
@@ -2012,6 +1930,71 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   // The explicit boot phase (FR-021): registration stays lazy, and the work
   // that genuinely has to run at boot runs here, in its own system scope.
+  // Feature 072 (T136) — `carts` owns its thirteen services and three route
+  // files now. What stays a composition's: who is asking (production reads
+  // `request.actor`, the harness `request.testActor`), and the bridge into
+  // `shopping_lists`, which points outward and so cannot be a port.
+  registerValues(container, {
+    organizationTransactGuard: assertOrganizationCanTransact,
+    cartActorResolver: (request: FastifyRequest) => {
+      if (request.actor.kind === 'customer') {
+        return {
+          customer: {
+            customerAccountId: request.actor.customerAccountId,
+            organizationId: request.actor.organizationId,
+          },
+        };
+      }
+      const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
+      const anon = cookies?.['b2b_cart_anon'];
+      if (anon) return { anonymousToken: anon };
+      return {};
+    },
+    cartShoppingListBridge: {
+      pushLineToShoppingList: async (input) => {
+        if (!shoppingListService) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        await shoppingListService.addItem(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          {
+            productId: input.productId,
+            ...(input.variantId ? { variantId: input.variantId } : {}),
+            quantity: input.quantity,
+          },
+        );
+      },
+      appendShoppingListToCart: async (input) => {
+        if (!shoppingListService) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        const res = await shoppingListService.convertToCart(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          undefined,
+        );
+        // Map ShoppingListService.convertToCart's shape onto the carts
+        // module's uniform return shape across the three conversions.
+        return {
+          cartId: '',
+          appendedLineCount: res.added,
+          droppedLines: res.skipped.map((it) => ({
+            productId: it.productId,
+            productName: it.productId,
+            reason: 'not_purchasable',
+          })),
+        };
+      },
+    } satisfies CartShoppingListBridge,
+  });
+
   await lateModules.runBootHooks();
 
   // Feature 017 — Dictionary module. Boot reconciler populates the

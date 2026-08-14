@@ -1,4 +1,5 @@
 import type { AssetsLibraryCradle } from '../../src/modules/assets_library/backend.js';
+import type { CartShoppingListBridge, CartsCradle } from '../../src/modules/carts/backend.js';
 import type { CustomerAccountsCradle } from '../../src/modules/customer_accounts/backend.js';
 import type { PaymentAdapterRegistry } from '../../src/modules/payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from '../../src/modules/payment_methods/services/order-status-registry.port.js';
@@ -828,6 +829,7 @@ export async function setupBackendServer(
     interceptorRegistry: apiInterceptors,
     ownership: registrationOwnership,
   });
+
   await earlyModules.runBootHooks();
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument
@@ -896,7 +898,6 @@ export async function setupBackendServer(
 
   // CartService is exposed by the commerce module so the login handler in
   // organizations can merge anonymous baskets after sign-in.
-  let cartService: CartService | null = null;
   let shoppingListServiceRef: import('../../src/modules/shopping_lists/services/shopping-list-service.js').ShoppingListService | null = null;
   // Feature 039 — late-bound OrderService for the quick_order one-click flow.
   let orderServiceForOneClick: import('../../src/modules/orders/services/order-service.js').OrderService | null = null;
@@ -1257,6 +1258,7 @@ export async function setupBackendServer(
       await registerRequestScopeHook(app, { buildTenantContext: buildContext });
     },
     commerceModule({
+      cartService: (container.cradle as unknown as CartsCradle).cartService,
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
       shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
       paymentOrderStatusRegistry: methodsCradle.paymentOrderStatusRegistry,
@@ -1335,62 +1337,6 @@ export async function setupBackendServer(
       // Feature 040 — expose OrderListService for the customers module.
       exposeOrderListService: (svc) => {
         orderListServiceForCustomers = svc;
-      },
-      resolveCartActor: (request) => {
-        if (request.testActor?.kind === 'customer') {
-          return {
-            customer: {
-              customerAccountId: request.testActor.customerAccountId,
-              organizationId: request.testActor.organizationId,
-            },
-          };
-        }
-        const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
-        const anon = cookies?.['b2b_cart_anon'];
-        if (anon) return { anonymousToken: anon };
-        return {};
-      },
-      exposeCartService: (cs) => {
-        cartService = cs;
-      },
-      pushLineToShoppingList: async (input) => {
-        if (!shoppingListServiceRef) {
-          throw new Error('shopping_lists module not initialized');
-        }
-        await shoppingListServiceRef.addItem(
-          {
-            customerAccountId: input.customerAccountId,
-            organizationId: input.organizationId ?? '',
-          },
-          input.shoppingListId,
-          {
-            productId: input.productId,
-            ...(input.variantId ? { variantId: input.variantId } : {}),
-            quantity: input.quantity,
-          },
-        );
-      },
-      appendShoppingListToCart: async (input) => {
-        if (!shoppingListServiceRef) {
-          throw new Error('shopping_lists module not initialized');
-        }
-        const res = await shoppingListServiceRef.convertToCart(
-          {
-            customerAccountId: input.customerAccountId,
-            organizationId: input.organizationId ?? '',
-          },
-          input.shoppingListId,
-          undefined,
-        );
-        return {
-          cartId: '',
-          appendedLineCount: res.added,
-          droppedLines: res.skipped.map((it) => ({
-            productId: it.productId,
-            productName: it.productId,
-            reason: 'not_purchasable',
-          })),
-        };
       },
       resolveOrganizationPaymentMethodAllowList,
       resolveOrganizationDeliveryMethodAllowList,
@@ -1490,8 +1436,8 @@ export async function setupBackendServer(
           storefrontBaseUrl: 'http://localhost:3000',
           onLogin: async (ctx) => {
             let result: Record<string, unknown> = {};
-            if (cartService && ctx.anonymousCartToken && ctx.organizationId) {
-              const cartMerge = await cartService.mergeAnonymousIntoCustomer(
+            if (ctx.anonymousCartToken && ctx.organizationId) {
+              const cartMerge = await (container.cradle as unknown as CartsCradle).cartService.mergeAnonymousIntoCustomer(
                 ctx.anonymousCartToken,
                 {
                   customerAccountId: ctx.customerAccountId,
@@ -2038,6 +1984,75 @@ export async function setupBackendServer(
       taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
       deliveryAdapters: options.feedDeliveryAdapters ?? refusingDeliveryAdapters(),
     },
+  });
+
+  // Feature 072 (T136) — `carts` owns its thirteen services and three route
+  // files now. What stays a composition's: who is asking (production reads
+  // `request.actor`, the harness `request.testActor`), and the bridge into
+  // `shopping_lists`, which points outward and so cannot be a port.
+  registerValues(container, {
+    // A no-op, and deliberately explicit rather than an omitted argument. This
+    // harness has never wired the organization transact guard — the option was
+    // optional and only production passed it — so cart mutations here are not
+    // refused for a suspended organization. Naming it keeps that divergence
+    // visible instead of leaving it as an absent check; it goes when
+    // `organizations` converts (T138) and provides the real guard as a port.
+    organizationTransactGuard: async (): Promise<void> => undefined,
+    cartActorResolver: (request: FastifyRequest) => {
+      if (request.testActor?.kind === 'customer') {
+        return {
+          customer: {
+            customerAccountId: request.testActor.customerAccountId,
+            organizationId: request.testActor.organizationId,
+          },
+        };
+      }
+      const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
+      const anon = cookies?.['b2b_cart_anon'];
+      if (anon) return { anonymousToken: anon };
+      return {};
+    },
+    cartShoppingListBridge: {
+      pushLineToShoppingList: async (input) => {
+        if (!shoppingListServiceRef) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        await shoppingListServiceRef.addItem(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          {
+            productId: input.productId,
+            ...(input.variantId ? { variantId: input.variantId } : {}),
+            quantity: input.quantity,
+          },
+        );
+      },
+      appendShoppingListToCart: async (input) => {
+        if (!shoppingListServiceRef) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        const res = await shoppingListServiceRef.convertToCart(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          undefined,
+        );
+        return {
+          cartId: '',
+          appendedLineCount: res.added,
+          droppedLines: res.skipped.map((it) => ({
+            productId: it.productId,
+            productName: it.productId,
+            reason: 'not_purchasable',
+          })),
+        };
+      },
+    } satisfies CartShoppingListBridge,
   });
 
   await lateModules.runBootHooks();
@@ -2719,7 +2734,7 @@ export async function setupBackendServer(
       organizationContextService: null as unknown as OrganizationContextService,
       restrictionService: null as unknown as OrganizationRestrictionService,
     },
-    cartService: () => cartService,
+    cartService: () => (container.cradle as unknown as CartsCradle).cartService,
   };
 }
 

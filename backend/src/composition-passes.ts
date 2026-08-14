@@ -147,6 +147,11 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // first resolution, so the three composition values registered beside the old
   // `priceListsModule` call are in place by then (T127).
   'price_lists',
+  // Both roots read `cartService` off the cradle where they build
+  // `commerceModule`, hundreds of lines before the late pass. `carts` registers
+  // no EventBus subscriber, so the hazard this list warns about below does not
+  // apply to it (T136).
+  'carts',
 ]);
 
 /** The converted modules that must be composed ahead of the hand-wired remainder. */

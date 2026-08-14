@@ -172,6 +172,14 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `request.testActor` — and owned by `auth` in principle. Read by the four
   // payment gateways (wave 3).
   customerAccountIdResolver: 'auth',
+  // Who is asking, in the cart's own shape (signed-in customer or anonymous
+  // cookie token). The identical divergence already recorded for
+  // `customerContextResolver` and `customerAccountIdResolver`, same owner, and
+  // it drains with them (T136).
+  cartActorResolver: 'auth',
+  // The guard that refuses a cart mutation for an organization that may not
+  // transact. Owned by `organizations`, still hand-wired.
+  organizationTransactGuard: 'organizations',
   // `inventory`'s two root-built adapters (T129): the admin-editable
   // transactional-email path, and the Organization's warehouse assignment that
   // scopes a storefront stock read. Each is an adapter over a module
@@ -211,7 +219,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   rfqSalesRepSubtree: 'organizations',
   rfqSalesRepSubtreeTreeService: 'organizations',
   oneClickOrderServiceGetter: 'orders',
-  shoppingListServiceSink: 'carts',
   // Inherited credit limits (feature 056). Owned by `organizations`, still
   // hand-wired; the entry goes when that module converts.
   organizationInheritancePort: 'organizations',
