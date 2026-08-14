@@ -112,6 +112,10 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   'priceListsEnableStatusSweeper',
   'priceListsPricingCacheTtlMs',
   'priceListsAdminAuditContext',
+  // Whether this process runs the Ergonode import and reaper consumers
+  // (Principle X). A deployment decision, read at construction because it
+  // decides whether the consumers are built at all (T131).
+  'pimErgonodeRunWorkers',
   // Same shape for `inventory` (T129): how this deployment names a non-admin
   // caller on an audit record.
   'inventoryAdminAuditContext',
@@ -168,6 +172,19 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // hand-wired.
   inventoryTemplateEmail: 'transactional_emails',
   inventoryWarehouseAllowList: 'organizations',
+  // The seven `catalog` services `pim_ergonode` reads (T131). Each root used to
+  // construct a second instance of every one of them, purely to hand to that
+  // module, while `catalog` built its own. These entries go when `catalog`
+  // converts in T142 and provides them itself.
+  catalogAdminService: 'catalog',
+  categoryAdminService: 'catalog',
+  attributeSetService: 'catalog',
+  galleryService: 'catalog',
+  attachmentService: 'catalog',
+  productLinkService: 'catalog',
+  groupedService: 'catalog',
+  // The asset service the Ergonode media pipeline stores through.
+  assetsLibraryService: 'assets_library',
   // `shopping_lists`' two cross-module reaches (T133): the RFQ service a list
   // converts into, the org restriction the preference routes re-check against,
   // the lazy order service one-click buy places through, and the sink that
@@ -292,6 +309,10 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // at all, and the TTL the pricing LRU is built with (T127).
   'priceListsEnableStatusSweeper',
   'priceListsPricingCacheTtlMs',
+  // Same category: a plain boolean that decides whether the Ergonode import and
+  // reaper consumers are constructed at all, so it cannot be deferred past
+  // construction (T131).
+  'pimErgonodeRunWorkers',
 ]);
 
 /**

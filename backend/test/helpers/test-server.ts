@@ -8,7 +8,6 @@ import { builtInPaymentAdapters } from '../../src/modules/payments/adapters/buil
 import type { ConfigurationTypeRegistry } from '../../src/modules/credentials/services/configuration-type-registry.js';
 import type { CredentialsService } from '../../src/modules/credentials/services/credentials.service.js';
 import type { AdminNotificationService } from '../../src/modules/admin_notifications/services/admin-notification-service.js';
-import type { CurrencyService } from '../../src/modules/currencies/services/currency-service.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import Redis from 'ioredis';
@@ -196,7 +195,7 @@ import {
   type FeedDeliveryAdapter,
 } from '../../src/modules/product_feeds/services/delivery/delivery-adapter.interface.js';
 import type { FeedDeliveryProtocol } from '@b2b/contracts';
-import { pimErgonodeModule } from '../../src/modules/pim_ergonode/plugin.js';
+import type { PimErgonodeCradle } from '../../src/modules/pim_ergonode/backend.js';
 import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services/ergonode-client.port.js';
 import { ergonodeConfigurationType } from '../../src/modules/pim_ergonode/services/ergonode-credential.type.js';
 import type { ErgonodeMediaFetcherPort } from '../../src/modules/pim_ergonode/services/ergonode-media-fetcher.js';
@@ -371,7 +370,7 @@ export interface BackendServerHandle {
   /** Feature 067 — Product Feed handle (feeds, generation, runs, token cache). */
   productFeeds: ReturnType<typeof productFeedsModule>['handle'];
   /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
-  pimErgonode: ReturnType<typeof pimErgonodeModule>['handle'];
+  pimErgonode: PimErgonodeCradle['pimErgonode']['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: PwaCradle['pwa']['handle'];
   /**
@@ -790,6 +789,10 @@ export async function setupBackendServer(
     // platform-owned; until this conversion nothing resolved it by name, so
     // nothing noticed that no root registered it.
     apiInterceptors,
+    // Registered here rather than beside the module's other names: its
+    // `ctx.onBoot` schedule reconcile resolves this, and boot hooks run
+    // several hundred lines before that block (T131).
+    pimErgonodeRunWorkers: false,
     // Mirrors `composition.ts` — but only when a test asks for pub/sub.
     //
     // A converted module arms its own subscription from `onBoot`, which is
@@ -863,10 +866,8 @@ export async function setupBackendServer(
   const permissionService = rolesCradle.permissionService;
   const permissionCatalogueService = rolesCradle.permissionCatalogueService;
 
-  // Feature 072 (wave 1) — one `CurrencyService`, where `dictionaries` and
-  // `languages` each built their own with different invalidators.
-  const currencyService = (container.cradle as unknown as { currencyService: CurrencyService })
-    .currencyService;
+  // `currencyService` is resolved from the container where it is needed —
+  // `pim_ergonode` reads it as a port since T131, and nothing else here did.
 
   // Feature 072 (wave 1) — `admin_notifications` provides this as a port, so a
   // cross-module write answers on its effective state rather than succeeding
@@ -2388,13 +2389,13 @@ export async function setupBackendServer(
   // The catalogue write surface is constructed here exactly as production
   // composition builds it, so what a test exercises is the path a real import
   // takes — Command Bus, channel binding and all.
-  const pimErgonode = pimErgonodeModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    commandBus,
-    eventBus,
-    credentials: credentialsService,
-    catalogAdmin: new CatalogAdminService(
+  // Feature 072 (T131) — the eight services `pim_ergonode` reads across a
+  // module boundary. Seven are `catalog`'s and were constructed here a
+  // second time, purely for this module, while `catalog` built its own;
+  // registering them means one instance each per composition. They go when
+  // `catalog` and `assets_library` convert.
+  registerValues(container, {
+    catalogAdminService: new CatalogAdminService(
       em,
       eventBus as unknown as CatalogEventBus,
       auditLogService,
@@ -2403,34 +2404,25 @@ export async function setupBackendServer(
       catalogAttributeReadService,
       customFieldDefinitionService,
     ),
-    categoryAdmin: new CategoryAdminService(
+    categoryAdminService: new CategoryAdminService(
       em,
       salesChannels.membershipService,
       commandBus,
       customFieldValueService,
     ),
-    attributeSets: new AttributeSetService(em, commandBus, catalogAttributeReadService),
-    gallery: new GalleryService(em, commandBus),
-    attachments: new AttachmentService(em, commandBus),
-    productLinks: new ProductLinkService(em, commandBus),
-    grouped: new GroupedService(em, commandBus),
-    assets: assetsLibrary.handle.service,
-    priceLists: (container.cradle as unknown as PriceListsCradle).priceListService,
-    currencies: currencyService,
-    languageService: languagesCradle.languageService,
-    adminNotificationService: handleFeature026.adminNotificationService,
-    settings: settings.settingsService,
-    // The egress seam. The default REFUSES every stream read rather than
-    // answering empty: an empty source is a plausible fixture, so a silent
-    // default would let a test that forgot to script the source pass while
-    // importing nothing.
-    ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
-    // The byte egress. The real fetcher opens sockets; an empty scripted one
-    // answers `not_found` for everything, which is a failure a test can see
-    // rather than an outbound connection it cannot.
-    mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
+    attributeSetService: new AttributeSetService(em, commandBus, catalogAttributeReadService),
+    galleryService: new GalleryService(em, commandBus),
+    attachmentService: new AttachmentService(em, commandBus),
+    productLinkService: new ProductLinkService(em, commandBus),
+    groupedService: new GroupedService(em, commandBus),
+    assetsLibraryService: assetsLibrary.handle.service,
+    // No test may reach a real Ergonode instance: the client refuses by
+    // default and the media fetcher serves scripted files.
+    pimErgonodeSourceOverrides: {
+      ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
+      mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
+    },
   });
-  modules.push(pimErgonode.plugin);
 
   // Feature 047 — Transactional Emails.
   emailDefaultsRegistry.register('order_confirmation', {
@@ -2673,7 +2665,7 @@ export async function setupBackendServer(
     },
     ksef: ksefCradle.ksef.handle,
     productFeeds: productFeeds.handle,
-    pimErgonode: pimErgonode.handle,
+    pimErgonode: (container.cradle as unknown as PimErgonodeCradle).pimErgonode.handle,
     pwa: pwaCradle.pwa.handle,
     permissionService,
     permissionCatalogueService,
