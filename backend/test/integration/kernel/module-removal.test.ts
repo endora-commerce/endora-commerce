@@ -543,6 +543,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
+  // `product_feeds` (wave 3, T137). The two central registries name its
+  // entities and migrations; both roots contribute the four adapters it reaches
+  // outside itself through — storage, availability, category expansion and
+  // stable public image URLs — plus the worker-role gate, and the harness adds
+  // the taxonomy and delivery seams. The four go when their owners convert.
+  product_feeds: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

@@ -184,7 +184,10 @@ import type { PromptRequestService } from '../../src/modules/prompt_actions/serv
 import type { LlmProviderFactory } from '../../src/modules/prompt_actions/services/llm/provider-factory.js';
 import type { FetchLike } from '../../src/modules/prompt_actions/services/llm/provider.js';
 import type { KsefCradle } from '../../src/modules/ksef/backend.js';
-import { productFeedsModule } from '../../src/modules/product_feeds/plugin.js';
+import type {
+  ProductFeedsBridge,
+  ProductFeedsCradle,
+} from '../../src/modules/product_feeds/backend.js';
 import type {
   TaxonomyFetchResult,
   TaxonomySourceFetcherPort,
@@ -368,7 +371,7 @@ export interface BackendServerHandle {
   /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
   ksef: KsefCradle['ksef']['handle'];
   /** Feature 067 — Product Feed handle (feeds, generation, runs, token cache). */
-  productFeeds: ReturnType<typeof productFeedsModule>['handle'];
+  productFeeds: ProductFeedsCradle['productFeeds']['handle'];
   /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
   pimErgonode: PimErgonodeCradle['pimErgonode']['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
@@ -793,6 +796,9 @@ export async function setupBackendServer(
     // `ctx.onBoot` schedule reconcile resolves this, and boot hooks run
     // several hundred lines before that block (T131).
     pimErgonodeRunWorkers: false,
+    productFeedsRunWorkers: false,
+    productFeedsPublicBaseUrl: 'http://feeds.test.local',
+    productFeedsTokenEncryptionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
     // Mirrors `composition.ts` — but only when a test asks for pub/sub.
     //
     // A converted module arms its own subscription from `onBoot`, which is
@@ -2005,6 +2011,35 @@ export async function setupBackendServer(
       }));
     },
   });
+  // Feature 072 (T137) — contributed in the window between the pass that
+  // composes `product_feeds` and that pass's boot hooks. Before the pass is too
+  // early (the module registers its own `{}` default when it composes, and
+  // overwrites this); after `runBootHooks()` is too late (the boot reconcile has
+  // already constructed the module and read the default).
+  //
+  // What it substitutes: `taxonomyDataRoot` is deliberately a path that does not
+  // exist, so the boot reconcile never reads the shipped ~1.5 MB taxonomy files;
+  // the fetcher and delivery adapters refuse by default, so a code path that
+  // starts reaching outward without a test opting in shows up as a failed check
+  // rather than a real request.
+  registerValues(container, {
+    // Same window, same reason, and here it is a latent *outbound request*
+    // rather than a file read: `pim_ergonode`'s boot hook only skips
+    // constructing the module because `pimErgonodeRunWorkers` is false in this
+    // harness. The day a non-worker reconcile is added there, or one suite
+    // flips that flag, a contribution registered after boot would be silently
+    // discarded and a test would open a real socket to Ergonode.
+    pimErgonodeSourceOverrides: {
+      ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
+      mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
+    },
+    productFeedsTestOverrides: {
+      taxonomyDataRoot: '/nonexistent/product-feeds-taxonomies',
+      taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
+      deliveryAdapters: options.feedDeliveryAdapters ?? refusingDeliveryAdapters(),
+    },
+  });
+
   await lateModules.runBootHooks();
 
   // Feature 043 / 072 — the assistant's contribution points, mirroring
@@ -2296,90 +2331,58 @@ export async function setupBackendServer(
   // BullMQ connections here has previously taken ~225 files down with "too many
   // clients" (research §R18). Tests drive `productFeeds.generation.generateNow`
   // directly, exactly as the KSeF tests drive `submissions.process`.
-  const productFeeds = productFeedsModule({
-    emFactory: em,
-    requireAdmin: requireTestAdmin(permissionService),
-    commandBus,
-    eventBus,
-    storageAdapters: {
-      getActive: () => assetsLibrary.handle.adapters.getActive(),
-      getForBackend: async (backend) => {
-        const adapter = await assetsLibrary.handle.adapters.getForBackend(backend);
-        if (!('open' in adapter) || typeof adapter.open !== 'function') {
-          throw new Error(
-            `product_feeds: storage backend "${backend}" cannot stream artefact bytes.`,
-          );
-        }
-        return adapter;
-      },
-    },
-    salesChannelMembership: salesChannels.membershipService,
-    pricingService: (container.cradle as unknown as PriceListsCradle).pricingService,
-    taxService: taxesCradle.taxService,
-    resolveAvailability: async (productIds, salesChannelId) => {
-      const warehouseIds =
-        await new WarehouseChannelService(em).resolveCandidateWarehouseIds(salesChannelId);
-      return new StockLevelService(em).resolveAvailabilityBands(
-        productIds,
-        warehouseIds.length > 0 ? warehouseIds : undefined,
-      );
-    },
-    // FR-025 — category criteria include descendants, read through the
-    // documented catalog port rather than a `product_categories` query here.
-    expandCategoryProductIds: (categoryIds) =>
-      new CatalogQueryService(em).expandCategoryProductIds(categoryIds),
-    resolvePublicImageUrls: async (assetIds) => {
-      const out = new Map<string, string>();
-      if (assetIds.length === 0) return out;
-      const assets = await em().find(Asset, {
-        id: { $in: assetIds },
-        visibility: 'public',
-        deletedAt: null,
-      });
-      for (const asset of assets) {
-        try {
-          const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
-          // Signed ⇒ not stable ⇒ not publishable (FR-043).
-          if (resolved.expiresAt === null && /^https?:\/\//i.test(resolved.url)) {
-            out.set(asset.id, resolved.url);
+  // Feature 072 (T137) — `product_feeds` owns its services and routes now.
+  // The four adapters it reaches outside itself through stay a root's: each
+  // crosses a boundary the module must not reach through directly.
+  registerValues(container, {
+    productFeedsBridge: {
+      storageAdapters: {
+        getActive: () => assetsLibrary.handle.adapters.getActive(),
+        getForBackend: async (backend) => {
+          const adapter = await assetsLibrary.handle.adapters.getForBackend(backend);
+          if (!('open' in adapter) || typeof adapter.open !== 'function') {
+            throw new Error(
+              `product_feeds: storage backend "${backend}" cannot stream artefact bytes.`,
+            );
           }
-        } catch {
-          // Unresolvable ⇒ simply not an image for this feed.
+          return adapter;
+        },
+      },
+      resolveAvailability: async (productIds: string[], salesChannelId: string) => {
+        const warehouseIds =
+          await new WarehouseChannelService(em).resolveCandidateWarehouseIds(salesChannelId);
+        return new StockLevelService(em).resolveAvailabilityBands(
+          productIds,
+          warehouseIds.length > 0 ? warehouseIds : undefined,
+        );
+      },
+      expandCategoryProductIds: (categoryIds: string[]) =>
+        new CatalogQueryService(em).expandCategoryProductIds(categoryIds),
+      resolvePublicImageUrls: async (assetIds: string[]) => {
+        const out = new Map<string, string>();
+        if (assetIds.length === 0) return out;
+        const assets = await em().find(Asset, {
+          id: { $in: assetIds },
+          visibility: 'public',
+          deletedAt: null,
+        });
+        for (const asset of assets) {
+          try {
+            const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
+            // Signed ⇒ not stable ⇒ not publishable (FR-043).
+            if (resolved.expiresAt === null && /^https?:\/\//i.test(resolved.url)) {
+              out.set(asset.id, resolved.url);
+            }
+          } catch {
+            // Unresolvable ⇒ simply not an image for this feed.
+          }
         }
-      }
-      return out;
-    },
-    customFieldDefinitions: customFieldDefinitionService,
-    languageService: languagesCradle.languageService,
-    // FR-056 — a failed run has to be able to raise the operator notification
-    // the integration tests assert on. The module instance lives inside the
-    // feature-026 wiring block above, which exposes it on this handle.
-    adminNotificationService: handleFeature026.adminNotificationService,
-    settings: settings.settingsService,
-    publicBaseUrl: 'http://feeds.test.local',
-    // Tests deliberately do not load `backend/.env`, so a deterministic key is
-    // supplied here rather than read from the environment: several suites set
-    // and `delete` `SETTINGS_SECRET_ENCRYPTION_KEY` around themselves, and
-    // files share a fork, so depending on it would make this module's
-    // behaviour depend on test ordering. A literal keeps the feed's
-    // re-readable link exercising the real cipher in every run.
-    tokenEncryptionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-    // Deliberately a path that does not exist: no test may read the shipped
-    // ~1.5 MB taxonomy files. The taxonomy tests construct their own
-    // reconciler pointed at a small fixture instead.
-    taxonomyDataRoot: '/nonexistent/product-feeds-taxonomies',
-    // FR-087 / research §R23 — the egress seam. The default below cannot make a
-    // request: it returns a transport failure and records the attempt, so a
-    // code path that starts fetching without a test opting in shows up as a
-    // failed check rather than as a real download.
-    taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
-    // Feature 070 — every delivery secret lives in the credentials module
-    // (FR-107), so delivery exists only where that module is wired.
-    credentials: credentialsService,
-    deliveryAdapters: options.feedDeliveryAdapters ?? refusingDeliveryAdapters(),
+        return out;
+      },
+    } satisfies ProductFeedsBridge,
   });
-  modules.push(productFeeds.plugin);
-  await productFeeds.handle.reconcileTemplates();
+  // Feature 072 (T137) — the template reconcile moved into the module's own
+  // `ctx.onBoot`, which runs for both compositions.
 
   // Feature 068 — Ergonode PIM. Deliberately NO `redis` and NO `runWorkers`,
   // for the same reason product_feeds above has neither: one fork per test file
@@ -2416,12 +2419,6 @@ export async function setupBackendServer(
     productLinkService: new ProductLinkService(em, commandBus),
     groupedService: new GroupedService(em, commandBus),
     assetsLibraryService: assetsLibrary.handle.service,
-    // No test may reach a real Ergonode instance: the client refuses by
-    // default and the media fetcher serves scripted files.
-    pimErgonodeSourceOverrides: {
-      ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
-      mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
-    },
   });
 
   // Feature 047 — Transactional Emails.
@@ -2664,7 +2661,7 @@ export async function setupBackendServer(
       pdfRenderer: invoicesCradle.invoicePdfRenderer,
     },
     ksef: ksefCradle.ksef.handle,
-    productFeeds: productFeeds.handle,
+    productFeeds: (container.cradle as unknown as ProductFeedsCradle).productFeeds.handle,
     pimErgonode: (container.cradle as unknown as PimErgonodeCradle).pimErgonode.handle,
     pwa: pwaCradle.pwa.handle,
     permissionService,

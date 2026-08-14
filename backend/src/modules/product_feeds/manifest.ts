@@ -229,19 +229,19 @@ export const manifest = defineModuleManifest({
   // key this module's tables declare must appear here, or
   // test/unit/db/fk-dependency-drift.test.ts fails.
   dependencies: [
+    'admin_notifications',
     'admin_users',
     'assets_library',
+    'auth',
     'catalog',
-    // A service dependency, not an FK-driven one (feature 070): every secret a
-    // delivery target needs is stored through the credentials module, and
-    // `product_feed_deliveries.credential_code` is a pointer by stable code
-    // rather than a foreign key — the shape `pim_ergonode` already carries.
     'credentials',
     'custom_fields',
+    'inventory',
     'languages',
     'price_lists',
     'sales_channels',
     'settings',
+    'taxes',
   ],
   settings: productFeedsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },

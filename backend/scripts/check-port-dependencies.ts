@@ -116,6 +116,13 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // (Principle X). A deployment decision, read at construction because it
   // decides whether the consumers are built at all (T131).
   'pimErgonodeRunWorkers',
+  'productFeedsRunWorkers',
+  // Pinned per composition and read at construction, so each root registers
+  // them early beside the worker flag: production derives the feed base URL
+  // from the environment, the harness pins one because a test asserts the
+  // exact link an administrator is handed (T137).
+  'productFeedsPublicBaseUrl',
+  'productFeedsTokenEncryptionKey',
   // Same shape for `inventory` (T129): how this deployment names a non-admin
   // caller on an audit record.
   'inventoryAdminAuditContext',
@@ -185,6 +192,11 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   groupedService: 'catalog',
   // The asset service the Ergonode media pipeline stores through.
   assetsLibraryService: 'assets_library',
+  // How this composition assembles a feed row: opening a storage backend,
+  // resolving availability bands, expanding a category through the catalog
+  // port, and turning asset ids into stable public URLs (T137). Each crosses a
+  // boundary `product_feeds` must not reach through directly.
+  productFeedsBridge: 'product_feeds',
   // `shopping_lists`' two cross-module reaches (T133): the RFQ service a list
   // converts into, the org restriction the preference routes re-check against,
   // the lazy order service one-click buy places through, and the sink that
@@ -313,6 +325,16 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // reaper consumers are constructed at all, so it cannot be deferred past
   // construction (T131).
   'pimErgonodeRunWorkers',
+  // Same category: whether this process runs the feed generation and reaper
+  // consumers, read at construction because it decides whether they are built
+  // at all (T137).
+  'productFeedsRunWorkers',
+  // Pinned per composition and read at construction, so they are registered
+  // early alongside the worker flag: production derives the feed base URL from
+  // the environment, the harness pins one because a test asserts the exact link
+  // an administrator is handed (T137).
+  'productFeedsPublicBaseUrl',
+  'productFeedsTokenEncryptionKey',
 ]);
 
 /**

@@ -1,0 +1,204 @@
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type Redis from 'ioredis';
+import type { CommandBus } from '../../commands/index.js';
+import type { EventBus } from '../../events/bus.js';
+import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { productFeedsModule, type ProductFeedsModuleOptions } from './plugin.js';
+
+/**
+ * `product_feeds` — four adapters a root builds, and three seams only a test
+ * composition has (feature 072, wave 3, T137).
+ *
+ * The four are how this module reaches outside itself to assemble a feed row:
+ * opening the storage backend an artefact is written to, resolving availability
+ * bands across the caller's warehouses, expanding a category to its descendants
+ * through the documented catalog port, and turning asset ids into *stable*
+ * public URLs. Each crosses a boundary this module must not reach through
+ * directly, and each is several lines of root code rather than a service
+ * reference, so they are contributed as one {@link ProductFeedsBridge} — always
+ * supplied together, by the same caller.
+ *
+ * The three seams are the taxonomy data root, the taxonomy source fetcher and
+ * the delivery adapters. Production contributes none of them and the module
+ * uses its shipped taxonomy files and real delivery targets; the harness
+ * substitutes all three, because no test may fetch a taxonomy over the network
+ * or deliver a feed anywhere. That is the `ksef` shape from wave 2: what a test
+ * composition does differently is information about the seam, not boilerplate
+ * to normalise away.
+ *
+ * `resolvePublicImageUrls` deserves its own note. FR-043 says only stable public
+ * URLs reach a feed file, so a private asset is *absent* from the map rather
+ * than present as an expiring signed URL — one that would survive token rotation
+ * and break the moment it expired. That rule lives in the root's adapter because
+ * it needs `assets_library`'s resolver; it moves here when that module converts.
+ */
+
+/** How this composition assembles the parts of a feed row. */
+export interface ProductFeedsBridge {
+  readonly storageAdapters: ProductFeedsModuleOptions['storageAdapters'];
+  readonly resolveAvailability: ProductFeedsModuleOptions['resolveAvailability'];
+  readonly expandCategoryProductIds: ProductFeedsModuleOptions['expandCategoryProductIds'];
+  readonly resolvePublicImageUrls: ProductFeedsModuleOptions['resolvePublicImageUrls'];
+}
+
+/** What `product_feeds` resolves from the container, and the names it owns. */
+export interface ProductFeedsCradle {
+  readonly emFactory: () => EntityManager;
+  readonly commandBus: CommandBus;
+  readonly eventBus: EventBus;
+  readonly requireAdmin: RequireAdminFactory;
+  readonly salesChannelMembershipPort: NonNullable<ProductFeedsModuleOptions['salesChannelMembership']>;
+  readonly pricingService: NonNullable<ProductFeedsModuleOptions['pricingService']>;
+  readonly taxService: NonNullable<ProductFeedsModuleOptions['taxService']>;
+  readonly credentialsService: NonNullable<ProductFeedsModuleOptions['credentials']>;
+  readonly customFieldDefinitionService: NonNullable<ProductFeedsModuleOptions['customFieldDefinitions']>;
+  readonly languageService: NonNullable<ProductFeedsModuleOptions['languageService']>;
+  readonly adminNotificationService: NonNullable<ProductFeedsModuleOptions['adminNotificationService']>;
+  readonly settingsReadPort: NonNullable<ProductFeedsModuleOptions['settings']>;
+  readonly moduleQueueRedis: Redis | undefined;
+  /** Root-supplied (Principle X): the harness runs no generation or reaper consumer. */
+  readonly productFeedsRunWorkers: boolean;
+  readonly productFeedsBridge: ProductFeedsBridge;
+  /**
+   * Pinned per composition rather than derived, and registered **early** in each
+   * root: the boot hook below constructs the module, and these two are read at
+   * construction rather than per call.
+   *
+   * A feed URL exists to be pasted into Merchant Center, so production reads
+   * `PUBLIC_API_BASE_URL`; the harness pins `http://feeds.test.local` because a
+   * test asserts the exact link an administrator is handed. The key is pinned
+   * for a related reason: tests deliberately do not load `backend/.env`, and
+   * several suites set and re-read an encrypted token in the same run. Same
+   * shape as `newsletter`'s base URLs (T114) — what a test composition pins is
+   * information about the seam.
+   */
+  readonly productFeedsPublicBaseUrl: ProductFeedsModuleOptions['publicBaseUrl'];
+  readonly productFeedsTokenEncryptionKey: ProductFeedsModuleOptions['tokenEncryptionKey'];
+  /**
+   * Contribution point: the taxonomy source and delivery targets a composition
+   * substitutes. Production contributes nothing — shipped taxonomy files, real
+   * delivery — and the harness substitutes all three.
+   */
+  readonly productFeedsTestOverrides: Pick<
+    ProductFeedsModuleOptions,
+    'taxonomyDataRoot' | 'taxonomySourceFetcher' | 'deliveryAdapters'
+  >;
+  readonly productFeeds: ReturnType<typeof productFeedsModule>;
+}
+
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.register({
+    // Production contributes nothing and uses its shipped taxonomy + real targets.
+    productFeedsTestOverrides: ctx
+      .asFunction((): ProductFeedsCradle['productFeedsTestOverrides'] => ({}))
+      .singleton(),
+
+    productFeeds: ctx
+      .asFunction(
+        ({
+          emFactory,
+          commandBus,
+          eventBus,
+          moduleQueueRedis,
+          productFeedsRunWorkers,
+          productFeedsPublicBaseUrl,
+          productFeedsTokenEncryptionKey,
+        }: ProductFeedsCradle) => {
+          const bridge = (): ProductFeedsBridge =>
+            ctx.cradle<ProductFeedsCradle>().productFeedsBridge;
+          return productFeedsModule({
+            emFactory,
+            commandBus,
+            eventBus,
+            runWorkers: productFeedsRunWorkers,
+            ...(moduleQueueRedis === undefined ? {} : { redis: moduleQueueRedis }),
+            publicBaseUrl: productFeedsPublicBaseUrl,
+            ...(productFeedsTokenEncryptionKey === undefined
+              ? {}
+              : { tokenEncryptionKey: productFeedsTokenEncryptionKey }),
+            requireAdmin: (permission) => async (req, reply) =>
+              ctx.cradle<ProductFeedsCradle>().requireAdmin(permission)(req, reply),
+            salesChannelMembership: lazyPort<
+              ProductFeedsCradle['salesChannelMembershipPort']
+            >(ctx, 'salesChannelMembershipPort'),
+            pricingService: lazyPort<ProductFeedsCradle['pricingService']>(
+              ctx,
+              'pricingService',
+            ),
+            taxService: lazyPort<ProductFeedsCradle['taxService']>(ctx, 'taxService'),
+            credentials: lazyPort<ProductFeedsCradle['credentialsService']>(
+              ctx,
+              'credentialsService',
+            ),
+            customFieldDefinitions: lazyPort<
+              ProductFeedsCradle['customFieldDefinitionService']
+            >(ctx, 'customFieldDefinitionService'),
+            languageService: lazyPort<ProductFeedsCradle['languageService']>(
+              ctx,
+              'languageService',
+            ),
+            adminNotificationService: lazyPort<
+              ProductFeedsCradle['adminNotificationService']
+            >(ctx, 'adminNotificationService'),
+            settings: lazyPort<ProductFeedsCradle['settingsReadPort']>(ctx, 'settingsReadPort'),
+            // Forwarded per call so a root may contribute the bridge at any
+            // point in its own ordering.
+            storageAdapters: {
+              getActive: () => bridge().storageAdapters.getActive(),
+              getForBackend: (backend) => bridge().storageAdapters.getForBackend(backend),
+            },
+            resolveAvailability: (productIds, salesChannelId) =>
+              bridge().resolveAvailability(productIds, salesChannelId),
+            expandCategoryProductIds: (categoryIds) =>
+              bridge().expandCategoryProductIds(categoryIds),
+            resolvePublicImageUrls: (assetIds) => bridge().resolvePublicImageUrls(assetIds),
+            ...ctx.cradle<ProductFeedsCradle>().productFeedsTestOverrides,
+          });
+        },
+      )
+      .singleton(),
+  });
+
+  ctx.routes(async (app) => {
+    await ctx.cradle<ProductFeedsCradle>().productFeeds.plugin(app);
+  });
+
+  // Three boot reconciles, all log-and-continue: an unbootable API is worse
+  // than any of the drifts they repair, and the next boot repairs it anyway.
+  //
+  //  - FR-007 / FR-008: install any missing predefined template. Non-destructive
+  //    — an existing `system_code` is left alone.
+  //  - FR-077 / FR-078 / FR-086: install any bundled taxonomy revision the
+  //    database lacks and re-evaluate mappings for staleness. **Reads files
+  //    only and opens no socket**; a bundled revision becomes the one in force
+  //    only when the provider has none, so a platform upgrade never activates a
+  //    revision an operator did not choose.
+  //  - FR-031: re-assert every per-feed Job Scheduler, so a flushed Redis, an
+  //    old snapshot or a crash between the Postgres commit and the Redis call
+  //    costs at most one missed tick rather than a feed that silently stops
+  //    regenerating. Worker role only — an API-only process must not own
+  //    schedules.
+  ctx.onBoot(async () => {
+    const runWorkers = ctx.cradle<ProductFeedsCradle>().productFeedsRunWorkers;
+    const handle = ctx.cradle<ProductFeedsCradle>().productFeeds.handle;
+    const reconcile = async (what: string, run: () => Promise<unknown>): Promise<void> => {
+      try {
+        await run();
+      } catch (err: unknown) {
+        // eslint-disable-next-line no-console -- boot path; no app logger yet.
+        console.warn(
+          JSON.stringify({
+            level: 'warn',
+            msg: `product_feeds ${what} reconcile failed`,
+            error: String(err),
+          }),
+        );
+      }
+    };
+    await reconcile('predefined-template', () => handle.reconcileTemplates());
+    await reconcile('taxonomy', () => handle.reconcileTaxonomies());
+    if (runWorkers) await reconcile('schedule', () => handle.reconcileSchedules());
+  });
+}
