@@ -101,7 +101,6 @@ import { WarehouseChannelService } from '../../src/modules/inventory/services/wa
 import type { ShoppingListService } from '../../src/modules/shopping_lists/services/shopping-list-service.js';
 import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
 import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
-import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import type { NewsletterBridge } from '../../src/modules/newsletter/backend.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
@@ -119,7 +118,6 @@ import {
   ORGANIZATION_INVITATION_DEFAULT,
   NEW_ORG_REGISTRATION_DEFAULT,
 } from '../../src/modules/organizations/email-templates/transactional-defaults.js';
-import { makeOrgTemplateEmail } from '../../src/modules/organizations/services/org-template-email.js';
 import {
   LOW_STOCK_ALERT_DEFAULT,
   AVAILABILITY_BACK_IN_STOCK_DEFAULT,
@@ -223,7 +221,6 @@ import { seedUs2Commerce } from './seed-commerce.js';
 import { seedTestAdmins } from './seed-admins.js';
 import {
   registerTestAuth,
-  requireTestAdmin,
   requireTestCustomer,
   TEST_ADMIN_ID,
   TEST_CUSTOMER_ID,
@@ -1113,7 +1110,13 @@ export async function setupBackendServer(
   const promotionsCradle = container.cradle as unknown as PromotionsCradle;
 
   // Feature 047 — late-bound transactional-email sender (mirrors composition).
-  let transactionalEmailSender: import('@b2b/contracts').TransactionalEmailSender | undefined;
+  // Feature 072 (T120) — `transactional_emails` owns the binding now and
+  // publishes both services as accessor ports; this root reads them like any
+  // other consumer instead of holding the variables its callbacks filled in.
+  const emailCradle = (): {
+    transactionalEmailSenderAccessor: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
+    emailBrandingAccessor: () => { resolve(salesChannelId: string): Promise<unknown> } | undefined;
+  } => container.cradle as never;
 
   // Feature 062 — read-only inventory accessors backing the external catalog
   // namespace's availability indication (mirrors composition.ts).
@@ -1665,6 +1668,13 @@ export async function setupBackendServer(
   // files now. What stays a composition's: who is asking (production reads
   // `request.actor`, the harness `request.testActor`), and the bridge into
   // `shopping_lists`, which points outward and so cannot be a port.
+  // Feature 072 (T120) — the harness resolves no asset URLs, which is the
+  // module's own default; naming it keeps the difference from production
+  // visible rather than implied by an omission.
+  registerValues(container, {
+    transactionalEmailAssetUrl: async (): Promise<string | null> => null,
+  });
+
   // Feature 072 (T142) — mirrors `composition.ts`. The harness runs no
   // bulk-operation consumer and must not reindex Meilisearch, which is exactly
   // what these two say; the other three are the same adapters, reading this
@@ -1707,7 +1717,6 @@ export async function setupBackendServer(
   // (reading this harness's own actor property) and the late-bound sender.
   registerValues(container, {
     ordersAdminScopeResolver: resolveTestAdminOrdersScope,
-    ordersTransactionalEmailSender: () => transactionalEmailSender,
   });
 
   registerValues(container, {
@@ -1835,14 +1844,6 @@ export async function setupBackendServer(
     // verification, invitation and new-registration emails through. A getter
     // because `transactional_emails` announces the sender well after this
     // point; same shape and owner as `inventoryTemplateEmail`.
-    organizationsTransactionalEmailSender: () => transactionalEmailSender,
-    inventoryTemplateEmail: makeOrgTemplateEmail({
-      getSender: () => transactionalEmailSender,
-      resolveScopeSalesChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? null,
-      resolveLanguage: async (id) =>
-        (await em().findOne(SalesChannel, { id }))?.defaultLanguage ?? 'en-US',
-    }),
     inventoryAdminAuditContext: (request: FastifyRequest) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
@@ -2005,7 +2006,7 @@ export async function setupBackendServer(
         injectedMailer,
         async (cid) => (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
         {
-          getTransactionalEmailSender: () => transactionalEmailSender,
+          getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
           resolveLanguage: async (salesChannelId) =>
             (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
         },
@@ -2029,7 +2030,7 @@ export async function setupBackendServer(
             ? req.testActor.organizationId ?? TEST_ORGANIZATION_ID
             : TEST_ORGANIZATION_ID,
       }),
-      getTransactionalEmailSender: () => transactionalEmailSender,
+      getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
       resolveRecipientEmail: async (order) =>
         (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
       resolveLanguage: async (salesChannelId) =>
@@ -2201,27 +2202,13 @@ export async function setupBackendServer(
   // subscribes through `ctx.subscribe`, so it stops when the module does. The
   // sender stays a contribution: `transactional_emails` announces it through a
   // callback this root holds, later than the module composes.
-  registerValues(container, { paymentEmailSender: () => transactionalEmailSender });
+  registerValues(container, { paymentEmailSender: () => emailCradle().transactionalEmailSenderAccessor() });
   // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
   // subscribes through `ctx.subscribe`, so it stops when the module does. The
   // sender stays a contribution: `transactional_emails` announces it through a
   // callback this root holds, later than the module composes.
-  registerValues(container, { shipmentEmailSender: () => transactionalEmailSender });
+  registerValues(container, { shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor() });
   modules.push(
-    transactionalEmailsModule({
-      emFactory: em,
-      settingsService: settings.settingsService,
-      requireAdmin: requireTestAdmin(permissionService),
-      resolveAdminUserId: (req) =>
-        req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
-      manifests: REGISTERED_MANIFESTS.map((e) => e.manifest),
-      mailer: injectedMailer,
-      auditLog: auditLogService,
-      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
-      exposeSender: (sender) => {
-        transactionalEmailSender = sender;
-      },
-    }),
   );
 
   // Feature 072 (T114) — `newsletter` owns its services and routes now.

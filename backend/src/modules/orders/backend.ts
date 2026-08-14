@@ -87,12 +87,8 @@ export interface OrdersCradle {
   readonly emailMailer: NonNullable<OrdersModuleOptions['mailer']>;
   readonly organizationReadPort: OrganizationReadPort;
   readonly organizationRestrictionPort: OrganizationRestrictionService;
-  /**
-   * Root-supplied (owner `transactional_emails`, still hand-wired): the
-   * admin-editable sender, late-bound because that module publishes it after
-   * this one composes.
-   */
-  readonly ordersTransactionalEmailSender: () => TransactionalEmailSender | undefined;
+  /** `transactional_emails`' own accessor since T120, late-bound by that module. */
+  readonly transactionalEmailSenderAccessor: () => TransactionalEmailSender | undefined;
   /** Root-shaped, owner `auth`: which organizations a sales-rep admin may see. */
   readonly ordersAdminScopeResolver: NonNullable<OrdersModuleOptions['resolveAdminOrdersScope']>;
   readonly orderServiceAccessor: () => OrderService | null;
@@ -170,7 +166,7 @@ export function registerModule(ctx: ModuleContext): void {
             paymentOrderStatusRegistry: cradle().paymentOrderStatusRegistry,
             shippingMethodEligibility: cradle().shippingMethodEligibility,
             mailer: lazyPort<OrdersCradle['emailMailer']>(ctx, 'emailMailer'),
-            getTransactionalEmailSender: () => cradle().ordersTransactionalEmailSender(),
+            getTransactionalEmailSender: () => cradle().transactionalEmailSenderAccessor(),
             getRfqService: () => lazyPort<OrdersCradle['rfqService']>(ctx, 'rfqService'),
             requireAdmin: (permission) => async (req, reply) =>
               cradle().requireAdmin(permission)(req, reply),

@@ -193,13 +193,9 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `request.testActor` — and owned by `auth` in principle. Read by the four
   // payment gateways (wave 3).
   customerAccountIdResolver: 'auth',
-  // Which organizations a sales-rep admin may see, and the admin-editable
-  // sender `orders` mails through (T141). The first is actor-shaped like the
-  // four above; the second drains with `inventoryTemplateEmail` and
-  // `organizationsTransactionalEmailSender` when `transactional_emails`
-  // converts.
+  // Which organizations a sales-rep admin may see (T141) — actor-shaped like
+  // the four above. Its transactional-sender twin drained in T120.
   ordersAdminScopeResolver: 'auth',
-  ordersTransactionalEmailSender: 'transactional_emails',
   // The calling customer's Organization, or `null`. The fourth member of the
   // family above and root-shaped for the same reason, but softer than all of
   // them on purpose: it answers `null` for anonymous traffic *and* for a
@@ -211,7 +207,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // The admin-editable transactional sender, as a getter because
   // `transactional_emails` announces it after `organizations` composes. Same
   // shape and same owner as `inventoryTemplateEmail`; the two drain together.
-  organizationsTransactionalEmailSender: 'transactional_emails',
   // Who is asking, in the cart's own shape (signed-in customer or anonymous
   // cookie token). The identical divergence already recorded for
   // `customerContextResolver` and `customerAccountIdResolver`, same owner, and
@@ -219,12 +214,10 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   cartActorResolver: 'auth',
   // The guard that refuses a cart mutation for an organization that may not
   // transact. Owned by `organizations`, still hand-wired.
-  // `inventory`'s two root-built adapters (T129): the admin-editable
-  // transactional-email path, and the Organization's warehouse assignment that
-  // scopes a storefront stock read. Each is an adapter over a module
-  // `inventory` must not reach through directly; both owners are still
-  // hand-wired.
-  inventoryTemplateEmail: 'transactional_emails',
+  // `inventory`'s root-built adapter (T129) — the Organization's warehouse
+  // assignment that scopes a storefront stock read. Its transactional-email
+  // twin drained in T120, when `transactional_emails` converted and offered one
+  // `templateEmailPort` to every module that sends unscoped template mail.
   // The seven `catalog` services `pim_ergonode` reads drained in T142, along
   // with `catalogAttributeReadPort` and `catalogQueryPort` — that module
   // provides all nine now.

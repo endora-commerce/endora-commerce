@@ -29,7 +29,7 @@ import { OrganizationTaxIdValidationService } from './services/organization-tax-
 import { OrgRegistrationNotifier } from './services/org-registration-notifier.js';
 import { ViesClient } from './integrations/vies-client.js';
 import { MinisterstwoFinansowClient } from './integrations/ministerstwo-finansow-client.js';
-import { makeOrgTemplateEmail } from './services/org-template-email.js';
+import type { TemplateEmail } from '../transactional_emails/services/template-email.js';
 import type { OrganizationEventBus } from './services/registration-service.js';
 import { organizationsModule, type OrganizationsModuleOptions } from './plugin.js';
 
@@ -112,11 +112,12 @@ export interface OrganizationsCradle {
     typeof OrgRegistrationNotifier
   >[0]['adminNotificationService'];
   /**
-   * Root-supplied (owner `transactional_emails`, still hand-wired): the
-   * admin-editable sender, late-bound because that module publishes it after
-   * this one composes. Mirrors `inventoryTemplateEmail`, and drains with it.
+   * `transactional_emails`' own accessors since T120. The sender is late-bound
+   * — that module publishes it at route registration — and the template adapter
+   * is the one this module used to build for itself from a helper it owned.
    */
-  readonly organizationsTransactionalEmailSender: () => TransactionalEmailSender | undefined;
+  readonly transactionalEmailSenderAccessor: () => TransactionalEmailSender | undefined;
+  readonly templateEmailPort: TemplateEmail;
   /**
    * Deployment inputs. The storefront origin an invitation link points at is an
    * environment fact; the probe is a harness fact — a route that hands back the
@@ -151,7 +152,6 @@ export interface OrganizationsCradle {
   readonly organizationInheritancePort: OrganizationInheritanceService;
   readonly organizationModerationService: OrganizationModerationService;
   readonly organizationRegistrationNotifier: OrgRegistrationNotifier;
-  readonly organizationTemplateEmail: ReturnType<typeof makeOrgTemplateEmail>;
   readonly organizations: ReturnType<typeof organizationsModule>;
 }
 
@@ -194,23 +194,6 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction((): OrganizationsCradle['organizationsLoginHook'] => async () => ({}))
       .singleton(),
 
-    organizationTemplateEmail: ctx
-      .asFunction(() =>
-        makeOrgTemplateEmail({
-          getSender: () => cradle().organizationsTransactionalEmailSender(),
-          // Org emails are platform-wide, so they scope to the system-default
-          // channel and take its language. Both roots spelled these as two
-          // ad-hoc `em().findOne(SalesChannel, …)` closures; the kernel
-          // resolver answers both, and is cached.
-          resolveScopeSalesChannelId: async () =>
-            (await cradle().salesChannelResolutionPort.getSystemDefault())?.id ?? null,
-          resolveLanguage: async (salesChannelId: string) =>
-            (await cradle().salesChannelResolutionPort.getById(salesChannelId))?.defaultLanguage ??
-            'en-US',
-        }),
-      )
-      .singleton(),
-
     organizationModerationService: ctx
       .asFunction(
         ({ emFactory, auditLogService, eventBus }: OrganizationsCradle) =>
@@ -249,7 +232,10 @@ export function registerModule(ctx: ModuleContext): void {
                 notificationRecipientsSchema,
                 [],
               ),
-            templateEmail: cradle().organizationTemplateEmail,
+            templateEmail: lazyPort<OrganizationsCradle['templateEmailPort']>(
+              ctx,
+              'templateEmailPort',
+            ),
           }),
       )
       .singleton(),
@@ -296,13 +282,10 @@ export function registerModule(ctx: ModuleContext): void {
             // on `validateCountry`.
             dictionaryValidator: lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
             mailer: lazyPort<OrganizationsCradle['emailMailer']>(ctx, 'emailMailer'),
-            getTransactionalEmailSender: () =>
-              cradle().organizationsTransactionalEmailSender(),
-            resolveScopeSalesChannelId: async () =>
-              (await cradle().salesChannelResolutionPort.getSystemDefault())?.id ?? null,
-            resolveSalesChannelLanguage: async (salesChannelId: string) =>
-              (await cradle().salesChannelResolutionPort.getById(salesChannelId))
-                ?.defaultLanguage ?? 'en-US',
+            templateEmail: lazyPort<OrganizationsCradle['templateEmailPort']>(
+              ctx,
+              'templateEmailPort',
+            ),
             storefrontBaseUrl: cradle().storefrontBaseUrl,
             exposeTestProbe: cradle().organizationsExposeTestProbe,
             requireAdmin: (permission) => async (req, reply) =>
