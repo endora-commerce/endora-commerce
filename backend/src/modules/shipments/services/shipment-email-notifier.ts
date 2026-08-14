@@ -4,7 +4,6 @@
 
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { TransactionalEmailSender } from '@b2b/contracts';
-import type { EventBus } from '../../../events/bus.js';
 import { Order } from '../../orders/entities/order.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
@@ -17,14 +16,13 @@ export interface ShipmentEmailNotifierDeps {
 export class ShipmentEmailNotifier {
   constructor(private readonly deps: ShipmentEmailNotifierDeps) {}
 
-  attach(eventBus: EventBus): void {
-    eventBus.on('shipment.created.v1', (payload) => {
-      const p = payload as unknown as { orderId: string; shipmentId: string };
-      void this.notify(p.orderId, p.shipmentId);
-    });
-  }
-
-  private async notify(orderId: string, shipmentId: string): Promise<void> {
+  /**
+   * Public since feature 072 (T124), and `attach(eventBus)` is gone with it.
+   * That method subscribed to the raw bus, which is how a shipment-created
+   * e-mail went out while this module was switched off; the module now
+   * subscribes through `ctx.subscribe`, which stops with it.
+   */
+  async notify(orderId: string, shipmentId: string): Promise<void> {
     const sender = this.deps.getTransactionalEmailSender();
     if (!sender) return;
     try {

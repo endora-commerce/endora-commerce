@@ -441,6 +441,35 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // Neither central registry names it: T019 moved the `SalesChannel` entity
   // into the kernel and T020 moved its migrations with it.
   sales_channels: ['src/composition.ts'],
+  // `settings` (wave 2, T118). Both roots compose the kernel reader through
+  // `composeSettingsKernel` and register the two deployment properties the
+  // admin surface needs — the `secret` encryption key and the effective-state
+  // reader. Like `sales_channels`, that is design rather than residue: a
+  // settings read backs behaviour in nearly every module and cannot be gated
+  // on the settings screens.
+  settings: ['src/composition.ts'],
+  // `shipments` (wave 2, T124). The entity registry names its entity; both
+  // roots still register its transactional-email default into the shared
+  // `emailDefaultsRegistry` and contribute the sender, which is the same shape
+  // `payments` and `invoices` have — a cross-module registry a root owns, not
+  // residue of a half-finished conversion. Its migrations live in `orders`'
+  // group (migration 052), which is why the migration registry does not name it.
+  shipments: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `_lifecycle` (wave 2, T125). The longest entry here, and every line of it
+  // is the subsystem being the subsystem rather than residue. `composition.ts`
+  // composes the boot half — the first-boot reconciler, the registry-cache warm
+  // and the worker resume — and contributes the orchestrator and the activation
+  // propagation. The two registries name its `module_registrations` entity and
+  // its migrations. `module-context.ts` and `ports/provide.ts` are the gating
+  // wrappers themselves: they ask this module whether another one is present,
+  // which is the one direction that cannot be inverted.
+  _lifecycle: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/mikro-orm.config.ts',
+    'src/kernel/module-context.ts',
+    'src/kernel/ports/provide.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

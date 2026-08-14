@@ -93,6 +93,18 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // via `composeSalesChannelsKernel` (T110), because channel resolution backs
   // every channel-scoped read and must not be gated on any one module.
   'salesChannelsCache',
+  // The settings reader's cache and the two deployment properties the settings
+  // admin surface needs: the `secret` encryption key, and the effective-state
+  // reader that classifies each setting (Constitution XVII, FR-033). All three
+  // are root-composed, for the same reason the channel cache is — a settings
+  // read backs behaviour in nearly every module.
+  'settingsSecretEncryptionKey',
+  'settingsModulePresence',
+  // How a committed activation flip reaches the rest of a deployment. Root-
+  // shaped by nature (T125): production refreshes from the database and drops
+  // the storefront cache, the harness refreshes through the cache seam because
+  // it never populates `module_registrations`.
+  'lifecycleActivationPropagation',
 ]);
 
 /**
@@ -119,7 +131,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // The audited settings write path. `settingsReadPort` is platform-owned
   // because the kernel holds the store (D-32), but the *admin* service is still
   // the `settings` module's, and that module is hand-wired.
-  settingsAdminService: 'settings',
   // `auth`'s customer-side guard, still declared inline in each root while the
   // harness runs a separate `requireTestCustomer()` — the divergence T011/T012
   // fixed for `requireAdmin` and never did for this one. Owner is `auth`; the
@@ -228,6 +239,11 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   'auditLogService',
   'resolvedModuleRegistry',
   'apiInterceptors',
+  // Plain deployment values rather than gates: a string read from the
+  // environment, and a reader over the lifecycle's in-memory state. Neither is
+  // a module port, so capturing one cannot outlive a module being switched off.
+  'settingsSecretEncryptionKey',
+  'settingsModulePresence',
 ]);
 
 /**
@@ -308,6 +324,30 @@ export function registeredNames(source: string, file: string): string[] {
       if (tail === 'di.providePort' && first && ts.isStringLiteral(first)) {
         names.push(first.text);
       }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return names;
+}
+
+/**
+ * The names a module registers as **gated ports** (`di.providePort`), which is
+ * the subset a composition root must never re-register.
+ *
+ * The distinction is the whole of the shadowing rule below. `di.register` is
+ * how a module declares a *contribution point* — a name it defaults, expecting
+ * a root that has something better to override it — so a root registering one
+ * of those is the design working. `di.providePort` wraps the resolver in the
+ * presence gate, and a root registration replaces the gate with a plain value.
+ */
+export function providedPortNames(source: string, file: string): string[] {
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const names: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && calleeTail(node) === 'di.providePort') {
+      const [first] = node.arguments;
+      if (first && ts.isStringLiteral(first)) names.push(first.text);
     }
     node.forEachChild(visit);
   };
@@ -475,6 +515,138 @@ export function findViolations(input: CheckInput): PortViolation[] {
   return violations;
 }
 
+/**
+ * The two composition roots, by the label used in error output.
+ *
+ * Both are scanned because the failures below are *differences between them*,
+ * and a check that reads only one cannot see a difference at all.
+ */
+export const ROOT_FILES: Readonly<Record<string, string>> = {
+  production: 'src/composition.ts',
+  harness: 'test/helpers/test-server.ts',
+};
+
+/**
+ * `HOST_REGISTERED_PORTS` names a root may legitimately register in only one
+ * composition, with the reason. Keep it short: an entry is a statement that the
+ * two compositions genuinely differ on that name, not that nobody has looked.
+ */
+export const ROOT_DIVERGENCE_ALLOWED: Readonly<Record<string, string>> = {};
+
+/**
+ * Every registration name a composition root writes into the container.
+ *
+ * Both shapes a root uses: `registerValues(container, { … })` and a direct
+ * `container.register({ … })`. Spread elements are ignored — a name that only
+ * exists inside a spread is not a name this check can reason about.
+ */
+export function rootRegisteredNames(source: string, file: string): string[] {
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const names: string[] = [];
+  const collect = (literal: ts.ObjectLiteralExpression): void => {
+    for (const property of literal.properties) {
+      if (!property.name) continue;
+      if (ts.isIdentifier(property.name)) names.push(property.name.text);
+      else if (ts.isStringLiteral(property.name)) names.push(property.name.text);
+    }
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const callee = ts.isIdentifier(node.expression)
+        ? node.expression.text
+        : calleeTail(node);
+      if (callee === 'registerValues') {
+        const [, second] = node.arguments;
+        if (second && ts.isObjectLiteralExpression(second)) collect(second);
+      }
+      if (callee === 'container.register' || callee === 'register') {
+        const [first] = node.arguments;
+        if (first && ts.isObjectLiteralExpression(first)) collect(first);
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return names;
+}
+
+export interface RootRegistrationIssue {
+  readonly kind: 'root-shadows-module-port' | 'root-divergence';
+  readonly name: string;
+  /** Roots involved: the shadowing ones, or the ones that *do* register it. */
+  readonly roots: readonly string[];
+  readonly owner: string | null;
+}
+
+export interface RootCheckInput {
+  /** Name → module id, for the **gated ports** a converted module provides. */
+  readonly moduleRegistered: ReadonlyMap<string, string>;
+  /** Root label → the names that root registers. */
+  readonly rootNames: ReadonlyMap<string, ReadonlySet<string>>;
+  readonly hostRegistered: Readonly<Record<string, string>>;
+}
+
+/**
+ * The two ways a composition root can break a port without any module being
+ * wrong, both found the hard way during feature 072 wave 2.
+ *
+ * **Shadowing** (issue #47) — a root registers a name a converted module
+ * provides as a *gated port*. `registerValues` overwrites, so a plain value
+ * silently replaces the gate and the module's off-state check stops firing.
+ * Nothing else notices: the types match, and the port resolves. A root
+ * overriding a `di.register` **contribution point** is deliberately not flagged
+ * — that is what a contribution point is for.
+ *
+ * **Divergence** (issue #48) — a `HOST_REGISTERED_PORTS` name that only one root
+ * registers. The table says "some root supplies this", and the check used to
+ * take that on trust. `settingsAdminService` was registered by the harness and
+ * by no production composition for four modules that resolve it, so four admin
+ * write paths threw in production while every test passed.
+ */
+export function findRootIssues(input: RootCheckInput): RootRegistrationIssue[] {
+  const issues: RootRegistrationIssue[] = [];
+
+  for (const [name, owner] of input.moduleRegistered) {
+    const shadowing = [...input.rootNames]
+      .filter(([, names]) => names.has(name))
+      .map(([label]) => label);
+    if (shadowing.length > 0) {
+      issues.push({ kind: 'root-shadows-module-port', name, roots: shadowing, owner });
+    }
+  }
+
+  for (const [name, owner] of Object.entries(input.hostRegistered)) {
+    if (ROOT_DIVERGENCE_ALLOWED[name] !== undefined) continue;
+    const supplying = [...input.rootNames]
+      .filter(([, names]) => names.has(name))
+      .map(([label]) => label);
+    if (supplying.length > 0 && supplying.length < input.rootNames.size) {
+      issues.push({ kind: 'root-divergence', name, roots: supplying, owner });
+    }
+  }
+
+  return issues;
+}
+
+export function describeRootIssue(issue: RootRegistrationIssue): string {
+  if (issue.kind === 'root-shadows-module-port') {
+    return (
+      `  - '${issue.name}' is registered by ${issue.roots.join(' and ')}, and also by the ` +
+      `'${issue.owner}' module itself.\n` +
+      `    A root registration overwrites the module's, replacing a gated port with a plain\n` +
+      `    value — the module's off-state gate stops firing and nothing else notices.\n` +
+      `    Delete the root entry; the module provides it.`
+    );
+  }
+  return (
+    `  - '${issue.name}' (owned by '${issue.owner}') is registered by ${issue.roots.join(' and ')} ` +
+    `only.\n` +
+    `    A module resolving it works in that composition and throws in the other. If the two\n` +
+    `    compositions genuinely differ here, add the name to ROOT_DIVERGENCE_ALLOWED with the\n` +
+    `    reason; otherwise register it in both roots, or convert the owning module.`
+  );
+}
+
 export function describe(violation: PortViolation, srcRoot = SRC_ROOT): string {
   const { resolution, owner } = violation;
   const where = `${resolution.file.replace(`${srcRoot}/`, 'src/')}:${resolution.line}`;
@@ -532,6 +704,30 @@ async function main(): Promise<void> {
 
   const violations = findViolations({ resolutions, owners, dependencies });
 
+  // What each composition root registers, and what each converted module
+  // registers for itself — the two sets whose overlap and whose difference are
+  // both bugs. See `findRootIssues`.
+  const moduleRegistered = new Map<string, string>();
+  for (const file of files) {
+    if (!file.endsWith('/backend.ts')) continue;
+    const moduleId = moduleOf(file);
+    if (moduleId === null) continue;
+    for (const name of providedPortNames(readFileSync(file, 'utf8'), file)) {
+      moduleRegistered.set(name, moduleId);
+    }
+  }
+  const rootNames = new Map<string, ReadonlySet<string>>();
+  for (const [label, relative] of Object.entries(ROOT_FILES)) {
+    const full = join(SRC_ROOT, '..', relative);
+    if (!existsSync(full)) continue;
+    rootNames.set(label, new Set(rootRegisteredNames(readFileSync(full, 'utf8'), full)));
+  }
+  const rootIssues = findRootIssues({
+    moduleRegistered,
+    rootNames,
+    hostRegistered: HOST_REGISTERED_PORTS,
+  });
+
   if (process.argv.includes('--list')) {
     for (const resolution of resolutions.sort((a, b) => a.moduleId.localeCompare(b.moduleId))) {
       const owner = owners.get(resolution.name) ?? (PLATFORM_OWNED_NAMES.has(resolution.name) ? 'platform' : '?');
@@ -541,7 +737,8 @@ async function main(): Promise<void> {
 
   console.log(
     `[port-deps] modules scanned=${new Set(files.map(moduleOf)).size} ` +
-      `resolutions=${resolutions.length} violations=${violations.length}`,
+      `resolutions=${resolutions.length} violations=${violations.length} ` +
+      `root-issues=${rootIssues.length}`,
   );
 
   if (stale.length > 0) {
@@ -549,6 +746,14 @@ async function main(): Promise<void> {
       `\nHOST_REGISTERED_PORTS entries whose owner now registers the port itself — delete them:`,
     );
     for (const [name, owner] of stale) console.error(`  - ${name} (${owner})`);
+  }
+
+  if (rootIssues.length > 0) {
+    console.error(
+      `\nA composition root registers a port wrongly. Neither shape shows up as a type error ` +
+        `and neither breaks the composition it is written in:`,
+    );
+    for (const issue of rootIssues) console.error(describeRootIssue(issue));
   }
 
   if (violations.length > 0) {
@@ -560,7 +765,7 @@ async function main(): Promise<void> {
     for (const violation of violations) console.error(describe(violation));
   }
 
-  process.exit(violations.length === 0 && stale.length === 0 ? 0 : 1);
+  process.exit(violations.length === 0 && stale.length === 0 && rootIssues.length === 0 ? 0 : 1);
 }
 
 // Run as CLI only — importing this module (e.g. from a unit test) must not

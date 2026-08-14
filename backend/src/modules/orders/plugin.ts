@@ -55,10 +55,6 @@ import { ReceivePaymentHandler, type PaymentEventBus } from '../payments/service
 import { PaymentService } from '../payments/services/payment-service.js';
 import { registerPaymentsRoutes } from '../payments/routes.js';
 // Feature 035 — shipping-method adapter framework + shipment lifecycle.
-import { ShipmentService } from '../shipments/services/shipment-service.js';
-import { ReceiveShipmentHandler } from '../shipments/services/receive-shipment-handler.js';
-import type { ShippingEventBus } from '../shipments/services/events.js';
-import { registerShipmentsRoutes } from '../shipments/routes.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
@@ -138,7 +134,6 @@ export interface OrdersModuleOptions {
   paymentAdapterRegistry: PaymentAdapterRegistry;
   shippingAdapterRegistry: ShippingAdapterRegistry;
   paymentOrderStatusRegistry: OrderStatusRegistry;
-  shippingOrderStatusRegistry: OrderStatusRegistry;
   shippingMethodEligibility: ShippingMethodEligibilityService;
   /**
    * Feature 026 — optional gate that refuses cart-line-add, place-order, and
@@ -347,7 +342,6 @@ export function commerceModule(options: OrdersModuleOptions) {
     const paymentAdapterRegistry = options.paymentAdapterRegistry;
     const shippingAdapterRegistry = options.shippingAdapterRegistry;
     const orderStatusRegistry = options.paymentOrderStatusRegistry;
-    const shippingOrderStatusRegistry = options.shippingOrderStatusRegistry;
 
     // Feature 036 — business Order ID generator. Adapts the composition-wired
     // prefix/suffix resolver closures (SettingsService-backed) to the
@@ -589,21 +583,10 @@ export function commerceModule(options: OrdersModuleOptions) {
       paymentService: new PaymentService(options.emFactory),
     });
 
-    // Feature 035 — shipment lifecycle: shipment_created, receive_shipment,
-    // retry, history.
-    await registerShipmentsRoutes(app, {
-      requireAdmin: options.requireAdmin,
-      receiveHandler: new ReceiveShipmentHandler(
-        options.emFactory,
-        shippingOrderStatusRegistry,
-        options.eventBus as ShippingEventBus,
-      ),
-      shipmentService: new ShipmentService(
-        options.emFactory,
-        shippingAdapterRegistry,
-        options.eventBus as ShippingEventBus,
-      ),
-    });
+    // Feature 035 — the shipment lifecycle moved out in feature 072 (T124).
+    // `shipments` owns its services and its routes now, and gates them on its
+    // own state; this root used to construct all three and mount them here,
+    // which is why switching `shipments` off did nothing.
 
     // Feature 027 US5 — abandonment-sweep worker. Constructed when the
     // settings resolvers are wired; exposed via the optional hook so a

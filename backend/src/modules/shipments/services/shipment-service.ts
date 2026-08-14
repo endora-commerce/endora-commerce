@@ -19,7 +19,7 @@ import type { ShippingEventBus } from './events.js';
 export class ShipmentService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly registry?: ShippingAdapterRegistry,
+    private readonly registry: ShippingAdapterRegistry,
     private readonly events?: ShippingEventBus,
   ) {}
 
@@ -60,7 +60,7 @@ export class ShipmentService {
 
         // Invoke the adapter's shipment_created hook. The returned next-action
         // is informational; the Shipment stays pending until receive_shipment.
-        const adapter = this.registry?.get(adapterKey);
+        const adapter = this.registry.get(adapterKey);
         if (adapter) {
           await adapter.onShipmentCreated({
             orderId,

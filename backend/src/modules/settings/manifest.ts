@@ -36,6 +36,19 @@ const settings = defineModuleSettingsManifest({
   ],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide, and it
+      // covers the administration surface only: since T118 the kernel composes
+      // the universal reader, so switching this off freezes what an operator
+      // can change rather than stopping the platform reading its configuration.
+      code: 'settings.enabled',
+      name: 'Settings administration enabled',
+      description:
+        'Switches the settings administration screens on or off: browsing and editing per-module settings, the per-channel overrides and the cache-clear action. Every module keeps reading its configuration, every stored value stays, and the module activation controls are unaffected — they live on the Platform modules screen, which this does not touch.',
+      groupCode: 'general',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       // Image URL shown when a product has no image of its own, on product
       // cards / listings (and the product page). Resolvable globally or
       // per sales channel via the standard settings scope mechanism.
@@ -204,9 +217,27 @@ export const manifest = defineModuleManifest({
   // Since feature 072 (T018/T019) all four of those tables are kernel-owned, so
   // the edge no longer crosses a module boundary at all and the acknowledged
   // entry in test/unit/db/acknowledged-fk-edges.ts has been removed. The
-  // reasoning is kept because it is why this module still declares nothing.
-  dependencies: [],
+  // reasoning is kept because it is why this module declares no edge to
+  // `sales_channels`.
+  //
+  // Feature 072 (T118) — `auth` *is* declared: the admin routes are gated by
+  // `requireAdmin` and name the acting admin through `adminAuditActorResolver`,
+  // both of which `auth` owns. It closes no cycle (`auth` → `admin_roles` → ∅)
+  // and shifts no migration order, because T018 moved this module's tables into
+  // the kernel and it ships no migrations of its own.
+  dependencies: ['auth'],
   settings,
+  // Feature 072/073 (Constitution XVII) — deactivatable, deliberately. Making
+  // this module non-deactivatable would have been the obvious call, and it is
+  // the wrong one: D-36 moved the activation controls onto the kernel-served
+  // `/platform/modules` screen precisely so that switching Settings off is a
+  // recoverable state rather than the circle it used to be. T118 completes the
+  // other half — the universal reader is kernel-composed, so every module keeps
+  // reading settings while this module's admin surface is off.
+  //
+  // No recursion follows: `resolveActivation` reads the `Setting` row through
+  // the EntityManager, not through this module's service graph.
+  activation: { settingCode: 'settings.enabled', default: true },
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'settings:read', label: 'View settings' },

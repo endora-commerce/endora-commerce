@@ -13,6 +13,18 @@ export const manifest = defineModuleManifest({
     'enable / disable / status across every domain module.',
   version: '1.0.0',
   dependencies: [],
+  // Feature 072/073 (Constitution XVII) — the surface that switches modules on
+  // and off cannot be switched off. Its routes are registered through
+  // `ctx.ungatedRoutes` for the same reason (T125), so this declaration is the
+  // platform axis catching what the route exemption already covers on the
+  // operator one: an operator reaches /platform/modules precisely when
+  // something is missing, and the one module that must answer then is this one.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Serves the module presence projection and the activation write — the surface an ' +
+      'operator uses to switch anything back on, including this.',
+  },
   i18n: { bundlesDir: 'i18n' },
   /**
    * Principle XVI. The screen that says what this deployment offers and what

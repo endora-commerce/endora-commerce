@@ -14,16 +14,8 @@ import {
 import { activationDeclarationsFrom } from './services/activation-resolver.js';
 import { buildStaticRegistry } from './services/static-registry.js';
 import type { LoadedManifestRegistry } from './services/manifest-loader.js';
-import {
-  registerLifecycleAdminRoutes,
-  registerModulePresenceRoutes,
-} from './routes.admin.js';
-import { registerModulePresenceStorefrontRoutes } from './routes.storefront.js';
 import { ModuleRegistration } from './entities/module-registration.entity.js';
 import { resumeWorkersFor } from './plugin-helpers.js';
-import type { CommandBus } from '../../commands/index.js';
-import { publishStateChanged } from './services/registry-cache.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface LifecycleModuleDeps {
   orm: MikroORM;
@@ -32,7 +24,6 @@ export interface LifecycleModuleDeps {
   redisSubscriber: Redis;
   emFactory: () => EntityManager;
   auditLog: AuditLogService;
-  requireAdmin: RequireAdminFactory;
   /**
    * Either a pre-built registry (production composition root supplies the
    * static one), or a manifest list the module composes itself.
@@ -52,18 +43,6 @@ export interface LifecycleModuleDeps {
    * leaves rows in place; visibility is gated by the registry-state join.
    */
   adminActionsReconciler?: OrchestratorDeps['adminActionsReconciler'];
-  /**
-   * Feature 073 — the operator-activation write path. Optional: without it the
-   * presence projection still serves, because rendering a correct navigation
-   * must not depend on being able to change it.
-   */
-  commandBus?: CommandBus;
-  /**
-   * Drops the storefront's `modules:presence` cache entry after a flip, so a
-   * toggle is visible on the next storefront request without a rebuild
-   * (FR-036). Best-effort by contract — see `StorefrontRevalidator`.
-   */
-  revalidateStorefront?: (tags: string[]) => Promise<void>;
 }
 
 export interface LifecycleModuleHandle {
@@ -94,7 +73,7 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
 
   // Plugin warms the registry cache on first registration and registers
   // the read-only admin endpoint (US4 / contracts/admin-http.md E-1).
-  const plugin: ModulePlugin = async (app) => {
+  const plugin: ModulePlugin = async () => {
     // The boot-time "module on disk but not in the registry" warning is gone
     // with feature 072's generated registry: `REGISTERED_MANIFESTS` **is** the
     // filesystem walk it used to be compared against, so the warning could no
@@ -135,39 +114,12 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
       await resumeWorkersFor(moduleId);
     }
 
-    await registerLifecycleAdminRoutes(app, {
-      orchestrator,
-      requireAdmin: deps.requireAdmin,
-    });
-    // Feature 073 — the presence projections and the activation write, all
-    // outside `defineModuleRoutes`. The exemption is structural, not a
-    // privilege this module holds: a surface that reports on module presence
-    // cannot be gated on module presence without becoming circular, which is
-    // the same argument `ctx.ungatedRoutes` states for the probes.
-    //
-    // D-36 puts the activation *write* here too. It backs the kernel-served
-    // `/platform/modules` screen, so no module owns the surface that toggles
-    // modules and switching a module off can no longer take away the control
-    // that would switch it back on.
-    registerModulePresenceRoutes(app, {
-      requireAdmin: deps.requireAdmin,
-      ...(deps.commandBus
-        ? {
-            activation: {
-              commandBus: deps.commandBus,
-              propagation: {
-                // The writing process refreshes itself rather than waiting on
-                // its own pub/sub round trip, so the very next request it
-                // serves already sees the new state.
-                refreshLocalState: () => registryCache.refreshFromDb(deps.emFactory),
-                publishStateChanged: (payload) => publishStateChanged(deps.redis, payload),
-                revalidateStorefront: deps.revalidateStorefront ?? (async () => undefined),
-              },
-            },
-          }
-        : {}),
-    });
-    registerModulePresenceStorefrontRoutes(app);
+    // Feature 072 (T125) — the four route registrations moved to
+    // `backend.ts`, where they are declared through `ctx.ungatedRoutes` with
+    // the reason attached. What stays here is the boot work above, which is the
+    // half a composition genuinely differs on: the test harness seeds the
+    // registry cache directly and must never refresh it from a database it
+    // never populates.
   };
 
   return {

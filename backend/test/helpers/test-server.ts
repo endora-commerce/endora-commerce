@@ -37,11 +37,6 @@ function inertRedisSubscriber(): Redis {
 import { buildServer, type ModulePlugin } from '../../src/http/server.js';
 import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
 import {
-  registerApiInterceptorAdminRoutes,
-  registerModulePresenceRoutes,
-} from '../../src/modules/_lifecycle/routes.admin.js';
-import { registerModulePresenceStorefrontRoutes } from '../../src/modules/_lifecycle/routes.storefront.js';
-import {
   publishStateChanged,
   STATE_CHANGED_CHANNEL,
 } from '../../src/modules/_lifecycle/services/registry-cache.js';
@@ -145,7 +140,6 @@ import {
 import { PAYMENT_STATUS_CHANGED_DEFAULT } from '../../src/modules/payments/email-templates/transactional-defaults.js';
 import { SHIPMENT_CREATED_DEFAULT } from '../../src/modules/shipments/email-templates/transactional-defaults.js';
 import { PaymentEmailNotifier } from '../../src/modules/payments/services/payment-email-notifier.js';
-import { ShipmentEmailNotifier } from '../../src/modules/shipments/services/shipment-email-notifier.js';
 import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
@@ -176,7 +170,9 @@ import type { DictionariesCradle } from '../../src/modules/dictionaries/backend.
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import type { TaxesCradle } from '../../src/modules/taxes/backend.js';
 import type { PromotionsCradle } from '../../src/modules/promotions/backend.js';
-import { settingsModule } from '../../src/modules/settings/plugin.js';
+import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
+import type { SettingsKernel } from '../../src/kernel/settings/compose.js';
+import type { SettingsCradle } from '../../src/modules/settings/backend.js';
 import type { MfaActorBridge, MfaCradle } from '../../src/modules/mfa/backend.js';
 import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
 import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
@@ -350,8 +346,14 @@ export interface BackendServerHandle {
   auditLogService: AuditLogService;
   permissionService: PermissionService;
   permissionCatalogueService: PermissionCatalogueService;
-  /** Feature 004 — exposes the universal getter and cache invalidator for tests. */
-  settings: ReturnType<typeof settingsModule>['handle'];
+  /**
+   * Feature 004 — the universal getter and cache invalidator (kernel-composed
+   * since T118), plus the module's admin services, resolved from the container.
+   */
+  settings: SettingsKernel & {
+    adminService: SettingsCradle['settingsAdminService'];
+    cacheAdminService: SettingsCradle['settingsCacheAdminService'];
+  };
   /** Feature 043 — prompt assistant handle (registry + request service). */
   promptActions: {
     registry: PromptActionToolRegistry;
@@ -785,6 +787,11 @@ export async function setupBackendServer(
 
   registerValues(container, {
     redis,
+    // Feature 072 (T125) — the interceptor registry, so `_lifecycle` can serve
+    // the read-only diagnostics screen over it. It was already declared
+    // platform-owned; until this conversion nothing resolved it by name, so
+    // nothing noticed that no root registered it.
+    apiInterceptors,
     // Mirrors `composition.ts` — but only when a test asks for pub/sub.
     //
     // A converted module arms its own subscription from `onBoot`, which is
@@ -986,7 +993,7 @@ export async function setupBackendServer(
     async () => {
       try {
         const { z } = await import('zod');
-        return await settings.handle.settingsService.get(
+        return await settings.settingsService.get(
           ORGANIZATIONS_SETTING_CODES.CREDIT_INHERITANCE_MODE,
           'default',
           z.enum(['shared_pool', 'independent_default']),
@@ -1258,7 +1265,6 @@ export async function setupBackendServer(
       paymentAdapterRegistry: methodsCradle.paymentAdapterRegistry,
       shippingAdapterRegistry: methodsCradle.shippingAdapterRegistry,
       paymentOrderStatusRegistry: methodsCradle.paymentOrderStatusRegistry,
-      shippingOrderStatusRegistry: methodsCradle.shippingOrderStatusRegistry,
       shippingMethodEligibility: methodsCradle.shippingMethodEligibility,
       commandBus,
       emFactory: em,
@@ -1318,7 +1324,7 @@ export async function setupBackendServer(
       resolveChannelAllowNegativeStock: async (salesChannelId: string) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'inventory.allow_negative_stock',
             salesChannelId,
             z.boolean(),
@@ -1551,7 +1557,7 @@ export async function setupBackendServer(
             ? await salesChannels.resolver.getByCode(salesChannelCode)
             : await salesChannels.resolver.getSystemDefault();
           if (!channel) return null;
-          const url = await settings.handle.settingsService.get(
+          const url = await settings.settingsService.get(
             'product_image_placeholder_url',
             channel.id,
             z.string(),
@@ -1590,25 +1596,24 @@ export async function setupBackendServer(
     }),
   ];
 
-  const settings = settingsModule({
+  // Feature 072 (T118) — the kernel composes the settings reader; the module
+  // owns the admin surface and composes itself.
+  const settings = composeSettingsKernel({
     emFactory: em,
     eventBus,
-    auditLogService,
     redis,
-    requireAdmin: requireTestAdmin(permissionService),
     ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
       ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
       : {}),
-    // Feature 073 — mirrors composition.ts: the effective-state reader that
-    // classifies each setting and refuses writes an absent module owns.
-    modulePresence: {
-      presenceOf: (moduleId) => effectiveState.presenceOf(moduleId),
-      activationControlOwner: (code) => effectiveState.activationControlOwner(code),
+  });
+  registerValues(container, {
+    settingsSecretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
+    // Mirrors composition.ts: the effective-state reader that classifies each
+    // setting and refuses writes an absent module owns.
+    settingsModulePresence: {
+      presenceOf: (moduleId: string) => effectiveState.presenceOf(moduleId),
+      activationControlOwner: (code: string) => effectiveState.activationControlOwner(code),
     },
-    resolveAdminAuditContext: (request) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
   });
   // Feature 042 — MFA module (mirrors composition.ts). Built after `settings`
   // so it can read MFA settings; its login port is bound to the late-bound
@@ -1691,7 +1696,6 @@ export async function setupBackendServer(
   testMfaLoginPort = mfaCradle.mfaLoginPort;
 
   modules.push(salesChannels.plugin);
-  modules.push(settings.plugin);
 
   // Feature 019 — Admin UI i18n. Test wiring uses no lifecycle registry
   // (the boot-time bundle reconciler is skipped), so route-level tests
@@ -1740,7 +1744,7 @@ export async function setupBackendServer(
       adminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
-    credentialsSettingsPort: settings.handle.settingsService,
+    credentialsSettingsPort: settings.settingsService,
   });
   const credentialsService = (
     container.cradle as unknown as { credentialsService: CredentialsService }
@@ -1925,17 +1929,17 @@ export async function setupBackendServer(
   // only thing this root knows about those modules.
   registerValues(container, {
     // `requireAdmin` is NOT here: `auth` provides it as a port (T078).
-    // Feature 072 (T078) — the two resolvers the auth plugin reads per request,
-    // mirroring `composition.ts`.
-    apiKeyResolver: async (token: string) =>
-      apiKeysCradle.apiKeyService.authenticate(token),
+    // `apiKeyResolver` is NOT here either: `api_keys` provides it as a gated
+    // port (T100), and re-registering the name replaced that gate with a plain
+    // closure — API-key authentication kept working after the module was
+    // switched off. Both roots carried the entry until the root-registration
+    // check started reading them (T118).
     // `redis` is registered further up, where the client is created.
-    settingsReadPort: settings.handle.settingsService,
+    settingsReadPort: settings.settingsService,
     // Feature 072 (T093) — `composition.ts` has registered this since T086;
     // the harness passed the same object to `searchModule` as an option but
     // never registered it, so `cms`' colour-palette writer had nothing to
     // resolve. Mirroring the root is the point of this block.
-    settingsAdminService: settings.handle.adminService,
     // Feature 072 (T096) — the harness's own customer guard, which is a
     // different implementation from the root's. Registering it is what makes
     // that divergence visible in one place instead of twenty-seven.
@@ -2165,7 +2169,7 @@ export async function setupBackendServer(
         const { z } = await import('zod');
         const channel = await salesChannels.resolver.getSystemDefault();
         if (!channel) return false;
-        return await settings.handle.settingsService.get(
+        return await settings.settingsService.get(
           'customers.allow_registration_without_organization',
           channel.id,
           z.boolean(),
@@ -2222,7 +2226,7 @@ export async function setupBackendServer(
       paymentRefund: new PaymentRefundProvider(em),
       correctiveInvoice: new CorrectiveInvoiceProvider(
         em,
-        new InvoiceNumberGenerator(createSettingsPatternResolver(settings.handle.settingsService)),
+        new InvoiceNumberGenerator(createSettingsPatternResolver(settings.settingsService)),
         auditLogService,
         eventBus,
       ),
@@ -2273,7 +2277,7 @@ export async function setupBackendServer(
     ksefSellerNipResolver: async () => {
       try {
         const { z: zod } = await import('zod');
-        const raw = await settings.handle.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', zod.string());
+        const raw = await settings.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', zod.string());
         const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
         return nip.length > 0 ? nip : null;
       } catch {
@@ -2356,7 +2360,7 @@ export async function setupBackendServer(
     // the integration tests assert on. The module instance lives inside the
     // feature-026 wiring block above, which exposes it on this handle.
     adminNotificationService: handleFeature026.adminNotificationService,
-    settings: settings.handle.settingsService,
+    settings: settings.settingsService,
     publicBaseUrl: 'http://feeds.test.local',
     // Tests deliberately do not load `backend/.env`, so a deterministic key is
     // supplied here rather than read from the environment: several suites set
@@ -2421,7 +2425,7 @@ export async function setupBackendServer(
     currencies: currencyService,
     languageService: languagesCradle.languageService,
     adminNotificationService: handleFeature026.adminNotificationService,
-    settings: settings.handle.settingsService,
+    settings: settings.settingsService,
     // The egress seam. The default REFUSES every stream read rather than
     // answering empty: an empty source is a plausible fixture, so a silent
     // default would let a test that forgot to script the source pass while
@@ -2491,21 +2495,22 @@ export async function setupBackendServer(
     emFactory: em,
     getTransactionalEmailSender: () => transactionalEmailSender,
   }).attach(eventBus);
-  new ShipmentEmailNotifier({
-    emFactory: em,
-    getTransactionalEmailSender: () => transactionalEmailSender,
-  }).attach(eventBus);
+  // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
+  // subscribes through `ctx.subscribe`, so it stops when the module does. The
+  // sender stays a contribution: `transactional_emails` announces it through a
+  // callback this root holds, later than the module composes.
+  registerValues(container, { shipmentEmailSender: () => transactionalEmailSender });
   modules.push(
     transactionalEmailsModule({
       emFactory: em,
-      settingsService: settings.handle.settingsService,
+      settingsService: settings.settingsService,
       requireAdmin: requireTestAdmin(permissionService),
       resolveAdminUserId: (req) =>
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
       manifests: REGISTERED_MANIFESTS.map((e) => e.manifest),
       mailer: injectedMailer,
       auditLog: auditLogService,
-      settingsAdmin: settings.handle.adminService,
+      settingsAdmin: (container.cradle as unknown as SettingsCradle).settingsAdminService,
       exposeSender: (sender) => {
         transactionalEmailSender = sender;
       },
@@ -2576,7 +2581,7 @@ export async function setupBackendServer(
       resolveOneClickEnabled: async (salesChannelId) => {
         try {
           const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
+          return await settings.settingsService.get(
             'quick_order.one_click_buy_enabled',
             salesChannelId,
             z.boolean(),
@@ -2590,32 +2595,24 @@ export async function setupBackendServer(
 
   if (options.extraModules) modules.push(...options.extraModules);
 
-  modules.push(async (app) => {
-    registerApiInterceptorAdminRoutes(app, {
-      registry: apiInterceptors,
-      requireAdmin: requireTestAdmin(permissionService),
-    });
-    // Feature 073 — the presence projections and the activation write. The
-    // harness does not boot the lifecycle orchestrator (it seeds the registry
-    // cache directly below), but every module's off-state test asserts against
-    // the admin projection, so these three routes have to exist here.
-    //
-    // Local refresh is deliberately the *cache seam* rather than a database
-    // read: the harness never populates `module_registrations`, so refreshing
-    // from the database would blank the seeded enabled-set and take every
-    // gated route down mid-run.
-    registerModulePresenceRoutes(app, {
-      requireAdmin: requireTestAdmin(permissionService),
-      activation: {
-        commandBus,
-        propagation: {
-          refreshLocalState: () => registryCache.__refreshActivationForTesting(em),
-          publishStateChanged: (payload) => publishStateChanged(redis, payload),
-          revalidateStorefront: async () => undefined,
-        },
+  // Feature 072 (T125) — `_lifecycle` registers these routes itself now,
+  // through `ctx.ungatedRoutes`. What stays here is the one thing that
+  // genuinely differs: local refresh goes through the *cache seam* rather than
+  // a database read, because this harness never populates
+  // `module_registrations` and refreshing from the database would blank the
+  // seeded enabled-set and take every gated route down mid-run. No
+  // `lifecycleOrchestrator` is contributed, so the module list is not served —
+  // which is exactly the composition this harness has always been.
+  registerValues(container, {
+    lifecycleActivationPropagation: {
+      commandBus,
+      propagation: {
+        refreshLocalState: () => registryCache.__refreshActivationForTesting(em),
+        publishStateChanged: (payload: Parameters<typeof publishStateChanged>[1]) =>
+          publishStateChanged(redis, payload),
+        revalidateStorefront: async () => undefined,
       },
-    });
-    registerModulePresenceStorefrontRoutes(app);
+    },
   });
   options.configureInterceptors?.(apiInterceptors);
 
@@ -2711,7 +2708,12 @@ export async function setupBackendServer(
     pwa: pwaCradle.pwa.handle,
     permissionService,
     permissionCatalogueService,
-    settings: settings.handle,
+    settings: {
+      ...settings,
+      adminService: (container.cradle as unknown as SettingsCradle).settingsAdminService,
+      cacheAdminService: (container.cradle as unknown as SettingsCradle)
+        .settingsCacheAdminService,
+    },
     salesChannels: {
       ...salesChannels,
       salesChannelsService: (container.cradle as unknown as SalesChannelsCradle)
