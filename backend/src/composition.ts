@@ -94,7 +94,6 @@ import {
 import { StockLevelService } from './modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
 import type { CreditLimitsCradle } from './modules/credit_limits/backend.js';
-import type { CustomFieldsCradle } from './modules/custom_fields/backend.js';
 // Feature 062 (T029) — outbound webhook delivery pipeline.
 import {
   createWebhookWorker,
@@ -187,8 +186,8 @@ import type { AdminActionsCradle } from './modules/admin_actions/backend.js';
 import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
-import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
-import { CatalogAttributeReadService } from './modules/catalog/services/catalog-attribute-read.service.js';
+import type { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
+import type { CatalogAttributeReadService } from './modules/catalog/services/catalog-attribute-read.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
 
@@ -588,19 +587,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 072 (T101) — `credit_limits` owns its service and routes now.
   const creditLimitsCradle = container.cradle as unknown as CreditLimitsCradle;
 
-  // Feature 055 — Custom Fields Layer, converted in feature 072 (T087). The
-  // module owns its services, its admin API and the cross-process cache
-  // subscription now; this root only reads the two ports host modules consume.
-  const customFieldsCradle = container.cradle as unknown as CustomFieldsCradle;
-  const customFieldDefinitionService = customFieldsCradle.customFieldDefinitionService;
-
-  // Feature 061 — the composed attribute read model (product-host custom-field
-  // definitions + catalog extension rows). Built once, threaded into catalog,
-  // search, quick_order, and comparisons as the sanctioned attribute read port.
-  const catalogAttributeReadService = new CatalogAttributeReadService(
-    em,
-    customFieldDefinitionService,
-  );
+  // Feature 055 — Custom Fields Layer, converted in feature 072 (T087), and
+  // feature 061's attribute read model, which `catalog` provides as
+  // `catalogAttributeReadPort` since T142. This root read neither by T143a.
 
   // Feature 072 (T122) — `import_export` owns its service and routes now.
   // Feature 072 (T105) — `languages` owns its services and routes now.
@@ -1870,12 +1859,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // one: it is the documented cross-module catalog port (Constitution I), and
   // sharing one instance between two unrelated consumers would make an
   // unrelated wiring change to one of them a silent change to the other.
-  const catalogQueryServiceForProductFeeds = new CatalogQueryService(
-    em,
-    undefined,
-    undefined,
-    catalogAttributeReadService,
-  );
   // Feature 072 (T137) — `product_feeds` owns its services and routes now.
   // The four adapters it reaches outside itself through stay a root's: each
   // crosses a boundary the module must not reach through directly.
@@ -1905,8 +1888,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
         );
       },
+      // Feature 072 (T143a) — `catalog`'s own port. This root used to build a
+      // second `CatalogQueryService` here, and a second
+      // `CatalogAttributeReadService` whose only purpose was to feed it, while
+      // the module built its own of each. Both are gone: one instance now, and
+      // it stops answering when `catalog` is switched off, which the root's
+      // copy never did.
       expandCategoryProductIds: (categoryIds: string[]) =>
-        catalogQueryServiceForProductFeeds.expandCategoryProductIds(categoryIds),
+        (container.cradle as never as { catalogQueryPort: CatalogQueryService })
+          .catalogQueryPort.expandCategoryProductIds(categoryIds),
       resolvePublicImageUrls: async (assetIds: string[]) => {
         const out = new Map<string, string>();
         if (assetIds.length === 0) return out;
