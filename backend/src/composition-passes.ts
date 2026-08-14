@@ -125,6 +125,21 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // are on `currencies.changed` / `languages.changed`, not `settings.value_changed`,
   // so composing early cannot defer the settings-cache drop (see the note above).
   'dictionaries',
+  // Feature 072 (T143a). The fourteen transactional-email defaults are pushed by
+  // their owning modules from `ctx.onBoot`, and this module has to have
+  // *registered* `emailDefaultsPort` before the first of those hooks runs.
+  //
+  // Boot hooks run **per pass**, at the end of the pass that composed the
+  // module — so a late-pass registration is not merely later than an early-pass
+  // hook, it does not exist yet. `organizations` and `inventory` are early and
+  // both own email defaults, so this must be early too. Composing it early
+  // costs nothing: every one of its registrations is lazy, and its reconcile
+  // lives in the plugin body, which mounts wherever the root puts it.
+  //
+  // Third time this split has caught a conversion (`pim_ergonode`,
+  // `product_feeds`, now this), which is the evidence behind issue #40 —
+  // the list is inverted, not mistuned.
+  'transactional_emails',
   // The tenancy root (T138). Four modules already in this pass —
   // `customer_accounts`, `credit_limits`, `payment_methods`,
   // `delivery_methods` — resolve a name it owns, and `customer_accounts` and

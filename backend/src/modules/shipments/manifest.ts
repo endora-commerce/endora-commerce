@@ -33,7 +33,11 @@ export const manifest = defineModuleManifest({
   name: 'Shipments',
   description: 'Shipment record and the order_created / shipment_created / receive_shipment lifecycle.',
   version: '1.0.0',
-  dependencies: ['delivery_methods', 'orders'],
+  dependencies: [
+    'delivery_methods',
+    'orders',
+    'transactional_emails',
+  ],
   // Feature 073 (Constitution XVII) — the operator's activation control. It
   // only became real in T124: until this module registered its own routes there
   // was no seam for a gate to sit on.

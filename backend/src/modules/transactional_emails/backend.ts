@@ -11,6 +11,7 @@ import { transactionalEmailsModule, type TransactionalEmailsModuleOptions } from
 import type { BrandingService, AssetUrlResolver } from './services/branding.service.js';
 import type { TransactionalEmailService } from './services/transactional-email.service.js';
 import { makeTemplateEmail, type TemplateEmail } from './services/template-email.js';
+import { EmailDefaultsRegistry } from './services/email-defaults-registry.js';
 
 /**
  * `transactional_emails` — the last of the 65 (feature 072, T120).
@@ -59,6 +60,20 @@ export interface TransactionalEmailsCradle {
   readonly transactionalEmailSenderAccessor: () => TransactionalEmailSender | undefined;
   readonly emailBrandingAccessor: () => BrandingService | undefined;
   readonly templateEmailPort: TemplateEmail;
+  /**
+   * Where a module declaring a transactional email puts its default subject and
+   * content (T143a).
+   *
+   * The registry is read once, by the boot reconciler in this module's plugin
+   * body, so a contributor pushes from `ctx.onBoot` — boot hooks run during
+   * composition and plugin bodies only when the Fastify app is built, so the
+   * ordering holds by construction rather than by luck. This is the "push at
+   * boot" shape: a module contributing a *descriptor* to a registry the host
+   * enumerates, as opposed to the pull shape, where a dependent resolves an
+   * answer.
+   */
+  readonly emailDefaultsPort: EmailDefaultsRegistry;
+  readonly emailDefaultsRegistryInstance: EmailDefaultsRegistry;
   readonly transactionalEmails: ReturnType<typeof transactionalEmailsModule>;
 }
 
@@ -72,6 +87,12 @@ export function registerModule(ctx: ModuleContext): void {
   } = { sender: null, branding: null };
 
   ctx.di.register({
+    // One registry per composition. It used to be a module-level singleton
+    // shared by every composition in the process.
+    emailDefaultsRegistryInstance: ctx
+      .asFunction(() => new EmailDefaultsRegistry())
+      .singleton(),
+
     // Contribution point: a composition that cannot resolve asset URLs sends
     // emails without them rather than failing to send.
     transactionalEmailAssetUrl: ctx
@@ -85,6 +106,7 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             auditLog: auditLogService,
             manifests: resolvedModuleRegistry.map((entry) => entry.manifest),
+            defaultsRegistry: cradle().emailDefaultsRegistryInstance,
             settingsService: lazyPort<SettingsService>(ctx, 'settingsReadPort'),
             settingsAdmin: lazyPort<TransactionalEmailsCradle['settingsAdminService']>(
               ctx,
@@ -138,6 +160,16 @@ export function registerModule(ctx: ModuleContext): void {
             (await cradle().salesChannelResolutionPort.getById(salesChannelId))?.defaultLanguage ??
             'en-US',
         }),
+      )
+      .singleton(),
+  );
+
+  ctx.di.providePort(
+    'emailDefaultsPort',
+    ctx
+      .asFunction(
+        ({ emailDefaultsRegistryInstance }: TransactionalEmailsCradle) =>
+          emailDefaultsRegistryInstance,
       )
       .singleton(),
   );

@@ -9,6 +9,8 @@ import { PaymentService } from './services/payment-service.js';
 import { PaymentEmailNotifier } from './services/payment-email-notifier.js';
 import type { PaymentEmailNotifierDeps } from './services/payment-email-notifier.js';
 import { registerPaymentsRoutes } from './routes.js';
+import { PAYMENT_STATUS_CHANGED_DEFAULT } from './email-templates/transactional-defaults.js';
+import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 
 /**
  * `payments` — the delivery-side twin of `shipments`, with the same history
@@ -111,4 +113,24 @@ export function registerModule(ctx: ModuleContext): void {
       paymentService,
     });
   });
+
+  /**
+   * The default subject and content for the 1 transactional email this
+   * module declares in its manifest (T143a).
+   *
+   * These were fourteen `emailDefaultsRegistry.register(...)` calls in
+   * `composition.ts`, each importing a template constant out of the module that
+   * owns it — a root reaching into seven modules to hand their own content to
+   * an eighth. Each module registers its own now.
+   *
+   * `ctx.onBoot` rather than a registration: the registry is *read* once, by
+   * `transactional_emails`' boot reconciler inside its plugin body. Boot hooks
+   * run during composition and plugin bodies only when the Fastify app is
+   * built, so this always lands first — by construction, not by ordering luck.
+   */
+  ctx.onBoot(async () => {
+    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    defaults.register('payment_status_changed', PAYMENT_STATUS_CHANGED_DEFAULT, 'payments');
+  });
+
 }

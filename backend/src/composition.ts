@@ -130,29 +130,6 @@ import type { NewsletterBridge } from './modules/newsletter/backend.js';
 // Feature 064 — Meta Ads.
 // Feature 066 — Google Tag Manager.
 import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
-import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
-import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
-import {
-  ORDER_COMMENT_DEFAULT,
-  REORDER_CREATED_DEFAULT,
-  ADMIN_CREATED_ORDER_DEFAULT,
-} from './modules/orders/email-templates/secondary-defaults.js';
-import {
-  RETURN_AUTHORIZED_DEFAULT,
-  RETURN_REJECTED_DEFAULT,
-} from './modules/returns/email-templates/transactional-defaults.js';
-import {
-  EMAIL_VERIFICATION_DEFAULT,
-  ORGANIZATION_INVITATION_DEFAULT,
-  NEW_ORG_REGISTRATION_DEFAULT,
-} from './modules/organizations/email-templates/transactional-defaults.js';
-import {
-  LOW_STOCK_ALERT_DEFAULT,
-  AVAILABILITY_BACK_IN_STOCK_DEFAULT,
-} from './modules/inventory/email-templates/transactional-defaults.js';
-import { PAYMENT_STATUS_CHANGED_DEFAULT } from './modules/payments/email-templates/transactional-defaults.js';
-import { SHIPMENT_CREATED_DEFAULT } from './modules/shipments/email-templates/transactional-defaults.js';
-import { INVOICE_ISSUED_DEFAULT } from './modules/invoices/email-templates/invoice-issued.default.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
@@ -1985,62 +1962,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 047 — Transactional Emails. Owning modules register their default
   // subject + content here; the module reconciles all manifest-declared emails
   // at boot and exposes the sender port for future send-site cutover.
-  emailDefaultsRegistry.register('order_confirmation', {
-    defaultSubject: ORDER_CONFIRMATION_DEFAULT.defaultSubject,
-    defaultContent: ORDER_CONFIRMATION_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('order_comment', {
-    defaultSubject: ORDER_COMMENT_DEFAULT.defaultSubject,
-    defaultContent: ORDER_COMMENT_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('reorder_created', {
-    defaultSubject: REORDER_CREATED_DEFAULT.defaultSubject,
-    defaultContent: REORDER_CREATED_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('admin_created_order', {
-    defaultSubject: ADMIN_CREATED_ORDER_DEFAULT.defaultSubject,
-    defaultContent: ADMIN_CREATED_ORDER_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('return_authorized', {
-    defaultSubject: RETURN_AUTHORIZED_DEFAULT.defaultSubject,
-    defaultContent: RETURN_AUTHORIZED_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('return_rejected', {
-    defaultSubject: RETURN_REJECTED_DEFAULT.defaultSubject,
-    defaultContent: RETURN_REJECTED_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('email_verification', {
-    defaultSubject: EMAIL_VERIFICATION_DEFAULT.defaultSubject,
-    defaultContent: EMAIL_VERIFICATION_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('organization_invitation', {
-    defaultSubject: ORGANIZATION_INVITATION_DEFAULT.defaultSubject,
-    defaultContent: ORGANIZATION_INVITATION_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('new_org_registration', {
-    defaultSubject: NEW_ORG_REGISTRATION_DEFAULT.defaultSubject,
-    defaultContent: NEW_ORG_REGISTRATION_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('low_stock_alert', {
-    defaultSubject: LOW_STOCK_ALERT_DEFAULT.defaultSubject,
-    defaultContent: LOW_STOCK_ALERT_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('availability_back_in_stock', {
-    defaultSubject: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultSubject,
-    defaultContent: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('payment_status_changed', {
-    defaultSubject: PAYMENT_STATUS_CHANGED_DEFAULT.defaultSubject,
-    defaultContent: PAYMENT_STATUS_CHANGED_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('shipment_created', {
-    defaultSubject: SHIPMENT_CREATED_DEFAULT.defaultSubject,
-    defaultContent: SHIPMENT_CREATED_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('invoice_issued', {
-    defaultSubject: INVOICE_ISSUED_DEFAULT.defaultSubject,
-    defaultContent: INVOICE_ISSUED_DEFAULT.defaultContent,
-  });
   // Feature 047 — net-new email subscribers (payment status + shipment created).
   // Feature 072 (T126) — `payments` owns the payment-status notifier now and
   // subscribes through `ctx.subscribe`, so it stops when the module does. The

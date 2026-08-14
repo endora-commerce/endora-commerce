@@ -85,7 +85,12 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port and the customer guard this module
   // resolves; feature 072 made both container resolutions.
-  dependencies: ['orders', 'settings', 'auth'],
+  dependencies: [
+    'auth',
+    'orders',
+    'settings',
+    'transactional_emails',
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — admin-editable transactional emails owned by this module.

@@ -128,7 +128,12 @@ export const manifest = defineModuleManifest({
   // `ksef` is deliberately absent: it reads `invoiceService`, so declaring it
   // here would close a cycle. The KSeF verification block reaches this module
   // as a contribution a root fills, not as a port this module resolves.
-  dependencies: ['orders', 'settings', 'auth'],
+  dependencies: [
+    'auth',
+    'orders',
+    'settings',
+    'transactional_emails',
+  ],
   settings: invoicesSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — admin-editable transactional email owned by this module.

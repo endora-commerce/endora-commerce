@@ -16,6 +16,9 @@ import { commerceModule, type OrdersModuleOptions } from './plugin.js';
 import type { OrderService } from './services/order-service.js';
 import type { OrderListService } from './services/order-list-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
+import { ORDER_CONFIRMATION_DEFAULT } from './email-templates/order-confirmation.default.js';
+import { ADMIN_CREATED_ORDER_DEFAULT, ORDER_COMMENT_DEFAULT, REORDER_CREATED_DEFAULT } from './email-templates/secondary-defaults.js';
+import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 
 /**
  * `orders` — forty options, twenty-seven of them optional, and nine settings
@@ -319,4 +322,27 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.routes(async (app) => {
     await cradle().orders(app);
   });
+
+  /**
+   * The default subject and content for the 4 transactional emails this
+   * module declares in its manifest (T143a).
+   *
+   * These were fourteen `emailDefaultsRegistry.register(...)` calls in
+   * `composition.ts`, each importing a template constant out of the module that
+   * owns it — a root reaching into seven modules to hand their own content to
+   * an eighth. Each module registers its own now.
+   *
+   * `ctx.onBoot` rather than a registration: the registry is *read* once, by
+   * `transactional_emails`' boot reconciler inside its plugin body. Boot hooks
+   * run during composition and plugin bodies only when the Fastify app is
+   * built, so this always lands first — by construction, not by ordering luck.
+   */
+  ctx.onBoot(async () => {
+    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    defaults.register('order_confirmation', ORDER_CONFIRMATION_DEFAULT, 'orders');
+    defaults.register('order_comment', ORDER_COMMENT_DEFAULT, 'orders');
+    defaults.register('reorder_created', REORDER_CREATED_DEFAULT, 'orders');
+    defaults.register('admin_created_order', ADMIN_CREATED_ORDER_DEFAULT, 'orders');
+  });
+
 }

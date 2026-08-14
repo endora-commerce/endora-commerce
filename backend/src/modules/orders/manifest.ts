@@ -93,6 +93,7 @@ export const manifest = defineModuleManifest({
     'organizations',
     'promotions',
     'settings',
+    'transactional_emails',
   ],
   settings,
   i18n: { bundlesDir: 'i18n' },
