@@ -17,6 +17,7 @@ import {
   type TransactionalEmailSender,
   type TransactionalEmailSendInput,
   type TransactionalEmailSummary,
+  type TransactionalSendOutcome,
 } from '@b2b/contracts';
 import type { PuckDataTree } from '@b2b/email-components/schema/envelope';
 import { EMAIL_SAFE_COMPONENT_NAMES } from '@b2b/email-components/schema/component-types';
@@ -36,6 +37,14 @@ import { type ResolvedBranding } from './branding.service.js';
 import type { EmbedResolver } from './embed-resolver.js';
 
 const KNOWN_COMPONENTS: ReadonlySet<string> = new Set(EMAIL_SAFE_COMPONENT_NAMES);
+
+/**
+ * A missing transport is a deployment fact, not a per-message one: it holds for
+ * every send until someone fixes the composition. The guard is deliberately
+ * **per process** (module scope, never reset) so a misconfigured deployment
+ * gets one line instead of one per email.
+ */
+let noTransportWarned = false;
 
 export interface SaveContentInput {
   subject: string;
@@ -77,11 +86,28 @@ export class TransactionalEmailService implements TransactionalEmailSender {
 
   // --- Sending (port) -----------------------------------------------------
 
-  async send(input: TransactionalEmailSendInput): Promise<void> {
-    if (!this.mailer) return; // best-effort: no transport configured
+  /**
+   * Delivers the email and reports what happened. The three non-`sent` outcomes
+   * used to be one silent `return`, which left every caller unable to tell an
+   * operator's "off" from a code with no template — and suppressing its own
+   * fallback for both.
+   */
+  async send(input: TransactionalEmailSendInput): Promise<TransactionalSendOutcome> {
+    if (!this.mailer) {
+      if (!noTransportWarned) {
+        noTransportWarned = true;
+        console.warn(
+          '[transactional_emails] no mailer configured — transactional emails are not being delivered (logged once per process).',
+        );
+      }
+      return { status: 'no_transport' };
+    }
     const em = this.emFactory();
     const email = await em.findOne(TransactionalEmail, { code: input.code });
-    if (!email || !email.active) return; // unknown/disabled email: nothing to send
+    // No definition: the caller may still have a legacy in-code builder for
+    // this code. Deactivated: the operator chose silence, so nothing goes out.
+    if (!email) return { status: 'no_definition' };
+    if (!email.active) return { status: 'deactivated' };
 
     const fallbackLanguage = email.languages[0];
     const resolved = await this.contentResolver.resolve(em, email, {
@@ -105,6 +131,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       ...(input.attachments ? { attachments: input.attachments } : {}),
       ...(input.meta ? { meta: input.meta } : {}),
     });
+    return { status: 'sent' };
   }
 
   // --- Rendering ----------------------------------------------------------

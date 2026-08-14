@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { TransactionalEmailSendInput, TransactionalEmailSender } from '@b2b/contracts';
+import type {
+  TransactionalEmailSendInput,
+  TransactionalEmailSender,
+  TransactionalSendOutcome,
+} from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -21,8 +25,9 @@ const CH = 'eeeeeeee-0000-4000-8000-000000000001';
 
 class CapturingSender implements TransactionalEmailSender {
   readonly sent: TransactionalEmailSendInput[] = [];
-  async send(input: TransactionalEmailSendInput): Promise<void> {
+  async send(input: TransactionalEmailSendInput): Promise<TransactionalSendOutcome> {
     this.sent.push(input);
+    return { status: 'sent' };
   }
 }
 

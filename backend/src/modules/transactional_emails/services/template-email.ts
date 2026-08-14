@@ -22,6 +22,13 @@ export interface TemplateEmailDeps {
 }
 
 export interface TemplateEmail {
+  /**
+   * `true` means "handled — do not use your legacy in-code builder". That
+   * covers a delivered email, one an operator deactivated, and a composition
+   * with no transport: in all three the platform decided what to send, and a
+   * fallback would either send mail the operator switched off or fail the same
+   * way. Only a code with no definition at all answers `false`.
+   */
   trySend(input: {
     code: string;
     to: string;
@@ -46,7 +53,7 @@ export function makeTemplateEmail(deps: TemplateEmailDeps): TemplateEmail {
           language = 'en-US';
         }
       }
-      await sender.send({
+      const outcome = await sender.send({
         code: input.code,
         salesChannelId,
         language,
@@ -55,7 +62,7 @@ export function makeTemplateEmail(deps: TemplateEmailDeps): TemplateEmail {
         variables: input.variables,
         ...(input.meta ? { meta: input.meta } : {}),
       });
-      return true;
+      return outcome.status !== 'no_definition';
     },
   };
 }
