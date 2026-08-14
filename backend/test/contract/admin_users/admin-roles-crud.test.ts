@@ -54,7 +54,9 @@ describe('Admin roles CRUD', () => {
     // +2 for feature 067 Autopay (autopay:read, autopay:write).
     // +2 for feature 068 Ergonode PIM (pim_ergonode:read, pim_ergonode:write).
     // +1 for feature 073 module activation (platform.modules.activate).
-    expect(body.data.length).toBe(72);
+    // +2 for feature 072 T136 (carts:read, carts:reject) — declared for the
+    //    first time; `routes.admin.ts` had gated on both since feature 027.
+    expect(body.data.length).toBe(74);
     expect(body.data.some((p) => p.code === 'promotions:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'stripe:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'tpay:write')).toBe(true);
