@@ -41,6 +41,9 @@ describe('permission inventory (SC-001)', () => {
     // +2 for feature 067 Autopay (autopay:read, autopay:write).
     // +2 for feature 068 Ergonode PIM (pim_ergonode:read, pim_ergonode:write).
     // +1 for feature 073 module activation (platform.modules.activate).
-    expect(assignable.size).toBe(72);
+    // +2 for feature 072 T136 (carts:read, carts:reject) — `routes.admin.ts`
+    //    had gated on both since feature 027 while the manifest declared
+    //    neither, so only a role holding `'*'` could reach those screens.
+    expect(assignable.size).toBe(74);
   });
 });

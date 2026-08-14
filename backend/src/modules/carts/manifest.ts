@@ -22,6 +22,16 @@ const settings = defineModuleSettingsManifest({
   groups: [{ code: 'carts', name: 'Carts' }],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'carts.enabled',
+      name: 'Carts enabled',
+      description:
+        'Switches the cart on or off: the storefront cart, coupons and upsells, the organization approval workflow, the admin cart screens and the abandonment sweep. Checkout goes with it, because an order is placed from a cart. Nothing is dropped — every cart, its lines, its approval state and its audit history stay in the database.',
+      groupCode: 'carts',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: CARTS_SETTING_CODES.ABANDONMENT_INACTIVITY_MINUTES,
       name: 'Cart abandonment threshold (minutes)',
       description:
@@ -57,6 +67,24 @@ export const manifest = defineModuleManifest({
     'settings',
   ],
   settings,
+  // Feature 073 (Constitution XVII) — deactivatable, and the reason it is not
+  // `nonDeactivatable` is a product one: a quote-only B2B deployment is a real
+  // configuration, where RFQ replaces checkout and `quote_requests` stands on
+  // its own. `orders` declares `carts` as a dependency, so dependencies-fail-
+  // closed means switching this off takes checkout with it — which is the
+  // intended meaning, not an accident.
+  activation: { settingCode: 'carts.enabled', default: true },
+  // Feature 026 checklist — `routes.admin.ts` gates on both codes and this
+  // manifest declared neither, so until T136 only a role holding `'*'` could
+  // reach the admin cart screens. The permission-inventory contract test did
+  // not catch it: its scanner requires an optional-call dot before the argument
+  // list, so it matches almost nothing in the tree. Filed separately — the fix
+  // has a fan-out well beyond this module, and the scanner reads comments, so
+  // spelling the pattern out here would register a phantom code.
+  permissions: [
+    { code: 'carts:read', label: 'View customer carts' },
+    { code: 'carts:reject', label: 'Reject a cart pending organization approval' },
+  ],
   i18n: { bundlesDir: 'i18n' },
 });
 
