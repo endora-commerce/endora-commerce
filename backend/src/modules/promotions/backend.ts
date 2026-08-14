@@ -4,6 +4,7 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
 import { Promotion } from './entities/promotion.entity.js';
@@ -69,8 +70,12 @@ export interface PromotionsCradle {
   readonly dictionaryValidator: DictionaryValidator;
   /** Owned by `catalog`; a root builds it until that module converts. */
   readonly catalogQueryPort: CatalogQueryService;
-  /** Owned by `organizations`; the gate that keeps a suspended org out. */
-  readonly organizationStatusResolver: (orgId: string) => Promise<string | null>;
+  /**
+   * The tenancy read port — the gate that keeps a suspended org out (T138).
+   * Was `organizationStatusResolver`, a raw `select "status" from
+   * "organizations"` each root spelled by hand against another module's table.
+   */
+  readonly organizationReadPort: OrganizationReadPort;
   /** Rule Builder picker sources; root-shaped, reads four other modules' tables. */
   readonly promotionRuleTargets: PromotionRuleTargetPorts;
   readonly promotionService: PromotionService;
@@ -117,7 +122,12 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<CatalogQueryService>(ctx, 'catalogQueryPort'),
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
             undefined, // auditLogger — default console
-            (orgId: string) => ctx.cradle<PromotionsCradle>().organizationStatusResolver(orgId),
+            async (orgId: string) =>
+              (
+                await ctx
+                  .cradle<PromotionsCradle>()
+                  .organizationReadPort.loadEffectiveOrganization(orgId)
+              )?.status ?? null,
             undefined, // actionRegistry — default built-ins
             auditLogService,
           ),

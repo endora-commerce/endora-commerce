@@ -358,7 +358,13 @@ describe('fk drift — allow-list minimality M1-M5 (V5-V9)', () => {
     // `sales_channels → assets_library` (bridge-owner) both dissolved when the
     // `sales_channels` table became kernel-owned; the channel-logo foreign key
     // reappeared as `kernel → assets_library` (platform-root).
-    expect(byRule).toEqual({ 'tenancy-root': 5, 'bridge-owner': 8, 'platform-root': 1 });
+    //
+    // T138: `tenancy-root` fell from 5 to 4. Converting `organizations` made its
+    // dependency on `admin_notifications` explicit, and that satisfies
+    // `admin_users` transitively — so the `organizations → admin_users`
+    // exception stopped being one. A conversion draining an acknowledged edge is
+    // the direction this list is supposed to move in.
+    expect(byRule).toEqual({ 'tenancy-root': 4, 'bridge-owner': 8, 'platform-root': 1 });
   });
 });
 

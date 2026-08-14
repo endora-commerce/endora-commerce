@@ -26,3 +26,15 @@ export const notificationRecipientsSchema = z
     return out;
   });
 export type NotificationRecipients = z.infer<typeof notificationRecipientsSchema>;
+
+/**
+ * Feature 056 — how a parent Organization's credit limit is consumed by
+ * sub-organizations with no own limit.
+ *
+ * Feature 072 (T138) moved this here. Both composition roots spelled it as an
+ * inline `z.enum([…])` behind a dynamic `import('zod')`, once each — the only
+ * one of this module's three setting schemas that did not live beside its two
+ * siblings, which is why the duplication went unnoticed.
+ */
+export const creditInheritanceModeSchema = z.enum(['shared_pool', 'independent_default']);
+export type CreditInheritanceMode = z.infer<typeof creditInheritanceModeSchema>;

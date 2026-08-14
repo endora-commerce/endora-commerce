@@ -5,14 +5,8 @@ import type { SessionService } from '../../src/modules/auth/services/session-ser
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
-import type {
-  RequireAdminAnyFactory,
-  RequireAdminFactory,
-} from '../../src/kernel/ports/require-admin.js';
-import {
-  createRequireAdmin,
-  createRequireAdminAny,
-} from '../../src/modules/auth/require-admin.js';
+import type { RequireAdminFactory } from '../../src/kernel/ports/require-admin.js';
+import { createRequireAdmin } from '../../src/modules/auth/require-admin.js';
 
 /**
  * Test-only auth wiring. The US1 contract and integration tests identify the
@@ -282,13 +276,15 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
  * These wrappers stay so `test-server.ts` reads as before; `permissionService`
  * is now **required**. The actor lookup works because `registerTestAuth` mirrors
  * every resolved actor onto `request.actor` as well as `request.testActor`.
+ *
+ * `requireTestAdminAny` used to sit beside this one and is gone (feature 072,
+ * T138): it was a second implementation of a guard `auth` already provides as a
+ * port, kept alive by exactly one caller — the `organizationsModule` options in
+ * `test-server.ts`. With that module composed through the container, the
+ * harness resolves `auth`'s `requireAdminAny` like production does, which is
+ * the divergence T011/T012 closed for `requireAdmin` and left open for this
+ * twin.
  */
-export function requireTestAdminAny(
-  permissionService: PermissionService,
-): RequireAdminAnyFactory {
-  return createRequireAdminAny({ permissionService });
-}
-
 export function requireTestAdmin(permissionService: PermissionService): RequireAdminFactory {
   return createRequireAdmin({ permissionService });
 }

@@ -125,6 +125,12 @@ export const EARLY_PASS_MODULE_IDS: ReadonlySet<string> = new Set([
   // are on `currencies.changed` / `languages.changed`, not `settings.value_changed`,
   // so composing early cannot defer the settings-cache drop (see the note above).
   'dictionaries',
+  // The tenancy root (T138). Four modules already in this pass —
+  // `customer_accounts`, `credit_limits`, `payment_methods`,
+  // `delivery_methods` — resolve a name it owns, and `customer_accounts` and
+  // `credit_limits` declare it as a manifest dependency outright. A provider
+  // composed a pass after its dependents is the inversion issue #40 records.
+  'organizations',
   // Both roots resolve `megamenuReferenceRegistry` to cross-register it with
   // `cms`', before the late pass. Composing early also puts this module's own
   // `megamenuCacheOptions` default ahead of the harness's contribution, which

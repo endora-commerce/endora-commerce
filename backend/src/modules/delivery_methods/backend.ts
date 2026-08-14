@@ -42,9 +42,14 @@ export interface DeliveryMethodsCradle {
   readonly emFactory: () => EntityManager;
   readonly requireAdmin: RequireAdminFactory;
   readonly salesChannelMembershipPort: SalesChannelMembershipService | undefined;
-  readonly organizationDeliveryMethodAllowList:
-    | ((req: FastifyRequest) => Promise<string[] | null>)
-    | undefined;
+  /** The two halves the allow-list is composed from — see the payment twin (T138). */
+  readonly customerOrganizationIdResolver: (req: FastifyRequest) => string | null;
+  readonly organizationRestrictionPort: {
+    allowedIdsFor(
+      organizationId: string,
+      kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
+    ): Promise<string[] | null>;
+  };
   readonly shippingAdapterRegistry: typeof shippingAdapterRegistry;
   readonly shippingMethodEligibility: ShippingMethodEligibilityService;
   readonly shippingOrderStatusRegistry: EnumOrderStatusRegistry;
@@ -72,10 +77,6 @@ export function registerModule(ctx: ModuleContext): void {
 
     shippingOrderStatusRegistry: ctx.asFunction(() => new EnumOrderStatusRegistry()).singleton(),
 
-    // Contribution point, defaulted absent by its owner — see the payment twin.
-    organizationDeliveryMethodAllowList: ctx
-      .asFunction((): ((req: FastifyRequest) => Promise<string[] | null>) | undefined => undefined)
-      .singleton(),
   });
 
   ctx.routes(async (app) => {
@@ -86,16 +87,21 @@ export function registerModule(ctx: ModuleContext): void {
       shippingMethodEligibility,
       shippingOrderStatusRegistry,
     } = ctx.cradle<DeliveryMethodsCradle>();
-    const allowList = ctx.cradle<DeliveryMethodsCradle>().organizationDeliveryMethodAllowList;
     const membership = ctx.cradle<DeliveryMethodsCradle>().salesChannelMembershipPort;
+
+    /** Composed from the two halves, without a `catch` — see the payment twin. */
+    const resolveAllowList = async (req: FastifyRequest): Promise<string[] | null> => {
+      const cradle = ctx.cradle<DeliveryMethodsCradle>();
+      const organizationId = cradle.customerOrganizationIdResolver(req);
+      if (organizationId === null) return null;
+      return cradle.organizationRestrictionPort.allowedIdsFor(organizationId, 'deliveryMethodIds');
+    };
 
     await registerDeliveryMethodsPublicRoutes(app, {
       emFactory,
       registry,
       eligibility: shippingMethodEligibility,
-      ...(allowList === undefined
-        ? {}
-        : { resolveOrganizationDeliveryMethodAllowList: allowList }),
+      resolveOrganizationDeliveryMethodAllowList: resolveAllowList,
     });
 
     await registerDeliveryMethodsAdminRoutes(app, {

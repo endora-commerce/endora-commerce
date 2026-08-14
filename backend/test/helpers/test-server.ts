@@ -81,25 +81,20 @@ import { CustomerAccount } from '../../src/modules/customer_accounts/entities/cu
 import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
 import type { AdminI18nCradle } from '../../src/modules/_i18n/backend.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
-import { organizationsModule } from '../../src/modules/organizations/plugin.js';
+import type { OrganizationsCradle } from '../../src/modules/organizations/backend.js';
 import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
-import { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
-import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
+import type { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
+import type { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
 import { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
 import { SalesRepAssignmentService } from '../../src/modules/organizations/services/sales-rep-assignment-service.js';
 import { OrganizationTreeService } from '../../src/modules/organizations/services/organization-tree-service.js';
-import { OrganizationInheritanceService } from '../../src/modules/organizations/services/organization-inheritance-service.js';
+import type { OrganizationReadPort } from '../../src/kernel/ports/organizations.js';
 import type { AddressService } from '../../src/modules/addresses/services/address-service.js';
-import { ORGANIZATIONS_SETTING_CODES } from '../../src/modules/organizations/manifest.js';
 import { resolveCustomerRollupSubtreeIds } from '../../src/modules/customer_accounts/services/customer-rollup-scope.js';
-import { OrganizationEffectivePriceListsService } from '../../src/modules/organizations/services/organization-effective-pricelists-service.js';
-import { OrganizationTaxIdValidationService } from '../../src/modules/organizations/services/organization-tax-id-validation-service.js';
 import type {
   VatValidator,
   VatValidationResult,
 } from '../../src/modules/organizations/services/vat-validator-port.js';
-import { OrgRegistrationNotifier } from '../../src/modules/organizations/services/org-registration-notifier.js';
-import type { OrganizationEventBus } from '../../src/modules/organizations/services/registration-service.js';
 // Feature 072 (T079) — `email` composes through the kernel here too, from the
 // generated list. The five hand-rolled `new ConsoleMailer()` fallbacks this
 // replaced were the reason a conversion of `composition.ts` alone would have
@@ -247,7 +242,6 @@ import { seedTestAdmins } from './seed-admins.js';
 import {
   registerTestAuth,
   requireTestAdmin,
-  requireTestAdminAny,
   requireTestCustomer,
   TEST_ADMIN_ID,
   TEST_CUSTOMER_ID,
@@ -821,6 +815,15 @@ export async function setupBackendServer(
     // is built from, and the kernel's audit writer.
     resolvedModuleRegistry: REGISTERED_MANIFESTS,
     auditLogService,
+    // Feature 072 (T138) — mirrors `composition.ts`, reading this harness's own
+    // actor property. Soft by contract: `null` for anonymous traffic and for a
+    // Customer with no Organization.
+    customerOrganizationIdResolver: (request: FastifyRequest): string | null =>
+      request.testActor?.kind === 'customer' ? request.testActor.organizationId ?? null : null,
+    organizationsStorefrontBaseUrl: 'http://localhost:3000',
+    // The one composition allowed to serve `/api/v1/_test/latest-verification-token`.
+    organizationsExposeTestProbe: true,
+    organizationsSettingsChannelId: 'default',
   });
   const earlyModules = composeModules(earlyPassModules(MODULES), {
     container,
@@ -883,7 +886,6 @@ export async function setupBackendServer(
   const adminNotificationService = (
     container.cradle as unknown as { adminNotificationService: AdminNotificationService }
   ).adminNotificationService;
-  const requireAdminAny = requireTestAdminAny(permissionService);
   // The enabled-set accessor is wired here rather than with the seeding above,
   // because the catalogue it wires is `admin_roles`' registration and does not
   // exist until the early pass has run.
@@ -903,7 +905,6 @@ export async function setupBackendServer(
   let orderServiceForOneClick: import('../../src/modules/orders/services/order-service.js').OrderService | null = null;
   // Feature 040 — late-bound OrderListService for the customers module.
   let orderListServiceForCustomers: import('../../src/modules/orders/services/order-list-service.js').OrderListService | null = null;
-  let handleFeature026: BackendServerHandle['organizations'] | null = null;
   // Feature 007 — late-bound comparisons adoption hook. Bound once the
   // comparisons module is constructed below; mirrors composition.ts so the
   // customer login flow adopts an anonymous comparison carried by cookie.
@@ -916,36 +917,31 @@ export async function setupBackendServer(
   // `request.actor`; the test harness uses `request.testActor`.
   const sharedRestrictionService = new OrganizationRestrictionService(em, auditLogService);
   const sharedSalesRepAssignment = new SalesRepAssignmentService(em, auditLogService);
-  const buildOrgAllowListResolver = (
-    kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
-  ) => async (request: FastifyRequest): Promise<string[] | null> => {
-    const r = request as FastifyRequest & {
-      testActor?: { kind: string; organizationId?: string | null };
-      actor?: { kind: string; organizationId?: string | null };
+
+  /**
+   * Feature 072 (T138) — mirrors `composition.ts`: what `orders` still needs,
+   * composed from the two halves, without a `catch`. Moves into that module in
+   * T141.
+   */
+  const orgCradle = (): {
+    customerOrganizationIdResolver: (request: FastifyRequest) => string | null;
+    organizationRestrictionPort: {
+      allowedIdsFor(
+        organizationId: string,
+        kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
+      ): Promise<string[] | null>;
     };
-    const orgId =
-      (r.testActor?.kind === 'customer' && r.testActor.organizationId) ||
-      (r.actor?.kind === 'customer' && r.actor.organizationId) ||
-      null;
-    if (!orgId) return null;
-    try {
-      const lists = await sharedRestrictionService.readAllowLists(orgId);
-      return lists[kind];
-    } catch {
-      return null;
-    }
-  };
-  const resolveOrganizationPaymentMethodAllowList = buildOrgAllowListResolver('paymentMethodIds');
-  const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
-  // Contributed to the two method modules, which default them absent: the
-  // per-Organization allow-list is `organizations`' knowledge. Registered here,
-  // after the early pass, so it overrides the modules' defaults rather than
-  // being overwritten by them.
-  registerValues(container, {
-    organizationPaymentMethodAllowList: resolveOrganizationPaymentMethodAllowList,
-    organizationDeliveryMethodAllowList: resolveOrganizationDeliveryMethodAllowList,
-  });
-  const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
+    organizationReadPort: OrganizationReadPort;
+  } => container.cradle as never;
+  const resolveOrgAllowList =
+    (kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds') =>
+    async (request: FastifyRequest): Promise<string[] | null> => {
+      const organizationId = orgCradle().customerOrganizationIdResolver(request);
+      if (organizationId === null) return null;
+      return orgCradle().organizationRestrictionPort.allowedIdsFor(organizationId, kind);
+    };
+  const resolveOrganizationPaymentMethodAllowList = resolveOrgAllowList('paymentMethodIds');
+  const resolveOrganizationDeliveryMethodAllowList = resolveOrgAllowList('deliveryMethodIds');
 
   /**
    * Feature 026 US6 — admin orders/RFQ scope for the test harness. Mirrors
@@ -993,22 +989,6 @@ export async function setupBackendServer(
   // The credit-mode closure reads Settings at **call** time, so it may be
   // written before the settings module exists further down — which is exactly
   // how production orders it. Feature 072 (T072).
-  const organizationInheritanceService = new OrganizationInheritanceService(
-    em,
-    new OrganizationTreeService(em),
-    async () => {
-      try {
-        const { z } = await import('zod');
-        return await settings.settingsService.get(
-          ORGANIZATIONS_SETTING_CODES.CREDIT_INHERITANCE_MODE,
-          'default',
-          z.enum(['shared_pool', 'independent_default']),
-        );
-      } catch {
-        return 'shared_pool';
-      }
-    },
-  );
 
   // Credit-limits module — its CreditLimitService is the driver passed into
   // commerceModule below so OrderService.placeOrder can reserve atomically.
@@ -1096,6 +1076,10 @@ export async function setupBackendServer(
   registerValues(container, {
     salesChannelsCache: salesChannels.cache,
     salesChannelMembershipPort: salesChannels.membershipService,
+    // Mirrors `composition.ts`: the real resolver, so a test can reach the
+    // channel-scoped stock read at all. Registering it only in production is
+    // what let the missing registration survive — see the note there.
+    salesChannelResolutionPort: salesChannels.resolver,
   });
 
   // Feature 014 — CMS module. Reconcile seeded Hooks once; the storefront
@@ -1342,118 +1326,6 @@ export async function setupBackendServer(
       resolveOrganizationDeliveryMethodAllowList,
       resolveAdminOrdersScope: resolveTestAdminOrdersScope,
     }),
-    // Feature 026 — moderation lifecycle wiring for the test server.
-    // Built before organizationsModule so the moderation service can be
-    // passed in. Subscribes the registration notifier + auto-approve
-    // handler to the same event bus.
-    ...(() => {
-      const moderationService = new OrganizationModerationService(
-        em,
-        auditLogService,
-        eventBus as unknown as OrganizationEventBus,
-        injectedMailer,
-        async () => 'manual',
-      );
-      const resolveScopeSalesChannelId = async (): Promise<string | null> =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? null;
-      const resolveSalesChannelLanguage = async (salesChannelId: string): Promise<string> =>
-        (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
-      const orgRegistrationNotifier = new OrgRegistrationNotifier({
-        emFactory: em,
-        adminNotificationService: adminNotificationService,
-        mailer: injectedMailer,
-        resolveRecipients: async () => [],
-        templateEmail: makeOrgTemplateEmail({
-          getSender: () => transactionalEmailSender,
-          resolveScopeSalesChannelId,
-          resolveLanguage: resolveSalesChannelLanguage,
-        }),
-      });
-      eventBus.on('organization.registered.v1', async (payload) => {
-        const orgId = (payload as unknown as { organizationId: string }).organizationId;
-        await orgRegistrationNotifier.handleRegistered(orgId);
-      });
-      eventBus.on('organization.registered.v1', async (payload) => {
-        const orgId = (payload as unknown as { organizationId: string }).organizationId;
-        await moderationService.handleNewlyRegistered(orgId);
-      });
-      // Reuse the shared service from above so the per-request resolvers and
-      // the admin endpoints operate over the same instance.
-      const restrictionService = sharedRestrictionService;
-      const effectivePriceListsService = new OrganizationEffectivePriceListsService({
-        emFactory: em,
-        resolveDefaultSalesChannelId: async () => {
-          const channel = await salesChannels.resolver.getSystemDefault();
-          return channel?.id ?? 'default';
-        },
-      });
-      // Feature 026 US7 — fake VAT validators for the test harness. No
-      // real HTTP traffic. The fake returns `validated` for any taxId
-      // ending in `00000` (a pure 5-zero suffix) and `failed` / `deferred`
-      // otherwise — gives tests three deterministic branches without
-      // needing to mock fetch.
-      const testTaxIdValidationService = new OrganizationTaxIdValidationService({
-        emFactory: em,
-        vies: new FakeVatValidator('vies'),
-        mfPl: new FakeVatValidator('mf_pl'),
-        auditLog: auditLogService,
-      });
-      // Expose handles on the harness for tests that want to call the
-      // services directly.
-      handleFeature026 = {
-        moderationService,
-        adminNotificationService: adminNotificationService,
-        organizationContextService: new OrganizationContextService(em),
-        restrictionService,
-      };
-      return [
-        organizationsModule({
-      customerAuthService: customerAccountsCradle.customerAuthService,
-      passwordResetService: customerAccountsCradle.passwordResetService,
-      customerRoleService: customerAccountsCradle.customerRoleService,
-      totpEnrolmentService: customerAccountsCradle.totpEnrolmentService,
-      addressService,
-          emFactory: em,
-          eventBus,
-          commandBus,
-          getTransactionalEmailSender: () => transactionalEmailSender,
-          resolveScopeSalesChannelId,
-          resolveSalesChannelLanguage,
-          requireCustomer: requireTestCustomer(),
-          requireAdmin: requireTestAdmin(permissionService),
-          requireAdminAny,
-          resolveCustomerContext: customerResolver,
-          auditLogService,
-          moderationService,
-          restrictionService,
-          effectivePriceListsService,
-          taxIdValidationService: testTaxIdValidationService,
-          customFieldValues: customFieldValueService,
-          exposeTestProbe: true,
-                mailer: injectedMailer,
-          storefrontBaseUrl: 'http://localhost:3000',
-          onLogin: async (ctx) => {
-            let result: Record<string, unknown> = {};
-            if (ctx.anonymousCartToken && ctx.organizationId) {
-              const cartMerge = await (container.cradle as unknown as CartsCradle).cartService.mergeAnonymousIntoCustomer(
-                ctx.anonymousCartToken,
-                {
-                  customerAccountId: ctx.customerAccountId,
-                  organizationId: ctx.organizationId,
-                },
-              );
-              result = { cartMerge };
-            }
-            // Feature 007 — adopt an anonymous comparison carried by the
-            // compare_token cookie. Mirrors composition.ts onLogin.
-            if (comparisonAdoption && ctx.anonymousCompareToken) {
-              await comparisonAdoption(ctx.customerAccountId, ctx.anonymousCompareToken);
-            }
-            return result;
-          },
-        }),
-      ];
-    })(),
     catalogModule({
       emFactory: em,
       eventBus,
@@ -1872,7 +1744,6 @@ export async function setupBackendServer(
     // accepted divergence.
     customerAccountIdResolver: (req: FastifyRequest) =>
       req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
-    organizationInheritancePort: organizationInheritanceService,
     catalogAttributeReadPort: catalogAttributeReadService,
     // Feature 072 (wave 2) — mirrors `composition.ts`, reading this harness's
     // own actor property. The ad modules resolve one name instead of each
@@ -1995,7 +1866,6 @@ export async function setupBackendServer(
     // refused for a suspended organization. Naming it keeps that divergence
     // visible instead of leaving it as an absent check; it goes when
     // `organizations` converts (T138) and provides the real guard as a port.
-    organizationTransactGuard: async (): Promise<void> => undefined,
     cartActorResolver: (request: FastifyRequest) => {
       if (request.testActor?.kind === 'customer') {
         return {
@@ -2112,7 +1982,11 @@ export async function setupBackendServer(
   // three of its behaviours were exercised by nothing; the module reads all
   // three from the container now.
   registerValues(container, {
-    inventoryWarehouseAllowList: resolveOrganizationWarehouseAllowList,
+    // Feature 072 (T138) — the admin-editable sender `organizations` sends its
+    // verification, invitation and new-registration emails through. A getter
+    // because `transactional_emails` announces the sender well after this
+    // point; same shape and owner as `inventoryTemplateEmail`.
+    organizationsTransactionalEmailSender: () => transactionalEmailSender,
     inventoryTemplateEmail: makeOrgTemplateEmail({
       getSender: () => transactionalEmailSender,
       resolveScopeSalesChannelId: async () =>
@@ -2181,11 +2055,43 @@ export async function setupBackendServer(
           return 0;
         }
       },
-    rfqSalesRepSubtreeTreeService: new OrganizationTreeService(em),
-    rfqSalesRepSubtree: {
-      treeService: new OrganizationTreeService(em),
-      hasRollupCapability: (adminUserId: string) =>
-        permissionService.hasPermission(adminUserId, 'organizations:rollup'),
+  });
+
+  // Feature 072 (T138) — the two `organizations` contributions this harness
+  // makes, registered after the early pass that composes the module so they
+  // overwrite its defaults rather than being overwritten by them. Both are read
+  // lazily — the clients when the tax-ID service is first constructed, the hook
+  // at login — so this placement is safe.
+  registerValues(container, {
+    // No test may open a socket to VIES or Ministerstwo Finansow. The fake
+    // returns `validated` for any taxId ending in `00000` and `failed` /
+    // `deferred` otherwise, giving three deterministic branches.
+    organizationsTaxIdClients: {
+      vies: new FakeVatValidator('vies'),
+      mfPl: new FakeVatValidator('mf_pl'),
+    },
+    organizationsLoginHook: async (loginCtx: {
+      customerAccountId: string;
+      organizationId: string | null;
+      anonymousCartToken?: string;
+      anonymousCompareToken?: string;
+    }) => {
+      let result: Record<string, unknown> = {};
+      if (loginCtx.anonymousCartToken && loginCtx.organizationId) {
+        const cartMerge = await (
+          container.cradle as unknown as CartsCradle
+        ).cartService.mergeAnonymousIntoCustomer(loginCtx.anonymousCartToken, {
+          customerAccountId: loginCtx.customerAccountId,
+          organizationId: loginCtx.organizationId,
+        });
+        result = { cartMerge };
+      }
+      // Feature 007 — adopt an anonymous comparison carried by the
+      // compare_token cookie. Mirrors composition.ts.
+      if (comparisonAdoption && loginCtx.anonymousCompareToken) {
+        await comparisonAdoption(loginCtx.customerAccountId, loginCtx.anonymousCompareToken);
+      }
+      return result;
     },
   });
 
@@ -2557,7 +2463,6 @@ export async function setupBackendServer(
   // `settingsService` here, so the quick-order import cap fell back to its
   // manifest default in every test while production read it per channel.
   registerValues(container, {
-    organizationRestrictionPort: sharedRestrictionService,
     oneClickOrderServiceGetter: () => orderServiceForOneClick,
     shoppingListServiceSink: (svc: ShoppingListService) => {
       shoppingListServiceRef = svc;
@@ -2726,11 +2631,23 @@ export async function setupBackendServer(
     },
     // Feature 061 — the composed attribute read model for test fixtures.
     catalogAttributeRead: catalogAttributeReadService,
-    organizations: handleFeature026 ?? {
-      moderationService: null as unknown as OrganizationModerationService,
-      adminNotificationService: null as unknown as AdminNotificationService,
-      organizationContextService: null as unknown as OrganizationContextService,
-      restrictionService: null as unknown as OrganizationRestrictionService,
+    // Feature 072 (T138) — read off the container rather than off a handle the
+    // module block used to fill in. The `?? null as unknown as …` fallbacks are
+    // gone with it: they existed because the block was conditional, and a test
+    // reaching for a service that was never built got `null` masquerading as
+    // one rather than a resolution error.
+    organizations: {
+      get moderationService(): OrganizationModerationService {
+        return (container.cradle as never as OrganizationsCradle).organizationModerationService;
+      },
+      adminNotificationService,
+      get organizationContextService(): OrganizationContextService {
+        return (container.cradle as never as OrganizationsCradle)
+          .organizationReadPort as OrganizationContextService;
+      },
+      get restrictionService(): OrganizationRestrictionService {
+        return (container.cradle as never as OrganizationsCradle).organizationRestrictionPort;
+      },
     },
     cartService: () => (container.cradle as unknown as CartsCradle).cartService,
   };

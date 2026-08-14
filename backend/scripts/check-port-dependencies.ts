@@ -126,6 +126,14 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // Same shape for `inventory` (T129): how this deployment names a non-admin
   // caller on an audit record.
   'inventoryAdminAuditContext',
+  // Feature 072 (T138) — `organizations`' three root-supplied inputs. The
+  // storefront origin an invitation link points at is an environment fact and
+  // the settings channel is an env knob; the verification-token probe is a
+  // harness fact, and a route that hands back the last token must not exist in
+  // production. None of the three is something the module could default.
+  'organizationsStorefrontBaseUrl',
+  'organizationsExposeTestProbe',
+  'organizationsSettingsChannelId',
 ]);
 
 /**
@@ -172,6 +180,18 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `request.testActor` — and owned by `auth` in principle. Read by the four
   // payment gateways (wave 3).
   customerAccountIdResolver: 'auth',
+  // The calling customer's Organization, or `null`. The fourth member of the
+  // family above and root-shaped for the same reason, but softer than all of
+  // them on purpose: it answers `null` for anonymous traffic *and* for a
+  // Customer with no Organization, where `customerContextResolver` throws 401
+  // or 422. That difference is the point — it is read on restriction checks
+  // (T138), and catching a throw to mean "unrestricted" is how a fail-closed
+  // gate becomes fail-open.
+  customerOrganizationIdResolver: 'auth',
+  // The admin-editable transactional sender, as a getter because
+  // `transactional_emails` announces it after `organizations` composes. Same
+  // shape and same owner as `inventoryTemplateEmail`; the two drain together.
+  organizationsTransactionalEmailSender: 'transactional_emails',
   // Who is asking, in the cart's own shape (signed-in customer or anonymous
   // cookie token). The identical divergence already recorded for
   // `customerContextResolver` and `customerAccountIdResolver`, same owner, and
@@ -179,14 +199,12 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   cartActorResolver: 'auth',
   // The guard that refuses a cart mutation for an organization that may not
   // transact. Owned by `organizations`, still hand-wired.
-  organizationTransactGuard: 'organizations',
   // `inventory`'s two root-built adapters (T129): the admin-editable
   // transactional-email path, and the Organization's warehouse assignment that
   // scopes a storefront stock read. Each is an adapter over a module
   // `inventory` must not reach through directly; both owners are still
   // hand-wired.
   inventoryTemplateEmail: 'transactional_emails',
-  inventoryWarehouseAllowList: 'organizations',
   // The seven `catalog` services `pim_ergonode` reads (T131). Each root used to
   // construct a second instance of every one of them, purely to hand to that
   // module, while `catalog` built its own. These entries go when `catalog`
@@ -209,19 +227,15 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // converts into, the org restriction the preference routes re-check against,
   // the lazy order service one-click buy places through, and the sink that
   // hands its own service back to `carts`. All four owners are still hand-wired.
-  organizationRestrictionPort: 'organizations',
   // `quote_requests`' three composition-shaped inputs (T132): who is asking
   // (production reads `request.actor`, the harness `request.testActor`), the
   // organization's tax rate, and the subtree the RFQ admin scope rolls up over.
   rfqCustomerContextResolver: 'auth',
   rfqAdminContextResolver: 'auth',
   rfqTaxRateResolver: 'taxes',
-  rfqSalesRepSubtree: 'organizations',
-  rfqSalesRepSubtreeTreeService: 'organizations',
   oneClickOrderServiceGetter: 'orders',
   // Inherited credit limits (feature 056). Owned by `organizations`, still
   // hand-wired; the entry goes when that module converts.
-  organizationInheritancePort: 'organizations',
   // The composed attribute read model (feature 061). Owned by `catalog`, still
   // hand-wired; the entry goes when that module converts.
   catalogAttributeReadPort: 'catalog',
@@ -235,7 +249,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   catalogQueryPort: 'catalog',
   // The organization-status gate feature 026 US5 added: an org-targeted
   // promotion only fires for an active Organization. Owned by `organizations`.
-  organizationStatusResolver: 'organizations',
   // The operator presence axis the command palette filters on. A root's to
   // supply — which modules a deployment ships is not a module's business.
   moduleActivationProbe: '_lifecycle',
@@ -365,6 +378,27 @@ export const ALLOWED_CAPTURES: Readonly<Record<string, string>> = {
     'treats as a different type. Both roots register the port two lines before they ' +
     'resolve `credentialsService`, and that ordering is load-bearing — it goes when ' +
     '`settings` converts and the port stops being root-registered.',
+};
+
+/**
+ * Port edges a module may resolve **without** declaring the owner, because
+ * declaring it would close a manifest cycle. One entry per edge, with the
+ * cycle spelled out.
+ *
+ * This is the port-layer twin of `test/unit/db/acknowledged-fk-edges.ts`, which
+ * records the five foreign keys `organizations` deliberately does not declare
+ * for the same reason. Keep it as short as that one: an entry is a statement
+ * that the edge is real and mutual, not that nobody has looked.
+ */
+export const ACKNOWLEDGED_PORT_EDGES: Readonly<Record<string, string>> = {
+  'organizations:addressService':
+    'Mutual by nature. `addresses` declares `organizations` because every stored ' +
+    'address is organization-scoped, and it must install after the tenancy root. ' +
+    '`organizations` resolves `AddressService` because its customer routes expose ' +
+    'address CRUD. Declaring the second direction closes the cycle and makes the ' +
+    'tenancy root uninstallable first, which Rule 3 forbids — the same trade the ' +
+    "manifest's five acknowledged FK edges record. It goes when the address routes " +
+    'move to the module that owns the table.',
 };
 
 export interface PortViolation {
@@ -633,6 +667,9 @@ export function findViolations(input: CheckInput): PortViolation[] {
     }
     if (owner === resolution.moduleId) continue;
     if (closureOf(resolution.moduleId, input.dependencies).has(owner)) continue;
+    if (ACKNOWLEDGED_PORT_EDGES[`${resolution.moduleId}:${resolution.name}`] !== undefined) {
+      continue;
+    }
     violations.push({ kind: 'undeclared-dependency', resolution, owner });
   }
   return violations;
