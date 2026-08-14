@@ -135,6 +135,7 @@ import type {
 } from './modules/prompt_actions/services/tool-registry.js';
 import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
+import { loadModulePresence } from './modules/_lifecycle/services/presence-load.js';
 import {
   REGISTERED_MANIFESTS,
   type RegisteredManifestEntry,
@@ -273,6 +274,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ...overlayModuleManifests.map((m) => ({ manifest: m.manifest, filePath: m.filePath })),
   ];
 
+  // Feature 072 (D-38) — module presence is a **composition input**, so it is
+  // loaded here: before the first module registers, and therefore before any
+  // boot hook, plugin body or worker registration asks for it. It used to be
+  // warmed inside `_lifecycle`'s plugin body, which runs in `buildServer` —
+  // after all of them — and the platform stopped booting the moment a boot hook
+  // resolved a gated port, because the cache still answered "not installed" for
+  // everything.
+  //
+  // Awaited and fatal, and that costs nothing new: `initOrm()` above already
+  // makes a reachable PostgreSQL a boot precondition. Arming the Redis pub/sub
+  // side is separate (`registryCache.watch()`, from `_lifecycle`'s plugin) and
+  // must never fail a boot — a lost notification channel means stale, not off.
+  await enterSystemScope(
+    'boot: load module presence',
+    () => loadModulePresence({ em, manifests: resolvedRegistry.map((e) => e.manifest) }),
+    { entryPoint: 'boot' },
+  );
 
   const eventBus = new EventBus();
 

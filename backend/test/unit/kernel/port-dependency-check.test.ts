@@ -186,6 +186,37 @@ describe('findViolations', () => {
     ).toEqual([]);
   });
 
+  it('refuses a capture of a port the module provides itself (D-38b)', () => {
+    // The exemption above is right for a `di.register` name and wrong for a
+    // port: `providePort` wraps the resolver in a transient gate whoever owns
+    // it, and awilix strict mode refuses a singleton capturing one warm or
+    // cold. `_i18n` shipped exactly this — `adminI18nReconciler` capturing its
+    // own `adminI18nService` — and the backend stopped booting while every
+    // static check reported green.
+    const violations = findViolations({
+      resolutions: [resolution('_i18n', 'adminI18nService', 'captured')],
+      owners: new Map([['adminI18nService', '_i18n']]),
+      dependencies: new Map([['_i18n', []]]),
+      providedPorts: new Map([['adminI18nService', '_i18n']]),
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.kind).toBe('captured-name');
+    expect(describeViolation(violations[0]!)).toContain('lazyPort');
+  });
+
+  it('still allows capturing a name the module registered with di.register', () => {
+    // Same owner, same module — the difference is `providePort`, and it is the
+    // only difference that matters to a lifetime.
+    expect(
+      findViolations({
+        resolutions: [resolution('blog', 'blogCacheService', 'captured')],
+        owners: new Map([['blogCacheService', 'blog']]),
+        dependencies: new Map([['blog', []]]),
+        providedPorts: new Map([['blogPostPort', 'blog']]),
+      }),
+    ).toEqual([]);
+  });
+
   it('allows capturing the eagerly-registered kernel names', () => {
     // These exist before any module composes and none is a transient gate, so
     // capturing them cannot resolve too early or outlive a module.

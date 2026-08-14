@@ -67,7 +67,11 @@ describe('ModuleRegistryCache — degraded-mode refresh without a publish (integ
     await em.flush();
 
     cache = new ModuleRegistryCache();
-    await cache.start({
+    // Feature 072 (D-38) — load from PostgreSQL first, arm the pub/sub side
+    // after: the degraded mode below is precisely what makes the second half
+    // safe to fail.
+    await cache.load({ em: () => db.orm.em.fork() as never });
+    await cache.watch({
       redisSubscriber: subscriberRedis,
       em: () => db.orm.em.fork() as never,
     });

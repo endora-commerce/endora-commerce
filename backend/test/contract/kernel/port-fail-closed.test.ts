@@ -77,7 +77,12 @@ function composeProvider(moduleId: string, portName: string): KernelContainer {
   return container;
 }
 
-const seeded = registryCache.enabledIds();
+// Whatever this fork's presence happens to be, so restoring it after each case
+// leaves the shared singleton as this file found it. The `isLoaded` guard is
+// feature 072 (D-38): presence is loaded by a composition, and this file
+// composes bare containers — running it alone, nothing has loaded it, and
+// asking an unloaded cache is an error rather than an empty answer.
+const seeded = registryCache.isLoaded() ? registryCache.enabledIds() : [];
 afterEach(() => {
   registryCache.__setEnabledForTesting(seeded);
 });

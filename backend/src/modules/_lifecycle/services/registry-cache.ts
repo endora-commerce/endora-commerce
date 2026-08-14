@@ -32,8 +32,49 @@ export const FALLBACK_TTL_MS = 5_000;
  * background timer re-reads from PostgreSQL every `FALLBACK_TTL_MS` until it
  * recovers — PostgreSQL is the authority and stays reachable during a Redis
  * outage, so degraded means *stale*, not *everything off*.
+ *
+ * **Loading and watching are two different things** (feature 072, D-38), and
+ * conflating them is what kept the backend from booting:
+ *
+ *  - {@link load} is awaited, fatal and PostgreSQL-only. It runs as a kernel
+ *    step inside `composeApp()`, before the first module registers, because a
+ *    boot hook resolving a gated port asks this cache and a composition-time
+ *    answer of "off" is indistinguishable from "nobody has read the database
+ *    yet".
+ *  - {@link watch} is armed after composition, is Redis-only and can never fail
+ *    a boot: losing the notification channel means *stale*, which is the
+ *    degraded mode above.
+ *
+ * Before a load there is no answer, and asking for one throws
+ * {@link ModulePresenceNotLoadedError} rather than being answered `false`. It
+ * is a wiring defect, and the one thing it must not do is look like data.
  */
+
+/**
+ * A presence read reached the cache before anything loaded it.
+ *
+ * Not fail-open and not fail-closed — *loud*. Both of the other answers are
+ * answers to a question nobody has asked the database yet: `false` takes a
+ * correctly-installed platform down at boot (which is exactly what it did), and
+ * `true` runs a switched-off module's workers and subscribers.
+ */
+export class ModulePresenceNotLoadedError extends Error {
+  constructor(readonly read: string) {
+    super(
+      `[module-lifecycle] module presence was read (${read}) before it was loaded. ` +
+        `\`loadModulePresence()\` runs as a composition step in \`composeApp()\`, ` +
+        `before the first module registers; a read earlier than that is a wiring defect.`,
+    );
+    this.name = 'ModulePresenceNotLoadedError';
+  }
+}
+
 export class ModuleRegistryCache {
+  /**
+   * The third state. `false` means "nothing has read the database", which is
+   * neither of the two answers a presence read can be given.
+   */
+  private loaded = false;
   private enabled = new Set<string>();
   /** Every registry row's state, including the non-installed ones. */
   private platformStates = new Map<string, RegistryState>();
@@ -45,16 +86,28 @@ export class ModuleRegistryCache {
   private fallbackTimer: NodeJS.Timeout | null = null;
   private fallbackStopped = false;
 
+  /** True once {@link load} — or the test seam that stands in for it — has run. */
+  isLoaded(): boolean {
+    return this.loaded;
+  }
+
+  private assertLoaded(read: string): void {
+    if (!this.loaded) throw new ModulePresenceNotLoadedError(read);
+  }
+
   isEnabled(moduleId: string): boolean {
+    this.assertLoaded('isEnabled');
     return this.enabled.has(moduleId);
   }
 
   enabledIds(): string[] {
+    this.assertLoaded('enabledIds');
     return [...this.enabled].sort();
   }
 
   /** Platform axis detail for the presence projection. */
   platformStateOf(moduleId: string): RegistryState | 'not-installed' {
+    this.assertLoaded('platformStateOf');
     return this.platformStates.get(moduleId) ?? 'not-installed';
   }
 
@@ -63,6 +116,7 @@ export class ModuleRegistryCache {
    * when nothing has been resolved for it yet.
    */
   activationValue(moduleId: string): boolean | undefined {
+    this.assertLoaded('activationValue');
     return this.activation.get(moduleId);
   }
 
@@ -94,16 +148,22 @@ export class ModuleRegistryCache {
 
   /** Union of everything the registry knows and everything that declared a control. */
   knownModuleIds(): string[] {
+    this.assertLoaded('knownModuleIds');
     return [...new Set([...this.platformStates.keys(), ...this.declarations.keys()])].sort();
   }
 
   /**
-   * Cold-start the cache from the registry table and arm the pub/sub
-   * subscriber. Safe to call multiple times — subsequent calls re-read
-   * the registry but do not re-subscribe.
+   * Load both axes from PostgreSQL. **Awaited, fatal, no Redis.**
+   *
+   * The composition root calls this before the first module registers, so a
+   * boot hook, a plugin body and a worker registration all read a cache that
+   * has an answer. Idempotent: a second call re-reads the tables.
+   *
+   * Fatal is not a new failure mode. `composeApp()` opens with `initOrm()` and
+   * MikroORM connects eagerly, so a backend whose database is unreachable
+   * already cannot boot; this adds one round-trip to a boot that makes several.
    */
-  async start(opts: {
-    redisSubscriber: Redis;
+  async load(opts: {
     em: () => EntityManager;
     /** Activation declarations from the loaded manifests (feature 073). */
     activationDeclarations?: readonly ModuleActivationDeclaration[];
@@ -112,9 +172,21 @@ export class ModuleRegistryCache {
       this.setActivationDeclarations(opts.activationDeclarations);
     }
     await this.refreshFromDb(opts.em);
+  }
+
+  /**
+   * Arm the pub/sub subscriber that keeps the loaded state fresh. **Not fatal,
+   * no PostgreSQL read of its own.** Safe to call multiple times — a second
+   * call does not re-subscribe.
+   *
+   * A Redis outage must never fail a boot: the channel is a freshness
+   * optimisation over an authority that is still reachable, which is the whole
+   * argument for the degraded mode below. So a failing subscribe enters that
+   * mode instead of propagating.
+   */
+  async watch(opts: { redisSubscriber: Redis; em: () => EntityManager }): Promise<void> {
     if (this.subscriber) return;
     this.subscriber = opts.redisSubscriber;
-    await this.subscriber.subscribe(STATE_CHANGED_CHANNEL);
     this.subscriber.on('message', (channel) => {
       if (channel !== STATE_CHANGED_CHANNEL) return;
       void this.refreshFromDb(opts.em).catch((err) => {
@@ -131,6 +203,17 @@ export class ModuleRegistryCache {
     this.subscriber.on('end', () => {
       this.enterDegradedMode(opts.em);
     });
+    try {
+      await this.subscriber.subscribe(STATE_CHANGED_CHANNEL);
+    } catch (err) {
+      this.enterDegradedMode(opts.em);
+      console.warn(
+        `[module-lifecycle] registry-cache could not subscribe to ${STATE_CHANGED_CHANNEL} — ` +
+          `serving the loaded state and re-reading PostgreSQL every ${FALLBACK_TTL_MS}ms: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+      );
+    }
     // No Redis mirror of the enabled set (feature 073, T140). One existed —
     // `b2b:module:enabled-set` — written here and read by nothing: a cold start
     // reads `module_registrations`, which is the authority, and every later
@@ -143,17 +226,36 @@ export class ModuleRegistryCache {
    * Test seam — replaces both axes without touching Redis or the database.
    * `ids` seeds platform availability; `opts.deactivated` seeds the operator
    * axis to off, which is the axis an operator actually drives.
+   *
+   * It counts as a {@link load}: it is "the load, without a database", and a
+   * harness that seeds it has answered the question the tri-state asks.
    */
   __setEnabledForTesting(
     ids: readonly string[],
     opts?: { deactivated?: readonly string[] },
   ): void {
+    this.loaded = true;
     this.enabled = new Set(ids);
     this.platformStates = new Map(ids.map((id) => [id, 'installed' as RegistryState]));
     this.activation = new Map(ids.map((id) => [id, true]));
     for (const id of opts?.deactivated ?? []) {
       this.activation.set(id, false);
     }
+  }
+
+  /**
+   * Test seam — return the cache to the unloaded state, which is the one state
+   * a test cannot otherwise reach: the suite shares one process, so by the time
+   * a file runs, some earlier file has almost certainly seeded the singleton.
+   * The invariant "a presence read before the load is an error" is not testable
+   * without it.
+   */
+  __resetForTesting(): void {
+    this.loaded = false;
+    this.enabled = new Set();
+    this.platformStates = new Map();
+    this.activation = new Map();
+    this.declarations = new Map();
   }
 
   /**
@@ -193,6 +295,7 @@ export class ModuleRegistryCache {
     this.enabled = freshEnabled;
     this.platformStates = freshStates;
     this.activation = freshActivation;
+    this.loaded = true;
     this.clearDegradedMode();
   }
 

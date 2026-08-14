@@ -43,7 +43,10 @@ describe('ModuleRegistryCache — pub/sub refresh between processes (integration
     await em.flush();
 
     cacheB = new ModuleRegistryCache();
-    await cacheB.start({
+    // Feature 072 (D-38) — the two halves a process runs in order: `load()`
+    // reads PostgreSQL and is fatal, `watch()` arms the pub/sub side and is not.
+    await cacheB.load({ em: () => db.orm.em.fork() as never });
+    await cacheB.watch({
       redisSubscriber: subscriberRedis,
       em: () => db.orm.em.fork() as never,
     });

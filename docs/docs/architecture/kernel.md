@@ -159,12 +159,33 @@ Composition runs in **two passes** over the generated module list, defined by
 registers every module in it, then runs that pass's boot hooks:
 
 ```
+       load module presence                          (PostgreSQL, awaited, fatal)
 early: register all early modules → runBootHooks()   (early hooks only)
 late:  register all late modules  → runBootHooks()   (late hooks only)
                                   → the Fastify app is built, plugin bodies run
+                                  → registryCache.watch()   (Redis, non-fatal)
 ```
 
-Four consequences, in the order they bite:
+Five consequences, in the order they bite:
+
+**0. Module presence is loaded before the first module registers.**
+`loadModulePresence()` runs as a composition step in `composeApp()`, because
+every gate downstream of it — a port resolution in a boot hook, a
+`defineModuleWorker` pause decision, a `subscribeForModule` handler — asks the
+same in-memory cache, and most of them ask before any HTTP route exists. Until
+feature 072's D-38 the load lived in `_lifecycle`'s plugin body, i.e. inside
+`buildServer`, after everything in the diagram above: the cache answered
+"not installed" for every module and the backend did not start.
+
+Two halves, deliberately different in kind. The **load** reads PostgreSQL, is
+awaited and is fatal — `initOrm()` already makes a reachable database a boot
+precondition, so this adds no failure mode. The **watch** subscribes to the
+Redis notification channel, is armed after composition and can never fail a
+boot: losing it means *stale*, and PostgreSQL — the authority — is still there.
+
+A presence read before the load throws `ModulePresenceNotLoadedError`. It is
+neither of the two answers: `false` is what took the platform down, and `true`
+would run a switched-off module's work.
 
 **1. A late-pass registration does not exist during an early-pass boot hook.**
 Not "runs later" — *does not exist*. If an early-pass module's `ctx.onBoot`
@@ -200,7 +221,7 @@ filter by owner at enumeration time — the way `ctx.interceptors` stamps
 | Script | What it refuses |
 | --- | --- |
 | `check-kernel-boundary.ts` | kernel importing from `src/modules/` |
-| `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port; a root shadowing a module's port; a computed port name |
+| `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a root shadowing a module's port; a computed port name |
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
 | `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger |
 

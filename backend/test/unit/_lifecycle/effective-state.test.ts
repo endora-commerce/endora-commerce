@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
+  ModulePresenceNotLoadedError,
   ModuleRegistryCache,
 } from '../../../src/modules/_lifecycle/services/registry-cache.js';
 import {
@@ -68,7 +69,15 @@ describe('ModuleEffectiveState', () => {
     });
   });
 
-  it('is present before any refresh only if both axes say so — a cold cache is absent', () => {
+  it('has no answer at all before the presence load (feature 072, D-38)', () => {
+    // A cache nobody has loaded used to report every module absent, which reads
+    // like data and is not: the platform's own boot hooks asked it and got
+    // "switched off" for a deployment where nothing was.
+    expect(() => state.isPresent('fixture_control')).toThrow(ModulePresenceNotLoadedError);
+  });
+
+  it('reports absent — as an answer — once loaded with an empty platform axis', () => {
+    cache.__setEnabledForTesting([]);
     expect(state.isPresent('fixture_control')).toBe(false);
   });
 

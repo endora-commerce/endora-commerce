@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
+  ModulePresenceNotLoadedError,
   ModuleRegistryCache,
   registryCache,
 } from '../../../src/modules/_lifecycle/services/registry-cache.js';
@@ -11,7 +12,22 @@ describe('ModuleRegistryCache (test seam)', () => {
     cache = new ModuleRegistryCache();
   });
 
-  it('returns false for any moduleId before initialisation', () => {
+  it('refuses to answer before anything has loaded it (feature 072, D-38)', () => {
+    // It used to answer `false`, and that is what stopped the platform booting:
+    // "nobody has read the database yet" was indistinguishable from "the
+    // operator switched this off", so every gated port resolved during
+    // composition threw `ModuleDisabledError`.
+    expect(cache.isLoaded()).toBe(false);
+    expect(() => cache.isEnabled('demo')).toThrow(ModulePresenceNotLoadedError);
+    expect(() => cache.enabledIds()).toThrow(ModulePresenceNotLoadedError);
+    expect(() => cache.platformStateOf('demo')).toThrow(ModulePresenceNotLoadedError);
+    expect(() => cache.activationValue('demo')).toThrow(ModulePresenceNotLoadedError);
+    expect(() => cache.knownModuleIds()).toThrow(ModulePresenceNotLoadedError);
+  });
+
+  it('answers an empty platform axis once loaded — absent is an answer, unloaded is not', () => {
+    cache.__setEnabledForTesting([]);
+    expect(cache.isLoaded()).toBe(true);
     expect(cache.isEnabled('demo')).toBe(false);
     expect(cache.enabledIds()).toEqual([]);
   });
