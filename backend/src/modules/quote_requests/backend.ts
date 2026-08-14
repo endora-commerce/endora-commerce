@@ -3,7 +3,11 @@ import { z } from 'zod';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
+import {
+  lazyPort,
+  SettingNotRegistered,
+  SettingOutOfScopeForChannel,
+} from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from './manifest.js';
@@ -43,6 +47,13 @@ export interface QuoteRequestsCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: QuoteRequestsModuleOptions['requireCustomer'];
   readonly settingsReadPort: SettingsService;
+  /**
+   * The channel a global-scope settings read resolves against: the deployment's
+   * system-default sales channel, or `null` when it has none. A root input
+   * (`check-port-dependencies.ts`), resolved by `stripe`, `autopay`,
+   * `inventory` and others under this same name.
+   */
+  readonly settingsChannelResolver: () => Promise<string | null>;
   readonly customFieldValueService: NonNullable<
     QuoteRequestsModuleOptions['customFieldValues']
   >;
@@ -73,22 +84,100 @@ export interface QuoteRequestsCradle {
     : never;
 }
 
+/**
+ * `setting_values.sales_channel_id` is a `uuid` column, so a channel id that is
+ * not one cannot match a row — PostgreSQL rejects the comparison outright. The
+ * check is here rather than in the settings service because this is the caller
+ * that has somewhere to degrade to.
+ */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Conditions this module has already reported. Module scope and never reset, so
+ * the guard is deliberately **per process** rather than per read: an unresolved
+ * channel or a mis-scoped setting is a deployment fact that holds for every
+ * subsequent read, and RFQ settings are read on every quote creation and every
+ * storefront page load. One line per condition is what makes it findable; one
+ * line per read is what makes it invisible. Same shape as
+ * `transactional_emails`' `noTransportWarned`.
+ */
+const warnedConditions = new Set<string>();
+
+function warnOnce(condition: string, message: string): void {
+  if (warnedConditions.has(condition)) return;
+  warnedConditions.add(condition);
+  console.warn(message);
+}
+
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     quoteRequests: ctx
       .asFunction(({ emFactory, eventBus, auditLogService }: QuoteRequestsCradle) => {
-        /** This module's own settings, read through the port it already holds. */
+        /**
+         * This module's own settings, read through the port it already holds,
+         * against the **resolved** sales channel.
+         *
+         * It used to pass the literal `'default'` as the `salesChannelId`, a
+         * spelling that came down from the composition root T132 lifted this
+         * out of. `'default'` is a channel *code*; `setting_values.sales_channel_id`
+         * is `uuid`, so PostgreSQL rejected every one of these reads
+         * (`invalid input syntax for type uuid: "default"`), the bare `catch`
+         * below swallowed it, and all four settings answered with their module
+         * fallback on every call — expiry never applied, RFQ numbers never
+         * carried the configured prefix or suffix, and an operator switching a
+         * storefront flag off changed nothing.
+         *
+         * What the handler may absorb is now enumerated, because a bare `catch`
+         * around a port call turns fail-closed into fail-open
+         * (`docs/docs/architecture/kernel.md`; the composition checklist's rule 7):
+         *
+         *  - `SettingNotRegistered` — "no value configured yet", the normal
+         *    state before the manifest reconciler has run. Quiet fallback.
+         *  - `SettingOutOfScopeForChannel` — the operator scoped this setting to
+         *    other channels, so no value applies here. The module default is the
+         *    right answer, but the scoping is almost certainly unintended, so it
+         *    is warned about.
+         *  - everything else — a shape mismatch, a driver error, a
+         *    `ModuleDisabledError` from a switched-off owner — propagates.
+         */
         const setting = async <T>(
           code: string,
           schema: z.ZodType<T>,
           fallback: T,
         ): Promise<T> => {
-          try {
-            return await ctx
-              .cradle<QuoteRequestsCradle>()
-              .settingsReadPort.get(code, 'default', schema);
-          } catch {
+          const cradle = ctx.cradle<QuoteRequestsCradle>();
+          const channelId = await cradle.settingsChannelResolver();
+          if (channelId === null || !UUID_PATTERN.test(channelId)) {
+            // Both roots answer this resolver with the system-default channel's
+            // id, falling back to `ORGANIZATIONS_SETTINGS_CHANNEL_ID` — an env
+            // knob whose own default is the string `'default'`. So "no channel"
+            // arrives here in two shapes, `null` and a non-uuid placeholder, and
+            // neither can address a `setting_values` row. Degrading to the
+            // module default keeps RFQs working, but silently is exactly the
+            // failure above, so it is reported.
+            warnOnce(
+              'unresolved-channel',
+              `[quote_requests] no sales channel resolved for settings (got ` +
+                `${channelId === null ? 'null' : `"${channelId}"`}) — every ` +
+                `quote_requests.* setting falls back to its module default ` +
+                `(logged once per process).`,
+            );
             return fallback;
+          }
+          try {
+            return await cradle.settingsReadPort.get(code, channelId, schema);
+          } catch (error) {
+            if (error instanceof SettingNotRegistered) return fallback;
+            if (error instanceof SettingOutOfScopeForChannel) {
+              warnOnce(
+                `out-of-scope:${code}`,
+                `[quote_requests] setting "${code}" is not in scope for sales channel ` +
+                  `"${channelId}" — falling back to the module default ` +
+                  `(logged once per process).`,
+              );
+              return fallback;
+            }
+            throw error;
           }
         };
 
