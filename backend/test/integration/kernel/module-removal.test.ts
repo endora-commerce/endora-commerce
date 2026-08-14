@@ -114,7 +114,11 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // entity, and `composition.ts` imports the service type to annotate what it
   // resolves and hands to `dictionaries` and `languages`. Both hosts take the
   // service as an argument now instead of each constructing one.
-  currencies: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `currencies` (wave 1). Only the entity registry names it now: the last
+  // root reference was a local `currencyService` binding that existed to hand
+  // the service to `pim_ergonode`, and T131 made that module resolve the port
+  // itself.
+  currencies: ['src/db/entities-registry.ts'],
   // `analytics` (wave 1) — the first converted module with **no reference from
   // a composition root at all**. Only the two central registries hold it, and
   // both are known structural holes rather than anything this module did: the
@@ -524,6 +528,17 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // nature — production reads `request.actor`, the harness `request.testActor`
   // — and the other two go when `taxes` and `organizations` convert.
   quote_requests: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
+  // `pim_ergonode` (wave 3, T131). The two central registries name its entities
+  // and migrations; both roots register the seven `catalog` services and the
+  // asset service it reads — the seven used to be constructed here a second
+  // time, purely for this module — plus the worker-role gate and, in the
+  // harness, the scripted source client. They go when `catalog` and
+  // `assets_library` convert.
+  pim_ergonode: [
     'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',

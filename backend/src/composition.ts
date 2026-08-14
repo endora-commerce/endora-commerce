@@ -7,7 +7,6 @@ import type { ShippingMethodEligibilityService } from './modules/delivery_method
 import { builtInPaymentAdapters } from './modules/payments/adapters/built-in-adapters.js';
 import type { CredentialsService } from './modules/credentials/services/credentials.service.js';
 import type { AdminNotificationService } from './modules/admin_notifications/services/admin-notification-service.js';
-import type { CurrencyService } from './modules/currencies/services/currency-service.js';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
@@ -229,7 +228,6 @@ import { GalleryService } from './modules/catalog/services/gallery.service.js';
 import { AttachmentService } from './modules/catalog/services/attachment.service.js';
 import { ProductLinkService } from './modules/catalog/services/product-link.service.js';
 import { GroupedService } from './modules/catalog/services/grouped.service.js';
-import { pimErgonodeModule } from './modules/pim_ergonode/plugin.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
 import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
@@ -392,6 +390,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // platform-owned; until this conversion nothing resolved it by name, so
     // nothing noticed that no root registered it.
     apiInterceptors,
+    // Registered here rather than beside the module's other names: its
+    // `ctx.onBoot` schedule reconcile resolves this, and boot hooks run
+    // several hundred lines before that block (T131).
+    pimErgonodeRunWorkers: runWorkers,
     // The one connection ioredis has put into subscriber mode. Shared, because
     // a subscriber connection cannot serve commands: a per-module one would
     // cost a socket per module and buy nothing.
@@ -462,10 +464,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const permissionService = rolesCradle.permissionService;
   const permissionCatalogueService = rolesCradle.permissionCatalogueService;
 
-  // Feature 072 (wave 1) — one `CurrencyService`, where `dictionaries` and
-  // `languages` each built their own with different invalidators.
-  const currencyService = (container.cradle as unknown as { currencyService: CurrencyService })
-    .currencyService;
+  // `currencyService` is resolved from the container where it is needed —
+  // `pim_ergonode` reads it as a port since T131, and nothing else here did.
 
   // Feature 072 (wave 1) — `admin_notifications` provides this as a port, so a
   // cross-module write answers on its effective state rather than succeeding
@@ -2484,13 +2484,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // cross-module ports (Principle I), and sharing one instance between two
   // unrelated consumers would make a wiring change to one a silent change to the
   // other.
-  const pimErgonode = pimErgonodeModule({
-    emFactory: em,
-    requireAdmin,
-    commandBus,
-    eventBus,
-    credentials: credentialsService,
-    catalogAdmin: new CatalogAdminService(
+  // Feature 072 (T131) — the eight services `pim_ergonode` reads across a
+  // module boundary. Seven are `catalog`'s and were constructed here a
+  // second time, purely for this module, while `catalog` built its own;
+  // registering them means one instance each per composition. They go when
+  // `catalog` and `assets_library` convert.
+  registerValues(container, {
+    catalogAdminService: new CatalogAdminService(
       em,
       eventBus as unknown as CatalogEventBus,
       auditLogService,
@@ -2499,50 +2499,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       catalogAttributeReadService,
       customFieldDefinitionService,
     ),
-    categoryAdmin: new CategoryAdminService(
+    categoryAdminService: new CategoryAdminService(
       em,
       salesChannels.membershipService,
       commandBus,
       customFieldValueService,
     ),
-    attributeSets: new AttributeSetService(em, commandBus, catalogAttributeReadService),
-    gallery: new GalleryService(em, commandBus),
-    attachments: new AttachmentService(em, commandBus),
-    productLinks: new ProductLinkService(em, commandBus),
-    grouped: new GroupedService(em, commandBus),
-    assets: assetsLibrary.handle.service,
-    priceLists: (container.cradle as unknown as PriceListsCradle).priceListService,
-    currencies: currencyService,
-    languageService: languagesCradle.languageService,
-    adminNotificationService: adminNotificationService,
-    settings: settings.settingsService,
-    redis,
-    // Principle X — the import and reaper consumers run co-located unless
-    // BACKEND_ROLE=api, in which case only the separate `pnpm worker` process
-    // owns them.
-    runWorkers,
+    attributeSetService: new AttributeSetService(em, commandBus, catalogAttributeReadService),
+    galleryService: new GalleryService(em, commandBus),
+    attachmentService: new AttachmentService(em, commandBus),
+    productLinkService: new ProductLinkService(em, commandBus),
+    groupedService: new GroupedService(em, commandBus),
+    assetsLibraryService: assetsLibrary.handle.service,
   });
-  modules.push(pimErgonode.plugin);
-  // FR-005 / research §B5 — Postgres is the source of truth for the import
-  // schedule and Redis is a derived index. Re-asserting the connection's Job
-  // Scheduler (and the module-wide stale-run sweep) on each worker boot is what
-  // makes a flushed Redis, an old snapshot, or a crash between the Postgres
-  // commit and the Redis call cost at most one missed tick instead of an
-  // integration that silently stops importing. Only the worker role does it: an
-  // API-only process must not own schedules. Log-and-continue, the same posture
-  // as the reconcilers above — an unbootable API is worse than a drifted
-  // schedule, which the next boot repairs anyway.
-  if (runWorkers) {
-    void pimErgonode.handle.reconcileSchedules().catch((err: unknown) => {
-      console.warn(
-        JSON.stringify({
-          level: 'warn',
-          msg: 'pim_ergonode schedule reconcile failed',
-          error: String(err),
-        }),
-      );
-    });
-  }
+  // FR-005 — the boot-time schedule reconcile moved into the module's own
+  // `ctx.onBoot` in T131, where it reads the same `runWorkers` decision this
+  // root contributes.
 
   // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
   // through the OrderReturnContextPort (Principle I); settings drive the
