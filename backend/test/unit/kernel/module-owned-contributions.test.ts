@@ -12,13 +12,18 @@ import { describe, expect, it } from 'vitest';
  * hole, not untidiness, and it is invisible at the call site — the root's line
  * reads exactly like the module's would.
  *
- * Two clusters are pinned here, both of the "push at boot" shape: a module
- * contributing a descriptor to a registry another module enumerates.
+ * Three clusters are pinned here. The first two are of the "push at boot"
+ * shape: a module contributing a descriptor to a registry another module
+ * enumerates.
  *
  *  - the four `configurationTypeRegistry` registrations (`credentials`' own two,
  *    plus `pim_ergonode`'s and `product_feeds`');
  *  - the four asset / CMS reference cross-registrations (`catalog`, `cms` and
- *    `megamenu` into `assets_library`' registry, `megamenu` into `cms`').
+ *    `megamenu` into `assets_library`' registry, `megamenu` into `cms`');
+ *  - cluster 6, below: six pieces of module-owned machinery a root still
+ *    *constructed* rather than merely registered. Same hole, one step larger —
+ *    the root's instance is not gated by anything, so it kept answering with
+ *    its module switched off.
  *
  * Source-level assertions, for the reason `harness-parity.test.ts` gives: the
  * property is a property of the *wiring*, and booting both roots to compare
@@ -62,6 +67,65 @@ const CONTRIBUTIONS: ReadonlyArray<{
   { call: 'registerCmsAssetReferences(', owner: 'cms' },
   { call: 'registerMegamenuAssetReferences(', owner: 'megamenu' },
   { call: 'registerMegamenuCmsReferences(', owner: 'megamenu' },
+  // Cluster 6. The four built-in payment adapters live in `payments`, and the
+  // registry that holds them is `payment_methods`'. Both roots seeded one
+  // module's descriptors into the other's table, which is the same push-at-boot
+  // shape as the four above.
+  { call: 'builtInPaymentAdapters()', owner: 'payments' },
+];
+
+/**
+ * Cluster 6 — module-owned machinery a composition root **constructed**.
+ *
+ * A step beyond a cross-registration: a root that builds a module's service
+ * holds an instance no lifecycle seam covers, so it answers with the module
+ * switched off, and — where the module builds its own too — the platform runs
+ * two of them, free to disagree. Both failures were found in this cluster: the
+ * root's `SearchIndexer` was a second copy of the one `searchModule` already
+ * builds, and `SalesRepAssignmentService` existed once per root with *different*
+ * constructor arguments.
+ */
+const CLUSTER_SIX: ReadonlyArray<{
+  readonly what: string;
+  readonly owner: string;
+  /** Proof the owning module makes it: must appear in that module's `backend.ts`. */
+  readonly inBackend: string;
+  /** Proof no root makes it: must appear in neither composition root. */
+  readonly notInRoot: string;
+}> = [
+  {
+    what: 'the full Meilisearch reindex',
+    owner: 'search',
+    inBackend: "providePort('searchReindexPort'",
+    notInRoot: 'new SearchIndexer(',
+  },
+  {
+    what: 'the webhook delivery worker',
+    owner: 'webhooks',
+    inBackend: 'ctx.worker(',
+    notInRoot: 'createWebhookWorker(',
+  },
+  {
+    what: 'the pricing cache TTL',
+    owner: 'price_lists',
+    inBackend: 'DEFAULT_PRICING_CACHE_TTL_MS',
+    // The assignment rather than the constant: a root writing `0` is a real
+    // composition decision (the harness's), and a root handing the module back
+    // its own default is the residue.
+    notInRoot: 'priceListsPricingCacheTtlMs: DEFAULT_PRICING_CACHE_TTL_MS',
+  },
+  {
+    what: 'the sales-rep assignment scope',
+    owner: 'organizations',
+    inBackend: 'new SalesRepAssignmentService(',
+    notInRoot: 'new SalesRepAssignmentService(',
+  },
+  {
+    what: 'social-login account creation',
+    owner: 'customer_accounts',
+    inBackend: 'create(CustomerAccount',
+    notInRoot: 'create(CustomerAccount',
+  },
 ];
 
 describe('T143a — module-owned descriptors are contributed by their module', () => {
@@ -83,6 +147,18 @@ describe('T143a — module-owned descriptors are contributed by their module', (
     // and before any request is served.
     for (const owner of new Set(CONTRIBUTIONS.map((entry) => entry.owner))) {
       expect(read(`src/modules/${owner}/backend.ts`)).toContain('ctx.onBoot(');
+    }
+  });
+});
+
+describe('T143a cluster 6 — module-owned machinery is built by its module', () => {
+  it.each(CLUSTER_SIX)('$owner builds $what itself', ({ owner, inBackend }) => {
+    expect(flat(read(`src/modules/${owner}/backend.ts`))).toContain(flat(inBackend));
+  });
+
+  it.each(CLUSTER_SIX)('no composition root builds $what', ({ what, notInRoot }) => {
+    for (const [label, source] of Object.entries(ROOTS)) {
+      expect(flat(source).includes(flat(notInRoot)), `${label} still builds ${what}`).toBe(false);
     }
   });
 });

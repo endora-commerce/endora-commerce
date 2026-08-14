@@ -4,6 +4,8 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { OrderStatusRegistry } from '../delivery_methods/services/order-status-registry.port.js';
+import type { PaymentAdapterRegistry } from '../payment_methods/services/payment-adapter-registry.js';
+import { builtInPaymentAdapters } from './adapters/built-in-adapters.js';
 import { ReceivePaymentHandler, type PaymentEventBus } from './services/receive-payment-handler.js';
 import { PaymentService } from './services/payment-service.js';
 import { PaymentEmailNotifier } from './services/payment-email-notifier.js';
@@ -34,6 +36,14 @@ import type { EmailDefaultsRegistry } from '../transactional_emails/services/ema
  * stays contributed: `transactional_emails` announces it through a callback a
  * root holds, later than this module composes, so a port would point the
  * dependency at a module that does not yet have the value.
+ *
+ * **The four built-in adapters came home in T143a cluster 6.** They live in
+ * this module (`adapters/built-in-adapters.ts`); `payment_methods` merely holds
+ * the registry, and its `backend.ts` says outright that seeding them from there
+ * would be a reach into another module's internals. Both roots did it instead,
+ * which made "which payment kinds this platform can settle" a property of the
+ * composition rather than of the module that implements them — and left the
+ * four registered with `payments` switched off.
  */
 
 /** What `payments` resolves from the container, and the names it owns. */
@@ -42,6 +52,8 @@ export interface PaymentsCradle {
   readonly eventBus: EventBus;
   readonly requireAdmin: RequireAdminFactory;
   readonly paymentOrderStatusRegistry: OrderStatusRegistry;
+  /** Owned by `payment_methods`: the table this module's adapters are listed in. */
+  readonly paymentAdapterRegistry: PaymentAdapterRegistry;
   /** Contribution point: absent means a payment-status e-mail is not sent. */
   readonly paymentEmailSender: PaymentEmailNotifierDeps['getTransactionalEmailSender'];
   readonly paymentEmailNotifier: PaymentEmailNotifier;
@@ -133,4 +145,29 @@ export function registerModule(ctx: ModuleContext): void {
     defaults.register('payment_status_changed', PAYMENT_STATUS_CHANGED_DEFAULT, 'payments');
   });
 
+  /**
+   * The four payment kinds this module implements, pushed into the registry
+   * `payment_methods` holds (T143a).
+   *
+   * `ctx.onBoot` rather than a registration, for the reason the other
+   * push-at-boot contributions give: the registry is *read* — by the
+   * payment-method admin surface, by storefront eligibility and by
+   * order placement — and a registration declares without resolving.
+   *
+   * It belongs in this module rather than in a root even though the registry is
+   * a deliberate **process** singleton (`payment_methods/services/registry-singleton.ts`,
+   * which the four gateway modules import directly from their install hooks).
+   * The singleton decides *where* a descriptor lands, not *who* may declare
+   * one, and this module owns the adapter classes.
+   *
+   * The `isRegistered` guard travels with them, and it is that process
+   * singleton that makes it necessary: boot hooks run once per composition and
+   * the test suite performs several hundred, all writing the same instance.
+   */
+  ctx.onBoot(() => {
+    const registry = ctx.cradle<PaymentsCradle>().paymentAdapterRegistry;
+    for (const adapter of builtInPaymentAdapters()) {
+      if (!registry.isRegistered(adapter.adapterKey)) registry.register(adapter);
+    }
+  });
 }

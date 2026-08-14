@@ -32,6 +32,14 @@ import { searchModule, type SearchModuleOptions, type SearchModuleResult } from 
  * periodic Meilisearch sweep in every one of ~225 test files. Which process
  * runs consumers is a deployment decision (Principle X); which setting drives
  * their cadence is the module's.
+ *
+ * **`searchReindexPort` came home in T143a cluster 6.** `catalog` runs a full
+ * reindex as a `search_reindex` bulk operation when an attribute's `searchable`
+ * flag flips, and production built a **second** `SearchIndexer` inside a root
+ * closure to do it — while `searchModule` was building its own two lines away.
+ * That is the `inventory` finding of cluster 2 in a second module: two
+ * instances of one service, neither required to agree with the other, and the
+ * root's one ungated, so it kept reindexing with `search` switched off.
  */
 
 /** What `search` resolves from the container, and the names it owns. */
@@ -54,6 +62,15 @@ export interface SearchCradle {
   readonly searchRunWorkers: boolean;
   readonly search: SearchModuleResult;
   readonly searchHandle: SearchModuleResult['handle'];
+  /**
+   * A full reindex of every sales-channel index, as the `search:reindex` CLI
+   * and the admin "Reindex products" button run it (T143a).
+   *
+   * The document count is the whole answer a caller needs — `catalog` reports
+   * it on the bulk operation — so the port hands back that rather than the
+   * per-channel summaries, and no consumer has to know an index uid exists.
+   */
+  readonly searchReindexPort: { reindexAll(): Promise<{ documentCount: number }> };
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -95,6 +112,28 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort(
     'searchHandle',
     ctx.asFunction(({ search }: SearchCradle) => search.handle).singleton(),
+  );
+
+  /**
+   * A **port**, not a contribution point (D-39): a reindex computes, talks to
+   * Meilisearch and rewrites every channel index, so a caller reaching for it
+   * while an operator has switched `search` off gets the 503 `MODULE_DISABLED`
+   * envelope rather than a sweep nobody asked for.
+   *
+   * It runs over `search.handle.indexer` — the instance `searchModule` already
+   * built — so a composition holds exactly one indexer and one Meilisearch
+   * client, whichever entry point triggers the reindex.
+   */
+  ctx.di.providePort(
+    'searchReindexPort',
+    ctx
+      .asFunction(({ search, emFactory }: SearchCradle) => ({
+        async reindexAll(): Promise<{ documentCount: number }> {
+          const results = await search.handle.indexer.reindexAllChannels(emFactory());
+          return { documentCount: results.reduce((sum, r) => sum + r.documentCount, 0) };
+        },
+      }))
+      .singleton(),
   );
 
   ctx.routes(async (app) => {

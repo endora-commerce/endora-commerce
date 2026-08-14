@@ -5,6 +5,7 @@ import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { priceListsModule, type PriceListsModuleOptions } from './plugin.js';
+import { DEFAULT_PRICING_CACHE_TTL_MS } from './services/pricing-cache.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
 
 /**
@@ -25,6 +26,14 @@ import type { PricingServiceContract } from './services/pricing-service.interfac
  * because a test writes a price and reads it back in the same breath. Neither
  * is a property of the module, and neither should be inferred from a missing
  * argument.
+ *
+ * **The TTL's default came home in T143a cluster 6.** `pricingCacheTtlMs` is a
+ * contribution point, so it needs a default, and the default is this module's
+ * `DEFAULT_PRICING_CACHE_TTL_MS` — which production was importing *out of this
+ * module* to hand straight back to it. A root repeating a module's own constant
+ * is a knob that can drift while looking like configuration: the harness's 0 is
+ * a real composition decision and stays, and production now contributes
+ * nothing, which is what "no opinion" should look like.
  *
  * `resolveOrgChain` becomes a real port read. It is `organizations`'
  * inheritance resolver, and its absence made feature 056 resolve flat — a
@@ -48,7 +57,11 @@ export interface PriceListsCradle {
   };
   /** Composition-specific: a wall-clock sweeper is wrong in a test harness. */
   readonly priceListsEnableStatusSweeper: boolean;
-  /** Composition-specific: 0 disables the LRU so a write is read back at once. */
+  /**
+   * Contribution point, defaulted to this module's own `DEFAULT_PRICING_CACHE_TTL_MS`.
+   * A composition overrides it where it means something: the harness sets 0, so
+   * the LRU is off and a write is read back at once.
+   */
   readonly priceListsPricingCacheTtlMs: number;
   /** Root-shaped: production and the harness name a non-admin caller differently. */
   readonly priceListsAdminAuditContext: NonNullable<
@@ -67,6 +80,14 @@ export function registerModule(ctx: ModuleContext): void {
     // Contribution point, absent by default: the bare-core build.
     decoratePricingService: ctx
       .asFunction((): PriceListsCradle['decoratePricingService'] => undefined)
+      .singleton(),
+
+    // Contribution point, defaulted to the module's own constant (T143a). A
+    // root that wants the shipped behaviour now writes nothing; the harness
+    // overrides it after the early pass that composes this module, which is the
+    // order a contribution point needs.
+    priceListsPricingCacheTtlMs: ctx
+      .asFunction((): number => DEFAULT_PRICING_CACHE_TTL_MS)
       .singleton(),
 
     priceLists: ctx

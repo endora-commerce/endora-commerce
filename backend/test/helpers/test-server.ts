@@ -1,10 +1,5 @@
 import type { AssetsLibraryCradle } from '../../src/modules/assets_library/backend.js';
 import type { CartShoppingListBridge, CartsCradle } from '../../src/modules/carts/backend.js';
-import type { PaymentAdapterRegistry } from '../../src/modules/payment_methods/services/payment-adapter-registry.js';
-import type { OrderStatusRegistry } from '../../src/modules/payment_methods/services/order-status-registry.port.js';
-import type { ShippingAdapterRegistry } from '../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
-import type { ShippingMethodEligibilityService } from '../../src/modules/delivery_methods/services/shipping-method-eligibility.js';
-import { builtInPaymentAdapters } from '../../src/modules/payments/adapters/built-in-adapters.js';
 import type { ConfigurationTypeRegistry } from '../../src/modules/credentials/services/configuration-type-registry.js';
 import type { CredentialsService } from '../../src/modules/credentials/services/credentials.service.js';
 import type { AdminNotificationService } from '../../src/modules/admin_notifications/services/admin-notification-service.js';
@@ -83,7 +78,6 @@ import { Organization } from '../../src/modules/organizations/entities/organizat
 import type { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
 import type { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
 import type { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
-import { SalesRepAssignmentService } from '../../src/modules/organizations/services/sales-rep-assignment-service.js';
 import { OrganizationTreeService } from '../../src/modules/organizations/services/organization-tree-service.js';
 import { resolveCustomerRollupSubtreeIds } from '../../src/modules/customer_accounts/services/customer-rollup-scope.js';
 import type {
@@ -131,7 +125,6 @@ import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
 import type { SettingsKernel } from '../../src/kernel/settings/compose.js';
 import type { SettingsCradle } from '../../src/modules/settings/backend.js';
 import type { MfaActorBridge, MfaCradle } from '../../src/modules/mfa/backend.js';
-import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
 import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
 import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
 import { composeSalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
@@ -468,10 +461,6 @@ function refusingDeliveryAdapters(): Map<FeedDeliveryProtocol, FeedDeliveryAdapt
   ]);
 }
 
-function hashTestPassword(): Promise<string> {
-  return hashPassword('social-login-no-password-placeholder');
-}
-
 /** Pick a display label from a possibly-multilingual (jsonb) name value. */
 function testAnyLabel(name: unknown): string {
   if (typeof name === 'string') return name;
@@ -795,25 +784,14 @@ export async function setupBackendServer(
   // differed between them; there is one now, and it can always reach the port.
 
   // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
-  // their registries, eligibility services and routes now. `orders` still reads
-  // them for placement dispatch and `statusOn*` resolution, so the root hands
-  // over the container's instances rather than letting a second set exist.
-  const methodsCradle = container.cradle as unknown as {
-    paymentAdapterRegistry: PaymentAdapterRegistry;
-    shippingAdapterRegistry: ShippingAdapterRegistry;
-    paymentOrderStatusRegistry: OrderStatusRegistry;
-    shippingOrderStatusRegistry: OrderStatusRegistry;
-    shippingMethodEligibility: ShippingMethodEligibilityService;
-  };
-  // The payment built-ins live in `payments`, so `payment_methods` does not
-  // seed them — which module supplies an adapter is a deployment question, and
-  // that is this root's job. Idempotent: a provider plugin may have registered
-  // into the same instance already.
-  for (const adapter of builtInPaymentAdapters()) {
-    if (!methodsCradle.paymentAdapterRegistry.isRegistered(adapter.adapterKey)) {
-      methodsCradle.paymentAdapterRegistry.register(adapter);
-    }
-  }
+  // their registries, eligibility services and routes now. `orders` resolves
+  // them itself, so nothing is read here.
+  //
+  // T143a — the built-in payment adapters are seeded by `payments`, from its
+  // own boot hook. Both roots ran the loop, and this copy carried the same
+  // `isRegistered` guard for a reason neither stated: the registry is a
+  // process-wide singleton, so several hundred compositions in one suite were
+  // all writing the same instance.
 
   // Feature 072 (T078) — `auth` owns these. Resolved from the same registration
   // production resolves, which is the whole point of converging the roots: the
@@ -883,11 +861,34 @@ export async function setupBackendServer(
     | ((customerAccountId: string, anonymousToken: string) => Promise<void>)
     | null = null;
 
-  // Feature 026 US4 — restriction service + per-request allow-list resolvers.
-  // Mirrors the composition.ts pattern: production wiring reads
-  // `request.actor`; the test harness uses `request.testActor`.
-  const sharedSalesRepAssignment = new SalesRepAssignmentService(em, auditLogService);
+  // Feature 026 US4 / 056 — which organizations a sales-rep admin may see.
+  // T143a — `organizations`' port, read lazily, where this harness used to
+  // build its own `SalesRepAssignmentService` **without** the subtree deps
+  // production passed, and then not use even that: the scope resolver below ran
+  // raw SQL over `organization_sales_rep_assignments`. Two divergences from
+  // production in one seam, and between them feature 056's roll-up was
+  // exercised by nothing.
+  // T143a — `customer_accounts`' social-login port, read lazily (see the note
+  // on `mfaSocialAccountResolvers` below).
+  const customerSocialLogin = (): {
+    resolveByEmail(email: string): Promise<{ id: string } | null>;
+    autoCreate(email: string): Promise<{ id: string } | null>;
+  } =>
+    (container.cradle as never as {
+      customerSocialLoginPort: {
+        resolveByEmail(email: string): Promise<{ id: string } | null>;
+        autoCreate(email: string): Promise<{ id: string } | null>;
+      };
+    }).customerSocialLoginPort;
 
+  const salesRepScope = (): {
+    listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+  } =>
+    (container.cradle as never as {
+      organizationSalesRepScopePort: {
+        listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+      };
+    }).organizationSalesRepScopePort;
 
   /**
    * Feature 026 US6 — admin orders/RFQ scope for the test harness. Mirrors
@@ -906,13 +907,9 @@ export async function setupBackendServer(
     )) as { rows: Array<{ code: string | null }> };
     const roleCode = roleRow.rows[0]?.code ?? null;
     if (roleCode !== 'sales_representative') return { allowAll: true };
-    const assignments = (await knex.raw(
-      `select "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?`,
-      [actor.adminUserId],
-    )) as { rows: Array<{ organization_id: string }> };
     return {
       allowAll: false,
-      allowedOrganizationIds: assignments.rows.map((r) => r.organization_id),
+      allowedOrganizationIds: await salesRepScope().listAssignedOrganizationIds(actor.adminUserId),
     };
   };
 
@@ -1037,7 +1034,9 @@ export async function setupBackendServer(
   // harness drives the status worker through `internal/sweep`, so a wall-clock
   // interval would only add spurious writes mid-run, and it disables the
   // pricing LRU because a test writes a price and reads it back in the same
-  // breath. Production keeps the sweeper on and the default TTL.
+  // breath. Production keeps the sweeper on and takes the module's own default
+  // TTL, which it stopped restating in T143a — so the 0 below is now the only
+  // opinion either composition holds about this cache.
   registerValues(container, {
     priceListsEnableStatusSweeper: false,
     priceListsPricingCacheTtlMs: 0,
@@ -1223,24 +1222,15 @@ export async function setupBackendServer(
     // the identity from the `code` query so tests control the resolved email;
     // `unverified@example.com` simulates an unverified provider email.
     mfaOauthProvider: fakeOAuthProvider,
+    // T143a — the two customer-side resolvers forward to `customer_accounts`'
+    // port, as production's do. What this harness wrote instead was the
+    // degraded copy of the pair: no system scope on the read, no
+    // `customers.allow_registration_without_organization` gate on the create
+    // (so federated sign-in auto-created an account here whatever the operator
+    // had configured), and one fixed password hash for every account it made.
     mfaSocialAccountResolvers: {
-      resolveCustomerByEmail: async (email: string) => {
-        const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
-        return c ? { id: c.id } : null;
-      },
-      autoCreateCustomer: async (email: string) => {
-        const account = em().create(CustomerAccount, {
-          email,
-          passwordHash: await hashTestPassword(),
-          firstName: '',
-          lastName: '',
-          role: 'regular_user',
-          organizationId: null,
-          emailVerifiedAt: new Date(),
-        });
-        await em().persistAndFlush(account);
-        return { id: account.id };
-      },
+      resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
+      autoCreateCustomer: (email: string) => customerSocialLogin().autoCreate(email),
       resolveAdminByEmail: async (email: string) => {
         const a = await em().findOne(AdminUser, { email, deletedAt: null, status: 'active' });
         return a ? { id: a.id } : null;
@@ -1656,6 +1646,12 @@ export async function setupBackendServer(
   // harness's own actor property where one is involved.
   registerValues(container, {
     catalogRunBulkOperationWorker: false,
+    // T143a — deliberately **not** forwarded to `searchReindexPort`, which is
+    // what production does now. A `searchable` flag flips in a good number of
+    // catalog tests, and forwarding would push every product of every channel
+    // into Meilisearch each time. The reindex itself is exercised where it
+    // belongs, against the module's own route:
+    // `test/contract/search/admin-reindex.contract.test.ts`.
     catalogSearchReindex: async () => ({ documentCount: 0 }),
     catalogAdminAuditContext: (request: FastifyRequest) => ({
       actorAdminUserId:
@@ -1806,6 +1802,13 @@ export async function setupBackendServer(
   // exists to keep out.
   registerValues(container, {
     searchRunWorkers: false,
+    // T143a — the same statement for `webhooks`' delivery consumer, which the
+    // harness has never run: production built it in `composition.ts` and this
+    // file simply did not, so the difference was an omission rather than a
+    // decision. It is a decision now, and it is the same one every other
+    // `*RunWorkers` flag makes here — a BullMQ consumer per test file would
+    // hold a Redis connection ~555 times over.
+    webhooksRunWorkers: false,
   });
 
   // Feature 072 (T129) — mirrors `composition.ts`. The harness used to pass no
@@ -1950,7 +1953,7 @@ export async function setupBackendServer(
       const isPlatformAdmin = role?.code !== 'sales_representative';
       const allowedOrganizationIds = isPlatformAdmin
         ? []
-        : await sharedSalesRepAssignment.listAssignedOrganizationIds(adminUserId);
+        : await salesRepScope().listAssignedOrganizationIds(adminUserId);
       return { adminUserId, isPlatformAdmin, allowedOrganizationIds };
     },
   });

@@ -1,10 +1,5 @@
 import type { AssetsLibraryCradle } from './modules/assets_library/backend.js';
 import type { CartShoppingListBridge, CartsCradle } from './modules/carts/backend.js';
-import type { PaymentAdapterRegistry } from './modules/payment_methods/services/payment-adapter-registry.js';
-import type { OrderStatusRegistry } from './modules/payment_methods/services/order-status-registry.port.js';
-import type { ShippingAdapterRegistry } from './modules/delivery_methods/services/shipping-adapter-registry.js';
-import type { ShippingMethodEligibilityService } from './modules/delivery_methods/services/shipping-method-eligibility.js';
-import { builtInPaymentAdapters } from './modules/payments/adapters/built-in-adapters.js';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
@@ -26,7 +21,6 @@ import { CommandBus } from './commands/index.js';
 import { forkScopedEm } from './tenancy/scoped-em.js';
 import { type TenantContext } from './tenancy/tenant-context.js';
 import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-tenant-context.js';
-import { withSystemScope } from './tenancy/escape-hatch.js';
 import { enterSystemScope } from './kernel/scope.js';
 import { registerRequestScopeHook } from './kernel/request-scope-hook.js';
 // Feature 072 — the generated module list and how a root still walks it in two
@@ -57,12 +51,11 @@ import {
 } from './modules/_lifecycle/services/registry-cache.js';
 import { effectiveState } from './modules/_lifecycle/services/effective-state.js';
 import { StorefrontRevalidator } from './http/storefront-revalidator.js';
-// Feature 072 (T138) — `organizations` owns its eight services, its routes and
-// its two event subscriptions now. What is left here is the sales-rep
-// assignment scope `orders` still takes as an argument (drains in T141) and the
-// VIES client the `customers` module is handed directly.
+// Feature 072 (T138) — `organizations` owns its services, its routes and its
+// two event subscriptions. T143a — the sales-rep assignment scope too: what is
+// left here is the actor half of the orders/RFQ visibility question, which only
+// a composition can answer.
 import type { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
-import { SalesRepAssignmentService } from './modules/organizations/services/sales-rep-assignment-service.js';
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
 // `backend.ts`; what stays here is the pure URL helper, which is a function,
@@ -85,30 +78,22 @@ import type { OrderService } from './modules/orders/services/order-service.js';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge, MfaCradle } from './modules/mfa/backend.js';
 import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
-import { verifyPassword, hashPassword } from './modules/auth/services/password-hasher.js';
+import { verifyPassword } from './modules/auth/services/password-hasher.js';
 import {
   OpenIdOAuthProvider,
   readOAuthConfigFromEnv,
   type OAuthProviderPort,
 } from './modules/mfa/services/oauth-provider-service.js';
 import type { CreditLimitsCradle } from './modules/credit_limits/backend.js';
-// Feature 062 (T029) — outbound webhook delivery pipeline.
-import {
-  createWebhookWorker,
-} from './modules/webhooks/services/webhook-queue.js';
-import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
-import type { WebhooksCradle } from './modules/webhooks/backend.js';
 import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
 import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
 import type { PriceListsCradle } from './modules/price_lists/backend.js';
-import { DEFAULT_PRICING_CACHE_TTL_MS } from './modules/price_lists/services/pricing-cache.js';
 import type { TaxesCradle } from './modules/taxes/backend.js';
 import { composeSettingsKernel } from './kernel/settings/compose.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
 import { composeSalesChannelsKernel } from './kernel/sales-channels/compose.js';
 import type { SalesChannelsCradle } from './modules/sales_channels/backend.js';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
-import { SearchIndexer } from './modules/search/services/search-indexer.js';
 import type { ComparisonsCradle } from './modules/comparisons/backend.js';
 // Feature 046 — Progressive Web App.
 import type { PwaBridge } from './modules/pwa/backend.js';
@@ -150,7 +135,6 @@ import type { PricingServiceContract } from './modules/price_lists/services/pric
 import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 import type { AdminActionsCradle } from './modules/admin_actions/backend.js';
 import type { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
-import type { CatalogAttributeReadService } from './modules/catalog/services/catalog-attribute-read.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
 
@@ -374,6 +358,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     organizationsSettingsChannelId:
       process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default',
   });
+  // T143a — `search`'s full-reindex port, read lazily. `catalog` triggers a
+  // reindex when an attribute's `searchable` flag flips, and the module that
+  // owns the indexer is the one that must answer for it.
+  const searchCradle = (): {
+    searchReindexPort: { reindexAll(): Promise<{ documentCount: number }> };
+  } => container.cradle as never;
+
   // T143a — `inventory`'s availability port, read lazily.
   const inventoryCradle = (): {
     inventoryAvailabilityPort: {
@@ -400,25 +391,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // port rather than being handed it (T138/T140).
 
   // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
-  // their registries, eligibility services and routes now. `orders` still reads
-  // them for placement dispatch and `statusOn*` resolution, so the root hands
-  // over the container's instances rather than letting a second set exist.
-  const methodsCradle = container.cradle as unknown as {
-    paymentAdapterRegistry: PaymentAdapterRegistry;
-    shippingAdapterRegistry: ShippingAdapterRegistry;
-    paymentOrderStatusRegistry: OrderStatusRegistry;
-    shippingOrderStatusRegistry: OrderStatusRegistry;
-    shippingMethodEligibility: ShippingMethodEligibilityService;
-  };
-  // The payment built-ins live in `payments`, so `payment_methods` does not
-  // seed them — which module supplies an adapter is a deployment question, and
-  // that is this root's job. Idempotent: a provider plugin may have registered
-  // into the same instance already.
-  for (const adapter of builtInPaymentAdapters()) {
-    if (!methodsCradle.paymentAdapterRegistry.isRegistered(adapter.adapterKey)) {
-      methodsCradle.paymentAdapterRegistry.register(adapter);
-    }
-  }
+  // their registries, eligibility services and routes now. `orders` resolves
+  // them itself, so nothing is read here.
+  //
+  // T143a — the four built-in payment adapters are gone from this file too.
+  // They are `payments`' classes and it seeds them from its own boot hook; a
+  // root doing it made the platform's settleable payment kinds a property of
+  // the composition, and kept them registered with `payments` switched off.
 
   // Feature 072 (T078) — `auth` owns these now. Resolved rather than
   // constructed, so production and the test harness get the same instances
@@ -434,7 +413,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     permissionCatalogueService: PermissionCatalogueService;
     adminRoleService: AdminRoleService;
   };
-  const permissionService = rolesCradle.permissionService;
+  // `permissionService` is resolved where it is needed — `organizations` reads
+  // it as a port for the sales-rep roll-up capability since T143a, and it was
+  // this root's last consumer.
   const permissionCatalogueService = rolesCradle.permissionCatalogueService;
 
   // `currencyService` is resolved from the container where it is needed —
@@ -530,20 +511,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // co-located unless BACKEND_ROLE=api, exactly like the other workers
   // (Principle X — separable via `pnpm --filter backend run worker`).
   // Feature 072 (T098) — the queue, the EventBus bridge and the admin routes
-  // are `webhooks`' own now; `api_keys` no longer builds its service either.
-  // Only the delivery worker stays here, because whether workers run at all is
-  // a deployment decision (`BACKEND_ROLE`), not the module's.
-  const webhooksCradle = container.cradle as unknown as WebhooksCradle;
-  const webhookWorker = runWorkers
-    ? createWebhookWorker(
-        redis,
-        createDeliveryProcessor({
-          recordDelivery: async (input) => {
-            await webhooksCradle.webhookService.recordDelivery(input);
-          },
-        }),
-      )
-    : null;
+  // are `webhooks`' own. T143a — so is the delivery worker: only the *flag*
+  // was ever a deployment decision, and the consumer built here was the one
+  // part of the module nothing could switch off, draining the queue and writing
+  // `webhook_deliveries` rows with `webhooks` disabled.
+  registerValues(container, { webhooksRunWorkers: runWorkers });
 
   // Feature 072 (T078) — the auth plugin is `auth`'s own contribution now,
   // collected by `ctx.rootPlugin` because it decorates `request.actor` for the
@@ -670,14 +642,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // boot hook, so this root reads nothing of the module and only contributes
   // the asset resolver further below.
 
-  // Feature 072 (T127) — `price_lists` owns its services and routes now. Three
-  // names stay a composition's: whether a wall-clock status sweeper runs, how
-  // long the pricing LRU holds, and how this deployment names a non-admin
-  // caller on an audit record. The pricing decoration (D-28) is contributed
-  // here too, when the deployment ships one.
+  // Feature 072 (T127) — `price_lists` owns its services and routes now. Two
+  // names stay a composition's: whether a wall-clock status sweeper runs, and
+  // how this deployment names a non-admin caller on an audit record. The
+  // pricing decoration (D-28) is contributed here too, when the deployment
+  // ships one.
+  //
+  // T143a — `priceListsPricingCacheTtlMs` is gone: this file was importing the
+  // module's own `DEFAULT_PRICING_CACHE_TTL_MS` to hand it back to the module.
+  // The module defaults it now, and production wanting the shipped TTL says so
+  // by contributing nothing.
   registerValues(container, {
     priceListsEnableStatusSweeper: true,
-    priceListsPricingCacheTtlMs: DEFAULT_PRICING_CACHE_TTL_MS,
     priceListsAdminAuditContext: (request: FastifyRequest) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
       if (actor?.kind !== 'admin') {
@@ -808,38 +784,26 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     oauthConfig.google || oauthConfig.microsoft
       ? new OpenIdOAuthProvider(oauthConfig)
       : undefined;
+  // T143a — the two customer-side resolvers forward to `customer_accounts`'
+  // port. They used to be written out here: a root reading and *writing*
+  // another module's table, with a policy gate (`customers.allow_registration_without_organization`)
+  // this root happened to apply and the harness did not. Read per call, so the
+  // gate stays live. `resolveAdminByEmail` stays a root's for now — it is the
+  // same shape one module over, in `admin_users`, which has no port for it yet.
+  const customerSocialLogin = (): {
+    resolveByEmail(email: string): Promise<{ id: string } | null>;
+    autoCreate(email: string): Promise<{ id: string } | null>;
+  } =>
+    (container.cradle as never as {
+      customerSocialLoginPort: {
+        resolveByEmail(email: string): Promise<{ id: string } | null>;
+        autoCreate(email: string): Promise<{ id: string } | null>;
+      };
+    }).customerSocialLoginPort;
+
   const mfaSocialResolvers = {
-    resolveCustomerByEmail: async (email: string) =>
-      // Feature 050 — social-login identity resolution, before tenant context.
-      withSystemScope('mfa: resolve customer by email', async () => {
-        const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
-        return c ? { id: c.id } : null;
-      }),
-    autoCreateCustomer: async (email: string) => {
-      let allowed = false;
-      try {
-        const { z } = await import('zod');
-        allowed = await settings.settingsService.get(
-          'customers.allow_registration_without_organization',
-          'default',
-          z.boolean(),
-        );
-      } catch {
-        allowed = false;
-      }
-      if (!allowed) return null;
-      const account = em().create(CustomerAccount, {
-        email,
-        passwordHash: await hashPassword(randomUUID() + randomUUID()),
-        firstName: '',
-        lastName: '',
-        role: 'regular_user',
-        organizationId: null,
-        emailVerifiedAt: new Date(),
-      });
-      await em().persistAndFlush(account);
-      return { id: account.id };
-    },
+    resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
+    autoCreateCustomer: (email: string) => customerSocialLogin().autoCreate(email),
     resolveAdminByEmail: async (email: string) => {
       const a = await em().findOne(AdminUser, { email, deletedAt: null, status: 'active' });
       return a ? { id: a.id } : null;
@@ -951,17 +915,24 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const platformSettingsChannelId = process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default';
 
 
-  // Feature 056 — subtree-aware assignment service. When a scoped sales-rep
-  // actor holds the `organizations:rollup` capability, `listAssignedOrganizationIds`
-  // expands each assignment to its subtree (with per-descendant override, FR-011);
-  // `canSeeOrganization` uses the nearest-assignment-on-ancestor-chain rule.
-  // Without the capability, behavior is byte-for-byte the pre-feature flat set.
-  // (`organizationTreeService` is constructed above, before creditLimits.)
-  const scopedSalesRepAssignment = new SalesRepAssignmentService(em, auditLogService, {
-    treeService: organizationTreeService(),
-    hasRollupCapability: (adminUserId) =>
-      permissionService.hasPermission(adminUserId, 'organizations:rollup'),
-  });
+  // Feature 056 — subtree-aware assignment scope. When a scoped sales-rep actor
+  // holds the `organizations:rollup` capability, `listAssignedOrganizationIds`
+  // expands each assignment to its subtree (with per-descendant override,
+  // FR-011). Without the capability, behavior is byte-for-byte the pre-feature
+  // flat set.
+  //
+  // T143a — `organizations`' port, read lazily, rather than a
+  // `SalesRepAssignmentService` built here. The class, the tree it walks and
+  // the rule it applies are all that module's; a root built one and the harness
+  // built a different one, which is how the roll-up went untested.
+  const salesRepScope = (): {
+    listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+  } =>
+    (container.cradle as never as {
+      organizationSalesRepScopePort: {
+        listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+      };
+    }).organizationSalesRepScopePort;
 
   /**
    * Feature 026 US6 — admin orders/RFQ visibility scope. Sales-rep admins
@@ -969,7 +940,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
    * (platform admin, content manager, etc.) sees everything.
    *
    * Feature 056 — the assigned set is subtree-expanded when the rep holds the
-   * roll-up capability (see `scopedSalesRepAssignment`).
+   * roll-up capability, which `organizations` decides (see `salesRepScope`).
    */
   const resolveAdminOrdersScope = async (
     request: FastifyRequest,
@@ -987,7 +958,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     if (roleCode !== 'sales_representative') {
       return { allowAll: true };
     }
-    const allowedOrganizationIds = await scopedSalesRepAssignment.listAssignedOrganizationIds(
+    const allowedOrganizationIds = await salesRepScope().listAssignedOrganizationIds(
       actor.adminUserId,
     );
     return { allowAll: false, allowedOrganizationIds };
@@ -1437,16 +1408,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     // Full Meilisearch reindex (the `search:reindex` CLI equivalent), run as a
     // `search_reindex` bulk operation when an attribute's `searchable` flag
-    // flips. A fresh indexer reads Meili config from env, exactly like the CLI.
-    catalogSearchReindex: async () => {
-      const indexer = new SearchIndexer({
-        attributeRead: (container.cradle as never as { catalogAttributeReadPort: CatalogAttributeReadService })
-          .catalogAttributeReadPort,
-      });
-      const results = await indexer.reindexAllChannels(em());
-      const documentCount = results.reduce((sum, r) => sum + r.documentCount, 0);
-      return { documentCount };
-    },
+    // flips. T143a — forwarded to `search`'s own port rather than performed
+    // here: this closure used to build a **second** `SearchIndexer` beside the
+    // one `searchModule` already holds, and being a root's it answered with
+    // `search` switched off. Read per call, so the gate stays live.
+    catalogSearchReindex: async () => searchCradle().searchReindexPort.reindexAll(),
     // Storefront product-image placeholder (general.product_image_placeholder_url),
     // resolved global-or-per-channel through the SettingsService. Returns null
     // (no placeholder) when unset or on any resolution error so a settings
@@ -1732,7 +1698,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       let allowedOrganizationIds: string[] = [];
       if (!isPlatformAdmin) {
         // Feature 056 — subtree-expanded when the rep holds `organizations:rollup`.
-        allowedOrganizationIds = await scopedSalesRepAssignment.listAssignedOrganizationIds(
+        allowedOrganizationIds = await salesRepScope().listAssignedOrganizationIds(
           actor.adminUserId,
         );
       }
@@ -2246,10 +2212,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     dispose: async () => {
       // Feature 062 — drain the webhook delivery pipeline before dropping the
-      // Redis connections (graceful shutdown). Unbridging and closing the queue
-      // are the container's job since T098: `ctx.subscribe` unsubscribes with
-      // the module and the queue registration carries its own disposer.
-      if (webhookWorker) await webhookWorker.close().catch(() => undefined);
+      // Redis connections (graceful shutdown). Every part of that is the
+      // container's job since T143a: `ctx.subscribe` unsubscribes with the
+      // module, the queue registration carries its own disposer, and the
+      // delivery worker is `webhooks`' own. Disposing the container runs those
+      // disposers — for every module, not only this one — and it runs *before*
+      // the Redis sockets go, which is the ordering the drain needs.
+      //
+      // The call is new here, and its absence was a quiet leak: production
+      // never disposed the container at all, so the BullMQ producer queue
+      // T098 moved into the module was never closed on shutdown. The harness
+      // has always disposed it (`teardownBackendServer`).
+      await container.dispose();
       redis.disconnect();
       redisSubscriber.disconnect();
       await closeOrm();

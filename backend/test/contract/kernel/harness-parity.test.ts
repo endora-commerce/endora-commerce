@@ -110,8 +110,18 @@ const PRODUCTION_ONLY_CONSTRUCTS: Readonly<Record<string, string>> = {
   // client and the harness contributes the fake, so neither root names the
   // class and the VAT egress seam is declared once instead of asserted twice.
   OpenIdOAuthProvider: 'replaced by fakeOAuthProvider — a deliberate egress seam',
-  SearchIndexer:
-    'built inside a production-only closure; the harness builds its own through searchModule',
+  // `SearchIndexer` left this ledger in T143a. Its entry read "built inside a
+  // production-only closure; the harness builds its own through searchModule",
+  // which named the defect without calling it one: production held a *second*
+  // indexer, ungated, beside the one the module already built. `search` provides
+  // `searchReindexPort` now, so both compositions reach one instance — the
+  // harness reaching it only from the module's own route, on purpose (see the
+  // note on `catalogSearchReindex` in `test-server.ts`).
+  //
+  // `SalesRepAssignmentService` was never on this ledger and should have been
+  // watched all the same: both roots built one, with *different* constructor
+  // arguments — the harness's without the subtree deps, so feature 056's
+  // roll-up was exercised by nothing. It is `organizationSalesRepScopePort` now.
   StorefrontRevalidator:
     'outbound revalidation to the storefront is never exercised, so a broken ' +
     'revalidation payload cannot fail the suite',
