@@ -110,7 +110,7 @@ import { commerceModule } from '../../src/modules/orders/plugin.js';
 import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
 import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
-import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
+import type { ShoppingListService } from '../../src/modules/shopping_lists/services/shopping-list-service.js';
 import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
 import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
@@ -2550,42 +2550,17 @@ export async function setupBackendServer(
   // here (queue producer absent) and is contract-tested against its own bare
   // instance in test/contract/google_tag_manager/collect.test.ts.
 
-  modules.push(
-    shoppingListsModule({
-      emFactory: em,
-      rfqService: quoteRequests.handle().rfqService,
-      catalogAttributeRead: catalogAttributeReadService,
-      requireCustomer: requireTestCustomer(),
-      resolveCustomerContext: customerResolver,
-      eventBus,
-      exposeShoppingListService: (svc) => {
-        shoppingListServiceRef = svc;
-      },
-      // Feature 039 — register the admin on-behalf quick-order routes and
-      // the default-preferences routes.
-      requireAdmin: requireTestAdmin(permissionService),
-      auditLog: auditLogService,
-      organizationRestriction: sharedRestrictionService,
-      resolveAdminContext: (request) => ({
-        adminUserId:
-          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-      }),
-      // Feature 039 — one-click buy wiring.
-      getOrderService: () => orderServiceForOneClick,
-      resolveOneClickEnabled: async (salesChannelId) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            'quick_order.one_click_buy_enabled',
-            salesChannelId,
-            z.boolean(),
-          );
-        } catch {
-          return false;
-        }
-      },
-    }),
-  );
+  // Feature 072 (T133) — mirrors `composition.ts`. The harness passed no
+  // `settingsService` here, so the quick-order import cap fell back to its
+  // manifest default in every test while production read it per channel.
+  registerValues(container, {
+    rfqService: quoteRequests.handle().rfqService,
+    organizationRestrictionPort: sharedRestrictionService,
+    oneClickOrderServiceGetter: () => orderServiceForOneClick,
+    shoppingListServiceSink: (svc: ShoppingListService) => {
+      shoppingListServiceRef = svc;
+    },
+  });
 
   if (options.extraModules) modules.push(...options.extraModules);
 

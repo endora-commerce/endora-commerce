@@ -103,7 +103,6 @@ import type { OrderTransitionService } from './modules/orders/services/order-tra
 import { customersModule } from './modules/customers/plugin.js';
 import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
-import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge, MfaCradle } from './modules/mfa/backend.js';
 import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
@@ -115,7 +114,6 @@ import {
 } from './modules/mfa/services/oauth-provider-service.js';
 import { StockLevelService } from './modules/inventory/services/stock-level-service.js';
 import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
-import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import type { CreditLimitsCradle } from './modules/credit_limits/backend.js';
 import type { CustomFieldsCradle } from './modules/custom_fields/backend.js';
 import type { ApiKeysCradle } from './modules/api_keys/backend.js';
@@ -2799,44 +2797,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   // Shopping lists / quick order — depends on the RFQ service built above
   // so the "convert to RFQ" flow goes through the new createForCustomer API.
-  modules.push(
-    shoppingListsModule({
-      emFactory: em,
-      rfqService: quoteRequests.handle().rfqService,
-      catalogAttributeRead: catalogAttributeReadService,
-      requireCustomer,
-      resolveCustomerContext: customerResolver,
-      // Provision the customer's default shopping list eagerly on creation.
-      eventBus,
-      // Feature 027 — late-bind the service for the carts module's
-      // save-to-list bridge (commerceModule's pushLineToShoppingList).
-      exposeShoppingListService: (svc) => {
-        shoppingListService = svc;
-      },
-      // Feature 039 — resolve the quick-order import row cap from settings,
-      // register the admin on-behalf quick-order routes, and wire the
-      // default-preferences routes (audit + org allow-list eligibility).
-      settingsService: settings.settingsService,
-      requireAdmin,
-      auditLog: auditLogService,
-      organizationRestriction: organizationRestrictionService,
-      resolveAdminContext: adminContextResolver,
-      // Feature 039 — one-click buy: lazy OrderService + the enabled setting.
-      getOrderService: () => orderServiceForOneClick,
-      resolveOneClickEnabled: async (salesChannelId) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.settingsService.get(
-            QUICK_ORDER_SETTING_CODES.ONE_CLICK_BUY_ENABLED,
-            salesChannelId,
-            z.boolean(),
-          );
-        } catch {
-          return false;
-        }
-      },
-    }),
-  );
+  // Feature 072 (T133) — `shopping_lists` owns its services and routes now, and
+  // reads the quick-order settings itself. Three names stay a composition's:
+  // two cross-module services it must not reach for directly, and the sink that
+  // hands its own service back to `carts` until that module converts.
+  registerValues(container, {
+    rfqService: quoteRequests.handle().rfqService,
+    organizationRestrictionPort: organizationRestrictionService,
+    oneClickOrderServiceGetter: () => orderServiceForOneClick,
+    shoppingListServiceSink: (svc: ShoppingListService) => {
+      shoppingListService = svc;
+    },
+  });
 
   // Feature 018 — Module Lifecycle. Builds the static manifest registry
   // from every module's `manifest` export, exposes the orchestrator handle,

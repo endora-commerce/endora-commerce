@@ -508,6 +508,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // migrations live in `orders`' group, which is why the migration registry
   // does not name it.
   payments: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // `shopping_lists` (wave 3, T133). The two central registries name its
+  // entities and migrations; both roots contribute the four cross-module names
+  // it must not reach for directly — the RFQ service, the org restriction, the
+  // lazy order service, and the sink that hands its own service to `carts`.
+  // Each goes when its owner converts.
+  shopping_lists: [
+    'src/composition.ts',
+    'src/db/entities-registry.ts',
+    'src/db/migrations-registry.ts',
+  ],
   // `audit_logs` is deliberately absent — see the note above the ledger.
 };
 

@@ -168,6 +168,14 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // hand-wired.
   inventoryTemplateEmail: 'transactional_emails',
   inventoryWarehouseAllowList: 'organizations',
+  // `shopping_lists`' two cross-module reaches (T133): the RFQ service a list
+  // converts into, the org restriction the preference routes re-check against,
+  // the lazy order service one-click buy places through, and the sink that
+  // hands its own service back to `carts`. All four owners are still hand-wired.
+  rfqService: 'quote_requests',
+  organizationRestrictionPort: 'organizations',
+  oneClickOrderServiceGetter: 'orders',
+  shoppingListServiceSink: 'carts',
   // Inherited credit limits (feature 056). Owned by `organizations`, still
   // hand-wired; the entry goes when that module converts.
   organizationInheritancePort: 'organizations',
