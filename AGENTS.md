@@ -31,7 +31,7 @@ is already in the stack.
 
 | Path | Contents |
 | --- | --- |
-| `backend/src/modules/<id>/` | A domain module: `entities/`, `services/`, `routes.ts`, `manifest.ts`, `plugin.ts`, `migrations/`, `i18n/`, optional `actions/`, `workers/` |
+| `backend/src/modules/<id>/` | A domain module: `backend.ts` (composition), `entities/`, `services/`, `routes.ts`, `manifest.ts`, `migrations/`, `i18n/`, optional `plugin.ts`, `actions/`, `workers/` |
 | `backend/src/apps/<deployment>/modules/<id>/` | Per-deployment overlay modules (feature 057) |
 | `backend/test/{unit,contract,integration,perf}/` | Backend tests, mirroring module names |
 | `specs/NNN-slug/` | Feature artifacts: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/`, `tasks.md` |
@@ -94,6 +94,49 @@ replacement. Non-negotiable ones are marked **(NN)**.
 
 ## Required checklists for a new backend module
 
+### Composition — `backend.ts` (feature 072)
+
+**A module is composed by the kernel container, not by a composition root.** All 65 core
+modules export `registerModule(ctx: ModuleContext): void` from `backend/src/modules/<id>/backend.ts`;
+`backend/src/composition.ts` and `backend/test/test-server.ts` compose that list and pass
+deployment inputs, nothing more. Never construct a module's services in either root, and
+never add a "module options" object for something the module can read itself.
+
+1. **Own services** — `ctx.di.register({ name: ctx.asFunction(…).singleton() })`. The key is
+   claimed: a second writer gets `DuplicateRegistrationError`.
+2. **Ports you own** — `ctx.di.providePort('<name>', …)` for anything another module resolves.
+   It wraps the registration in a transient gate on the module's effective state, so a caller
+   gets the 503 `MODULE_DISABLED` envelope instead of a half-executed operation (Principle XVII).
+3. **Reading someone else's port** — `lazyPort<T>(ctx, 'literalPortName')`. **Never resolve a
+   port into a singleton**: Awilix strict mode refuses the capture, and it is right to — a
+   captured gate keeps answering after its owner is switched off. The name must be a **string
+   literal**, or `check-port-dependencies.ts` cannot see the edge (a `port(ctx, name)` helper
+   once hid fourteen resolutions, several registered by nobody, while the check read clean).
+4. **Declare the edge** — resolving a port owned by `X` puts `X` in your manifest
+   `dependencies`. That is what makes the edge real to the lifecycle, the migration order and
+   an operator switching `X` off. The port check fails the build without it.
+5. **Routes, workers, subscribers** — `ctx.routes` / `ctx.worker` / `ctx.subscribe`. These
+   already apply the gating wrappers; do not call `defineModuleRoutes` and friends by hand.
+6. **Settings your module owns** — read them through `settingsReadPort` inside the module.
+   A knob a root resolves on the module's behalf is a knob that drifts between the two roots,
+   and repeatedly did.
+7. **Never wrap a port call in a bare `catch`** — it swallows `ModuleDisabledError` and turns
+   fail-closed into fail-open. Where a degrade genuinely belongs, put it inside the owner's
+   implementation and express it in the return type
+   (`allowedIdsFor(): Promise<string[] | null>` is the worked example).
+8. **Boot hooks run per pass.** Composition runs two passes (`EARLY_PASS_MODULE_IDS` in
+   `backend/src/composition-passes.ts`), each registering its modules and then running *its*
+   boot hooks — so **a late-pass registration does not exist during an early-pass hook**. If
+   `ctx.onBoot` cannot resolve a name, move the **host** into the early pass; never reorder
+   hooks.
+9. **CI** — `pnpm --filter backend run check:port-dependencies`, `check:kernel-boundary`,
+   `check:container-imports`, and
+   `pnpm --filter backend exec vitest run test/contract/kernel/harness-parity.test.ts`
+   (drift between the two composition roots, as an explicit draining ledger).
+
+Full guide, including the contribution-point rules and the request scope:
+`docs/docs/architecture/kernel.md`.
+
 ### Admin permissions
 
 Every module with routes gated by `requireAdmin(...)` **must** register its permission codes
@@ -154,13 +197,14 @@ The gating wrappers exist in `backend/src/modules/_lifecycle/` (`defineModuleRou
 `defineModuleWorker`, `subscribeForModule`, `requireModuleEnabled`) — extend them to the
 effective state rather than adding a parallel check.
 
-**Check whether your module is converted before you wire anything.** A module with a
-`backend.ts` exporting `registerModule(ctx)` is composed through the kernel container, and
-`ctx.routes` / `ctx.worker` / `ctx.subscribe` already wrap it in the gating wrappers — you do
-not call them by hand, and you do not construct the module in `composition.ts` or
-`test-server.ts`. Feature 072 wave 1 converted 18 of them; 21 of 65 core modules now have a
-`backend.ts`, so this is no longer the rare case it was. For an unconverted module the
-wrappers still apply, called directly.
+**You almost never call those wrappers yourself.** All 65 core modules are composed through
+the kernel container (feature 072), and `ctx.routes` / `ctx.worker` / `ctx.subscribe` apply
+the wrappers for you — see the composition checklist above. Call them directly only where
+there is no `ModuleContext`: a CLI entry point, or an overlay module under
+`backend/src/apps/<deployment>/modules/`, which is still composed through the feature-057
+`overlayModule` factory. Four core modules (`newsletter`, `product_feeds`, `pim_ergonode`,
+`ksef`) still wrap a second time inside their `plugin.ts`; that is conversion residue, not a
+pattern to copy.
 
 1. **Routes** — wrap the module's route registration in `defineModuleRoutes('<id>', …)` so
    gating holds at the registration seam for every route the module owns, including later

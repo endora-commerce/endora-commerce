@@ -28,9 +28,23 @@ behaviour.**
 | `settings/`, `sales-channels/` | A settings read and a channel resolution back behaviour in nearly every module, so neither may be gated on any one of them (D-32) |
 | `lazy-port.ts` | How a module reads another module's port without freezing it |
 
-What that buys is a rule with teeth: **the kernel must not import from
-`src/modules/`**. `backend/scripts/check-kernel-boundary.ts` enforces it, and
-module→kernel is always allowed while kernel→module never is.
+The rule that follows is **the kernel must not import from `src/modules/`** —
+module→kernel is always allowed, kernel→module never is.
+
+**Today that rule is written down and not enforced, and the tree violates it.**
+`backend/scripts/check-kernel-boundary.ts` states it in its header, but its
+implementation walks only `*.entity.ts` files and inspects only ORM relation
+decorators: it checks **relations, not imports**. No other static check covers
+kernel→module specifiers either. So four value imports currently run from
+`src/kernel/` into `src/modules/_lifecycle/` — `module-context.ts` takes the
+three gating wrappers, `ports/provide.ts` takes `ModuleDisabledError` and
+`effectiveState` — and `_lifecycle` imports 21 times back into the kernel. A
+two-way knot, not a one-way reach.
+
+Decision **D-37** (`specs/072-module-kernel-di/plan.md`) closes it by moving the
+presence machinery into `src/kernel/lifecycle/` and shipping the missing import
+rule alongside the move. Until that lands, read the rule as the direction of
+travel rather than as something the build will catch for you.
 
 `ports/organizations.ts` shows the split at its clearest. The kernel declares
 `OrganizationReadPort` — `loadEffectiveOrganization`, `assertCanTransact`,
