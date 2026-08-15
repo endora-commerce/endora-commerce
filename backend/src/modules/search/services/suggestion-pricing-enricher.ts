@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DisplayMode, ProductSummary, SearchSuggestItem } from '@b2b/contracts';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import type { SuggestionPricingEnricher } from '../routes.public.js';
@@ -15,8 +16,11 @@ import type { SuggestionPricingEnricher } from '../routes.public.js';
  *
  * Pricing is resolved per hit in parallel, capped by the suggest `limit`
  * (default 8), and the resolver caches per-tuple for 60s, so the popup adds
- * at most one bounded fan-out. Any resolver error degrades that hit to the
- * plain summary — the popup never fails over a pricing hiccup.
+ * at most one bounded fan-out. A resolver *refusal* degrades that hit to the
+ * plain summary — the popup never fails over a pricing hiccup — but the
+ * module-presence answer is not a hiccup and is re-thrown (issue #84): a
+ * suggest popup with every price missing reads to a buyer as a catalogue
+ * without prices, not as `price_lists` being switched off.
  */
 
 export interface SuggestionPriceResolverPort {
@@ -78,7 +82,8 @@ export function createSuggestionPricingEnricher(deps: {
               : null,
             priceDisplayMode: out.displayMode,
           };
-        } catch {
+        } catch (error) {
+          rethrowIfModuleDisabled(error);
           return { ...item };
         }
       }),

@@ -102,27 +102,28 @@ export class CartPricingRecompute {
         recomputed.push({ cartItemId: line.cartItemId, amount: null, currency: 'PLN' });
         continue;
       }
-      try {
-        const resolved = await this.pricingService.resolveLinePrice({
-          product,
-          variantId: line.variantId ?? null,
-          context: {
-            quantity: line.quantity,
-            ...(organization ? { organization } : {}),
-            salesChannel: channel,
-          },
-        });
-        if (!resolved) {
-          recomputed.push({ cartItemId: line.cartItemId, amount: null, currency: 'PLN' });
-        } else {
-          recomputed.push({
-            cartItemId: line.cartItemId,
-            amount: Number(resolved.amount),
-            currency: resolved.currency,
-          });
-        }
-      } catch {
+      // No `catch` (issue #84): `resolveLinePrice` already answers "no resolver
+      // match" with `null`, which is the `amount: null` this loop wants, and
+      // that answer then goes into the recompute cache below. A `catch` here
+      // cached "no price" for the whole cart whenever `price_lists` was
+      // switched off, and the TTL kept doing it after it came back.
+      const resolved = await this.pricingService.resolveLinePrice({
+        product,
+        variantId: line.variantId ?? null,
+        context: {
+          quantity: line.quantity,
+          ...(organization ? { organization } : {}),
+          salesChannel: channel,
+        },
+      });
+      if (!resolved) {
         recomputed.push({ cartItemId: line.cartItemId, amount: null, currency: 'PLN' });
+      } else {
+        recomputed.push({
+          cartItemId: line.cartItemId,
+          amount: Number(resolved.amount),
+          currency: resolved.currency,
+        });
       }
     }
 

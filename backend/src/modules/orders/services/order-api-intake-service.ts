@@ -329,20 +329,21 @@ export class OrderApiIntakeService {
     channel: SalesChannel | null,
     quantity: number,
   ): Promise<boolean> {
+    // No `catch` (issue #84): `resolveLinePrice` returns `null` for "nothing
+    // resolves", which is the answer this probe wants, and the fall-through to
+    // the catalogue default below already covers it. Catching turned "the
+    // pricing engine is unreachable" into "this product is priced at the
+    // catalogue default", and the API accepted an order at that price.
     if (this.deps.pricingService && channel) {
-      try {
-        const resolved = await this.deps.pricingService.resolveLinePrice({
-          product,
-          context: {
-            quantity,
-            organization,
-            salesChannel: { id: channel.id, defaultCurrency: channel.defaultCurrency },
-          },
-        });
-        if (resolved) return true;
-      } catch {
-        // fall through to the catalog default below
-      }
+      const resolved = await this.deps.pricingService.resolveLinePrice({
+        product,
+        context: {
+          quantity,
+          organization,
+          salesChannel: { id: channel.id, defaultCurrency: channel.defaultCurrency },
+        },
+      });
+      if (resolved) return true;
     }
     const fallback = product.attributeValues['defaultPrice'] ?? product.attributeValues['price'];
     return fallback !== undefined && fallback !== null;

@@ -1632,21 +1632,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
                 : (role?.name ?? 'Administrator'),
         };
       },
+      // No `catch` (issue #84). `taxRateFor` already answers "nothing applies"
+      // as a value — `{ rate: 0, source: 'none' }` when neither a rule nor a
+      // default matches — so the only errors left here are a failing database
+      // and `taxes` being switched off. Returning 0 for either quoted a
+      // zero-VAT price on an operator's behalf and called it an answer.
       rfqTaxRateResolver: async (organizationId: string) => {
-        try {
-          const org = await em().findOne(Organization, { id: organizationId });
-          const vatStatus = org?.vatStatus ?? 'vat_payer';
-          if (vatStatus !== 'vat_payer') return 0;
-          const country = org?.registeredAddress?.country ?? 'PL';
-          const resolved = await taxesCradle.taxService.taxRateFor({
-            country,
-            productType: 'simple',
-            vatStatus,
-          });
-          return resolved.rate;
-        } catch {
-          return 0;
-        }
+        const org = await em().findOne(Organization, { id: organizationId });
+        const vatStatus = org?.vatStatus ?? 'vat_payer';
+        if (vatStatus !== 'vat_payer') return 0;
+        const country = org?.registeredAddress?.country ?? 'PL';
+        const resolved = await taxesCradle.taxService.taxRateFor({
+          country,
+          productType: 'simple',
+          vatStatus,
+        });
+        return resolved.rate;
       },
   });
 

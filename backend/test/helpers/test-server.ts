@@ -1867,21 +1867,20 @@ export async function setupBackendServer(
           roleLabel: role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
         };
       },
+      // No `catch`, exactly as production has none since issue #84 — a harness
+      // that swallowed what production propagates would hide the 503 the
+      // fail-closed tests exist to observe.
       rfqTaxRateResolver: async (organizationId: string) => {
-        try {
-          const org = await em().findOne(Organization, { id: organizationId });
-          const vatStatus = org?.vatStatus ?? 'vat_payer';
-          if (vatStatus !== 'vat_payer') return 0;
-          const country = org?.registeredAddress?.country ?? 'PL';
-          const resolved = await taxesCradle.taxService.taxRateFor({
-            country,
-            productType: 'simple',
-            vatStatus,
-          });
-          return resolved.rate;
-        } catch {
-          return 0;
-        }
+        const org = await em().findOne(Organization, { id: organizationId });
+        const vatStatus = org?.vatStatus ?? 'vat_payer';
+        if (vatStatus !== 'vat_payer') return 0;
+        const country = org?.registeredAddress?.country ?? 'PL';
+        const resolved = await taxesCradle.taxService.taxRateFor({
+          country,
+          productType: 'simple',
+          vatStatus,
+        });
+        return resolved.rate;
       },
   });
 
