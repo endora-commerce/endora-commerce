@@ -109,8 +109,13 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.routes(async (app) => {
-    const { comparisonService, comparisonAdminService, requireAdmin, comparisonShareTokens } =
-      ctx.cradle<ComparisonsCradle>();
+    const { requireAdmin, comparisonShareTokens } = ctx.cradle<ComparisonsCradle>();
+    // The module's own two ports, read lazily. Route *registration* runs
+    // whatever the module's effective state is — `defineModuleRoutes` gates
+    // requests, not the wiring — so destructuring a gated port here asked the
+    // gate inside `buildServer`, and an operator who had switched `comparisons`
+    // off stopped the backend from starting rather than stopping its routes.
+    const comparisonService = lazyPort<ComparisonService>(ctx, 'comparisonService');
     await registerComparisonsPublicRoutes(app, {
       comparisonService,
       tokens: comparisonShareTokens,
@@ -118,7 +123,7 @@ export function registerModule(ctx: ModuleContext): void {
     });
     await registerComparisonsShareRoutes(app, { comparisonService });
     await registerComparisonsAdminRoutes(app, {
-      adminService: comparisonAdminService,
+      adminService: lazyPort<ComparisonAdminService>(ctx, 'comparisonAdminService'),
       requireAdmin,
     });
   });

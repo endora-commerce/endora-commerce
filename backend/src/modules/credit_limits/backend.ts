@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { OrganizationInheritanceService } from '../organizations/services/organization-inheritance-service.js';
 import { CreditLimit } from './entities/credit-limit.entity.js';
@@ -79,10 +80,17 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   ctx.routes(async (app) => {
-    const { creditLimitService, emFactory, requireCustomer, requireAdmin, customerContextResolver } =
+    const { emFactory, requireCustomer, requireAdmin, customerContextResolver } =
       ctx.cradle<CreditLimitsCradle>();
     await registerCreditLimitsRoutes(app, {
-      creditLimitService,
+      // Lazily, even though the module owns this port: `providePort` gates on
+      // the module's effective state and route *registration* happens whatever
+      // that state is — only requests are gated. Destructuring it here asked
+      // the gate while `buildServer` was wiring the app, so an operator who had
+      // switched `credit_limits` off stopped the backend from starting instead
+      // of stopping its routes. Inside a handler the gate is open by
+      // construction, so nothing else changes.
+      creditLimitService: lazyPort<CreditLimitService>(ctx, 'creditLimitService'),
       emFactory,
       requireCustomer,
       requireAdmin,

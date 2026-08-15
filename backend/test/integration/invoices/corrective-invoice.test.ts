@@ -30,7 +30,7 @@ describe('invoices — corrective invoice from a return (US3)', () => {
     });
     provider = new CorrectiveInvoiceProvider(
       h.em,
-      new InvoiceNumberGenerator(createSettingsPatternResolver(h.settings.settingsService)),
+      () => new InvoiceNumberGenerator(createSettingsPatternResolver(h.settings.settingsService)),
     );
   });
   afterAll(async () => {

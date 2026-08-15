@@ -104,7 +104,32 @@ module was switched off.
 pricingService: lazyPort<PricingService>(ctx, 'pricingService'),
 ```
 
-Two rules that are easy to miss:
+**"Not into a singleton" means "not while wiring", full stop** — and the two
+places that look exempt are not. A **composition root** has no `ctx`, so it
+cannot call `lazyPort`, but reading a gated port at the top level of
+`composeApp()` is the same freeze with a worse blast radius: the read happens
+after `loadModulePresence()`, so a module the operator has switched off throws
+`ModuleDisabledError` out of composition and `index.ts` turns that into
+`process.exit(1)`. The operator's next start dies and the panel they would undo
+it from is unreachable. A root defers the same way `lifecycleManifestRegistry`
+does — a thunk resolved where the value is used:
+
+```ts
+// Not `creditLimitsCradle.creditLimitService`: resolved when a return is settled.
+creditTopup: new CreditTopupProvider(() => creditLimitsCradle.creditLimitService),
+```
+
+A **`ctx.routes` body** is the other one. `defineModuleRoutes` gates *requests*;
+the registration itself runs whatever the module's effective state is, inside
+`buildServer`. So destructuring your own gated port there asks the gate while
+the app is being wired, and switching the module off stops the backend from
+starting instead of stopping its routes. Take it with `lazyPort` — inside a
+handler the gate is open by construction, so nothing else changes.
+
+Both were live in the tree until feature 072's D-40 follow-up; the property is
+pinned by `backend/test/integration/kernel/deactivated-boot.test.ts`.
+
+Two more rules that are easy to miss:
 
 - **The name must be a string literal.** `backend/scripts/check-port-dependencies.ts`
   reads these statically; a variable or a `port(ctx, name)` helper hides the
