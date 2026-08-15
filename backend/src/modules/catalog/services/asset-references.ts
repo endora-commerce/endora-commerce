@@ -30,6 +30,7 @@ function productGalleryDescriptor(
   emFactory: () => EntityManager,
 ): AssetReferenceDescriptor {
   return {
+    ownerModuleId: 'catalog',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
       const em = emFactory();
@@ -64,6 +65,7 @@ function productAttachmentDescriptor(
   emFactory: () => EntityManager,
 ): AssetReferenceDescriptor {
   return {
+    ownerModuleId: 'catalog',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
       const em = emFactory();
@@ -96,6 +98,7 @@ function productVirtualDownloadDescriptor(
   emFactory: () => EntityManager,
 ): AssetReferenceDescriptor {
   return {
+    ownerModuleId: 'catalog',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
       const em = emFactory();
@@ -119,6 +122,7 @@ function categoryMainImageDescriptor(
   emFactory: () => EntityManager,
 ): AssetReferenceDescriptor {
   return {
+    ownerModuleId: 'catalog',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
       const em = emFactory();

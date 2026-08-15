@@ -143,14 +143,60 @@ Two more rules that are easy to miss:
 
 ## Two shapes for a module↔module edge
 
-| Shape | Who resolves | When | Use when |
-| --- | --- | --- | --- |
-| **Pull** — consumer resolves the provider's gated port | consumer | per call | the consumer needs an **answer** |
-| **Push at boot** — contributor resolves the host's registry port in `ctx.onBoot` and calls a mutator | contributor | once | the provider must add a **descriptor** to a set the host enumerates |
+| Shape | Who resolves | Gated? | When | Use when |
+| --- | --- | --- | --- | --- |
+| **Pull** — consumer resolves the provider's port | consumer | yes — `ctx.di.providePort` | per call | the consumer needs an **answer** |
+| **Push at boot** — contributor resolves the host's registry in `ctx.onBoot` and calls a mutator | contributor | **no** — `ctx.di.register` | once | the contributor must add a **descriptor** to a set the host enumerates |
 
 Most edges are pulls. The push shape is for registries — transactional-email
 defaults, reference registries, adapter tables — where a module contributes
 something the host later walks.
+
+**A contribution registry is never a gated port** (feature 072, D-39). The rule:
+
+> A registration whose whole contract is *"add an inert descriptor to a table
+> the host walks later"* is `ctx.di.register` and is **never** gated. A
+> registration that computes, decides, decrypts, sends, charges or writes on the
+> owning module's behalf is a `providePort` and fails closed.
+
+The reason is mechanical, not stylistic. Boot hooks run regardless of effective
+state (see rule 4 below), and a gated port throws `ModuleDisabledError` on
+resolution — so gating a registry means every contributor's boot hook throws the
+moment an operator switches the **host** off, and the platform does not start.
+`transactional_emails` has seven contributors; `cms` has one. The operator broke
+the next start by using a switch they were entitled to use, and the crash named a
+module they never touched. `check-port-dependencies.ts` refuses the shape now, at
+both sites where it can bite: a gated port resolved in a `ctx.onBoot` hook and one
+destructured in a `ctx.routes` body.
+
+Nothing leaks by leaving the registry ungated, because the two halves are
+separable: `credentials` hands out its `configurationTypeRegistry` freely and
+keeps `credentialsService` — which decrypts — a port; `transactional_emails`
+hands out `emailDefaultsPort` and keeps `templateEmailPort`, which sends.
+
+**The host answers the presence question instead, at enumeration.** That is the
+right place for it: whether a descriptor should be live depends on the
+**contributor**, and a gate on the host's registration cannot express that at
+all. So every registry records the contributing module id on each entry and
+states, **per registry**, whether an entry is honoured while its owner is absent.
+Default: not honoured. Honouring it requires a written reason at the class.
+
+Two answers are legitimate, and which one is right depends on what the entry is:
+
+- **Skip** — for *surface-like* contributions: an interceptor, a palette action,
+  a storefront element, a settings group. A switched-off module must contribute
+  nothing a user can see, so `ctx.interceptors` stamps `module: id` and dispatch
+  skips entries whose owner is not enabled.
+- **Honour** — for *integrity-like* ones: the reference registries that refuse a
+  delete. A switched-off `blog` still owns posts that embed an asset, and
+  skipping its scanner would let an operator delete an asset that comes back
+  broken when `blog` is switched on again — data lost by an action Constitution
+  XVII calls reversible. `EmailDefaultsRegistry` honours for a different reason,
+  written at the class: its rows are seeded from the **platform** axis, so
+  skipping would not remove a row, it would create one with an empty template.
+
+All four registries D-39 converted honour, each with its reason in place; the
+policies are pinned by `backend/test/unit/kernel/contribution-seams.test.ts`.
 
 **Do not wrap a port call in a bare `catch`.** `lazyPort` resolves inside the
 forwarded call, so `ModuleDisabledError` surfaces at the call site, and a
@@ -236,23 +282,40 @@ values read *at construction*; anything read per request or per call is
 insensitive to it — but do not rely on that without saying so.
 
 **4. Boot hooks run regardless of effective state.** `runBootHooks()` does not
-consult module presence, so a switched-off module's hook still runs. If your
-hook pushes a descriptor into another module's registry, the **host** must
-filter by owner at enumeration time — the way `ctx.interceptors` stamps
-`module: id` and dispatch skips entries whose owner is not enabled.
+consult module presence, so a switched-off module's hook still runs. Two
+consequences, and the second one used to be stated too narrowly here.
+
+Never resolve a **gated port** from a boot hook: the gate has a real "no" answer
+at that point and answering it kills the boot. If the name is a contribution
+registry, it should not have been a port at all — see D-39 above.
+
+If your hook pushes a descriptor into another module's registry, the **host**
+decides whether that entry is live, at enumeration time, keyed on the
+contributing module id it records. "The host must filter" is one of two right
+answers, not the rule: *skip* suits surface-like contributions — the way
+`ctx.interceptors` stamps `module: id` and dispatch skips entries whose owner is
+not enabled — and *honour* suits integrity-like ones, where skipping would let an
+absent module's data be silently orphaned. State which one, per registry, with
+the reason.
 
 ## The checks
 
 | Script | What it refuses |
 | --- | --- |
 | `check-kernel-boundary.ts` | kernel importing from `src/modules/` |
-| `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a root shadowing a module's port; a computed port name |
+| `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a **gated port resolved from a `ctx.onBoot` hook or a `ctx.routes` body**; a root shadowing a module's port; a computed port name |
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
 | `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger |
 
-The port check carries one allow-list, meant to drain rather than grow:
+The port check carries two allow-lists, both meant to drain rather than grow:
 `HOST_REGISTERED_PORTS` (a root registering on behalf of a module that has not
-converted). The other exemption is no longer the script's: an edge that cannot be
+converted) and `WIRING_RESOLUTIONS_TO_DRAIN` — the ten gated ports still
+destructured in a `ctx.routes` body when D-39 taught the check to see the shape.
+A **new** one fails the build; the ten are named, one line each to fix. Ports
+owned by a `nonDeactivatable` module are not on that list and never will be: the
+exemption is computed from the manifests, because a gate the orchestrator refuses
+to close on either axis has no state in which it can throw. The other exemption
+is no longer the script's: an edge that cannot be
 declared because declaring it would close a manifest cycle is declared in the
 resolving module's manifest, as `acknowledgedDependencies` — `organizations`
 resolving `addressService` is the worked example, since `addresses` declares

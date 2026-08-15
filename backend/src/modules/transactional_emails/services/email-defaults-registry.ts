@@ -14,27 +14,53 @@ export interface EmailDefaults {
   defaultContent: Record<string, unknown>;
 }
 
+/**
+ * Enumeration policy: **honoured** while the contributing module is absent
+ * (feature 072, D-39).
+ *
+ * D-39's default is the opposite — an entry belonging to a switched-off module
+ * is skipped — and honouring one needs a written reason. This is it.
+ *
+ * The definition *rows* this registry feeds are created from the **platform**
+ * axis: `TransactionalEmailReconciler` walks `resolvedModuleRegistry`, so a row
+ * exists because the module is installed, not because an operator activated it.
+ * Skipping a deactivated contributor's entry would not remove that row — it
+ * would create it with an empty `defaultSubject` and an empty content envelope
+ * (`manifest-reconciler.ts:69-81`), so an activation flip would silently rewrite
+ * persisted content. Constitution XVII is explicit that off drops no data and no
+ * configuration; a policy whose effect is "blank the seeded template" fails that
+ * on the one axis it was supposed to protect.
+ *
+ * The genuine Constitution XVII question here is a different one — whether a
+ * switched-off module's email should appear in the admin list at all — and it
+ * belongs to the reconciler's *manifest source*, not to this table. Narrowing
+ * that source is destructive: the reconciler prunes every row whose code is not
+ * currently declared, and the FK cascade takes the admin customizations with it.
+ * That is its own change, with its own test, and it is not this one.
+ */
 export class EmailDefaultsRegistry {
   private readonly byCode = new Map<string, EmailDefaults>();
   private readonly ownerByCode = new Map<string, string>();
 
   /**
-   * `ownerModuleId` is recorded from T143a, when the fourteen registrations
-   * moved out of the composition root and into the modules that declare the
-   * codes in their own manifests. It is not read yet: the reconciler decides
-   * what to seed from the resolved manifest list, and narrowing that to
-   * *effective* presence would change which definitions exist in a database
-   * when an operator switches a module off — a behavioural decision that
-   * belongs in its own change, not smuggled into a relocation. The ownership
-   * is captured here so that decision has something to key on.
+   * `ownerModuleId` is required since D-39: a contribution seam records who
+   * contributed, so the honour/skip question above has something to key on and
+   * so an entry can be attributed without guessing. It became required rather
+   * than optional because an optional owner makes "nobody stated a policy for
+   * this entry" indistinguishable from "this entry has no owner".
    */
-  register(code: string, defaults: EmailDefaults, ownerModuleId?: string): void {
+  register(code: string, defaults: EmailDefaults, ownerModuleId: string): void {
     this.byCode.set(code, defaults);
-    if (ownerModuleId !== undefined) this.ownerByCode.set(code, ownerModuleId);
+    this.ownerByCode.set(code, ownerModuleId);
   }
 
   ownerOf(code: string): string | undefined {
     return this.ownerByCode.get(code);
+  }
+
+  /** Every registered code with its contributing module — the owner ledger. */
+  owners(): ReadonlyMap<string, string> {
+    return new Map(this.ownerByCode);
   }
 
   get(code: string): EmailDefaults | undefined {

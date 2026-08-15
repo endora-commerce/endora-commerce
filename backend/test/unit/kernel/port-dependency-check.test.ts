@@ -83,12 +83,14 @@ describe('findViolations', () => {
     moduleId: string,
     name: string,
     kind: PortResolution['kind'] = 'deferred',
+    site: PortResolution['site'] = 'call',
   ): PortResolution => ({
     moduleId,
     name,
     file: `/repo/backend/src/modules/${moduleId}/backend.ts`,
     line: 1,
     kind,
+    site,
   });
 
   it('accepts a platform name with nothing declared', () => {
@@ -243,6 +245,174 @@ describe('findViolations', () => {
     });
     expect(violations).toHaveLength(1);
     expect(violations[0]?.kind).toBe('captured-name');
+  });
+
+  /**
+   * D-39's ratchet: a **gated port** resolved before the first request.
+   *
+   * Both sites run whatever the module's effective state is — `runBootHooks()`
+   * does not consult presence, and `defineModuleRoutes` gates requests rather
+   * than the registration — so resolving a gate at either one turns an
+   * operator's off-switch into a dead deployment. Nothing else sees it: the
+   * types match, the dependency is declared, and the capture rule does not
+   * apply because both reads are genuinely deferred.
+   */
+  it('refuses a gated port resolved inside a boot hook', () => {
+    const violations = findViolations({
+      resolutions: [resolution('megamenu', 'cmsReferenceRegistry', 'deferred', 'boot')],
+      owners: new Map([['cmsReferenceRegistry', 'cms']]),
+      dependencies: new Map([['megamenu', ['cms']]]),
+      providedPorts: new Map([['cmsReferenceRegistry', 'cms']]),
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.kind).toBe('gated-port-at-boot');
+    const message = describeViolation(violations[0]!);
+    expect(message).toContain('boot hook');
+    expect(message).toContain('ctx.di.register');
+  });
+
+  it('refuses a gated port a module resolves in its own boot hook', () => {
+    // `megamenu`'s hook resolved `megamenuReferenceRegistry`, which `megamenu`
+    // itself provided as a port: switching the module off stopped the backend
+    // from starting, at the module's own registration.
+    const violations = findViolations({
+      resolutions: [resolution('megamenu', 'megamenuReferenceRegistry', 'deferred', 'boot')],
+      owners: new Map([['megamenuReferenceRegistry', 'megamenu']]),
+      dependencies: new Map([['megamenu', []]]),
+      providedPorts: new Map([['megamenuReferenceRegistry', 'megamenu']]),
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.kind).toBe('gated-port-at-boot');
+  });
+
+  it('refuses a gated port resolved in a route-registration body', () => {
+    // `ctx.routes`' callback runs inside `buildServer`, unconditionally.
+    // `comparisons` and `credit_limits` both destructured their own gated ports
+    // there and stopped the backend from starting when switched off.
+    const violations = findViolations({
+      resolutions: [resolution('comparisons', 'comparisonService', 'deferred', 'wiring')],
+      owners: new Map([['comparisonService', 'comparisons']]),
+      dependencies: new Map([['comparisons', []]]),
+      providedPorts: new Map([['comparisonService', 'comparisons']]),
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.kind).toBe('gated-port-at-wiring');
+    expect(describeViolation(violations[0]!)).toContain('lazyPort');
+  });
+
+  it('accepts an ungated contribution registry resolved from a boot hook', () => {
+    // The whole point of D-39: a `ctx.di.register` name is an inert table, and
+    // pushing a descriptor into it at boot is the sanctioned shape.
+    expect(
+      findViolations({
+        resolutions: [resolution('megamenu', 'cmsReferenceRegistry', 'deferred', 'boot')],
+        owners: new Map([['cmsReferenceRegistry', 'cms']]),
+        dependencies: new Map([['megamenu', ['cms']]]),
+        providedPorts: new Map(),
+      }),
+    ).toEqual([]);
+  });
+
+  it('accepts a gated port resolved inside a request handler', () => {
+    expect(
+      findViolations({
+        resolutions: [resolution('blog', 'dictionaryValidator', 'deferred', 'call')],
+        owners: new Map([['dictionaryValidator', 'dictionaries']]),
+        dependencies: new Map([['blog', ['dictionaries']]]),
+        providedPorts: new Map([['dictionaryValidator', 'dictionaries']]),
+      }),
+    ).toEqual([]);
+  });
+});
+
+/**
+ * Where a resolution *happens*, which is what the two rules above key on.
+ *
+ * `kind` answers "does this resolve once or per call"; `site` answers "does it
+ * resolve before the platform serves its first request". They are independent:
+ * a boot-hook read is deferred and still fatal.
+ */
+describe('resolvedNames — the resolution site', () => {
+  const file = '/repo/backend/src/modules/megamenu/backend.ts';
+
+  it('marks a cradle read inside ctx.onBoot as a boot resolution', () => {
+    const source = `
+      export function registerModule(ctx: ModuleContext): void {
+        ctx.onBoot(() => {
+          const { cmsReferenceRegistry } = ctx.cradle<MegamenuCradle>();
+          registerMegamenuCmsReferences(cmsReferenceRegistry);
+        });
+      }
+    `;
+    expect(resolvedNames(source, file)).toContainEqual(
+      expect.objectContaining({ name: 'cmsReferenceRegistry', site: 'boot' }),
+    );
+  });
+
+  it('marks a lazyPort built inside ctx.onBoot as a boot resolution', () => {
+    // `lazyPort` defers to the call — and inside a boot hook the call is two
+    // lines down. All seven `emailDefaultsPort` contributors had this shape.
+    const source = `
+      export function registerModule(ctx: ModuleContext): void {
+        ctx.onBoot(async () => {
+          const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+          defaults.register('code', DEFAULTS, 'megamenu');
+        });
+      }
+    `;
+    expect(resolvedNames(source, file)).toContainEqual(
+      expect.objectContaining({ name: 'emailDefaultsPort', site: 'boot' }),
+    );
+  });
+
+  it('marks a cradle read in the ctx.routes body as a wiring resolution', () => {
+    const source = `
+      export function registerModule(ctx: ModuleContext): void {
+        ctx.routes(async (app) => {
+          const { comparisonService } = ctx.cradle<ComparisonsCradle>();
+          await register(app, { comparisonService });
+        });
+      }
+    `;
+    expect(resolvedNames(source, file)).toContainEqual(
+      expect.objectContaining({ name: 'comparisonService', site: 'wiring' }),
+    );
+  });
+
+  it('does not call a read inside a route handler a wiring resolution', () => {
+    const source = `
+      export function registerModule(ctx: ModuleContext): void {
+        ctx.routes(async (app) => {
+          app.get('/x', async () => ctx.cradle<C>().comparisonService.list());
+        });
+      }
+    `;
+    expect(resolvedNames(source, file)).toContainEqual(
+      expect.objectContaining({ name: 'comparisonService', site: 'call' }),
+    );
+  });
+
+  it('does not call a subscriber body a wiring resolution', () => {
+    // `ctx.subscribe`'s handler runs per event, not at registration — so the
+    // gate is asked when there is something to gate.
+    const source = `
+      export function registerModule(ctx: ModuleContext): void {
+        ctx.subscribe('order.placed', async () => {
+          const { pricingService } = ctx.cradle<C>();
+          await pricingService.recalculate();
+        });
+      }
+    `;
+    expect(resolvedNames(source, file)).toContainEqual(
+      expect.objectContaining({ name: 'pricingService', site: 'call' }),
+    );
+  });
+
+  it('leaves a plain factory read at the call site', () => {
+    const source = 'ctx.asFunction(({ emFactory }: C) => 1).singleton();';
+    expect(resolvedNames(source, file)).toContainEqual(
+      expect.objectContaining({ name: 'emFactory', site: 'call' }),
+    );
   });
 });
 
@@ -471,6 +641,7 @@ describe('resolvedNames — lazyPort', () => {
           file,
           line: 3,
           kind: 'deferred',
+          site: 'call',
         },
       ],
       owners: new Map(),

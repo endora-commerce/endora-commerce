@@ -12,7 +12,7 @@
  * it, and an operator switching the provider off finds out from a 503 in a
  * module whose manifest says it depends on nothing.
  *
- * Two properties are enforced:
+ * Three properties are enforced:
  *
  *   1. Every name a module resolves is owned by *something* — a module, the
  *      kernel, or the platform. A name nobody registers is a wiring bug that
@@ -21,6 +21,14 @@
  *   2. When the owner is another module, that module is in the resolver's
  *      **transitive** `manifest.dependencies` closure — the same closure the
  *      migration ordering and the lifecycle dependency check use.
+ *   3. No **gated port** is resolved before the platform serves its first
+ *      request — not from a `ctx.onBoot` hook, not from a `ctx.routes` body
+ *      (feature 072, D-39). Both run whatever the owning module's effective
+ *      state is, so the gate has a real "no" answer there, and answering it
+ *      turns an operator's supported off-switch into a backend that will not
+ *      start. A name whose whole contract is "a table of inert descriptors the
+ *      host walks" should not have been a port; one that computes, decides,
+ *      decrypts, sends or charges should not be resolved that early.
  *
  * **This is a hard failure, not a report-only ratchet**, and it can be because
  * it only sees modules that actually resolve through the container: the check
@@ -290,6 +298,26 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
  */
 export const NON_LITERAL_PORT_NAME = '<computed>';
 
+/**
+ * *When* a resolution happens, which is what the gated-port rule below keys on
+ * (feature 072, D-39).
+ *
+ * `kind` answers "once or per call"; this answers "before or after the platform
+ * serves its first request". They are independent — a boot-hook read is
+ * genuinely deferred and still fatal — and only this one sees the failure that
+ * took the backend down twice:
+ *
+ *  - `boot` — lexically inside a `ctx.onBoot` hook. `runBootHooks()` does not
+ *    consult module presence, so the hook runs whatever the module's effective
+ *    state is.
+ *  - `wiring` — the body of the `ctx.routes` callback itself. It runs inside
+ *    `buildServer`, unconditionally: `defineModuleRoutes` gates *requests*, not
+ *    the registration. A read inside a handler is not this — that is `call`.
+ *  - `call` — everything else: a request handler, a subscriber, a worker
+ *    processor, a method on a service.
+ */
+export type ResolutionSite = 'boot' | 'wiring' | 'call';
+
 export interface PortResolution {
   readonly moduleId: string;
   readonly name: string;
@@ -304,6 +332,8 @@ export interface PortResolution {
    *    moment of use.
    */
   readonly kind: 'captured' | 'deferred';
+  /** See {@link ResolutionSite}. */
+  readonly site: ResolutionSite;
 }
 
 /**
@@ -394,6 +424,41 @@ export const ALLOWED_CAPTURES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Gated ports still resolved in a `ctx.routes` body, keyed `<moduleId>:<name>`
+ * — the standing inventory of D-39's second hazard, **meant to drain**.
+ *
+ * Route *registration* runs inside `buildServer` whatever the module's
+ * effective state is; only requests are gated. So a destructured port here asks
+ * the gate while the app is being wired, and an operator who switched the owner
+ * off stops the next start instead of stopping the routes. `comparisons` and
+ * `credit_limits` shipped exactly that and were fixed in D-40; this table is the
+ * other ten, found when the check learned to see the shape.
+ *
+ * The fix is one line each — hand the registrar `lazyPort<T>(ctx, '<name>')`
+ * instead of the destructured value, as `credit_limits/backend.ts:88` now does.
+ * Inside a handler the gate is open by construction, and a closed one is the 503
+ * it was always supposed to be.
+ *
+ * They are listed rather than swept because the sweep touches eight modules that
+ * belong to other work in flight, and a ratchet with a named debt is worth more
+ * than a report nobody reads: a **new** occurrence fails the build today.
+ * Ports owned by a `nonDeactivatable` module are not here and never will be —
+ * that exemption is computed from the manifests (see {@link CheckInput}).
+ */
+export const WIRING_RESOLUTIONS_TO_DRAIN: ReadonlySet<string> = new Set([
+  'admin_notifications:adminNotificationService',
+  'credentials:credentialsService',
+  'payments:paymentService',
+  'payments:receivePaymentHandler',
+  'promotions:promotionService',
+  'sales_channels:salesChannelsService',
+  'shipments:receiveShipmentHandler',
+  'shipments:shipmentService',
+  'taxes:taxService',
+  'webhooks:webhookService',
+]);
+
+/**
  * Port edges a module may resolve **without** declaring the owner, because
  * declaring it would close a manifest cycle.
  *
@@ -421,7 +486,12 @@ export function acknowledgedPortEdges(
 }
 
 export interface PortViolation {
-  readonly kind: 'undeclared-dependency' | 'unowned-name' | 'captured-name';
+  readonly kind:
+    | 'undeclared-dependency'
+    | 'unowned-name'
+    | 'captured-name'
+    | 'gated-port-at-boot'
+    | 'gated-port-at-wiring';
   readonly resolution: PortResolution;
   readonly owner: string | null;
 }
@@ -506,6 +576,55 @@ export function providedPortNames(source: string, file: string): string[] {
   return names;
 }
 
+type FunctionLike =
+  | ts.ArrowFunction
+  | ts.FunctionExpression
+  | ts.FunctionDeclaration
+  | ts.MethodDeclaration;
+
+function isFunctionLike(node: ts.Node): node is FunctionLike {
+  return (
+    ts.isArrowFunction(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isFunctionDeclaration(node) ||
+    ts.isMethodDeclaration(node)
+  );
+}
+
+/** Is `node` the first argument of a `ctx.<seam>(…)` call? */
+function isCallbackOf(seam: string, node: ts.Node): boolean {
+  const parent = node.parent;
+  return (
+    parent !== undefined &&
+    ts.isCallExpression(parent) &&
+    calleeTail(parent) === seam &&
+    parent.arguments[0] === node
+  );
+}
+
+/**
+ * Where in the module's lifecycle this read happens — see {@link ResolutionSite}.
+ *
+ * `boot` is lexical and deliberately wide: `lazyPort` defers to the method
+ * call, and inside a boot hook that call is two lines down. All seven
+ * `emailDefaultsPort` contributors had exactly that shape, and every one of
+ * them would have failed the boot had the port stayed gated.
+ *
+ * `wiring` is narrow on purpose: only the `ctx.routes` callback's own body,
+ * because that is what runs during `buildServer`. Anything nested one function
+ * deeper — a route handler, an `onRequest` hook, a preHandler — runs per
+ * request, where a gate is exactly what should be asked.
+ */
+function siteAt(node: ts.Node): ResolutionSite {
+  for (let current: ts.Node | undefined = node; current; current = current.parent) {
+    if (isCallbackOf('onBoot', current)) return 'boot';
+  }
+  let enclosing: ts.Node | undefined = node.parent;
+  while (enclosing && !isFunctionLike(enclosing)) enclosing = enclosing.parent;
+  if (enclosing && isCallbackOf('routes', enclosing)) return 'wiring';
+  return 'call';
+}
+
 /**
  * Every registration name a module resolves.
  *
@@ -520,13 +639,19 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const found: PortResolution[] = [];
 
-  const record = (name: string, node: ts.Node, kind: PortResolution['kind']): void => {
+  const record = (
+    name: string,
+    node: ts.Node,
+    kind: PortResolution['kind'],
+    site: ResolutionSite = siteAt(node),
+  ): void => {
     found.push({
       moduleId,
       name,
       file,
       line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
       kind,
+      site,
     });
   };
 
@@ -616,18 +741,27 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
       // Always `deferred`: the proxy resolves the name on each method call, not
       // when it is constructed. That is the whole point of the helper, and it
       // is why capturing one is safe where capturing a port is not.
+      //
+      // The same reasoning decides the **site**, and it is why a `lazyPort` is
+      // not read positionally like a cradle access. Building one in a
+      // `ctx.routes` body resolves nothing — that is the sanctioned fix for the
+      // wiring hazard, not an instance of it, so it is a `call`. Building one
+      // in a boot hook is different in kind: the whole hook body is pre-request,
+      // so the method call it defers to happens at boot too, usually on the next
+      // line. All seven `emailDefaultsPort` contributors were exactly that.
       const calleeName = ts.isIdentifier(node.expression) ? node.expression.text : tail;
       if (calleeName === 'lazyPort') {
         const [, nameArgument] = node.arguments;
+        const lazySite: ResolutionSite = siteAt(node) === 'boot' ? 'boot' : 'call';
         if (nameArgument !== undefined) {
           if (ts.isStringLiteralLike(nameArgument)) {
-            record(nameArgument.text, nameArgument, 'deferred');
+            record(nameArgument.text, nameArgument, 'deferred', lazySite);
           } else {
             // A name this check cannot read statically must not pass silently.
             // A generic `port(ctx, name)` helper written during T131 hid twelve
             // resolutions behind a variable; the fix is to refuse the shape,
             // not to guess at it.
-            record(NON_LITERAL_PORT_NAME, nameArgument, 'deferred');
+            record(NON_LITERAL_PORT_NAME, nameArgument, 'deferred', lazySite);
           }
         }
       }
@@ -673,6 +807,18 @@ export interface CheckInput {
    */
   readonly providedPorts?: ReadonlyMap<string, string> | undefined;
   /**
+   * Module ids whose manifest declares `activation.nonDeactivatable` — the
+   * modules the lifecycle orchestrator refuses to switch off on **either** axis.
+   *
+   * Their ports are gates that can never close, so resolving one at boot or
+   * while wiring routes has no state in which it can throw. That is the reason
+   * D-40 left `auth`'s `requireAdmin` and `_i18n`'s reconciler eager, written
+   * down once instead of as twenty-nine allow-list entries — and read from the
+   * manifests, so a module that stops being non-deactivatable makes every one of
+   * those reads a violation on the same run.
+   */
+  readonly neverAbsentOwners?: ReadonlySet<string> | undefined;
+  /**
    * `<resolving module>:<port>` → reason, from the manifests'
    * `acknowledgedDependencies` (see {@link acknowledgedPortEdges}). Omitted
    * means "no edge is acknowledged", which is what a unit test over hand-built
@@ -700,6 +846,30 @@ export function findViolations(input: CheckInput): PortViolation[] {
         kind: 'captured-name',
         resolution,
         owner: input.owners.get(resolution.name) ?? null,
+      });
+      continue;
+    }
+    // D-39's ratchet: a **gated** port resolved before the platform serves its
+    // first request. Both sites run whatever the owning module's effective
+    // state is, so the gate has a real "no" answer there — and answering it
+    // turns an operator's supported off-switch into a dead deployment. It is
+    // independent of ownership and of the capture rule: `megamenu` resolved a
+    // port it owned itself, from its own boot hook, with the dependency
+    // declared and the read genuinely deferred.
+    const portOwner = providedPorts.get(resolution.name);
+    if (
+      portOwner !== undefined &&
+      resolution.site !== 'call' &&
+      !(input.neverAbsentOwners ?? new Set<string>()).has(portOwner) &&
+      !(
+        resolution.site === 'wiring' &&
+        WIRING_RESOLUTIONS_TO_DRAIN.has(`${resolution.moduleId}:${resolution.name}`)
+      )
+    ) {
+      violations.push({
+        kind: resolution.site === 'boot' ? 'gated-port-at-boot' : 'gated-port-at-wiring',
+        resolution,
+        owner: portOwner,
       });
       continue;
     }
@@ -894,6 +1064,32 @@ export function describe(violation: PortViolation, srcRoot = SRC_ROOT): string {
       `    at the point of use instead.`
     );
   }
+  if (violation.kind === 'gated-port-at-boot') {
+    return (
+      `  - ${resolution.moduleId} resolves the gated port '${resolution.name}' (owned by ` +
+      `'${owner}') from a boot hook (${where}).\n` +
+      `    Boot hooks run whatever the module's effective state is — \`runBootHooks()\` does\n` +
+      `    not consult presence — so the gate throws MODULE_DISABLED during composition and\n` +
+      `    index.ts turns that into process.exit(1). An operator switching '${owner}' off on\n` +
+      `    /platform/modules would stop the next start, with the API down and the screen they\n` +
+      `    would undo it from unreachable.\n` +
+      `    If the name is a table of inert descriptors, it is a contribution seam: register it\n` +
+      `    with \`ctx.di.register\` in '${owner}' and filter at enumeration, keyed on the\n` +
+      `    contributing module (D-39). If it computes, decides, decrypts, sends or charges, it\n` +
+      `    stays a port — move the resolution to the point of use.`
+    );
+  }
+  if (violation.kind === 'gated-port-at-wiring') {
+    return (
+      `  - ${resolution.moduleId} resolves the gated port '${resolution.name}' (owned by ` +
+      `'${owner}') in a ctx.routes body (${where}).\n` +
+      `    Route *registration* runs inside \`buildServer\` unconditionally;\n` +
+      `    \`defineModuleRoutes\` gates requests, not the wiring. Asking the gate here stops\n` +
+      `    the backend from starting instead of stopping the module's routes.\n` +
+      `    Pass \`lazyPort<T>(ctx, '${resolution.name}')\` into the registrar instead — inside a\n` +
+      `    handler the gate is open by construction, and a closed one is the 503 it should be.`
+    );
+  }
   if (violation.kind === 'unowned-name' && resolution.name === NON_LITERAL_PORT_NAME) {
     return (
       `  - ${resolution.moduleId} calls lazyPort with a computed name (${where}).\n` +
@@ -962,13 +1158,33 @@ async function main(): Promise<void> {
     }
   }
 
+  // The modules the orchestrator refuses to switch off on either axis, read
+  // from their manifests rather than listed here — see `CheckInput`.
+  const neverAbsentOwners = new Set(
+    DISCOVERED_MANIFESTS.filter(
+      (entry) =>
+        (entry.manifest.activation as { nonDeactivatable?: boolean } | undefined)
+          ?.nonDeactivatable === true,
+    ).map((entry) => entry.id),
+  );
+
   const violations = findViolations({
     resolutions,
     owners,
     dependencies,
     providedPorts: moduleRegistered,
+    neverAbsentOwners,
     acknowledged,
   });
+
+  // A drain-list entry whose site is fixed is dead weight, and dead weight in a
+  // debt table is how the debt outlives the fix.
+  const wiringSites = new Set(
+    resolutions
+      .filter((r) => r.site === 'wiring' && moduleRegistered.has(r.name))
+      .map((r) => `${r.moduleId}:${r.name}`),
+  );
+  const drained = [...WIRING_RESOLUTIONS_TO_DRAIN].filter((entry) => !wiringSites.has(entry));
   const rootNames = new Map<string, ReadonlySet<string>>();
   for (const [label, relative] of Object.entries(ROOT_FILES)) {
     const full = join(SRC_ROOT, '..', relative);
@@ -992,8 +1208,17 @@ async function main(): Promise<void> {
   console.log(
     `[port-deps] modules scanned=${new Set(files.map(moduleOf)).size} ` +
       `resolutions=${resolutions.length} violations=${violations.length} ` +
-      `root-issues=${rootIssues.length}`,
+      `root-issues=${rootIssues.length} ` +
+      `wiring-debt=${WIRING_RESOLUTIONS_TO_DRAIN.size - drained.length}`,
   );
+
+  if (drained.length > 0) {
+    console.error(
+      `\nWIRING_RESOLUTIONS_TO_DRAIN entries that no longer resolve a gated port in a ` +
+        `ctx.routes body — delete them, so the table keeps meaning what it says:`,
+    );
+    for (const entry of drained) console.error(`  - ${entry}`);
+  }
 
   if (stale.length > 0) {
     console.error(
@@ -1019,7 +1244,11 @@ async function main(): Promise<void> {
     for (const violation of violations) console.error(describe(violation));
   }
 
-  process.exit(violations.length === 0 && stale.length === 0 && rootIssues.length === 0 ? 0 : 1);
+  process.exit(
+    violations.length === 0 && stale.length === 0 && rootIssues.length === 0 && drained.length === 0
+      ? 0
+      : 1,
+  );
 }
 
 // Run as CLI only — importing this module (e.g. from a unit test) must not

@@ -18,15 +18,21 @@ import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered
  * that `process.exit(1)`, and with the API down the operator could not reach
  * the screen to undo their own change.
  *
- * **One composition, four deactivations.** The four sites are independent —
- * each reads a port owned by exactly one module — so deactivating all four at
- * once exercises all four, and the presence assertions below name each one so a
- * regression says which. That matters: `production-boot.test.ts` states the
- * budget, one composition per suite run, and this is the second. Four would be
- * six, for nothing. The cost of sharing the boot is attribution: composition
- * stops at the first offending read, so every case fails together and names the
- * module that threw — the one reached first, not necessarily the only one
- * broken.
+ * D-39 added the mirror image, and it is the worse half. The four sites above
+ * are a module reading somebody else's port at boot; the two added with it are a
+ * **host** whose contribution registry was a gated port, so switching the *host*
+ * off made every contributor's boot hook throw. `transactional_emails` has seven
+ * of them. Same crash, and a failure message naming a module the operator never
+ * touched.
+ *
+ * **One composition, six deactivations.** The sites are independent — each reads
+ * a name owned by exactly one module — so deactivating all six at once exercises
+ * all six, and the presence assertions below name each one so a regression says
+ * which. That matters: `production-boot.test.ts` states the budget, one
+ * composition per suite run, and this is the second. Six would be seven, for
+ * nothing. The cost of sharing the boot is attribution: composition stops at the
+ * first offending read, so every case fails together and names the module that
+ * threw — the one reached first, not necessarily the only one broken.
  *
  * **What this covers and what it does not.** It covers what composition and
  * `buildServer` do when `effectiveState` answers "absent" — boot hooks, root
@@ -38,8 +44,28 @@ import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered
  * `test/unit/_lifecycle/activation-resolver.test.ts` owns it.
  */
 
-/** The operator axis: modules an operator can switch off from `/platform/modules`. */
-const DEACTIVATED = ['comparisons', 'invoices', 'credit_limits', 'admin_actions'] as const;
+/**
+ * The operator axis: modules an operator can switch off from `/platform/modules`.
+ *
+ * The last two are D-39's half of the same property, and they are **hosts** of a
+ * contribution registry rather than consumers of a port. `cms` owns the registry
+ * `megamenu` pushes a scanner into; `transactional_emails` owns the one seven
+ * modules push their email defaults into. Both were `providePort` names resolved
+ * from `ctx.onBoot`, so switching either off made *other* modules' boot hooks
+ * throw `MODULE_DISABLED` during composition — the operator broke the next start
+ * by switching off a module they were entitled to switch off, and the failure
+ * named a module they had not touched. They are `ctx.di.register` now: a table of
+ * inert descriptors is not a gate, and the behavioural seams beside them
+ * (`templateEmailPort`, the CMS services) still are.
+ */
+const DEACTIVATED = [
+  'comparisons',
+  'invoices',
+  'credit_limits',
+  'admin_actions',
+  'cms',
+  'transactional_emails',
+] as const;
 
 /**
  * The platform axis, in the same boot: `mfa` declares no activation control, so
@@ -128,7 +154,7 @@ describe('the production composition root boots with modules switched off', () =
     else process.env['BACKEND_ROLE'] = originalRole;
   });
 
-  it('has the five modules genuinely absent, each for its own reason', () => {
+  it('has every deactivated module genuinely absent, each for its own reason', () => {
     for (const moduleId of DEACTIVATED) {
       const presence = effectiveState.presence(moduleId);
       expect(presence?.platformAvailable, `${moduleId} platform axis`).toBe(true);

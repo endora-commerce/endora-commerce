@@ -33,6 +33,7 @@ function cmsAssetReferenceDescriptor(
   emFactory: () => EntityManager,
 ): AssetReferenceDescriptor {
   return {
+    ownerModuleId: 'cms',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
       const em = emFactory();

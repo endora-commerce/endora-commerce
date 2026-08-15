@@ -14,6 +14,7 @@ export function registerMegamenuCmsReferences(
   megamenuRegistry: MegamenuReferenceRegistry,
 ): void {
   cmsRegistry.register({
+    ownerModuleId: 'megamenu',
     async findPageReferences(pageId: string): Promise<CmsReference[]> {
       const refs = await megamenuRegistry.findCmsPageReferences(pageId);
       return refs.map((ref) => ({

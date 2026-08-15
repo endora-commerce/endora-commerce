@@ -186,10 +186,24 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
-  ctx.di.providePort(
-    'cmsReferenceRegistry',
-    ctx.asFunction(({ cms }: CmsCradle) => cms.handle.referenceRegistry).singleton(),
-  );
+  /**
+   * The contribution seam, deliberately **ungated** (feature 072, D-39).
+   *
+   * `megamenu` pushes its scanner in from `ctx.onBoot`, and boot hooks run
+   * regardless of effective state. As a `providePort` this was a transient gate,
+   * so an operator switching `cms` off on `/platform/modules` made `megamenu`'s
+   * hook throw `MODULE_DISABLED` during composition and the backend stopped
+   * starting — the exact inversion Constitution XVII forbids, since off is meant
+   * to be reversible and the screen that reverses it needs the API up.
+   *
+   * A scanner is inert until a delete asks it something; every behavioural seam
+   * this module publishes is still a port.
+   */
+  ctx.di.register({
+    cmsReferenceRegistry: ctx
+      .asFunction(({ cms }: CmsCradle) => cms.handle.referenceRegistry)
+      .singleton(),
+  });
 
   ctx.onBoot(async () => {
     // Idempotent seeded-Hook reconciliation. Unlike `_i18n`'s, this one reads

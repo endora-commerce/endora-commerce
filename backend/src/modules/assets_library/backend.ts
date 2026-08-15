@@ -65,12 +65,24 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
-  ctx.di.providePort(
-    'assetReferenceRegistry',
-    ctx
+  /**
+   * The contribution seam, deliberately **ungated** (feature 072, D-39).
+   *
+   * `catalog`, `cms`, `blog` and `megamenu` push their reference scanners in
+   * from `ctx.onBoot`, and boot hooks run regardless of effective state. As a
+   * `providePort` this was a transient gate, so switching `assets_library` off
+   * made all four hooks throw `MODULE_DISABLED` during composition and the
+   * backend stopped starting. A descriptor is inert; `assetsLibraryService`,
+   * which reads and writes assets, is the port and does fail closed.
+   *
+   * Whether an entry is honoured while its contributor is absent is answered at
+   * enumeration — see `services/reference-registry.ts`.
+   */
+  ctx.di.register({
+    assetReferenceRegistry: ctx
       .asFunction(({ assetsLibrary }: AssetsLibraryCradle) => assetsLibrary.handle.referenceRegistry)
       .singleton(),
-  );
+  });
 
   ctx.routes(async (app) => {
     await ctx.cradle<AssetsLibraryCradle>().assetsLibrary.plugin(app);

@@ -22,6 +22,12 @@ export interface CmsReference {
  * references match on `code`.
  */
 export interface CmsExternalReferenceScanner {
+  /**
+   * The module that contributed this scanner (feature 072, D-39). A
+   * contribution seam records its contributor, so the registry can state a
+   * policy for an absent owner instead of having no way to express one.
+   */
+  ownerModuleId: string;
   findPageReferences?: (pageId: string) => Promise<CmsReference[]>;
   findBlockReferences?: (blockId: string, blockCode: string) => Promise<CmsReference[]>;
   findTemplateReferences?: (templateId: string, templateCode: string) => Promise<CmsReference[]>;
@@ -41,20 +47,42 @@ export interface CmsExternalReferenceScanner {
  *   megamenu → page   (registered externally by feature 015)
  *   megamenu → block  (registered externally by feature 015)
  */
+/**
+ * Enumeration policy for the **external** scanners: **honoured** while the
+ * contributing module is absent (feature 072, D-39).
+ *
+ * D-39's default is to skip; this is the written reason for not doing so. The
+ * edges are referential integrity, not a surface. A switched-off `megamenu`
+ * still owns menu items that link to a CMS page, and skipping its scanner would
+ * let an operator delete that page — the item comes back pointing at nothing
+ * when the module is switched on again. An operator action that Constitution
+ * XVII calls reversible would have destroyed data on the way through.
+ *
+ * The cost of honouring is a 409 naming a menu the platform is not currently
+ * serving, which is a confusing message about a real reference. The cost of
+ * skipping is a broken one. Confusing beats broken; the owner recorded on each
+ * scanner is what a future message can use to say *why* the menu is invisible.
+ */
 export class CmsReferenceRegistry {
   private readonly externalScanners: CmsExternalReferenceScanner[] = [];
 
   constructor(private readonly emFactory: () => EntityManager) {}
 
   /**
-   * Register an external scanner. Other modules call this from
-   * composition.ts so their references block CMS-entity deletion. Idempotent
-   * across registrations of the same scanner instance.
+   * Register an external scanner. Another module calls this from its own
+   * `ctx.onBoot`, so the contribution passes through the lifecycle seams rather
+   * than a composition root's back door. Idempotent across registrations of the
+   * same scanner instance.
    */
   register(scanner: CmsExternalReferenceScanner): void {
     if (!this.externalScanners.includes(scanner)) {
       this.externalScanners.push(scanner);
     }
+  }
+
+  /** The contributing module of every registered scanner, in registration order. */
+  externalOwners(): readonly string[] {
+    return this.externalScanners.map((scanner) => scanner.ownerModuleId);
   }
 
   /** Pages and modules that point at the Page with this id. */

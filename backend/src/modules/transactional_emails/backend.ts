@@ -71,6 +71,10 @@ export interface TransactionalEmailsCradle {
    * boot" shape: a module contributing a *descriptor* to a registry the host
    * enumerates, as opposed to the pull shape, where a dependent resolves an
    * answer.
+   *
+   * **Ungated** — `ctx.di.register`, not `ctx.di.providePort` (D-39). See the
+   * registration below for why the distinction is the difference between a
+   * degraded feature and a dead deployment.
    */
   readonly emailDefaultsPort: EmailDefaultsRegistry;
   readonly emailDefaultsRegistryInstance: EmailDefaultsRegistry;
@@ -164,15 +168,36 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  ctx.di.providePort(
-    'emailDefaultsPort',
-    ctx
+  /**
+   * The contribution seam, deliberately **ungated** (feature 072, D-39).
+   *
+   * Seven modules push their email defaults into this registry from
+   * `ctx.onBoot`, and `runBootHooks()` does not consult module presence. A
+   * `providePort` here is a transient gate that throws `MODULE_DISABLED` on
+   * resolution, so every one of those seven hooks would have thrown during
+   * composition the moment an operator switched `transactional_emails` off —
+   * `index.ts` turns that into `process.exit(1)`, and with the API down the
+   * `/platform/modules` screen the operator would undo their own change from is
+   * unreachable. "Off is non-destructive and reversible" (Constitution XVII) is
+   * not satisfied by a platform that will not start.
+   *
+   * Nothing leaks by leaving it ungated: an entry is inert data — a subject and
+   * a content envelope — and every behavioural seam in this module is still a
+   * port. `templateEmailPort` sends, `transactionalEmailSenderAccessor` hands
+   * out the sender, and both fail closed.
+   *
+   * Whether an entry is *honoured* while its contributor is absent is the host's
+   * question, answered at enumeration and keyed on the owner the registry
+   * records — see `services/email-defaults-registry.ts`.
+   */
+  ctx.di.register({
+    emailDefaultsPort: ctx
       .asFunction(
         ({ emailDefaultsRegistryInstance }: TransactionalEmailsCradle) =>
           emailDefaultsRegistryInstance,
       )
       .singleton(),
-  );
+  });
 
   ctx.routes(async (app) => {
     await cradle().transactionalEmails(app);

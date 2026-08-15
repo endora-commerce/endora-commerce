@@ -121,14 +121,26 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
-  ctx.di.providePort(
-    'megamenuReferenceRegistry',
-    ctx
-      .asFunction(
-        ({ emFactory }: MegamenuCradle) => new MegamenuReferenceRegistry(emFactory),
-      )
+  /**
+   * The lookup behind this module's own CMS scanner, deliberately **ungated**
+   * (feature 072, D-39).
+   *
+   * It was a `providePort`, and the only thing that resolves it is this
+   * module's own boot hook, twenty lines down — so switching `megamenu` off
+   * made `megamenu` throw `MODULE_DISABLED` at its own registration and the
+   * backend stopped starting. The gate protected nothing: the sole consumer is
+   * the module the gate was about.
+   *
+   * It stays ungated rather than merely moving: what it feeds is a scanner
+   * `cms` walks on delete, and `cms` honours that edge while `megamenu` is off
+   * on purpose — the menu items still hold the reference. A gate here would be
+   * a second, contradictory answer to a question `cms` has already answered.
+   */
+  ctx.di.register({
+    megamenuReferenceRegistry: ctx
+      .asFunction(({ emFactory }: MegamenuCradle) => new MegamenuReferenceRegistry(emFactory))
       .singleton(),
-  );
+  });
 
   /**
    * The two reference edges this module holds against other modules' entities
