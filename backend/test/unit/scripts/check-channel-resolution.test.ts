@@ -202,5 +202,170 @@ describe('check-channel-resolution / analyzeSource', () => {
         analyzeSource(source, 'modules/carts/scripts/abandonment-sweep.ts'),
       ).toHaveLength(1);
     });
+
+    /**
+     * D-48 widened the argument resolution from "a literal, or a same-file
+     * `const` holding one" to the set of values the argument can actually take.
+     * `branding.service.ts` escaped D-42's check on exactly one hop more than it
+     * could see: `const scopeId = salesChannelId ?? GLOBAL_SENTINEL`.
+     */
+    it('flags a `??` fallback reaching the channel argument through a local', () => {
+      const v = analyzeSource(
+        [
+          `const GLOBAL_SENTINEL = '00000000-0000-0000-0000-000000000000';`,
+          `function read(salesChannelId) {`,
+          `  const scopeId = salesChannelId ?? GLOBAL_SENTINEL;`,
+          `  return this.settings.get(code, scopeId, schema);`,
+          `}`,
+        ].join('\n'),
+        ANY,
+      );
+      expect(v.some((x) => x.kind === 'settings-channel-literal')).toBe(true);
+    });
+
+    it('flags a `??` fallback written inline in the channel argument', () => {
+      const v = analyzeSource(
+        `await settings.get(code, resolved ?? 'default', schema);`,
+        ANY,
+      );
+      expect(v.some((x) => x.kind === 'settings-channel-literal')).toBe(true);
+    });
+
+    it('flags a ternary where one branch is not a channel id', () => {
+      const v = analyzeSource(
+        `await settings.get(code, hasChannel ? channelId : 'default', schema);`,
+        ANY,
+      );
+      expect(v.some((x) => x.kind === 'settings-channel-literal')).toBe(true);
+    });
+
+    it('does NOT flag `x ?? null` — that is the sanctioned platform-wide read', () => {
+      const v = analyzeSource(
+        [
+          `const scopeId = resolved ?? null;`,
+          `await settings.get(code, scopeId, schema);`,
+        ].join('\n'),
+        ANY,
+      );
+      expect(v).toHaveLength(0);
+    });
+
+    it('does NOT flag a fallback between two real channel uuids', () => {
+      const v = analyzeSource(
+        `await settings.get(code, resolved ?? '${REAL_UUID}', schema);`,
+        ANY,
+      );
+      expect(v).toHaveLength(0);
+    });
+  });
+
+  /**
+   * Signal 4 (D-48) — the two positions that hid L1-L4 from signal 3, which
+   * only ever looked at the channel argument of a settings read.
+   */
+  describe('invented-channel-identifier', () => {
+    const ANY = 'modules/carts/backend.ts';
+    const REAL_UUID = '4b1f0a2c-8e3d-4a7b-9c11-2f6d5e8a0b34';
+
+    it('flags a default parameter value standing in for a channel id (L2)', () => {
+      const v = analyzeSource(
+        [
+          `class OneClickService {`,
+          `  constructor(private readonly salesChannelId: string = 'default') {}`,
+          `}`,
+        ].join('\n'),
+        ANY,
+      );
+      expect(v).toHaveLength(1);
+      expect(v[0]!.kind).toBe('invented-channel-identifier');
+      expect(v[0]!.detail).toContain('default parameter');
+    });
+
+    it('flags a default parameter holding the nil uuid through a same-file const', () => {
+      const v = analyzeSource(
+        [
+          `const GLOBAL_SENTINEL = '00000000-0000-0000-0000-000000000000';`,
+          `function f(channelId = GLOBAL_SENTINEL) { return channelId; }`,
+        ].join('\n'),
+        ANY,
+      );
+      expect(v).toHaveLength(1);
+      expect(v[0]!.kind).toBe('invented-channel-identifier');
+    });
+
+    it('does NOT flag a default parameter that is a real channel uuid (a fixture)', () => {
+      const v = analyzeSource(`function f(salesChannelId = '${REAL_UUID}') {}`, ANY);
+      expect(v).toHaveLength(0);
+    });
+
+    it('does NOT flag a default parameter on something that is not a channel', () => {
+      const v = analyzeSource(`function f(templateCode = 'default') {}`, ANY);
+      expect(v).toHaveLength(0);
+    });
+
+    /**
+     * L1's shape — `(await getSystemDefault())?.id ?? 'default'` — is guarded by
+     * the **type**, not by this check: D-48 made `getSystemDefault()`
+     * non-nullable, so there is no `?.` to hang a `??` off and `tsc` refuses the
+     * rewrite. Flagging every string fallback beside a channel id here instead
+     * would bury the signal: the tree holds twenty ordinary
+     * `channel?.defaultCurrency ?? 'PLN'` defaults, and a check that reports
+     * those is a check nobody reads.
+     */
+    it('does NOT flag an ordinary default read off an already-resolved channel', () => {
+      const v = analyzeSource(
+        [
+          `const currency = channel?.defaultCurrency ?? 'PLN';`,
+          `const language = channel?.defaultLanguage ?? 'en-US';`,
+        ].join('\n'),
+        ANY,
+      );
+      expect(v).toHaveLength(0);
+    });
+
+    it('flags a resolved channel falling back to randomUUID() (L4, issue #85)', () => {
+      const v = analyzeSource(
+        `const order = tx.create(Order, { salesChannelId: channel?.id ?? randomUUID() });`,
+        ANY,
+      );
+      expect(v).toHaveLength(1);
+      expect(v[0]!.kind).toBe('invented-channel-identifier');
+      expect(v[0]!.detail).toContain('randomUUID');
+    });
+
+    it('does NOT flag a channel resolution falling back to null', () => {
+      const v = analyzeSource(`const id = channel?.id ?? null;`, ANY);
+      expect(v).toHaveLength(0);
+    });
+
+    it('does NOT flag a randomUUID() that has nothing to do with a channel', () => {
+      const v = analyzeSource(`const eventId = payload.eventId ?? randomUUID();`, ANY);
+      expect(v).toHaveLength(0);
+    });
+
+    it('never flags the resolver’s own directory, which owns the seed value', () => {
+      const v = analyzeSource(
+        `const code = process.env['DEFAULT_SALES_CHANNEL_CODE'] ?? 'default';`,
+        'kernel/sales-channels/default-channel-reconciler.ts',
+      );
+      expect(v).toHaveLength(0);
+    });
+
+    /**
+     * `__global__` is the reserved platform-wide key segment (D-41), chosen
+     * precisely because a uuid can never spell it. Deriving a cache key that way
+     * is the *correct* shape, and both the settings cache and the dictionary
+     * cache do it.
+     */
+    it('does NOT flag a cache key derived with the reserved global segment', () => {
+      const v = analyzeSource(
+        [
+          `const GLOBAL_KEY_SEGMENT = '__global__';`,
+          `const segment = salesChannelId ?? GLOBAL_KEY_SEGMENT;`,
+        ].join('\n'),
+        ANY,
+      );
+      expect(v).toHaveLength(0);
+    });
   });
 });

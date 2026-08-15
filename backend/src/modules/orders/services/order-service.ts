@@ -35,7 +35,8 @@ export interface PromotionPort {
         organizationId: string | null;
         customerAccountId: string | null;
         customerGroupId: string | null;
-        salesChannelId: string | null;
+        /** The channel the order records; always resolved (D-48). */
+        salesChannelId: string;
       };
       applied: Array<{ promotionId: string; couponId: string | null; amount: number }>;
     },

@@ -14,10 +14,19 @@ import { HttpError } from '../../../src/http/error-envelope.js';
 describe('promotion usage limits', () => {
   let h: BackendServerHandle;
   let svc: PromotionService;
+  /**
+   * `promotion_usages.sales_channel_id` is `uuid not null`, and D-48 made the
+   * context field non-nullable to match: the one production caller is
+   * `placeOrder`, which stamps the same id onto the order. The fixture used to
+   * pass `null` and the service turned it into a `randomUUID()` at the insert —
+   * issue #85's shape, one table over.
+   */
+  let channelId: string;
 
   beforeAll(async () => {
     h = await setupBackendServer();
     svc = new PromotionService(h.em);
+    channelId = (await h.salesChannels.resolver.getSystemDefault()).id;
   });
   afterAll(async () => {
     await teardownBackendServer(h);
@@ -47,7 +56,7 @@ describe('promotion usage limits', () => {
           organizationId: null,
           customerAccountId: null,
           customerGroupId: null,
-          salesChannelId: null,
+          salesChannelId: channelId,
           ...ctx,
         },
         applied: [{ promotionId, couponId: null, amount: 5 }],
