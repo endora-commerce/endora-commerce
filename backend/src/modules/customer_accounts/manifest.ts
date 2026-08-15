@@ -23,14 +23,22 @@ export const manifest = defineModuleManifest({
   // conversion — they were simply unattributable while the table belonged to
   // nobody. `customer_groups` is owned by `price_lists`.
   dependencies: ['auth', 'organizations', 'price_lists'],
-  // Feature 072/073 (Constitution XVII). Every customer session, every
-  // storefront login and every organization membership resolves through this
-  // module's table. A deployment with it switched off has no customers, which
-  // is not a smaller platform but a broken one.
+  // Feature 073, Amendment A1 (Constitution XVII). Not one of the four the
+  // specification names as the criterion set: this module holds the flag because
+  // it is inside that set's *effective* closure, through the same mechanism as
+  // `addresses`.
+  //
+  // `organizations` — itself non-deactivatable — serves its public
+  // registration, login, password-reset and TOTP routes from four ports this
+  // module owns (`customerAuthService`, `passwordResetService`,
+  // `customerRoleService`, `totpEnrolmentService`). All four are deliberately
+  // absent from the `organizations` manifest, because this module declares
+  // `organizations` and declaring the mirror would close the cycle; they live in
+  // `ACKNOWLEDGED_PORT_EDGES` (`backend/scripts/check-port-dependencies.ts`).
   activation: {
     nonDeactivatable: true,
     reason:
-      'Holds the customer accounts every session, login and organization membership resolves ' +
-      'through; switched off, the storefront has no customers.',
+      'The non-deactivatable `organizations` resolves four ports this module owns (customer ' +
+      'auth, password reset, roles, TOTP); the edges are acknowledged, not declared.',
   },
 });

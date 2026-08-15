@@ -25,14 +25,16 @@ export const manifest = defineModuleManifest({
   // Neither depends back on this module, so the graph stays acyclic.
   dependencies: ['_lifecycle', 'auth', 'admin_users'],
   i18n: { bundlesDir: 'i18n' },
-  // Feature 072/073 (Constitution XVII). An `_`-prefixed id is platform-internal
-  // by convention and the manifest schema makes that enforceable: it must
-  // declare this form. It is also true on the merits — every admin screen reads
-  // its bundles, so a deployment with it off renders raw i18n keys everywhere.
+  // Feature 073, Amendment A1 (Constitution XVII). The ground is the
+  // `_`-prefix infrastructure rule, not the specification's criterion set: an
+  // `_`-prefixed id is platform-internal, and `assertActivationRules`
+  // (`packages/contracts/src/modules.ts`) refuses any other activation form for
+  // one. That is the rule this declaration follows; the merits — every admin
+  // screen reads these bundles — agree with it but are not what carries it.
   activation: {
     nonDeactivatable: true,
     reason:
-      'Serves the translation bundles every Admin UI screen reads at boot; ' +
-      'switched off, the whole admin renders raw i18n keys.',
+      'Platform-internal by the `_`-prefix rule the manifest schema enforces; it also serves ' +
+      'the translation bundles every Admin UI screen reads.',
   },
 });

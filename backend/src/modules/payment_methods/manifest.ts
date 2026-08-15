@@ -21,14 +21,29 @@ export const manifest = defineModuleManifest({
   // reads through `organizationRestrictionPort`. The edge existed before as a
   // root-supplied closure and was therefore invisible to the manifest.
   dependencies: ['auth', 'organizations'],
-  // Feature 072/073 (Constitution XVII). Every checkout picks a payment method
-  // from this module's table, and `orders` resolves its adapter registry to
-  // dispatch on placement. A deployment with it switched off cannot take an
-  // order, so the orchestrator refuses to disable it.
-  activation: {
-    nonDeactivatable: true,
-    reason:
-      'Holds the payment methods every checkout selects from and the adapter registry orders ' +
-      'dispatches through; switched off, the platform cannot take an order.',
+  settings: {
+    moduleCode: 'payment_methods',
+    groups: [{ code: 'payment_methods', name: 'Payment methods' }],
+    settings: [
+      {
+        // Feature 073 — the operator's activation control. Platform-wide.
+        code: 'payment_methods.enabled',
+        name: 'Payment methods enabled',
+        description:
+          'Switches the payment-method catalog on or off: the admin screens that define methods and their per-channel availability, and the public list a checkout picks from. Nothing is dropped — every method, its channel bindings, its per-organization allow-list and the payments already taken against it stay in the database, and the catalog returns exactly as configured when you switch it back on.',
+        groupCode: 'payment_methods',
+        valueType: 'boolean',
+        defaultValue: true,
+      },
+    ],
   },
+  // Feature 073, Amendment A1 (Constitution XVII) — deactivatable, because the
+  // reason it used to give does not hold. "The platform cannot take an order"
+  // rests on an edge that is not in the graph: `orders` declares `addresses`,
+  // `api_keys`, `carts`, `credit_limits`, `organizations`, `promotions`,
+  // `settings` and `transactional_emails`, and neither this module nor
+  // `delivery_methods`. The dependents that do declare it — `payments`,
+  // `quick_order`, and the four provider modules — fail closed when it is off,
+  // which is the intended meaning of switching a payment catalog off.
+  activation: { settingCode: 'payment_methods.enabled', default: true },
 });

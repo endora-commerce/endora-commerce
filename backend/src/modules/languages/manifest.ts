@@ -18,14 +18,16 @@ export const manifest = defineModuleManifest({
   // `currencies` owns the `CurrencyService` this module's admin surface serves
   // alongside languages. Feature 072 made both container resolutions.
   dependencies: ['auth', 'currencies'],
-  // Feature 073/072 (Constitution XVII). Every localized read on the platform
-  // resolves a language, and the dictionary validator rejects a code it cannot
-  // find — a deployment with this off has no locales, which is not a smaller
-  // platform but a broken one.
+  // Feature 073, Amendment A1 (Constitution XVII). Not one of the four the
+  // specification names as the criterion set. It holds the flag because it is
+  // in the transitive closure of `organizations`, which is: `organizations`
+  // declares `dictionaries`, and `dictionaries` declares this module. The chain
+  // fails closed at every link, so switching this off takes the tenancy root
+  // down two hops away.
   activation: {
     nonDeactivatable: true,
     reason:
-      'Owns the language set every localized field, storefront locale and ' +
-      'dictionary validation resolves against; switched off, no content resolves.',
+      'Reached from the non-deactivatable `organizations` through `dictionaries`, which ' +
+      'declares this module; dependencies fail closed along the whole chain.',
   },
 });

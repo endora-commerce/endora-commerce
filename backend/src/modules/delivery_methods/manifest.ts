@@ -26,13 +26,29 @@ export const manifest = defineModuleManifest({
   // edge became real with the conversion (feature 072, T095).
   // `organizations` since feature 072 (T138) — see the payment twin.
   dependencies: ['auth', 'organizations'],
-  // Feature 072/073 (Constitution XVII) — the payment twin's reasoning applies
-  // unchanged: a checkout with no delivery method to choose is not a smaller
-  // platform, it is one that cannot complete an order.
-  activation: {
-    nonDeactivatable: true,
-    reason:
-      'Holds the delivery methods every checkout selects from and the shipping adapter registry ' +
-      'orders dispatches through; switched off, the platform cannot take an order.',
+  settings: {
+    moduleCode: 'delivery_methods',
+    groups: [{ code: 'delivery_methods', name: 'Delivery methods' }],
+    settings: [
+      {
+        // Feature 073 — the operator's activation control. Platform-wide.
+        code: 'delivery_methods.enabled',
+        name: 'Delivery methods enabled',
+        description:
+          'Switches the delivery-method catalog on or off: the admin screens that define methods and their per-channel availability, and the public list a checkout picks from. Nothing is dropped — every method, its channel bindings and the shipments already created against it stay in the database, and the catalog returns exactly as configured when you switch it back on.',
+        groupCode: 'delivery_methods',
+        valueType: 'boolean',
+        defaultValue: true,
+      },
+    ],
   },
+  // Feature 073, Amendment A1 (Constitution XVII) — deactivatable, because the
+  // reason it used to give does not hold. "The platform cannot take an order"
+  // rests on an edge that is not in the graph: `orders` declares `addresses`,
+  // `api_keys`, `carts`, `credit_limits`, `organizations`, `promotions`,
+  // `settings` and `transactional_emails`, and neither this module nor
+  // `payment_methods`. The dependents that do declare it — `payments`,
+  // `quick_order`, `shipments` — fail closed when it is off, which is the
+  // intended meaning of switching a delivery catalog off, not an accident.
+  activation: { settingCode: 'delivery_methods.enabled', default: true },
 });
