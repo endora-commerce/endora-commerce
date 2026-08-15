@@ -116,6 +116,26 @@ so behavior is unchanged in environments without the module.
 each variable's declared sample value (and any unsaved draft content), returning
 `{ subject, html, text }`. The admin opens the HTML in a new tab.
 
+## Switching an email off
+
+The module itself is **non-deactivatable**: every deployment sends account
+verification, invitations and order mail through it, so `/platform/modules`
+renders it locked with that reason rather than as a toggle. The granularity that
+*is* offered is the individual email — the list at `/transactional-emails`
+carries a per-row switch, backed by
+`POST /api/v1/admin/transactional-emails/{code}/activation` with `{ active }`.
+The flip runs through the Command Bus, so it is audited as
+`transactional_email.activation.set` and reversible; it drops no content, no
+override and no per-channel customization. A deactivated email answers
+`{ status: 'deactivated' }` at send time and **no fallback mail goes out**.
+
+Emails required to create an account or to get back into one may not be switched
+off at all: today `email_verification` and `organization_invitation`. The
+declaration lives on the owning module's registry entry
+(`EmailDefaults.nonDeactivatable`), not in a list held by this module or by the
+Admin UI, and a refused flip answers `409 TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE`
+carrying that module's own reason — the same shape the module-level refusal uses.
+
 ## Permissions
 
 - `transactional_emails:read` — view emails, blocks, templates, branding, preview.

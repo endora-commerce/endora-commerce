@@ -391,6 +391,13 @@ export const COMMAND_REGISTRY = {
     reversible: false,
     description: 'Move the system-default flag to another sales channel',
   },
+  // Issue #89 — the same flip one granularity down. Reversible for the same
+  // reason: switching an email off drops no content, no override and no
+  // per-channel customization, so the undo is switching it back on.
+  'transactional_email.activation.set': {
+    reversible: true,
+    description: 'Switch one transactional email on or off',
+  },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Feature 068 — product create/delete join the bus. They used to audit by

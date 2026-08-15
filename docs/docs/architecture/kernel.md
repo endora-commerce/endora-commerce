@@ -198,7 +198,11 @@ resolution — so gating a registry means every contributor's boot hook throws t
 moment an operator switches the **host** off, and the platform does not start.
 `transactional_emails` has seven contributors; `cms` has one. The operator broke
 the next start by using a switch they were entitled to use, and the crash named a
-module they never touched. `check-port-dependencies.ts` refuses the shape now, at
+module they never touched. (`transactional_emails` has since declared itself
+non-deactivatable — issue #88 — so that particular switch is gone; the rule is
+unchanged, `cms` still exercises it, and the registry stays ungated because the
+argument is about the shape of a contribution seam, not about who may switch a
+host off.) `check-port-dependencies.ts` refuses the shape now, at
 both sites where it can bite: a gated port resolved in a `ctx.onBoot` hook and one
 destructured in a `ctx.routes` body.
 

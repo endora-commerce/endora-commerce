@@ -5791,6 +5791,15 @@
         }
       }
     },
+    "/api/v1/admin/transactional-emails/{code}/activation": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/transactional-emails/{code}/content": {
       "delete": {
         "responses": {

@@ -3,6 +3,7 @@ import { defineModuleManifest, type ModuleActivation } from '@b2b/contracts';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../../../src/modules/_lifecycle/services/orchestrator.js';
 import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
 import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
 /**
  * Orchestrator — pure-logic unit tests against in-memory stubs.
@@ -637,6 +638,41 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
       expect(em.rows.every((r) => r.state === 'installed')).toBe(true);
       expect(auditLog.records.some((r) => r['action'] === 'module.disabled')).toBe(false);
     });
+
+    /**
+     * Issue #88 — the two capabilities the business decided every deployment
+     * keeps: `currencies` and `transactional_emails`.
+     *
+     * Asserted against `REGISTERED_MANIFESTS` rather than a fixture, because
+     * the fixture cases above already prove the mechanism works; what these
+     * two need proving is that the *shipped* declarations reach it. Without
+     * this, `assertDeactivatable` could keep passing on a fixture forever
+     * while `module:disable currencies` sailed through in production — which
+     * is exactly the drift the sibling `non-deactivatable-set.test.ts` was
+     * written to catch on the manifest side.
+     */
+    it.each(['currencies', 'transactional_emails'])(
+      'refuses `module:disable %s` on the shipped manifest',
+      async (moduleId) => {
+        const entries = REGISTERED_MANIFESTS.map((e) => ({
+          manifest: e.manifest,
+          filePath: e.filePath,
+        }));
+        const registry: LoadedManifestRegistry = {
+          modules: new Map(entries.map((e) => [e.manifest.id, e])) as never,
+          graph: new ModuleDepGraph(entries.map((e) => e.manifest)),
+        };
+        const { orchestrator, em } = buildOrchestrator({
+          registry,
+          em: new FakeEm(seedInstalled(moduleId)),
+        });
+
+        await expect(orchestrator.disable(moduleId)).rejects.toMatchObject({
+          kind: 'non-deactivatable',
+        });
+        expect(em.rows[0]?.state).toBe('installed');
+      },
+    );
 
     it('leaves an ordinary module with an activation control disable-able', async () => {
       // The two axes stay independent: declaring an operator control says

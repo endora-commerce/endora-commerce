@@ -19,17 +19,16 @@ import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered
  * the screen to undo their own change.
  *
  * D-39 added the mirror image, and it is the worse half. The four sites above
- * are a module reading somebody else's port at boot; the two added with it are a
+ * are a module reading somebody else's port at boot; the one added with it is a
  * **host** whose contribution registry was a gated port, so switching the *host*
- * off made every contributor's boot hook throw. `transactional_emails` has seven
- * of them. Same crash, and a failure message naming a module the operator never
- * touched.
+ * off made every contributor's boot hook throw. Same crash, and a failure
+ * message naming a module the operator never touched.
  *
- * **One composition, six deactivations.** The sites are independent — each reads
- * a name owned by exactly one module — so deactivating all six at once exercises
- * all six, and the presence assertions below name each one so a regression says
+ * **One composition, five deactivations.** The sites are independent — each reads
+ * a name owned by exactly one module — so deactivating all five at once exercises
+ * all five, and the presence assertions below name each one so a regression says
  * which. That matters: `production-boot.test.ts` states the budget, one
- * composition per suite run, and this is the second. Six would be seven, for
+ * composition per suite run, and this is the second. Five would be six, for
  * nothing. The cost of sharing the boot is attribution: composition stops at the
  * first offending read, so every case fails together and names the module that
  * threw — the one reached first, not necessarily the only one broken.
@@ -47,16 +46,26 @@ import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered
 /**
  * The operator axis: modules an operator can switch off from `/platform/modules`.
  *
- * The last two are D-39's half of the same property, and they are **hosts** of a
- * contribution registry rather than consumers of a port. `cms` owns the registry
- * `megamenu` pushes a scanner into; `transactional_emails` owns the one seven
- * modules push their email defaults into. Both were `providePort` names resolved
- * from `ctx.onBoot`, so switching either off made *other* modules' boot hooks
- * throw `MODULE_DISABLED` during composition — the operator broke the next start
- * by switching off a module they were entitled to switch off, and the failure
- * named a module they had not touched. They are `ctx.di.register` now: a table of
- * inert descriptors is not a gate, and the behavioural seams beside them
- * (`templateEmailPort`, the CMS services) still are.
+ * The last one is D-39's half of the same property, and it is a **host** of a
+ * contribution registry rather than a consumer of a port: `cms` owns the
+ * registry `megamenu` pushes a scanner into. It was a `providePort` name
+ * resolved from `ctx.onBoot`, so switching it off made *another* module's boot
+ * hook throw `MODULE_DISABLED` during composition — the operator broke the next
+ * start by switching off a module they were entitled to switch off, and the
+ * failure named a module they had not touched. It is `ctx.di.register` now: a
+ * table of inert descriptors is not a gate, and the behavioural seams beside it
+ * (the CMS services) still are.
+ *
+ * `transactional_emails` was the second host here, and the larger one — seven
+ * modules push their email defaults into its registry. It left this list with
+ * issue #88: the module declares itself non-deactivatable, so `effectiveState`
+ * forces its operator axis on whatever a Setting says and the state this file
+ * simulates is one no operator and no CLI can reach. `emailDefaultsPort` stays
+ * an ungated `ctx.di.register` — the reason in `transactional_emails/backend.ts`
+ * is about the shape of a contribution seam, not about who may switch the host
+ * off — and `cms` keeps that shape covered here. What replaced the coverage is
+ * per-email: an operator switches an individual email off instead, which is
+ * `test/integration/transactional_emails/per-email-activation.test.ts`.
  */
 const DEACTIVATED = [
   'comparisons',
@@ -64,7 +73,6 @@ const DEACTIVATED = [
   'credit_limits',
   'admin_actions',
   'cms',
-  'transactional_emails',
   // Issue #90: the twelve `ctx.routes` bodies that still destructured their own
   // gated port. Ten were the named `WIRING_RESOLUTIONS_TO_DRAIN` inventory; the
   // `carts` and `settings` ones were invisible to the check until it learned to

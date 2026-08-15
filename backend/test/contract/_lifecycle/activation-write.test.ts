@@ -171,6 +171,36 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     expect(res.json().error.message.length).toBeGreaterThan(0);
   });
 
+  it.each(['currencies', 'transactional_emails'])(
+    'refuses the operator flip for the platform-core %s (issue #88)',
+    async (moduleId) => {
+      // The business decision is that these two are not a client's to switch
+      // off. It binds both axes: the CLI refusal is pinned in
+      // `test/unit/_lifecycle/orchestrator.test.ts`, this is the operator door.
+      const declared = REGISTERED_MANIFESTS.find((e) => e.manifest.id === moduleId);
+      const reason = (declared?.manifest.activation as { reason?: string } | undefined)?.reason;
+      expect(reason, `${moduleId} declares no non-deactivatable reason`).toBeTruthy();
+
+      const res = await flip(moduleId, false);
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('MODULE_NOT_DEACTIVATABLE');
+      expect(res.json().error.message).toBe(reason);
+
+      // …and the admin renders a lock rather than a dead toggle, because the
+      // projection carries `deactivatable: false` plus the module's own reason.
+      // The screen holds no list of ids; this is what puts these two on the
+      // same path `_lifecycle` and `auth` already take.
+      const presence = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/admin/module-presence',
+        cookies: ADMIN,
+      });
+      expect(
+        presence.json().modules.find((m: { id: string }) => m.id === moduleId),
+      ).toMatchObject({ deactivatable: false, nonDeactivatableReason: reason, activated: true });
+    },
+  );
+
   it('refuses a module that declares no activation control', async () => {
     const undeclared = REGISTERED_MANIFESTS.find(
       (e) => e.manifest.activation === undefined,

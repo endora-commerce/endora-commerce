@@ -15,6 +15,7 @@ import type {
   PutEmailBrandingRequest,
   PutEmailContentRequest,
   ResolvedEmailContent,
+  SetTransactionalEmailActiveRequest,
   TransactionalEmailDetail,
   TransactionalEmailSummary,
 } from '@b2b/contracts';
@@ -61,6 +62,20 @@ export const transactionalEmailsClient = {
     unwrap(
       apiClient.delete<Wrap<ResolvedEmailContent>>(
         `${BASE}/${encodeURIComponent(code)}/content${scopeQs(salesChannelId, language)}`,
+      ),
+    ),
+
+  /**
+   * Issue #89 — switch one email on or off. No optimistic update: the server's
+   * recomputed summary is what the list re-renders from, so a refusal or a
+   * protection the client did not know about cannot leave a stale toggle on
+   * screen.
+   */
+  setActive: (code: string, active: boolean): Promise<TransactionalEmailSummary> =>
+    unwrap(
+      apiClient.post<Wrap<TransactionalEmailSummary>>(
+        `${BASE}/${encodeURIComponent(code)}/activation`,
+        { active } satisfies SetTransactionalEmailActiveRequest,
       ),
     ),
 

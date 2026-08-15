@@ -4,6 +4,7 @@ import type { ModuleManifest } from '@b2b/contracts';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import type { SettingsAdminService } from '../settings/services/settings-admin.service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
 import type { Mailer } from '../email/services/mailer.js';
 import { ContentResolver } from './services/content-resolver.js';
 import { BrandingService, type AssetUrlResolver } from './services/branding.service.js';
@@ -30,6 +31,8 @@ export interface TransactionalEmailsModuleOptions {
    * process.
    */
   defaultsRegistry: EmailDefaultsRegistry;
+  /** Audits the per-email activation flip (issue #89, Principle XIII). */
+  commandBus: CommandBus;
   mailer?: Mailer;
   auditLog?: AuditLogService;
   resolveAssetUrl?: AssetUrlResolver;
@@ -63,6 +66,7 @@ export function transactionalEmailsModule(
       contentResolver,
       branding,
       embeds,
+      defaults: options.defaultsRegistry,
       ...(options.mailer ? { mailer: options.mailer } : {}),
       ...(options.auditLog ? { auditLog: options.auditLog } : {}),
     });
@@ -92,6 +96,8 @@ export function transactionalEmailsModule(
       templates,
       requireAdmin: options.requireAdmin,
       resolveAdminUserId: options.resolveAdminUserId,
+      commandBus: options.commandBus,
+      defaults: options.defaultsRegistry,
     });
   };
 }

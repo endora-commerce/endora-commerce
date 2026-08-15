@@ -21,4 +21,16 @@ export const manifest = defineModuleManifest({
   // dictionaries) and the cycle was the design telling us the direction was
   // wrong: a currency has no business knowing a dictionary cache exists.
   dependencies: [],
+  // Issue #88 (Constitution XVII). A business decision first — every deployment
+  // prices something, so there is no client for whom "no currencies" is a
+  // smaller platform rather than a broken one — and the manifest graph agrees:
+  // `dictionaries` declares this module and is itself non-deactivatable because
+  // the tenancy root `organizations` declares *it*. Dependencies fail closed, so
+  // the flip would take registration down two edges away.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Every price, cart and order is denominated in a currency, and `dictionaries` — which ' +
+      'organization registration validates against — declares this module and fails closed.',
+  },
 });

@@ -42,6 +42,20 @@ export type TransactionalEmailManifestEntry = z.infer<typeof transactionalEmailM
 // Definitions — list + detail
 // ---------------------------------------------------------------------------
 
+/**
+ * Whether an operator may switch this one email off, and why not (issue #89).
+ *
+ * Deliberately the same pair of field names `ModulePresenceSchema` uses for the
+ * module axis: the two refusals are the same statement at two granularities,
+ * and an admin that renders one can render the other without learning a second
+ * vocabulary. The reason is the owning module's own sentence, carried from the
+ * `EmailDefaultsRegistry` — no frontend holds a list of protected codes.
+ */
+export const transactionalEmailProtectionSchema = z.object({
+  deactivatable: z.boolean(),
+  nonDeactivatableReason: z.string().nullable(),
+});
+
 export const transactionalEmailSummarySchema = z.object({
   code: z.string(),
   name: z.string(),
@@ -51,7 +65,7 @@ export const transactionalEmailSummarySchema = z.object({
   languages: z.array(z.string()),
   hasGlobalOverride: z.boolean(),
   hasChannelOverride: z.boolean(),
-});
+}).extend(transactionalEmailProtectionSchema.shape);
 export type TransactionalEmailSummary = z.infer<typeof transactionalEmailSummarySchema>;
 
 export const transactionalEmailListResponseSchema = z.object({
@@ -81,7 +95,7 @@ export const transactionalEmailDetailSchema = z.object({
   default: z.object({ subject: z.string(), content: puckDataTreeSchema }),
   hasGlobalOverride: z.boolean(),
   hasChannelOverride: z.boolean(),
-});
+}).extend(transactionalEmailProtectionSchema.shape);
 export type TransactionalEmailDetail = z.infer<typeof transactionalEmailDetailSchema>;
 
 export const transactionalEmailDetailQuerySchema = z.object({
@@ -106,6 +120,33 @@ export const putEmailContentRequestSchema = z.object({
   expectedVersion: z.number().int().optional(),
 });
 export type PutEmailContentRequest = z.infer<typeof putEmailContentRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// Per-email activation (issue #89)
+// ---------------------------------------------------------------------------
+
+/**
+ * The operator's per-email on/off switch.
+ *
+ * The module that owns this surface is non-deactivatable (issue #88), because
+ * the granularity the business wants is this one: an operator silences the
+ * back-in-stock notice without silencing account verification. The read side
+ * has honoured `active` since feature 047; this is the write side.
+ *
+ * Shaped like `ModuleActivationRequestSchema` — one boolean, stated rather than
+ * toggled, so a retry lands on the state the operator asked for instead of the
+ * opposite one.
+ */
+export const setTransactionalEmailActiveRequestSchema = z.object({ active: z.boolean() });
+export type SetTransactionalEmailActiveRequest = z.infer<
+  typeof setTransactionalEmailActiveRequestSchema
+>;
+
+/** The recomputed summary, so the list re-reads what the server resolved. */
+export const setTransactionalEmailActiveResponseSchema = transactionalEmailSummarySchema;
+export type SetTransactionalEmailActiveResponse = z.infer<
+  typeof setTransactionalEmailActiveResponseSchema
+>;
 
 // ---------------------------------------------------------------------------
 // Preview
