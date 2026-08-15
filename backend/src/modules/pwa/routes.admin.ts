@@ -56,9 +56,16 @@ export interface PwaAdminRoutesDeps {
   subscriptionService: PushSubscriptionService;
   messageService: PushMessageService;
   settingsWrite: SettingsWritePort;
-  settingsRead: { get<T>(code: string, channelId: string, schema: z.ZodType<T>): Promise<T> };
-  /** Resolve a salesChannelId query value (or null) to the channel id to read/write. */
-  resolveScopeChannelId: (salesChannelId: string | null) => Promise<string>;
+  settingsRead: {
+    get<T>(code: string, channelId: string | null, schema: z.ZodType<T>): Promise<T>;
+  };
+  /**
+   * Resolve a salesChannelId query value (or null) to the channel to read/write.
+   * Answers `null` when the deployment has no channel at all, which is a
+   * platform-wide read rather than the `'default'` sentinel it used to be
+   * (feature 072, D-41).
+   */
+  resolveScopeChannelId: (salesChannelId: string | null) => Promise<string | null>;
   /** Map a channel id to its code (subset writes are keyed by code). */
   channelCodeForId: (channelId: string) => Promise<string | null>;
   resolveAuditContext: (request: FastifyRequest) => AdminAuditContext;
@@ -72,14 +79,18 @@ export async function registerPwaAdminRoutes(
   const writeGate = deps.requireAdmin(PWA_PERMISSIONS.WRITE);
   const sendGate = deps.requireAdmin(PWA_PERMISSIONS.SEND_PUSH);
 
-  const safeGet = async (code: string, channelId: string, fallback = ''): Promise<string> => {
+  const safeGet = async (
+    code: string,
+    channelId: string | null,
+    fallback = '',
+  ): Promise<string> => {
     try {
       return await deps.settingsRead.get(code, channelId, StringSchema);
     } catch {
       return fallback;
     }
   };
-  const safeBool = async (code: string, channelId: string): Promise<boolean> => {
+  const safeBool = async (code: string, channelId: string | null): Promise<boolean> => {
     try {
       return await deps.settingsRead.get(code, channelId, BoolSchema);
     } catch {

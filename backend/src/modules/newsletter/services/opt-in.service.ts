@@ -15,7 +15,13 @@ export class NewsletterOptInService {
     private readonly tokens: NewsletterTokenHelper,
   ) {}
 
-  async resolveMode(salesChannelId: string): Promise<NewsletterOptInMode> {
+  /**
+   * `null` = no channel for this subscriber, so the platform-wide value applies
+   * (feature 072, D-41). Both are per-storefront settings, which is why the
+   * caller resolves the *system-default channel* first and only reaches `null`
+   * when the deployment has none.
+   */
+  async resolveMode(salesChannelId: string | null): Promise<NewsletterOptInMode> {
     try {
       return await this.settings.get(
         NEWSLETTER_SETTING_CODES.OPT_IN_MODE,
@@ -27,7 +33,7 @@ export class NewsletterOptInService {
     }
   }
 
-  async confirmTtlSeconds(salesChannelId: string): Promise<number> {
+  async confirmTtlSeconds(salesChannelId: string | null): Promise<number> {
     try {
       const hours = await this.settings.get(
         NEWSLETTER_SETTING_CODES.CONFIRM_TTL_HOURS,
@@ -40,7 +46,7 @@ export class NewsletterOptInService {
     }
   }
 
-  async mintConfirmToken(subscriberId: string, salesChannelId: string): Promise<string> {
+  async mintConfirmToken(subscriberId: string, salesChannelId: string | null): Promise<string> {
     return this.tokens.mint('confirm', { id: subscriberId }, await this.confirmTtlSeconds(salesChannelId));
   }
 

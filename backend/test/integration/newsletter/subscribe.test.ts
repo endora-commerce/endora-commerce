@@ -42,7 +42,7 @@ describe('newsletter subscribe/confirm (US1)', () => {
     service = new NewsletterSubscriberService({
       emFactory: () => db.em(),
       optIn,
-      platformChannelId: 'default',
+      defaultChannelId: null,
       links: {
         confirm: (t) => `http://x/confirm?token=${t}`,
         unsubscribe: (t) => `http://x/unsubscribe?token=${t}`,

@@ -27,6 +27,15 @@ import {
   type AdminContextResolver,
 } from './routes.admin.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { ModuleDisabledError } from '../_lifecycle/plugin-helpers.js';
+
+/**
+ * Conditions the storefront flag handler has already reported (D-43). Per
+ * process: these two flags are read on every product card render, so one line
+ * per condition is what makes a settings outage findable and one line per read
+ * is what buries it.
+ */
+const storefrontFlagWarned = new Set<string>();
 
 export interface QuoteRequestsModuleOptions {
   emFactory: () => EntityManager;
@@ -192,16 +201,33 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
       // Storefront-public Quote Requests settings (FR-032 / FR-033) so the
       // storefront can show/hide "Add to quote" buttons without going through
       // the admin-gated settings endpoint. Reads through `resolveBoolSetting`,
-      // a callback supplied by composition.ts that consults the settings
-      // service. Falls back to `true` for both flags on any read error so a
-      // settings outage cannot disable storefront affordances.
+      // supplied by `backend.ts`, which already routes the two conditions D-43
+      // allows to the module default.
+      //
+      // The policy — a settings outage must not hide "Add to quote" — is right
+      // and stays. What was wrong is that a bare `catch` answered `true` for a
+      // **switched-off module** too, which Constitution XVII rule 5 forbids: a
+      // module that is off contributes no storefront element. So
+      // `ModuleDisabledError` is re-thrown, and anything else is reported once
+      // before the fail-open, because a fail-open nobody can see is the defect
+      // this whole cluster is about.
       app.get('/api/v1/storefront/settings/quote-requests', async (_request, reply) => {
         reply.header('cache-control', 'public, max-age=60');
         try {
           const card = await options.resolveBoolSetting('show_add_to_quote_on_card');
           const pdp = await options.resolveBoolSetting('show_add_to_quote_on_pdp');
           return { data: { showAddToQuoteOnCard: card, showAddToQuoteOnPdp: pdp } };
-        } catch {
+        } catch (error) {
+          if (error instanceof ModuleDisabledError) throw error;
+          const name = (error as { name?: string }).name ?? 'Error';
+          if (!storefrontFlagWarned.has(name)) {
+            storefrontFlagWarned.add(name);
+            app.log.warn(
+              { err: error },
+              '[quote_requests] storefront flag settings unreadable — showing the ' +
+                'quote affordances (logged once per condition per process)',
+            );
+          }
           return { data: { showAddToQuoteOnCard: true, showAddToQuoteOnPdp: true } };
         }
       });

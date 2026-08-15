@@ -1126,8 +1126,13 @@ export class OrderService {
       // monotonic sequence + the channel-scoped prefix/suffix settings. Falls
       // back to the entity's placeholder default when the generator is not
       // wired (legacy compositions / unit tests).
+      // `null` = placed with no sales channel, so the prefix/suffix are read
+      // platform-wide, which is the honest answer (feature 072, D-41). It used
+      // to be the literal `'default'` — a channel *code* against a `uuid`
+      // column — so an order placed without a channel silently lost its
+      // configured numbering.
       const businessId = this.businessId
-        ? await this.businessId.generate(tx, channel?.id ?? 'default')
+        ? await this.businessId.generate(tx, channel?.id ?? null)
         : undefined;
 
       const order = tx.create(Order, {

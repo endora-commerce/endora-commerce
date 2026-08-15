@@ -54,6 +54,16 @@ export const SETTINGS_CACHE_NAMESPACE = 'settings';
 export const SETTINGS_LRU_TTL_MS = 30_000;
 
 const KEY_PREFIX = SETTINGS_CACHE_KEY_PREFIX;
+
+/**
+ * The channel segment of a **platform-wide** read's key (feature 072, D-41).
+ * A uuid can never spell it, so it cannot collide with a real channel; using
+ * the nil UUID here would have re-introduced the ambiguity the null read exists
+ * to remove. `invalidate(code)` drops by the `<prefix><code>:` prefix, so this
+ * segment needs no invalidator of its own.
+ */
+const GLOBAL_KEY_SEGMENT = '__global__';
+
 const TTL_SECONDS = 60 * 60;
 const LRU_MAX = 1024;
 const NOT_REGISTERED = '__settings_not_registered__';
@@ -74,8 +84,8 @@ export class SettingsCache {
     private readonly now: () => number = () => Date.now(),
   ) {}
 
-  private static composeKey(code: string, channelId: string): string {
-    return `${KEY_PREFIX}${code}:${channelId}`;
+  private static composeKey(code: string, channelId: string | null): string {
+    return `${KEY_PREFIX}${code}:${channelId ?? GLOBAL_KEY_SEGMENT}`;
   }
 
   /**
@@ -86,7 +96,7 @@ export class SettingsCache {
    */
   async get(
     code: string,
-    channelId: string,
+    channelId: string | null,
   ): Promise<{ hit: false } | { hit: true; value: unknown; notRegistered?: boolean }> {
     const key = SettingsCache.composeKey(code, channelId);
     if (await this.isBypassed(key)) return { hit: false };
@@ -117,7 +127,7 @@ export class SettingsCache {
     return { hit: true, value: decoded };
   }
 
-  async set(code: string, channelId: string, value: unknown): Promise<void> {
+  async set(code: string, channelId: string | null, value: unknown): Promise<void> {
     const key = SettingsCache.composeKey(code, channelId);
     // A read that started before the write resolved the pre-invalidation value
     // from Postgres. Caching it now would undo the invalidation in flight.
@@ -127,7 +137,7 @@ export class SettingsCache {
   }
 
   /** Cache the "not registered" outcome so repeated typos don't hammer Postgres. */
-  async setNotRegistered(code: string, channelId: string): Promise<void> {
+  async setNotRegistered(code: string, channelId: string | null): Promise<void> {
     const key = SettingsCache.composeKey(code, channelId);
     if (await this.isBypassed(key)) return;
     const sentinel = { [NOT_REGISTERED]: true };

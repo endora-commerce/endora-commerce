@@ -85,4 +85,122 @@ describe('check-channel-resolution / analyzeSource', () => {
     expect(v).toHaveLength(1);
     expect(v[0]!.kind).toBe('raw-channel-header');
   });
+
+  it('does NOT flag the CORS policy naming the header it must let through', () => {
+    // Feature 072 (D-42) widened the scan to all of `src/**`, which brought the
+    // server bootstrap into range. Declaring the header is not reading it —
+    // omitting it there is what would break the resolver.
+    const v = analyzeSource(
+      `await app.register(cors, { allowedHeaders: ['Content-Type', 'X-Sales-Channel'] });`,
+      'http/server.ts',
+    );
+    expect(v).toHaveLength(0);
+  });
+
+  it('still flags a real header read in the same file', () => {
+    const v = analyzeSource(
+      `const code = request.headers['x-sales-channel'];`,
+      'http/server.ts',
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0]!.kind).toBe('raw-channel-header');
+  });
+
+  /**
+   * Signal 3 (feature 072, D-42) — a settings read whose channel argument is a
+   * string literal that is not a channel id. "No channel" is spelled `null`.
+   */
+  describe('settings-channel-literal', () => {
+    const ANY = 'modules/carts/backend.ts';
+    const REAL_UUID = '4b1f0a2c-8e3d-4a7b-9c11-2f6d5e8a0b34';
+
+    it('flags a channel code passed where a channel id is wanted', () => {
+      const v = analyzeSource(
+        `const n = await settingsReadPort.get(CODE, 'default', schema);`,
+        ANY,
+      );
+      expect(v).toHaveLength(1);
+      expect(v[0]!.kind).toBe('settings-channel-literal');
+      expect(v[0]!.detail).toContain("'default'");
+    });
+
+    it('flags the nil UUID, which must now be spelled null', () => {
+      const v = analyzeSource(
+        `const n = await this.settings.get(CODE, '00000000-0000-0000-0000-000000000000', schema);`,
+        ANY,
+      );
+      expect(v).toHaveLength(1);
+      expect(v[0]!.kind).toBe('settings-channel-literal');
+    });
+
+    it('flags an identifier whose same-file initializer is such a literal', () => {
+      const v = analyzeSource(
+        [
+          `const GLOBAL_SETTINGS_SCOPE = '00000000-0000-0000-0000-000000000000';`,
+          `const n = await options.settings.get(code, GLOBAL_SETTINGS_SCOPE, schema);`,
+        ].join('\n'),
+        ANY,
+      );
+      expect(v).toHaveLength(1);
+      expect(v[0]!.kind).toBe('settings-channel-literal');
+    });
+
+    it('flags the empty string', () => {
+      const v = analyzeSource(`await settings.get(code, '', schema);`, ANY);
+      expect(v).toHaveLength(1);
+    });
+
+    it('does NOT flag a null channel — that is the sanctioned platform-wide read', () => {
+      const v = analyzeSource(`await settings.get(code, null, schema);`, ANY);
+      expect(v).toHaveLength(0);
+    });
+
+    it('does NOT flag a real channel uuid literal (a fixture, a seed)', () => {
+      const v = analyzeSource(
+        `await settings.get(code, '${REAL_UUID}', schema);`,
+        ANY,
+      );
+      expect(v).toHaveLength(0);
+    });
+
+    it('does NOT flag a channel id held in a variable or a parameter', () => {
+      const v = analyzeSource(
+        [
+          `const channelId = await resolver();`,
+          `await settings.get(code, channelId, schema);`,
+          `await settings.get(code, ctx.resolvedChannel.id, schema);`,
+        ].join('\n'),
+        ANY,
+      );
+      expect(v).toHaveLength(0);
+    });
+
+    it('does NOT flag a string literal passed to something that is not a settings read', () => {
+      const v = analyzeSource(
+        [
+          `await cache.get(code, 'default');`,
+          `await dictionaries.get(code, 'default', schema);`,
+        ].join('\n'),
+        ANY,
+      );
+      expect(v).toHaveLength(0);
+    });
+
+    it('flags getMany as well as get', () => {
+      const v = analyzeSource(
+        `await this.settingsService.getMany(codes, 'default');`,
+        ANY,
+      );
+      expect(v).toHaveLength(1);
+      expect(v[0]!.kind).toBe('settings-channel-literal');
+    });
+
+    it('scans the composition root and the scripts, not just modules/**', () => {
+      const source = `await settings.settingsService.get('x', 'default', schema);`;
+      expect(analyzeSource(source, 'composition.ts')).toHaveLength(1);
+      expect(
+        analyzeSource(source, 'modules/carts/scripts/abandonment-sweep.ts'),
+      ).toHaveLength(1);
+    });
+  });
 });

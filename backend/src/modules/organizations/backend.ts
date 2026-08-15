@@ -141,11 +141,6 @@ export interface OrganizationsCradle {
   readonly storefrontBaseUrl: string;
   readonly organizationsExposeTestProbe: boolean;
   /**
-   * The channel scope this module's own settings are read at. Root-supplied
-   * because it is `ORGANIZATIONS_SETTINGS_CHANNEL_ID`, an env knob.
-   */
-  readonly organizationsSettingsChannelId: string;
-  /**
    * Contribution point: what else a login must do. `carts` merges the anonymous
    * cart, `comparisons` adopts the anonymous comparison. Points *outward* from
    * this module to two that depend on it, so it cannot be a port; defaulted to
@@ -185,10 +180,22 @@ export function registerModule(ctx: ModuleContext): void {
   const cradle = (): OrganizationsCradle => ctx.cradle<OrganizationsCradle>();
 
   /**
-   * Both settings reads degrade to the manifest's own default rather than
-   * failing a registration. The identical try/catch stood in each root; the
-   * `manual` fallback in particular is deliberate, so a brand-new install never
-   * grants an unverified Organization transaction rights by accident.
+   * All three `organizations.*` settings are **platform-wide**: whether a new
+   * Organization needs manual moderation, who is notified when one registers,
+   * and how a parent's credit limit is inherited are properties of the
+   * business, not of a storefront. So the read passes `null` (feature 072,
+   * D-41 case c).
+   *
+   * It used to pass `organizationsSettingsChannelId`, a root-supplied name
+   * carrying `ORGANIZATIONS_SETTINGS_CHANNEL_ID` — an undocumented env var
+   * whose default was the string `'default'`, a channel **code** against a
+   * `uuid` column. D-41 deleted the name rather than fixing its value, because
+   * a DI name that carries a sentinel is one no static check can see.
+   *
+   * The reads degrade to the manifest's own default rather than failing a
+   * registration; the `manual` fallback in particular is deliberate, so a
+   * brand-new install never grants an unverified Organization transaction
+   * rights by accident.
    */
   const readSetting = async <T>(
     code: string,
@@ -196,11 +203,7 @@ export function registerModule(ctx: ModuleContext): void {
     fallback: T,
   ): Promise<T> => {
     try {
-      return (await cradle().settingsReadPort.get(
-        code,
-        cradle().organizationsSettingsChannelId,
-        schema,
-      )) as T;
+      return (await cradle().settingsReadPort.get(code, null, schema)) as T;
     } catch {
       return fallback;
     }

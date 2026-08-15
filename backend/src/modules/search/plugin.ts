@@ -25,9 +25,26 @@ import type {
   AdminAuditContext,
   SettingsAdminService,
 } from '../settings/services/settings-admin.service.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import {
+  SettingNotRegistered,
+  SettingOutOfScopeForChannel,
+  type SettingsService,
+} from '../../kernel/settings/settings.service.js';
 import { DEFAULT_REINDEX_INTERVAL_MINUTES, SEARCH_SETTING_CODES } from './manifest.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+
+/**
+ * Conditions this module has already reported (D-43's warn-once). Module scope
+ * and never reset: an out-of-scope setting is a deployment fact, and the reindex
+ * timer would otherwise log it on every tick.
+ */
+const warnedSearchConditions = new Set<string>();
+
+function warnOnceForSearch(condition: string, message: string): void {
+  if (warnedSearchConditions.has(condition)) return;
+  warnedSearchConditions.add(condition);
+  console.warn(message);
+}
 
 /**
  * Composition root for the search module — feature 006.
@@ -104,6 +121,12 @@ export interface SearchModuleHandle {
   llmToggleService: LlmToggleService;
   reindexWorker: SearchReindexWorker;
   phraseRecorder: SearchPhraseRecorder;
+  /**
+   * The cadence the reindex timer reschedules itself on. Exposed because the
+   * property worth pinning is "the configured interval is the one used", and a
+   * self-rescheduling timer is not a thing a test can ask that of.
+   */
+  resolveReindexIntervalMinutes: () => Promise<number>;
 }
 
 export interface SearchModuleResult {
@@ -175,16 +198,36 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
    * The sweep's cadence is this module's own setting, so it reads it itself
    * rather than taking a resolver from a composition root — which is where the
    * identical `try`/`catch`-to-the-manifest-default lived before T123.
+   *
+   * Read **platform-wide** (feature 072, D-41). A background reindex is one
+   * timer in one process covering every channel's index, so there is no channel
+   * whose value it could sensibly take; it used to pass the literal `'default'`,
+   * a channel **code** against a `uuid` column, so PostgreSQL rejected every
+   * read, the `catch` answered with the constant, and an operator changing the
+   * cadence changed nothing.
+   *
+   * Absorbs only what D-43 allows; a shape mismatch or a driver error
+   * propagates to the caller, which logs it and keeps polling.
    */
   const resolveReindexIntervalMinutes = async (): Promise<number> => {
     try {
       return await options.settingsService.get(
         SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES,
-        'default',
+        null,
         z.number().int().nonnegative(),
       );
-    } catch {
-      return DEFAULT_REINDEX_INTERVAL_MINUTES;
+    } catch (error) {
+      if (error instanceof SettingNotRegistered) return DEFAULT_REINDEX_INTERVAL_MINUTES;
+      if (error instanceof SettingOutOfScopeForChannel) {
+        warnOnceForSearch(
+          `out-of-scope:${SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES}`,
+          `[search] setting "${SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES}" is scoped ` +
+            `to specific sales channels, so it has no platform-wide value — falling back ` +
+            `to the manifest default (logged once per process).`,
+        );
+        return DEFAULT_REINDEX_INTERVAL_MINUTES;
+      }
+      throw error;
     }
   };
 
@@ -207,6 +250,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
       reindexWorker,
       phraseRecorder,
       llmToggleService,
+      resolveReindexIntervalMinutes,
     },
     plugin: async (app) => {
       const teardown = subscriber.subscribe();

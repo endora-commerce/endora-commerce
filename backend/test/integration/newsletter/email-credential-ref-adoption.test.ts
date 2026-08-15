@@ -35,10 +35,8 @@ describe('Newsletter email adapter — credential_ref adoption [real DB]', () =>
     process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] =
       process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ?? randomBytes(32).toString('base64');
     h = await setupBackendServer();
-    const channelId = (await h.salesChannels.resolver.getSystemDefault())!.id;
     registry = new NewsletterProviderRegistry(
       h.settings.settingsService,
-      channelId,
       h.credentials.service,
     );
   });

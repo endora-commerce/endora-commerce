@@ -17,6 +17,21 @@ export const CARTS_SETTING_CODES = {
   ABANDONMENT_NOTIFICATION_RECIPIENT: 'carts.abandonment.notification_recipient',
 } as const;
 
+/**
+ * The manifest defaults, exported so a read that has to degrade degrades to
+ * *this* binding rather than to a literal invented at the call site (feature
+ * 072, D-43).
+ *
+ * The two used to diverge: the manifest said 10080 while both readers' `catch`
+ * answered `0`, and `CartAbandonmentWorker` treats `<= 0` as "sweep nothing".
+ * The divergence did not merely lose the configured value — it inverted the
+ * feature, and it would still have been off after the channel was fixed. A
+ * compiled-in fallback is a second source of truth consulted only when the
+ * first is unreachable, i.e. exactly when nobody is watching.
+ */
+export const DEFAULT_ABANDONMENT_INACTIVITY_MINUTES = 10080;
+export const DEFAULT_ABANDONMENT_NOTIFICATION_RECIPIENT = '';
+
 const settings = defineModuleSettingsManifest({
   moduleCode: 'carts',
   groups: [{ code: 'carts', name: 'Carts' }],
@@ -38,7 +53,7 @@ const settings = defineModuleSettingsManifest({
         'Minutes of inactivity before an Active cart is considered Abandoned. Default 10080 (7 days).',
       groupCode: 'carts',
       valueType: 'number',
-      defaultValue: 10080,
+      defaultValue: DEFAULT_ABANDONMENT_INACTIVITY_MINUTES,
     },
     {
       code: CARTS_SETTING_CODES.ABANDONMENT_NOTIFICATION_RECIPIENT,
@@ -47,7 +62,7 @@ const settings = defineModuleSettingsManifest({
         'Single e-mail address that receives an abandonment notification on every Active → Abandoned transition. Empty = no notification.',
       groupCode: 'carts',
       valueType: 'string',
-      defaultValue: '',
+      defaultValue: DEFAULT_ABANDONMENT_NOTIFICATION_RECIPIENT,
     },
   ],
 });

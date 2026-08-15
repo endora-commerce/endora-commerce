@@ -10,15 +10,31 @@ import { decryptSecretValue, isSecretEnvelope } from './secret-value-codec.js';
  * SettingsService — the universal getter (US3 / T049).
  *
  * The single read mechanism every other module uses to retrieve a setting's
- * value for a given sales channel. Resolution order:
+ * value. A read either **names a real sales channel** or says it has **none**;
+ * nothing in between is spellable (feature 072, D-41).
  *
+ * Resolution order for a channel-scoped read (`salesChannelId` is a uuid):
+ *
+ *   0. Channel-id shape check; a non-uuid → throw {@link SettingsChannelIdInvalid}.
  *   1. Cache hit (read-through Redis + per-process LRU).
  *   2. Setting lookup by code; absent → throw {@link SettingNotRegistered}.
  *   3. Scope check; the channel must be in the setting's `salesChannels`
  *      collection (or the collection must be empty = "all channels").
  *      Otherwise → throw {@link SettingOutOfScopeForChannel}.
  *   4. Per-channel `setting_values` row → return its `value`.
- *   5. Else → return `setting.defaultValue`.
+ *   5. Else → `setting.globalValue`, else `setting.defaultValue`.
+ *
+ * For a **platform-wide** read (`salesChannelId === null`) step 4 is skipped:
+ * the answer is `globalValue ?? defaultValue`, the tier the admin service has
+ * always written ("Platform-wide global override") and `resolveEffectiveValue`
+ * has always resolved, but which had no read API. Three modules independently
+ * invented the nil UUID as its spelling and a fourth inlined it — it worked by
+ * accident, being well-formed enough for Postgres and matching no row. A
+ * setting scoped to a *subset* of channels has no platform-wide answer, so it
+ * throws {@link SettingOutOfScopeForChannel} with a `null` channel.
+ *
+ * No schema change: `setting_values.sales_channel_id` stays `uuid NOT NULL`.
+ * The null lives in the read signature, not in a column.
  *
  * The optional caller-supplied schema is validated AFTER the resolved value
  * is materialised; mismatches surface as {@link SettingValueShapeMismatch}.
@@ -35,12 +51,54 @@ export class SettingNotRegistered extends Error {
 export class SettingOutOfScopeForChannel extends Error {
   override readonly name = 'SettingOutOfScopeForChannel';
   readonly code = 'SETTING_OUT_OF_SCOPE_FOR_CHANNEL' as const;
-  constructor(public readonly settingCode: string, public readonly salesChannelId: string) {
+  constructor(
+    public readonly settingCode: string,
+    /** `null` = the read was platform-wide, and this setting is not. */
+    public readonly salesChannelId: string | null,
+  ) {
     super(
-      `Setting "${settingCode}" is not in scope for sales channel "${salesChannelId}".`,
+      salesChannelId === null
+        ? `Setting "${settingCode}" is scoped to specific sales channels, so it has no platform-wide value.`
+        : `Setting "${settingCode}" is not in scope for sales channel "${salesChannelId}".`,
     );
   }
 }
+
+/**
+ * The caller passed something that is not a sales-channel id (feature 072,
+ * D-42 layer 3).
+ *
+ * `setting_values.sales_channel_id` is `uuid`, so a channel **code**, an empty
+ * string or any other id-shaped string cannot address a row: PostgreSQL rejects
+ * the comparison outright. Before this guard the failure surfaced as a driver
+ * error naming a column, which every caller's `catch` read as "not configured
+ * yet" — that is the whole of the defect family this error exists to end.
+ *
+ * Thrown **before** the `EntityManager` is touched, and deliberately outside
+ * the set of errors a settings read may absorb (D-43): a malformed channel id
+ * is a code defect, not a missing value. "No channel" is spelled `null`.
+ */
+export class SettingsChannelIdInvalid extends Error {
+  override readonly name = 'SettingsChannelIdInvalid';
+  readonly code = 'SETTINGS_CHANNEL_ID_INVALID' as const;
+  constructor(
+    public readonly settingCode: string,
+    public readonly salesChannelId: string,
+  ) {
+    super(
+      `"${salesChannelId}" is not a sales-channel id (reading setting "${settingCode}"). ` +
+        `Pass a channel uuid, or null for a platform-wide read.`,
+    );
+  }
+}
+
+/**
+ * The shape `sales_channels.id` and `setting_values.sales_channel_id` share.
+ * Deliberately not a version-specific UUID pattern: the nil UUID must be
+ * rejected as a *spelling of platform-wide*, not as a malformed id, and it is
+ * `check-channel-resolution.ts` — which can see the literal — that says so.
+ */
+const CHANNEL_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class SettingValueShapeMismatch extends Error {
   override readonly name = 'SettingValueShapeMismatch';
@@ -75,9 +133,11 @@ export class SettingsService {
 
   async get<T>(
     code: string,
-    salesChannelId: string,
+    salesChannelId: string | null,
     schema: z.ZodType<T>,
   ): Promise<T> {
+    this.assertChannelId(code, salesChannelId);
+
     // Cache lookup (covers both real values and "not registered" sentinel).
     if (this.cache) {
       const cached = await this.cache.get(code, salesChannelId);
@@ -98,16 +158,20 @@ export class SettingsService {
       throw new SettingNotRegistered(code);
     }
 
-    // Scope check: empty collection ⇒ all channels in scope.
+    // Scope check: empty collection ⇒ all channels in scope. A platform-wide
+    // read of a channel-subset setting has no answer at all.
     const scope = setting.salesChannels.getItems();
     if (scope.length > 0 && !scope.some((c) => c.id === salesChannelId)) {
       throw new SettingOutOfScopeForChannel(code, salesChannelId);
     }
 
-    const value = await em.findOne(
-      SettingValue,
-      { setting, salesChannel: { id: salesChannelId } as Partial<SalesChannel> },
-    );
+    const value =
+      salesChannelId === null
+        ? null
+        : await em.findOne(SettingValue, {
+            setting,
+            salesChannel: { id: salesChannelId } as Partial<SalesChannel>,
+          });
 
     const resolved = resolveEffectiveValue(setting, value);
     if (this.cache) await this.cache.set(code, salesChannelId, resolved);
@@ -121,7 +185,7 @@ export class SettingsService {
    */
   async getMany(
     codes: string[],
-    salesChannelId: string,
+    salesChannelId: string | null,
   ): Promise<Map<string, SettingsReadResult<unknown>>> {
     const out = new Map<string, SettingsReadResult<unknown>>();
     for (const code of codes) {
@@ -141,6 +205,8 @@ export class SettingsService {
             details: (err as SettingValueShapeMismatch).issues,
           });
         } else {
+          // Includes SettingsChannelIdInvalid: a malformed channel is wrong for
+          // the whole batch, not a per-code outcome.
           throw err;
         }
       }
@@ -149,7 +215,9 @@ export class SettingsService {
   }
 
   /** Raw-read variant used by `getMany` — no caller schema, returns `unknown`. */
-  private async getRaw(code: string, salesChannelId: string): Promise<unknown> {
+  private async getRaw(code: string, salesChannelId: string | null): Promise<unknown> {
+    this.assertChannelId(code, salesChannelId);
+
     if (this.cache) {
       const cached = await this.cache.get(code, salesChannelId);
       if (cached.hit) {
@@ -174,13 +242,28 @@ export class SettingsService {
       throw new SettingOutOfScopeForChannel(code, salesChannelId);
     }
 
-    const value = await em.findOne(
-      SettingValue,
-      { setting, salesChannel: { id: salesChannelId } as Partial<SalesChannel> },
-    );
+    const value =
+      salesChannelId === null
+        ? null
+        : await em.findOne(SettingValue, {
+            setting,
+            salesChannel: { id: salesChannelId } as Partial<SalesChannel>,
+          });
     const resolved = resolveEffectiveValue(setting, value);
     if (this.cache) await this.cache.set(code, salesChannelId, resolved);
     return this.maybeDecrypt(resolved);
+  }
+
+  /**
+   * The seam guard (D-42 layer 3). Runs before the cache and before the
+   * `EntityManager`, so a caller learns it passed a non-id rather than the
+   * driver reporting a column it has never heard of.
+   */
+  private assertChannelId(code: string, salesChannelId: string | null): void {
+    if (salesChannelId === null) return;
+    if (!CHANNEL_ID_PATTERN.test(salesChannelId)) {
+      throw new SettingsChannelIdInvalid(code, salesChannelId);
+    }
   }
 
   private validate<T>(code: string, value: unknown, schema: z.ZodType<T>): T {

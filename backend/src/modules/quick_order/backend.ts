@@ -5,13 +5,17 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import {
+  SettingNotRegistered,
+  SettingOutOfScopeForChannel,
+  type SettingsService,
+} from '../../kernel/settings/settings.service.js';
 import type { CartService } from '../carts/services/cart-service.js';
 import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
 import type { OrderService } from '../orders/services/order-service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
-import { QUICK_ORDER_SETTING_CODES } from './manifest.js';
+import { QUICK_ORDER_SETTING_CODES, DEFAULT_IMPORT_MAX_ROWS } from './manifest.js';
 import { MikroOrmCatalogLookup } from './services/catalog-lookup.js';
 import { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import { QuickOrderBuildService } from './services/quick-order-build-service.js';
@@ -86,11 +90,16 @@ export interface QuickOrderCradle {
 }
 
 /**
- * Matches the `quick_order.import_max_rows` manifest default. Reached only when
- * the setting is unseeded or out of scope for the channel — not, as before,
- * when a composition omitted the settings service.
+ * Conditions this module has already reported (D-43's warn-once). Module scope
+ * and never reset: the import cap is read on every upload, admin and customer.
  */
-const DEFAULT_IMPORT_MAX_ROWS = 2000;
+const warnedConditions = new Set<string>();
+
+function warnOnce(condition: string, message: string): void {
+  if (warnedConditions.has(condition)) return;
+  warnedConditions.add(condition);
+  console.warn(message);
+}
 
 export function registerModule(ctx: ModuleContext): void {
   const cradle = (): QuickOrderCradle => ctx.cradle<QuickOrderCradle>();
@@ -169,22 +178,41 @@ export function registerModule(ctx: ModuleContext): void {
       cradle().customerContextResolver(req);
 
     /**
-     * Read per request against the resolved channel. Before T139 the host read
-     * it against a `settingsChannelId` option it defaulted to `'default'`, and
-     * fell back to the constant whenever a composition passed no settings
-     * service at all — which the harness did, so every test ran the manifest
-     * default while production read the configured value (T133's finding, one
-     * layer down).
+     * Read **platform-wide** (feature 072, D-41 case c). The manifest has
+     * always described this setting as "Global" — it is an upper bound on what
+     * one upload may cost the server, not a per-storefront policy — and the
+     * same value has to answer on the admin surface, where there is no
+     * storefront channel to resolve at all.
+     *
+     * Before T139 the host read it against a `settingsChannelId` option it
+     * defaulted to `'default'`, and fell back to the constant whenever a
+     * composition passed no settings service — which the harness did, so every
+     * test ran the manifest default while production read the configured value
+     * (T133's finding, one layer down). T139 lifted the read here and kept the
+     * `'default'` literal, which is a channel **code** against a `uuid` column:
+     * every read threw in the driver and the bare `catch` made it look like an
+     * unconfigured platform. The cap has therefore been the compiled-in 2000 on
+     * every deployment, whatever the operator set.
      */
     const resolveImportMaxRows = async (): Promise<number> => {
       try {
         return await cradle().settingsReadPort.get(
           QUICK_ORDER_SETTING_CODES.IMPORT_MAX_ROWS,
-          'default',
+          null,
           z.number().int().positive(),
         );
-      } catch {
-        return DEFAULT_IMPORT_MAX_ROWS;
+      } catch (error) {
+        if (error instanceof SettingNotRegistered) return DEFAULT_IMPORT_MAX_ROWS;
+        if (error instanceof SettingOutOfScopeForChannel) {
+          warnOnce(
+            `out-of-scope:${QUICK_ORDER_SETTING_CODES.IMPORT_MAX_ROWS}`,
+            `[quick_order] setting "${QUICK_ORDER_SETTING_CODES.IMPORT_MAX_ROWS}" is ` +
+              `scoped to specific sales channels, so it has no platform-wide value — ` +
+              `falling back to the manifest default (logged once per process).`,
+          );
+          return DEFAULT_IMPORT_MAX_ROWS;
+        }
+        throw error;
       }
     };
 

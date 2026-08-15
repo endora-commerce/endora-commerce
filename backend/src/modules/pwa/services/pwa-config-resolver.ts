@@ -16,7 +16,7 @@ import { PwaIconRendition } from '../entities/pwa-icon-rendition.entity.js';
  * Settings cache's job).
  */
 export interface SettingsReadPort {
-  get<T>(code: string, salesChannelId: string, schema: z.ZodType<T>): Promise<T>;
+  get<T>(code: string, salesChannelId: string | null, schema: z.ZodType<T>): Promise<T>;
 }
 
 const StringSchema = z.string();
@@ -35,7 +35,11 @@ export class PwaConfigResolver {
     private readonly emFactory: () => EntityManager,
   ) {}
 
-  private async getString(code: string, channelId: string, fallback: string): Promise<string> {
+  private async getString(
+    code: string,
+    channelId: string | null,
+    fallback: string,
+  ): Promise<string> {
     try {
       return await this.settings.get(code, channelId, StringSchema);
     } catch {
@@ -43,7 +47,11 @@ export class PwaConfigResolver {
     }
   }
 
-  private async getBool(code: string, channelId: string, fallback: boolean): Promise<boolean> {
+  private async getBool(
+    code: string,
+    channelId: string | null,
+    fallback: boolean,
+  ): Promise<boolean> {
     try {
       return await this.settings.get(code, channelId, BoolSchema);
     } catch {
@@ -51,7 +59,7 @@ export class PwaConfigResolver {
     }
   }
 
-  private async getDisplayMode(channelId: string): Promise<PwaDisplayMode> {
+  private async getDisplayMode(channelId: string | null): Promise<PwaDisplayMode> {
     try {
       return await this.settings.get(PWA_SETTING_CODES.DISPLAY_MODE, channelId, PwaDisplayModeSchema);
     } catch {
@@ -64,9 +72,12 @@ export class PwaConfigResolver {
    * to the per-channel renditions, then the global (null-channel) renditions, then
    * the bundled placeholders.
    */
-  async resolveIcons(salesChannelId: string): Promise<PwaIconDescriptor[]> {
+  async resolveIcons(salesChannelId: string | null): Promise<PwaIconDescriptor[]> {
     const em = this.emFactory();
-    const channelRows = await em.find(PwaIconRendition, { salesChannelId });
+    // `null` = no channel to resolve for, so start at the global renditions —
+    // the same row set the per-channel lookup falls back to anyway.
+    const channelRows =
+      salesChannelId === null ? [] : await em.find(PwaIconRendition, { salesChannelId });
     const rows = channelRows.length > 0
       ? channelRows
       : await em.find(PwaIconRendition, { salesChannelId: null });
@@ -80,7 +91,7 @@ export class PwaConfigResolver {
   }
 
   /** Public, storefront-facing config for a channel (no private secrets). */
-  async getPublicConfig(salesChannelId: string): Promise<PwaPublicConfig> {
+  async getPublicConfig(salesChannelId: string | null): Promise<PwaPublicConfig> {
     const [
       appName,
       shortName,
