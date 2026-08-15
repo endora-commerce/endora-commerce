@@ -32,8 +32,9 @@ import { buildServer, type ModulePlugin } from '../../src/http/server.js';
 import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
 import {
   publishStateChanged,
+  registryCache,
   STATE_CHANGED_CHANNEL,
-} from '../../src/modules/_lifecycle/services/registry-cache.js';
+} from '../../src/kernel/lifecycle/registry-cache.js';
 import { activationDeclarationsFrom } from '../../src/kernel/lifecycle/activation-resolver.js';
 import { effectiveState } from '../../src/modules/_lifecycle/services/effective-state.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
@@ -65,7 +66,6 @@ import type { PermissionCatalogueService } from '../../src/modules/admin_roles/s
 import type { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
 import type { AuthCradle } from '../../src/modules/auth/backend.js';
 import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
-import { registryCache } from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';

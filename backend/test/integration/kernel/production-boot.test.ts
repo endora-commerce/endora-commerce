@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { composeApp } from '../../../src/composition.js';
 import { buildServer } from '../../../src/http/server.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
 /**

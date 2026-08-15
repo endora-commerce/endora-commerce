@@ -9,7 +9,7 @@ import {
   TEST_CUSTOMER_ID,
   TEST_ORGANIZATION_ID,
 } from '../../helpers/test-actors.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { getTenantContext, type TenantContext } from '../../../src/tenancy/tenant-context.js';
 import { forkScopedEm } from '../../../src/tenancy/scoped-em.js';
 import { ShoppingList } from '../../../src/modules/shopping_lists/entities/shopping-list.entity.js';

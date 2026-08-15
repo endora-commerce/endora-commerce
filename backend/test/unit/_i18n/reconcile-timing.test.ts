@@ -10,7 +10,7 @@ import {
   type ModuleRegistrationSink,
 } from '../../../src/kernel/index.js';
 import { EventBus } from '../../../src/events/bus.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { registerModule } from '../../../src/modules/_i18n/backend.js';
 
 /**

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/modules/_lifecycle/services/effective-state.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
@@ -112,7 +112,7 @@ vi.mock('../../../src/modules/_lifecycle/services/presence-load.js', async (impo
     ): Promise<void> => {
       await actual.loadModulePresence(opts);
       const { registryCache: cache } = await import(
-        '../../../src/modules/_lifecycle/services/registry-cache.js'
+        '../../../src/kernel/lifecycle/registry-cache.js'
       );
       cache.__setEnabledForTesting(
         ALL_MODULE_IDS.filter((id) => id !== PLATFORM_UNAVAILABLE),

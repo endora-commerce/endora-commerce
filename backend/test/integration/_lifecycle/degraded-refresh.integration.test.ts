@@ -3,7 +3,7 @@ import Redis from 'ioredis';
 import {
   FALLBACK_TTL_MS,
   ModuleRegistryCache,
-} from '../../../src/modules/_lifecycle/services/registry-cache.js';
+} from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ModuleEffectiveState } from '../../../src/modules/_lifecycle/services/effective-state.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';

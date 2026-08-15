@@ -21,7 +21,7 @@ import {
 import {
   publishStateChanged,
   registryCache,
-} from './registry-cache.js';
+} from '../../../kernel/lifecycle/registry-cache.js';
 import {
   pauseWorkersFor,
   resumeWorkersFor,

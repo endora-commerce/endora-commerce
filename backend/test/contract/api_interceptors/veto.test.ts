@@ -5,7 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
 

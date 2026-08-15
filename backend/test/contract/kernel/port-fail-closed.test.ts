@@ -11,7 +11,7 @@ import type { SalesChannelResolutionPort } from '../../../src/kernel/ports/sales
 import type { SettingsReadPort } from '../../../src/kernel/ports/settings.js';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { ModuleDisabledError } from '../../../src/modules/_lifecycle/plugin-helpers.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**
  * Ports fail closed (feature 072, US5 / T059–T060).

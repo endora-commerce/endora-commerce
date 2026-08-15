@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import {
   ModulePresenceNotLoadedError,
   ModuleRegistryCache,
-} from '../../../src/modules/_lifecycle/services/registry-cache.js';
+} from '../../../src/kernel/lifecycle/registry-cache.js';
 import {
   ModuleEffectiveState,
   effectiveState,

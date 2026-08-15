@@ -1,5 +1,5 @@
 import type { RegistryState } from '@b2b/contracts';
-import { registryCache, type ModuleRegistryCache } from './registry-cache.js';
+import { registryCache, type ModuleRegistryCache } from '../../../kernel/lifecycle/registry-cache.js';
 
 /**
  * Effective module state — the conjunction of the two presence axes

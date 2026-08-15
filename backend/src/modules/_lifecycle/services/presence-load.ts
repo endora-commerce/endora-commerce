@@ -3,7 +3,7 @@ import type { ModuleManifest } from '@b2b/contracts';
 import { ModuleRegistration } from '../../../kernel/lifecycle/module-registration.entity.js';
 import { activationDeclarationsFrom } from '../../../kernel/lifecycle/activation-resolver.js';
 import { installGatingGraph } from './gating-graph.js';
-import { registryCache } from './registry-cache.js';
+import { registryCache } from '../../../kernel/lifecycle/registry-cache.js';
 
 /**
  * The composition step that gives module presence an answer (feature 072,

@@ -48,7 +48,7 @@ import {
   publishStateChanged,
   registryCache,
   STATE_CHANGED_CHANNEL,
-} from './modules/_lifecycle/services/registry-cache.js';
+} from './kernel/lifecycle/registry-cache.js';
 import { effectiveState } from './modules/_lifecycle/services/effective-state.js';
 import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 // Feature 072 (T138) — `organizations` owns its services, its routes and its

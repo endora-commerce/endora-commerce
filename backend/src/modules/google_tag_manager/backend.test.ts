@@ -7,7 +7,7 @@ import {
   createRootContainer,
 } from '../../kernel/index.js';
 import { EventBus } from '../../events/bus.js';
-import { registryCache } from '../_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../kernel/lifecycle/registry-cache.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { registerModule } from './backend.js';
 

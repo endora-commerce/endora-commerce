@@ -3,7 +3,7 @@ import Redis from 'ioredis';
 import {
   ModuleRegistryCache,
   STATE_CHANGED_CHANNEL,
-} from '../../../src/modules/_lifecycle/services/registry-cache.js';
+} from '../../../src/kernel/lifecycle/registry-cache.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 

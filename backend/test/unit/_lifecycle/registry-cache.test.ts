@@ -3,7 +3,7 @@ import {
   ModulePresenceNotLoadedError,
   ModuleRegistryCache,
   registryCache,
-} from '../../../src/modules/_lifecycle/services/registry-cache.js';
+} from '../../../src/kernel/lifecycle/registry-cache.js';
 
 describe('ModuleRegistryCache (test seam)', () => {
   let cache: ModuleRegistryCache;

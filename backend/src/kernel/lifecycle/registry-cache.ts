@@ -1,12 +1,12 @@
 import type Redis from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { RegistryState } from '@b2b/contracts';
-import { ModuleRegistration } from '../../../kernel/lifecycle/module-registration.entity.js';
-import { enterSystemScope } from '../../../kernel/scope.js';
+import { ModuleRegistration } from './module-registration.entity.js';
+import { enterSystemScope } from '../scope.js';
 import {
   resolveActivation,
   type ModuleActivationDeclaration,
-} from '../../../kernel/lifecycle/activation-resolver.js';
+} from './activation-resolver.js';
 
 export const STATE_CHANGED_CHANNEL = 'b2b:module:state-changed';
 export const FALLBACK_TTL_MS = 5_000;

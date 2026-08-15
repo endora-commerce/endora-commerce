@@ -3,7 +3,7 @@ import {
   defineModuleWorker,
   resumeWorkersFor,
 } from '../../../src/modules/_lifecycle/plugin-helpers.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**
  * Historical: a module wired into the composition *before* the lifecycle plugin
