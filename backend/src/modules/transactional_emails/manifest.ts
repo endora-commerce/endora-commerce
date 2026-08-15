@@ -61,6 +61,19 @@ export const manifest = defineModuleManifest({
     'Admin-editable transactional email content and look (global + per sales channel), email-safe blocks/templates, variables, and preview.',
   version: '1.0.0',
   dependencies: ['assets_library', 'email', 'sales_channels', 'settings'],
+  // Issue #88 (Constitution XVII). The granularity the business wants is the
+  // individual email, not the module: switching the module off would take
+  // account verification and every invitation with it, and `organizations`
+  // declares this module outright, so the flip fails closed onto the tenancy
+  // root. The per-email control lives on the definitions themselves — see
+  // `commands/email-activation.commands.ts` and
+  // `services/email-defaults-registry.ts` (issue #89).
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'The platform sends account verification, invitations and order mail through this module; ' +
+      'switch off an individual email instead.',
+  },
   settings: transactionalEmailsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

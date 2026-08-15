@@ -51,9 +51,18 @@ const EXPECTED_GROUNDS: Readonly<Record<string, Ground>> = {
   _lifecycle: 'infrastructure-prefix',
   addresses: 'acknowledged-port-edge',
   customer_accounts: 'acknowledged-port-edge',
+  // Issue #88. The product decision is "core to every platform", and no fourth
+  // ground was invented for it: both are already carried by the *computed*
+  // closure, which is the stronger statement. `organizations` — a criterion
+  // module — declares `transactional_emails` outright, and reaches `currencies`
+  // through `dictionaries`. A hand-written "platform-core capability" category
+  // would have been the two names this file exists to refuse, spelled as a
+  // category.
+  currencies: 'dependency-closure',
   custom_fields: 'dependency-closure',
   dictionaries: 'dependency-closure',
   languages: 'dependency-closure',
+  transactional_emails: 'dependency-closure',
 };
 
 /** The three the amendment moves onto an operator control. */
@@ -164,6 +173,20 @@ describe('nonDeactivatable — the declaring set beyond the criterion (grounds 2
     for (const id of ['custom_fields', 'dictionaries', 'languages']) {
       expect(organizationsClosure.has(id)).toBe(true);
     }
+  });
+
+  it('the two platform-core capabilities are reachable from `organizations` too (issue #88)', () => {
+    // Named separately from the closure trio because the ground was checked
+    // *after* the product decision, not before it: the business asked for
+    // `currencies` and `transactional_emails` to stop being switchable, and the
+    // manifest graph turned out to already say so. `transactional_emails` is a
+    // direct edge; `currencies` arrives through `dictionaries`, which holds the
+    // flag on the same ground.
+    const organizationsClosure = closureOf('organizations', dependencies);
+    expect(organizationsClosure.has('transactional_emails')).toBe(true);
+    expect(dependencies.get('organizations')).toContain('transactional_emails');
+    expect(organizationsClosure.has('currencies')).toBe(true);
+    expect(dependencies.get('dictionaries')).toContain('currencies');
   });
 
   it('`addresses` and `customer_accounts` are carried by a port edge, not by the closure', () => {

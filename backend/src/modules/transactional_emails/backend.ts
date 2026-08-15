@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { ModuleManifest, TransactionalEmailSender } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -45,6 +46,7 @@ import { EmailDefaultsRegistry } from './services/email-defaults-registry.js';
 export interface TransactionalEmailsCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditLogService;
+  readonly commandBus: CommandBus;
   readonly settingsReadPort: SettingsService;
   readonly salesChannelResolutionPort: SalesChannelResolverService;
   readonly requireAdmin: RequireAdminFactory;
@@ -105,10 +107,11 @@ export function registerModule(ctx: ModuleContext): void {
 
     transactionalEmails: ctx
       .asFunction(
-        ({ emFactory, auditLogService, resolvedModuleRegistry }: TransactionalEmailsCradle) =>
+        ({ emFactory, auditLogService, commandBus, resolvedModuleRegistry }: TransactionalEmailsCradle) =>
           transactionalEmailsModule({
             emFactory,
             auditLog: auditLogService,
+            commandBus,
             manifests: resolvedModuleRegistry.map((entry) => entry.manifest),
             defaultsRegistry: cradle().emailDefaultsRegistryInstance,
             settingsService: lazyPort<SettingsService>(ctx, 'settingsReadPort'),

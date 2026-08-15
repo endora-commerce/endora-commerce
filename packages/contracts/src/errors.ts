@@ -332,6 +332,15 @@ export const ERROR_CODES = {
    */
   MODULE_SETTING_READ_ONLY: 'MODULE_SETTING_READ_ONLY',
 
+  // Transactional Emails (issue #89 — per-email operator activation)
+  /**
+   * The owning module declared this individual email non-deactivatable —
+   * it is required to create an account or to get back into one. Deliberately
+   * the twin of `MODULE_NOT_DEACTIVATABLE`, one granularity down: same 409,
+   * same "there is nothing here to switch, ever", same carried reason.
+   */
+  TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE: 'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE',
+
   // Catalog (feature 022 — Products Bulk Edit)
   BULK_TOO_LARGE: 'BULK_TOO_LARGE',
   ATTRIBUTE_NOT_MASS_EDITABLE: 'ATTRIBUTE_NOT_MASS_EDITABLE',

@@ -12,6 +12,22 @@ export interface EmailDefaults {
   defaultSubject: Record<string, string>;
   /** Content envelope: { schema_version, languages: { lang: tree } }. */
   defaultContent: Record<string, unknown>;
+  /**
+   * Declared exactly when this individual email may never be switched off
+   * (issue #89) — the per-email twin of a manifest's
+   * `activation.nonDeactivatable`, and named after it on purpose.
+   *
+   * It lives **here**, on the contribution the owning module already pushes,
+   * rather than as a list in this module or in the admin app. Only the module
+   * that sends the email knows whether its flow survives silence, and a list
+   * anywhere else is a second source of truth that drifts the first time a
+   * module adds an email. `nonDeactivatableReasonOf` is what the write path and
+   * the admin projection both read, so the two never disagree.
+   *
+   * Presence carries the "true": a shape with a separate boolean and reason has
+   * a state where the two contradict each other, and this one does not.
+   */
+  nonDeactivatable?: { reason: string };
 }
 
 /**
@@ -61,6 +77,21 @@ export class EmailDefaultsRegistry {
   /** Every registered code with its contributing module — the owner ledger. */
   owners(): ReadonlyMap<string, string> {
     return new Map(this.ownerByCode);
+  }
+
+  /**
+   * The owning module's sentence for why this email may not be switched off,
+   * or `null` when it may (issue #89).
+   *
+   * An **unregistered** code answers `null`, and that is not a fail-open: a
+   * definition row exists only because a module declared the code in its
+   * manifest, and a module that declares a protected email declares its
+   * defaults in the same boot hook. A code with no entry here is one nobody
+   * seeded content for — already the degenerate case, and switching it off
+   * changes nothing that was going to be delivered.
+   */
+  nonDeactivatableReasonOf(code: string): string | null {
+    return this.byCode.get(code)?.nonDeactivatable?.reason ?? null;
   }
 
   get(code: string): EmailDefaults | undefined {

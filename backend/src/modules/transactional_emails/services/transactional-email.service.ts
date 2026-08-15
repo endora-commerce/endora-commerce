@@ -35,6 +35,7 @@ import { type ResolvedContent } from './content-resolver.js';
 import type { BrandingService} from './branding.service.js';
 import { type ResolvedBranding } from './branding.service.js';
 import type { EmbedResolver } from './embed-resolver.js';
+import type { EmailDefaultsRegistry } from './email-defaults-registry.js';
 
 const KNOWN_COMPONENTS: ReadonlySet<string> = new Set(EMAIL_SAFE_COMPONENT_NAMES);
 
@@ -63,6 +64,14 @@ export interface TransactionalEmailServiceDeps {
   contentResolver: ContentResolver;
   branding: BrandingService;
   embeds: EmbedResolver;
+  /**
+   * The owner ledger the admin projection reads for the per-email protection
+   * (issue #89). Required rather than optional: an absent registry would make
+   * every email report itself deactivatable, which is the one wrong answer —
+   * the admin would offer a switch for `email_verification` and the write path
+   * would refuse it.
+   */
+  defaults: EmailDefaultsRegistry;
   mailer?: Mailer;
   auditLog?: AuditLogService;
 }
@@ -72,6 +81,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   private readonly contentResolver: ContentResolver;
   private readonly branding: BrandingService;
   private readonly embeds: EmbedResolver;
+  private readonly defaults: EmailDefaultsRegistry;
   private readonly mailer: Mailer | undefined;
   private readonly auditLog: AuditLogService | undefined;
 
@@ -80,6 +90,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
     this.contentResolver = deps.contentResolver;
     this.branding = deps.branding;
     this.embeds = deps.embeds;
+    this.defaults = deps.defaults;
     this.mailer = deps.mailer;
     this.auditLog = deps.auditLog;
   }
@@ -164,25 +175,66 @@ export class TransactionalEmailService implements TransactionalEmailSender {
 
   // --- Admin: list / detail ----------------------------------------------
 
+  /**
+   * Whether an operator may switch this one email off (issue #89).
+   *
+   * Resolved from the registry on every read rather than persisted on the row:
+   * the declaration is shipped code owned by the sending module, so a stored
+   * copy would go stale the moment that module changed its mind, and the
+   * reconciler would have one more column to fight over.
+   */
+  private protectionOf(code: string): {
+    deactivatable: boolean;
+    nonDeactivatableReason: string | null;
+  } {
+    const reason = this.defaults.nonDeactivatableReasonOf(code);
+    return { deactivatable: reason === null, nonDeactivatableReason: reason };
+  }
+
+  private async summarize(
+    em: EntityManager,
+    email: TransactionalEmail,
+  ): Promise<TransactionalEmailSummary> {
+    const globalCount = await em.count(TransactionalEmailContent, { emailId: email.id, salesChannelId: null });
+    const channelCount = await em.count(TransactionalEmailContent, { emailId: email.id, salesChannelId: { $ne: null } });
+    return {
+      code: email.code,
+      name: email.name,
+      ownerModule: email.ownerModule,
+      group: email.groupCode,
+      active: email.active,
+      languages: email.languages,
+      hasGlobalOverride: globalCount > 0,
+      hasChannelOverride: channelCount > 0,
+      ...this.protectionOf(email.code),
+    };
+  }
+
   async list(): Promise<TransactionalEmailSummary[]> {
     const em = this.emFactory();
     const emails = await em.find(TransactionalEmail, {}, { orderBy: { name: 'asc' } });
     const out: TransactionalEmailSummary[] = [];
     for (const e of emails) {
-      const globalCount = await em.count(TransactionalEmailContent, { emailId: e.id, salesChannelId: null });
-      const channelCount = await em.count(TransactionalEmailContent, { emailId: e.id, salesChannelId: { $ne: null } });
-      out.push({
-        code: e.code,
-        name: e.name,
-        ownerModule: e.ownerModule,
-        group: e.groupCode,
-        active: e.active,
-        languages: e.languages,
-        hasGlobalOverride: globalCount > 0,
-        hasChannelOverride: channelCount > 0,
-      });
+      out.push(await this.summarize(em, e));
     }
     return out;
+  }
+
+  /**
+   * One email's summary, re-read from the database.
+   *
+   * The activation route answers with this rather than with what it just
+   * wrote — the flip runs on the Command Bus's own forked EM, so the only
+   * honest report of the committed state is a fresh read. Hence `refresh`
+   * rather than `em.clear()`: the request-scoped identity map may hold entities
+   * the auth guard put there, and discarding those to re-read one row is a
+   * wider blast radius than the question needs.
+   */
+  async summary(code: string): Promise<TransactionalEmailSummary> {
+    const em = this.emFactory();
+    const email = await em.findOne(TransactionalEmail, { code }, { refresh: true });
+    if (!email) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Transactional email "${code}" not found.`);
+    return this.summarize(em, email);
   }
 
   private async loadEmailOrThrow(em: EntityManager, code: string): Promise<TransactionalEmail> {
@@ -227,6 +279,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       default: { subject: email.defaultSubject[lang] ?? '', content: defaultContentTree as PuckDataTree },
       hasGlobalOverride: globalCount > 0,
       hasChannelOverride: channelCount > 0,
+      ...this.protectionOf(email.code),
     };
   }
 

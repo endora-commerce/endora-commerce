@@ -16,6 +16,7 @@ import { TransactionalEmailService } from '../../../src/modules/transactional_em
 import { ContentResolver } from '../../../src/modules/transactional_emails/services/content-resolver.js';
 import { BrandingService } from '../../../src/modules/transactional_emails/services/branding.service.js';
 import { EmbedResolver } from '../../../src/modules/transactional_emails/services/embed-resolver.js';
+import { EmailDefaultsRegistry } from '../../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 
 const fakeSettings = {
@@ -35,6 +36,7 @@ function serviceWithoutMailer(): TransactionalEmailService {
     contentResolver: new ContentResolver(),
     branding: new BrandingService(fakeSettings),
     embeds: new EmbedResolver(),
+    defaults: new EmailDefaultsRegistry(),
   });
 }
 
