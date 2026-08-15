@@ -16,7 +16,7 @@ import type { CommandBus } from '../../commands/index.js';
 import type { ApiInterceptorRegistry } from '../../http/interceptors/index.js';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModuleLifecycleOrchestrator } from './services/orchestrator.js';
-import { effectiveState, type ModulePresenceState } from './services/effective-state.js';
+import { effectiveState, type ModulePresenceState } from '../../kernel/lifecycle/effective-state.js';
 import {
   makeSetActivationCommand,
   propagateActivationChange,

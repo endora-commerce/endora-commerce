@@ -4,7 +4,7 @@ import {
   FALLBACK_TTL_MS,
   ModuleRegistryCache,
 } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { ModuleEffectiveState } from '../../../src/modules/_lifecycle/services/effective-state.js';
+import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';

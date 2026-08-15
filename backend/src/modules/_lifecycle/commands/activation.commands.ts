@@ -3,7 +3,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import type { Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Setting } from '../../../kernel/settings/setting.entity.js';
-import { effectiveState } from '../services/effective-state.js';
+import { effectiveState } from '../../../kernel/lifecycle/effective-state.js';
 import { gatingGraph } from '../services/gating-graph.js';
 import { registryCache } from '../../../kernel/lifecycle/registry-cache.js';
 

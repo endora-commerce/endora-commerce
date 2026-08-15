@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { effectiveState } from '../../../src/modules/_lifecycle/services/effective-state.js';
+import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
 /**

@@ -6,7 +6,7 @@ import {
 import {
   ModuleEffectiveState,
   effectiveState,
-} from '../../../src/modules/_lifecycle/services/effective-state.js';
+} from '../../../src/kernel/lifecycle/effective-state.js';
 import type { ModuleActivationDeclaration } from '../../../src/kernel/lifecycle/activation-resolver.js';
 
 /**

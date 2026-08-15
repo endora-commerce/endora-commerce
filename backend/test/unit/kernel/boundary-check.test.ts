@@ -293,29 +293,27 @@ describe('analyzeKernelImports', () => {
 });
 
 describe('the kernel→module import ledger', () => {
-  it('holds the four edges D-37 A1 inherits', () => {
+  it('holds the edges D-37 A1 has not dissolved yet', () => {
     expect(Object.keys(KERNEL_MODULE_IMPORTS_TO_DRAIN).sort()).toEqual([
       'src/kernel/module-context.ts:../modules/_lifecycle/plugin-helpers.js -> _lifecycle',
       'src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations',
       'src/kernel/ports/provide.ts:../../modules/_lifecycle/plugin-helpers.js -> _lifecycle',
-      'src/kernel/ports/provide.ts:../../modules/_lifecycle/services/effective-state.js -> _lifecycle',
     ]);
   });
 
   it('covers a ledgered import and nothing else', () => {
-    const [ledgered] = analyzeKernelImports(
-      "import { effectiveState } from '../../modules/_lifecycle/services/effective-state.js';",
-      kernelFile('ports/provide.ts'),
-    );
+    const ORGANIZATION_ENTITY =
+      "import type { Organization } from '../../modules/organizations/entities/organization.entity.js';";
+
+    const [ledgered] = analyzeKernelImports(ORGANIZATION_ENTITY, kernelFile('ports/organizations.ts'));
     expect(importFindingKey(ledgered!)).toBe(
-      'src/kernel/ports/provide.ts:../../modules/_lifecycle/services/effective-state.js -> _lifecycle',
+      'src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations',
     );
     expect(isDraining(ledgered!)).toBe(true);
 
-    const [fresh] = analyzeKernelImports(
-      "import { effectiveState } from '../../modules/_lifecycle/services/effective-state.js';",
-      kernelFile('compose.ts'),
-    );
+    // The same specifier from a file the ledger does not name is a violation:
+    // an entry is a debt at one site, never a blanket exemption for the shape.
+    const [fresh] = analyzeKernelImports(ORGANIZATION_ENTITY, kernelFile('ports/other.ts'));
     expect(isDraining(fresh!)).toBe(false);
   });
 

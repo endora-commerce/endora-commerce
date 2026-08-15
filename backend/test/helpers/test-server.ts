@@ -36,7 +36,7 @@ import {
   STATE_CHANGED_CHANNEL,
 } from '../../src/kernel/lifecycle/registry-cache.js';
 import { activationDeclarationsFrom } from '../../src/kernel/lifecycle/activation-resolver.js';
-import { effectiveState } from '../../src/modules/_lifecycle/services/effective-state.js';
+import { effectiveState } from '../../src/kernel/lifecycle/effective-state.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { type TenantContext } from '../../src/tenancy/tenant-context.js';
 import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js';

@@ -1,6 +1,6 @@
 import { asFunction, Lifetime, type Resolver } from 'awilix';
 import { ModuleDisabledError } from '../../modules/_lifecycle/plugin-helpers.js';
-import { effectiveState } from '../../modules/_lifecycle/services/effective-state.js';
+import { effectiveState } from '../lifecycle/effective-state.js';
 import type { KernelContainer, KernelCradle } from '../container.js';
 
 /**

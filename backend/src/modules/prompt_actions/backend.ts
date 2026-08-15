@@ -4,7 +4,7 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { effectiveState } from '../_lifecycle/services/effective-state.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { PromptActionRequest } from './entities/prompt-action-request.entity.js';
 import { registerPromptActionsAdminRoutes } from './routes.admin.js';
 import { InterpreterService } from './services/interpreter.service.js';
