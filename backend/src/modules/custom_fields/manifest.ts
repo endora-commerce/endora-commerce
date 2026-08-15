@@ -33,12 +33,17 @@ export const manifest = defineModuleManifest({
       weight: 240,
     },
   ],
+  // Feature 073, Amendment A1 (Constitution XVII). Not one of the four the
+  // specification names as the criterion set. It holds the flag because
+  // `organizations` — which is in that set — declares `custom_fields` in its
+  // manifest `dependencies`, and dependencies fail closed: switching this off
+  // would take the tenancy root down with it, which is a state the orchestrator
+  // has promised an operator cannot reach.
   activation: {
     nonDeactivatable: true,
     reason:
-      'Holds the definitions behind custom-field values on products, orders, organizations ' +
-      'and four other record types; switched off, those writes would drop the values and ' +
-      'those reads would hide them.',
+      'The non-deactivatable `organizations` declares this module in its manifest ' +
+      'dependencies, and dependencies fail closed.',
   },
 });
 

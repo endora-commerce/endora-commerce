@@ -41,14 +41,16 @@ export const manifest = defineModuleManifest({
   dependencies: ['currencies', 'languages', 'auth'],
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: DICTIONARY_PERMISSIONS.WRITE, label: 'Manage dictionary registry' }],
-  // Feature 073/072 (Constitution XVII). Country, region, currency and language
-  // codes are validated against this module on every address, organization,
-  // catalog and order write. A deployment with it off cannot validate any of
-  // them, which is not a smaller platform but one that accepts anything.
+  // Feature 073, Amendment A1 (Constitution XVII). Not one of the four the
+  // specification names as the criterion set. It holds the flag because
+  // `organizations` — which is in that set — declares `dictionaries` in its
+  // manifest `dependencies`: registration validates the Organization's country
+  // code against this registry. Dependencies fail closed, so switching this off
+  // would take the tenancy root with it.
   activation: {
     nonDeactivatable: true,
     reason:
-      'Validates the country, region, currency and language codes every address, ' +
-      'organization, catalog and order write is checked against.',
+      'The non-deactivatable `organizations` declares this module in its manifest ' +
+      'dependencies — registration validates a country code against it — and it fails closed.',
   },
 });

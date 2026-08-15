@@ -17,10 +17,15 @@ export const manifest = defineModuleManifest({
   dependencies: [],
   // No activation declaration, deliberately (D-36a item 4). This module owns
   // exactly one surface — the probes — and D-36b exempts them from gating
-  // outright, which is a stronger guarantee than `nonDeactivatable`: the flag
-  // closes the operator axis only, while the platform axis (the lifecycle CLI)
-  // would still take a gated route down. With nothing gated left to protect,
-  // the flag would declare a hazard that no longer exists, and a declaration
-  // about a hazard is exactly what D-32 rejected in favour of a structure
-  // without one.
+  // outright, through `ctx.ungatedRoutes`: there is no seam left for either
+  // axis to close, so an orchestrator that reports this module disabled still
+  // answers /health.
+  //
+  // What the flag would add is therefore nothing. It binds **both** axes since
+  // `assertDeactivatable` shipped — the platform CLI refuses the disable with no
+  // `--force`, exactly as the operator write does (feature 073, Amendment A1;
+  // this comment previously claimed it closed the operator axis only, which was
+  // true before that method existed and false after). Declaring it here would
+  // announce a hazard the route exemption has already removed, and a declaration
+  // about a hazard is what D-32 rejected in favour of a structure without one.
 });
