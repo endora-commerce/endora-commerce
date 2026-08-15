@@ -55,7 +55,7 @@ describe('API key binding validation (062 / B1–B5)', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     const defaultChannel = await h.salesChannels.resolver.getSystemDefault();
-    defaultChannelId = defaultChannel!.id;
+    defaultChannelId = defaultChannel.id;
 
     // Second organization + its customer account (B3 cross-org refusal) and a
     // blocked account inside the bound org (B3 active-account refusal).

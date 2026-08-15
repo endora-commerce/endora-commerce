@@ -6,6 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * Feature 026 US5 — Applicable price-lists panel contract.
@@ -20,6 +21,7 @@ describe('Applicable price lists (feature 026 US5)', () => {
   let h: BackendServerHandle;
   let orgId: string;
   let directListId: string;
+  let channelListId: string;
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -55,6 +57,24 @@ describe('Applicable price lists (feature 026 US5)', () => {
     });
     await em.persistAndFlush(directList);
     directListId = directList.id;
+
+    // A channel-bound list, evaluated against the system-default channel's
+    // **id** — the criterion the panel used to be unable to match (D-48 / L1).
+    const systemDefault = await em.findOneOrFail(SalesChannel, { systemDefault: true });
+    const channelList = em.create(PriceList, {
+      code: `us5-channel-${Date.now()}`,
+      name: 'Channel-bound Price List for Applicable Lists Co',
+      status: 'active',
+      currency: 'PLN',
+      type: 'base',
+      applicationRule: {
+        kind: 'criterion',
+        type: 'salesChannel',
+        values: [systemDefault.id],
+      },
+    });
+    await em.persistAndFlush(channelList);
+    channelListId = channelList.id;
   });
 
   afterAll(async () => {
@@ -74,6 +94,31 @@ describe('Applicable price lists (feature 026 US5)', () => {
     const ours = body.items.find((it) => it.priceListId === directListId);
     expect(ours).toBeDefined();
     expect(ours!.reasons).toContain('direct_organization_match');
+  });
+
+  /**
+   * D-48 / L1. `resolveDefaultSalesChannelId` was
+   * `(await getSystemDefault())?.id ?? 'default'` — a channel *code* landing in
+   * `ResolutionContext.salesChannelId`, which the price-list evaluator compares
+   * as `values.includes(ctx.salesChannelId)` against channel **uuids**. On any
+   * deployment that took the fallback, every `salesChannel` criterion evaluated
+   * false and this panel reported channel-scoped lists as not applying. The
+   * fallback branch is deleted, not patched: the resolver cannot fail to find a
+   * default, so there is nothing left to fall back to.
+   */
+  it('matches a salesChannel criterion bound to the system-default channel', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/organizations/${orgId}/applicable-price-lists`,
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      items: Array<{ priceListId: string; reasons: string[] }>;
+    };
+    const ours = body.items.find((it) => it.priceListId === channelListId);
+    expect(ours).toBeDefined();
+    expect(ours!.reasons).toContain('sales_channel_inheritance');
   });
 
   it('omits a Price List whose application rule targets a different Organization', async () => {

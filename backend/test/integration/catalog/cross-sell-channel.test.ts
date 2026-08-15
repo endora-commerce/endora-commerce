@@ -41,7 +41,6 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
     svc = new ProductLinkService(() => h.em());
 
     const def = await h.salesChannels.resolver.getSystemDefault();
-    if (!def) throw new Error('system-default sales channel missing in test setup');
     defaultChannelId = def.id;
     defaultChannelCode = def.code;
     defaultChannelIsPublic = def.isPublic;

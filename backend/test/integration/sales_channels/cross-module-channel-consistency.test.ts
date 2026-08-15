@@ -42,7 +42,6 @@ describe('cross-module sales-channel resolution consistency (feature 053 / SC-00
   beforeAll(async () => {
     h = await setupBackendServer({ seed: 'us1-catalog' });
     const def = await h.salesChannels.resolver.getSystemDefault();
-    if (!def) throw new Error('system-default sales channel missing in test setup');
     defaultCode = def.code;
   });
 

@@ -94,6 +94,10 @@ export function registerModule(ctx: ModuleContext): void {
    * This module's own settings, read against the system-default channel. Each
    * degrades to the manifest default rather than failing the request — the
    * identical try/catch stood in the production root, three times over.
+   *
+   * D-48 removed an `if (!channel) return fallback;` from between the two: on
+   * the impossible no-channel branch it returned the compiled-in constant
+   * without reading the setting at all, which is worse than switching tier.
    */
   const readChannelSetting = async <T>(
     code: string,
@@ -102,7 +106,6 @@ export function registerModule(ctx: ModuleContext): void {
   ): Promise<T> => {
     try {
       const channel = await cradle().salesChannelResolutionPort.getSystemDefault();
-      if (!channel) return fallback;
       return (await cradle().settingsReadPort.get(code, channel.id, schema)) as T;
     } catch {
       return fallback;

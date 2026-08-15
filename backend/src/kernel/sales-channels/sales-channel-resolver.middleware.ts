@@ -198,16 +198,12 @@ export async function registerSalesChannelResolverMiddleware(
       );
     }
 
+    // D-48 — the check that used to live here moved into the owner. A missing
+    // default is a platform fault, not a request one, and it now has a single
+    // spelling (`NoSystemDefaultChannel`, also a 500 `INTERNAL`) thrown by the
+    // resolver rather than one re-invented at each of the seventeen sites that
+    // asked. Not caught here on purpose: propagating is the whole point.
     const fallback = await resolver.getSystemDefault();
-    if (fallback === null) {
-      // The boot-time reconciler should have run; if no Default exists,
-      // the platform is in a critical state. Refuse loud and clear.
-      throw new HttpError(
-        500,
-        ERROR_CODES.INTERNAL,
-        'Sales channel registry is empty; default-channel reconciler did not run.',
-      );
-    }
     setResolvedChannel(fallback);
     reply.header(ECHO_HEADER, fallback.code);
   });

@@ -161,8 +161,11 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction((): TemplateEmail =>
         makeTemplateEmail({
           getSender: () => exposed.sender ?? undefined,
+          // D-48 — the system-default channel, which always exists. It was
+          // `?? null`, which read template-email branding and language
+          // platform-wide on a branch that cannot be taken.
           resolveScopeSalesChannelId: async () =>
-            (await cradle().salesChannelResolutionPort.getSystemDefault())?.id ?? null,
+            (await cradle().salesChannelResolutionPort.getSystemDefault()).id,
           resolveLanguage: async (salesChannelId: string) =>
             (await cradle().salesChannelResolutionPort.getById(salesChannelId))?.defaultLanguage ??
             'en-US',
