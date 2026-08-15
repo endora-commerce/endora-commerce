@@ -526,14 +526,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     for (const plugin of earlyModules.sink.rootPlugins) await plugin(app);
   };
 
-  // Feature 042 — the MFA module is constructed after `settings` exists, so its
-  // login port is late-bound here and resolved lazily by the auth services.
-  let mfaLoginPort: MfaLoginPort | undefined;
-  const getMfaLoginPort = (): MfaLoginPort | undefined => mfaLoginPort;
+  // Feature 042 — the MFA login port, read from the container **on every
+  // login** rather than captured here.
+  //
+  // `mfaLoginPort` is a gated port, so resolving it is a question about `mfa`'s
+  // effective state and the answer can change while the process runs. Reading
+  // it during composition asked that question once, at the worst possible
+  // moment: a deployment that had switched `mfa` off got `ModuleDisabledError`
+  // out of `composeApp()` and `index.ts` turned it into `process.exit(1)`.
+  // Asking per login also gives the only defensible off-state answer — the
+  // login fails closed rather than quietly skipping somebody's second factor.
+  const getMfaLoginPort = (): MfaLoginPort | undefined =>
+    (container.cradle as unknown as MfaCradle).mfaLoginPort;
 
   // Feature 072 (T094) — contributed to `customer_accounts`, which defaults it
   // absent. Registered after the early pass so it overrides the module's own
-  // default rather than being overwritten by it; the getter is late-bound, so
+  // default rather than being overwritten by it; the getter resolves lazily, so
   // `mfa` composing later is not a race.
   registerValues(container, { mfaLoginPortGetter: getMfaLoginPort });
 
@@ -875,8 +883,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     } satisfies MfaActorBridge,
   });
-  const mfaCradle = container.cradle as unknown as MfaCradle;
-  mfaLoginPort = mfaCradle.mfaLoginPort;
+  // The login port `getMfaLoginPort` hands to `customer_accounts` is read from
+  // the container per login (see its declaration above); there is nothing to
+  // bind here.
 
   // SEO module — needs the SettingsService port for the per-channel
   // `sales_channels.storefront_url` setting that the sitemap generator
@@ -896,13 +905,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `email` module registered it into. Six senders share it, which is why it
   // was never really "the organizations mailer" and is not named one now.
   const platformMailer = (container.cradle as unknown as EmailCradle).emailMailer;
-
-  // Forward-reference for the onLogin hook below — the comparisons module
-  // is constructed further down (it depends on services declared after
-  // this point), but the post-login hook needs to call into it. The
-  // closure captures the binding, not its value, so the late assignment
-  // is safe at request time.
-  let comparisonAdoption: ((customerAccountId: string, anonymousToken: string) => Promise<void>) | null = null;
 
   // Feature 026's moderation lifecycle — the moderation service, the
   // registration notifier, their two `organization.registered.v1`
@@ -1557,13 +1559,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 072 (T111) — the `CatalogQueryService` built here fed a parameter
   // `ComparisonService` discarded (`_catalogQuery`). Both are gone.
   // Feature 072 (T111) — `comparisons` owns its services and routes now.
-  const comparisonsCradle = container.cradle as unknown as ComparisonsCradle;
-  // Late-bind the adoption hook captured by organizationsModule.onLogin
-  // above; from this point onwards customer logins also adopt the
-  // anonymous Comparison the caller was carrying (R-2 / spec FR-005).
-  comparisonAdoption = comparisonsCradle.comparisonService.adoptAnonymousComparison.bind(
-    comparisonsCradle.comparisonService,
-  );
+  // Anonymous→authenticated adoption is called straight from the login hook
+  // below (R-2 / spec FR-005): `comparisonService` is a gated port, so it is
+  // resolved per login rather than bound here.
 
   // Feature 008 — Quote Requests workflow. Built after Settings so the
   // expiry worker can read `quote_requests.expiryDays` through the
@@ -1658,10 +1656,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           organizationId: loginCtx.organizationId,
         });
       }
-      // Comparisons' anonymous→authenticated adoption (R-2 / FR-005). The hook
-      // is late-bound once `comparisons` is constructed; before then a no-op.
-      if (comparisonAdoption && loginCtx.anonymousCompareToken) {
-        await comparisonAdoption(loginCtx.customerAccountId, loginCtx.anonymousCompareToken);
+      // Comparisons' anonymous→authenticated adoption (R-2 / FR-005). Resolved
+      // per login exactly as the cart merge above is, so an operator switching
+      // `comparisons` off gets the gate's `MODULE_DISABLED` at the call rather
+      // than a captured service that keeps adopting — and the login route's
+      // documented best-effort contract (037 FR-007/FR-008) means that answer
+      // is logged, not fatal to the login.
+      if (loginCtx.anonymousCompareToken) {
+        await (
+          container.cradle as unknown as ComparisonsCradle
+        ).comparisonService.adoptAnonymousComparison(
+          loginCtx.customerAccountId,
+          loginCtx.anonymousCompareToken,
+        );
       }
       return cartMerge ? { cartMerge } : {};
     },
@@ -1895,8 +1902,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       orderContext: new OrderReturnContextProvider(em),
       paymentRefund: new PaymentRefundProvider(em),
-      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoicesCradle.invoiceNumberGenerator, auditLogService, eventBus),
-      creditTopup: new CreditTopupProvider(creditLimitsCradle.creditLimitService),
+      // Both adapters take their gated collaborator as an accessor, so the two
+      // ports are resolved when a return is settled rather than while this
+      // bridge is built: reading them here asked about `invoices`' and
+      // `credit_limits`' effective state at boot, and an operator who had
+      // switched either off got `ModuleDisabledError` out of `composeApp()`.
+      correctiveInvoice: new CorrectiveInvoiceProvider(
+        em,
+        () => invoicesCradle.invoiceNumberGenerator,
+        auditLogService,
+        eventBus,
+      ),
+      creditTopup: new CreditTopupProvider(() => creditLimitsCradle.creditLimitService),
       notifier: new ReturnEmailNotifier(
         platformMailer,
         async (customerAccountId) =>
@@ -2046,7 +2063,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // Feature 020: hand the admin-actions reconciler to the
       // orchestrator so module:install and module:uninstall --hard keep
       // module_actions aligned with the lifecycle.
-      adminActionsReconciler: adminActionsCradle.adminActionsReconciler,
+      //
+      // Forwarded rather than resolved, because `adminActionsReconciler` is a
+      // gated port and `admin_actions` is deactivatable: reading it here asked
+      // whether the command palette was on *at boot*, and an operator who had
+      // switched it off could not start the backend at all. Forwarding moves
+      // the question to `module:install` / `module:uninstall --hard`, where a
+      // switched-off palette aborts that one operation — inside its
+      // transaction, so nothing half-reconciled survives it.
+      adminActionsReconciler: {
+        install: (args) => adminActionsCradle.adminActionsReconciler.install(args),
+        remove: (moduleId) => adminActionsCradle.adminActionsReconciler.remove(moduleId),
+      },
+      // `_i18n` is read directly, one line above, and stays that way: it
+      // declares itself non-deactivatable and the orchestrator refuses to
+      // disable such a module on either axis, so that resolution has no state
+      // in which it can throw. Same for `auth`'s `requireAdmin` at the top of
+      // this function.
     },
     resolvedRegistry.map((e) => ({
       manifest: e.manifest,

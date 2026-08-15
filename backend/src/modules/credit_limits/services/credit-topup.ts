@@ -13,13 +13,21 @@ import type { CreditLimitService } from './credit-limit-service.js';
  * when the organization has no grant.
  */
 export class CreditTopupProvider implements CreditTopupPort {
-  constructor(private readonly creditLimitService: CreditLimitService) {}
+  /**
+   * The service arrives as an accessor, not as an instance: `creditLimitService`
+   * is a gated port, and a composition root that resolves it while wiring this
+   * provider asks about `credit_limits`' effective state at boot — which is how
+   * switching the module off used to stop the whole backend from starting. Read
+   * per settlement, the gate answers at the call it is about.
+   */
+  constructor(private readonly creditLimitService: () => CreditLimitService) {}
 
   async creditFromReturn(input: CreditTopupInput): Promise<CreditTopupResult> {
-    const current = await this.creditLimitService.getForOrganization(input.organizationId);
+    const creditLimits = this.creditLimitService();
+    const current = await creditLimits.getForOrganization(input.organizationId);
     if (!current) return { applied: false };
     const newAmount = round2(Number(current.grantedAmount) + input.amount);
-    const res = await this.creditLimitService.adjust({
+    const res = await creditLimits.adjust({
       organizationId: input.organizationId,
       grantedAmount: newAmount,
       allowOverAllocation: true,

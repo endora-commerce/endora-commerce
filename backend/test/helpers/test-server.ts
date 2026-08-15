@@ -1973,11 +1973,14 @@ export async function setupBackendServer(
       paymentRefund: new PaymentRefundProvider(em),
       correctiveInvoice: new CorrectiveInvoiceProvider(
         em,
-        new InvoiceNumberGenerator(createSettingsPatternResolver(settings.settingsService)),
+        () => new InvoiceNumberGenerator(createSettingsPatternResolver(settings.settingsService)),
         auditLogService,
         eventBus,
       ),
-      creditTopup: new CreditTopupProvider(creditLimitsCradle.creditLimitService),
+      // Read per settlement, as the production root reads it: `creditLimitService`
+      // is a gated port, and resolving one while wiring the bridge is what took
+      // the deployment root down when an operator switched the module off.
+      creditTopup: new CreditTopupProvider(() => creditLimitsCradle.creditLimitService),
       notifier: new ReturnEmailNotifier(
         injectedMailer,
         async (cid) => (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,

@@ -25,9 +25,16 @@ function round2(n: number): number {
  *   - caps the credited total at the original invoice gross (FR-020).
  */
 export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
+  /**
+   * `numbers` is an accessor for the same reason `emFactory` is: the generator
+   * is a gated port, so resolving it is a question about `invoices`' effective
+   * state whose answer changes while the process runs. A composition root that
+   * resolved it while wiring this provider asked at boot, and an operator who
+   * had switched `invoices` off took the backend down with it.
+   */
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly numbers?: InvoiceNumberGenerator,
+    private readonly numbers?: () => InvoiceNumberGenerator,
     private readonly audit?: InvoiceAuditRecorder,
     private readonly events?: InvoiceDomainEventEmitter,
   ) {}
@@ -51,7 +58,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
       // orders fall back to a unique UUID-stamped number.
       let number: string;
       if (this.numbers && salesChannelId && original) {
-        number = await this.numbers.next(tx, 'correction', salesChannelId, issuedAt);
+        number = await this.numbers().next(tx, 'correction', salesChannelId, issuedAt);
       } else {
         number = `KOR-${randomUUID().slice(0, 8).toUpperCase()}`;
       }

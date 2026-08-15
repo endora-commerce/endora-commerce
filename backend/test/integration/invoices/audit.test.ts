@@ -51,7 +51,7 @@ describe('invoices — audit logging (FR-035)', () => {
     });
     const provider = new CorrectiveInvoiceProvider(
       h.em,
-      new InvoiceNumberGenerator(createSettingsPatternResolver(h.settings.settingsService)),
+      () => new InvoiceNumberGenerator(createSettingsPatternResolver(h.settings.settingsService)),
       h.auditLogService,
     );
     const result = await provider.createCorrection({
