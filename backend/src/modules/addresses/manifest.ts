@@ -31,10 +31,11 @@ export const manifest = defineModuleManifest({
   // `addressService`, because its customer routes expose address CRUD. That edge
   // is deliberately absent from the `organizations` manifest: declaring it back
   // would close the cycle this module's own `organizations` dependency opens, so
-  // it is recorded in `ACKNOWLEDGED_PORT_EDGES`
-  // (`backend/scripts/check-port-dependencies.ts`) instead. A closure computed
-  // from manifest `dependencies` alone therefore cannot see it, which is exactly
-  // why the reason has to name the port rather than a fan-out of consumers.
+  // it is recorded in that manifest's `acknowledgedDependencies` instead — read
+  // by the flip-time refusal and by `check-port-dependencies.ts`. A closure
+  // computed from manifest `dependencies` alone therefore cannot see it, which
+  // is exactly why the reason has to name the port rather than a fan-out of
+  // consumers.
   activation: {
     nonDeactivatable: true,
     reason:

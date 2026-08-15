@@ -1298,6 +1298,8 @@
   "platform.modules.degraded": "Ta lista może być nieaktualna o kilka sekund — serwer stracił kanał aktualizacji na żywo i odczytuje dane cyklicznie.",
   "platform.modules.description": "Co udostępnia ta instalacja i co Twoja firma ma włączone.",
   "platform.modules.empty": "Brak modułów do wyświetlenia.",
+  "platform.modules.error.dependenciesAbsent": "Nie można włączyć „{name}”, dopóki nie działa wszystko, czego ten moduł potrzebuje: {modules}. Najpierw włącz tamte.",
+  "platform.modules.error.dependentsPresent": "Nie można wyłączyć „{name}”, dopóki potrzebują go inne moduły: {modules}. Najpierw wyłącz tamte.",
   "platform.modules.flag.depDisabled": "Zależność wyłączona",
   "platform.modules.flag.depMissing": "Brak zależności",
   "platform.modules.flag.orphan": "Brak kodu na dysku",

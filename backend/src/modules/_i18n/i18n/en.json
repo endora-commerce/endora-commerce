@@ -1298,6 +1298,8 @@
   "platform.modules.degraded": "This list may be a few seconds out of date — the server lost its live update channel and is re-reading on a timer.",
   "platform.modules.description": "What this deployment offers, and what your business has switched on.",
   "platform.modules.empty": "No modules to show.",
+  "platform.modules.error.dependenciesAbsent": "\"{name}\" cannot be switched on while everything it needs is not: {modules}. Switch those on first.",
+  "platform.modules.error.dependentsPresent": "\"{name}\" cannot be switched off while these modules need it: {modules}. Switch them off first.",
   "platform.modules.flag.depDisabled": "Dependency disabled",
   "platform.modules.flag.depMissing": "Dependency missing",
   "platform.modules.flag.orphan": "No code on disk",

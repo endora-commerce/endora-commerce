@@ -34,7 +34,8 @@ export const manifest = defineModuleManifest({
   // `customerRoleService`, `totpEnrolmentService`). All four are deliberately
   // absent from the `organizations` manifest, because this module declares
   // `organizations` and declaring the mirror would close the cycle; they live in
-  // `ACKNOWLEDGED_PORT_EDGES` (`backend/scripts/check-port-dependencies.ts`).
+  // that manifest's `acknowledgedDependencies`, which the flip-time refusal and
+  // `check-port-dependencies.ts` both read.
   activation: {
     nonDeactivatable: true,
     reason:

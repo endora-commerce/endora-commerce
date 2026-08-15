@@ -225,9 +225,14 @@ filter by owner at enumeration time — the way `ctx.interceptors` stamps
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
 | `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger |
 
-The port check carries two allow-lists, and both are meant to drain rather than
-grow: `HOST_REGISTERED_PORTS` (a root registering on behalf of a module that has
-not converted) and `ACKNOWLEDGED_PORT_EDGES` (an edge that cannot be declared
-because declaring it would close a manifest cycle — `organizations` resolving
-`addressService` is the worked example, since `addresses` declares
-`organizations` and the tenancy root must install first).
+The port check carries one allow-list, meant to drain rather than grow:
+`HOST_REGISTERED_PORTS` (a root registering on behalf of a module that has not
+converted). The other exemption is no longer the script's: an edge that cannot be
+declared because declaring it would close a manifest cycle is declared in the
+resolving module's manifest, as `acknowledgedDependencies` — `organizations`
+resolving `addressService` is the worked example, since `addresses` declares
+`organizations` and the tenancy root must install first. It sits in the manifest
+rather than here because the lifecycle's flip-time dependency refusal reads the
+same declaration (feature 073, Amendment A1): while the edges lived only in this
+script, an operator could switch `price_lists` off underneath `catalog`'s
+`pricingService` resolution and nothing refused the flip.

@@ -31,9 +31,9 @@ export const manifest = defineModuleManifest({
   // operation notifies and mails.
   //
   // `price_lists` is deliberately absent and recorded in
-  // `ACKNOWLEDGED_PORT_EDGES` instead. The external catalog namespace prices
-  // through the pricing engine, but `price_lists` declares *this* module — a
-  // price list is a list of prices for products — so the edge is mutual and
+  // `acknowledgedDependencies` below instead. The external catalog namespace
+  // prices through the pricing engine, but `price_lists` declares *this* module
+  // — a price list is a list of prices for products — so the edge is mutual and
   // declaring it back closes a cycle. Catalog installs first.
   dependencies: [
     'admin_notifications',
@@ -42,6 +42,24 @@ export const manifest = defineModuleManifest({
     'custom_fields',
     'email',
     'sales_channels',
+  ],
+  // Feature 073, Amendment A1. This one differs from the `organizations` pairs
+  // in the way that matters to an operator: `price_lists` is deactivatable
+  // (`price_lists.enabled`), so without this declaration the pricing engine
+  // could be switched off underneath a live resolver in a core commerce module,
+  // and nothing would refuse the flip.
+  acknowledgedDependencies: [
+    {
+      moduleId: 'price_lists',
+      port: 'pricingService',
+      reason:
+        'Mutual by nature, and the mirror of `organizations:addressService`. ' +
+        '`price_lists` declares this module — a price list is a list of prices for ' +
+        'products, and it must install after them — while the external catalog ' +
+        'namespace prices its responses through the pricing engine. Declaring the ' +
+        'second direction closes the cycle, and `migration-order` fails the build ' +
+        'on it, which is how this was found.',
+    },
   ],
   i18n: { bundlesDir: 'i18n' },
   actions: [
