@@ -9,10 +9,11 @@ import {
  * T075 — Storefront-public Quote Requests settings endpoint reflects
  * the platform-admin's PATCH within the cache window.
  *
- * The test-server's `resolveBoolSetting` is hardcoded to `true`, so this
- * test asserts the endpoint shape + default values rather than the
- * full PATCH-and-revalidate cycle (the latter is exercised in
- * production with the real settings module).
+ * Asserts the endpoint's shape and cache header only. The flags themselves
+ * come from `quote_requests`' own settings read; that this read reflects what
+ * the operator configured — rather than answering `true` forever, which it did
+ * while the module passed a channel *code* where a channel id belongs — is
+ * pinned in `test/integration/quote_requests/settings-channel.test.ts`.
  */
 describe('Storefront Quote Requests settings (T075)', () => {
   let h: BackendServerHandle;
