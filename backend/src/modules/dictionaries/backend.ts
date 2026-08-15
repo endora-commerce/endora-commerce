@@ -106,7 +106,25 @@ export function registerModule(ctx: ModuleContext): void {
   // Whoever caches currency or language data drops its own when told. This
   // module is one of them, and now says so itself rather than being reached
   // into by a root.
-  for (const event of [CURRENCY_CHANGED_EVENT, LANGUAGE_CHANGED_EVENT]) {
+  //
+  // The two sales-channel events are issue #101's other half. The registry a
+  // storefront reads is *scoped to a channel* — `languages` and `currencies`
+  // are filtered by the channel's own lists, and `defaults` come off its
+  // `defaultLanguage` / `defaultCurrency` — so a channel write invalidates this
+  // cache exactly as a currency or language write does. Nothing subscribed
+  // before, so a PATCH of the default channel's languages served the old
+  // registry until the entry's hour expired, and a flag move (D-51) changed
+  // which channel the platform-wide read resolves without dropping anything.
+  // `identity_changed` covers the PATCH, `lifecycle_changed` the move and the
+  // deactivations. Both are EventBus announcements — no manifest dependency,
+  // and none is wanted: `sales_channels` must not know who caches its rows.
+  const invalidationEvents = [
+    CURRENCY_CHANGED_EVENT,
+    LANGUAGE_CHANGED_EVENT,
+    'sales_channels.identity_changed',
+    'sales_channels.lifecycle_changed',
+  ];
+  for (const event of invalidationEvents) {
     ctx.subscribe(event, async () => {
       await ctx.cradle<DictionariesCradle>().dictionaryInvalidator();
     });

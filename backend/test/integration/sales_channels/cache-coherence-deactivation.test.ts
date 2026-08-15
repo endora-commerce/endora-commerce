@@ -58,6 +58,16 @@ describe('sales-channel cache coherence on deactivation (feature 053 / FR-008)',
     };
   }
 
+  /** Poll until the invalidator has dropped the entry, or give up loudly. */
+  async function waitForCacheMiss(): Promise<void> {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const cached = await h.salesChannels.cache.get(CODE);
+      if (!cached.hit) return;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error(`sales-channel cache still holds "${CODE}" after deactivation`);
+  }
+
   it('serves an active channel, then refuses it after deactivation invalidates the cache', async () => {
     // Warm the resolver cache — the channel resolves and is served.
     const before = await request();
@@ -67,9 +77,15 @@ describe('sales-channel cache coherence on deactivation (feature 053 / FR-008)',
     // Deactivate → emits sales_channels.lifecycle_changed → invalidator drops the
     // cached entry across LRU + Redis.
     await h.salesChannels.salesChannelsService.deactivate(CODE);
-    // EventBus.emit dispatches fire-and-forget outside a run() scope; flush the
-    // microtask so the invalidation has completed before the next request.
-    await new Promise((resolve) => setImmediate(resolve));
+    // `EventBus.emit` dispatches fire-and-forget outside a `run()` scope, and
+    // `dispatch` awaits its handlers in registration order — so "the
+    // invalidation has completed" is not a fixed number of ticks. It used to be
+    // one `setImmediate`, which held only while this event had exactly one
+    // handler; issue #101 added `dictionaries` ahead of it in the early pass,
+    // and its Redis SCAN pushed the channel invalidator past that tick. Wait
+    // for the condition itself instead of for a tick count — the assertion
+    // below is unchanged and still the point.
+    await waitForCacheMiss();
 
     // Next request re-resolves from Postgres and refuses the now-inactive channel
     // with the uniform envelope — no stale cached "active" served.

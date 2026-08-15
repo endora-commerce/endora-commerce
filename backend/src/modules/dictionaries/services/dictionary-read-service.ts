@@ -11,7 +11,7 @@ import { Language } from '../../languages/entities/language.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Country } from '../entities/country.entity.js';
 import { LanguageCountry } from '../entities/language-country.entity.js';
-import { DictionaryCache } from './dictionary-cache.js';
+import { DictionaryCache, GLOBAL_CACHE_KEY_SEGMENT } from './dictionary-cache.js';
 import { LabelResolver } from './label-resolver.js';
 
 export interface DictionaryRegistryArgs {
@@ -34,7 +34,7 @@ export class DictionaryReadService {
 
   async getRegistry(args: DictionaryRegistryArgs = {}): Promise<DictionaryRegistryResponse> {
     const ctx = await this.resolveContext(args);
-    const cacheKey = DictionaryCache.registryKey(ctx.cacheChannelCode, ctx.locale);
+    const cacheKey = DictionaryCache.registryKey(ctx.cacheChannelKey, ctx.locale);
     const cached = await this.cache?.get<DictionaryRegistryResponse>(cacheKey);
     if (cached) return cached;
 
@@ -209,7 +209,7 @@ export class DictionaryReadService {
   private async resolveContext(args: DictionaryRegistryArgs): Promise<{
     channel: SalesChannel | null;
     locale: string;
-    cacheChannelCode: string;
+    cacheChannelKey: string;
   }> {
     const em = this.emFactory();
     const channel = args.channelCode
@@ -226,7 +226,14 @@ export class DictionaryReadService {
     return {
       channel: channel ?? null,
       locale,
-      cacheChannelCode: args.channelCode ?? 'default',
+      // Issue #101 — the key is the channel this read actually resolved, not
+      // the literal `'default'` it used to be. A code is not an identity: the
+      // flag moves (D-51), so an entry keyed `'default'` outlived the channel
+      // it was built from and served the previous default's languages and
+      // currencies under the new one's name. `__global__` is the reserved
+      // segment for the platform-wide tier, the same one the settings cache
+      // uses; a uuid can never spell it, so it cannot collide with a channel.
+      cacheChannelKey: channel?.id ?? GLOBAL_CACHE_KEY_SEGMENT,
     };
   }
 
