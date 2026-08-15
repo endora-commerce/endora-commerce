@@ -144,7 +144,12 @@ export function registerModule(ctx: ModuleContext): void {
     const requireAdmin = cradle.requireAdmin;
 
     await registerSettingsAdminRoutes(app, {
-      adminService: cradle.settingsAdminService,
+      // Lazily, even though the module owns this port: route *registration* runs
+      // inside `buildServer` whatever the module's effective state is, so
+      // destructuring the gate here would stop the next start instead of
+      // stopping the routes (D-40) — and this module is deactivatable on
+      // purpose, so that state is one an operator can actually produce.
+      adminService: lazyPort<SettingsAdminService>(ctx, 'settingsAdminService'),
       requireAdmin,
       resolveAdminAuditContext: (req) =>
         ctx.cradle<SettingsCradle>().adminAuditActorResolver(req),

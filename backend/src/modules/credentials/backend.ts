@@ -121,10 +121,14 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.routes(async (app) => {
-    const { credentialsService, requireAdmin, adminContextResolver } =
-      ctx.cradle<CredentialsCradle>();
+    const { requireAdmin, adminContextResolver } = ctx.cradle<CredentialsCradle>();
     await registerCredentialsAdminRoutes(app, {
-      service: credentialsService,
+      // Lazily, even though the module owns this port: route *registration* runs
+      // inside `buildServer` whatever the module's effective state is, so
+      // destructuring the gate here would stop the next start instead of
+      // stopping the routes (D-40). The construction-time read of
+      // `credentialsSettingsPort` above is a different thing and stays.
+      service: lazyPort<CredentialsService>(ctx, 'credentialsService'),
       requireAdmin,
       resolveAdminContext: adminContextResolver,
     });

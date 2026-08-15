@@ -13,6 +13,31 @@ export const manifest = defineModuleManifest({
     'enable / disable / status across every domain module.',
   version: '1.0.0',
   dependencies: [],
+  /**
+   * The one edge this subsystem resolves and cannot declare (issue #90).
+   *
+   * Its two admin surfaces — the API-interceptor screen and the module presence
+   * projection — are guarded by `auth`'s `requireAdmin` port, exactly as every
+   * other admin surface is. `dependencies` is the wrong home for it: that array
+   * drives the **install order**, and this is the sentinel manifest every other
+   * module's installation is recorded against, so ordering it after `auth` (and
+   * transitively `admin_roles`) would have those modules install before the
+   * registry that records an installation exists. The read itself is safe on the
+   * other axis — `auth` is `nonDeactivatable`, so the gate has no state in which
+   * it closes — and it stayed invisible until `check-port-dependencies` learned
+   * to follow a module-local cradle alias.
+   */
+  acknowledgedDependencies: [
+    {
+      moduleId: 'auth',
+      port: 'requireAdmin',
+      reason:
+        'The lifecycle admin surfaces are guarded by requireAdmin like every other admin ' +
+        'surface, but this is the sentinel manifest the install order starts from: declaring ' +
+        'auth would install it, and admin_roles, before the registry that records an ' +
+        'installation. auth is non-deactivatable, so the gate never closes.',
+    },
+  ],
   // Feature 073, Amendment A1 (Constitution XVII). The ground is the
   // `_`-prefix infrastructure rule, not the specification's criterion set and
   // not "it owns the screen that switches modules on and off" — that argument

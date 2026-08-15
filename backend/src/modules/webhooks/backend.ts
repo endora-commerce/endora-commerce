@@ -1,7 +1,7 @@
 import type { Queue, Worker } from 'bullmq';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
-import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { Webhook } from './entities/webhook.entity.js';
 import { WebhookDelivery } from './entities/webhook-delivery.entity.js';
@@ -135,7 +135,7 @@ export function registerModule(ctx: ModuleContext): void {
   }
 
   ctx.routes(async (app) => {
-    const { webhookService, requireAdmin, webhooksRunWorkers } = ctx.cradle<WebhooksCradle>();
+    const { requireAdmin, webhooksRunWorkers } = ctx.cradle<WebhooksCradle>();
 
     // `ctx.worker` wraps it in `defineModuleWorker`, so it starts paused when
     // the module is off and the orchestrator pauses and resumes it as the
@@ -146,6 +146,13 @@ export function registerModule(ctx: ModuleContext): void {
       ctx.worker(ctx.cradle<WebhooksCradle>().webhookDeliveryWorker, { logger: app.log });
     }
 
-    await registerWebhooksAdminRoutes(app, { webhookService, requireAdmin });
+    await registerWebhooksAdminRoutes(app, {
+      // Lazily, even though the module owns this port: route *registration* runs
+      // inside `buildServer` whatever the module's effective state is, so
+      // destructuring the gate here would stop the next start instead of
+      // stopping the routes (D-40).
+      webhookService: lazyPort<WebhookService>(ctx, 'webhookService'),
+      requireAdmin,
+    });
   });
 }

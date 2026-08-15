@@ -137,7 +137,6 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.routes(async (app) => {
     const {
-      promotionService,
       promotionCouponService,
       promotionRuleStore,
       promotionStatsService,
@@ -145,7 +144,11 @@ export function registerModule(ctx: ModuleContext): void {
       promotionRuleTargets,
     } = ctx.cradle<PromotionsCradle>();
     await registerPromotionRoutes(app, {
-      promotionService,
+      // Lazily, even though the module owns this port: route *registration* runs
+      // inside `buildServer` whatever the module's effective state is, so
+      // destructuring the gate here would stop the next start instead of
+      // stopping the routes (D-40).
+      promotionService: lazyPort<PromotionService>(ctx, 'promotionService'),
       couponService: promotionCouponService,
       ruleStore: promotionRuleStore,
       statsService: promotionStatsService,
