@@ -4,7 +4,7 @@ import type { ModuleManifest, RegistryState } from '@b2b/contracts';
 import { defineModuleWorker } from '../../../src/modules/_lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
 import { loadModulePresence } from '../../../src/modules/_lifecycle/services/presence-load.js';
-import { ModuleRegistration } from '../../../src/modules/_lifecycle/entities/module-registration.entity.js';
+import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 

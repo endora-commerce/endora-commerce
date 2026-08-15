@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@b2b/contracts';
-import { ModuleRegistration } from '../entities/module-registration.entity.js';
+import { ModuleRegistration } from '../../../kernel/lifecycle/module-registration.entity.js';
 import { activationDeclarationsFrom } from './activation-resolver.js';
 import { installGatingGraph } from './gating-graph.js';
 import { registryCache } from './registry-cache.js';

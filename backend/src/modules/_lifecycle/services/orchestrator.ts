@@ -13,7 +13,7 @@ import { ManifestReconciler } from '../../../kernel/settings/manifest-reconciler
 import { Setting } from '../../../kernel/settings/setting.entity.js';
 import { SettingGroup } from '../../../kernel/settings/setting-group.entity.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import { ModuleRegistration } from '../entities/module-registration.entity.js';
+import { ModuleRegistration } from '../../../kernel/lifecycle/module-registration.entity.js';
 import {
   acquireLifecycleLock,
   type LifecycleLeaseHandle,

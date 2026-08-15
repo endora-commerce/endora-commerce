@@ -496,13 +496,12 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // is the subsystem being the subsystem rather than residue. `composition.ts`
   // composes the boot half — the first-boot reconciler, the registry-cache warm
   // and the worker resume — and contributes the orchestrator and the activation
-  // propagation. The two registries name its `module_registrations` entity and
-  // its migrations. `module-context.ts` and `ports/provide.ts` are the gating
-  // wrappers themselves: they ask this module whether another one is present,
-  // which is the one direction that cannot be inverted.
+  // propagation. `mikro-orm.config.ts` names its migration group; the entity
+  // registry stopped naming it when `ModuleRegistration` moved into the kernel
+  // (D-37 A1). `module-context.ts` and `ports/provide.ts` are the gating
+  // wrappers themselves: they ask this module whether another one is present.
   _lifecycle: [
     'src/composition.ts',
-    'src/db/entities-registry.ts',
     'src/db/mikro-orm.config.ts',
     'src/kernel/module-context.ts',
     'src/kernel/ports/provide.ts',

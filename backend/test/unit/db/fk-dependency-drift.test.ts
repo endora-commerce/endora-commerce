@@ -182,11 +182,13 @@ describe('fk drift — the kernel edge (feature 072)', () => {
   });
 
   it('claims the tables of the entities the kernel absorbed', () => {
-    // T016, T019 and T018 respectively. If any of these reads as its old module
-    // the ownership map has drifted from the entity tree, and every foreign key
-    // pointing at it is misattributed.
+    // T016, T019 and T018 respectively, plus `module_registrations` (D-37 A1:
+    // the presence cache's own table follows the cache into the kernel). If any
+    // of these reads as its old module the ownership map has drifted from the
+    // entity tree, and every foreign key pointing at it is misattributed.
     for (const table of [
       'audit_log_entries',
+      'module_registrations',
       'sales_channels',
       'settings',
       'setting_groups',
