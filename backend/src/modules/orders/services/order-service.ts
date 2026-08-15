@@ -51,6 +51,7 @@ import { CartItem } from '../../carts/entities/cart-item.entity.js';
 import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.entity.js';
 import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
+import { NoSystemDefaultChannel } from '../../../kernel/sales-channels/no-system-default-channel.error.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
@@ -890,21 +891,36 @@ export class OrderService {
       );
 
       // Resolve the order's sales channel once. Prefer the channel carried on
-      // the request (Checkout / admin create); fall back to the first active
-      // channel for legacy callers that don't pass one. Used for candidate
-      // warehouses, the channel-level fulfilment setting, and the stamped
-      // order channel below, so all three agree.
-      const orderChannel = req.salesChannelId
-        ? ((await tx.findOne(SalesChannel, { id: req.salesChannelId })) ??
-          (await tx.findOne(SalesChannel, { status: 'active' })))
-        : await tx.findOne(SalesChannel, { status: 'active' });
+      // the request (Checkout / admin create); otherwise the platform's
+      // **system-default** channel. Used for candidate warehouses, the
+      // channel-level fulfilment setting, and the stamped order channel below,
+      // so all three agree.
+      //
+      // Issue #85 — the fallback used to be `findOne(SalesChannel, { status:
+      // 'active' })`: an arbitrary active row, ordered by nothing, read from
+      // the legacy `status` column rather than from the flag that actually
+      // names the default. Which channel an order recorded therefore depended
+      // on Postgres' row order, and moving the flag changed nothing. The flag
+      // is the platform's one answer to "which channel, when nobody said"
+      // (D-47), and since D-51 an operator can move it, so the lookup has to
+      // follow it. Read inside the transaction rather than through the
+      // resolver's cache so the three uses below see one consistent snapshot.
+      const orderChannel =
+        (req.salesChannelId
+          ? await tx.findOne(SalesChannel, { id: req.salesChannelId })
+          : null) ?? (await tx.findOne(SalesChannel, { systemDefault: true }));
+      // An order records the channel it was placed through; there is no honest
+      // value for "none" in a `not null` column other code joins on. D-47's
+      // invariant says this cannot happen after boot — so say so, rather than
+      // persisting the `randomUUID()` that used to stand here (issue #85).
+      if (orderChannel === null) throw new NoSystemDefaultChannel();
       const channelForStock = orderChannel;
       const knexForStock = tx.getKnex();
 
       // Sales-channel + platform-default layer of the fulfilment-strategy
       // precedence chain, resolved once (org + product layers are applied
       // per-line below). Resolver failures degrade to the manifest default.
-      const channelStrategyId = channelForStock?.id ?? req.salesChannelId ?? '';
+      const channelStrategyId = channelForStock.id;
       const channelDefault = {
         strategy: this.resolveChannelFulfilmentStrategy
           ? await this.resolveChannelFulfilmentStrategy(channelStrategyId).catch(
@@ -926,24 +942,18 @@ export class OrderService {
       // Candidate warehouses for the channel — joined with the warehouses
       // table so we can carry the code (used by lex tie-breaks in the
       // resolver) and the isDefault flag.
-      const candidateRows = channelForStock
-        ? ((await knexForStock('warehouse_channel_assignments as a')
-            .join('warehouses as w', 'w.id', 'a.warehouse_id')
-            .where('a.sales_channel_id', channelForStock.id)
-            .where('w.active', true)
-            .orderBy('a.is_default', 'desc')
-            .orderBy('a.sort_order', 'asc')
-            .orderBy('a.created_at', 'asc')
-            .select(
-              'a.warehouse_id',
-              'w.code as warehouse_code',
-              'a.is_default',
-            )) as Array<{
-            warehouse_id: string;
-            warehouse_code: string;
-            is_default: boolean;
-          }>)
-        : [];
+      const candidateRows = (await knexForStock('warehouse_channel_assignments as a')
+        .join('warehouses as w', 'w.id', 'a.warehouse_id')
+        .where('a.sales_channel_id', channelForStock.id)
+        .where('w.active', true)
+        .orderBy('a.is_default', 'desc')
+        .orderBy('a.sort_order', 'asc')
+        .orderBy('a.created_at', 'asc')
+        .select('a.warehouse_id', 'w.code as warehouse_code', 'a.is_default')) as Array<{
+        warehouse_id: string;
+        warehouse_code: string;
+        is_default: boolean;
+      }>;
       const candidateWarehouseIds = candidateRows.map((r) => r.warehouse_id);
       // Fallback when the channel has no warehouses bound — the
       // boot-time WarehouseChannelReconciler keeps this case from
@@ -1117,28 +1127,25 @@ export class OrderService {
         organizationId: ctx.organizationId,
       });
 
-      // Sales channel — resolved once above (request channel preferred, first
-      // active as fallback) so the stamped channel matches the one used for
-      // stock candidates and the channel-level fulfilment setting.
+      // Sales channel — resolved once above (request channel preferred, the
+      // system default otherwise) so the stamped channel matches the one used
+      // for stock candidates and the channel-level fulfilment setting.
       const channel = orderChannel;
 
       // Feature 036 — customer-facing business Order ID, generated from the
       // monotonic sequence + the channel-scoped prefix/suffix settings. Falls
       // back to the entity's placeholder default when the generator is not
-      // wired (legacy compositions / unit tests).
-      // `null` = placed with no sales channel, so the prefix/suffix are read
-      // platform-wide, which is the honest answer (feature 072, D-41). It used
-      // to be the literal `'default'` — a channel *code* against a `uuid`
-      // column — so an order placed without a channel silently lost its
-      // configured numbering.
+      // wired (legacy compositions / unit tests). Always a real channel id
+      // now: an order placed without an explicit channel gets the default
+      // channel's configured numbering rather than the platform-wide one.
       const businessId = this.businessId
-        ? await this.businessId.generate(tx, channel?.id ?? null)
+        ? await this.businessId.generate(tx, channel.id)
         : undefined;
 
       const order = tx.create(Order, {
         organizationId: ctx.organizationId,
         placedByCustomerAccountId: ctx.customerAccountId,
-        salesChannelId: channel?.id ?? randomUUID(),
+        salesChannelId: channel.id,
         ...(businessId ? { businessId } : {}),
         deliveryAddress: {
           recipientName: delivery.recipientName,
@@ -1220,7 +1227,7 @@ export class OrderService {
             organizationId: ctx.organizationId,
             customerAccountId: ctx.customerAccountId,
             customerGroupId: null,
-            salesChannelId: channel?.id ?? null,
+            salesChannelId: channel.id,
           },
           applied: appliedPromotions.map((ap) => ({
             promotionId: ap.promotionId,

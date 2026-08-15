@@ -32,18 +32,30 @@ export interface OneClickPlaceInput {
  * `OrderService` is injected through a lazy getter so the orders module never
  * depends on quick_order (it is late-bound at request time, mirroring the
  * existing getRfqService / getShoppingListService pattern).
+ *
+ * **The channel is a per-call argument, not a constructor default** (issue #99,
+ * D-48). It used to be `salesChannelId: string = 'default'` — a fifth
+ * constructor parameter `backend.ts` never passed, so every deployment read the
+ * setting against a channel *code*, tripped the settings seam guard, and
+ * reported `setting_disabled` indistinguishably from an operator having
+ * switched one-click buy off. The routes read the channel the canonical
+ * resolver put on the request and hand it down; `null` means there is none, and
+ * then the setting is read platform-wide (D-41 case c) and the order records no
+ * channel rather than an invented one.
  */
 export class OneClickService {
   constructor(
     private readonly preferenceService: DefaultPreferenceService,
     private readonly cartService: CartService,
     private readonly getOrderService: () => OrderService | null,
-    private readonly resolveOneClickEnabled: (salesChannelId: string) => Promise<boolean>,
-    private readonly salesChannelId: string = 'default',
+    private readonly resolveOneClickEnabled: (salesChannelId: string | null) => Promise<boolean>,
   ) {}
 
-  async eligibility(customerAccountId: string): Promise<QuickOrderOneClickEligibility> {
-    const enabled = await this.resolveOneClickEnabled(this.salesChannelId);
+  async eligibility(
+    customerAccountId: string,
+    salesChannelId: string | null,
+  ): Promise<QuickOrderOneClickEligibility> {
+    const enabled = await this.resolveOneClickEnabled(salesChannelId);
     if (!enabled) return { enabled: false, reason: 'setting_disabled' };
 
     const defaults = await this.preferenceService.resolveForCustomer(customerAccountId);
@@ -58,8 +70,12 @@ export class OneClickService {
     return { enabled: true, reason: null };
   }
 
-  async place(ctx: OneClickContext, input: OneClickPlaceInput): Promise<Order> {
-    const eligibility = await this.eligibility(ctx.customerAccountId);
+  async place(
+    ctx: OneClickContext,
+    input: OneClickPlaceInput,
+    salesChannelId: string | null,
+  ): Promise<Order> {
+    const eligibility = await this.eligibility(ctx.customerAccountId, salesChannelId);
     if (!eligibility.enabled) {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'One-click buy is not available.', {
         code: 'one_click_unavailable',
@@ -92,7 +108,7 @@ export class OneClickService {
       billingAddressId: defaults.billingAddressId!,
       deliveryMethodId: defaults.deliveryMethodId!,
       paymentMethodId: defaults.paymentMethodId!,
-      salesChannelId: this.salesChannelId,
+      ...(salesChannelId ? { salesChannelId } : {}),
       ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
     });
   }
