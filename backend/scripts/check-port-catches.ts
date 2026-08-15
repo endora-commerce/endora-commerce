@@ -291,7 +291,7 @@ function tailName(node: ts.Node): string | null {
 }
 
 /** Does this `catch` let `ModuleDisabledError` through? */
-function handles(clause: ts.CatchClause, sf: ts.SourceFile): boolean {
+function handles(clause: ts.CatchClause): boolean {
   const last = clause.block.statements.at(-1);
   if (last && ts.isThrowStatement(last)) return true;
   let named = false;
@@ -301,7 +301,6 @@ function handles(clause: ts.CatchClause, sf: ts.SourceFile): boolean {
     node.forEachChild(scan);
   };
   clause.block.forEachChild(scan);
-  void sf;
   return named;
 }
 
@@ -343,7 +342,7 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
         node.tryBlock.forEachChild(scan);
 
         if (ports.size > 0) {
-          const handled = handles(node.catchClause, sf);
+          const handled = handles(node.catchClause);
           const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
           for (const port of ports) found.push({ file, line, moduleId, port, handled });
         }
