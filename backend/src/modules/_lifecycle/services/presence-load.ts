@@ -59,6 +59,47 @@ export async function loadModulePresence(opts: {
  *
  * Modules added AFTER feature 018 ships go through the explicit
  * `module:install <id>` flow.
+ *
+ * command-coverage-ignore: boot convergence of the registry to the shipped
+ * manifest list — a system-invariant repair with no operator behind it. Spelled
+ * out, because "a reconcile is not a write" is exactly the argument that lets a
+ * real unaudited write through next time:
+ *
+ * **Why the hatch appears only now.** The write is feature 018's, unchanged
+ * since 2026-05-06. It lived in `_lifecycle/plugin.ts`, which
+ * `check-command-coverage` does not scan — it judges `modules/<m>/services/*.ts`
+ * — and D-38 moved it here, into a services file, when presence became a
+ * composition step. So what changed in feature 072 is the check's line of
+ * sight, not the decision being made; nothing about the reconcile became
+ * sensitive on the way across.
+ *
+ * **What it writes.** One `module_registrations` row per shipped manifest that
+ * has none, carrying `state='installed'` and the manifest's version. Inserts
+ * only: it skips every id that already has a row, so it never updates a state,
+ * never bumps a version, never deletes. It therefore cannot overwrite an
+ * operator's platform-availability choice, and it does not touch the operator
+ * activation axis at all — that lives in the settings store (Principle XVII).
+ * On a converged database it writes nothing.
+ *
+ * **Why no actor exists.** It runs from `composeApp()` before the first module
+ * registers, inside
+ * `enterSystemScope('boot: load module presence', …, { entryPoint: 'boot' })`.
+ * There is no admin user and no request to attribute it to; the identity the
+ * path does have is that scope, and `enterSystemScope` already reports it
+ * through `recordEscapeHatchAudit` (`tenant.escape_hatch`, with the reason and
+ * `entryPoint: 'boot'`). A Command would add one `actorAdminUserId: null` entry
+ * per boot per deployment, diluting the `module.*` trail the orchestrator
+ * writes for the transitions an operator really did request.
+ *
+ * **What would make a future change need a Command.** Any write here that
+ * *decides* rather than converges: updating `state` or `version` on an existing
+ * row, deleting the row of a manifest this deployment no longer ships, or
+ * deriving what to write from anything other than the shipped manifest list.
+ * Each of those changes an operator's platform-availability answer, and those
+ * transitions belong to `LifecycleOrchestrator`, which audits every one of them
+ * (`module.installed`, `module.enabled`, `module.disabled`, …). If this
+ * function ever needs one of them, the write moves there — the hatch does not
+ * stretch to cover it.
  */
 async function reconcileExistingModules(
   emFactory: () => EntityManager,
