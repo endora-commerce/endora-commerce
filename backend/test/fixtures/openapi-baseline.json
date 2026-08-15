@@ -5369,6 +5369,15 @@
         }
       }
     },
+    "/api/v1/admin/sales-channels/{code}/set-default": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/sales-channels/{code}/{entityType}": {
       "get": {
         "responses": {
