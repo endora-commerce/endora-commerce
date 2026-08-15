@@ -6,7 +6,7 @@ import { enterSystemScope } from '../../../kernel/scope.js';
 import {
   resolveActivation,
   type ModuleActivationDeclaration,
-} from './activation-resolver.js';
+} from '../../../kernel/lifecycle/activation-resolver.js';
 
 export const STATE_CHANGED_CHANNEL = 'b2b:module:state-changed';
 export const FALLBACK_TTL_MS = 5_000;

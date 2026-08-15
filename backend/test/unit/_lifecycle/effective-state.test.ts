@@ -7,7 +7,7 @@ import {
   ModuleEffectiveState,
   effectiveState,
 } from '../../../src/modules/_lifecycle/services/effective-state.js';
-import type { ModuleActivationDeclaration } from '../../../src/modules/_lifecycle/services/activation-resolver.js';
+import type { ModuleActivationDeclaration } from '../../../src/kernel/lifecycle/activation-resolver.js';
 
 /**
  * Feature 073 — effective state is the conjunction of the two axes

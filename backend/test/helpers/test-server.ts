@@ -34,7 +34,7 @@ import {
   publishStateChanged,
   STATE_CHANGED_CHANNEL,
 } from '../../src/modules/_lifecycle/services/registry-cache.js';
-import { activationDeclarationsFrom } from '../../src/modules/_lifecycle/services/activation-resolver.js';
+import { activationDeclarationsFrom } from '../../src/kernel/lifecycle/activation-resolver.js';
 import { effectiveState } from '../../src/modules/_lifecycle/services/effective-state.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { type TenantContext } from '../../src/tenancy/tenant-context.js';
