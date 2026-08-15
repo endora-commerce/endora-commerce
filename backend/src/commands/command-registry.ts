@@ -381,6 +381,16 @@ export const COMMAND_REGISTRY = {
     reversible: true,
     description: "Switch a module's operator activation on or off",
   },
+  // Feature 072 / D-51 — moving the platform's default sales channel. Not
+  // reversible in this registry's sense: `reversible` marks the commands wired
+  // into the feature-054 undo (a stored revert state on a bulk-operation row),
+  // and a single flag move has no such surface. Its inverse is the same command
+  // aimed at the previous default, whose code the response and the audit row
+  // both carry.
+  'sales_channel.set_default': {
+    reversible: false,
+    description: 'Move the system-default flag to another sales channel',
+  },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Feature 068 — product create/delete join the bus. They used to audit by

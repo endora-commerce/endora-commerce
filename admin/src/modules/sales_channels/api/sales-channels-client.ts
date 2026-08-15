@@ -3,6 +3,7 @@ import type {
   SalesChannelCreateBody,
   SalesChannelDetail,
   SalesChannelListResponse,
+  SalesChannelSetDefaultResponse,
   SalesChannelSummary,
   SalesChannelUpdateBody,
 } from '@b2b/contracts';
@@ -65,6 +66,19 @@ export const salesChannelsClient = {
   activate(code: string): Promise<SalesChannelDetail> {
     return apiClient.post<SalesChannelDetail>(
       `/api/v1/admin/sales-channels/${encodeURIComponent(code)}/activate`,
+      {},
+    );
+  },
+
+  /**
+   * Move the system-default flag to this channel (D-51). Promoting the channel
+   * that already holds it answers 200 with `changed: false`, so a double click
+   * is not an error; an inactive channel is refused with 422
+   * `INACTIVE_SALES_CHANNEL`.
+   */
+  setDefault(code: string): Promise<SalesChannelSetDefaultResponse> {
+    return apiClient.post<SalesChannelSetDefaultResponse>(
+      `/api/v1/admin/sales-channels/${encodeURIComponent(code)}/set-default`,
       {},
     );
   },

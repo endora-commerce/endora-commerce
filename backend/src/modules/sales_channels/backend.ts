@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { DictionaryValidator } from '@b2b/contracts';
+import type { CommandBus } from '../../commands/command-bus.js';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
@@ -39,6 +40,8 @@ export interface SalesChannelsCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
   readonly auditLogService: AuditLogService;
+  /** D-51 — moving the system-default flag is a Command (Principle XIII). */
+  readonly commandBus: CommandBus;
   readonly requireAdmin: RequireAdminFactory;
   readonly adminAuditActorResolver: (req: FastifyRequest) => AdminAuditContext;
   /** Kernel-composed, so it is the same cache the resolver reads through. */
@@ -53,7 +56,7 @@ export function registerModule(ctx: ModuleContext): void {
     'salesChannelsService',
     ctx
       .asFunction(
-        ({ emFactory, eventBus, auditLogService }: SalesChannelsCradle) =>
+        ({ emFactory, eventBus, auditLogService, commandBus }: SalesChannelsCradle) =>
           new SalesChannelsService(
             emFactory,
             eventBus,
@@ -62,6 +65,9 @@ export function registerModule(ctx: ModuleContext): void {
             // composed by a root, and the validator is another module's port.
             lazyPort<SalesChannelsCache>(ctx, 'salesChannelsCache'),
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
+            // A deployment input, like `emFactory` and `eventBus` — not a port,
+            // so it is captured with them.
+            commandBus,
           ),
       )
       .singleton(),
