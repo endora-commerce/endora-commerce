@@ -82,6 +82,13 @@ quality:
     # each conversion pays for its own declarations instead of leaving a
     # 261-entry allow-list nobody will drain.
     - pnpm --filter backend run check:port-dependencies
+    # Issue #84 — a `catch` around a gated-port call may not swallow
+    # `ModuleDisabledError`. `lazyPort` resolves inside the forwarded call, so
+    # the presence answer arrives at the call site, and a bare `catch` turns
+    # fail-closed into fail-open silently. Carries `PORT_CATCHES_TO_DRAIN`, a
+    # two-way ratchet: an unledgered bare catch fails, and so does a ledger
+    # entry that no longer describes one.
+    - pnpm --filter backend run check:port-catches
     # Documentation code blocks are quotations, not paraphrases. The quickstarts
     # are copied by every module conversion, so a stale snippet is a defect
     # scheduled for mass production — six were found across three batches before

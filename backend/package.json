@@ -53,7 +53,8 @@
     "check:entry-scope": "tsx scripts/check-entry-scope.ts",
     "check:container-imports": "tsx scripts/check-container-imports.ts",
     "check:command-coverage": "tsx scripts/check-command-coverage.ts",
-    "check:port-dependencies": "tsx scripts/check-port-dependencies.ts"
+    "check:port-dependencies": "tsx scripts/check-port-dependencies.ts",
+    "check:port-catches": "tsx scripts/check-port-catches.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",
