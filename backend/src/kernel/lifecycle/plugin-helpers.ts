@@ -33,6 +33,44 @@ export class ModuleDisabledError extends HttpError {
 }
 
 /**
+ * Let a module's presence answer through a `catch` that legitimately absorbs
+ * everything else (issue #84 — the deferred half of feature 072's D-43).
+ *
+ * `lazyPort` resolves inside the forwarded call, so a switched-off owner
+ * surfaces as {@link ModuleDisabledError} **at the call site**. A
+ * `try { … } catch { return null }` around one silently converts fail-closed
+ * into fail-open: the caller answers "no data" where the truthful answer is
+ * "this capability is off", and the operator reads a working screen that is
+ * lying to them.
+ *
+ * The first fix for that is to delete the `catch` — most of them exist only
+ * because somebody was being defensive, and where a degrade genuinely belongs
+ * it belongs **inside the owner's implementation**, expressed in the return
+ * type (`allowedIdsFor(): Promise<string[] | null>` is the worked example).
+ *
+ * This helper is for the remainder: a tolerance that is correct *as a
+ * tolerance* — a per-item import failure recorded as an issue rather than
+ * failing the run, a compensating cleanup on a rollback path, a notification
+ * that must not undo the write it announces. None of those wants to absorb the
+ * presence answer too, because that answer is about the whole operation rather
+ * than the one item, and the run that "completed with 4 000 failures" is a
+ * worse report than the one that stopped saying `catalog` is switched off.
+ *
+ * ```ts
+ * } catch (error) {
+ *   rethrowIfModuleDisabled(error);
+ *   state.countFailed();
+ * }
+ * ```
+ *
+ * It is deliberately greppable: `scripts/check-port-catches.ts` reads it as the
+ * one spelling that distinguishes a narrowed tolerance from a bare `catch`.
+ */
+export function rethrowIfModuleDisabled(error: unknown): void {
+  if (error instanceof ModuleDisabledError) throw error;
+}
+
+/**
  * Programmatic gate. Throw from anywhere outside an HTTP request when
  * an absent module's logic should not run. Surfaces consistently as
  * the same 503 envelope when reached from a route handler.
