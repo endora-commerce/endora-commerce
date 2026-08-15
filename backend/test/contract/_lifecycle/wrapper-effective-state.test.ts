@@ -11,8 +11,8 @@ import {
   requireModuleEnabled,
   subscribeForModule,
   ModuleDisabledError,
-} from '../../../src/modules/_lifecycle/plugin-helpers.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+} from '../../../src/kernel/lifecycle/plugin-helpers.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**
  * Feature 073 FR-002 — all four gating wrappers resolve the **effective**

@@ -3,7 +3,7 @@ import {
   setupBackendServer,
   teardownBackendServer,
 } from '../../helpers/test-server.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**
  * Feature 060 / US1 (T012, also backs SC-002/T031) — endpoints that no

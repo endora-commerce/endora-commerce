@@ -222,7 +222,7 @@ is the walk.
 Inside `coupons/plugin.ts`:
 
 ```typescript
-import { defineModuleRoutes } from '../_lifecycle/plugin-helpers.js';
+import { defineModuleRoutes } from '../../kernel/lifecycle/plugin-helpers.js';
 
 const adminPlugin = defineModuleRoutes('coupons', async (scoped) => {
   await registerCouponsAdminRoutes(scoped, deps);
@@ -235,7 +235,7 @@ This makes every coupon route return `503 MODULE_DISABLED + Retry-After: 60` whe
 For BullMQ workers and event subscribers, use the matching helpers:
 
 ```typescript
-import { defineModuleWorker, subscribeForModule } from '../_lifecycle/plugin-helpers.js';
+import { defineModuleWorker, subscribeForModule } from '../../kernel/lifecycle/plugin-helpers.js';
 
 const worker = defineModuleWorker('coupons', new Worker(...));
 subscribeForModule('coupons', eventBus, 'orders.placed', handler);

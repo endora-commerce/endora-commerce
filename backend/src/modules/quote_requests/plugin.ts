@@ -27,7 +27,7 @@ import {
   type AdminContextResolver,
 } from './routes.admin.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { ModuleDisabledError } from '../_lifecycle/plugin-helpers.js';
+import { ModuleDisabledError } from '../../kernel/lifecycle/plugin-helpers.js';
 
 /**
  * Conditions the storefront flag handler has already reported (D-43). Per

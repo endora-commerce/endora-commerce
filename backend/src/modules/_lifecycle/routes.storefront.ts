@@ -3,7 +3,7 @@ import {
   StorefrontModulePresenceResponseSchema,
   type StorefrontModulePresenceResponse,
 } from '@b2b/contracts';
-import { effectiveState } from './services/effective-state.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 
 /**
  * The storefront's presence projection — feature 073, FR-030 / FR-035.

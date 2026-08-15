@@ -193,9 +193,13 @@ Effective presence = **both true**. Gate on the effective state, fail closed if 
 An activation write must not touch the registry, and a platform disable → enable cycle must
 preserve the operator's activation choice.
 
-The gating wrappers exist in `backend/src/modules/_lifecycle/` (`defineModuleRoutes`,
+The gating wrappers exist in `backend/src/kernel/lifecycle/` (`defineModuleRoutes`,
 `defineModuleWorker`, `subscribeForModule`, `requireModuleEnabled`) — extend them to the
-effective state rather than adding a parallel check.
+effective state rather than adding a parallel check. They live in the kernel, alongside the
+registry cache, the activation resolver and the effective-state combiner, because the kernel
+applies them to every module it composes and may not import from `src/modules/` (D-37).
+`_lifecycle` keeps the operator-facing half: the manifest, the permissions, the routes, the
+Commands, the orchestrator and the `module:*` CLI scripts.
 
 **You almost never call those wrappers yourself.** All 65 core modules are composed through
 the kernel container (feature 072), and `ctx.routes` / `ctx.worker` / `ctx.subscribe` apply

@@ -1,8 +1,8 @@
 import type Redis from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { RegistryState } from '@b2b/contracts';
-import { ModuleRegistration } from '../entities/module-registration.entity.js';
-import { enterSystemScope } from '../../../kernel/scope.js';
+import { ModuleRegistration } from './module-registration.entity.js';
+import { enterSystemScope } from '../scope.js';
 import {
   resolveActivation,
   type ModuleActivationDeclaration,

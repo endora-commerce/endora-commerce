@@ -6,7 +6,7 @@ import {
   activationDeclarationsFrom,
   resolveActivation,
   type ModuleActivationDeclaration,
-} from '../../../src/modules/_lifecycle/services/activation-resolver.js';
+} from '../../../src/kernel/lifecycle/activation-resolver.js';
 
 /**
  * Feature 073 — the operator-activation axis (research R-5).

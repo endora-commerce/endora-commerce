@@ -193,7 +193,7 @@ import { WarehouseChannelAssignment } from '../modules/inventory/entities/wareho
 import { InventoryThreshold } from '../modules/inventory/entities/inventory-threshold.entity.js';
 import { ProductWarehouseLowStockThreshold } from '../modules/inventory/entities/product-warehouse-low-stock-threshold.entity.js';
 import { StockAllocation } from '../modules/inventory/entities/stock-allocation.entity.js';
-import { ModuleRegistration } from '../modules/_lifecycle/entities/module-registration.entity.js';
+import { ModuleRegistration } from '../kernel/lifecycle/module-registration.entity.js';
 import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.entity.js';
 import { ModuleAction } from '../modules/admin_actions/entities/module-action.entity.js';
 import { CredentialConfiguration } from '../modules/credentials/entities/credential-configuration.entity.js';

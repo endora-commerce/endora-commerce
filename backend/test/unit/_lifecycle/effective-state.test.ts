@@ -2,12 +2,12 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import {
   ModulePresenceNotLoadedError,
   ModuleRegistryCache,
-} from '../../../src/modules/_lifecycle/services/registry-cache.js';
+} from '../../../src/kernel/lifecycle/registry-cache.js';
 import {
   ModuleEffectiveState,
   effectiveState,
-} from '../../../src/modules/_lifecycle/services/effective-state.js';
-import type { ModuleActivationDeclaration } from '../../../src/modules/_lifecycle/services/activation-resolver.js';
+} from '../../../src/kernel/lifecycle/effective-state.js';
+import type { ModuleActivationDeclaration } from '../../../src/kernel/lifecycle/activation-resolver.js';
 
 /**
  * Feature 073 — effective state is the conjunction of the two axes

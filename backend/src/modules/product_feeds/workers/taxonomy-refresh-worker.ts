@@ -1,7 +1,7 @@
 import type { Queue, Worker } from 'bullmq';
 import type Redis from 'ioredis';
 import { DEFAULT_TAXONOMY_FETCH_CRON } from '../manifest.js';
-import { defineModuleWorker } from '../../_lifecycle/plugin-helpers.js';
+import { defineModuleWorker } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { TaxonomyProviderCode } from '@b2b/contracts';
 import type { TaxonomyRefreshService } from '../services/taxonomy-refresh.service.js';
 import {

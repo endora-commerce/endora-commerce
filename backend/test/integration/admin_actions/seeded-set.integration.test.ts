@@ -4,7 +4,7 @@ import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
 import { AdminActionsReconciler } from '../../../src/modules/admin_actions/services/admin-actions-reconciler.js';
 import { AdminActionsService } from '../../../src/modules/admin_actions/services/admin-actions-service.js';
 import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';
-import { ModuleRegistration } from '../../../src/modules/_lifecycle/entities/module-registration.entity.js';
+import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import type { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
 import type { PermissionService } from '../../../src/modules/admin_roles/services/permission-service.js';
 import type { SupportedAdminLanguage } from '@b2b/contracts';

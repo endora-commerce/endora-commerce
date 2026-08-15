@@ -12,7 +12,7 @@ import { systemTenantContext } from '../../../src/tenancy/resolve-tenant-context
 import { registerGoogleTagManagerStorefrontRoutes } from '../../../src/modules/google_tag_manager/routes.storefront.js';
 import type { GtmConfigService } from '../../../src/modules/google_tag_manager/services/gtm-config.service.js';
 import type { GtmIngestContext } from '../../../src/modules/google_tag_manager/services/ss-relay-queue.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
 const CHANNEL = { 'x-sales-channel': 'default' };

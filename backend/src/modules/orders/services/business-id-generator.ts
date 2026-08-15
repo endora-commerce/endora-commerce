@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ModuleDisabledError } from '../../_lifecycle/plugin-helpers.js';
+import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /**
  * Resolves the admin-configurable business-ID prefix/suffix for a Sales

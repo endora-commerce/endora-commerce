@@ -2,7 +2,7 @@ import { describe, expect, it, beforeAll } from 'vitest';
 import {
   ModuleRegistryCache,
   registryCache,
-} from '../../../src/modules/_lifecycle/services/registry-cache.js';
+} from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**
  * Per-request enabled-check microbenchmark — feature 018 / SC-003 hot path.

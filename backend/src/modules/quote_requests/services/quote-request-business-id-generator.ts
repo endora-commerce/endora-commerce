@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ModuleDisabledError } from '../../_lifecycle/plugin-helpers.js';
+import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /**
  * Conditions already reported. Per process and never reset, so a settings

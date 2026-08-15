@@ -3,8 +3,8 @@ import {
   defineModuleWorker,
   pauseWorkersFor,
   resumeWorkersFor,
-} from '../../../src/modules/_lifecycle/plugin-helpers.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+} from '../../../src/kernel/lifecycle/plugin-helpers.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**
  * Integration test for FR-015 — disable pauses BullMQ workers (US3).

@@ -4,7 +4,7 @@ import type { Worker } from 'bullmq';
 import type { ModuleInstallHook, ModuleUninstallHook } from '@b2b/contracts';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { EventBus } from '../../../src/events/bus.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ApiInterceptorRegistry } from '../../../src/http/interceptors/index.js';
 import {
   composeModules,

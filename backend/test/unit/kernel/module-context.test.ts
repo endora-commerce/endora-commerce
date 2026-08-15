@@ -3,7 +3,7 @@ import Fastify from 'fastify';
 import type { Worker } from 'bullmq';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { EventBus } from '../../../src/events/bus.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import {
   createModuleContext,
