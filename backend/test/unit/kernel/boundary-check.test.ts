@@ -293,20 +293,35 @@ describe('analyzeKernelImports', () => {
 });
 
 describe('the kernel→module import ledger', () => {
-  it('holds the edges D-37 A1 has not dissolved yet', () => {
-    expect(Object.keys(KERNEL_MODULE_IMPORTS_TO_DRAIN).sort()).toEqual([
-      'src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations',
-    ]);
+  const ORGANIZATION_ENTRY =
+    'src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations';
+
+  it('holds exactly the one edge D-37 A1 could not dissolve', () => {
+    // The completion signal for D-37 A1. Three of the four entries the check
+    // shipped with were dissolved by moving the file; this one cannot be, so a
+    // fifth arriving by habit is the thing to catch.
+    expect(Object.keys(KERNEL_MODULE_IMPORTS_TO_DRAIN)).toEqual([ORGANIZATION_ENTRY]);
+  });
+
+  it('escalates that edge rather than exempting it', () => {
+    // An entry is a debt with an owner, never a standing exemption: the reason
+    // has to say who decides and what the decision is between, or the next
+    // reader has only a silenced check.
+    const reason = KERNEL_MODULE_IMPORTS_TO_DRAIN[ORGANIZATION_ENTRY] ?? '';
+    expect(reason).toContain('Owner: F3/F4 packaging');
+    expect(reason).toContain('OrganizationSnapshot');
+    expect(reason).toContain('Not D-37 A1');
   });
 
   it('covers a ledgered import and nothing else', () => {
     const ORGANIZATION_ENTITY =
       "import type { Organization } from '../../modules/organizations/entities/organization.entity.js';";
 
-    const [ledgered] = analyzeKernelImports(ORGANIZATION_ENTITY, kernelFile('ports/organizations.ts'));
-    expect(importFindingKey(ledgered!)).toBe(
-      'src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations',
+    const [ledgered] = analyzeKernelImports(
+      ORGANIZATION_ENTITY,
+      kernelFile('ports/organizations.ts'),
     );
+    expect(importFindingKey(ledgered!)).toBe(ORGANIZATION_ENTRY);
     expect(isDraining(ledgered!)).toBe(true);
 
     // The same specifier from a file the ledger does not name is a violation:

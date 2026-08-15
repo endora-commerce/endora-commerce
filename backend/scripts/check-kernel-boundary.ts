@@ -386,6 +386,16 @@ export function analyzeKernelImports(source: string, file: string): KernelImport
  * and not only on the file so that a file which acquires a *second* import of
  * the same module fails, and so that a partial drain — D-37 dissolves these one
  * relocation at a time — is visible commit by commit.
+ *
+ * **It holds exactly one entry, and that entry is escalated rather than fixed.**
+ * D-37 A1 seeded four and dissolved three by relocating the presence machinery.
+ * The survivor is not a file in the wrong place: it is the open question of
+ * whether the `Organization` entity is kernel material, or whether
+ * `OrganizationReadPort`'s type surface is the thing that is wrong. Both answers
+ * are D-32-scale, and neither belongs in a relocation MR — so the check reports
+ * it on every run, which is strictly better than the status quo of nobody
+ * knowing it is there. `test/unit/kernel/boundary-check.test.ts` pins the count
+ * so a second entry cannot arrive by habit.
  */
 export const KERNEL_MODULE_IMPORTS_TO_DRAIN: Readonly<Record<string, string>> = {
   'src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations':
