@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { ModuleDisabledError } from '../_lifecycle/plugin-helpers.js';
+import { ModuleDisabledError } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { AuditActorIdentity } from './routes.admin.js';
 import { registerAuditLogAdminRoutes } from './routes.admin.js';
 import { registerRecentActivityRoutes } from './routes.admin.recent-activity.js';

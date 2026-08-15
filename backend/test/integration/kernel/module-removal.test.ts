@@ -492,20 +492,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // rather than by both roots. Its migrations live in `orders`' group
   // (migration 052), which is why the migration registry does not name it.
   shipments: ['src/db/entities-registry.ts'],
-  // `_lifecycle` (wave 2, T125). The longest entry here, and every line of it
-  // is the subsystem being the subsystem rather than residue. `composition.ts`
-  // composes the boot half — the first-boot reconciler, the registry-cache warm
-  // and the worker resume — and contributes the orchestrator and the activation
-  // propagation. `mikro-orm.config.ts` names its migration group; the entity
-  // registry stopped naming it when `ModuleRegistration` moved into the kernel
-  // (D-37 A1). `module-context.ts` and `ports/provide.ts` are the gating
-  // wrappers themselves: they ask this module whether another one is present.
-  _lifecycle: [
-    'src/composition.ts',
-    'src/db/mikro-orm.config.ts',
-    'src/kernel/module-context.ts',
-    'src/kernel/ports/provide.ts',
-  ],
+  // `_lifecycle` (wave 2, T125). It was the longest entry here until D-37 A1
+  // moved the presence machinery into `src/kernel/lifecycle/`: the entity left
+  // the module, so `entities-registry.ts` no longer names it, and the two kernel
+  // files — which held the gating wrappers this module used to own — now import
+  // a sibling rather than a module. What is left is the boot half
+  // `composition.ts` composes (the first-boot reconciler, the registry-cache
+  // warm, the worker resume, the orchestrator and the activation propagation)
+  // and the migration group named by `mikro-orm.config.ts`.
+  _lifecycle: ['src/composition.ts', 'src/db/mikro-orm.config.ts'],
   // `price_lists` (wave 3, T127). The two central registries name its entities
   // and migrations; both roots contribute the sweeper flag, the cache TTL and
   // the admin audit shape, and production contributes the pricing decoration

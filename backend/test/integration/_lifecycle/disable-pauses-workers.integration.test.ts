@@ -3,7 +3,7 @@ import {
   defineModuleWorker,
   pauseWorkersFor,
   resumeWorkersFor,
-} from '../../../src/modules/_lifecycle/plugin-helpers.js';
+} from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**

@@ -25,7 +25,7 @@ import {
 import {
   pauseWorkersFor,
   resumeWorkersFor,
-} from '../plugin-helpers.js';
+} from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { LoadedManifestRegistry } from './manifest-loader.js';
 import { MIGRATION_REGISTRY } from '../../../db/migrations-registry.js';
 

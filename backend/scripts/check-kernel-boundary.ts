@@ -388,13 +388,6 @@ export function analyzeKernelImports(source: string, file: string): KernelImport
  * relocation at a time — is visible commit by commit.
  */
 export const KERNEL_MODULE_IMPORTS_TO_DRAIN: Readonly<Record<string, string>> = {
-  'src/kernel/module-context.ts:../modules/_lifecycle/plugin-helpers.js -> _lifecycle':
-    'The three gating wrappers `ModuleContext` applies to every module route, ' +
-    'worker and subscriber. Platform infrastructure sitting in a module; D-37 A1 ' +
-    'relocates the file to `src/kernel/lifecycle/`. Owner: D-37 A1, commit C5.',
-  'src/kernel/ports/provide.ts:../../modules/_lifecycle/plugin-helpers.js -> _lifecycle':
-    '`ModuleDisabledError`, thrown by the port gate itself. Same file, same ' +
-    'relocation. Owner: D-37 A1, commit C5.',
   'src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations':
     'Type-only. `OrganizationReadPort` types all three of its methods with the ' +
     '`Organization` entity class, so the kernel borrows a shape it does not own ' +

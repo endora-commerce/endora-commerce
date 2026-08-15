@@ -3,7 +3,7 @@ import type { Worker } from 'bullmq';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModulePlugin } from '../../http/server.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
+import { effectiveState } from './effective-state.js';
 
 /**
  * How long a client should wait before retrying a surface whose module is

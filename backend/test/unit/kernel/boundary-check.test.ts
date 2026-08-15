@@ -295,9 +295,7 @@ describe('analyzeKernelImports', () => {
 describe('the kernel→module import ledger', () => {
   it('holds the edges D-37 A1 has not dissolved yet', () => {
     expect(Object.keys(KERNEL_MODULE_IMPORTS_TO_DRAIN).sort()).toEqual([
-      'src/kernel/module-context.ts:../modules/_lifecycle/plugin-helpers.js -> _lifecycle',
       'src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations',
-      'src/kernel/ports/provide.ts:../../modules/_lifecycle/plugin-helpers.js -> _lifecycle',
     ]);
   });
 

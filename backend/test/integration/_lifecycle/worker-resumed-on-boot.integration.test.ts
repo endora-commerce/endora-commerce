@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   defineModuleWorker,
   resumeWorkersFor,
-} from '../../../src/modules/_lifecycle/plugin-helpers.js';
+} from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**

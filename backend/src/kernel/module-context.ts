@@ -21,7 +21,7 @@ import {
   subscribeForModule,
   type DefineModuleWorkerOptions,
   type WorkerLogger,
-} from '../modules/_lifecycle/plugin-helpers.js';
+} from './lifecycle/plugin-helpers.js';
 import type { KernelContainer, KernelCradle } from './container.js';
 import { registerPort } from './ports/provide.js';
 

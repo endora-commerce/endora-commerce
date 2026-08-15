@@ -9,7 +9,7 @@ import type {
 import { BULK_OPERATION_TYPES } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
-import { defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
+import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
 import {
   createBulkOperationQueue,
   createBulkOperationWorker,

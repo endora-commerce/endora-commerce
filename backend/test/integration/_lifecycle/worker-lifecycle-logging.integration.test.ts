@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { defineModuleWorker } from '../../../src/modules/_lifecycle/plugin-helpers.js';
+import { defineModuleWorker } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**

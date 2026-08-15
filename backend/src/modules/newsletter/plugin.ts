@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
-import { defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
+import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import type { Mailer } from '../email/services/mailer.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';

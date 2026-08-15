@@ -1,6 +1,6 @@
 import type { Queue, Worker } from 'bullmq';
 import type Redis from 'ioredis';
-import { defineModuleWorker } from '../../_lifecycle/plugin-helpers.js';
+import { defineModuleWorker } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { FeedRunReaperService } from '../services/feed-run-reaper.service.js';
 import {
   createFeedReaperWorker,

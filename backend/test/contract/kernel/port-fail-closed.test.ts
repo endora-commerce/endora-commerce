@@ -10,7 +10,7 @@ import type { RequireAdminFactory } from '../../../src/kernel/ports/require-admi
 import type { SalesChannelResolutionPort } from '../../../src/kernel/ports/sales-channel.js';
 import type { SettingsReadPort } from '../../../src/kernel/ports/settings.js';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
-import { ModuleDisabledError } from '../../../src/modules/_lifecycle/plugin-helpers.js';
+import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**

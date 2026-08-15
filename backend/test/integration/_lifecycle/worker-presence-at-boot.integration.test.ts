@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest, RegistryState } from '@b2b/contracts';
-import { defineModuleWorker } from '../../../src/modules/_lifecycle/plugin-helpers.js';
+import { defineModuleWorker } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { loadModulePresence } from '../../../src/modules/_lifecycle/services/presence-load.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';

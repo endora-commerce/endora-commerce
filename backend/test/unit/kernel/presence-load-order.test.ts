@@ -9,7 +9,7 @@ import {
   type ModuleEntry,
 } from '../../../src/kernel/compose.js';
 import type { ModuleContext } from '../../../src/kernel/module-context.js';
-import { ModuleDisabledError } from '../../../src/modules/_lifecycle/plugin-helpers.js';
+import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import {
   ModulePresenceNotLoadedError,
   registryCache,
