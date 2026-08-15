@@ -11,9 +11,14 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../../commands/command-bus.js';
 import type { EventBus } from '../../../events/bus.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { SalesChannelsCache } from '../../../kernel/sales-channels/sales-channels-cache.js';
+import {
+  makeSetSystemDefaultChannelCommand,
+  type SetSystemDefaultChannelResult,
+} from '../commands/set-default.command.js';
 
 /**
  * SalesChannelsService — feature 005 / T017 (skeleton) + T035-T037 (US2).
@@ -33,6 +38,10 @@ import type { SalesChannelsCache } from '../../../kernel/sales-channels/sales-ch
  * (`sales_channel.identity.changed` / `sales_channel.lifecycle.changed`)
  * synchronously and emits one EventBus event so the cache invalidator
  * (T012) drops stale entries.
+ *
+ * `setDefault` is the exception and the newer pattern: it is a Command
+ * (feature 072 / D-51), so the Command Bus writes its audit row and buffers its
+ * event co-transactionally, and this class writes neither by hand.
  */
 
 export interface AdminAuditContext {
@@ -57,6 +66,14 @@ export class SalesChannelsService {
     private readonly auditLogService?: AuditLogService,
     private readonly cache?: SalesChannelsCache,
     private readonly dictionaryValidator?: DictionaryValidator,
+    /**
+     * Used by `setDefault` only, which is a Command (Principle XIII) rather than
+     * a hand-audited write like the rest of this class. Optional in the same
+     * sense the two above are — the direct-service tests construct this class
+     * with three arguments — and `setDefault` refuses outright when it is
+     * missing, so the absence can never become an unaudited flag move.
+     */
+    private readonly commandBus?: CommandBus,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -169,6 +186,33 @@ export class SalesChannelsService {
       );
     }
 
+    // D-50 — a channel's code is written once, at creation, and is immutable
+    // afterwards; on every channel, not only the system default. The code is an
+    // identity other systems hold: `SALES_CHANNEL_HOST_MAP` names it in
+    // deployment configuration, integrations pin it, and the channel cache is
+    // keyed by it — `emitIdentityChanged` carries only the new code, so a rename
+    // would leave the old key resolving until its TTL expired. The refusal here
+    // is what makes that leak unreachable rather than merely unused: the admin
+    // form has always locked the field, but this is the only writer of
+    // `channel.code` in the tree, so the API is where the guarantee has to hold.
+    // A mistyped code is fixed by creating the channel again under the right one
+    // and deleting the old — for the default channel, after `setDefault` has
+    // moved the flag off it.
+    //
+    // Checked before the dictionary validation below, so an attempted rename is
+    // refused for the reason that matters rather than for whatever the rest of
+    // the body happens to trip on.
+    if (body.code !== undefined && body.code !== channel.code) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.SALES_CHANNEL_CODE_IMMUTABLE,
+        `Sales channel "${channel.code}" cannot be renamed to "${body.code}": a channel code is ` +
+          `set when the channel is created and is immutable afterwards. Create a channel with ` +
+          `the right code and delete this one instead. The display name stays editable.`,
+        [{ path: 'code', issue: body.code }],
+      );
+    }
+
     if (body.languages !== undefined) {
       await this.assertLanguagesValid(em, body.languages, channel.languages);
     }
@@ -217,9 +261,6 @@ export class SalesChannelsService {
 
     const before = this.snapshot(channel);
 
-    if (body.code !== undefined && body.code !== channel.code) {
-      channel.code = body.code;
-    }
     if (body.name !== undefined) channel.name = body.name;
     if (body.logoAssetId !== undefined) channel.logoAssetId = body.logoAssetId;
     if (body.themeCode !== undefined) channel.themeCode = body.themeCode;
@@ -305,6 +346,40 @@ export class SalesChannelsService {
     });
     this.emitLifecycleChanged(channel.code);
     return channel;
+  }
+
+  /**
+   * Move the `system_default` flag to `code` — feature 072 / D-51.
+   *
+   * The write itself is a Command, so the audit row, the demote-then-promote
+   * ordering and the transaction all live in `commands/set-default.command.ts`.
+   * What belongs here is the 404 for a code nobody has, produced before the
+   * transaction so an operator's typo is not an aborted transaction, and the
+   * cache drop below.
+   *
+   * Unlike the rest of this class it writes no audit row of its own: the
+   * Command Bus writes exactly one, and a second would be the double-audit the
+   * coverage check exists to catch.
+   */
+  async setDefault(code: string): Promise<SetSystemDefaultChannelResult> {
+    const channel = await this.requireByCode(code);
+    if (!this.commandBus) {
+      throw new HttpError(
+        500,
+        ERROR_CODES.INTERNAL,
+        'Sales channels are composed without a Command Bus; the system default cannot be moved.',
+      );
+    }
+
+    const result = await this.commandBus.run(makeSetSystemDefaultChannelCommand(channel.id));
+
+    // The Command emits `lifecycle_changed{invalidateAll}` on commit, which is
+    // what a running platform invalidates through. This second drop is the same
+    // belt-and-braces the delete path applies for the same reason: two rows
+    // changed, the cached value carries `systemDefault` inside it, and a stale
+    // entry here is a storefront resolving against the wrong default.
+    if (result.changed && this.cache) await this.cache.invalidateAll();
+    return result;
   }
 
   async delete(

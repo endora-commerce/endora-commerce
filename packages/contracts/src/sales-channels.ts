@@ -123,7 +123,21 @@ export const SalesChannelCreateBodySchema = z
   });
 export type SalesChannelCreateBody = z.infer<typeof SalesChannelCreateBodySchema>;
 
-/** Body shape for PATCH /api/v1/admin/sales-channels/{code}. Every field optional. */
+/**
+ * Body shape for PATCH /api/v1/admin/sales-channels/{code}. Every field optional.
+ *
+ * `code` is accepted only when it repeats the channel's current code: a channel's
+ * code is written once, at creation, and is immutable afterwards — on every
+ * channel, not only the system default. A code is an identity other systems hold
+ * onto (`SALES_CHANNEL_HOST_MAP`, cached storefront responses, integration
+ * configuration), so changing it renames something those systems cannot follow.
+ * A different value is refused with 422 `SALES_CHANNEL_CODE_IMMUTABLE`; the field
+ * stays in the shape so the refusal is explicit rather than a silently stripped
+ * property that answers 200 and changes nothing. A mistyped code is fixed by
+ * creating the channel again under the right code and deleting the old one —
+ * for the default channel, after moving the flag off it with `set-default`.
+ * The `name` stays freely editable.
+ */
 export const SalesChannelUpdateBodySchema = z
   .object({
     code: SalesChannelCodeSchema.optional(),
@@ -153,6 +167,36 @@ export const SalesChannelUpdateBodySchema = z
     }
   });
 export type SalesChannelUpdateBody = z.infer<typeof SalesChannelUpdateBodySchema>;
+
+/**
+ * Body shape for POST /api/v1/admin/sales-channels/{code}/set-default.
+ *
+ * The target is the path parameter, so the body carries nothing today. It is
+ * declared rather than omitted because the endpoint is a state transition, not a
+ * patch: an operator's client sends `{}` and any later option (a reason, a
+ * scheduled cut-over) lands here instead of on the query string.
+ */
+export const SalesChannelSetDefaultBodySchema = z.object({});
+export type SalesChannelSetDefaultBody = z.infer<typeof SalesChannelSetDefaultBodySchema>;
+
+/**
+ * Response shape for POST /api/v1/admin/sales-channels/{code}/set-default.
+ *
+ * `changed` is false when the target already held the flag — promoting the
+ * current default is a no-op success, not an error, so a double-click and a
+ * retried request both answer 200 with the same body. `previousDefaultCode` is
+ * the code that held the flag before the call, which on the no-op path is the
+ * target's own code; it names the channel a subsequent `set-default` would move
+ * the flag back to.
+ */
+export const SalesChannelSetDefaultResponseSchema = z.object({
+  channel: SalesChannelDetailSchema,
+  previousDefaultCode: SalesChannelCodeSchema.nullable(),
+  changed: z.boolean(),
+});
+export type SalesChannelSetDefaultResponse = z.infer<
+  typeof SalesChannelSetDefaultResponseSchema
+>;
 
 /** Response shape for GET /api/v1/admin/sales-channels (paginated list). */
 export const SalesChannelListResponseSchema = z.object({

@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/table';
 import { salesChannelsClient } from '../api/sales-channels-client';
 import { DefaultChannelBadge } from '../components/DefaultChannelBadge';
+import { useAuth } from '@/lib/auth';
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**
@@ -28,13 +29,24 @@ import { useTranslation } from '@/i18n/useTranslation';
  * the list; the activeOnly filter toggles whether deactivated
  * channels are hidden. The "+ New channel" CTA sends the operator
  * to the create form (`/sales-channels/new`).
+ *
+ * The system-default column is where the flag moves (feature 072 / D-51). The
+ * list is the right surface for it because the decision is comparative — which
+ * of these channels should be the fallback — and because the current default
+ * has to be visible while another one is promoted. The current default's cell
+ * is deliberately inert: the flag is moved by promoting a different channel,
+ * never by clearing it here, which is what keeps "exactly one default" true at
+ * every moment.
  */
 export function SalesChannelsListPage(): ReactNode {
   const t = useTranslation('sales_channels');
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('sales_channels:write');
   const [rows, setRows] = useState<SalesChannelSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeOnly, setActiveOnly] = useState(false);
+  const [promoting, setPromoting] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -56,6 +68,34 @@ export function SalesChannelsListPage(): ReactNode {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const makeDefault = useCallback(
+    async (channel: SalesChannelSummary): Promise<void> => {
+      const previous = rows.find((c) => c.systemDefault)?.code ?? '—';
+      if (
+        !window.confirm(
+          t('list.action.makeDefault.confirm', { code: channel.code, previous }),
+        )
+      ) {
+        return;
+      }
+      setPromoting(channel.code);
+      setError(null);
+      try {
+        await salesChannelsClient.setDefault(channel.code);
+        await refresh();
+      } catch (err) {
+        setError(
+          err instanceof ApiError
+            ? err.envelope.error.message
+            : t('list.error.makeDefault'),
+        );
+      } finally {
+        setPromoting(null);
+      }
+    },
+    [refresh, rows, t],
+  );
 
   return (
     <>
@@ -102,6 +142,9 @@ export function SalesChannelsListPage(): ReactNode {
                   <TableHead>{t('list.column.defaultLangCurrency')}</TableHead>
                   <TableHead>{t('list.column.status')}</TableHead>
                   <TableHead className="w-32 text-right">{t('list.column.version')}</TableHead>
+                  <TableHead className="w-48 text-right">
+                    {t('list.column.systemDefault')}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -135,6 +178,28 @@ export function SalesChannelsListPage(): ReactNode {
                     </TableCell>
                     <TableCell className="text-right text-xs text-muted-foreground">
                       v{c.version}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {c.systemDefault ? (
+                        // The current default: stated, not offered. Clearing the
+                        // flag without giving it to another channel is the one
+                        // state the platform must never be in.
+                        <span className="text-xs text-muted-foreground">
+                          {t('list.action.makeDefault.current')}
+                        </span>
+                      ) : canWrite ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!c.active || promoting !== null}
+                          title={
+                            c.active ? undefined : t('list.action.makeDefault.inactiveHelp')
+                          }
+                          onClick={() => void makeDefault(c)}
+                        >
+                          {t('list.action.makeDefault')}
+                        </Button>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))}
