@@ -26,32 +26,65 @@ behaviour.**
 | `ports/` — `require-admin`, `organizations`, `settings`, `sales-channel` | The **types**; the owning module registers the implementation |
 | `audit/` | Principle XIII: every audited write goes through one writer |
 | `settings/`, `sales-channels/` | A settings read and a channel resolution back behaviour in nearly every module, so neither may be gated on any one of them (D-32) |
+| `lifecycle/` | The presence machinery: the registry cache, the activation resolver, the effective-state combiner and the gating wrappers every module's routes, workers and subscribers pass through (D-37) |
 | `lazy-port.ts` | How a module reads another module's port without freezing it |
 
-The rule that follows is **the kernel must not import from `src/modules/`** —
-module→kernel is always allowed, kernel→module never is.
+The rule that follows is **the kernel must not import from `src/modules/` or
+`src/apps/`** — module→kernel is always allowed, kernel→module never is.
+`src/apps/` is on the forbidden side too: an overlay module is an ordinary
+lifecycle participant and a decoration is per-deployment code, so a kernel that
+reaches into either is a kernel that differs per deployment.
 
-**Today that rule is written down and not enforced, and the tree violates it.**
-`backend/scripts/check-kernel-boundary.ts` states it in its header, but its
-implementation walks only `*.entity.ts` files and inspects only ORM relation
-decorators: it checks **relations, not imports**. No other static check covers
-kernel→module specifiers either. So four value imports currently run from
-`src/kernel/` into `src/modules/_lifecycle/` — `module-context.ts` takes the
-three gating wrappers, `ports/provide.ts` takes `ModuleDisabledError` and
-`effectiveState` — and `_lifecycle` imports 21 times back into the kernel. A
-two-way knot, not a one-way reach.
+**That rule is enforced.** `backend/scripts/check-kernel-boundary.ts` carries two
+rules over the one principle: the older one refuses an ORM relation from the
+kernel into a module, and the one D-37 added refuses an import specifier. It
+sees every shape a specifier takes — `import`, `import type`, `export … from`,
+dynamic `import()`, `require()`, and the inline `import('…').Type` annotation
+the repo's own ESLint config encourages. A type-only import is a violation like
+any other: it erases from the bundle but not from a `package.json`, and ESLint's
+`prefer: 'type-imports'` would otherwise launder violations past the rule
+automatically.
 
-Decision **D-37** (`specs/072-module-kernel-di/plan.md`) closes it by moving the
-presence machinery into `src/kernel/lifecycle/` and shipping the missing import
-rule alongside the move. Until that lands, read the rule as the direction of
-travel rather than as something the build will catch for you.
+Before D-37, four imports ran from `src/kernel/` into `src/modules/`:
+`module-context.ts` took the three gating wrappers, `ports/provide.ts` took
+`ModuleDisabledError` and `effectiveState`, and `ports/organizations.ts`
+type-imported the `Organization` entity class. D-37 A1 relocated the presence
+machinery — `plugin-helpers.ts`, `registry-cache.ts`, `effective-state.ts`,
+`activation-resolver.ts` and `module-registration.entity.ts` — into
+`src/kernel/lifecycle/`, which dissolved the first three.
 
-`ports/organizations.ts` shows the split at its clearest. The kernel declares
+The fourth is still there, in `KERNEL_MODULE_IMPORTS_TO_DRAIN`: a two-way ratchet
+where an unledgered import fails the build **and** a ledger entry that no longer
+describes an import fails it too. It is escalated rather than fixed — see the
+next paragraph.
+
+Two limits of the rule, both deliberate and both stated in the script's header.
+It looks at **direct specifiers only**: `src/http/error-envelope.ts` imports
+`ERROR_TRANSLATION_KEYS` from `src/modules/_i18n/`, and `src/http/` is a *peer*
+of the kernel, so the kernel still reaches `_i18n` transitively through it. A
+transitive rule would have failed on day one for a file D-37 does not touch.
+Cleaning that up is part of the `src/http` / `src/events` / `src/tenancy`
+peer-boundary question, which is D-32's unfinished half. The second limit: a
+colocated `*.test.ts` under `src/kernel/` is not scanned, because a test may
+import a fixture and is not the artefact packaging cares about.
+
+`ports/organizations.ts` shows the split at its clearest — and also the one place
+it is not yet true. The kernel declares
 `OrganizationReadPort` — `loadEffectiveOrganization`, `assertCanTransact`,
 `loadCartApprovalPolicy` — because almost every module needs to read an
 Organization (Principle XI). It does **not** implement it. `organizations`
 registers `OrganizationContextService` against that name, so the shape is
 platform-wide and the behaviour stays in the module that owns the table.
+
+The port does, however, **type** all three of its methods with the `Organization`
+entity class, imported from `organizations` — so the kernel borrows a shape it
+does not own, which is the surviving ledger entry. Dissolving it is a design
+decision, not a file move: either the kernel declares a structural
+`OrganizationSnapshot` and `organizations` maps its entity onto it, or the entity
+follows `SalesChannel` into the kernel as D-32/T019 did. Twenty-three modules
+import that class directly, and the second option costs a coordinated database
+rebuild, so the question belongs to whoever owns the F3/F4 packaging boundary.
+Until it is answered the check reports it on every run.
 
 ## Registering: the three seams
 
@@ -302,7 +335,7 @@ the reason.
 
 | Script | What it refuses |
 | --- | --- |
-| `check-kernel-boundary.ts` | kernel importing from `src/modules/` |
+| `check-kernel-boundary.ts` | an ORM relation from the kernel into a module, or from a module into another module; **and** any import specifier under `src/kernel/**` resolving into `src/modules/` or `src/apps/` — every shape, `import type` included. Carries `KERNEL_MODULE_IMPORTS_TO_DRAIN`, a two-way ratchet holding the one edge D-37 A1 escalated rather than fixed |
 | `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a **gated port resolved from a `ctx.onBoot` hook or a `ctx.routes` body**; a root shadowing a module's port; a computed port name |
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
 | `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger |

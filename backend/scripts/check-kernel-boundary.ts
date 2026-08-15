@@ -52,7 +52,14 @@
  *
  * Two deliberate limits, both of them holes a determined violator could use:
  *
- *   - **Direct specifiers only, no transitive closure.**
+ *   - **Direct specifiers only, no transitive closure.** `src/http/` is a *peer*
+ *     of the kernel, and `src/http/error-envelope.ts` imports
+ *     `ERROR_TRANSLATION_KEYS` from `src/modules/_i18n/` — so the kernel still
+ *     reaches `_i18n` through it. A transitive rule would fail on day one for a
+ *     file D-37 does not touch and would need a ledger entry for it; naming the
+ *     hole is better than silently widening the scope. Cleaning it up belongs to
+ *     the `src/http` / `src/events` / `src/tenancy` peer-boundary question,
+ *     which is D-32's unfinished half.
  *   - **`*.test.ts` under `src/kernel/` is not scanned.** A colocated test may
  *     import a fixture and is not the artefact packaging cares about.
  *
