@@ -46,7 +46,16 @@ export interface NewsletterModuleOptions {
   emFactory: () => EntityManager;
   settings: SettingsService;
   tokenSecret: string;
-  platformChannelId: string;
+  /**
+   * The channel a subscriber with no origin channel belongs to — the
+   * deployment's system-default one, or `null` when it has none. Only the
+   * opt-in policy uses it: mode and confirmation TTL are per-storefront
+   * settings, so "the system-default channel's value" is the right answer for a
+   * subscriber with no channel and the platform-wide value is not. The provider
+   * configuration, which *is* platform-wide, reads `null` directly and no
+   * longer takes this at all (feature 072, D-41).
+   */
+  defaultChannelId: string | null;
   resolveChannelIdByCode: (code: string) => Promise<string | null>;
   publicBaseUrl: string;
   storefrontBaseUrl: string;
@@ -93,7 +102,6 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
   const audience = new NewsletterAudienceResolver(options.emFactory);
   const providers = new NewsletterProviderRegistry(
     options.settings,
-    options.platformChannelId,
     options.credentials,
   );
 
@@ -106,7 +114,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
   const subscribers = new NewsletterSubscriberService({
     emFactory: options.emFactory,
     optIn,
-    platformChannelId: options.platformChannelId,
+    defaultChannelId: options.defaultChannelId,
     links,
     ...(options.mailer ? { mailer: options.mailer } : {}),
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
@@ -126,7 +134,6 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
     options.settings,
     options.settingsWrite,
     providers,
-    options.platformChannelId,
   );
   const self = new NewsletterSelfService(options.emFactory, subscribers);
 
@@ -202,9 +209,11 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
     if (options.runWorkers && options.redis && planQueue && sendQueue) {
       let rate = 14;
       try {
+        // Platform-wide: one send-rate cap for the deployment's one SMTP
+        // transport (feature 072, D-41).
         rate = await options.settings.get(
           NEWSLETTER_SETTING_CODES.RATE_LIMIT_PER_SECOND,
-          options.platformChannelId,
+          null,
           z.number(),
         );
       } catch {
@@ -252,7 +261,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
         tokens,
         tracking,
         resolveChannelIdByCode: options.resolveChannelIdByCode,
-        platformChannelId: options.platformChannelId,
+        defaultChannelId: options.defaultChannelId,
         storefrontBaseUrl: options.storefrontBaseUrl,
       });
       await registerNewsletterAdminRoutes(scoped, {

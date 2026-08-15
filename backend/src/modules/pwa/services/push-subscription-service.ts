@@ -74,7 +74,15 @@ export class PushSubscriptionService {
     await em.removeAndFlush(existing);
   }
 
-  async statsForChannel(salesChannelId: string): Promise<{ active: number; invalid: number }> {
+  /**
+   * `null` = the admin asked for a scope this deployment has no channel for, so
+   * there is nothing subscribed to count. The column is `NOT NULL`, so the
+   * query matches no row and the honest answer is zero — where the `'default'`
+   * sentinel used to make PostgreSQL reject the comparison outright.
+   */
+  async statsForChannel(
+    salesChannelId: string | null,
+  ): Promise<{ active: number; invalid: number }> {
     const em = this.emFactory();
     const [active, invalid] = await Promise.all([
       em.count(PushSubscription, { salesChannelId, status: 'active' }),

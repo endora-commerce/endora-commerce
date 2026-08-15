@@ -34,7 +34,6 @@ describe('NewsletterProviderAdminService (US7; feature 058)', () => {
       settings as unknown as SettingsService,
       writer,
       providers,
-      'default',
     );
     return { svc, writer };
   }

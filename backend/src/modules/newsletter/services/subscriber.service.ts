@@ -25,8 +25,8 @@ export interface SubscribeInput {
 export interface SubscriberServiceDeps {
   emFactory: () => EntityManager;
   optIn: NewsletterOptInService;
-  /** Channel id used for Settings reads when a subscriber has no origin channel. */
-  platformChannelId: string;
+  /** Channel used for opt-in reads when a subscriber has no origin channel. */
+  defaultChannelId: string | null;
   links: NewsletterLinkBuilder;
   mailer?: Mailer;
   auditLog?: AuditLogService;
@@ -49,7 +49,7 @@ export class NewsletterSubscriberService {
     const email = input.email.trim().toLowerCase();
 
     const channelId = input.salesChannelId;
-    const settingsChannelId = channelId ?? this.deps.platformChannelId;
+    const settingsChannelId = channelId ?? this.deps.defaultChannelId;
     const mode = await this.deps.optIn.resolveMode(settingsChannelId);
 
     // Suppressed (complaint/bounce) addresses are not silently re-subscribed.
@@ -219,7 +219,11 @@ export class NewsletterSubscriberService {
     await em.flush();
   }
 
-  private async sendConfirmation(subscriberId: string, email: string, salesChannelId: string): Promise<void> {
+  private async sendConfirmation(
+    subscriberId: string,
+    email: string,
+    salesChannelId: string | null,
+  ): Promise<void> {
     if (!this.deps.mailer) return;
     const token = await this.deps.optIn.mintConfirmToken(subscriberId, salesChannelId);
     const url = this.deps.links.confirm(token);

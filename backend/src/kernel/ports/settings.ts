@@ -24,22 +24,32 @@ import type { z } from 'zod';
  */
 export interface SettingsReadPort {
   /**
-   * Read one setting for a sales channel and validate it against the caller's
-   * schema.
+   * Read one setting and validate it against the caller's schema.
+   *
+   * `salesChannelId` is a channel uuid for a channel-scoped read, or **`null`
+   * for a platform-wide read** — `settings.global_value ?? default_value`,
+   * skipping `setting_values` entirely (feature 072, D-41). `null` is not a
+   * degraded mode: it is what a reader that is not per-storefront says, and
+   * giving that tier a spelling is what removed the sentinels three modules had
+   * invented for it.
    *
    * @throws `SettingNotRegistered` when no setting carries `code`.
-   * @throws `SettingOutOfScopeForChannel` when the setting is scoped to other channels.
+   * @throws `SettingOutOfScopeForChannel` when the setting is scoped to other
+   *   channels — including a platform-wide read of a channel-subset setting.
    * @throws `SettingValueShapeMismatch` when the stored value fails `schema`.
+   * @throws `SettingsChannelIdInvalid` when `salesChannelId` is a non-null
+   *   string that is not a channel uuid.
    */
-  get<T>(code: string, salesChannelId: string, schema: z.ZodType<T>): Promise<T>;
+  get<T>(code: string, salesChannelId: string | null, schema: z.ZodType<T>): Promise<T>;
 
   /**
    * Batch read. Every code resolves independently, so one missing code does not
    * poison the batch — per-code failures come back as `{ ok: false, error }`.
+   * A malformed `salesChannelId` is not a per-code failure and propagates.
    */
   getMany(
     codes: string[],
-    salesChannelId: string,
+    salesChannelId: string | null,
   ): Promise<Map<string, SettingsReadResult<unknown>>>;
 }
 

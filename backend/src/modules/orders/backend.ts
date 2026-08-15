@@ -144,7 +144,8 @@ export function registerModule(ctx: ModuleContext): void {
    */
   const readSetting = async <T>(
     code: string,
-    salesChannelId: string,
+    /** `null` = read it platform-wide; only the two business-ID affixes do. */
+    salesChannelId: string | null,
     schema: Parameters<SettingsService['get']>[2],
     fallback: T,
   ): Promise<T> => {

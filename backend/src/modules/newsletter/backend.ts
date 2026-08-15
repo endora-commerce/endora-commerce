@@ -19,7 +19,7 @@ import { newsletterModule, type NewsletterModuleOptions } from './plugin.js';
  * signed on one request and verified on another, and a test asserting a
  * specific link needs the link to be predictable.
  *
- * So they are contributed, with `platformChannelId`, `resolveChannelIdByCode`,
+ * So they are contributed, with `defaultChannelId`, `resolveChannelIdByCode`,
  * `resolveCustomerAccountId`, `loadCustomerEmail` and `emitEvent`, as one
  * {@link NewsletterBridge}. This is the `pwa` correction applied before the
  * failure rather than after it: what the harness does differently from
@@ -42,7 +42,7 @@ import { newsletterModule, type NewsletterModuleOptions } from './plugin.js';
 
 export interface NewsletterBridge {
   readonly tokenSecret: NonNullable<NewsletterModuleOptions['tokenSecret']>;
-  readonly platformChannelId: NonNullable<NewsletterModuleOptions['platformChannelId']>;
+  readonly defaultChannelId: NewsletterModuleOptions['defaultChannelId'];
   readonly resolveChannelIdByCode: NonNullable<NewsletterModuleOptions['resolveChannelIdByCode']>;
   readonly publicBaseUrl: NonNullable<NewsletterModuleOptions['publicBaseUrl']>;
   readonly storefrontBaseUrl: NonNullable<NewsletterModuleOptions['storefrontBaseUrl']>;
@@ -103,7 +103,7 @@ export function registerModule(ctx: ModuleContext): void {
             ctx.cradle<NewsletterCradle>().adminAuditActorResolver(req),
           // Values a composition pins rather than derives.
           tokenSecret: b.tokenSecret,
-          platformChannelId: b.platformChannelId,
+          defaultChannelId: b.defaultChannelId,
           publicBaseUrl: b.publicBaseUrl,
           storefrontBaseUrl: b.storefrontBaseUrl,
           mailer: b.mailer,

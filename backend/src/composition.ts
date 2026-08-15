@@ -355,8 +355,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     // No verification-token probe outside the harness.
     organizationsExposeTestProbe: false,
-    organizationsSettingsChannelId:
-      process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default',
   });
   // T143a — `search`'s full-reindex port, read lazily. `catalog` triggers a
   // reindex when an attribute's `searchable` flag flips, and the module that
@@ -913,8 +911,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // bare `eventBus.on` calls here, so they fired whether or not the module was
   // present.
   //
-  // What remains is the settings channel the *kernel* resolver falls back to.
-  const platformSettingsChannelId = process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default';
+  // What used to remain was `platformSettingsChannelId`, the fallback the
+  // kernel settings resolver answered with when the deployment had no
+  // system-default channel. Feature 072 (D-41) deleted it, along with the
+  // undocumented `ORGANIZATIONS_SETTINGS_CHANNEL_ID` env var behind it: its
+  // default was the string `'default'`, which is a channel **code**
+  // (`DEFAULT_SALES_CHANNEL_CODE`) used where a `uuid` id was wanted, so it
+  // could not address a `setting_values` row at all. "No channel" is now `null`
+  // and the read decides what that means.
 
 
   // Feature 056 — subtree-aware assignment scope. When a scoped sales-rep actor
@@ -1118,15 +1122,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return null;
         }
       },
+      // `null` = this deployment has no channel to read for, so `pwa` resolves
+      // its configuration platform-wide (D-41 case c). It used to be the
+      // `'default'` sentinel, which resolved nothing at all.
       resolveChannelIdByCode: async (code: string | undefined) => {
         if (code) {
           const ch = await salesChannels.resolver.getByCode(code);
           if (ch) return ch.id;
         }
-        return (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId;
+        return (await salesChannels.resolver.getSystemDefault())?.id ?? null;
       },
       defaultChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+        (await salesChannels.resolver.getSystemDefault())?.id ?? null,
       channelCodeForId: async (channelId: string) => {
         const ch = await em().findOne(SalesChannel, { id: channelId });
         return ch?.code ?? null;
@@ -1310,8 +1317,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return items.find((c) => c.id === id)?.code ?? null;
       },
     },
-    settingsChannelResolver: async () =>
-      (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+    /**
+     * The channel a **channel-scoped** settings read resolves against outside a
+     * request (worker, boot hook, CLI): the deployment's system-default sales
+     * channel, or `null` when it has none. `null` says the read is impossible,
+     * which is a fact only the reader can decide what to do with — it is not a
+     * value that can address a `setting_values` row, and D-41 deleted the one
+     * that pretended to be.
+     *
+     * A read that is not per-storefront at all does not call this: it passes
+     * `null` to `settingsReadPort.get` deliberately, for a platform-wide read.
+     */
+    settingsChannelResolver: async (): Promise<string | null> =>
+      (await salesChannels.resolver.getSystemDefault())?.id ?? null,
     // Blog ships no storefront ports today — the factory defaulted this to `{}`
     // and neither composition root ever passed one.
     blogStorefrontDeps: undefined,
@@ -1424,7 +1442,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         const channel = salesChannelCode
           ? await salesChannels.resolver.getByCode(salesChannelCode)
           : await salesChannels.resolver.getSystemDefault();
-        const channelId = channel?.id ?? platformSettingsChannelId;
+        // `null` = no channel to read for, so read the placeholder
+        // platform-wide rather than not at all (D-41).
+        const channelId = channel?.id ?? null;
         const url = await settings.settingsService.get(
           'product_image_placeholder_url',
           channelId,
@@ -1763,7 +1783,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   registerValues(container, {
     ksefSellerNipResolver: async () => {
       try {
-        const raw = await settings.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', z.string());
+        // Platform-wide: one legal seller issues every invoice this deployment
+        // produces, so there is no channel to read for. This used to be the nil
+        // UUID — a well-formed id that addresses no row, which resolved to the
+        // same tier by accident rather than by saying so (D-41).
+        const raw = await settings.settingsService.get('invoices.seller.tax_id', null, z.string());
         const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
         return nip.length > 0 ? nip : null;
       } catch {
@@ -1967,8 +1991,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         process.env['NEWSLETTER_TOKEN_SECRET'] ??
         process.env['SESSION_COOKIE_SECRET'] ??
         'newsletter-dev-secret',
-      platformChannelId:
-        (await salesChannels.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      // The channel a subscriber with no channel context belongs to. Kept as a
+      // *channel* rather than folded into D-41's platform-wide read: opt-in
+      // mode and confirmation TTL are per-storefront properties, so "the
+      // system-default channel's value" and "the platform-wide value" are
+      // different answers and this one wants the former. The provider config
+      // reads, which are genuinely platform-wide, no longer take it at all.
+      defaultChannelId: (await salesChannels.resolver.getSystemDefault())?.id ?? null,
       resolveChannelIdByCode: async (code) =>
         (await salesChannels.resolver.getByCode(code))?.id ?? null,
       publicBaseUrl:

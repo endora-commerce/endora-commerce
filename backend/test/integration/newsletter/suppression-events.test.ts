@@ -38,7 +38,7 @@ describe('newsletter suppression + events (US3/US6 edge cases)', () => {
     service = new NewsletterSubscriberService({
       emFactory: () => db.em(),
       optIn,
-      platformChannelId: 'default',
+      defaultChannelId: null,
       links: { confirm: (t) => `c?${t}`, unsubscribe: (t) => `u?${t}` },
       emitEvent: (name, payload) => events.push({ name, payload }),
     });

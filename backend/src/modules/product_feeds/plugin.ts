@@ -164,7 +164,7 @@ export type FeedCategoryExpander = (
 
 /** Narrow reader over the Settings module. */
 export interface ProductFeedsSettingsReader {
-  get<T>(code: string, salesChannelId: string, schema: z.ZodType<T>): Promise<T>;
+  get<T>(code: string, salesChannelId: string | null, schema: z.ZodType<T>): Promise<T>;
 }
 
 /** The `EventBus` surface this module uses. */
@@ -172,9 +172,6 @@ export interface ProductFeedsEventBus {
   emit(eventName: string, payload: unknown): void | Promise<void>;
   on(eventName: string, handler: (payload: unknown) => void | Promise<void>): () => void;
 }
-
-/** The platform-wide sales-channel id the Settings module uses for global values. */
-const GLOBAL_SETTINGS_SCOPE = '00000000-0000-0000-0000-000000000000';
 
 /**
  * Structured, non-fatal logging for the workers. A background sweep that cannot
@@ -330,10 +327,20 @@ export function productFeedsModule(
     : new NoopFeedTokenCache();
   const cacheInvalidator = attachFeedCacheInvalidator(options.eventBus, tokenCache);
 
+  /**
+   * Three of these four are **platform-wide** (`null`): a run's page size, its
+   * concurrency and its artefact retention are properties of the job runner,
+   * not of a storefront. Only `getStringForChannel` names a channel, and it is
+   * the one that genuinely varies per feed.
+   *
+   * The three used to pass the nil UUID — a well-formed id that addresses no
+   * row, so resolution landed on `global_value ?? default_value` by accident
+   * rather than by saying so (feature 072, D-41).
+   */
   const settings = {
     async getNumber(code: string, fallback: number): Promise<number> {
       try {
-        return await options.settings.get(code, GLOBAL_SETTINGS_SCOPE, z.number());
+        return await options.settings.get(code, null, z.number());
       } catch {
         // Not registered yet (first boot, before the manifest reconciler ran)
         // or unreadable — the manifest default is the answer.
@@ -354,14 +361,14 @@ export function productFeedsModule(
     },
     async getBoolean(code: string, fallback: boolean): Promise<boolean> {
       try {
-        return await options.settings.get(code, GLOBAL_SETTINGS_SCOPE, z.boolean());
+        return await options.settings.get(code, null, z.boolean());
       } catch {
         return fallback;
       }
     },
     async getString(code: string, fallback: string): Promise<string> {
       try {
-        const value = await options.settings.get(code, GLOBAL_SETTINGS_SCOPE, z.string());
+        const value = await options.settings.get(code, null, z.string());
         return value.trim() !== '' ? value.trim() : fallback;
       } catch {
         return fallback;

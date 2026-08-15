@@ -115,6 +115,7 @@ export {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
   SettingValueShapeMismatch,
+  SettingsChannelIdInvalid,
 } from './settings/settings.service.js';
 export {
   SettingsCache,

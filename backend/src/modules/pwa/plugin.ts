@@ -42,8 +42,13 @@ export interface PwaModuleOptions {
   assetUpload: AssetUploadPort;
   resolveAssetUrl: (assetId: string) => Promise<string | null>;
   /** Channel helpers (composition owns the sales_channels coupling). */
-  resolveChannelIdByCode: (code: string | undefined) => Promise<string>;
-  defaultChannelId: () => Promise<string>;
+  /**
+   * `null` = this deployment has no channel to read for, so `pwa` resolves its
+   * configuration platform-wide (feature 072, D-41). Both used to fall back to
+   * the root's `'default'` sentinel — a channel *code* against a `uuid` column.
+   */
+  resolveChannelIdByCode: (code: string | undefined) => Promise<string | null>;
+  defaultChannelId: () => Promise<string | null>;
   channelCodeForId: (channelId: string) => Promise<string | null>;
   resolveAuditContext: (request: FastifyRequest) => AdminAuditContext;
   /** mailto: subject for VAPID. */

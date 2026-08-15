@@ -32,7 +32,7 @@ describe('newsletter self-service (US9)', () => {
     const subscribers = new NewsletterSubscriberService({
       emFactory: () => db.em(),
       optIn,
-      platformChannelId: 'default',
+      defaultChannelId: null,
       links: { confirm: (t) => `c?${t}`, unsubscribe: (t) => `u?${t}` },
     });
     self = new NewsletterSelfService(() => db.em(), subscribers);

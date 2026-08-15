@@ -9,13 +9,13 @@
  * 072 T028 moved it off the `request.salesChannel` property). No
  * storefront-facing module may re-derive it.
  *
- * Two static signals are flagged (TypeScript compiler API, no DB, no new
+ * Three static signals are flagged (TypeScript compiler API, no DB, no new
  * dependency — mirrors `check-entity-tenant-classification.ts`):
  *
  *  1. RAW CHANNEL HEADER READ — any string literal `x-sales-channel` or
- *     `x-sales-channel-id` anywhere under `src/modules/**` or `src/kernel/**`
- *     outside the resolver's own directory. Legitimate code never reads these
- *     headers; only the resolver does. Global scope = strongest guard.
+ *     `x-sales-channel-id` anywhere under `src/**` outside the resolver's own
+ *     directory. Legitimate code never reads these headers; only the resolver
+ *     does. Global scope = strongest guard.
  *
  *  2. REQUEST-CHANNEL RE-RESOLUTION — inside the storefront "surface" files
  *     (routes.public / routes.storefront / *storefront-resolver / the catalog
@@ -24,6 +24,16 @@
  *     `from sales_channels` SQL string used to derive the request channel.
  *     Scoped to surfaces so admin CRUD / membership / seeds that legitimately
  *     query channels are not false-positived.
+ *
+ *  3. SETTINGS-CHANNEL LITERAL (feature 072, D-42) — a `.get` / `.getMany`
+ *     call on a `settings`-ish receiver whose channel argument is a string
+ *     literal that is not a channel uuid, or is the nil uuid. Both are
+ *     spellings of "I have no channel", and since D-41 that has a real one:
+ *     `null`. The literal `'default'` — a channel **code**, against a
+ *     `sales_channel_id uuid` column — made PostgreSQL reject the comparison
+ *     outright, and the caller's `catch` reported it as "not configured yet";
+ *     three settings were therefore ignored on every deployment. The nil uuid
+ *     resolved to the right tier, but by accident.
  *
  * Reading `channel.isPublic` (price-visibility) off an already-resolved
  * channel is NOT a violation — it is a property read, neither signal.
@@ -42,14 +52,17 @@ import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
-const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
-const MODULES_ROOT = join(SRC_ROOT, 'modules');
 /**
+ * The whole of `src/` is scanned, not `modules/` plus `kernel/`.
+ *
  * Feature 072 T019 moved the resolver, its service and its cache into the
- * kernel. The kernel is scanned too, or the one place the header may legally be
- * read would be the one place nothing checks.
+ * kernel, so scanning the kernel is what keeps the one place the header may
+ * legally be read from being the one place nothing checks. D-42 widened it
+ * again: of the settings-channel family's ten sites, two lived in
+ * `composition.ts` and two in a module's `scripts/` directory, so a
+ * `modules/**`-only scan would have missed nearly half of it.
  */
-const KERNEL_ROOT = join(SRC_ROOT, 'kernel');
+const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
 /** Header names that only the canonical resolver may read. */
 const CHANNEL_HEADERS = new Set(['x-sales-channel', 'x-sales-channel-id']);
@@ -63,6 +76,10 @@ const CHANNEL_HEADERS = new Set(['x-sales-channel', 'x-sales-channel-id']);
 // so the allow-list is empty and the check runs in --enforce mode in CI. Any new
 // entry here would be a regression to per-module resolution — don't add one;
 // redirect the offending module to `getResolvedChannel()` instead.
+//
+// Feature 072 (D-42) added signal 3 and kept the list empty: the fix is
+// mechanical at every site, and across ~100 settings reads there were only six
+// non-uuid literals and four nil-uuid spellings, so there was nothing to drain.
 const ALLOW_LIST = new Set<string>([]);
 
 /**
@@ -88,6 +105,55 @@ function isStorefrontSurface(relPath: string): boolean {
 
 const RAW_CHANNEL_SQL = /\bfrom\s+sales_channels\b/i;
 
+/** The shape `sales_channels.id` has. */
+const CHANNEL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * Which `.get(…)` calls are settings reads. Syntactic and receiver-based,
+ * because the check has no type information: `settingsReadPort`,
+ * `settingsService`, `this.settings`, `options.settings`, `deps.settingsRead`.
+ * A `cache.get(code, 'default')` or a `dictionaries.get(…)` is not one.
+ */
+function isSettingsReceiver(receiver: string): boolean {
+  const last = receiver.split('.').pop() ?? receiver;
+  return /settings/i.test(last);
+}
+
+/**
+ * True when this literal cannot be a sales-channel id, or is the nil uuid.
+ *
+ * The nil uuid is included deliberately: it *is* well-formed, which is exactly
+ * why it survived in three modules. It addresses no row, so resolution fell
+ * through to `global_value ?? default_value` — the right answer, reached by
+ * accident and unreadably. A reader cannot tell `'00000000-…'` meaning
+ * "platform-wide" from `'00000000-…'` meaning "somebody had to put something
+ * here", and that ambiguity is what let `'default'` survive beside it.
+ */
+function isNotAChannelId(literal: string): boolean {
+  return !CHANNEL_UUID.test(literal) || literal.toLowerCase() === NIL_UUID;
+}
+
+/**
+ * Naming the header in a CORS policy is not reading it.
+ *
+ * `http/server.ts` must list `X-Sales-Channel` under `allowedHeaders`, or the
+ * browser strips the very header the canonical resolver exists to read. Signal
+ * 1 is a global-scope rule and stays one; this exempts the shape that declares
+ * a header rather than consuming it — a string inside an array literal on a
+ * `…Headers` property — so the exemption cannot quietly cover a real read.
+ * Feature 072 (D-42) widened the scan from `modules/**` + `kernel/**` to all of
+ * `src/**`, which is what first brought this file into range.
+ */
+function isCorsHeaderDeclaration(node: ts.Node): boolean {
+  const array = node.parent;
+  if (array === undefined || !ts.isArrayLiteralExpression(array)) return false;
+  const property = array.parent;
+  if (property === undefined || !ts.isPropertyAssignment(property)) return false;
+  const name = property.name;
+  return (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) && /Headers$/.test(name.text);
+}
+
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
@@ -104,7 +170,7 @@ function walk(dir: string, out: string[] = []): string[] {
 export interface Violation {
   file: string; // relative to src/
   line: number;
-  kind: 'raw-channel-header' | 'request-channel-reresolution';
+  kind: 'raw-channel-header' | 'request-channel-reresolution' | 'settings-channel-literal';
   detail: string;
 }
 
@@ -117,9 +183,63 @@ export function analyzeSource(source: string, relPath: string): Violation[] {
   const at = (node: ts.Node): number =>
     sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
 
+  /**
+   * Same-file `const X = '…'` initializers, so signal 3 sees the three
+   * `GLOBAL_SETTINGS_*` constants that stood between the literal and the call.
+   * One hop only, and deliberately: this is the syntactic half of D-42's
+   * defence, and a channel id that arrives as a parameter or through DI is what
+   * the runtime seam guard in `SettingsService` is for.
+   */
+  const stringConsts = new Map<string, string>();
+  const collectConsts = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer !== undefined &&
+      ts.isStringLiteralLike(node.initializer)
+    ) {
+      stringConsts.set(node.name.text, node.initializer.text);
+    }
+    ts.forEachChild(node, collectConsts);
+  };
+  collectConsts(sf);
+
   const visit = (node: ts.Node): void => {
+    // Signal 3 — a settings read whose channel argument is a string literal
+    // that is not a channel id (feature 072, D-42).
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+      const method = node.expression.name.text;
+      const channelArg = node.arguments[1];
+      if (
+        (method === 'get' || method === 'getMany') &&
+        channelArg !== undefined &&
+        isSettingsReceiver(node.expression.expression.getText(sf))
+      ) {
+        let literal: string | undefined;
+        if (ts.isStringLiteralLike(channelArg)) {
+          literal = channelArg.text;
+        } else if (ts.isIdentifier(channelArg)) {
+          literal = stringConsts.get(channelArg.text);
+        }
+        if (literal !== undefined && isNotAChannelId(literal)) {
+          violations.push({
+            file: relPath,
+            line: at(node),
+            kind: 'settings-channel-literal',
+            detail:
+              `settings.${method}(…) reads channel '${literal}', which is not a ` +
+              `sales-channel id — pass a channel uuid, or null for a platform-wide read`,
+          });
+        }
+      }
+    }
+
     // Signal 1 — raw channel-header read (global scope).
-    if (ts.isStringLiteralLike(node) && CHANNEL_HEADERS.has(node.text.toLowerCase())) {
+    if (
+      ts.isStringLiteralLike(node) &&
+      CHANNEL_HEADERS.has(node.text.toLowerCase()) &&
+      !isCorsHeaderDeclaration(node)
+    ) {
       violations.push({
         file: relPath,
         line: at(node),
@@ -166,7 +286,7 @@ export function analyzeSource(source: string, relPath: string): Violation[] {
 function main(): void {
   const enforce = process.argv.includes('--enforce');
   const listMode = process.argv.includes('--list');
-  const files = [...walk(MODULES_ROOT), ...walk(KERNEL_ROOT)];
+  const files = walk(SRC_ROOT);
 
   const all: Violation[] = [];
   for (const file of files) {
@@ -195,7 +315,7 @@ function main(): void {
   );
 
   if (blocking.length > 0) {
-    console.error('\nStorefront modules re-resolving the sales channel (call getResolvedChannel() instead):');
+    console.error('\nSales-channel resolution violations:');
     for (const v of blocking) console.error(`  - ${v.file}:${v.line}  [${v.kind}] ${v.detail}`);
   }
   if (stale.length > 0) {

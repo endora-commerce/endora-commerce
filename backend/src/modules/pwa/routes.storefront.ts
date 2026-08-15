@@ -14,7 +14,8 @@ export interface PwaStorefrontRoutesDeps {
   iconService: PwaIconService;
   subscriptionService: PushSubscriptionService;
   /** Resolve the request's channel code (header) to a channel id, with system-default fallback. */
-  resolveChannelId: (code: string | undefined) => Promise<string>;
+  /** `null` = no channel for this request; the config is read platform-wide. */
+  resolveChannelId: (code: string | undefined) => Promise<string | null>;
   /** Resolve a stored asset id to a servable URL (assets_library). */
   resolveAssetUrl: (assetId: string) => Promise<string | null>;
   /** Resolve the logged-in customer account id from the request, or null when anonymous. */

@@ -758,7 +758,6 @@ export async function setupBackendServer(
     storefrontBaseUrl: 'http://localhost:3000',
     // The one composition allowed to serve `/api/v1/_test/latest-verification-token`.
     organizationsExposeTestProbe: true,
-    organizationsSettingsChannelId: 'default',
   });
   // T143a — `inventory`'s availability port, mirroring `composition.ts`.
   const inventoryCradle = (): {
@@ -1359,10 +1358,10 @@ export async function setupBackendServer(
           const ch = await salesChannels.resolver.getByCode(code);
           if (ch) return ch.id;
         }
-        return (await salesChannels.resolver.getSystemDefault())?.id ?? 'default';
+        return (await salesChannels.resolver.getSystemDefault())?.id ?? null;
       },
       defaultChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? 'default',
+        (await salesChannels.resolver.getSystemDefault())?.id ?? null,
       channelCodeForId: async (channelId: string) => {
         const ch = await em().findOne(SalesChannel, { id: channelId });
         return ch?.code ?? null;
@@ -1542,8 +1541,11 @@ export async function setupBackendServer(
         return items.find((c) => c.id === id)?.code ?? null;
       },
     },
-    settingsChannelResolver: async () =>
-      (await salesChannels.resolver.getSystemDefault())?.id ?? 'default',
+    // Mirrors the production root exactly (feature 072, D-41): a channel id or
+    // `null`, never a placeholder. Both used to fall back to `'default'`, a
+    // channel *code* that cannot address a `setting_values` row.
+    settingsChannelResolver: async (): Promise<string | null> =>
+      (await salesChannels.resolver.getSystemDefault())?.id ?? null,
     blogStorefrontDeps: undefined,
   });
   const lateModules = composeModules(latePassModules(MODULES), {
@@ -1671,7 +1673,7 @@ export async function setupBackendServer(
           : await salesChannels.resolver.getSystemDefault();
         const url = await settings.settingsService.get(
           'product_image_placeholder_url',
-          channel?.id ?? 'default',
+          channel?.id ?? null,
           z.string(),
         );
         const trimmed = url.trim();
@@ -2027,7 +2029,7 @@ export async function setupBackendServer(
     ksefSellerNipResolver: async () => {
       try {
         const { z: zod } = await import('zod');
-        const raw = await settings.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', zod.string());
+        const raw = await settings.settingsService.get('invoices.seller.tax_id', null, zod.string());
         const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
         return nip.length > 0 ? nip : null;
       } catch {
@@ -2148,7 +2150,7 @@ export async function setupBackendServer(
   registerValues(container, {
     newsletterBridge: {
       tokenSecret: 'test-newsletter-secret',
-      platformChannelId: (await salesChannels.resolver.getSystemDefault())?.id ?? 'default',
+      defaultChannelId: (await salesChannels.resolver.getSystemDefault())?.id ?? null,
       resolveChannelIdByCode: async (code) =>
         (await salesChannels.resolver.getByCode(code))?.id ?? null,
       publicBaseUrl: 'http://localhost',

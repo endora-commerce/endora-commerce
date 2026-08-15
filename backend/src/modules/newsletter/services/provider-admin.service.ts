@@ -27,14 +27,19 @@ export class NewsletterProviderAdminService {
     private readonly settings: SettingsService,
     private readonly writer: SettingsWriter,
     private readonly providers: NewsletterProviderRegistry,
-    private readonly channelId: string,
   ) {}
 
+  /**
+   * Platform-wide reads (feature 072, D-41), the exact mirror of this class's
+   * own writes: `putConfig` below goes through `setValueForAllChannels`, so
+   * reading at a channel could only ever return what the global tier already
+   * holds — when it did not throw on a sentinel channel id first.
+   */
   private str(code: string): Promise<string> {
-    return this.settings.get(code, this.channelId, z.string()).catch(() => '');
+    return this.settings.get(code, null, z.string()).catch(() => '');
   }
   private num(code: string, fallback: number): Promise<number> {
-    return this.settings.get(code, this.channelId, z.number()).catch(() => fallback);
+    return this.settings.get(code, null, z.number()).catch(() => fallback);
   }
 
   async getConfig(): Promise<ProviderConfig> {

@@ -19,6 +19,13 @@ export const QUICK_ORDER_SETTING_CODES = {
   IMPORT_MAX_ROWS: 'quick_order.import_max_rows',
 } as const;
 
+/**
+ * The manifest default, exported so the read that has to degrade degrades to
+ * *this* binding (feature 072, D-43). `backend.ts` kept its own `2000`; the two
+ * agreed, which is the drift waiting to happen.
+ */
+export const DEFAULT_IMPORT_MAX_ROWS = 2000;
+
 const settings = defineModuleSettingsManifest({
   moduleCode: 'quick_order',
   groups: [{ code: 'quick_order', name: 'Quick Order' }],
@@ -39,7 +46,7 @@ const settings = defineModuleSettingsManifest({
         'Maximum number of data rows accepted by a single CSV / Excel quick-order import. Rows beyond the limit are rejected.',
       groupCode: 'quick_order',
       valueType: 'number',
-      defaultValue: 2000,
+      defaultValue: DEFAULT_IMPORT_MAX_ROWS,
     },
   ],
 });
