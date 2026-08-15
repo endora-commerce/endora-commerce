@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import type { Worker } from 'bullmq';
-import type { ModuleInstallHook, ModuleUninstallHook } from '@b2b/contracts';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
@@ -18,10 +17,15 @@ import {
  * Contract — `registerModule` (feature 072, T039 / FR-030…FR-035).
  *
  * The claim under test is not "the context has these methods". It is that a
- * module expressed as one `registerModule(ctx)` contributes **all six
- * surfaces** — registrations, routes, a worker, a subscription, interceptors
- * and install/uninstall hooks — and that each behaves exactly as its
+ * module expressed as one `registerModule(ctx)` contributes **all five
+ * surfaces** — registrations, routes, a worker, a subscription and
+ * interceptors — plus its boot phase, and that each behaves exactly as its
  * hand-wired predecessor did, including the Constitution XVII gating.
+ *
+ * Install-time work is **not** one of them (D-46): `module:install` runs in a
+ * process that composes nothing, so the only install seam is `installHook` /
+ * `uninstallHook` exported from a module's `manifest.ts`. The last test in the
+ * first block is the guard that keeps the container-side seam deleted.
  *
  * The gating assertions matter most: the fixture module below never mentions
  * `defineModuleRoutes`, `defineModuleWorker` or `subscribeForModule`, and never
@@ -44,8 +48,6 @@ interface Fixture {
   readonly pause: ReturnType<typeof vi.fn>;
   readonly subscriber: ReturnType<typeof vi.fn>;
   readonly interceptor: ReturnType<typeof vi.fn>;
-  readonly installed: ReturnType<typeof vi.fn>;
-  readonly uninstalled: ReturnType<typeof vi.fn>;
   readonly booted: ReturnType<typeof vi.fn>;
 }
 
@@ -62,8 +64,6 @@ function fixture(): Fixture {
   const worker = { name: 'fixture-queue', pause, on: vi.fn() } as unknown as Worker;
   const subscriber = vi.fn();
   const interceptor = vi.fn();
-  const installed = vi.fn();
-  const uninstalled = vi.fn();
   const booted = vi.fn();
 
   interface FixtureCradle {
@@ -91,8 +91,6 @@ function fixture(): Fixture {
         handler: interceptor,
       },
     ]);
-    ctx.onInstall(installed as unknown as ModuleInstallHook);
-    ctx.onUninstall(uninstalled as unknown as ModuleUninstallHook);
     ctx.onBoot(() => {
       // Resolving here is legal — the boot phase runs after every module has
       // registered, which is the whole point of it being a separate phase.
@@ -106,8 +104,6 @@ function fixture(): Fixture {
     pause,
     subscriber,
     interceptor,
-    installed,
-    uninstalled,
     booted,
   };
 }
@@ -235,14 +231,31 @@ describe('registerModule — the six surfaces', () => {
     ]);
   });
 
-  it('collects the install and uninstall hooks for the orchestrator', () => {
-    const f = fixture();
-    const composed = compose(f);
+  it('offers no install seam at all — install-time work belongs to the manifest (D-46)', () => {
+    // A seam that looks live and is not is worse than an absent one: a hook
+    // handed to the container is collected by the sink and then never run,
+    // because `module:install` composes nothing. `tsc` refuses the call now;
+    // this asserts the same thing at runtime so the methods cannot creep back
+    // in as untyped additions to the context object.
+    let seen: string[] = [];
+    const composed = composeModules(
+      [
+        {
+          id: MODULE_ID,
+          version: '1.0.0',
+          registerModule: (ctx) => {
+            seen = Object.keys(ctx);
+          },
+        },
+      ],
+      { container: createRootContainer(), eventBus: new EventBus(), log: log() },
+    );
 
-    expect(composed.sink.installHooks).toHaveLength(1);
-    expect(composed.sink.uninstallHooks).toHaveLength(1);
-    expect(f.installed).not.toHaveBeenCalled();
-    expect(f.uninstalled).not.toHaveBeenCalled();
+    expect(seen).not.toContain('onInstall');
+    expect(seen).not.toContain('onUninstall');
+    expect(seen).toContain('onBoot');
+    expect(Object.keys(composed.sink)).not.toContain('installHooks');
+    expect(Object.keys(composed.sink)).not.toContain('uninstallHooks');
   });
 
   it('runs the boot phase only when asked, and lets it resolve', async () => {

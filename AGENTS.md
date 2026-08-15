@@ -129,7 +129,19 @@ never add a "module options" object for something the module can read itself.
    boot hooks — so **a late-pass registration does not exist during an early-pass hook**. If
    `ctx.onBoot` cannot resolve a name, move the **host** into the early pass; never reorder
    hooks.
-9. **CI** — `pnpm --filter backend run check:port-dependencies`, `check:kernel-boundary`,
+9. **Install-time work goes in `manifest.ts`, never in the context.** `ctx.onBoot` is the
+   only lifecycle hook a `ModuleContext` carries; `ctx.onInstall` / `ctx.onUninstall` were
+   deleted (D-46) because `module:install` composes nothing, so a hook the container
+   collected could never fire. Export `installHook` / `uninstallHook` from the module's
+   `manifest.ts` — the composer generator wires them. Their contract, in full: the hook is
+   **idempotent by contract** (it re-runs after a failed install and after a
+   soft-uninstall → install cycle); a **failing install hook aborts the install** and reverts
+   that run's migrations; a **failing uninstall hook removes nothing**; **`ctx.hard`**
+   discriminates soft from destructive uninstall, so cleanup sits behind
+   `if (!ctx.hard) return;`; **neither hook fires on activation or deactivation** — that is
+   the other axis (Principle XVII) and no hook may be added to it; and the hook context is
+   `{ em, redis, log, module }` (`+ hard`), which cannot carry services.
+10. **CI** — `pnpm --filter backend run check:port-dependencies`, `check:kernel-boundary`,
    `check:container-imports`, and
    `pnpm --filter backend exec vitest run test/contract/kernel/harness-parity.test.ts`
    (drift between the two composition roots, as an explicit draining ledger).

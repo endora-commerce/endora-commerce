@@ -331,6 +331,68 @@ not enabled — and *honour* suits integrity-like ones, where skipping would let
 absent module's data be silently orphaned. State which one, per registry, with
 the reason.
 
+## Install-time work: the one seam is `manifest.ts`
+
+`ctx.onBoot` is the only lifecycle hook a `ModuleContext` carries. There is no
+`ctx.onInstall` and no `ctx.onUninstall`: they existed through feature 072, the
+composition sink collected them, and nothing ever ran them — deleted by D-46.
+The reason is structural rather than tidiness. The kernel composes a **running
+process**; the lifecycle orchestrator manages a **deployment's inventory**, and
+only the first of the two has a container. `module:install` builds a static
+registry from `REGISTERED_MANIFESTS`, opens the ORM and Redis, and never calls
+`composeApp` — so a hook handed to the container could not fire even in
+principle, short of composing all 65 modules in order to install one.
+
+A module that needs install-time work exports it from its `manifest.ts`:
+
+```ts
+// backend/src/modules/custom_fields/manifest.ts
+export const uninstallHook: ModuleUninstallHook = async (ctx) => {
+  if (!ctx.hard) return;                 // soft uninstall drops nothing
+  const em = ctx.em as EntityManager;
+  await em.getConnection().execute('truncate table "custom_field_definitions" cascade');
+};
+```
+
+`backend/scripts/generate-composer.ts` detects the export and emits it into
+`_lifecycle/registered-manifests.ts`; you never edit a registry. Run
+`pnpm --filter backend run composer:generate` and commit the result.
+
+Six properties, all of them load-bearing and none of them obvious from the hook
+signature. They are pinned by
+`backend/test/unit/_lifecycle/orchestrator.test.ts`.
+
+**1. The hook is idempotent by contract, not by convention.** It is not "once
+per deployment". A failed install parks the registry row at `uninstalled`, so
+the next `module:install` runs the hook again; so does a soft-uninstall →
+install cycle. Write it so a second run is a no-op.
+
+**2. A failing install hook aborts the install.** The orchestrator reverts every
+migration *that run* applied, in reverse, sets the row to `uninstalled` with
+`lastInstallError`, audits `module.install_failed`, and raises
+`LifecycleError('install-failed')` — CLI exit 70. Do not swallow errors in a
+hook to "be safe": failing loudly *is* the safe behaviour, and it is the only
+one that leaves the instance in its pre-install state.
+
+**3. A failing uninstall hook aborts the uninstall and removes nothing.** The
+hook runs before the settings sweep, before the migration revert and before the
+registry row is touched, so a throw leaves the module exactly as it was.
+
+**4. `ctx.hard` discriminates soft from destructive.** A soft uninstall means
+"this deployment no longer carries the module"; it is reversible and must drop
+no rows. A hard uninstall means the schema goes too. Destructive cleanup lives
+behind `if (!ctx.hard) return;`.
+
+**5. Neither hook fires on activation or deactivation, and none may be added
+there.** That is the operator axis of Constitution XVII — `module:enable`,
+`module:disable` and the `/platform/modules` activation Setting all leave both
+hooks untouched. Off is reversible and drops nothing; uninstall is not and does.
+
+**6. The hook context is `{ em, redis, log, module }` — plus `hard` on
+uninstall — and cannot carry services.** A hook that needs a collaborator
+constructs it from `em`. Nothing resolves from the container here, because there
+is no container in the process running it.
+
 ## The checks
 
 | Script | What it refuses |

@@ -422,7 +422,9 @@ export class ModuleLifecycleOrchestrator {
         );
       }
 
-      // Run uninstall hook (may fail; log but continue removal of state).
+      // Run the manifest's uninstall hook, before any removal. A throw aborts
+      // the whole uninstall and removes nothing — the settings sweep and the
+      // migration revert below are both downstream of it.
       if (entry?.uninstallHook) {
         try {
           await (entry.uninstallHook as ModuleUninstallHook<EntityManager, Redis>)({

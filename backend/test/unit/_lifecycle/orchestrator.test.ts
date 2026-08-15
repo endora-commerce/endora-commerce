@@ -124,15 +124,27 @@ class FakeAuditLog {
   }
 }
 
+/** What the orchestrator hands an uninstall hook; `hard` is the discriminator. */
+type FakeUninstallHook = (ctx: { hard: boolean }) => Promise<void>;
+
 function buildRegistry(
   entries: Array<{
     id: string;
     deps?: string[];
     installHook?: () => Promise<void>;
+    uninstallHook?: FakeUninstallHook;
     activation?: ModuleActivation;
   }>,
 ): LoadedManifestRegistry {
-  const map = new Map<string, { manifest: ReturnType<typeof defineModuleManifest>; filePath: string; installHook?: () => Promise<void> }>();
+  const map = new Map<
+    string,
+    {
+      manifest: ReturnType<typeof defineModuleManifest>;
+      filePath: string;
+      installHook?: () => Promise<void>;
+      uninstallHook?: FakeUninstallHook;
+    }
+  >();
   for (const e of entries) {
     map.set(e.id, {
       manifest: defineModuleManifest({
@@ -144,6 +156,7 @@ function buildRegistry(
       }),
       filePath: `<test:${e.id}>`,
       ...(e.installHook ? { installHook: e.installHook } : {}),
+      ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
     });
   }
   const graph = new ModuleDepGraph([...map.values()].map((e) => e.manifest));
@@ -342,6 +355,133 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
         expect((err as LifecycleError).kind).toBe('dependents-block');
         expect((err as LifecycleError).details['dependents']).toEqual(['quotes']);
       }
+    });
+  });
+
+  /**
+   * The `manifest.ts` install seam — the **only** one, since feature 072's D-46
+   * deleted the container-side `ctx.onInstall` / `ctx.onUninstall` that nothing
+   * ran. Its semantics existed only in the orchestrator's implementation, and
+   * are documented in `docs/docs/architecture/kernel.md`; these tests are what
+   * that documentation stands on.
+   *
+   * The install-abort half is covered above by SC-002.
+   */
+  describe('manifest install/uninstall hooks — the documented contract', () => {
+    function installedRow(moduleId: string): FakeRow {
+      return {
+        moduleId,
+        state: 'installed',
+        version: '1.0.0',
+        installedAt: new Date(),
+        lastStateChangeAt: new Date(),
+        lastInstallFailedAt: null,
+        lastInstallError: null,
+      };
+    }
+
+    it('aborts the uninstall and removes nothing when the uninstall hook throws', async () => {
+      const reg = buildRegistry([
+        {
+          id: 'demo',
+          uninstallHook: async () => {
+            throw new Error('forced uninstall failure');
+          },
+        },
+      ]);
+      const { orchestrator, em, auditLog, migrator } = buildOrchestrator({
+        registry: reg,
+        em: new FakeEm([installedRow('demo')]),
+      });
+
+      await expect(orchestrator.uninstall('demo', { hard: true })).rejects.toMatchObject({
+        kind: 'uninstall-failed',
+      });
+
+      // The hook runs before every removal, so a throw leaves the row, the
+      // settings and the schema exactly as they were.
+      expect(em.rows.find((r) => r.moduleId === 'demo')?.state).toBe('installed');
+      expect(em.ops).toHaveLength(0);
+      expect(migrator.reverted).toEqual([]);
+      expect(auditLog.records.some((r) => r['action'] === 'module.uninstalled')).toBe(false);
+    });
+
+    it('hands the hook `hard`, so soft and destructive uninstall are distinguishable', async () => {
+      const seen: boolean[] = [];
+      const reg = buildRegistry([
+        {
+          id: 'demo',
+          uninstallHook: async (ctx) => {
+            seen.push(ctx.hard);
+          },
+        },
+      ]);
+      const { orchestrator, em } = buildOrchestrator({
+        registry: reg,
+        em: new FakeEm([installedRow('demo')]),
+      });
+
+      await orchestrator.uninstall('demo', { hard: false });
+      // Soft leaves the row behind, so re-seed to reach the hard path.
+      em.rows = [installedRow('demo')];
+      await orchestrator.uninstall('demo', { hard: true });
+
+      expect(seen).toEqual([false, true]);
+    });
+
+    it('fires neither hook on disable or enable — that is the other axis', async () => {
+      let installs = 0;
+      let uninstalls = 0;
+      const reg = buildRegistry([
+        {
+          id: 'demo',
+          installHook: async () => {
+            installs++;
+          },
+          uninstallHook: async () => {
+            uninstalls++;
+          },
+        },
+      ]);
+      const { orchestrator } = buildOrchestrator({
+        registry: reg,
+        em: new FakeEm([installedRow('demo')]),
+      });
+
+      await orchestrator.disable('demo');
+      await orchestrator.enable('demo');
+
+      expect(installs).toBe(0);
+      expect(uninstalls).toBe(0);
+    });
+
+    it('re-runs the install hook after a failed install and after a soft uninstall', async () => {
+      let installs = 0;
+      let failNext = true;
+      const reg = buildRegistry([
+        {
+          id: 'demo',
+          installHook: async () => {
+            installs++;
+            if (failNext) throw new Error('forced hook failure');
+          },
+        },
+      ]);
+      const { orchestrator } = buildOrchestrator({ registry: reg });
+
+      await expect(orchestrator.install('demo')).rejects.toBeInstanceOf(LifecycleError);
+      expect(installs).toBe(1);
+
+      // A failed install parks the row at 'uninstalled', so the retry runs the
+      // hook a second time — the hook is idempotent by contract, not by luck.
+      failNext = false;
+      await orchestrator.install('demo');
+      expect(installs).toBe(2);
+
+      // And so does a soft-uninstall → install cycle.
+      await orchestrator.uninstall('demo', { hard: false });
+      await orchestrator.install('demo');
+      expect(installs).toBe(3);
     });
   });
 

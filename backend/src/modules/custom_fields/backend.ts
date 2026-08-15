@@ -40,15 +40,13 @@ import { registerCustomFieldsAdminRoutes } from './routes.admin.js';
  * registrations below therefore resolve one `CustomFieldDefinitionService`, and
  * `customFieldValueService` is built *from* it rather than beside it.
  *
- * **`ctx.onUninstall` is deliberately not used.** The hard-uninstall cleanup
- * stays exported from `manifest.ts`, because that is the only place the
- * lifecycle orchestrator looks: it reads `uninstallHook` off the
- * `registered-manifests.ts` entry. The kernel's `ctx.onInstall`/`ctx.onUninstall`
- * seams collect into the composition sink, which nothing consumes yet — moving
- * the hook here would compile, pass every test, and quietly stop dropping
- * definitions on a hard uninstall. Filed as its own task; it is a kernel gap,
- * not a `custom_fields` one, and this module is simply the first to notice
- * because it is the only one in the tree that ships a hook.
+ * **The hard-uninstall cleanup stays in `manifest.ts`.** That is the only place
+ * the lifecycle orchestrator looks: it reads `uninstallHook` off the
+ * `registered-manifests.ts` entry the composer generates. There is no
+ * container-side equivalent — `ctx.onInstall`/`ctx.onUninstall` existed, were
+ * never run by anything, and were deleted by D-46 precisely because a hook
+ * placed there would compile, pass every test, and quietly stop dropping
+ * definitions on a hard uninstall.
  */
 
 export const entities = [CustomFieldDefinition, CustomFieldOption];

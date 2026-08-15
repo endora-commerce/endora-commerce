@@ -191,8 +191,6 @@ export function composeModules(
       combined.rootPlugins.push(...sink.rootPlugins);
       combined.workers.push(...sink.workers);
       combined.unsubscribes.push(...sink.unsubscribes);
-      combined.installHooks.push(...sink.installHooks);
-      combined.uninstallHooks.push(...sink.uninstallHooks);
       for (const hook of sink.bootHooks) bootHooks.push({ moduleId: entry.id, hook });
     }
   } finally {

@@ -10,7 +10,6 @@ import {
 } from 'awilix';
 import type { FastifyInstance } from 'fastify';
 import type { Worker } from 'bullmq';
-import type { ModuleInstallHook, ModuleUninstallHook } from '@b2b/contracts';
 import type { ModulePlugin } from '../http/server.js';
 import type { EventBus } from '../events/bus.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
@@ -381,16 +380,18 @@ export interface ModuleContext {
   /** API interceptors owned by this module; `module` is stamped from `module.id`. */
   interceptors(entries: readonly Omit<InterceptorRegistration, 'module'>[]): void;
 
-  onInstall(hook: ModuleInstallHook): void;
-  onUninstall(hook: ModuleUninstallHook): void;
-
   /**
    * The explicit boot phase (FR-021). Runs once every module has registered,
    * inside `enterSystemScope('boot: <module id>')`, so it may resolve.
    *
-   * Not the same thing as `onInstall`: install runs once in the orchestrator's
-   * transaction when the module is installed; this runs on every boot of every
-   * process, including `BACKEND_ROLE=worker`.
+   * This is the only lifecycle hook a `ModuleContext` carries, and it runs on
+   * every boot of every process, including `BACKEND_ROLE=worker`. Install-time
+   * work belongs to the **other** lifecycle: a module that needs it exports
+   * `installHook` / `uninstallHook` from its `manifest.ts`, which the composer
+   * generator wires into `registered-manifests.ts` and the lifecycle
+   * orchestrator runs. There is deliberately no container-side equivalent
+   * (D-46) — `module:install` runs in a process that composes nothing, so a
+   * hook collected by the composition sink would never fire.
    */
   onBoot(hook: ModuleBootHook): void;
 
@@ -412,8 +413,6 @@ export interface ModuleRegistrationSink {
   readonly rootPlugins: ModulePlugin[];
   readonly workers: Worker[];
   readonly unsubscribes: Array<() => void>;
-  readonly installHooks: ModuleInstallHook[];
-  readonly uninstallHooks: ModuleUninstallHook[];
   readonly bootHooks: ModuleBootHook[];
 }
 
@@ -423,8 +422,6 @@ export function createModuleRegistrationSink(): ModuleRegistrationSink {
     rootPlugins: [],
     workers: [],
     unsubscribes: [],
-    installHooks: [],
-    uninstallHooks: [],
     bootHooks: [],
   };
 }
@@ -592,14 +589,6 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
       for (const entry of entries) {
         interceptorRegistry.register({ ...entry, module: module.id } as InterceptorRegistration);
       }
-    },
-
-    onInstall(hook) {
-      sink.installHooks.push(hook);
-    },
-
-    onUninstall(hook) {
-      sink.uninstallHooks.push(hook);
     },
 
     onBoot(hook) {
