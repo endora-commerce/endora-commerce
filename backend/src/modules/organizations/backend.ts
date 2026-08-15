@@ -26,6 +26,7 @@ import { OrganizationInheritanceService } from './services/organization-inherita
 import { OrganizationModerationService } from './services/organization-moderation-service.js';
 import { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
 import { OrganizationTaxIdValidationService } from './services/organization-tax-id-validation-service.js';
+import { SalesRepAssignmentService } from './services/sales-rep-assignment-service.js';
 import { OrgRegistrationNotifier } from './services/org-registration-notifier.js';
 import { ViesClient } from './integrations/vies-client.js';
 import { MinisterstwoFinansowClient } from './integrations/ministerstwo-finansow-client.js';
@@ -88,6 +89,18 @@ import type { EmailDefaultsRegistry } from '../transactional_emails/services/ema
  * This module is **non-deactivatable** and composes in the **early pass**:
  * `customer_accounts` and `credit_limits` are early and both declare it as a
  * dependency.
+ *
+ * **The sales-rep scope came home in T143a cluster 6, and the two roots did not
+ * agree on it.** Production built `SalesRepAssignmentService` *with* the
+ * feature-056 subtree deps — the org tree and the `organizations:rollup`
+ * capability check — so a rep holding the capability saw the subtree of each
+ * assignment. The harness built the same class with neither, and its
+ * orders/RFQ scope resolver did not use even that: it ran its own raw SQL over
+ * `organization_sales_rep_assignments`. So the roll-up rule was exercised by no
+ * test through either path, and a flat list is what every test asserted
+ * against. `organizationSalesRepScopePort` is one implementation for both
+ * compositions, and it is `quote_requests`' `salesRepSubtree` wiring spelled
+ * once instead of a fourth time.
  */
 
 /** What `organizations` resolves from the container, and the names it owns. */
@@ -151,6 +164,17 @@ export interface OrganizationsCradle {
   readonly organizationReadPort: OrganizationReadPort;
   readonly organizationRestrictionPort: OrganizationRestrictionService;
   readonly organizationTreeService: OrganizationTreeService;
+  /** Owned by `admin_roles`: whether this rep holds the roll-up capability. */
+  readonly permissionService: {
+    hasPermission(adminUserId: string, permission: string): Promise<boolean>;
+  };
+  /**
+   * Which organizations a sales-rep admin may see, subtree-expanded when the
+   * rep holds `organizations:rollup` (feature 056 / T143a).
+   */
+  readonly organizationSalesRepScopePort: {
+    listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+  };
   readonly organizationInheritancePort: OrganizationInheritanceService;
   readonly organizationModerationService: OrganizationModerationService;
   readonly organizationRegistrationNotifier: OrgRegistrationNotifier;
@@ -373,6 +397,42 @@ export function registerModule(ctx: ModuleContext): void {
             ),
           ),
       )
+      .singleton(),
+  );
+
+  /**
+   * The visibility scope both roots used to build for themselves (T143a).
+   *
+   * A **port**, not a contribution point (D-39): it decides what an admin may
+   * see, reading two tables and a capability to do it. A caller that reaches it
+   * while the module is absent must get the 503 rather than an empty array,
+   * because an empty array here reads as "this rep is assigned nothing" — a
+   * plausible answer, and the wrong one.
+   *
+   * Both collaborators are read through `lazyPort`: the tree is this module's
+   * own gated port and the permission check is `admin_roles`', and a singleton
+   * may hold neither gate.
+   */
+  ctx.di.providePort(
+    'organizationSalesRepScopePort',
+    ctx
+      .asFunction(({ emFactory, auditLogService }: OrganizationsCradle) => {
+        const assignments = new SalesRepAssignmentService(emFactory, auditLogService, {
+          treeService: lazyPort<OrganizationTreeService>(ctx, 'organizationTreeService'),
+          hasRollupCapability: (adminUserId: string) =>
+            // `organizations:rollup` is a core `PERMISSION_CATALOGUE` code
+            // rather than another module's private string, so naming it here
+            // crosses no boundary — the same call `quote_requests` makes.
+            lazyPort<OrganizationsCradle['permissionService']>(
+              ctx,
+              'permissionService',
+            ).hasPermission(adminUserId, 'organizations:rollup'),
+        });
+        return {
+          listAssignedOrganizationIds: (adminUserId: string) =>
+            assignments.listAssignedOrganizationIds(adminUserId),
+        };
+      })
       .singleton(),
   );
 

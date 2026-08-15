@@ -1,10 +1,14 @@
+import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { z } from 'zod';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { withSystemScope } from '../../tenancy/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import type { SessionService } from '../auth/services/session-service.js';
 import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
+import { hashPassword } from '../auth/services/password-hasher.js';
 import { CustomerAccount } from './entities/customer-account.entity.js';
 import { PasswordResetToken } from './entities/password-reset-token.entity.js';
 import { CustomerAuthService } from './services/customer-auth-service.js';
@@ -44,6 +48,18 @@ import { TotpEnrolmentService } from './services/totp-enrolment-service.js';
  * hook to attach the organization to a customer session; the lookup is a plain
  * read of this module's own table, so it belongs to this module and the root's
  * entry goes away.
+ *
+ * **Social-login account creation came home in T143a cluster 6, and the two
+ * roots disagreed about what it does.** Both wrote `mfaSocialAccountResolvers`
+ * closures that read and created rows in this module's table. Production gated
+ * the creation on `customers.allow_registration_without_organization`, which
+ * ships **off**; the harness gated it on nothing, so federated sign-in
+ * auto-created an account in every test run and the gate itself was covered by
+ * no test — a policy the platform has and the suite denied. Production
+ * system-scoped the identity read (tenancy comes after identity) and the
+ * harness did not, and production minted a random password where the harness
+ * hashed one fixed string for every auto-created account. One implementation
+ * now, and it is this module's, because the table is.
  */
 
 export const entities = [CustomerAccount, PasswordResetToken];
@@ -54,6 +70,22 @@ export interface CustomerAccountsCradle {
   readonly sessionService: SessionService;
   /** Late-bound: `mfa` is composed after this module. */
   readonly mfaLoginPortGetter: (() => MfaLoginPort | undefined) | undefined;
+  readonly settingsReadPort: SettingsService;
+  /**
+   * Which channel a global-scope settings read resolves against — the
+   * deployment's system-default channel. A property of the deployment, so a
+   * root supplies it; `inventory` reads the same name.
+   */
+  readonly settingsChannelResolver: () => Promise<string | null>;
+  /**
+   * The two customer-side halves of `mfa`'s `SocialIdentityDeps` (T143a): match
+   * a verified provider e-mail to an account, and create one when nothing
+   * matches and the platform allows an org-less registration.
+   */
+  readonly customerSocialLoginPort: {
+    resolveByEmail(email: string): Promise<{ id: string } | null>;
+    autoCreate(email: string): Promise<{ id: string } | null>;
+  };
   readonly customerAuthService: CustomerAuthService;
   readonly passwordResetService: PasswordResetService;
   readonly customerRoleService: RoleService;
@@ -125,6 +157,90 @@ export function registerModule(ctx: ModuleContext): void {
             });
           },
       )
+      .singleton(),
+  );
+
+  /**
+   * Federated sign-in's two reads/writes of this module's table (T143a).
+   *
+   * A **port** rather than a contribution point (D-39): `autoCreate` decides
+   * whether an account may exist at all and then writes one. Both halves are
+   * system-scoped because they run *before* a tenant context exists — identity
+   * resolution precedes tenancy, exactly as `customerOrgResolver` above.
+   *
+   * The refusal is the return type rather than a throw: `null` is what
+   * `SocialIdentityService` reads as `registration_required`, so the policy
+   * lands on the caller as a redirect to the login screen and not as a 500.
+   *
+   * The setting is `customers.allow_registration_without_organization`, and it
+   * is named here even though `customers` owns it. That module already depends
+   * on this one, so a port pointing the other way would close a cycle; the
+   * platform-wide question "may an account exist without an Organization" is in
+   * any case about *this* table.
+   */
+  ctx.di.providePort(
+    'customerSocialLoginPort',
+    ctx
+      .asFunction(({ emFactory }: CustomerAccountsCradle) => ({
+        async resolveByEmail(email: string): Promise<{ id: string } | null> {
+          return withSystemScope('mfa: resolve customer by email', async () => {
+            const customer = await emFactory().findOne(CustomerAccount, {
+              email,
+              deletedAt: null,
+            });
+            return customer ? { id: customer.id } : null;
+          });
+        },
+
+        async autoCreate(email: string): Promise<{ id: string } | null> {
+          const cradle = ctx.cradle<CustomerAccountsCradle>();
+          // The channel a global-scope read resolves against. Both roots used
+          // to pass the literal `'default'` here, which is **not** a channel
+          // id: `sales_channel_id` is a uuid column, so the query threw
+          // `invalid input syntax for type uuid` on every call, the closure's
+          // `catch` read that as "not allowed", and federated sign-in could
+          // therefore never create an account in production however the
+          // operator had configured it. The harness had no gate at all and
+          // always created one. Neither was the behaviour anybody wanted.
+          const salesChannelId = await cradle.settingsChannelResolver();
+          if (salesChannelId === null) return null;
+
+          let allowed = false;
+          try {
+            allowed = await cradle.settingsReadPort.get(
+              'customers.allow_registration_without_organization',
+              salesChannelId,
+              z.boolean(),
+            );
+          } catch {
+            // An unregistered or out-of-scope setting denies. Not a bare catch
+            // around a module port — `settingsReadPort` is kernel-owned and
+            // ungated, so there is no `ModuleDisabledError` to swallow here;
+            // the degrade is "no answer means no", which is the safe direction
+            // for a gate on account creation.
+            allowed = false;
+          }
+          if (!allowed) return null;
+
+          return withSystemScope('mfa: auto-create customer from social login', async () => {
+            const em = emFactory();
+            const account = em.create(CustomerAccount, {
+              email,
+              // No password was ever chosen for this account: it signs in
+              // through the provider. A random one keeps the column non-null
+              // without minting a credential anybody could guess.
+              passwordHash: await hashPassword(randomUUID() + randomUUID()),
+              firstName: '',
+              lastName: '',
+              role: 'regular_user',
+              organizationId: null,
+              emailVerifiedAt: new Date(),
+            });
+            await em.persistAndFlush(account);
+            return { id: account.id };
+          });
+        },
+      }))
       .singleton(),
   );
 

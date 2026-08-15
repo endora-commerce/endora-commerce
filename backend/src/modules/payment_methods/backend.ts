@@ -69,8 +69,9 @@ export function registerModule(ctx: ModuleContext): void {
     // The built-in adapters are **not** seeded here: they live in `payments`
     // (`payments/adapters/built-in-adapters.ts`), so seeding them from this
     // module would be a reach into another module's internals to populate a
-    // registry this one merely holds. A root contributes them, exactly as it
-    // contributes the provider modules' adapters — which is the same job.
+    // registry this one merely holds. `payments` pushes them from its own boot
+    // hook (T143a), exactly as each gateway module registers its own — this
+    // module holds the table and never decides what is in it.
     paymentAdapterRegistry: ctx.asFunction(() => paymentAdapterRegistry).singleton(),
 
     paymentMethodEligibility: ctx

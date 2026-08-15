@@ -215,32 +215,22 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // changed is that there is now one of it instead of three.
   addresses: ['src/db/entities-registry.ts'],
   // `delivery_methods` and `payment_methods` (wave 1, T095/T097), converted as
-  // a pair. Beyond the two central registries, both roots import their registry
-  // and order-status types to annotate what they resolve and hand to `orders`,
-  // which still dispatches placement through them. Those go when `orders`
-  // converts. `payment_methods` additionally keeps a root reference for the
-  // built-in adapters, which live in `payments` — supplying them is a
-  // deployment's job, not this module's, so that one is expected to stay.
-  delivery_methods: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  payment_methods: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `webhooks` (wave 1, T098). Beyond the two central registries, the root
-  // keeps the delivery **worker** — whether workers run at all is a
-  // `BACKEND_ROLE` deployment decision, not the module's — so it imports the
-  // processor factory and the module's cradle type. That reference is expected
-  // to stay until workers themselves move behind a deployment-owned seam.
-  webhooks: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
+  // a pair. Both roots used to import their registry and order-status types to
+  // annotate what they resolve and hand to `orders`, and `payment_methods`
+  // additionally to seed the built-in payment adapters. T143a drained both: the
+  // adapters are pushed by `payments`, which owns the classes, from its own
+  // boot hook, and with the seeding gone the type annotations had no remaining
+  // reader — `orders` resolves both registries itself. Two central registries
+  // each, and nothing else.
+  delivery_methods: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  payment_methods: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
+  // `webhooks` (wave 1, T098). The two central registries, and nothing else
+  // since T143a. The root used to keep the delivery **worker** on the grounds
+  // that whether workers run at all is a `BACKEND_ROLE` decision; only the flag
+  // ever was. The worker goes through `ctx.worker` now — which is what pauses
+  // it with the module — and the flag a root contributes is a plain boolean
+  // that names nothing of this module.
+  webhooks: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   // `customer_accounts` (wave 1, T094). The ORM and migration registries name
   // its two entities and five migrations; `composition.ts` imports the cradle
   // type to annotate the services it resolves and hands to `customers` and
@@ -464,15 +454,13 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
-  // `search` (wave 2, T123). The two central registries name its entities and
-  // migrations; `composition.ts` and the harness contribute the worker-role gate
-  // and `price_lists`' resolver. The second goes when `price_lists` converts;
-  // the first is a deployment decision and stays.
-  search: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
+  // `search` (wave 2, T123). The two central registries, and nothing else since
+  // T143a: `composition.ts` used to import `SearchIndexer` to run the full
+  // reindex `catalog` triggers, building a second one beside the module's own.
+  // It forwards to `searchReindexPort` now, so the last name a root knew of
+  // this module is gone. The worker-role gate it still contributes is a plain
+  // boolean and names nothing.
+  search: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   // `admin_users` (wave 2, T121). The two central registries name its entities
   // and migrations; both roots contribute the late-bound MFA getter and the
   // `auditActorResolver` adapter that `audit_logs` owns the name for. The

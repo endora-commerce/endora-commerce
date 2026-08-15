@@ -32,7 +32,18 @@ describe('MFA — audit coverage', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    for (const code of ['mfa.storefront.totp_enabled', 'mfa.storefront.google_enabled']) {
+    for (const code of [
+      'mfa.storefront.totp_enabled',
+      'mfa.storefront.google_enabled',
+      // Feature 072 (T143a) — `mfa.social_account_created` below is recorded
+      // only when an account is actually created, and creating one without an
+      // Organization is gated on this setting, which ships **off**. The gate
+      // used to be a closure in each composition root: production's read threw
+      // (it passed a literal `'default'` where a channel id belongs) and was
+      // swallowed, the harness's did not exist. `customer_accounts` owns the
+      // policy now, so a suite that wants an auto-create has to allow one.
+      'customers.allow_registration_without_organization',
+    ]) {
       await h.settings.adminService.setValueForAllChannels(code, true, null, {
         actorAdminUserId: null,
       });

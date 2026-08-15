@@ -94,8 +94,13 @@ export const manifest = defineModuleManifest({
   // in `ACKNOWLEDGED_PORT_EDGES` instead.
   // `transactional_emails` since T120: verification, invitation and
   // new-registration mail routes through that module's `templateEmailPort`.
+  // `admin_roles` since T143a: the sales-rep visibility scope asks
+  // `permissionService` whether the rep holds `organizations:rollup` before it
+  // expands an assignment to its subtree. Declarable rather than acknowledged —
+  // `admin_roles` depends on nothing, so the edge closes no cycle.
   dependencies: [
     'admin_notifications',
+    'admin_roles',
     'custom_fields',
     'dictionaries',
     'email',
