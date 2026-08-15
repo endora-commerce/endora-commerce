@@ -3,6 +3,7 @@ import { screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { ModuleListItem, ModulePresence } from '@b2b/contracts';
+import { ApiError } from '@b2b/api-client';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**
@@ -61,6 +62,13 @@ const bundle = passthroughBundle('core', [
   'platform.modules.action.disable',
   'platform.modules.action.confirmDisable',
 ]);
+
+// The two dependency refusals are rendered from the bundle with the blocking
+// module ids interpolated, so these two keys carry a template rather than
+// resolving to themselves: the assertion below is that the ids reach the
+// sentence, which a passthrough key cannot show.
+bundle['core']!['platform.modules.error.dependentsPresent'] = 'blocked: {name} needs {modules}';
+bundle['core']!['platform.modules.error.dependenciesAbsent'] = 'missing: {name} wants {modules}';
 
 function moduleItem(patch: Partial<ModuleListItem> & { id: string }): ModuleListItem {
   return {
@@ -186,6 +194,57 @@ describe('ModulesPage — the activation control lives here now (D-36a)', () => 
 
     await userEvent.click(control);
     expect(setModuleActivation).not.toHaveBeenCalled();
+  });
+
+  it('names the blocking modules when the server refuses the flip (FR-008)', async () => {
+    // The refusal an operator is most likely to meet, and the one the sentence
+    // has to make actionable: the ids come from `details`, in both languages,
+    // rather than from the server's English message.
+    setModuleActivation.mockRejectedValueOnce(
+      new ApiError(409, {
+        error: {
+          code: 'MODULE_DEPENDENTS_PRESENT',
+          message: 'Module "settings" cannot be switched off while these modules need it: organizations.',
+          details: { moduleId: 'settings', blockedBy: ['organizations'] },
+          requestId: 'req_test',
+        },
+      }),
+    );
+    listed = [moduleItem({ id: 'settings', name: 'Settings' })];
+    presence = [presenceItem({ id: 'settings' })];
+    await renderPage();
+
+    await userEvent.click(
+      within(row('settings')).getByRole('button', { name: /platform.modules.action.disable/ }),
+    );
+
+    expect(await screen.findByText('blocked: Settings needs organizations')).toBeInTheDocument();
+  });
+
+  it('keeps the server sentence for a refusal that names no modules', async () => {
+    // `MODULE_NOT_DEACTIVATABLE` carries the module's own declared reason. A
+    // bundle string here would be the hard-coded exception list Constitution
+    // XVII forbids, moved into the translations.
+    setModuleActivation.mockRejectedValueOnce(
+      new ApiError(409, {
+        error: {
+          code: 'MODULE_NOT_DEACTIVATABLE',
+          message: 'The single unit of tenancy.',
+          requestId: 'req_test',
+        },
+      }),
+    );
+    listed = [moduleItem({ id: 'organizations', name: 'Organizations' })];
+    presence = [presenceItem({ id: 'organizations' })];
+    await renderPage();
+
+    await userEvent.click(
+      within(row('organizations')).getByRole('button', {
+        name: /platform.modules.action.disable/,
+      }),
+    );
+
+    expect(await screen.findByText('The single unit of tenancy.')).toBeInTheDocument();
   });
 
   it('offers no control for a module that has declared no activation setting', async () => {

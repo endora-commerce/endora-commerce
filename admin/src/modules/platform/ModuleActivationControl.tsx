@@ -29,6 +29,48 @@ interface Props {
   onError: (message: string) => void;
 }
 
+/**
+ * The two dependency refusals (FR-008), by envelope code and by the field of
+ * `details` that names the modules to act on.
+ *
+ * They are translated here rather than shown as the server's sentence because
+ * the sentence is the only part that is copy: the module ids are data, and
+ * carrying them separately means no bundle can drop or reorder them — the same
+ * treatment the version-drift numbers get on this screen.
+ *
+ * Every other refusal keeps the server's message. `MODULE_NOT_DEACTIVATABLE`
+ * carries the module's **own declared reason**, and replacing that with a
+ * generic sentence would be the hard-coded exception list Constitution XVII
+ * prohibits, spelled in the bundle instead of in the code.
+ */
+const DEPENDENCY_REFUSALS: Readonly<Record<string, { key: string; field: string }>> = {
+  MODULE_DEPENDENTS_PRESENT: {
+    key: 'platform.modules.error.dependentsPresent',
+    field: 'blockedBy',
+  },
+  MODULE_DEPENDENCIES_ABSENT: {
+    key: 'platform.modules.error.dependenciesAbsent',
+    field: 'missing',
+  },
+};
+
+export function activationErrorMessage(
+  err: unknown,
+  moduleName: string,
+  t: Props['t'],
+): string {
+  if (!(err instanceof ApiError)) return String(err);
+  const refusal = DEPENDENCY_REFUSALS[err.envelope.error.code];
+  const details = err.envelope.error.details;
+  if (refusal && details && !Array.isArray(details)) {
+    const named = (details as Record<string, unknown>)[refusal.field];
+    if (Array.isArray(named) && named.length > 0) {
+      return t(refusal.key, { name: moduleName, modules: named.join(', ') });
+    }
+  }
+  return err.envelope.error.message;
+}
+
 export function ModuleActivationControl({
   moduleId,
   moduleName,
@@ -52,9 +94,7 @@ export function ModuleActivationControl({
       await setModuleActivation(moduleId, !activated);
       await refresh();
     } catch (err) {
-      onError(
-        err instanceof ApiError ? err.envelope.error.message : String(err),
-      );
+      onError(activationErrorMessage(err, moduleName, t));
     } finally {
       setPending(false);
     }

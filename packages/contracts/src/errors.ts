@@ -314,6 +314,18 @@ export const ERROR_CODES = {
    */
   MODULE_ACTIVATION_PROTECTED: 'MODULE_ACTIVATION_PROTECTED',
   /**
+   * Deactivating a module other effectively-present modules depend on
+   * (FR-008). Distinct from `MODULE_NOT_DEACTIVATABLE`, which says there is
+   * nothing to switch *ever*: this one is a "not in this order" with a remedy —
+   * `details.blockedBy` names the modules to switch off first.
+   */
+  MODULE_DEPENDENTS_PRESENT: 'MODULE_DEPENDENTS_PRESENT',
+  /**
+   * Activating a module whose own dependencies are not effectively present
+   * (FR-008, the symmetric direction). `details.missing` names them.
+   */
+  MODULE_DEPENDENCIES_ABSENT: 'MODULE_DEPENDENCIES_ABSENT',
+  /**
    * A configuration write targeted a module that is not effectively present.
    * Reads still show the stored value; writes are refused (FR-033).
    */

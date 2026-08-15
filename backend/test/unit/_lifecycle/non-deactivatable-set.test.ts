@@ -1,11 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  ACKNOWLEDGED_PORT_EDGES,
-  closureOf,
-  providedPortNames,
-} from '../../../scripts/check-port-dependencies.js';
+import { closureOf, providedPortNames } from '../../../scripts/check-port-dependencies.js';
+import { acknowledgedPortEdgesFrom } from '../../../src/modules/_lifecycle/services/gating-graph.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
 /**
@@ -81,19 +78,19 @@ const criterionClosure = new Set<string>(
 
 /**
  * The port edges a criterion module genuinely has but deliberately does **not**
- * declare in its manifest, because declaring them would close a cycle. Read from
- * `ACKNOWLEDGED_PORT_EDGES` rather than copied: a closure computed from manifest
- * `dependencies` alone is silently wrong for exactly `addresses` and
- * `customer_accounts`, which is the trap this whole amendment came out of.
+ * declare in `dependencies`, because declaring them would close a cycle. Read
+ * from the manifests' `acknowledgedDependencies` rather than copied: a closure
+ * computed from manifest `dependencies` alone is silently wrong for exactly
+ * `addresses` and `customer_accounts`, which is the trap this whole amendment
+ * came out of. (Those edges lived in a constant inside
+ * `check-port-dependencies.ts` until T045/T046 moved them into the declaring
+ * manifests, so that the CI check and the flip-time refusal read one source.)
  */
 function portEdgeJustifiedModules(): Set<string> {
   const criterionResolvers = new Set<string>([...CRITERION_MODULES, ...criterionClosure]);
   const acknowledgedPorts = new Set<string>();
-  for (const key of Object.keys(ACKNOWLEDGED_PORT_EDGES)) {
-    const separator = key.indexOf(':');
-    const resolver = key.slice(0, separator);
-    const port = key.slice(separator + 1);
-    if (criterionResolvers.has(resolver)) acknowledgedPorts.add(port);
+  for (const edge of acknowledgedPortEdgesFrom(REGISTERED_MANIFESTS.map((e) => e.manifest))) {
+    if (criterionResolvers.has(edge.moduleId)) acknowledgedPorts.add(edge.port);
   }
 
   const owners = new Set<string>();

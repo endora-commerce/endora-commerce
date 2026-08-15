@@ -43,6 +43,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import type { ModuleManifest } from '@b2b/contracts';
+import { acknowledgedPortEdgesFrom } from '../src/modules/_lifecycle/services/gating-graph.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -393,41 +395,30 @@ export const ALLOWED_CAPTURES: Readonly<Record<string, string>> = {
 
 /**
  * Port edges a module may resolve **without** declaring the owner, because
- * declaring it would close a manifest cycle. One entry per edge, with the
- * cycle spelled out.
+ * declaring it would close a manifest cycle.
  *
- * This is the port-layer twin of `test/unit/db/acknowledged-fk-edges.ts`, which
- * records the five foreign keys `organizations` deliberately does not declare
- * for the same reason. Keep it as short as that one: an entry is a statement
- * that the edge is real and mutual, not that nobody has looked.
+ * This used to be a constant here, and that was the defect: it was the only
+ * record that the edges existed, so the flip-time refusals could not see them
+ * and an operator could switch `price_lists` off underneath `catalog`'s
+ * `pricingService` resolution with nothing to stop them (feature 073,
+ * Amendment A1). The edges now live in the declaring module's manifest, as
+ * `acknowledgedDependencies`, and this check and the refusal read the same
+ * declarations — the runtime port-layer twin of
+ * `test/unit/db/acknowledged-fk-edges.ts`.
+ *
+ * Keep the set as short as that one: an entry is a statement that the edge is
+ * real and mutual, not that nobody has looked.
  */
-export const ACKNOWLEDGED_PORT_EDGES: Readonly<Record<string, string>> = {
-  // The same mutual pair, four names over. `customer_accounts` declares
-  // `organizations` — every account belongs to one, and feature 051 made that
-  // the tenancy direction — while this module's public registration, login,
-  // password-reset and TOTP routes are served by those four services. The
-  // manifest already records the mirror of this as an acknowledged FK edge
-  // (`email_verification_tokens.customer_account_id`).
-  'organizations:customerAuthService': 'see `organizations:addressService`',
-  'organizations:passwordResetService': 'see `organizations:addressService`',
-  'organizations:customerRoleService': 'see `organizations:addressService`',
-  'organizations:totpEnrolmentService': 'see `organizations:addressService`',
-  'catalog:pricingService':
-    'Mutual by nature, and the mirror of `organizations:addressService`. ' +
-    '`price_lists` declares `catalog` — a price list is a list of prices for ' +
-    'products, and it must install after them — while the external catalog ' +
-    'namespace prices its responses through the pricing engine. Declaring the ' +
-    'second direction closes the cycle, and `migration-order` fails the build ' +
-    'on it, which is how this was found.',
-  'organizations:addressService':
-    'Mutual by nature. `addresses` declares `organizations` because every stored ' +
-    'address is organization-scoped, and it must install after the tenancy root. ' +
-    '`organizations` resolves `AddressService` because its customer routes expose ' +
-    'address CRUD. Declaring the second direction closes the cycle and makes the ' +
-    'tenancy root uninstallable first, which Rule 3 forbids — the same trade the ' +
-    "manifest's five acknowledged FK edges record. It goes when the address routes " +
-    'move to the module that owns the table.',
-};
+export function acknowledgedPortEdges(
+  manifests: readonly ModuleManifest[],
+): Record<string, string> {
+  return Object.fromEntries(
+    acknowledgedPortEdgesFrom(manifests).map((edge) => [
+      `${edge.moduleId}:${edge.port}`,
+      edge.reason,
+    ]),
+  );
+}
 
 export interface PortViolation {
   readonly kind: 'undeclared-dependency' | 'unowned-name' | 'captured-name';
@@ -681,6 +672,13 @@ export interface CheckInput {
    * static check green.
    */
   readonly providedPorts?: ReadonlyMap<string, string> | undefined;
+  /**
+   * `<resolving module>:<port>` → reason, from the manifests'
+   * `acknowledgedDependencies` (see {@link acknowledgedPortEdges}). Omitted
+   * means "no edge is acknowledged", which is what a unit test over hand-built
+   * fixtures wants.
+   */
+  readonly acknowledged?: Readonly<Record<string, string>> | undefined;
 }
 
 export function findViolations(input: CheckInput): PortViolation[] {
@@ -713,7 +711,7 @@ export function findViolations(input: CheckInput): PortViolation[] {
     }
     if (owner === resolution.moduleId) continue;
     if (closureOf(resolution.moduleId, input.dependencies).has(owner)) continue;
-    if (ACKNOWLEDGED_PORT_EDGES[`${resolution.moduleId}:${resolution.name}`] !== undefined) {
+    if ((input.acknowledged ?? {})[`${resolution.moduleId}:${resolution.name}`] !== undefined) {
       continue;
     }
     violations.push({ kind: 'undeclared-dependency', resolution, owner });
@@ -914,7 +912,8 @@ export function describe(violation: PortViolation, srcRoot = SRC_ROOT): string {
   return (
     `  - ${resolution.moduleId} resolves '${resolution.name}' (${where}), owned by ` +
     `'${owner}', which it does not declare.\n    Add '${owner}' to \`dependencies\` in ` +
-    `src/modules/${resolution.moduleId}/manifest.ts.`
+    `src/modules/${resolution.moduleId}/manifest.ts — or, if declaring it closes a\n` +
+    `    cycle, to \`acknowledgedDependencies\` there with the cycle spelled out.`
   );
 }
 
@@ -933,10 +932,13 @@ async function main(): Promise<void> {
 
   const { DISCOVERED_MANIFESTS } = (await import(
     pathToFileURL(join(SRC_ROOT, 'modules/_lifecycle/manifest-index.generated.ts')).href
-  )) as { DISCOVERED_MANIFESTS: ReadonlyArray<{ id: string; manifest: { dependencies?: readonly string[] } }> };
+  )) as { DISCOVERED_MANIFESTS: ReadonlyArray<{ id: string; manifest: ModuleManifest }> };
   const dependencies = new Map<string, readonly string[]>(
     DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
   );
+  // The withheld edges, read from the manifests that withhold them — the same
+  // declarations the lifecycle's flip-time refusal reads (feature 073, A1).
+  const acknowledged = acknowledgedPortEdges(DISCOVERED_MANIFESTS.map((entry) => entry.manifest));
 
   // A host entry whose owner now registers the port itself is dead weight, and
   // dead weight in a bridging table is how the bridge outlives the gap.
@@ -965,6 +967,7 @@ async function main(): Promise<void> {
     owners,
     dependencies,
     providedPorts: moduleRegistered,
+    acknowledged,
   });
   const rootNames = new Map<string, ReadonlySet<string>>();
   for (const [label, relative] of Object.entries(ROOT_FILES)) {

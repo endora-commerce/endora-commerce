@@ -593,8 +593,8 @@ export class ModuleLifecycleOrchestrator {
 
       this.assertDeactivatable(moduleId);
 
-      // Find currently-enabled dependents.
-      const directDependents = this.deps.registry.graph.dependentsOf(moduleId);
+      // Find currently-enabled dependents, over both kinds of edge.
+      const directDependents = this.gatingDependentsOf(moduleId);
       const em = this.deps.em();
       const dependentRows = await em.find(ModuleRegistration, {
         moduleId: { $in: directDependents },
@@ -635,6 +635,39 @@ export class ModuleLifecycleOrchestrator {
         // perfectly ordinary target whose dependent is the module the platform
         // cannot run without.
         for (const dep of order) this.assertDeactivatable(dep);
+        // A cascade cannot cross an acknowledged edge, and refusing is the only
+        // honest answer: those edges are mutual by construction — that is why
+        // they are withheld from `dependencies` — so there is no reverse-topo
+        // position for them, and disabling the target anyway would leave the
+        // acknowledging module resolving a port whose owner is gone. Naming it
+        // lets the operator disable it explicitly first (feature 073, FR-008).
+        const cascadeSet = new Set([...order, moduleId]);
+        const stranded = new Set<string>();
+        for (const member of cascadeSet) {
+          for (const dependent of this.acknowledgedDependentsOf(member)) {
+            if (!cascadeSet.has(dependent)) stranded.add(dependent);
+          }
+        }
+        const strandedRows = await em.find(ModuleRegistration, {
+          moduleId: { $in: [...stranded] },
+          state: 'installed',
+        });
+        if (strandedRows.length > 0) {
+          const blocking = strandedRows.map((r) => r.moduleId).sort();
+          await this.deps.auditLog.record({
+            actorAdminUserId: null,
+            action: 'module.dependency_blocked',
+            objectType: 'module',
+            objectId: moduleId,
+            stateAfter: { command: 'disable', conflicting: blocking },
+          });
+          throw new LifecycleError(
+            'dependents-block',
+            `cannot disable "${moduleId}": these modules resolve a port it owns ` +
+              `through an acknowledged edge and cannot be cascaded: ${blocking.join(', ')}`,
+            { dependents: blocking },
+          );
+        }
         for (const dep of order) {
           const depRow = await em.findOne(ModuleRegistration, { moduleId: dep });
           if (!depRow || depRow.state !== 'installed') continue;
@@ -843,9 +876,37 @@ export class ModuleLifecycleOrchestrator {
       state: { $in: ['installed', 'disabled'] },
     });
     const installed = new Set(rows.map((r) => r.moduleId));
-    return this.deps.registry.graph
-      .dependentsOf(moduleId)
-      .filter((id) => installed.has(id));
+    return this.gatingDependentsOf(moduleId).filter((id) => installed.has(id));
+  }
+
+  /**
+   * Direct dependents over **both** kinds of edge — feature 073, FR-008.
+   *
+   * `registry.graph` is built from `manifest.dependencies` alone because it has
+   * to be a DAG: it computes the install order. That leaves out the handful of
+   * real port edges the manifests withhold for exactly that reason, and reading
+   * only the DAG here is what let the two presence axes disagree — the operator
+   * axis refuses to switch `price_lists` off under `catalog`, so this one must
+   * too, or the same platform answers the same question two ways depending on
+   * which door the operator used.
+   */
+  private gatingDependentsOf(moduleId: string): string[] {
+    return [
+      ...new Set([
+        ...this.deps.registry.graph.dependentsOf(moduleId),
+        ...this.acknowledgedDependentsOf(moduleId),
+      ]),
+    ].sort();
+  }
+
+  /** The modules that acknowledge a withheld port edge onto `moduleId`. */
+  private acknowledgedDependentsOf(moduleId: string): string[] {
+    const out: string[] = [];
+    for (const [id, entry] of this.deps.registry.modules) {
+      const acknowledged = entry.manifest.acknowledgedDependencies ?? [];
+      if (acknowledged.some((edge) => edge.moduleId === moduleId)) out.push(id);
+    }
+    return out.sort();
   }
 
   private async migrator(): Promise<IMigrator> {

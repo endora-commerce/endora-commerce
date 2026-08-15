@@ -91,7 +91,7 @@ export const manifest = defineModuleManifest({
   // that accompanies the last of them. `addresses` is deliberately absent for
   // the same reason the five FK edges above are — it declares this module, so
   // the edge is mutual and declaring it back closes the cycle; it is recorded
-  // in `ACKNOWLEDGED_PORT_EDGES` instead.
+  // in `acknowledgedDependencies` below instead.
   // `transactional_emails` since T120: verification, invitation and
   // new-registration mail routes through that module's `templateEmailPort`.
   // `admin_roles` since T143a: the sales-rep visibility scope asks
@@ -106,6 +106,51 @@ export const manifest = defineModuleManifest({
     'email',
     'settings',
     'transactional_emails',
+  ],
+  // Feature 073, Amendment A1 — the five port edges this module genuinely has
+  // and cannot declare above, moved here from `ACKNOWLEDGED_PORT_EDGES` in
+  // `backend/scripts/check-port-dependencies.ts` so that one declaration feeds
+  // both the CI check and the flip-time refusal. They are ignored by the
+  // install and migration order, which is the only reason they were withheld.
+  acknowledgedDependencies: [
+    {
+      moduleId: 'addresses',
+      port: 'addressService',
+      reason:
+        'Mutual by nature. `addresses` declares this module because every stored ' +
+        'address is organization-scoped, and it must install after the tenancy root. ' +
+        'This module resolves `AddressService` because its customer routes expose ' +
+        'address CRUD. Declaring the second direction closes the cycle and makes the ' +
+        'tenancy root uninstallable first, which Rule 3 forbids — the same trade the ' +
+        "manifest's five acknowledged FK edges record. It goes when the address routes " +
+        'move to the module that owns the table.',
+    },
+    {
+      moduleId: 'customer_accounts',
+      port: 'customerAuthService',
+      reason:
+        'The same mutual pair, four names over. `customer_accounts` declares this ' +
+        'module — every account belongs to one, and feature 051 made that the tenancy ' +
+        "direction — while this module's public registration, login, password-reset " +
+        'and TOTP routes are served by those four services. The manifest already ' +
+        'records the mirror of this as an acknowledged FK edge ' +
+        '(`email_verification_tokens.customer_account_id`).',
+    },
+    {
+      moduleId: 'customer_accounts',
+      port: 'passwordResetService',
+      reason: 'See the `customerAuthService` edge above — same mutual pair.',
+    },
+    {
+      moduleId: 'customer_accounts',
+      port: 'customerRoleService',
+      reason: 'See the `customerAuthService` edge above — same mutual pair.',
+    },
+    {
+      moduleId: 'customer_accounts',
+      port: 'totpEnrolmentService',
+      reason: 'See the `customerAuthService` edge above — same mutual pair.',
+    },
   ],
   // Feature 072/073 (Constitution XVII). The Organization is the single unit of
   // tenancy (Principle XI): every transacting customer has one, every

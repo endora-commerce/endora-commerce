@@ -93,12 +93,50 @@ export const ModuleActivationSchema = z.union([
 ]);
 export type ModuleActivation = z.infer<typeof ModuleActivationSchema>;
 
+/**
+ * A runtime dependency the declaring module deliberately keeps out of
+ * `dependencies` — feature 073, Amendment A1.
+ *
+ * The two are not two spellings of one thing. `dependencies` is read by the
+ * **topological install order** (`db/migration-order.ts`, the lifecycle's
+ * `ModuleDepGraph`), and a mutual pair declared there closes a cycle that fails
+ * the build: `addresses` must install after `organizations` because every
+ * stored address is organization-scoped, so `organizations` cannot also declare
+ * `addresses`, however real the port edge is. Withholding the declaration used
+ * to make the edge invisible to everything else too — the flip-time refusals
+ * saw no reason to stop an operator switching the owner off underneath a live
+ * resolver.
+ *
+ * So the edge is declared here instead: **read by the gating and refusal
+ * graph, ignored by the install order.** That is the whole trade, stated in the
+ * manifest that makes it rather than in a build script's constant, so a
+ * refusal and a CI check cannot drift apart on which edges exist.
+ */
+export const ModuleAcknowledgedDependencySchema = z.object({
+  /** The module that owns the port. */
+  moduleId: z.string().regex(moduleIdRe),
+  /** The container registration name this module resolves, e.g. `addressService`. */
+  port: z.string().min(1),
+  /** Why the edge cannot be declared in `dependencies` — the cycle, spelled out. */
+  reason: z.string().min(1).max(800),
+});
+export type ModuleAcknowledgedDependency = z.infer<
+  typeof ModuleAcknowledgedDependencySchema
+>;
+
 export const ModuleManifestSchema = z.object({
   id: z.string().regex(moduleIdRe),
   name: z.string().min(1).max(120),
   description: z.string().max(2000).optional(),
   version: z.string().regex(moduleVersionRe),
   dependencies: z.array(z.string().regex(moduleIdRe)).default([]),
+  /**
+   * Real port edges withheld from `dependencies` for install-ordering reasons
+   * (feature 073, Amendment A1). Consumed by `check-port-dependencies.ts` and
+   * by the lifecycle's flip-time dependency refusals; never by the install
+   * order or the migration order.
+   */
+  acknowledgedDependencies: z.array(ModuleAcknowledgedDependencySchema).optional(),
   license: ModuleLicenseTierSchema.optional(),
   /**
    * Operator-activation control (feature 073). Optional only while the
@@ -211,6 +249,25 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
   }
   if (m.activation !== undefined) {
     assertActivationRules(m.id, m.activation);
+  }
+  for (const edge of m.acknowledgedDependencies ?? []) {
+    if (edge.moduleId === m.id) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" acknowledges a dependency on ` +
+          `itself (forbidden).`,
+      );
+    }
+    // An acknowledged edge is a declaration that the ordinary one is
+    // impossible. Where both are present the ordinary one already carries the
+    // install order *and* the refusal, and the acknowledgement is a second
+    // record of the same edge that nothing keeps in step.
+    if (m.dependencies.includes(edge.moduleId)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" acknowledges "${edge.moduleId}", ` +
+          `which it already declares in \`dependencies\` — the acknowledgement is ` +
+          `for edges that cannot be declared, so drop one of the two.`,
+      );
+    }
   }
   return ModuleManifestSchema.parse(m);
 }

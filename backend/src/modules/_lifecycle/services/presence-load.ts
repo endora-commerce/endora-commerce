@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@b2b/contracts';
 import { ModuleRegistration } from '../entities/module-registration.entity.js';
 import { activationDeclarationsFrom } from './activation-resolver.js';
+import { installGatingGraph } from './gating-graph.js';
 import { registryCache } from './registry-cache.js';
 
 /**
@@ -33,6 +34,10 @@ export async function loadModulePresence(opts: {
   manifests: readonly ModuleManifest[];
 }): Promise<void> {
   await reconcileExistingModules(opts.em, opts.manifests);
+  // Feature 073 (T045/T046) — the graph the flip-time refusals read. Installed
+  // from the same manifest list as the activation declarations, so an overlay
+  // module's edges count for a refusal exactly as a core module's do (FR-027).
+  installGatingGraph(opts.manifests);
   await registryCache.load({
     em: opts.em,
     // Feature 073 — the operator-activation axis. Declarations come from the

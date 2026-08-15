@@ -4,6 +4,7 @@ import type { Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Setting } from '../../../kernel/settings/setting.entity.js';
 import { effectiveState } from '../services/effective-state.js';
+import { gatingGraph } from '../services/gating-graph.js';
 import { registryCache } from '../services/registry-cache.js';
 
 /**
@@ -44,11 +45,26 @@ export interface SetModuleActivationInput {
  * A refusal rather than a no-op: a control that silently does nothing is worse
  * than an absent one, because the operator believes they switched something.
  *
- * The dependency-graph refusals (deactivating a module with effectively-present
- * dependents; activating one whose dependency is absent) belong to US2 and are
- * added in the same place.
+ * Four refusals, in the order an operator meets them: an unknown id, a module
+ * with no control, a deactivation something present still needs, and an
+ * activation into a deployment that cannot serve it. The last two are FR-008
+ * (T045/T046) and they are what makes this door agree with the CLI's — until
+ * they existed, `orchestrator.disable` refused `settings` because
+ * `organizations` depends on it while this function let the identical flip
+ * through in silence, taking the tenancy root down with it.
+ *
+ * **They read `gatingGraph()`, not `ModuleDepGraph`.** The manifest graph is a
+ * DAG on purpose and a handful of real edges are withheld from it so it can
+ * stay one; the refusal graph adds them back from
+ * `manifest.acknowledgedDependencies`. See `services/gating-graph.ts` for why
+ * the two directions read different edge sets.
+ *
+ * The direction is evaluated as asked, not as a delta against the stored value.
+ * A redundant write is an odd thing to refuse, but the alternative is a write
+ * path that skips its own invariant whenever the state is already wrong — which
+ * is precisely the state in which the check matters.
  */
-export function assertActivationWritable(moduleId: string): string {
+export function assertActivationWritable(moduleId: string, active: boolean): string {
   const declaration = registryCache.activationDeclaration(moduleId);
   if (!declaration) {
     // Either the id is unknown, or the module has not declared a control yet
@@ -76,6 +92,39 @@ export function assertActivationWritable(moduleId: string): string {
         `Module "${moduleId}" cannot be switched off.`,
     );
   }
+
+  const graph = gatingGraph();
+  const isPresent = (id: string): boolean => effectiveState.isPresent(id);
+
+  if (!active) {
+    const blockedBy = graph.presentDependentsOf(moduleId, isPresent);
+    if (blockedBy.length > 0) {
+      // A distinct code from MODULE_NOT_DEACTIVATABLE, which says "there is
+      // nothing here to switch, ever". This one is "not in this order", and the
+      // remedy is in `details.blockedBy` — the admin renders the two
+      // differently, and so does the CLI (`non-deactivatable` vs
+      // `dependents-block`).
+      throw new HttpError(
+        409,
+        ERROR_CODES.MODULE_DEPENDENTS_PRESENT,
+        `Module "${moduleId}" cannot be switched off while these modules need it: ` +
+          `${blockedBy.join(', ')}. Switch them off first.`,
+        { moduleId, blockedBy },
+      );
+    }
+  } else {
+    const missing = graph.absentDependenciesOf(moduleId, isPresent);
+    if (missing.length > 0) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.MODULE_DEPENDENCIES_ABSENT,
+        `Module "${moduleId}" cannot be switched on while these modules it needs ` +
+          `are absent: ${missing.join(', ')}.`,
+        { moduleId, missing },
+      );
+    }
+  }
+
   return declaration.settingCode;
 }
 
@@ -90,7 +139,7 @@ export function assertActivationWritable(moduleId: string): string {
 export function makeSetActivationCommand(
   input: SetModuleActivationInput,
 ): Command<{ moduleId: string; active: boolean }> {
-  const settingCode = assertActivationWritable(input.moduleId);
+  const settingCode = assertActivationWritable(input.moduleId, input.active);
 
   return {
     action: 'module.activation.set',
