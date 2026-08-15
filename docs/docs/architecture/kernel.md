@@ -238,6 +238,45 @@ Where a degrade genuinely belongs, put it **inside the owner's implementation**
 and express it in the port's return type — `allowedIdsFor(): Promise<string[] | null>`
 returning `null` for "no restriction" is the pattern.
 
+**That rule is enforced too**, by `backend/scripts/check-port-catches.ts`
+(issue #84). It is worth knowing what the sweep that armed it found, because the
+three kinds it separates are the three answers to a review comment about a
+`catch`. Of 51 `try` blocks reaching a gated port, 27 already re-threw and 24 did
+not, and the 24 were:
+
+- **defensive** — a `catch` over a port whose return type *already* says
+  "nothing applies". `resolveLinePrice` answers `null`; `taxRateFor` answers
+  `{ rate: 0, source: 'none' }`; `applyToCart` answers `discountTotal: 0`. The
+  `catch` bought nothing except the ability to hide a 503, and one of them wrote
+  the hidden answer into a cache with a TTL, so `price_lists` coming back did not
+  end it. **Delete it.**
+- **a degrade that belongs to the owner** — see the paragraph above.
+- **a narrow tolerance that is correct** — a per-item import failure recorded as
+  an issue, a compensating cleanup on a rollback path, a typeahead hit that
+  degrades to its plain summary. Those keep the `catch` and add
+  `rethrowIfModuleDisabled(error)` as its first line. The reason is that a
+  presence answer is about the **whole operation**, never the one item:
+  `pim_ergonode` used to report every attribute, variant, image and relation in
+  the source as individually broken and finish the run "successfully", when the
+  one true sentence was that `catalog` was switched off.
+
+A kept `catch` says why in a comment, and "defensive" is not a why.
+
+Two details the check makes explicit. A **conditional** re-throw
+(`catch (e) { if (rare) throw e; }`) is a violation: `ModuleDisabledError`
+extends `HttpError`, so a `statusCode === 409` test lets it through by accident
+rather than by decision. And a **timer callback** cannot re-throw at all —
+`ksef`'s reconcile sweep asks `effectiveState.isPresent` before it starts
+instead, which is what freed its `catch` to log the genuine sweep failures that
+used to vanish beside the presence answer.
+
+`PORT_CATCHES_TO_DRAIN` holds the three sites where absorbing the answer is
+still the least-wrong behaviour, each with its reason. All three share one shape:
+the guarded call runs **after** the operation it belongs to has committed — a
+transient-address cleanup, a verification e-mail — so re-throwing would report a
+failure for work that succeeded. Retiring them means giving those calls somewhere
+to report to, which is a feature rather than a fix.
+
 ## The request scope
 
 Per-request state lives in the kernel's scope (`scope.ts`), reached through
@@ -399,6 +438,7 @@ is no container in the process running it.
 | --- | --- |
 | `check-kernel-boundary.ts` | an ORM relation from the kernel into a module, or from a module into another module; **and** any import specifier under `src/kernel/**` resolving into `src/modules/` or `src/apps/` — every shape, `import type` included. Carries `KERNEL_MODULE_IMPORTS_TO_DRAIN`, a two-way ratchet holding the one edge D-37 A1 escalated rather than fixed |
 | `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a **gated port resolved from a `ctx.onBoot` hook or a `ctx.routes` body**; a root shadowing a module's port; a computed port name |
+| `check-port-catches.ts` | a `catch` around a gated-port call that does not let `ModuleDisabledError` past — unconditional re-throw, `rethrowIfModuleDisabled`, or naming the error. Carries `PORT_CATCHES_TO_DRAIN`, a two-way ratchet |
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
 | `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger |
 

@@ -123,7 +123,13 @@ never add a "module options" object for something the module can read itself.
 7. **Never wrap a port call in a bare `catch`** — it swallows `ModuleDisabledError` and turns
    fail-closed into fail-open. Where a degrade genuinely belongs, put it inside the owner's
    implementation and express it in the return type
-   (`allowedIdsFor(): Promise<string[] | null>` is the worked example).
+   (`allowedIdsFor(): Promise<string[] | null>` is the worked example). Where a **narrow**
+   tolerance is genuinely correct — a per-item import failure, a compensating cleanup — keep
+   the `catch` and make `rethrowIfModuleDisabled(error)` its first line, with a comment saying
+   why the tolerance is right; "defensive" is not a reason. Enforced by
+   `pnpm --filter backend run check:port-catches`, which also refuses a *conditional*
+   re-throw: `ModuleDisabledError` is an `HttpError`, so a status-code test lets it through by
+   accident rather than by decision.
 8. **Boot hooks run per pass.** Composition runs two passes (`EARLY_PASS_MODULE_IDS` in
    `backend/src/composition-passes.ts`), each registering its modules and then running *its*
    boot hooks — so **a late-pass registration does not exist during an early-pass hook**. If
@@ -141,8 +147,8 @@ never add a "module options" object for something the module can read itself.
    `if (!ctx.hard) return;`; **neither hook fires on activation or deactivation** — that is
    the other axis (Principle XVII) and no hook may be added to it; and the hook context is
    `{ em, redis, log, module }` (`+ hard`), which cannot carry services.
-10. **CI** — `pnpm --filter backend run check:port-dependencies`, `check:kernel-boundary`,
-   `check:container-imports`, and
+10. **CI** — `pnpm --filter backend run check:port-dependencies`, `check:port-catches`,
+   `check:kernel-boundary`, `check:container-imports`, and
    `pnpm --filter backend exec vitest run test/contract/kernel/harness-parity.test.ts`
    (drift between the two composition roots, as an explicit draining ledger).
 
