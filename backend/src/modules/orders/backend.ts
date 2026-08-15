@@ -260,19 +260,19 @@ export function registerModule(ctx: ModuleContext): void {
               ),
             resolveChannelAllowNegativeStock: (channelId) =>
               readSetting('inventory.allow_negative_stock', channelId, z.boolean(), false),
-            // Real per-product VAT from the tax rules; a failure degrades to a
-            // flat 23% rather than blocking the order.
+            // Real per-product VAT from the tax rules. No `catch` (issue #84):
+            // `taxRateFor` already answers "no rule and no default" as
+            // `{ rate: 0, source: 'none' }`, so the only errors it raises are a
+            // failing database and `taxes` being switched off — and a flat 23%
+            // invented for either is a tax figure on a real order, printed on a
+            // real invoice, that no rule in the deployment supports.
             resolveTaxRate: async ({ country, productType, vatStatus }) => {
-              try {
-                const resolved = await cradle().taxService.taxRateFor({
-                  country: country ?? 'PL',
-                  productType: productType as TaxRateInput['productType'],
-                  vatStatus: vatStatus as TaxRateInput['vatStatus'],
-                });
-                return resolved.rate;
-              } catch {
-                return 0.23;
-              }
+              const resolved = await cradle().taxService.taxRateFor({
+                country: country ?? 'PL',
+                productType: productType as TaxRateInput['productType'],
+                vatStatus: vatStatus as TaxRateInput['vatStatus'],
+              });
+              return resolved.rate;
             },
 
             exposeOrderService: (service) => {

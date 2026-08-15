@@ -156,28 +156,30 @@ export class CartAdminService {
     const currency = items[0]?.currency ?? 'PLN';
 
     // Feature 045 (T043) — compute the real discount for the detail view.
+    //
+    // No `catch` (issue #84). `applyToCart` returns `discountTotal: 0` when
+    // nothing applies, so zero is already an answer it can give; catching one
+    // made "no promotion matched" and "`promotions` is switched off"
+    // indistinguishable, and an administrator reading this panel would have
+    // quoted a customer the undiscounted total as if it were the real one.
     let discountTotal = 0;
     if (this.promotion && items.length > 0) {
-      try {
-        const application = await this.promotion.applyToCart({
-          organizationId: cart.organizationId ?? null,
-          customerGroupId: null,
-          currency,
-          lines: items.map((it) => ({
-            productId: it.productId,
-            variantId: it.variantId ?? null,
-            categoryIds: [],
-            quantity: it.quantity,
-            unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
-          })),
-          deliveryTotal: 0,
-          promotionCode: cart.appliedPromotionCode ?? null,
-          salesChannelId: cart.salesChannelId ?? null,
-        });
-        discountTotal = application.discountTotal;
-      } catch {
-        discountTotal = 0;
-      }
+      const application = await this.promotion.applyToCart({
+        organizationId: cart.organizationId ?? null,
+        customerGroupId: null,
+        currency,
+        lines: items.map((it) => ({
+          productId: it.productId,
+          variantId: it.variantId ?? null,
+          categoryIds: [],
+          quantity: it.quantity,
+          unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
+        })),
+        deliveryTotal: 0,
+        promotionCode: cart.appliedPromotionCode ?? null,
+        salesChannelId: cart.salesChannelId ?? null,
+      });
+      discountTotal = application.discountTotal;
     }
     const total = Math.max(0, Math.round((subtotal - discountTotal) * 100) / 100);
 

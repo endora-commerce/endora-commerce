@@ -282,9 +282,13 @@ export class CartService {
   /**
    * Look up the line's unit price via the resolver when the pricing
    * service is wired (production); fall back to `null` so the legacy
-   * read path runs (foundation tests). Returns `null` on any resolver
-   * failure to match the foundation flow's "never block on price
-   * resolution" semantics.
+   * read path runs (foundation tests).
+   *
+   * `null` means "no resolvable price", and `resolveLinePrice` already answers
+   * that as a value — so there is no `catch` here (issue #84). There used to
+   * be one, and it made the two answers indistinguishable: a `price_lists`
+   * switched off, or a resolver bug, both came back as "this line has no
+   * price", and the cart quietly re-priced from the catalogue default.
    */
   async #resolveLineUnitPrice(
     em: EntityManager,
@@ -301,31 +305,27 @@ export class CartService {
     displayMode: DisplayMode;
   } | null> {
     if (!this.pricingService) return null;
-    try {
-      const channel = await em.findOne(SalesChannel, { systemDefault: true });
-      if (!channel) return null;
-      const organization = input.organizationId
-        ? await em.findOne(Organization, { id: input.organizationId })
-        : null;
-      const resolved = await this.pricingService.resolveLinePrice({
-        product: input.product,
-        variantId: input.variantId,
-        context: {
-          quantity: input.quantity,
-          ...(organization ? { organization } : {}),
-          salesChannel: channel,
-        },
-      });
-      if (!resolved) return null;
-      return {
-        amount: resolved.amount,
-        currency: resolved.currency,
-        priceListId: resolved.priceListId,
-        displayMode: resolved.displayMode,
-      };
-    } catch {
-      return null;
-    }
+    const channel = await em.findOne(SalesChannel, { systemDefault: true });
+    if (!channel) return null;
+    const organization = input.organizationId
+      ? await em.findOne(Organization, { id: input.organizationId })
+      : null;
+    const resolved = await this.pricingService.resolveLinePrice({
+      product: input.product,
+      variantId: input.variantId,
+      context: {
+        quantity: input.quantity,
+        ...(organization ? { organization } : {}),
+        salesChannel: channel,
+      },
+    });
+    if (!resolved) return null;
+    return {
+      amount: resolved.amount,
+      currency: resolved.currency,
+      priceListId: resolved.priceListId,
+      displayMode: resolved.displayMode,
+    };
   }
 
   async updateItem(
