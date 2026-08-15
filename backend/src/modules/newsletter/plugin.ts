@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
-import { defineModuleRoutes, defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
+import { defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import type { Mailer } from '../email/services/mailer.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
@@ -240,7 +240,12 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
       }
     }
 
-    await defineModuleRoutes('newsletter', async (scoped) => {
+    // Encapsulated, not gated. `backend.ts` registers this through `ctx.routes`,
+    // which already applies `defineModuleRoutes('newsletter', …)` — gating here
+    // too would add a second, identical `onRequest` check to every route the
+    // module owns (feature 072). The `register` call stays: it is what keeps
+    // this module's hooks and decorators out of the rest of the app.
+    await app.register(async (scoped) => {
       await registerNewsletterStorefrontRoutes(scoped, {
         subscribers,
         optIn,
@@ -269,6 +274,6 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
         resolveCustomerAccountId: options.resolveCustomerAccountId,
         loadCustomerEmail: options.loadCustomerEmail,
       });
-    })(app);
+    });
   };
 }

@@ -5,7 +5,6 @@ import { z } from 'zod';
 import { FEED_DELIVERY_LIMITS, PRODUCT_FEED_SETTING_CODES } from '@b2b/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModulePlugin } from '../../http/server.js';
-import { defineModuleRoutes } from '../_lifecycle/plugin-helpers.js';
 import type { AdminNotificationService } from '../admin_notifications/services/admin-notification-service.js';
 import type { CustomFieldDefinitionService } from '../custom_fields/services/custom-field-definition.service.js';
 import { Product } from '../catalog/entities/product.entity.js';
@@ -124,9 +123,11 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
  * service's own public class, which is the pattern `catalog/plugin.ts` already
  * uses for exactly these collaborators.
  *
- * Lifecycle gating is `defineModuleRoutes('product_feeds', …)` — a disabled
- * module answers `503` with `Retry-After` on both the admin and the public
- * surface.
+ * Lifecycle gating is applied once, by `backend.ts` mounting this plugin
+ * through `ctx.routes` — a disabled module answers `503` with `Retry-After` on
+ * both the admin and the public surface. This file registers an encapsulated
+ * context and no gate: wrapping again here would add a second, identical check
+ * per request.
  *
  * **No Redis ⇒ no queue, no cache, no scheduler, and everything still works.**
  * That is not a convenience: `backend/test/helpers/test-server.ts` runs
@@ -887,7 +888,10 @@ export function productFeedsModule(
     },
   };
 
-  const plugin = defineModuleRoutes('product_feeds', async (app: FastifyInstance) => {
+  // Encapsulated, not gated — `backend.ts` mounts this through `ctx.routes`,
+  // which already applies `defineModuleRoutes('product_feeds', …)` (feature 072).
+  const plugin = async (outer: FastifyInstance): Promise<void> => {
+    await outer.register(async (app: FastifyInstance) => {
     await registerProductFeedsAdminRoutes(app, {
       requireAdmin: options.requireAdmin,
       emFactory: options.emFactory,
@@ -926,7 +930,8 @@ export function productFeedsModule(
       hitRateLimitPerMinute: () =>
         settings.getNumber(PRODUCT_FEED_SETTING_CODES.PUBLIC_FETCH_RATE_LIMIT_PER_MINUTE, 60),
     });
-  });
+    });
+  };
 
   return {
     plugin,
