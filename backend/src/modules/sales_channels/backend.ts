@@ -68,11 +68,14 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   ctx.routes(async (app) => {
-    const { salesChannelsService, salesChannelMembershipPort, requireAdmin } =
-      ctx.cradle<SalesChannelsCradle>();
+    const { salesChannelMembershipPort, requireAdmin } = ctx.cradle<SalesChannelsCradle>();
 
     await registerSalesChannelsAdminRoutes(app, {
-      salesChannelsService,
+      // Lazily, even though the module owns this port: route *registration* runs
+      // inside `buildServer` whatever the module's effective state is, so
+      // destructuring the gate here would stop the next start instead of
+      // stopping the routes (D-40).
+      salesChannelsService: lazyPort<SalesChannelsService>(ctx, 'salesChannelsService'),
       membershipService: salesChannelMembershipPort,
       requireAdmin,
       resolveAdminAuditContext: (req) =>

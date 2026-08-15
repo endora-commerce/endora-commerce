@@ -118,12 +118,15 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.routes(async (app) => {
-    const { shipmentService, receiveShipmentHandler, requireAdmin } =
-      ctx.cradle<ShipmentsCradle>();
+    const { requireAdmin } = ctx.cradle<ShipmentsCradle>();
     await registerShipmentsRoutes(app, {
       requireAdmin,
-      receiveHandler: receiveShipmentHandler,
-      shipmentService,
+      // Lazily, even though the module owns both ports: route *registration*
+      // runs inside `buildServer` whatever the module's effective state is, so
+      // destructuring the gates here would stop the next start instead of
+      // stopping the routes (D-40).
+      receiveHandler: lazyPort<ReceiveShipmentHandler>(ctx, 'receiveShipmentHandler'),
+      shipmentService: lazyPort<ShipmentService>(ctx, 'shipmentService'),
     });
   });
 

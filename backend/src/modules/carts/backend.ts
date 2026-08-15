@@ -283,11 +283,17 @@ export function registerModule(ctx: ModuleContext): void {
     const emFactory = cradle.emFactory;
     const resolveCartActor: CartsDeps['resolveCartActor'] = (req) =>
       ctx.cradle<CartsCradle>().cartActorResolver(req);
+    // Lazily, even though the module owns this port: route *registration* runs
+    // inside `buildServer` whatever the module's effective state is, so reading
+    // the gate here — through the cradle alias above, which is how it stayed
+    // invisible to `check-port-dependencies` — would stop the next start
+    // instead of stopping the routes (D-40).
+    const cartService = lazyPort<CartService>(ctx, 'cartService');
 
     await registerCartRoutes(app, {
       emFactory,
       resolveCartActor,
-      cartService: cradle.cartService,
+      cartService,
       cartUpsellService: new CartUpsellService(emFactory),
       cartCouponService: new CartCouponService(
         emFactory,
@@ -296,7 +302,7 @@ export function registerModule(ctx: ModuleContext): void {
       ),
       cartConversionService: new CartConversionService(
         emFactory,
-        cradle.cartService,
+        cartService,
         lazyPort<CartsCradle['rfqService'] & object>(ctx, 'rfqService'),
       ),
       cartPricingRecompute: new CartPricingRecompute(
@@ -320,7 +326,7 @@ export function registerModule(ctx: ModuleContext): void {
     await registerCartsOrganizationRoutes(app, {
       emFactory,
       resolveCartActor,
-      cartService: cradle.cartService,
+      cartService,
       cartApprovalService: cradle.cartApprovalService,
       visibilityService: new CartOrganizationVisibilityService(emFactory),
     });

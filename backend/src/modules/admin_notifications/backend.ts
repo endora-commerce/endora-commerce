@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { AdminNotification } from './entities/admin-notification.entity.js';
 import { AdminNotificationRead } from './entities/admin-notification-read.entity.js';
@@ -48,7 +48,17 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   ctx.routes(async (app) => {
-    const { adminNotificationService, requireAdmin } = ctx.cradle<AdminNotificationsCradle>();
-    await registerAdminNotificationsRoutes(app, { adminNotificationService, requireAdmin });
+    const { requireAdmin } = ctx.cradle<AdminNotificationsCradle>();
+    await registerAdminNotificationsRoutes(app, {
+      // Lazily, even though the module owns this port: route *registration* runs
+      // inside `buildServer` whatever the module's effective state is, so
+      // destructuring the gate here would stop the next start instead of
+      // stopping the routes (D-40).
+      adminNotificationService: lazyPort<AdminNotificationService>(
+        ctx,
+        'adminNotificationService',
+      ),
+      requireAdmin,
+    });
   });
 }

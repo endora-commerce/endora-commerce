@@ -65,6 +65,23 @@ const DEACTIVATED = [
   'admin_actions',
   'cms',
   'transactional_emails',
+  // Issue #90: the twelve `ctx.routes` bodies that still destructured their own
+  // gated port. Ten were the named `WIRING_RESOLUTIONS_TO_DRAIN` inventory; the
+  // `carts` and `settings` ones were invisible to the check until it learned to
+  // follow a module-local cradle alias, and `settings` is the one an operator
+  // is most likely to reach for — D-36 made it deactivatable on purpose. Every
+  // one of them is a module an operator may switch off, and every one of them
+  // stopped the next start before this list named it.
+  'admin_notifications',
+  'carts',
+  'credentials',
+  'payments',
+  'promotions',
+  'sales_channels',
+  'settings',
+  'shipments',
+  'taxes',
+  'webhooks',
 ] as const;
 
 /**

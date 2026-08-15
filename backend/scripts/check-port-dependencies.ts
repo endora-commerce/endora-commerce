@@ -200,6 +200,13 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // How a composition resolves the calling customer. Root-shaped for the same
   // reason `requireCustomer` is; owned by `auth` in principle.
   customerContextResolver: 'auth',
+  // Who is asking and who is moderating, in `customers`' own shapes — the same
+  // actor-shaped family, named as such by both roots at the point they register
+  // them. They were absent from this table until issue #90: `customers` reads
+  // them through a cradle accessor, which this check could not see, so nothing
+  // checked that both compositions supply them.
+  customerActorResolver: 'auth',
+  customerModerationActorResolver: 'auth',
   // The calling customer as a bare id. Root-shaped for the same reason
   // `customerContextResolver` is — production reads `request.actor`, the harness
   // `request.testActor` — and owned by `auth` in principle. Read by the four
@@ -398,6 +405,15 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // an administrator is handed (T137).
   'productFeedsPublicBaseUrl',
   'productFeedsTokenEncryptionKey',
+  // The storefront origin a customer-facing link points at, and whether this
+  // deployment exposes the `organizations` verification-token probe. Plain
+  // deployment values in the sense this list means: a string read from the
+  // environment and a boolean a root pins, neither of them a gate, so capturing
+  // one cannot outlive a module being switched off. `customers` and
+  // `organizations` both read them at construction, through the cradle accessor
+  // this check learned to follow in issue #90.
+  'storefrontBaseUrl',
+  'organizationsExposeTestProbe',
 ]);
 
 /**
@@ -439,24 +455,71 @@ export const ALLOWED_CAPTURES: Readonly<Record<string, string>> = {
  * Inside a handler the gate is open by construction, and a closed one is the 503
  * it was always supposed to be.
  *
- * They are listed rather than swept because the sweep touches eight modules that
- * belong to other work in flight, and a ratchet with a named debt is worth more
- * than a report nobody reads: a **new** occurrence fails the build today.
+ * **The table is empty, and the constant stays.** Issue #90 drained all ten
+ * — one line each, in eight modules — along with the three `carts` reads and
+ * the `settings` one that only became visible when this check learned to follow
+ * a module-local cradle alias. What remains is the ratchet: a **new**
+ * occurrence fails the build, and the entry that would silence it has to be
+ * written down here with a reason.
  * Ports owned by a `nonDeactivatable` module are not here and never will be —
  * that exemption is computed from the manifests (see {@link CheckInput}).
  */
-export const WIRING_RESOLUTIONS_TO_DRAIN: ReadonlySet<string> = new Set([
-  'admin_notifications:adminNotificationService',
-  'credentials:credentialsService',
-  'payments:paymentService',
-  'payments:receivePaymentHandler',
-  'promotions:promotionService',
-  'sales_channels:salesChannelsService',
-  'shipments:receiveShipmentHandler',
-  'shipments:shipmentService',
-  'taxes:taxService',
-  'webhooks:webhookService',
-]);
+export const WIRING_RESOLUTIONS_TO_DRAIN: ReadonlySet<string> = new Set([]);
+
+/**
+ * Resolutions that existed all along and became **visible** only when this check
+ * learned to follow a module-local cradle alias (issue #90), keyed
+ * `<moduleId>:<name>` — **meant to drain**, and not the same debt as the table
+ * above.
+ *
+ * The wiring table's entries each cost one line to fix. These do not: every one
+ * of them is a real edge whose repair is a manifest or lifecycle decision with
+ * an operator-visible consequence, and making that decision inside the MR that
+ * widened a static check would be smuggling it in. So each entry says what the
+ * edge is, what the obvious repair would break, and what would have to be
+ * decided first.
+ *
+ * An entry suppresses **every** violation kind for that pair, because the two
+ * kinds these produce are two views of one fact — a cross-module read the
+ * manifests do not model. Keep that in mind when adding one: it is the widest
+ * suppression in this file, and the staleness sweep in `main` deletes it for you
+ * the moment the site stops resolving.
+ */
+export const ALIAS_HIDDEN_RESOLUTIONS: Readonly<Record<string, string>> = {
+  'auth:apiKeyResolver':
+    'The request hook binds `request.actor` from an API key when one is presented. ' +
+    '`api_keys` declares `auth`, so the edge cannot be declared; acknowledging it would ' +
+    'add `auth` — present in every deployment — to the port owner’s dependents, and the ' +
+    'flip-time refusal would then make `api_keys.enabled` a control an operator can never ' +
+    'switch off. Deciding that is a product call about how far fail-closed reaches, not a ' +
+    'static-check fix.',
+  'catalog:requireApiKey':
+    'Same edge as `auth:apiKeyResolver`, on the external catalog namespace: the two gates ' +
+    'guard machine-to-machine routes. Declaring `api_keys` closes a cycle through ' +
+    '`customer_accounts` → `price_lists` → `catalog`, and acknowledging it would make ' +
+    '`api_keys` undeactivatable while `catalog` is present.',
+  'catalog:requireBoundApiKey':
+    'The organization-bound half of the pair above; identical reasoning and it drains with it.',
+  'customers:orderListServiceAccessor':
+    'The self-service order history reads the late-bound `OrderListService` `orders` ' +
+    'exposes. Declaring `orders` is cycle-free and matches the composition order, but it ' +
+    'makes `orders` undeactivatable while `customers` is present — a presence rule this ' +
+    'platform has not decided anywhere, and the read is already written to tolerate an ' +
+    'unbound service.',
+  'orders:paymentAdapterRegistry':
+    'Read at construction — the value goes into `commerceModule`’s options object — so it ' +
+    'is a capture of another module’s registration. Deferring it means changing that ' +
+    'module’s constructor contract to accept an accessor, and declaring the edge means ' +
+    'adding `payment_methods` to the `orders` manifest. Both belong to the `orders` ' +
+    'conversion, not here.',
+  'orders:shippingAdapterRegistry':
+    'Same shape as `orders:paymentAdapterRegistry`, owner `delivery_methods`.',
+  'orders:shippingMethodEligibility':
+    'Same shape as `orders:paymentAdapterRegistry`, owner `delivery_methods`.',
+  'orders:paymentOrderStatusRegistry':
+    'Same shape as `orders:paymentAdapterRegistry`, owner `payments` — and the one of the ' +
+    'four whose edge cannot be declared at all: `payments` declares `orders`.',
+};
 
 /**
  * Port edges a module may resolve **without** declaring the owner, because
@@ -626,18 +689,128 @@ function siteAt(node: ts.Node): ResolutionSite {
 }
 
 /**
+ * How a local name that stands for the container cradle is read back.
+ *
+ *  - `object` — the cradle itself: `const cradle = ctx.cradle<C>()`, or the
+ *    first parameter of an `asFunction` factory, which Awilix *is* the cradle.
+ *    Reads are written `cradle.name`.
+ *  - `accessor` — a zero-argument function returning the cradle:
+ *    `const cradle = (): C => ctx.cradle<C>()`. Reads are written
+ *    `cradle().name`.
+ *
+ * Both defer the actual resolution to the property access — the cradle is a
+ * proxy, and it resolves a name when that name is read — so the read's own
+ * position decides {@link PortResolution.kind} and {@link ResolutionSite}, the
+ * same way an inline `ctx.cradle<C>().name` does.
+ */
+type CradleAliasKind = 'object' | 'accessor';
+
+interface CradleAlias {
+  readonly kind: CradleAliasKind;
+  /**
+   * The node the alias is visible inside. Scoped rather than file-wide on
+   * purpose: `cradle` is a common local name, and a flat table would read an
+   * unrelated `cradle.x` in another function as a container resolution.
+   */
+  readonly scope: ts.Node;
+}
+
+/** Is this the container-cradle accessor, `ctx.cradle<C>()`? */
+function isCradleCall(node: ts.Node): node is ts.CallExpression {
+  return ts.isCallExpression(node) && calleeTail(node).endsWith('cradle');
+}
+
+/** The expression a zero-argument function returns, if it returns exactly one. */
+function soleReturnedExpression(fn: ts.ArrowFunction | ts.FunctionExpression): ts.Node | null {
+  if (ts.isArrowFunction(fn) && !ts.isBlock(fn.body)) return fn.body;
+  if (!ts.isBlock(fn.body)) return null;
+  const [statement, ...rest] = fn.body.statements;
+  if (rest.length > 0 || statement === undefined || !ts.isReturnStatement(statement)) return null;
+  return statement.expression ?? null;
+}
+
+/**
+ * Every local name that stands for the container cradle, with the scope it is
+ * visible in.
+ *
+ * The check used to see two shapes only — a destructured factory parameter and
+ * `ctx.cradle<C>()` read inline — and a module that bound the cradle to a local
+ * first resolved everything it wanted unseen (issue #90). Nine modules had the
+ * object form and six the accessor form, and among them were gated ports read
+ * in a `ctx.routes` body: exactly what the wiring rule below exists to refuse.
+ */
+function collectCradleAliases(sf: ts.SourceFile): Map<string, CradleAlias[]> {
+  const aliases = new Map<string, CradleAlias[]>();
+  const add = (name: string, alias: CradleAlias): void => {
+    const existing = aliases.get(name);
+    if (existing) existing.push(alias);
+    else aliases.set(name, [alias]);
+  };
+  /** The block (or file) a `const` is visible in. */
+  const blockOf = (node: ts.Node): ts.Node => {
+    for (let current: ts.Node | undefined = node.parent; current; current = current.parent) {
+      if (ts.isBlock(current) || ts.isSourceFile(current)) return current;
+    }
+    return sf;
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      const initializer = node.initializer;
+      const scope = blockOf(node);
+      if (isCradleCall(initializer)) {
+        add(node.name.text, { kind: 'object', scope });
+      } else if (
+        (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) &&
+        initializer.parameters.length === 0
+      ) {
+        const returned = soleReturnedExpression(initializer);
+        if (returned !== null && isCradleCall(returned)) {
+          add(node.name.text, { kind: 'accessor', scope });
+        }
+      }
+    }
+    // A factory's first parameter *is* the cradle — that is how Awilix calls
+    // it — so a named one resolves exactly as a destructured one does. The
+    // destructured form was already read; this is the same seam written with a
+    // name, and `delivery_methods` and `payment_methods` use it.
+    if (ts.isCallExpression(node) && calleeTail(node).endsWith('asFunction')) {
+      const [factory] = node.arguments;
+      if (factory && (ts.isArrowFunction(factory) || ts.isFunctionExpression(factory))) {
+        const [parameter] = factory.parameters;
+        if (parameter && ts.isIdentifier(parameter.name)) {
+          add(parameter.name.text, { kind: 'object', scope: factory });
+        }
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return aliases;
+}
+
+/** Is `node` inside `scope` (or `scope` itself)? */
+function isWithin(node: ts.Node, scope: ts.Node): boolean {
+  for (let current: ts.Node | undefined = node; current; current = current.parent) {
+    if (current === scope) return true;
+  }
+  return false;
+}
+
+/**
  * Every registration name a module resolves.
  *
- * Two shapes, because those are the two the kernel offers: the destructured
- * cradle parameter of a factory (`ctx.asFunction(({ a, b }: C) => …)`) and the
- * deferred surface (`ctx.cradle<C>()`), read either by destructuring or by
- * property access.
+ * Three shapes, because those are the ones the kernel offers: the cradle
+ * parameter of a factory (`ctx.asFunction(({ a, b }: C) => …)`, destructured or
+ * named), the deferred surface (`ctx.cradle<C>()`) read by destructuring or by
+ * property access, and either of those bound to a local first — see
+ * {@link collectCradleAliases}.
  */
 export function resolvedNames(source: string, file: string): PortResolution[] {
   const moduleId = moduleOf(file);
   if (moduleId === null) return [];
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const found: PortResolution[] = [];
+  const cradleAliases = collectCradleAliases(sf);
 
   const record = (
     name: string,
@@ -697,7 +870,43 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
     return 'deferred';
   };
 
+  /**
+   * The cradle a read is written against, if the receiver is a local alias
+   * visible here — `cradle.x` for an `object` alias, `cradle().x` for an
+   * `accessor` one. Innermost declaration wins, so a shadowed name is read in
+   * the scope that declared it.
+   */
+  const aliasReceiverOf = (receiver: ts.Node): CradleAlias | null => {
+    const named =
+      ts.isIdentifier(receiver) && cradleAliases.has(receiver.text)
+        ? { name: receiver.text, wanted: 'object' as CradleAliasKind }
+        : ts.isCallExpression(receiver) &&
+            receiver.arguments.length === 0 &&
+            ts.isIdentifier(receiver.expression) &&
+            cradleAliases.has(receiver.expression.text)
+          ? { name: receiver.expression.text, wanted: 'accessor' as CradleAliasKind }
+          : null;
+    if (named === null) return null;
+    const candidates = (cradleAliases.get(named.name) ?? []).filter(
+      (alias) => alias.kind === named.wanted && isWithin(receiver, alias.scope),
+    );
+    return candidates.at(-1) ?? null;
+  };
+
   const visit = (node: ts.Node): void => {
+    // A read off a local cradle alias. The alias itself resolves nothing — the
+    // cradle is a proxy — so the property access is the resolution, and its own
+    // position decides both the kind and the site.
+    if (ts.isPropertyAccessExpression(node) && aliasReceiverOf(node.expression) !== null) {
+      record(node.name.text, node, readKindAt(node));
+    } else if (ts.isElementAccessExpression(node) && aliasReceiverOf(node.expression) !== null) {
+      // Same rule as `lazyPort`: a literal is a name this check can verify, and
+      // anything else must surface rather than pass.
+      const argument = node.argumentExpression;
+      const name = ts.isStringLiteralLike(argument) ? argument.text : NON_LITERAL_PORT_NAME;
+      record(name, node, readKindAt(node));
+    }
+
     if (ts.isCallExpression(node)) {
       const tail = calleeTail(node);
 
@@ -831,6 +1040,12 @@ export function findViolations(input: CheckInput): PortViolation[] {
   const violations: PortViolation[] = [];
   const providedPorts = input.providedPorts ?? new Map<string, string>();
   for (const resolution of input.resolutions) {
+    // The named debt from issue #90, before any rule runs: a resolution the
+    // alias hid, whose repair is a manifest decision rather than a fix. It
+    // suppresses every kind on purpose — see {@link ALIAS_HIDDEN_RESOLUTIONS}.
+    if (ALIAS_HIDDEN_RESOLUTIONS[`${resolution.moduleId}:${resolution.name}`] !== undefined) {
+      continue;
+    }
     // The capture rule runs first and independently of ownership: a module may
     // capture a name it owns **and did not provide as a port**, and nothing
     // else outside `CAPTURABLE_NAMES`.
@@ -1185,6 +1400,12 @@ async function main(): Promise<void> {
       .map((r) => `${r.moduleId}:${r.name}`),
   );
   const drained = [...WIRING_RESOLUTIONS_TO_DRAIN].filter((entry) => !wiringSites.has(entry));
+  // The same sweep for the issue #90 debt: an entry nothing resolves any more is
+  // a suppression with no site under it, and this one suppresses every kind.
+  const resolvedPairs = new Set(resolutions.map((r) => `${r.moduleId}:${r.name}`));
+  const aliasDrained = Object.keys(ALIAS_HIDDEN_RESOLUTIONS).filter(
+    (entry) => !resolvedPairs.has(entry),
+  );
   const rootNames = new Map<string, ReadonlySet<string>>();
   for (const [label, relative] of Object.entries(ROOT_FILES)) {
     const full = join(SRC_ROOT, '..', relative);
@@ -1209,7 +1430,8 @@ async function main(): Promise<void> {
     `[port-deps] modules scanned=${new Set(files.map(moduleOf)).size} ` +
       `resolutions=${resolutions.length} violations=${violations.length} ` +
       `root-issues=${rootIssues.length} ` +
-      `wiring-debt=${WIRING_RESOLUTIONS_TO_DRAIN.size - drained.length}`,
+      `wiring-debt=${WIRING_RESOLUTIONS_TO_DRAIN.size - drained.length} ` +
+      `alias-debt=${Object.keys(ALIAS_HIDDEN_RESOLUTIONS).length - aliasDrained.length}`,
   );
 
   if (drained.length > 0) {
@@ -1218,6 +1440,14 @@ async function main(): Promise<void> {
         `ctx.routes body — delete them, so the table keeps meaning what it says:`,
     );
     for (const entry of drained) console.error(`  - ${entry}`);
+  }
+
+  if (aliasDrained.length > 0) {
+    console.error(
+      `\nALIAS_HIDDEN_RESOLUTIONS entries nothing resolves any more — delete them, so the ` +
+        `table keeps meaning what it says:`,
+    );
+    for (const entry of aliasDrained) console.error(`  - ${entry}`);
   }
 
   if (stale.length > 0) {
@@ -1245,7 +1475,11 @@ async function main(): Promise<void> {
   }
 
   process.exit(
-    violations.length === 0 && stale.length === 0 && rootIssues.length === 0 && drained.length === 0
+    violations.length === 0 &&
+      stale.length === 0 &&
+      rootIssues.length === 0 &&
+      drained.length === 0 &&
+      aliasDrained.length === 0
       ? 0
       : 1,
   );

@@ -28,11 +28,18 @@ const onlyPresent =
     ids.includes(id);
 
 describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests', () => {
-  it('reads the six real edges the manifests deliberately keep out of `dependencies`', () => {
+  it('reads the eight real edges the manifests deliberately keep out of `dependencies`', () => {
+    // The last two arrived with issue #90, when `check-port-dependencies`
+    // learned to follow a module-local cradle alias and two edges that had
+    // always been resolved through one became visible: the lifecycle admin
+    // surfaces reaching for `requireAdmin`, and the request hook resolving a
+    // signed-in customer's Organization.
     const keys = acknowledgedPortEdgesFrom(MANIFESTS)
       .map((edge) => `${edge.moduleId}:${edge.port}`)
       .sort();
     expect(keys).toEqual([
+      '_lifecycle:requireAdmin',
+      'auth:customerOrgResolver',
       'catalog:pricingService',
       'organizations:addressService',
       'organizations:customerAuthService',

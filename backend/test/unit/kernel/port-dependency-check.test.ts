@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ALIAS_HIDDEN_RESOLUTIONS,
   closureOf,
   describe as describeViolation,
   findViolations,
@@ -70,6 +71,79 @@ describe('resolvedNames — what a module reads back', () => {
   it('does not mistake an unrelated destructuring callback for a resolution', () => {
     const source = 'const ids = rows.map(({ id, name }) => `${id}:${name}`);';
     expect(resolvedNames(source, BLOG)).toEqual([]);
+  });
+
+  it('reads a property access through a module-local cradle alias', () => {
+    // The shape that hid nine modules' resolutions (issue #90): binding the
+    // whole cradle to a local and reading names off it. The check saw
+    // `ctx.cradle<C>().x` and `const { x } = ctx.cradle<C>()` and nothing else,
+    // so every read through the alias was invisible — including the gated ports
+    // the wiring rule exists to catch.
+    const source = [
+      'const cradle = ctx.cradle<BlogCradle>();',
+      'await register(app, { post: cradle.blogPostService, admin: cradle.requireAdmin });',
+    ].join('\n');
+    expect(resolvedNames(source, BLOG).map((r) => r.name)).toEqual([
+      'blogPostService',
+      'requireAdmin',
+    ]);
+  });
+
+  it('reads a property access through a cradle accessor alias', () => {
+    // The second half of the same shape: a zero-argument accessor returning the
+    // cradle, so the read is written `cradle().x`.
+    const source = [
+      'const cradle = (): BlogCradle => ctx.cradle<BlogCradle>();',
+      'await register(app, { post: cradle().blogPostService });',
+    ].join('\n');
+    expect(resolvedNames(source, BLOG).map((r) => r.name)).toEqual(['blogPostService']);
+  });
+
+  it('reads a factory cradle parameter that is not destructured', () => {
+    // Awilix hands the cradle to a factory as its first argument, so a named
+    // parameter is the same read as a destructured one — and a capture.
+    const source = [
+      'ctx.di.register({',
+      '  eligibility: ctx',
+      '    .asFunction((cradle: BlogCradle) => new S(cradle.blogPostService))',
+      '    .singleton(),',
+      '});',
+    ].join('\n');
+    expect(resolvedNames(source, BLOG)).toContainEqual(
+      expect.objectContaining({ name: 'blogPostService', kind: 'captured' }),
+    );
+  });
+
+  it('records a computed read off a cradle alias under the sentinel', () => {
+    // Same rule as `lazyPort`: a name assembled at runtime is a name this check
+    // cannot verify, so it must not pass silently.
+    const source = ['const cradle = ctx.cradle<BlogCradle>();', 'use(cradle[key]);'].join('\n');
+    expect(resolvedNames(source, BLOG)).toContainEqual(
+      expect.objectContaining({ name: NON_LITERAL_PORT_NAME }),
+    );
+  });
+
+  it('does not treat an unrelated local object as a cradle', () => {
+    // The widening must not turn every property access into a resolution: only
+    // a local actually bound to `ctx.cradle<C>()` is one.
+    const source = ['const options = buildOptions();', 'use(options.blogPostService);'].join('\n');
+    expect(resolvedNames(source, BLOG)).toEqual([]);
+  });
+
+  it('does not read an alias outside the scope that declared it', () => {
+    // Same name, different scope, no cradle in sight — a file-wide alias table
+    // would report a resolution here that does not exist.
+    const source = [
+      'function one(): void {',
+      '  const cradle = ctx.cradle<BlogCradle>();',
+      '  use(cradle.blogPostService);',
+      '}',
+      'function two(): void {',
+      '  const cradle = somethingElse();',
+      '  use(cradle.ghostService);',
+      '}',
+    ].join('\n');
+    expect(resolvedNames(source, BLOG).map((r) => r.name)).toEqual(['blogPostService']);
   });
 
   it('carries the module id and the line, so the report points at the code', () => {
@@ -392,6 +466,50 @@ describe('resolvedNames — the resolution site', () => {
     );
   });
 
+  it('marks an alias read in the ctx.routes body as a wiring resolution', () => {
+    // The blind spot issue #90 closed: the alias moved the read one line down
+    // and out of the check's sight, while `buildServer` still ran it.
+    const source = `
+      export function registerModule(ctx: ModuleContext): void {
+        ctx.routes(async (app) => {
+          const cradle = ctx.cradle<ComparisonsCradle>();
+          await register(app, { comparisonService: cradle.comparisonService });
+        });
+      }
+    `;
+    expect(resolvedNames(source, file)).toContainEqual(
+      expect.objectContaining({ name: 'comparisonService', site: 'wiring' }),
+    );
+  });
+
+  it('leaves an alias read inside a route handler at the call site', () => {
+    const source = `
+      export function registerModule(ctx: ModuleContext): void {
+        ctx.routes(async (app) => {
+          const cradle = ctx.cradle<ComparisonsCradle>();
+          app.get('/x', async () => cradle.comparisonService.list());
+        });
+      }
+    `;
+    expect(resolvedNames(source, file)).toContainEqual(
+      expect.objectContaining({ name: 'comparisonService', site: 'call' }),
+    );
+  });
+
+  it('marks an alias read inside ctx.onBoot as a boot resolution', () => {
+    const source = `
+      export function registerModule(ctx: ModuleContext): void {
+        ctx.onBoot(() => {
+          const cradle = ctx.cradle<MegamenuCradle>();
+          registerMegamenuCmsReferences(cradle.cmsReferenceRegistry);
+        });
+      }
+    `;
+    expect(resolvedNames(source, file)).toContainEqual(
+      expect.objectContaining({ name: 'cmsReferenceRegistry', site: 'boot' }),
+    );
+  });
+
   it('does not call a subscriber body a wiring resolution', () => {
     // `ctx.subscribe`'s handler runs per event, not at registration — so the
     // gate is asked when there is something to gate.
@@ -424,6 +542,51 @@ describe('closureOf', () => {
       ['c', ['a']],
     ]);
     expect([...closureOf('a', dependencies)].sort()).toEqual(['b', 'c']);
+  });
+});
+
+describe('ALIAS_HIDDEN_RESOLUTIONS — the issue #90 debt', () => {
+  const resolution = (moduleId: string, name: string): PortResolution => ({
+    moduleId,
+    name,
+    file: `/repo/backend/src/modules/${moduleId}/backend.ts`,
+    line: 1,
+    kind: 'captured',
+    site: 'call',
+  });
+
+  it('suppresses every kind for a listed pair', () => {
+    // Widest suppression in the file, and deliberately so: the capture and the
+    // undeclared dependency these produce are two views of one fact — a
+    // cross-module read the manifests do not model.
+    expect(
+      findViolations({
+        resolutions: [resolution('orders', 'paymentAdapterRegistry')],
+        owners: new Map([['paymentAdapterRegistry', 'payment_methods']]),
+        dependencies: new Map([['orders', []]]),
+      }),
+    ).toEqual([]);
+  });
+
+  it('still reports the same shape for a pair nobody listed', () => {
+    const violations = findViolations({
+      resolutions: [resolution('orders', 'someOtherRegistry')],
+      owners: new Map([['someOtherRegistry', 'payment_methods']]),
+      dependencies: new Map([['orders', []]]),
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.kind).toBe('captured-name');
+  });
+
+  it('names a module for every entry, so the table can be swept', () => {
+    const ids = new Set(DISCOVERED_MANIFESTS.map((entry) => entry.id));
+    for (const key of Object.keys(ALIAS_HIDDEN_RESOLUTIONS)) {
+      const [moduleId, name] = key.split(':');
+      expect(ids.has(moduleId ?? ''), `${key} names '${moduleId}', which is not a module`).toBe(
+        true,
+      );
+      expect(name ?? '').not.toBe('');
+    }
   });
 });
 

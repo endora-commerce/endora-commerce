@@ -307,11 +307,23 @@ the reason.
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
 | `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger |
 
-The port check carries two allow-lists, both meant to drain rather than grow:
+The check reads three resolution shapes, and the third took a second pass to get
+right (issue #90): a factory's cradle parameter (destructured or named), an
+inline `ctx.cradle<C>()`, and **either of those bound to a local first** —
+`const cradle = ctx.cradle<C>()` and `const cradle = (): C => ctx.cradle<C>()`.
+Fifteen modules used one of the two alias forms and every read through them was
+invisible, including gated ports destructured in a `ctx.routes` body. Where the
+alias is read decides the verdict, exactly as an inline read does: `cradle().x`
+inside an `asFunction` factory is a **capture**, because the factory body runs
+when Awilix constructs the registration.
+
+The port check carries three allow-lists, all meant to drain rather than grow:
 `HOST_REGISTERED_PORTS` (a root registering on behalf of a module that has not
-converted) and `WIRING_RESOLUTIONS_TO_DRAIN` — the ten gated ports still
-destructured in a `ctx.routes` body when D-39 taught the check to see the shape.
-A **new** one fails the build; the ten are named, one line each to fix. Ports
+converted), `WIRING_RESOLUTIONS_TO_DRAIN` — the gated ports still destructured
+in a `ctx.routes` body when D-39 taught the check to see the shape, **now
+empty** — and `ALIAS_HIDDEN_RESOLUTIONS`, the reads the alias hid whose repair is
+a manifest decision with an operator-visible consequence rather than a one-liner.
+A **new** one fails the build. Ports
 owned by a `nonDeactivatable` module are not on that list and never will be: the
 exemption is computed from the manifests, because a gate the orchestrator refuses
 to close on either axis has no state in which it can throw. The other exemption
