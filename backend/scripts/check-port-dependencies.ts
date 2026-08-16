@@ -48,10 +48,16 @@
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import type { ModuleManifest } from '@b2b/contracts';
+import {
+  buildDeactivationLedger,
+  type CrossModuleRead,
+  type DeactivationLedger,
+  type UnassignedEdge,
+} from '../src/modules/_lifecycle/services/deactivation-ledger.js';
 import {
   acknowledgedPortEdgesFrom,
   nonBindingPortEdgesFrom,
@@ -500,32 +506,26 @@ export const WIRING_RESOLUTIONS_TO_DRAIN: ReadonlySet<string> = new Set([]);
  * the moment the site stops resolving.
  */
 export const ALIAS_HIDDEN_RESOLUTIONS: Readonly<Record<string, string>> = {
-  // `auth:apiKeyResolver`, `catalog:requireApiKey`, `catalog:requireBoundApiKey`
-  // and `customers:orderListServiceAccessor` were here. All four were the same
-  // shape — a real edge whose ordinary declaration would have made the owner's
-  // activation control unusable — and D-44 gave that shape a spelling:
-  // `manifest.nonBindingDependencies`, with the degradation written down and a
-  // presence probe at the call site. They are declared, not suppressed, now.
+  // **Empty, and the constant stays as the ratchet.** Eight entries drained in
+  // two steps, and the two steps are worth telling apart because they are two
+  // different repairs.
   //
-  // What is left is a different debt. These four read a **plain**
-  // `ctx.di.register` name at construction, so their outstanding violation is
-  // `captured-name`, which no manifest entry can clear: the value goes into
-  // `commerceModule`'s options object and keeps answering after its owner is
-  // switched off. Draining them means giving that constructor accessors, which
-  // is `orders`' own conversion work.
-  'orders:paymentAdapterRegistry':
-    'Read at construction — the value goes into `commerceModule`’s options object — so it ' +
-    'is a capture of another module’s registration. Deferring it means changing that ' +
-    'module’s constructor contract to accept an accessor, and declaring the edge means ' +
-    'adding `payment_methods` to the `orders` manifest. Both belong to the `orders` ' +
-    'conversion, not here.',
-  'orders:shippingAdapterRegistry':
-    'Same shape as `orders:paymentAdapterRegistry`, owner `delivery_methods`.',
-  'orders:shippingMethodEligibility':
-    'Same shape as `orders:paymentAdapterRegistry`, owner `delivery_methods`.',
-  'orders:paymentOrderStatusRegistry':
-    'Same shape as `orders:paymentAdapterRegistry`, owner `payments` — and the one of the ' +
-    'four whose edge cannot be declared at all: `payments` declares `orders`.',
+  // `auth:apiKeyResolver`, `catalog:requireApiKey`, `catalog:requireBoundApiKey`
+  // and `customers:orderListServiceAccessor` were the same shape — a real edge
+  // whose ordinary declaration would have made the owner's activation control
+  // unusable — and D-44 gave that shape a spelling:
+  // `manifest.nonBindingDependencies`, with the degradation written down, a
+  // presence probe at the call site and an off-state test per edge. They are
+  // declared, not suppressed, now.
+  //
+  // The other four were `orders` reading two method modules' plain
+  // `ctx.di.register` names **at construction**, so their violation was
+  // `captured-name`, which no manifest entry can clear: the values went into
+  // `commerceModule`'s options object and kept answering after their owner was
+  // switched off. That constructor takes accessors now (feature 074, FR-024),
+  // three of the edges are declared as `degrades-without`, and the fourth —
+  // `orders:shippingMethodEligibility` — turned out to be an option nothing in
+  // the plugin ever read, so it was deleted rather than deferred.
 };
 
 /**
@@ -709,10 +709,12 @@ export function describeNonBindingIssue(issue: NonBindingIssue): string {
  * the converted registries. A registry without one may act on the entry, and the
  * declaring module has withdrawn the refusal that would have stopped it.
  *
- * `gatewayRefundRegistry` (`modules/payments/services/gateway-refund-registry.ts`)
- * is deliberately **absent**: it records no contributing module id and states no
- * policy, so no edge may name it until it does. That is the whole enforcement —
- * an entry naming a registry that is not here fails the build.
+ * The table covers **both** shapes an ungated contribution seam takes in this
+ * tree: a container registration a contributor resolves, and a process
+ * singleton a contributor imports and pushes into. The second shape is not a
+ * lesser one — it is how the payment family is wired — and the ledger holds it
+ * to the same requirement, because the hazard is identical: an entry that
+ * outlives the module that pushed it.
  *
  * The value is what the host does, so a reader does not have to open the class
  * to learn whether an absent owner's entry still counts.
@@ -730,6 +732,59 @@ export const CONTRIBUTION_POLICY_STATED: Readonly<Record<string, 'skip' | 'honou
   // whose recorded owner is not effectively present, and `PlanExecutorService`
   // re-checks at execution.
   'prompt_actions:promptActionToolRegistry': 'skip',
+  // Skipped: a surface, and the worked example of the split the class writes
+  // down — `get`, `resolve` and `list` answer as if an absent owner's adapter
+  // were not registered, while `entry`, `ownerOf` and `listAll` stay
+  // presence-blind so the admin screen keeps showing the method and the reason
+  // it is unavailable (issue #96).
+  'payment_methods:paymentAdapterRegistry': 'skip',
+  'delivery_methods:shippingAdapterRegistry': 'skip',
+  // Skipped: a PSP handler whose module is switched off must not charge or
+  // refund through that PSP's API. The refund is not dropped with it —
+  // `PaymentRefundProvider` records `pending_manual` naming the module, which
+  // is what a deployment that never installed the gateway already does, so the
+  // obligation stays on the platform's books and a person settles it.
+  'payments:gatewayRefundRegistry': 'skip',
+};
+
+/**
+ * Ungated cross-module registrations whose owner states **no** policy for its
+ * own absence, keyed `<owner>:<name>` — the standing debt behind the ledger's
+ * `registry-without-policy` shape, and a two-way ratchet like every other table
+ * in this file.
+ *
+ * Each entry is a live fail-open: the reading module goes on getting an answer
+ * out of a module an operator switched off. None of them is fixed by a
+ * declaration — the owner has to decide what an absent owner's entry, or an
+ * absent owner's service, does at enumeration and write it at the class, which
+ * is a decision with an operator-visible consequence and belongs to the module
+ * that owns the name.
+ *
+ * Two things drain an entry: the owner states a policy, or the owner becomes
+ * non-deactivatable, at which point the edge leaves the ledger entirely because
+ * the flip it describes cannot happen (FR-021). The staleness sweep in `main`
+ * deletes an entry nothing reads any more.
+ */
+export const REGISTRY_POLICIES_UNSTATED: Readonly<Record<string, string>> = {
+  'email:emailMailer':
+    'Six modules send through the mailer registration `email` owns, and with `email` switched ' +
+    'off every one of them still sends. `email` is a transport rather than a business ' +
+    'capability, and feature 074 classifies it as core on exactly that ground — the entry ' +
+    'drains when that declaration lands, without anybody stating a policy for a name whose ' +
+    'owner can no longer be absent.',
+  'payment_methods:paymentOrderStatusRegistry':
+    'The order-status references `payments` reads to name the status a paid order moves to. ' +
+    'A skip answer would leave a payment with nowhere to move the order, so the policy is a ' +
+    'question about order lifecycle rather than about the registry, and it belongs to the two ' +
+    'modules that own those states.',
+  'delivery_methods:shippingOrderStatusRegistry':
+    'Same shape and same question as `payment_methods:paymentOrderStatusRegistry`, read by ' +
+    '`shipments`.',
+  'credentials:configurationTypeRegistry':
+    '`pim_ergonode` and `product_feeds` push their configuration types into it from a boot ' +
+    'hook, and it records no contributing module id — so with either contributor switched off ' +
+    'the credentials screen keeps offering to configure it. The host-side fix is the one ' +
+    '`PromptActionToolRegistry` already ships: record the contributor and skip an absent one.',
 };
 
 export interface PortViolation {
@@ -1165,6 +1220,159 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
   return found;
 }
 
+/**
+ * The other way a module reaches another module's contribution seam: it
+ * **imports the singleton and pushes into it**.
+ *
+ * The container is not the only wiring in the tree. `stripe`, `tpay`, `payu`
+ * and `autopay` each `import { gatewayRefundRegistry }` and
+ * `import { paymentAdapterRegistry }` out of the modules that own them and call
+ * `.register(…)` on the imported value. Nothing above sees that — this check
+ * measures container resolutions — and the hazard is exactly the one the
+ * container shape has: an entry that keeps answering after the module that
+ * pushed it is switched off, or a host that acts on it.
+ *
+ * Deliberately narrow, so it stays a statement about contribution seams rather
+ * than about imports in general: an import is only read as a seam when the
+ * importing file *pushes* into the imported value, `x.register(…)` or
+ * `x.unregister(…)`. A cross-module import of a class, an error or a pure
+ * function is a different rule's business (Principle I), and 63 of them exist —
+ * folding them in here would drown the one shape the ledger can answer for.
+ */
+export interface ImportedContributionSeam {
+  /** The module doing the pushing. */
+  readonly moduleId: string;
+  /** The module that owns the singleton. */
+  readonly dependsOn: string;
+  /** The imported binding, which is also the name the policy table keys on. */
+  readonly name: string;
+  readonly file: string;
+  readonly line: number;
+  readonly site: ResolutionSite;
+}
+
+export function importedContributionSeams(source: string, file: string): ImportedContributionSeam[] {
+  const moduleId = moduleOf(file);
+  if (moduleId === null) return [];
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+
+  /** Imported binding → the module whose sources it comes from. */
+  const imported = new Map<string, string>();
+  for (const statement of sf.statements) {
+    if (!ts.isImportDeclaration(statement) || statement.importClause?.isTypeOnly === true) continue;
+    if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    const specifier = statement.moduleSpecifier.text;
+    if (!specifier.startsWith('.')) continue;
+    // `moduleOf` reads a directory segment, so the resolved path needs one
+    // more separator after the module name to match on a file at its root.
+    const owner = moduleOf(`${resolvePath(dirname(file), specifier)}/`);
+    if (owner === null || owner === moduleId) continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
+    for (const element of bindings.elements) {
+      if (!element.isTypeOnly) imported.set(element.name.text, owner);
+    }
+  }
+  if (imported.size === 0) return [];
+
+  const seams: ImportedContributionSeam[] = [];
+  const seen = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      (node.expression.name.text === 'register' || node.expression.name.text === 'unregister')
+    ) {
+      const name = node.expression.expression.text;
+      const owner = imported.get(name);
+      if (owner !== undefined && !seen.has(name)) {
+        seen.add(name);
+        seams.push({
+          moduleId,
+          dependsOn: owner,
+          name,
+          file,
+          line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+          site: siteAt(node),
+        });
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return seams;
+}
+
+export interface LedgerScanInput {
+  readonly resolutions: readonly PortResolution[];
+  readonly seams: readonly ImportedContributionSeam[];
+  /** Name → owning module, as {@link findViolations} reads it. */
+  readonly owners: ReadonlyMap<string, string>;
+  /** Name → owning module, for the names registered with `di.providePort`. */
+  readonly providedPorts: ReadonlyMap<string, string>;
+}
+
+/**
+ * The cross-module reads, in the shape the ledger classifies.
+ *
+ * The capture flag is the same test {@link findViolations} applies, not a
+ * looser one: a name a composition root creates before any module composes is
+ * not a capture, and neither is a name the module owns itself. What is left is
+ * a module freezing *another* module's registration, which is the ledger's
+ * first unacceptable shape.
+ */
+export function ledgerReads(input: LedgerScanInput): CrossModuleRead[] {
+  const reads: CrossModuleRead[] = [];
+  for (const resolution of input.resolutions) {
+    const owner = input.owners.get(resolution.name);
+    if (owner === undefined || owner === resolution.moduleId) continue;
+    reads.push({
+      moduleId: resolution.moduleId,
+      dependsOn: owner,
+      name: resolution.name,
+      gated: input.providedPorts.get(resolution.name) !== undefined,
+      captured:
+        resolution.kind === 'captured' &&
+        !CAPTURABLE_NAMES.has(resolution.name) &&
+        ALLOWED_CAPTURES[`${resolution.moduleId}:${resolution.name}`] === undefined,
+      site: resolution.site,
+    });
+  }
+  for (const seam of input.seams) {
+    reads.push({
+      moduleId: seam.moduleId,
+      dependsOn: seam.dependsOn,
+      name: seam.name,
+      gated: false,
+      captured: false,
+      site: seam.site,
+    });
+  }
+  return reads;
+}
+
+export function describeUnassignedEdge(edge: UnassignedEdge): string {
+  const head = `  - ${edge.moduleId} → ${edge.dependsOn}:${edge.name} — ${edge.detail}.`;
+  const tail: Record<UnassignedEdge['shape'], string> = {
+    'captured-registration':
+      `    Take the value as an accessor instead of a value, so the name is read when it is\n` +
+      `    used, and declare the edge — in \`dependencies\` where the owner may bind the\n` +
+      `    operator, in \`nonBindingDependencies\` as \`degrades-without\` where it may not.`,
+    'registry-without-policy':
+      `    A read of an ungated registration is answered by the owning module whether or not\n` +
+      `    an operator switched it off. Decide at the class what an absent owner's entry does,\n` +
+      `    record the contributing module on every entry, and list the name in\n` +
+      `    CONTRIBUTION_POLICY_STATED — or, while the decision is outstanding, in\n` +
+      `    REGISTRY_POLICIES_UNSTATED with what would drain it.`,
+    'gated-port-before-first-request':
+      `    Boot hooks and route registration run whatever the owning module's effective state\n` +
+      `    is, so the gate's "no" stops the next start instead of stopping one request. Move\n` +
+      `    the resolution to the point of use.`,
+  };
+  return `${head}\n${tail[edge.shape]}`;
+}
+
 /** Transitive `manifest.dependencies` closure — the closure ordering already uses. */
 export function closureOf(
   moduleId: string,
@@ -1521,12 +1729,14 @@ async function main(): Promise<void> {
 
   const owners = new Map<string, string>(Object.entries(HOST_REGISTERED_PORTS));
   const resolutions: PortResolution[] = [];
+  const seams: ImportedContributionSeam[] = [];
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
     const moduleId = moduleOf(file);
     if (moduleId === null) continue;
     for (const name of registeredNames(source, file)) owners.set(name, moduleId);
     resolutions.push(...resolvedNames(source, file));
+    seams.push(...importedContributionSeams(source, file));
   }
 
   const { DISCOVERED_MANIFESTS } = (await import(
@@ -1598,6 +1808,40 @@ async function main(): Promise<void> {
     resolutions,
   });
 
+  // The deactivation-consequence ledger (feature 074) — the same edges,
+  // answering the operator's question instead of the container's: when this
+  // owner is switched off, what happens to each module that reads it? An edge
+  // with no answer fails the build here, and the answers are what the
+  // confirmation dialog renders. See `services/deactivation-ledger.ts`.
+  const ledger: DeactivationLedger = buildDeactivationLedger({
+    reads: ledgerReads({ resolutions, seams, owners, providedPorts: moduleRegistered }),
+    declaredDependencies: dependencies,
+    nonBinding: nonBindingEdges,
+    neverAbsentOwners,
+    contributionPolicies: CONTRIBUTION_POLICY_STATED,
+    excludedNames: new Set([...Object.keys(HOST_REGISTERED_PORTS), ...PLATFORM_OWNED_NAMES]),
+  });
+  // The debt table excuses **one** shape, and only for the name it lists: a
+  // policy the owner has not stated yet. A capture or an early gate resolution
+  // over the same name is a different failure with a different fix, and an
+  // entry here must not clear it — that width is what made the alias table the
+  // widest suppression in this file.
+  const unassigned = ledger.unassigned.filter(
+    (edge) =>
+      edge.shape !== 'registry-without-policy' ||
+      REGISTRY_POLICIES_UNSTATED[`${edge.dependsOn}:${edge.name}`] === undefined,
+  );
+  // The same two-way sweep every other table here gets: a policy debt nothing
+  // reads any more is a claim about the tree that has stopped being true.
+  const readPairs = new Set(
+    ledger.unassigned
+      .filter((edge) => edge.shape === 'registry-without-policy')
+      .map((edge) => `${edge.dependsOn}:${edge.name}`),
+  );
+  const policyDrained = Object.keys(REGISTRY_POLICIES_UNSTATED).filter(
+    (entry) => !readPairs.has(entry),
+  );
+
   // A drain-list entry whose site is fixed is dead weight, and dead weight in a
   // debt table is how the debt outlives the fix.
   const wiringSites = new Set(
@@ -1645,13 +1889,29 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
+  // The ledger's own vacuous guard, and it is a different failure from the one
+  // above: the classification runs off the manifest set as well as the scan, so
+  // a manifest index that loaded but carried no edge — or a tree in which every
+  // owner reads as non-deactivatable — would classify nothing and report green.
+  if (ledger.entries.length === 0) {
+    console.error(
+      '[port-deps] the deactivation ledger classified no edge at all — ' +
+        'refusing to report a vacuous pass',
+    );
+    process.exit(2);
+  }
+
   console.log(
     `[port-deps] modules scanned=${new Set(files.map(moduleOf)).size} ` +
       `resolutions=${resolutions.length} violations=${violations.length} ` +
       `root-issues=${rootIssues.length} ` +
       `wiring-debt=${WIRING_RESOLUTIONS_TO_DRAIN.size - drained.length} ` +
       `alias-debt=${Object.keys(ALIAS_HIDDEN_RESOLUTIONS).length - aliasDrained.length} ` +
-      `non-binding=${nonBindingEdges.length} non-binding-issues=${nonBindingIssues.length}`,
+      `non-binding=${nonBindingEdges.length} non-binding-issues=${nonBindingIssues.length} ` +
+      `import-seams=${seams.length} ` +
+      `ledger=${ledger.entries.length} ledger-excluded=${ledger.excluded} ` +
+      `policy-debt=${Object.keys(REGISTRY_POLICIES_UNSTATED).length - policyDrained.length} ` +
+      `ledger-unassigned=${unassigned.length}`,
   );
 
   if (drained.length > 0) {
@@ -1703,13 +1963,33 @@ async function main(): Promise<void> {
     for (const violation of violations) console.error(describe(violation));
   }
 
+  if (policyDrained.length > 0) {
+    console.error(
+      `\nREGISTRY_POLICIES_UNSTATED entries nothing reads without a policy any more — delete ` +
+        `them, so the table keeps meaning what it says:`,
+    );
+    for (const entry of policyDrained) console.error(`  - ${entry}`);
+  }
+
+  if (unassigned.length > 0) {
+    console.error(
+      `\nAn edge into a module an operator may switch off has no defined behaviour. Every ` +
+        `such edge answers one of four ways — it fails closed at the seam, it degrades as its ` +
+        `own manifest declares, it is a contribution the host filters, or it is schema-only ` +
+        `and nothing stops. These answer a fifth way, which is silently wrong:`,
+    );
+    for (const edge of unassigned) console.error(describeUnassignedEdge(edge));
+  }
+
   process.exit(
     violations.length === 0 &&
       stale.length === 0 &&
       rootIssues.length === 0 &&
       drained.length === 0 &&
       aliasDrained.length === 0 &&
-      nonBindingIssues.length === 0
+      nonBindingIssues.length === 0 &&
+      policyDrained.length === 0 &&
+      unassigned.length === 0
       ? 0
       : 1,
   );

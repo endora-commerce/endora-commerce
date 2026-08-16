@@ -6,7 +6,7 @@ import type {
   PaymentRefundResult,
 } from '../../returns/ports/payment-refund.port.js';
 import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
-import { gatewayRefundRegistry } from './gateway-refund-registry.js';
+import { gatewayRefundRegistry } from './registry-singleton.js';
 
 /**
  * Payments-side implementation of the returns module's `PaymentRefundPort`
@@ -34,9 +34,19 @@ export class PaymentRefundProvider implements PaymentRefundPort {
       if (handler) {
         return handler.refund(input);
       }
+      // Two different situations, and one sentence for each. The registry skips
+      // a handler whose module is switched off (feature 074), so a refund that
+      // would have gone through a PSP is recorded for a person to settle
+      // instead — and the operator needs to be told which module, because
+      // switching it back on is the whole remedy. `ownerOf` is presence-blind
+      // for exactly this: it still names the contributor.
+      const absentOwner = adapterKey === null ? null : gatewayRefundRegistry.ownerOf(adapterKey);
       return {
         state: 'pending_manual',
-        failureReason: 'Gateway refunds require a PSP refund integration.',
+        failureReason:
+          absentOwner === null
+            ? 'Gateway refunds require a PSP refund integration.'
+            : `The "${absentOwner}" module is switched off, so its gateway refund was not sent.`,
       };
     }
     return { state: 'issued', externalReference: input.idempotencyKey };

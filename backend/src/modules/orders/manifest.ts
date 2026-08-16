@@ -109,6 +109,41 @@ export const manifest = defineModuleManifest({
         'absent host holds a table nobody walks. Declaring the edge would make an optional ' +
         'assistant undeactivatable for as long as the platform takes orders.',
     },
+    {
+      moduleId: 'payment_methods',
+      name: 'paymentAdapterRegistry',
+      kind: 'degrades-without',
+      whenAbsent: 'checkout offers no payment method to choose from',
+      reason:
+        'Placement dispatches through the adapter table `payment_methods` owns, and the ' +
+        'catalogue a buyer picks from is served by that module’s own routes — so switching it ' +
+        'off closes the choice at its own seam and leaves order taking, order history and ' +
+        'every admin order screen serving. Declaring it in `dependencies` would instead make ' +
+        '`payment_methods.enabled` a control no operator could ever use, which is the ' +
+        'authority ruling 2 of feature 074 withholds from a dependent.',
+    },
+    {
+      moduleId: 'payment_methods',
+      name: 'paymentOrderStatusRegistry',
+      kind: 'degrades-without',
+      whenAbsent: 'checkout offers no payment method to choose from',
+      reason:
+        'The `statusOn*` references the same module registers beside its adapter table, read ' +
+        'for the status an order moves to when a payment settles. It shares the sentence ' +
+        'above because it shares the cause: with no method to choose there is no payment to ' +
+        'settle. Same ground for keeping it out of `dependencies`.',
+    },
+    {
+      moduleId: 'delivery_methods',
+      name: 'shippingAdapterRegistry',
+      kind: 'degrades-without',
+      whenAbsent: 'checkout offers no delivery method to choose from',
+      reason:
+        'The delivery twin of `payment_methods:paymentAdapterRegistry`, read for placement ' +
+        'dispatch. `delivery_methods` serves the catalogue a buyer picks from, so its own ' +
+        'seam closes the choice while the rest of order taking keeps working. Declaring it ' +
+        'would kill `delivery_methods.enabled` for every deployment that takes orders.',
+    },
   ],
   settings,
   i18n: { bundlesDir: 'i18n' },

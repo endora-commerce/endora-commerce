@@ -259,12 +259,68 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
     });
   });
 
+  /**
+   * `orders` → `payment_methods:paymentAdapterRegistry` and
+   * `payment_methods:paymentOrderStatusRegistry`, whenAbsent: *checkout offers
+   * no payment method to choose from*; and
+   * `orders` → `delivery_methods:shippingAdapterRegistry`, whenAbsent:
+   * *checkout offers no delivery method to choose from* (feature 074, FR-024).
+   *
+   * These three read a **plain registration** rather than a gated port, so the
+   * failure they used to have was not a crash: `orders` froze all three into
+   * `commerceModule`'s options at construction and went on holding them after
+   * the owner was switched off. The accessor change is what makes the sentence
+   * above true, and the sentence is about the *choice* rather than about order
+   * taking: the module that serves the catalogue closes its own seam, while
+   * every order already placed stays readable and manageable.
+   */
+  describe('orders → the two method modules', () => {
+    it('closes the payment-method catalogue and leaves order taking serving', async () => {
+      deactivate('payment_methods');
+
+      const methods = await h.app.inject({ method: 'GET', url: '/api/v1/payment-methods' });
+      expect(methods.statusCode).toBe(503);
+      expect((methods.json() as { error: { code: string } }).error.code).toBe('MODULE_DISABLED');
+
+      // The degradation is the choice, not the module that reads it. Without
+      // this half the assertion above would pass for an `orders` that had
+      // stopped answering with it.
+      const orders = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/admin/orders',
+        cookies: ADMIN,
+      });
+      expect(orders.statusCode).toBe(200);
+    });
+
+    it('closes the delivery-method catalogue and leaves order taking serving', async () => {
+      deactivate('delivery_methods');
+
+      const methods = await h.app.inject({ method: 'GET', url: '/api/v1/delivery-methods' });
+      expect(methods.statusCode).toBe(503);
+
+      const orders = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/admin/orders',
+        cookies: ADMIN,
+      });
+      expect(orders.statusCode).toBe(200);
+    });
+
+    it('offers both catalogues again once the modules are switched back on', async () => {
+      for (const url of ['/api/v1/payment-methods', '/api/v1/delivery-methods']) {
+        const res = await h.app.inject({ method: 'GET', url });
+        expect(res.statusCode, url).toBe(200);
+      }
+    });
+  });
+
   it('exercises the deactivated-while-platform-available case throughout', () => {
     // Constitution XVII checklist item 6 asks for this case specifically, and
-    // it is the one the four edges above are written for: a module the
-    // deployment still ships, that the business has switched off. A test that
-    // simulated a missing installation would prove something else.
-    for (const moduleId of ['api_keys', 'orders']) {
+    // it is the one the edges above are written for: a module the deployment
+    // still ships, that the business has switched off. A test that simulated a
+    // missing installation would prove something else.
+    for (const moduleId of ['api_keys', 'orders', 'payment_methods', 'delivery_methods']) {
       deactivate(moduleId);
       const presence = effectiveState.presence(moduleId);
       expect(presence?.platformAvailable, `${moduleId} platform axis`).toBe(true);

@@ -8,7 +8,6 @@ import type { SalesChannelMembershipService } from '../../kernel/sales-channels/
 import type { PaymentAdapterRegistry } from '../payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from '../payment_methods/services/order-status-registry.port.js';
 import type { ShippingAdapterRegistry } from '../delivery_methods/services/shipping-adapter-registry.js';
-import type { ShippingMethodEligibilityService } from '../delivery_methods/services/shipping-method-eligibility.js';
 import type { CartService } from '../carts/services/cart-service.js';
 import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
 import type { AddressService } from '../addresses/services/address-service.js';
@@ -99,20 +98,28 @@ export interface OrdersModuleOptions {
    */
   addressService: AddressService;
   /**
-   * Feature 072 (T095/T097) — the two method modules own these now. `orders`
-   * reads them for placement dispatch and for the `statusOn*` references, so it
-   * receives them instead of building them, and there is one of each per
-   * composition rather than one per host.
-   */
-  /**
    * Feature 072 (T136) — `carts` owns and registers its services; `orders`
    * consumes exactly one of them, for admin order creation and the API intake.
    */
   cartService: CartService;
-  paymentAdapterRegistry: PaymentAdapterRegistry;
-  shippingAdapterRegistry: ShippingAdapterRegistry;
-  paymentOrderStatusRegistry: OrderStatusRegistry;
-  shippingMethodEligibility: ShippingMethodEligibilityService;
+  /**
+   * The two method modules' registries and the delivery-eligibility service.
+   * `orders` reads them for placement dispatch and for the `statusOn*`
+   * references (feature 072, T095/T097), so it receives them instead of
+   * building them — and receives them as **accessors** rather than as values
+   * (feature 074, FR-024).
+   *
+   * The difference is when the container is asked. Passing the values meant
+   * `orders` resolved four of another module's registrations at the moment its
+   * own registration was constructed, and held them for the life of the
+   * process: the deactivation ledger's first unacceptable shape, because a
+   * captured registration keeps answering after its owner is switched off, and
+   * no manifest entry can make that untrue. An accessor is read where it is
+   * used, so the answer is the one the container has then.
+   */
+  paymentAdapterRegistry: () => PaymentAdapterRegistry;
+  shippingAdapterRegistry: () => ShippingAdapterRegistry;
+  paymentOrderStatusRegistry: () => OrderStatusRegistry;
   /**
    * Feature 026 — optional gate that refuses cart-line-add, place-order, and
    * RFQ-submit when the Customer's Organization is not `active`. Threaded
@@ -246,10 +253,11 @@ export function commerceModule(options: OrdersModuleOptions) {
     // Feature 072 (T095/T097) — the two method modules own their registries,
     // their eligibility services and their routes now. `orders` still reads
     // them for placement and for the order-status references, so it takes them
-    // as options rather than building them.
-    const paymentAdapterRegistry = options.paymentAdapterRegistry;
-    const shippingAdapterRegistry = options.shippingAdapterRegistry;
-    const orderStatusRegistry = options.paymentOrderStatusRegistry;
+    // as options rather than building them — as accessors since feature 074,
+    // read here rather than when this module's registration was constructed.
+    const paymentAdapterRegistry = options.paymentAdapterRegistry();
+    const shippingAdapterRegistry = options.shippingAdapterRegistry();
+    const orderStatusRegistry = options.paymentOrderStatusRegistry();
 
     // Feature 036 — business Order ID generator. Adapts the composition-wired
     // prefix/suffix resolver closures (SettingsService-backed) to the

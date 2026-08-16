@@ -101,10 +101,16 @@ export interface OrdersCradle {
   readonly rfqService: NonNullable<ReturnType<NonNullable<OrdersModuleOptions['getRfqService']>>>;
   readonly taxService: { taxRateFor(input: TaxRateInput): Promise<{ rate: number }> };
   readonly salesChannelMembershipPort: NonNullable<OrdersModuleOptions['salesChannelMembership']>;
-  readonly paymentAdapterRegistry: OrdersModuleOptions['paymentAdapterRegistry'];
-  readonly shippingAdapterRegistry: OrdersModuleOptions['shippingAdapterRegistry'];
-  readonly paymentOrderStatusRegistry: OrdersModuleOptions['paymentOrderStatusRegistry'];
-  readonly shippingMethodEligibility: OrdersModuleOptions['shippingMethodEligibility'];
+  /**
+   * The two method modules' registrations, as the container holds them. The
+   * options object below takes an accessor over each (feature 074, FR-024): a
+   * cradle read written into a factory body resolves when the registration is
+   * constructed, and a registration another module owns must not be frozen
+   * there — it is a name whose owner an operator may switch off.
+   */
+  readonly paymentAdapterRegistry: ReturnType<OrdersModuleOptions['paymentAdapterRegistry']>;
+  readonly shippingAdapterRegistry: ReturnType<OrdersModuleOptions['shippingAdapterRegistry']>;
+  readonly paymentOrderStatusRegistry: ReturnType<OrdersModuleOptions['paymentOrderStatusRegistry']>;
   readonly requireBoundApiKey: NonNullable<OrdersModuleOptions['requireBoundApiKey']>;
   readonly emailMailer: NonNullable<OrdersModuleOptions['mailer']>;
   readonly organizationReadPort: OrganizationReadPort;
@@ -190,10 +196,11 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'salesChannelMembershipPort',
             ),
-            paymentAdapterRegistry: cradle().paymentAdapterRegistry,
-            shippingAdapterRegistry: cradle().shippingAdapterRegistry,
-            paymentOrderStatusRegistry: cradle().paymentOrderStatusRegistry,
-            shippingMethodEligibility: cradle().shippingMethodEligibility,
+            // Accessors, not values: read where the plugin uses them rather
+            // than here, where this factory body runs once (feature 074).
+            paymentAdapterRegistry: () => cradle().paymentAdapterRegistry,
+            shippingAdapterRegistry: () => cradle().shippingAdapterRegistry,
+            paymentOrderStatusRegistry: () => cradle().paymentOrderStatusRegistry,
             mailer: lazyPort<OrdersCradle['emailMailer']>(ctx, 'emailMailer'),
             getTransactionalEmailSender: () => cradle().transactionalEmailSenderAccessor(),
             getRfqService: () => lazyPort<OrdersCradle['rfqService']>(ctx, 'rfqService'),
