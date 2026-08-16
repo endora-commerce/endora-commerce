@@ -47,7 +47,7 @@ describe('placeOrder — confirmation CC to additional recipients (US4)', () => 
 
   it('sends the confirmation to the customer plus org + scope recipients', async () => {
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
 
     const service = new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
       paymentAdapters: registry,

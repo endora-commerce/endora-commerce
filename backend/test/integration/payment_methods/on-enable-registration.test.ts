@@ -36,8 +36,11 @@ describe('payment adapter on-enable registration (singleton)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    // What an external module's installHook does on enable:
-    paymentAdapterRegistry.register(vendorAdapter);
+    // What an external module's installHook does on enable. The owner id has
+    // to be a module this deployment actually carries: since issue #96 the
+    // registry skips an adapter whose owner is not effectively present, so a
+    // made-up id would (correctly) make the adapter invisible.
+    paymentAdapterRegistry.register(vendorAdapter, 'payments');
     await new PaymentMethodReconciler(h.em).ensureMethodForAdapter(VENDOR_KEY, {
       code: VENDOR_KEY,
       type: 'gateway',

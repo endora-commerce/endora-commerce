@@ -4,6 +4,24 @@ import { apiClient } from '@/lib/api-client';
  * Typed admin client for payment methods (feature 034). Wraps the shared
  * apiClient with the adapter-aware endpoints.
  */
+/**
+ * Why a method is, or is not, offered to a buyer (issue #96). The admin keeps
+ * every row — switching a gateway off drops nothing — and renders the reason
+ * from the owning module's presence, exactly as `/platform/modules` does.
+ */
+export interface PaymentMethodAvailability {
+  ownerModule: string | null;
+  available: boolean;
+  ownerPresence: {
+    id: string;
+    present: boolean;
+    platformState: string;
+    activated: boolean;
+    deactivatable: boolean;
+    nonDeactivatableReason: string | null;
+  } | null;
+}
+
 export interface AdminPaymentMethod {
   id: string;
   code: string;
@@ -17,6 +35,7 @@ export interface AdminPaymentMethod {
   statusOnFailure: string;
   salesChannelIds: string[];
   rendererKey: string | null;
+  availability: PaymentMethodAvailability;
 }
 
 export interface OrderStatusOption {

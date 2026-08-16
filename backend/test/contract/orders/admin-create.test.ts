@@ -57,7 +57,7 @@ describe('Admin create order on behalf (US3)', () => {
   it('blocks placement below the minimum order value (FR-035)', async () => {
     await seedCartForStubCustomer(h.em());
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     const service = new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
       paymentAdapters: registry,
       orderStatusRegistry: new EnumOrderStatusRegistry(),

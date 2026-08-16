@@ -41,7 +41,7 @@ describe('placeOrder — payment-method submit re-validation', () => {
   it('rejects a method whose storefront validator returns false', async () => {
     const registry = new PaymentAdapterRegistry();
     // The seed method's adapter is 'bank_transfer'; register a blocking one.
-    registry.register(blockingAdapter('bank_transfer'));
+    registry.register(blockingAdapter('bank_transfer'), 'payments');
 
     const service = new OrderService(
       h.em,

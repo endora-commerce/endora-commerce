@@ -12,6 +12,7 @@ import {
 } from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
+import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { BusinessIdGenerator } from './business-id-generator.js';
 
 /**
@@ -453,7 +454,18 @@ export class OrderService {
     method: PaymentMethod,
   ): Promise<void> {
     const adapter = this.paymentAdapters?.get(method.adapter);
-    if (!adapter) return;
+    if (!adapter) {
+      // Registered, but its owning module is absent on one of the two axes
+      // (issue #96). The buyer-facing lists already dropped this method, so
+      // getting here means a direct API submission — refuse it rather than
+      // open a payment nothing can settle. An adapter *no* module ever
+      // registered keeps the older tolerance: the active-status check is what
+      // gates those, and a deployment may legitimately run an offline method
+      // whose adapter is not wired.
+      const owner = this.paymentAdapters?.ownerOf(method.adapter);
+      if (owner) throw new ModuleDisabledError(owner);
+      return;
+    }
     const surface = ctx.impersonatorAdminUserId ? 'admin' : 'storefront';
     const eligCtx = {
       paymentMethod: {
@@ -498,7 +510,12 @@ export class OrderService {
     method: DeliveryMethod,
   ): Promise<void> {
     const adapter = this.shippingAdapters?.get(method.adapter);
-    if (!adapter) return;
+    if (!adapter) {
+      // The payment twin's rule, for the same reason (issue #96).
+      const owner = this.shippingAdapters?.ownerOf(method.adapter);
+      if (owner) throw new ModuleDisabledError(owner);
+      return;
+    }
     const surface = ctx.impersonatorAdminUserId ? 'admin' : 'storefront';
     const eligCtx = {
       deliveryMethod: {

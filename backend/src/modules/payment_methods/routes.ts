@@ -1,7 +1,16 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, paymentMethodUpsertSchema } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  paymentMethodUpsertSchema,
+  type PaymentMethodAdminListItem,
+  type PaymentMethodAvailability,
+} from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import {
+  effectiveState,
+  toModulePresenceDto,
+} from '../../kernel/lifecycle/effective-state.js';
 import { PaymentMethod } from './entities/payment-method.entity.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { PaymentAdapterRegistry } from './services/payment-adapter-registry.js';
@@ -260,7 +269,31 @@ function serializePublic(m: PaymentMethod, deps: { registry?: PaymentAdapterRegi
   };
 }
 
-async function serializeAdmin(m: PaymentMethod, deps: PaymentMethodsAdminDeps) {
+/**
+ * Why this method is, or is not, offered to a buyer (issue #96).
+ *
+ * The admin keeps every row — switching a gateway off drops nothing — so the
+ * list carries the reason instead of the row. The reason is the owning module's
+ * presence, taken from the projection `/platform/modules` already renders, so
+ * no second vocabulary and no hard-coded module list on either frontend.
+ */
+function availabilityOf(
+  m: PaymentMethod,
+  deps: { registry?: PaymentAdapterRegistry },
+): PaymentMethodAvailability {
+  const ownerModule = deps.registry?.ownerOf(m.adapter) ?? null;
+  const presence = ownerModule === null ? undefined : effectiveState.presence(ownerModule);
+  return {
+    ownerModule,
+    available: deps.registry?.isAvailable(m.adapter) ?? false,
+    ownerPresence: presence ? toModulePresenceDto(presence) : null,
+  };
+}
+
+async function serializeAdmin(
+  m: PaymentMethod,
+  deps: PaymentMethodsAdminDeps,
+): Promise<PaymentMethodAdminListItem> {
   const channels = deps.salesChannelMembership
     ? await deps.salesChannelMembership.listChannelsForEntity('payment-method', m.id)
     : [];
@@ -276,6 +309,9 @@ async function serializeAdmin(m: PaymentMethod, deps: PaymentMethodsAdminDeps) {
     statusOnSuccess: m.statusOnSuccess,
     statusOnFailure: m.statusOnFailure,
     salesChannelIds: channels.map((c) => c.id),
-    rendererKey: deps.registry?.get(m.adapter)?.renderers?.admin ?? null,
+    // Presence-blind: an admin screen goes on rendering a Stripe row the way
+    // Stripe renders it while Stripe is switched off.
+    rendererKey: deps.registry?.entry(m.adapter)?.adapter.renderers?.admin ?? null,
+    availability: availabilityOf(m, deps),
   };
 }

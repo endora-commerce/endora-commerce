@@ -31,8 +31,8 @@ const method = (code: string, adapterKey: string): PaymentMethod => {
 describe('PaymentMethodEligibilityService', () => {
   it('keeps methods whose adapter validator returns true', async () => {
     const reg = new PaymentAdapterRegistry();
-    reg.register(adapter('ok', true));
-    reg.register(adapter('blocked', false));
+    reg.register(adapter('ok', true), 'payments');
+    reg.register(adapter('blocked', false), 'payments');
     const svc = new PaymentMethodEligibilityService(reg);
 
     const result = await svc.filter([method('a', 'ok'), method('b', 'blocked')], {

@@ -41,7 +41,7 @@ describe('placeOrder — failure preserves the cart (feature 036)', () => {
     expect(itemsBefore.length).toBeGreaterThan(0);
 
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     const service = new OrderService(
       h.em,
       new EventBus() as OrderEventBus,

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { uuidSchema } from './common.js';
+import { ModulePresenceSchema } from './modules.js';
 import { paymentMethodKindSchema, type PaymentMethodKind } from './payments.js';
 
 /**
@@ -69,6 +70,37 @@ export const paymentMethodAdminSchema = z.object({
   salesChannelIds: z.array(uuidSchema),
 });
 export type PaymentMethodAdmin = z.infer<typeof paymentMethodAdminSchema>;
+
+/**
+ * Why a method can — or cannot — be offered to a buyer (issue #96).
+ *
+ * A payment method is realised by an adapter, and an adapter is contributed by
+ * a module. When that module is absent on either axis the method disappears
+ * from cart and checkout entirely, because a buyer must never be shown a
+ * payment option that cannot take their money. The *admin* keeps seeing the
+ * row — off is not uninstall — so it needs the reason, and the reason is the
+ * owning module's presence, carried verbatim rather than restated: an admin
+ * that renders `/platform/modules` can render this without learning a second
+ * vocabulary.
+ *
+ * `ownerModule` is `null` when no module contributes the method's adapter at
+ * all (a legacy row, or a module removed from the deployment); `ownerPresence`
+ * is then `null` too, and `available` is false.
+ */
+export const paymentMethodAvailabilitySchema = z.object({
+  ownerModule: z.string().nullable(),
+  /** Registered AND its owning module effectively present. */
+  available: z.boolean(),
+  ownerPresence: ModulePresenceSchema.nullable(),
+});
+export type PaymentMethodAvailability = z.infer<typeof paymentMethodAvailabilitySchema>;
+
+/** One row of the admin payment-method list: the stored config plus its availability. */
+export const paymentMethodAdminListItemSchema = paymentMethodAdminSchema.extend({
+  rendererKey: z.string().nullable(),
+  availability: paymentMethodAvailabilitySchema,
+});
+export type PaymentMethodAdminListItem = z.infer<typeof paymentMethodAdminListItemSchema>;
 
 /** Storefront list item — what checkout needs to render an eligible method. */
 export const paymentMethodListItemSchema = z.object({

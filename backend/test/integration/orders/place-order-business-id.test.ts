@@ -33,7 +33,7 @@ describe('placeOrder — business Order ID + nextAction (feature 036)', () => {
 
   function buildService() {
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     return new OrderService(
       h.em,
       new EventBus() as OrderEventBus,

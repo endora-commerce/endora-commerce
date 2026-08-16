@@ -1,4 +1,4 @@
-import type { RegistryState } from '@b2b/contracts';
+import type { ModulePresence, RegistryState } from '@b2b/contracts';
 import { registryCache, type ModuleRegistryCache } from './registry-cache.js';
 
 /**
@@ -130,6 +130,25 @@ export class ModuleEffectiveState implements EffectiveModuleState {
     if (stored !== undefined) return stored;
     return declaration?.default ?? true;
   }
+}
+
+/**
+ * The wire projection of one module's presence.
+ *
+ * It lives here rather than beside the `/admin/module-presence` handler because
+ * a second surface now reports a module's presence as the reason something else
+ * is unavailable — the payment-method admin list, issue #96 — and two copies of
+ * this mapping are two ways for "off" to mean different things on two screens.
+ */
+export function toModulePresenceDto(state: ModulePresenceState): ModulePresence {
+  return {
+    id: state.moduleId,
+    present: state.platformAvailable && state.operatorActivated,
+    platformState: state.platformState,
+    activated: state.operatorActivated,
+    deactivatable: state.deactivatable,
+    nonDeactivatableReason: state.nonDeactivatableReason,
+  };
 }
 
 /** Process singleton read by the four lifecycle wrappers. */

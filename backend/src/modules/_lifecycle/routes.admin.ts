@@ -10,13 +10,12 @@ import {
   type ApiInterceptorList,
   type ModuleActivationResponse,
   type ModuleListResponse,
-  type ModulePresence,
 } from '@b2b/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import type { ApiInterceptorRegistry } from '../../http/interceptors/index.js';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModuleLifecycleOrchestrator } from './services/orchestrator.js';
-import { effectiveState, type ModulePresenceState } from '../../kernel/lifecycle/effective-state.js';
+import { effectiveState, toModulePresenceDto } from '../../kernel/lifecycle/effective-state.js';
 import {
   makeSetActivationCommand,
   propagateActivationChange,
@@ -38,17 +37,11 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
  * from. Those two are not the same thing and the API keeps them apart.
  */
 
-/** Wire shape for one module. The conjunction is computed here, once. */
-function toPresenceDto(state: ModulePresenceState): ModulePresence {
-  return {
-    id: state.moduleId,
-    present: state.platformAvailable && state.operatorActivated,
-    platformState: state.platformState,
-    activated: state.operatorActivated,
-    deactivatable: state.deactivatable,
-    nonDeactivatableReason: state.nonDeactivatableReason,
-  };
-}
+/**
+ * Wire shape for one module. The conjunction is computed once, in the kernel,
+ * because a second surface reports a module's presence too (issue #96).
+ */
+const toPresenceDto = toModulePresenceDto;
 
 export interface LifecycleAdminDeps {
   orchestrator: ModuleLifecycleOrchestrator;

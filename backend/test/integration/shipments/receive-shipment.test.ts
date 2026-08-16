@@ -62,7 +62,7 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
   let h: BackendServerHandle;
   const statusRegistry = new EnumOrderStatusRegistry();
   const registry = new ShippingAdapterRegistry();
-  for (const a of builtInShippingAdapters()) registry.register(a);
+  for (const a of builtInShippingAdapters()) registry.register(a, 'delivery_methods');
 
   beforeAll(async () => {
     h = await setupBackendServer();

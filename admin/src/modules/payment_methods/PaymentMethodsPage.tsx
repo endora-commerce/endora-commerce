@@ -272,9 +272,12 @@ export function PaymentMethodsPage(): ReactNode {
                       ) : null}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={r.status === 'active' ? 'success' : 'secondary'}>
-                        {t(`legacyMethods.status.${r.status}`)}
-                      </Badge>
+                      <div className="flex flex-col items-start gap-1">
+                        <Badge variant={r.status === 'active' ? 'success' : 'secondary'}>
+                          {t(`legacyMethods.status.${r.status}`)}
+                        </Badge>
+                        <AvailabilityNote method={r} />
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
@@ -306,6 +309,36 @@ export function PaymentMethodsPage(): ReactNode {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/**
+ * Why this method is not offered to buyers (issue #96).
+ *
+ * A method whose gateway module is absent disappears from cart and checkout
+ * entirely — the buyer never sees an option that cannot take their money — but
+ * the admin keeps the row, because switching a module off drops nothing. The
+ * reason is read from the server's presence projection (`availability`), never
+ * from a module list held here: the frontend has no business knowing which
+ * modules are gateways.
+ */
+function AvailabilityNote({ method }: { method: AdminPaymentMethod }): ReactNode {
+  const t = useTranslation('core');
+  const { availability } = method;
+  if (availability.available) return null;
+
+  const reason =
+    availability.ownerModule === null
+      ? t('legacyMethods.availability.noAdapter', { adapter: method.adapter })
+      : availability.ownerPresence?.platformState === 'installed'
+        ? t('legacyMethods.availability.moduleOff', { module: availability.ownerModule })
+        : t('legacyMethods.availability.moduleUnavailable', { module: availability.ownerModule });
+
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <Badge variant="warning">{t('legacyMethods.availability.unavailable')}</Badge>
+      <span className="text-xs text-muted-foreground">{reason}</span>
+    </span>
   );
 }
 

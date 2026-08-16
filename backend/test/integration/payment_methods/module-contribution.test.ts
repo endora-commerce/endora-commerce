@@ -43,7 +43,7 @@ describe('payment-method module contribution', () => {
     const code = `vendor_code_${randomUUID().slice(0, 8)}`;
 
     // The module's install hook would do exactly this:
-    registry.register(myAdapter(key));
+    registry.register(myAdapter(key), 'vendor_module');
     await reconciler.ensureMethodForAdapter(key, {
       code,
       type: 'gateway',

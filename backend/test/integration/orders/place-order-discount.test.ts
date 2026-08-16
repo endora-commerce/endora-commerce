@@ -45,7 +45,7 @@ describe('placeOrder — coupon discount stamped on the order (feature 036)', ()
 
   it('reflects the discount in promotionCode, discountTotal, and total', async () => {
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     const service = new OrderService(
       h.em,
       new EventBus() as OrderEventBus,

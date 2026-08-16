@@ -57,16 +57,7 @@ export interface DeliveryMethodsCradle {
 
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
-    shippingAdapterRegistry: ctx
-      .asFunction(() => {
-        for (const adapter of builtInShippingAdapters()) {
-          if (!shippingAdapterRegistry.isRegistered(adapter.adapterKey)) {
-            shippingAdapterRegistry.register(adapter);
-          }
-        }
-        return shippingAdapterRegistry;
-      })
-      .singleton(),
+    shippingAdapterRegistry: ctx.asFunction(() => shippingAdapterRegistry).singleton(),
 
     shippingMethodEligibility: ctx
       .asFunction(
@@ -111,5 +102,24 @@ export function registerModule(ctx: ModuleContext): void {
       orderStatusRegistry: shippingOrderStatusRegistry,
       ...(membership === undefined ? {} : { salesChannelMembership: membership }),
     });
+  });
+
+  /**
+   * The two shipping kinds this module implements, pushed into the registry it
+   * holds — from a boot hook rather than from the registry's own factory
+   * (issue #96).
+   *
+   * Seeding inside the factory tied "which adapters exist" to whoever resolved
+   * the name first, and left the entries unowned: nothing recorded that these
+   * two came from this module, so the enumeration had nothing to filter on when
+   * an operator switched a contributor off. A boot hook runs once per
+   * composition, regardless of effective state, which is exactly the D-39
+   * contract — the push is ungated, the *enumeration* answers presence.
+   */
+  ctx.onBoot(() => {
+    const registry = ctx.cradle<DeliveryMethodsCradle>().shippingAdapterRegistry;
+    for (const adapter of builtInShippingAdapters()) {
+      registry.register(adapter, 'delivery_methods');
+    }
   });
 }
