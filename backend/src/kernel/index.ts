@@ -145,7 +145,7 @@ export {
   type RequireAdminAnyFactory,
   type RequireAdminFactory,
 } from './ports/require-admin.js';
-export { type OrganizationReadPort } from './ports/organizations.js';
+export { type OrganizationReadPort, type OrganizationSnapshot } from './ports/organizations.js';
 export { type SettingsReadPort, type SettingsReadResult } from './ports/settings.js';
 export {
   type ResolvedChannel,

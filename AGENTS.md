@@ -150,7 +150,15 @@ never add a "module options" object for something the module can read itself.
    `if (!ctx.hard) return;`; **neither hook fires on activation or deactivation** — that is
    the other axis (Principle XVII) and no hook may be added to it; and the hook context is
    `{ em, redis, log, module }` (`+ hard`), which cannot carry services.
-10. **CI** — `pnpm --filter backend run check:port-dependencies`, `check:port-catches`,
+10. **The platform roots may not import a module (D-52/D-53).** `src/kernel`, `src/http`,
+   `src/events` and `src/tenancy` are one rule, not one plus three peers: the kernel does not
+   compile without them (five kernel entities take `@GlobalEntity()` from `src/tenancy`, four
+   kernel files take `HttpError` from `src/http` as a value), so a peer allowed to name
+   `src/modules/` or `src/apps/` is a kernel importing modules with one extra hop. A platform
+   file that needs something a module owns takes it **by injection from a composition root**
+   — the pattern `ErrorEnvelopeOptions` uses. `src/db`, `src/overlay` and `src/commands` are
+   not platform roots.
+11. **CI** — `pnpm --filter backend run check:port-dependencies`, `check:port-catches`,
    `check:kernel-boundary`, `check:container-imports`, and
    `pnpm --filter backend exec vitest run test/contract/kernel/harness-parity.test.ts`
    (drift between the two composition roots, as an explicit draining ledger).

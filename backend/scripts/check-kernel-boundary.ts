@@ -1,9 +1,9 @@
 /**
- * CI check — the kernel boundary (feature 072, D-32 / D-37, data-model §2.1).
+ * CI check — the kernel boundary (feature 072, D-32 / D-37 / D-53, data-model §2.1).
  *
- * **Two independent rules over the same principle**, reported in one run: a
+ * **Three independent rules over the same principle**, reported in one run: a
  * kernel that depends on a removable module is not a kernel. Rule A polices the
- * ORM; rule B polices import specifiers, which is the mechanism the kernel
+ * ORM; rules B and C police import specifiers, which is the mechanism the kernel
  * actually reached into `src/modules/` through.
  *
  * ## Rule A — ORM relations
@@ -22,14 +22,53 @@
  * module→kernel, which is permitted — and this check is what keeps the fifth
  * from appearing.
  *
- * ## Rule B — import specifiers (D-37)
+ * ## Rule B — import specifiers, over the platform roots (D-37, widened by D-53)
  *
- * No file under `src/kernel/**` may name an import specifier resolving into
- * `src/modules/` or `src/apps/`. `src/apps/` is on the forbidden side because an
- * overlay module is an ordinary lifecycle participant (feature 057) and a
- * decoration is per-deployment code: a kernel that reaches into either is a
- * kernel that differs per deployment. The reverse direction — module→kernel —
- * is always allowed and has no rule.
+ * No file under a **platform root** — `src/kernel`, `src/http`, `src/events`,
+ * `src/tenancy` ({@link PLATFORM_ROOTS}) — may name an import specifier
+ * resolving into `src/modules/` or `src/apps/`. `src/apps/` is on the forbidden
+ * side because an overlay module is an ordinary lifecycle participant (feature
+ * 057) and a decoration is per-deployment code: a kernel that reaches into
+ * either is a kernel that differs per deployment. The reverse direction —
+ * module→platform — is always allowed and has no rule.
+ *
+ * The three peers are on the list because the kernel cannot compile without
+ * them: five kernel entities take `@GlobalEntity()` from `src/tenancy` and four
+ * kernel files take `HttpError` from `src/http` as a **value**. A dependency the
+ * kernel cannot compile without, which is itself permitted to import a module,
+ * is a kernel that imports modules with one extra hop — in package terms the
+ * cycle `kernel → http → mod-i18n → kernel`, and F4's stated precondition is
+ * that packages are not cyclic (D-52).
+ *
+ * `src/db`, `src/overlay` and `src/commands` are deliberately **not** roots:
+ * `src/db` names every module by construction and F2 of the packaging roadmap
+ * replaces it with a generator, `src/overlay` is per-deployment resolution, and
+ * `src/commands` sits *above* the kernel rather than under it — it already
+ * satisfies the rule, and D-57 leaves its package home to F4.
+ *
+ * ## Rule C — the kernel's transitive closure (D-53)
+ *
+ * No file in the transitive relative-import closure of `src/kernel/**` may name
+ * such a specifier, however many hops from the kernel it sits.
+ *
+ * **B and C are deliberately not redundant, and each covers the other's blind
+ * spot.** B is a list — and issue #92 exists precisely because a peer was never
+ * put on a list. C has no list to forget, but it is blind to the six peer files
+ * the kernel does not currently reach, which is exactly where a future defect
+ * lands unnoticed. B's message names a line; C's names a chain, so an edge under
+ * a platform root is reported by both — once as the line that wrote it, once as
+ * the path that reaches it.
+ *
+ * C stops at the module boundary: the edge is the violation, and what lies
+ * behind it is that module's own graph.
+ *
+ * **Prose was tried first, and it did not hold.** `kernel/index.ts:3`,
+ * `tenancy/index.ts:3` and `http/interceptors/registry.ts:12` all state this
+ * rule in a header comment; all three were true, all three were unenforced, and
+ * the one file that broke it (`http/error-envelope.ts`, importing `_i18n`'s
+ * error-translation map) broke it anyway. The measured cost of enforcement was
+ * one injected option and one structural type; at that price, prose is not a
+ * trade-off, it is an omission.
  *
  * Every shape a specifier can take is seen: `import`, `import type`,
  * `export … from`, dynamic `import()`, `require()` and the inline
@@ -50,18 +89,9 @@
  *      from a `package.json` — types must resolve at build time — so it is a
  *      real edge in the artefact even though it is invisible in the bundle.
  *
- * Two deliberate limits, both of them holes a determined violator could use:
- *
- *   - **Direct specifiers only, no transitive closure.** `src/http/` is a *peer*
- *     of the kernel, and `src/http/error-envelope.ts` imports
- *     `ERROR_TRANSLATION_KEYS` from `src/modules/_i18n/` — so the kernel still
- *     reaches `_i18n` through it. A transitive rule would fail on day one for a
- *     file D-37 does not touch and would need a ledger entry for it; naming the
- *     hole is better than silently widening the scope. Cleaning it up belongs to
- *     the `src/http` / `src/events` / `src/tenancy` peer-boundary question,
- *     which is D-32's unfinished half.
- *   - **`*.test.ts` under `src/kernel/` is not scanned.** A colocated test may
- *     import a fixture and is not the artefact packaging cares about.
+ * One deliberate limit remains, and it is a hole a determined violator could
+ * use: **`*.test.ts` under a platform root is not scanned.** A colocated test
+ * may import a fixture and is not the artefact packaging cares about.
  *
  * **Relative specifiers only, for now.** There is no `@endora-commerce/mod-*`
  * package yet, so a bare specifier cannot reach a module; F4 will need a second
@@ -86,6 +116,18 @@ const RELATION_DECORATORS = new Set(['ManyToOne', 'OneToMany', 'OneToOne', 'Many
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const SRC_ROOT = join(BACKEND_ROOT, 'src');
 const KERNEL_ROOT = join(SRC_ROOT, 'kernel');
+
+/**
+ * The platform roots rule B walks (D-53): the kernel and the three peers it
+ * cannot compile without. Order is the reporting order, `kernel` first.
+ */
+export const PLATFORM_ROOTS = ['kernel', 'http', 'events', 'tenancy'] as const;
+export type PlatformRoot = (typeof PLATFORM_ROOTS)[number];
+
+/** Which platform root owns `file`, or `null` for anything outside all four. */
+export function platformRootOf(file: string): PlatformRoot | null {
+  return PLATFORM_ROOTS.find((root) => file.includes(`/src/${root}/`)) ?? null;
+}
 
 /**
  * Who owns the entity declared in `file`: a module id, `kernel`, or `core` for
@@ -241,22 +283,22 @@ export function stalePending(findings: readonly RelationFinding[]): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Rule B — import specifiers out of `src/kernel/` (D-37)
+// Rule B — import specifiers out of a platform root (D-37, widened by D-53)
 // ---------------------------------------------------------------------------
 
 /** How the specifier was named. Reported, because it changes how one reads it. */
 export type ImportKind = 'import' | 'export' | 'dynamic' | 'require' | 'import-type';
 
-export interface KernelImportFinding {
-  /** Absolute path of the importing kernel file. */
+export interface PlatformImportFinding {
+  /** Absolute path of the importing platform-root file. */
   readonly file: string;
   readonly specifier: string;
   /** The specifier resolved against the importing file, `.js` swapped for `.ts`. */
   readonly resolved: string;
   /**
    * The module the specifier reaches, `apps/<deployment>` for per-deployment
-   * code outside a module, or `null` when it leaves the kernel for a peer
-   * (`src/tenancy/`, `src/http/`, …) — which is allowed.
+   * code outside a module, or `null` when it leaves its own root for another
+   * platform root (`src/tenancy/`, `src/http/`, …) — which is allowed.
    */
   readonly targetOwner: string | null;
   /** What the import takes: a reviewer's first question is shape or behaviour. */
@@ -305,38 +347,35 @@ function importBindings(node: ts.Node): string[] {
   return [];
 }
 
+/** One specifier as it was written, with everything both rules need of it. */
+interface NamedSpecifier {
+  readonly text: string;
+  readonly kind: ImportKind;
+  readonly bindings: readonly string[];
+  readonly line: number;
+}
+
 /**
- * Every relative import in `source` that leaves `src/kernel/`.
+ * Every module specifier `source` names, in every shape a specifier can take:
+ * `import`, `import type`, `export … from`, dynamic `import()`, `require()` and
+ * the inline `import('…').Type` annotation.
  *
- * Findings include the allowed ones (a peer of the kernel), so the summary can
- * report both counts and `--list` can tag each; {@link isImportViolation} is what
- * partitions them. Returns nothing for a file outside the kernel — the
- * module→kernel direction is not this rule's business.
- *
- * The target is **not** gated on existing on disk: a kernel file importing a
- * path that no longer exists must fail loudly, not pass silently.
+ * Shared by rules B and C so the two cannot drift on what counts as an import —
+ * the drift that would let a shape be caught by one rule and not the other.
  */
-export function analyzeKernelImports(source: string, file: string): KernelImportFinding[] {
-  if (!file.includes('/src/kernel/')) return [];
+function namedSpecifiers(source: string, file: string): NamedSpecifier[] {
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const findings: KernelImportFinding[] = [];
+  const found: NamedSpecifier[] = [];
 
   const record = (
     specifier: ts.StringLiteralLike,
     kind: ImportKind,
     bindings: readonly string[],
   ): void => {
-    const text = specifier.text;
-    if (!text.startsWith('.')) return;
-    const resolved = resolve(dirname(file), text.replace(/\.js$/, '.ts'));
-    if (resolved.startsWith(`${KERNEL_ROOT}/`)) return;
-    findings.push({
-      file,
-      specifier: text,
-      resolved,
-      targetOwner: forbiddenOwnerOf(resolved),
-      bindings,
+    found.push({
+      text: specifier.text,
       kind,
+      bindings,
       line: sf.getLineAndCharacterOfPosition(specifier.getStart(sf)).line + 1,
     });
   };
@@ -375,67 +414,209 @@ export function analyzeKernelImports(source: string, file: string): KernelImport
   };
 
   sf.forEachChild(visit);
-  return findings;
+  return found;
+}
+
+/** A relative specifier resolved against the importing file, `.js` swapped for `.ts`. */
+function resolveSpecifier(file: string, specifier: string): string {
+  return resolve(dirname(file), specifier.replace(/\.js$/, '.ts'));
 }
 
 /**
- * Kernel→module imports that exist today and are waiting on a **decision**, not
- * on a file move.
+ * Every relative import in `source` that leaves its own platform root.
+ *
+ * Findings include the allowed ones (another platform root), so the summary can
+ * report both counts and `--list` can tag each; {@link isImportViolation} is what
+ * partitions them. Returns nothing for a file outside every platform root — the
+ * module→platform direction is not this rule's business, and neither `src/db`
+ * nor `src/commands` is a root (D-57).
+ *
+ * The target is **not** gated on existing on disk: a platform file importing a
+ * path that no longer exists must fail loudly, not pass silently.
+ */
+export function analyzePlatformImports(source: string, file: string): PlatformImportFinding[] {
+  const root = platformRootOf(file);
+  if (!root) return [];
+  const ownRoot = join(SRC_ROOT, root);
+
+  return namedSpecifiers(source, file).flatMap((specifier) => {
+    if (!specifier.text.startsWith('.')) return [];
+    const resolved = resolveSpecifier(file, specifier.text);
+    // Inside its own root the import is internal, whichever root that is.
+    if (resolved.startsWith(`${ownRoot}/`)) return [];
+    return [
+      {
+        file,
+        specifier: specifier.text,
+        resolved,
+        targetOwner: forbiddenOwnerOf(resolved),
+        bindings: specifier.bindings,
+        kind: specifier.kind,
+        line: specifier.line,
+      },
+    ];
+  });
+}
+
+/**
+ * Platform→module imports that exist today and are waiting on a **decision**,
+ * not on a file move.
  *
  * A ratchet, exactly like {@link PENDING_RELOCATION}: an import that is not here
  * fails the build, *and* an entry here that no longer describes an import fails
  * the build. Neither adding one nor forgetting to remove one can happen
- * silently.
+ * silently. It covers both import rules, since both key a finding the same way.
  *
  * An entry is a debt with an owner, never a standing exemption. The key is
- * `<kernel file, relative to backend/>:<specifier> -> <owning module>`; the
- * value is why it is still here and what dissolves it. Keyed on the specifier
- * and not only on the file so that a file which acquires a *second* import of
- * the same module fails, and so that a partial drain — D-37 dissolves these one
- * relocation at a time — is visible commit by commit.
+ * `<file, relative to backend/>:<specifier> -> <owning module>`; the value is
+ * why it is still here and what dissolves it. Keyed on the specifier and not
+ * only on the file so that a file which acquires a *second* import of the same
+ * module fails, and so that a partial drain is visible commit by commit.
  *
- * **It holds exactly one entry, and that entry is escalated rather than fixed.**
- * D-37 A1 seeded four and dissolved three by relocating the presence machinery.
- * The survivor is not a file in the wrong place: it is the open question of
- * whether the `Organization` entity is kernel material, or whether
- * `OrganizationReadPort`'s type surface is the thing that is wrong. Both answers
- * are D-32-scale, and neither belongs in a relocation MR — so the check reports
- * it on every run, which is strictly better than the status quo of nobody
- * knowing it is there. `test/unit/kernel/boundary-check.test.ts` pins the count
- * so a second entry cannot arrive by habit.
+ * **It is empty, which is the strongest form of the assertion.** D-37 A1 seeded
+ * four entries and dissolved three by relocating the presence machinery. The
+ * survivor was `kernel/ports/organizations.ts` type-importing the `Organization`
+ * entity, escalated rather than fixed because both available answers were
+ * D-32-scale; D-55 settled it with a structural `OrganizationSnapshot` typed on
+ * `@b2b/contracts`' existing status union, at a cost of one file. The name stays
+ * `KERNEL_…` because the kernel is what the ledger protects, but rule B's roots
+ * are all four platform roots, so a peer's debt would be keyed here too.
+ * `test/unit/kernel/boundary-check.test.ts` pins it empty, so an entry cannot
+ * arrive by habit.
  */
-export const KERNEL_MODULE_IMPORTS_TO_DRAIN: Readonly<Record<string, string>> = {
-  'src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations':
-    'Type-only. `OrganizationReadPort` types all three of its methods with the ' +
-    '`Organization` entity class, so the kernel borrows a shape it does not own ' +
-    '(D-32 says it owns only the shape — for this port that is not yet true). ' +
-    'Dissolving it is a design decision with a 23-module blast radius: either the ' +
-    'kernel declares a structural `OrganizationSnapshot`, or the entity follows ' +
-    '`SalesChannel` into the kernel. Owner: F3/F4 packaging. Not D-37 A1.',
-};
+export const KERNEL_MODULE_IMPORTS_TO_DRAIN: Readonly<Record<string, string>> = {};
 
 /** `src/kernel/ports/provide.ts` — the key's file half, stable across an unrelated edit. */
 function backendRelative(file: string): string {
   return file.startsWith(`${BACKEND_ROOT}/`) ? file.slice(BACKEND_ROOT.length + 1) : file;
 }
 
-export function importFindingKey(finding: KernelImportFinding): string {
+export function importFindingKey(finding: {
+  readonly file: string;
+  readonly specifier: string;
+  readonly targetOwner: string | null;
+}): string {
   return `${backendRelative(finding.file)}:${finding.specifier} -> ${finding.targetOwner}`;
 }
 
-/** A kernel file naming a specifier that resolves into a module or a deployment. */
-export function isImportViolation(finding: KernelImportFinding): boolean {
+/** A platform file naming a specifier that resolves into a module or a deployment. */
+export function isImportViolation(finding: PlatformImportFinding): boolean {
   return finding.targetOwner !== null;
 }
 
-export function isDraining(finding: KernelImportFinding): boolean {
+export function isDraining(finding: {
+  readonly file: string;
+  readonly specifier: string;
+  readonly targetOwner: string | null;
+}): boolean {
   return KERNEL_MODULE_IMPORTS_TO_DRAIN[importFindingKey(finding)] !== undefined;
 }
 
-/** Entries of the ledger that no longer describe an import in the tree. */
-export function staleDraining(findings: readonly KernelImportFinding[]): string[] {
-  const present = new Set(findings.filter(isImportViolation).map(importFindingKey));
+/**
+ * Entries of the ledger that no longer describe an import in the tree.
+ *
+ * `extraKeys` carries rule C's violations, which are keyed identically — an
+ * entry covering a closure edge must not read as stale just because rule B's
+ * roots do not reach the file that wrote it.
+ */
+export function staleDraining(
+  findings: readonly PlatformImportFinding[],
+  extraKeys: readonly string[] = [],
+): string[] {
+  const present = new Set([...findings.filter(isImportViolation).map(importFindingKey), ...extraKeys]);
   return Object.keys(KERNEL_MODULE_IMPORTS_TO_DRAIN).filter((key) => !present.has(key));
+}
+
+// ---------------------------------------------------------------------------
+// Rule C — the kernel's transitive import closure (D-53)
+// ---------------------------------------------------------------------------
+
+export interface ClosureViolation {
+  /**
+   * The shortest import path from a `src/kernel/**` file to the module file,
+   * inclusive of both ends and relative to `backend/`. This is what rule C adds
+   * over rule B: the offending line belongs to one file, but the reason it
+   * matters is the chain that reaches it from the kernel.
+   */
+  readonly chain: readonly string[];
+  /** Absolute path of the file that names the specifier — the chain's last hop. */
+  readonly file: string;
+  readonly specifier: string;
+  readonly resolved: string;
+  readonly targetOwner: string;
+  readonly bindings: readonly string[];
+  readonly kind: ImportKind;
+  readonly line: number;
+}
+
+export interface ClosureInput {
+  /** Where the closure starts: every `src/kernel/**` file in the real run. */
+  readonly roots: readonly string[];
+  /** Reads a file, or answers `null` when it is not on disk. */
+  readonly read: (file: string) => string | null;
+}
+
+export interface ClosureResult {
+  /** Every file reached, relative to `backend/` — the closure, as a number. */
+  readonly files: readonly string[];
+  readonly violations: readonly ClosureViolation[];
+}
+
+/**
+ * Walk the relative-import closure of `roots` and report every edge that leaves
+ * it for `src/modules/` or `src/apps/`.
+ *
+ * Breadth-first, so the reported chain is a shortest one and a file is walked
+ * once however many roots reach it. The walk **stops at the module boundary**:
+ * the edge is the violation, and what lies behind it is that module's own graph,
+ * which the kernel neither owns nor is answerable for.
+ *
+ * Disk access is injected rather than performed, so the rule's own test can go
+ * red on a two-hop chain the real tree does not contain.
+ */
+export function analyzeClosure(input: ClosureInput): ClosureResult {
+  const violations: ClosureViolation[] = [];
+  const cameFrom = new Map<string, string>();
+  const seen = new Set<string>(input.roots);
+  const queue = [...seen];
+
+  const chainTo = (file: string): string[] => {
+    const chain = [file];
+    for (let at = cameFrom.get(file); at !== undefined; at = cameFrom.get(at)) chain.unshift(at);
+    return chain.map(backendRelative);
+  };
+
+  while (queue.length > 0) {
+    const file = queue.shift();
+    if (file === undefined) break;
+    const source = input.read(file);
+    if (source === null) continue;
+
+    for (const specifier of namedSpecifiers(source, file)) {
+      if (!specifier.text.startsWith('.')) continue;
+      const resolved = resolveSpecifier(file, specifier.text);
+      const targetOwner = forbiddenOwnerOf(resolved);
+      if (targetOwner !== null) {
+        violations.push({
+          chain: [...chainTo(file), backendRelative(resolved)],
+          file,
+          specifier: specifier.text,
+          resolved,
+          targetOwner,
+          bindings: specifier.bindings,
+          kind: specifier.kind,
+          line: specifier.line,
+        });
+        continue;
+      }
+      if (seen.has(resolved)) continue;
+      seen.add(resolved);
+      cameFrom.set(resolved, file);
+      queue.push(resolved);
+    }
+  }
+
+  return { files: [...seen].map(backendRelative), violations };
 }
 
 /** Every `.ts` under `dir` except colocated tests — see the header on that hole. */
@@ -462,12 +643,19 @@ function main(): void {
   const stale = stalePending(findings);
   const rel = (p: string): string => p.replace(`${SRC_ROOT}/`, 'src/');
 
-  const kernelFiles = walkKernel(KERNEL_ROOT);
-  const outward = kernelFiles.flatMap((f) => analyzeKernelImports(readFileSync(f, 'utf8'), f));
+  const platformFiles = PLATFORM_ROOTS.flatMap((root) => walkKernel(join(SRC_ROOT, root)));
+  const outward = platformFiles.flatMap((f) => analyzePlatformImports(readFileSync(f, 'utf8'), f));
   const intoModules = outward.filter(isImportViolation);
   const importViolations = intoModules.filter((f) => !isDraining(f));
   const draining = intoModules.filter(isDraining);
-  const staleImports = staleDraining(outward);
+
+  const closure = analyzeClosure({
+    roots: walkKernel(KERNEL_ROOT),
+    read: (file) => (existsSync(file) ? readFileSync(file, 'utf8') : null),
+  });
+  const closureViolations = closure.violations.filter((v) => !isDraining(v));
+  const closureDraining = closure.violations.filter(isDraining);
+  const staleImports = staleDraining(outward, closure.violations.map(importFindingKey));
 
   if (listMode) {
     for (const f of findings.filter((x) => x.sourceOwner !== x.targetOwner)) {
@@ -480,7 +668,15 @@ function main(): void {
     console.log('');
     for (const f of intoModules) {
       const tag = isDraining(f) ? 'draining ' : 'FORBIDDEN';
-      console.log(`${tag} kernel → ${f.targetOwner}: ${rel(f.file)}:${f.line} ${f.specifier}`);
+      console.log(
+        `${tag} ${platformRootOf(f.file)} → ${f.targetOwner}: ` +
+          `${rel(f.file)}:${f.line} ${f.specifier}`,
+      );
+    }
+    console.log('');
+    for (const v of closure.violations) {
+      const tag = isDraining(v) ? 'draining ' : 'FORBIDDEN';
+      console.log(`${tag} closure → ${v.targetOwner}: ${v.chain.join(' → ')}`);
     }
     console.log('');
   }
@@ -490,9 +686,14 @@ function main(): void {
       `violations=${violations.length} pending-relocation=${pending.length}`,
   );
   console.log(
-    `[kernel-boundary] kernel files=${kernelFiles.length} outward-imports=${outward.length} ` +
+    `[kernel-boundary] platform files=${platformFiles.length} outward-imports=${outward.length} ` +
       `into-modules=${intoModules.length} violations=${importViolations.length} ` +
       `draining=${draining.length}`,
+  );
+  console.log(
+    `[kernel-boundary] closure files=${closure.files.length} ` +
+      `into-modules=${closure.violations.length} violations=${closureViolations.length} ` +
+      `draining=${closureDraining.length}`,
   );
 
   if (violations.length > 0) {
@@ -517,15 +718,32 @@ function main(): void {
 
   if (importViolations.length > 0) {
     console.error(
-      '\nKernel files importing from src/modules/ or src/apps/. The kernel owns shapes and ' +
-        'platform infrastructure; a kernel that depends on a removable module is not a kernel ' +
+      '\nRule B — a platform file (src/kernel, src/http, src/events, src/tenancy) importing ' +
+        'from src/modules/ or src/apps/. The platform owns shapes and infrastructure; a kernel ' +
+        'that depends on a removable module is not a kernel, and neither is one whose peer does ' +
         '(docs/docs/architecture/kernel.md § The boundary). Move the shape into src/kernel/, ' +
-        'or declare it in KERNEL_MODULE_IMPORTS_TO_DRAIN with a reason and an owner:',
+        'take it by injection from the composition root, or declare it in ' +
+        'KERNEL_MODULE_IMPORTS_TO_DRAIN with a reason and an owner:',
     );
     for (const f of importViolations) {
       console.error(`  - ${rel(f.file)}:${f.line} -> ${f.targetOwner}`);
       console.error(
         `      ${f.kind} { ${f.bindings.join(', ')} } from '${f.specifier}'`.replace('{  }', '{}'),
+      );
+    }
+  }
+
+  if (closureViolations.length > 0) {
+    console.error(
+      "\nRule C — the kernel reaches a module through its imports. Rule B names the line that " +
+        'wrote the import; this names the chain that carries it back to the kernel, which is ' +
+        'what makes it a package cycle. Break any hop:',
+    );
+    for (const v of closureViolations) {
+      console.error(`  - ${v.chain.join(' -> ')}`);
+      console.error(
+        `      ${rel(v.file)}:${v.line}  ${v.kind} { ${v.bindings.join(', ')} } ` +
+          `from '${v.specifier}'`.replace('{  }', '{}'),
       );
     }
   }
@@ -539,7 +757,11 @@ function main(): void {
   }
 
   const failures =
-    violations.length + stale.length + importViolations.length + staleImports.length;
+    violations.length +
+    stale.length +
+    importViolations.length +
+    closureViolations.length +
+    staleImports.length;
   process.exit(failures === 0 ? 0 : 1);
 }
 
