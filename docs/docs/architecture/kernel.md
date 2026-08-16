@@ -302,10 +302,62 @@ process singleton (`payment_methods/services/registry-singleton.ts`) rather than
 baked into the class, so a registry a test builds for itself keeps answering
 about the adapters that test registered.
 
-One registry of the same family is still unconverted: `gatewayRefundRegistry`
-(`payments/services/gateway-refund-registry.js`) is imported directly by
-`stripe`, `tpay` and `autopay`, records no contributing module id, and states no
-policy for an absent owner.
+The third registry of that family, `gatewayRefundRegistry`
+(`payments/services/gateway-refund-registry.js`), converted with feature 074 and
+is the worked example of the *other wiring* a contribution seam takes: `stripe`,
+`tpay`, `payu` and `autopay` **import the singleton** and push their refund
+handler into it, so no container resolution exists for any check to see. It
+records the contributing module now and states **skip**, and the ground is worth
+keeping because it is the argument every money-side policy meets: a switched-off
+gateway must not charge or refund through its PSP's API, and skipping does not
+drop the obligation — `PaymentRefundProvider` records `pending_manual` naming the
+module that is off, which is what a deployment that never installed the gateway
+already gets. The presence probe is wired at the singleton
+(`payments/services/registry-singleton.ts`), not in the class, for the reason its
+twin gives: a registry a test builds for itself must keep answering about the
+handlers that test registered.
+
+## The deactivation-consequence ledger
+
+Principle XVII's flip-time refusal is becoming an informed confirmation
+(feature 074), so the platform may come to rest with a **present module
+depending on an absent one**. Every seam between the two then needs an answer to
+"what happens?", and the operator being asked to accept the flip needs the same
+answer, by name, before the write. There is one artefact for both, and that is
+the point of it rather than an economy:
+`modules/_lifecycle/services/deactivation-ledger.ts`.
+
+`buildDeactivationLedger` assigns every cross-module edge whose owner an
+operator may switch off one of four outcomes:
+
+| Outcome | Mechanism |
+| --- | --- |
+| **fails closed** | a call-time read of a gated port, or of a registry whose host *skips* an absent owner's entry — the caller gets nothing back, which is the same answer arriving at enumeration instead of at the port |
+| **degrades** | the dependent's own `nonBindingDependencies` entry of kind `degrades-without`; its `whenAbsent` is the sentence an operator is shown |
+| **contributes** | a boot-time push into an ungated table the host filters, or a host that deliberately *honours* an absent owner's entry |
+| **schema-only** | a `dependencies` edge with no container read under it: deactivation drops no tables, so a foreign key stays valid |
+
+An edge that gets none is reported by shape, and `check-port-dependencies.ts`
+fails the build on it. There are three, each a *fail-open* rather than a
+fail-closed: a **captured** cross-module registration, read once at construction
+and answering for ever after; a read of an **ungated registry whose owner states
+no policy**; and a **gated port resolved before the first request**. Edges into a
+module the platform refuses to switch off carry no entry at all — the flip cannot
+happen, so there is no state to describe.
+
+`deactivationConsequencesFor` projects the same entries into the rows an operator
+sees. The confirmation dialog and the 409 `MODULE_DEACTIVATION_UNCONFIRMED`
+envelope both read that one function over that one ledger, so the two id sets
+cannot drift: they are the same expression, not two lists somebody keeps in step.
+Two independent computations of "what will stop working" would drift, and the CI
+one would be the copy nobody reads.
+
+Two tables carry the standing debt, both two-way like every other ledger here.
+`CONTRIBUTION_POLICY_STATED` names the registries whose host has decided, with
+the decision as the value, so a reader need not open the class.
+`REGISTRY_POLICIES_UNSTATED` names the ones that have not, each with what would
+drain it — and an entry there excuses **one** shape for **one** name, because a
+capture over the same name is a different failure with a different fix.
 
 **Do not wrap a port call in a bare `catch`.** `lazyPort` resolves inside the
 forwarded call, so `ModuleDisabledError` surfaces at the call site, and a
@@ -622,7 +674,7 @@ is no container in the process running it.
 | Script | What it refuses |
 | --- | --- |
 | `check-kernel-boundary.ts` | an ORM relation from the kernel into a module, or from a module into another module; **and** any import specifier under `src/kernel/**` resolving into `src/modules/` or `src/apps/` — every shape, `import type` included. Carries `KERNEL_MODULE_IMPORTS_TO_DRAIN`, a two-way ratchet holding the one edge D-37 A1 escalated rather than fixed |
-| `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a **gated port resolved from a `ctx.onBoot` hook or a `ctx.routes` body**; a root shadowing a module's port; a computed port name |
+| `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a **gated port resolved from a `ctx.onBoot` hook or a `ctx.routes` body**; a root shadowing a module's port; a computed port name; **and an edge into a switchable module with no defined behaviour when that module is off** (the deactivation-consequence ledger above) |
 | `check-port-catches.ts` | a `catch` around a gated-port call that does not let `ModuleDisabledError` past — unconditional re-throw, `rethrowIfModuleDisabled`, or naming the error. Carries `PORT_CATCHES_TO_DRAIN`, a two-way ratchet |
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
 | `check-entry-scope.ts` | a non-HTTP entry point — CLI script, BullMQ worker, `setInterval` sweep — that establishes no scope (T037) |
@@ -647,13 +699,15 @@ alias is read decides the verdict, exactly as an inline read does: `cradle().x`
 inside an `asFunction` factory is a **capture**, because the factory body runs
 when Awilix constructs the registration.
 
-The port check carries three allow-lists, all meant to drain rather than grow:
+The port check carries four allow-lists, all meant to drain rather than grow:
 `HOST_REGISTERED_PORTS` (a root registering on behalf of a module), then
 `WIRING_RESOLUTIONS_TO_DRAIN` — the gated ports still destructured
 in a `ctx.routes` body when D-39 taught the check to see the shape, **now
-empty** — and `ALIAS_HIDDEN_RESOLUTIONS`, the reads the alias hid whose repair is
-a manifest decision with an operator-visible consequence rather than a one-liner.
-A **new** one fails the build.
+empty** — `ALIAS_HIDDEN_RESOLUTIONS`, the reads the alias hid whose repair is
+a manifest decision with an operator-visible consequence rather than a one-liner,
+**also empty** since feature 074 gave `commerceModule`'s constructor accessors,
+and `REGISTRY_POLICIES_UNSTATED`, the ledger's policy debt. A **new** one fails
+the build.
 
 Read the first list's size with its own history in mind. It was written as
 conversion residue and drained that way — every entry whose owner converted was

@@ -92,6 +92,38 @@ describe('D-39 — a contribution registry is registered, not provided as a port
   });
 });
 
+/**
+ * The other wiring a contribution seam takes in this tree: a **process
+ * singleton a contributor imports** and pushes into, rather than a container
+ * name it resolves. The payment family is wired that way, and the hazard is
+ * identical — an entry that outlives the module that pushed it — so the same
+ * requirement holds: the entry names its contributor and the host states what
+ * it does with an absent one.
+ *
+ * What is pinned here is the half a class-level test cannot see. Each class
+ * takes its presence probe as a constructor argument and defaults it to
+ * always-present, so a class that skips perfectly still skips *nothing* in
+ * production unless the singleton is given the kernel's effective state. That
+ * wiring is one line, in one file per module, and it is the line that makes the
+ * stated policy real.
+ */
+const IMPORTED_SEAMS: ReadonlyArray<{ readonly owner: string; readonly name: string }> = [
+  { owner: 'payments', name: 'gatewayRefundRegistry' },
+  { owner: 'payment_methods', name: 'paymentAdapterRegistry' },
+  { owner: 'delivery_methods', name: 'shippingAdapterRegistry' },
+];
+
+describe('the imported contribution seams carry the presence probe', () => {
+  it.each(IMPORTED_SEAMS)('$owner wires $name to the kernel effective state', ({ owner, name }) => {
+    const source = readFileSync(
+      `${backendRoot}src/modules/${owner}/services/registry-singleton.ts`,
+      'utf8',
+    );
+    expect(source).toContain(`export const ${name}`);
+    expect(flat(source)).toContain(flat('effectiveState.isPresent(moduleId)'));
+  });
+});
+
 describe('EmailDefaultsRegistry — owner recorded, entries honoured', () => {
   it('records the contributing module on every entry', () => {
     const registry = new EmailDefaultsRegistry();

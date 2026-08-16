@@ -17,6 +17,7 @@ import {
 import { compareArtifact } from '../../../scripts/check-overlay-determinism.js';
 import { checkPortCatches } from '../../../scripts/check-port-catches.js';
 import { findViolations } from '../../../scripts/check-port-dependencies.js';
+import { buildDeactivationLedger } from '../../../src/modules/_lifecycle/services/deactivation-ledger.js';
 import { checkSubscribeSeam } from '../../../scripts/check-subscribe-seam.js';
 import { checkTimerPresence } from '../../../scripts/check-timer-presence.js';
 import { analyzeSource as hardcodedAnalyze } from '../../../scripts/i18n-hardcoded-strings.js';
@@ -251,26 +252,49 @@ const CHECKS: readonly CheckEntry[] = [
     red: () => checkPortCatches({ sources: PORT_CATCH_TREE }, {}).violations.length,
   },
   {
+    // Two analyses in one script since feature 074, so the proof is the
+    // **smaller** of the two counts: the ownership rule and the
+    // deactivation-consequence ledger each have to find their own violation, or
+    // half the script could go blind behind the other half's red.
     script: 'backend/scripts/check-port-dependencies.ts',
     npmScript: 'check:port-dependencies',
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/port-dependency-check.test.ts',
     vacuousGuard: 'exit-2',
     red: () =>
-      findViolations({
-        resolutions: [
-          {
-            moduleId: 'blog',
-            name: 'requireAdmin',
-            file: '/repo/backend/src/modules/blog/backend.ts',
-            line: 1,
-            kind: 'deferred',
-            site: 'call',
-          },
-        ],
-        owners: new Map([['requireAdmin', 'auth']]),
-        dependencies: new Map([['blog', []]]),
-      }).length,
+      Math.min(
+        findViolations({
+          resolutions: [
+            {
+              moduleId: 'blog',
+              name: 'requireAdmin',
+              file: '/repo/backend/src/modules/blog/backend.ts',
+              line: 1,
+              kind: 'deferred',
+              site: 'call',
+            },
+          ],
+          owners: new Map([['requireAdmin', 'auth']]),
+          dependencies: new Map([['blog', []]]),
+        }).length,
+        buildDeactivationLedger({
+          reads: [
+            {
+              moduleId: 'orders',
+              dependsOn: 'payment_methods',
+              name: 'paymentAdapterRegistry',
+              gated: false,
+              captured: true,
+              site: 'call',
+            },
+          ],
+          declaredDependencies: new Map(),
+          nonBinding: [],
+          neverAbsentOwners: new Set(),
+          contributionPolicies: {},
+          excludedNames: new Set(),
+        }).unassigned.length,
+      ),
   },
   {
     script: 'backend/scripts/check-subscribe-seam.ts',

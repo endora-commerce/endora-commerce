@@ -1,14 +1,18 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   ALIAS_HIDDEN_RESOLUTIONS,
   CONTRIBUTION_POLICY_STATED,
+  REGISTRY_POLICIES_UNSTATED,
   closureOf,
   describe as describeViolation,
   describeNonBindingIssue,
+  describeUnassignedEdge,
   findNonBindingIssues,
   findViolations,
   findRootIssues,
+  importedContributionSeams,
+  ledgerReads,
   nonBindingPortEdges,
   NON_LITERAL_PORT_NAME,
   providedPortNames,
@@ -561,17 +565,13 @@ describe('ALIAS_HIDDEN_RESOLUTIONS — the issue #90 debt', () => {
     site: 'call',
   });
 
-  it('suppresses every kind for a listed pair', () => {
-    // Widest suppression in the file, and deliberately so: the capture and the
-    // undeclared dependency these produce are two views of one fact — a
-    // cross-module read the manifests do not model.
-    expect(
-      findViolations({
-        resolutions: [resolution('orders', 'paymentAdapterRegistry')],
-        owners: new Map([['paymentAdapterRegistry', 'payment_methods']]),
-        dependencies: new Map([['orders', []]]),
-      }),
-    ).toEqual([]);
+  it('is empty — the four `orders` captures drained with the accessor change', () => {
+    // The last four entries were `orders` freezing two method modules'
+    // registrations into `commerceModule`'s options. That constructor takes
+    // accessors now (feature 074, FR-024), so the reads are deferred and
+    // declared, and the table has nothing left to suppress. It stays as the
+    // ratchet: a new entry has to be written here with its reason.
+    expect(Object.keys(ALIAS_HIDDEN_RESOLUTIONS)).toEqual([]);
   });
 
   it('still reports the same shape for a pair nobody listed', () => {
@@ -1013,34 +1013,261 @@ describe('findNonBindingIssues — the guard-rails on `contributes-to`', () => {
 });
 
 describe('CONTRIBUTION_POLICY_STATED — the registries a contribution may name', () => {
-  it('attributes every listed registry to the module that registers it, ungated', () => {
+  /**
+   * A contribution seam is wired one of two ways in this tree, and the table
+   * covers both: a container registration a contributor resolves, and a process
+   * singleton a contributor imports and pushes into. So the honesty check is
+   * "the owning module really holds this name", not "the owning module's
+   * `backend.ts` registers it" — which was the older, narrower question, and
+   * the reason the payment family's three registries could not be listed at
+   * all.
+   */
+  const holdsName = (owner: string, name: string): boolean => {
+    const file = `/repo/backend/src/modules/${owner}/backend.ts`;
+    const source = readFileSync(
+      new URL(`../../../src/modules/${owner}/backend.ts`, import.meta.url),
+      'utf8',
+    );
+    if (registeredNames(source, file).includes(name)) {
+      expect(
+        providedPortNames(source, file),
+        `${owner}:${name} is a gated port, so a contribution to it is a pull`,
+      ).not.toContain(name);
+      return true;
+    }
+    const singleton = new URL(
+      `../../../src/modules/${owner}/services/registry-singleton.ts`,
+      import.meta.url,
+    );
+    return existsSync(singleton) && readFileSync(singleton, 'utf8').includes(`export const ${name}`);
+  };
+
+  it('attributes every listed registry to the module that holds it, ungated', () => {
     // The ledger stays honest the same way `HOST_REGISTERED_PORTS` does: it is
     // a claim about the tree, so the tree is asked.
     for (const key of Object.keys(CONTRIBUTION_POLICY_STATED)) {
       const [owner, name] = key.split(':');
-      const file = `/repo/backend/src/modules/${owner}/backend.ts`;
-      const source = readFileSync(
-        new URL(`../../../src/modules/${owner}/backend.ts`, import.meta.url),
-        'utf8',
-      );
-      expect(registeredNames(source, file), `${key} is not registered by ${owner}`).toContain(
-        name,
-      );
-      expect(
-        providedPortNames(source, file),
-        `${key} is a gated port, so a contribution to it is a pull`,
-      ).not.toContain(name);
+      expect(holdsName(owner ?? '', name ?? ''), `${key} is not held by ${owner}`).toBe(true);
     }
   });
 
-  it('does not list `gatewayRefundRegistry`, which states no policy', () => {
-    // Named in D-44 §7 as the live counter-example: it records no contributing
-    // module id and its class states nothing about an absent one. Listing it
-    // would let a `contributes-to` edge past the guard-rail that exists for it.
+  it('lists `gatewayRefundRegistry`, which now states one', () => {
+    // D-44 §7 named it the live counter-example: it recorded no contributing
+    // module id and its class stated nothing about an absent one, so four
+    // gateway modules pushed a refund handler that kept charging their PSP
+    // after an operator switched them off. The class records the contributor
+    // and skips an absent one now, and the ledger reads this table — so
+    // removing the entry turns those four pushes back into build failures.
+    expect(CONTRIBUTION_POLICY_STATED['payments:gatewayRefundRegistry']).toBe('skip');
+  });
+});
+
+describe('REGISTRY_POLICIES_UNSTATED — the ledger’s standing policy debt', () => {
+  it('keys every entry `<owner>:<name>` on a module that exists', () => {
+    const ids = new Set(DISCOVERED_MANIFESTS.map((entry) => entry.id));
+    for (const key of Object.keys(REGISTRY_POLICIES_UNSTATED)) {
+      const [owner, name] = key.split(':');
+      expect(ids.has(owner ?? ''), `${key} names '${owner}', which is not a module`).toBe(true);
+      expect(name ?? '').not.toBe('');
+    }
+  });
+
+  it('says what would drain each entry, at some length', () => {
+    // The table's whole value is that an entry is a decision somebody has to
+    // take, not a shrug. A one-word reason is a shrug.
+    for (const [key, reason] of Object.entries(REGISTRY_POLICIES_UNSTATED)) {
+      expect(reason.length, `${key} has no real reason`).toBeGreaterThan(80);
+    }
+  });
+
+  it('does not overlap a registry that already states a policy', () => {
+    for (const key of Object.keys(REGISTRY_POLICIES_UNSTATED)) {
+      expect(CONTRIBUTION_POLICY_STATED[key], `${key} is in both tables`).toBeUndefined();
+    }
+  });
+});
+
+describe('importedContributionSeams — the wiring the container does not see', () => {
+  const STRIPE = '/repo/backend/src/modules/stripe/backend.ts';
+
+  it('reads a push into a singleton imported from another module', () => {
+    const source = [
+      "import { gatewayRefundRegistry } from '../payments/services/registry-singleton.js';",
+      'export function registerModule(ctx) {',
+      '  ctx.onBoot(() => {',
+      "    gatewayRefundRegistry.register(handler, 'stripe');",
+      '  });',
+      '}',
+    ].join('\n');
+
+    expect(importedContributionSeams(source, STRIPE)).toEqual([
+      {
+        moduleId: 'stripe',
+        dependsOn: 'payments',
+        name: 'gatewayRefundRegistry',
+        file: STRIPE,
+        line: 4,
+        site: 'boot',
+      },
+    ]);
+  });
+
+  it('reads an unregister as the same seam', () => {
+    const source = [
+      "import { paymentAdapterRegistry } from '../payment_methods/services/registry-singleton.js';",
+      "paymentAdapterRegistry.unregister('stripe');",
+    ].join('\n');
+
+    expect(importedContributionSeams(source, STRIPE).map((seam) => seam.dependsOn)).toEqual([
+      'payment_methods',
+    ]);
+  });
+
+  it('ignores an import the file never pushes into', () => {
+    // Deliberately narrow: a cross-module import of a class, an error or a pure
+    // function is Principle I's business, and 63 of them exist. Folding them in
+    // would drown the one shape the ledger can answer for.
+    const source = [
+      "import { ReceivePaymentHandler } from '../payments/services/receive-payment-handler.js';",
+      'const handler = new ReceivePaymentHandler();',
+    ].join('\n');
+
+    expect(importedContributionSeams(source, STRIPE)).toEqual([]);
+  });
+
+  it('ignores a type-only import and a module’s own singleton', () => {
+    const source = [
+      "import type { GatewayRefundRegistry } from '../payments/services/gateway-refund-registry.js';",
+      "import { stripeRegistry } from './services/registry-singleton.js';",
+      'stripeRegistry.register(x);',
+    ].join('\n');
+
+    expect(importedContributionSeams(source, STRIPE)).toEqual([]);
+  });
+
+  it('finds the pushes the tree actually ships', () => {
+    // The reach half: this shape is invisible to every other rule in the file,
+    // because it is not a container resolution at all.
+    const source = readFileSync(
+      new URL('../../../src/modules/stripe/backend.ts', import.meta.url),
+      'utf8',
+    );
+    const seams = importedContributionSeams(source, STRIPE);
+    expect(seams.map((seam) => `${seam.dependsOn}:${seam.name}`).sort()).toEqual([
+      'payment_methods:paymentAdapterRegistry',
+      'payments:gatewayRefundRegistry',
+    ]);
+  });
+});
+
+describe('ledgerReads — the same capture test the violation rule applies', () => {
+  const captured = (over: Partial<PortResolution>): PortResolution => ({
+    moduleId: 'orders',
+    name: 'paymentAdapterRegistry',
+    file: '/repo/backend/src/modules/orders/backend.ts',
+    line: 1,
+    kind: 'captured',
+    site: 'call',
+    ...over,
+  });
+  const owners = new Map([
+    ['paymentAdapterRegistry', 'payment_methods'],
+    ['em', 'orders'],
+  ]);
+
+  it('carries a cross-module capture into the ledger', () => {
+    const reads = ledgerReads({
+      resolutions: [captured({})],
+      seams: [],
+      owners,
+      providedPorts: new Map(),
+    });
+    expect(reads).toEqual([
+      {
+        moduleId: 'orders',
+        dependsOn: 'payment_methods',
+        name: 'paymentAdapterRegistry',
+        gated: false,
+        captured: true,
+        site: 'call',
+      },
+    ]);
+  });
+
+  it('does not call a platform name a capture, and does not call an own name an edge', () => {
+    // `em` is created by a composition root before any module composes, and a
+    // module reading its own registration is not a cross-module edge at all.
     expect(
-      Object.keys(CONTRIBUTION_POLICY_STATED).some((key) =>
-        key.endsWith(':gatewayRefundRegistry'),
-      ),
-    ).toBe(false);
+      ledgerReads({
+        resolutions: [captured({ name: 'em' })],
+        seams: [],
+        owners,
+        providedPorts: new Map(),
+      }),
+    ).toEqual([]);
+  });
+
+  it('marks a port registered with providePort as gated', () => {
+    const reads = ledgerReads({
+      resolutions: [captured({ kind: 'deferred' })],
+      seams: [],
+      owners,
+      providedPorts: new Map([['paymentAdapterRegistry', 'payment_methods']]),
+    });
+    expect(reads[0]?.gated).toBe(true);
+  });
+
+  it('carries an import seam in as an ungated read', () => {
+    const reads = ledgerReads({
+      resolutions: [],
+      seams: [
+        {
+          moduleId: 'stripe',
+          dependsOn: 'payments',
+          name: 'gatewayRefundRegistry',
+          file: '/repo/backend/src/modules/stripe/backend.ts',
+          line: 1,
+          site: 'boot',
+        },
+      ],
+      owners,
+      providedPorts: new Map(),
+    });
+    expect(reads).toEqual([
+      {
+        moduleId: 'stripe',
+        dependsOn: 'payments',
+        name: 'gatewayRefundRegistry',
+        gated: false,
+        captured: false,
+        site: 'boot',
+      },
+    ]);
+  });
+});
+
+describe('describeUnassignedEdge — the message names the repair', () => {
+  it('tells a capture what to do instead', () => {
+    const message = describeUnassignedEdge({
+      moduleId: 'orders',
+      dependsOn: 'payment_methods',
+      name: 'paymentAdapterRegistry',
+      shape: 'captured-registration',
+      detail: 'read once at construction',
+    });
+    expect(message).toContain('orders → payment_methods:paymentAdapterRegistry');
+    expect(message).toContain('accessor');
+  });
+
+  it('tells a policy-less registry where the decision goes', () => {
+    const message = describeUnassignedEdge({
+      moduleId: 'stripe',
+      dependsOn: 'payments',
+      name: 'gatewayRefundRegistry',
+      shape: 'registry-without-policy',
+      detail: 'states nothing',
+    });
+    expect(message).toContain('CONTRIBUTION_POLICY_STATED');
+    expect(message).toContain('REGISTRY_POLICIES_UNSTATED');
   });
 });

@@ -115,6 +115,16 @@ never add a "module options" object for something the module can read itself.
 4. **Declare the edge** — resolving a port owned by `X` puts `X` in your manifest
    `dependencies`. That is what makes the edge real to the lifecycle, the migration order and
    an operator switching `X` off. The port check fails the build without it.
+4a. **Say what happens when `X` is off.** `check-port-dependencies.ts` also builds the
+   **deactivation-consequence ledger** (feature 074): every cross-module edge into a
+   switchable module answers one of four ways — it fails closed at the seam, it degrades as
+   your `nonBindingDependencies` entry declares, it is a boot-time contribution the host
+   filters, or it is schema-only. An edge that answers none fails the build, and the three
+   shapes that do are all fail-*open*: a captured cross-module registration, a read of an
+   ungated registry whose owner states no absent-owner policy, and a gated port resolved
+   before the first request. The same artefact is what the operator's confirmation dialog
+   renders, so the classification is not CI bookkeeping — see
+   `docs/docs/architecture/kernel.md` § *The deactivation-consequence ledger*.
 5. **Routes, workers, subscribers** — `ctx.routes` / `ctx.worker` / `ctx.subscribe`. These
    already apply the gating wrappers; do not call `defineModuleRoutes` and friends by hand.
 6. **Settings your module owns** — read them through `settingsReadPort` inside the module.
