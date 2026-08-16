@@ -198,8 +198,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const em = (): EntityManager => forkScopedEm(orm);
 
   // Feature 072 — the kernel container. Modules composed through
-  // `composeModules` register into it; everything still hand-wired below is
-  // unaffected until its own conversion lands.
+  // `composeModules` register into it; the deployment values assembled below
+  // are handed to that call and register nothing themselves.
   //
   // It is deliberately **not** installed as the process root
   // (`setRootContainer`). Doing so makes every `enterPlatformScope` branch a
@@ -250,9 +250,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // core registry + overlay-only modules (the core array is never edited).
   // Feature 072 (T066) — a deployment's client overrides, as decorations
   // keyed by the registration they wrap. The overrides that reach a module
-  // still hand-wired here are handed to it; once a module is converted its
-  // override becomes `ctx.di.decorate` and this lookup disappears with the
-  // hand-wiring.
+  // decorate a core registration are applied by `composeModules`; the lookup
+  // survives only to hand that call the decorations it should apply.
   const overlayDecorations = await loadOverlayDecorations();
   const decoratePricingService = overlayDecorations.get('pricingService') as
     | ((inner: PricingServiceContract) => PricingServiceContract)
@@ -1304,10 +1303,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // `resolveCustomerAccountId` option and this root spelled the same
     // reference once per module.
     customerAccountIdResolver: resolveCustomerAccountId,
-    // Feature 072 (T101) — inherited credit limits. Owned by `organizations`,
-    // which is still hand-wired; the entry goes when that module converts.
-    // Feature 072 (T111) — the composed attribute read model. Owned by
-    // `catalog`, which is still hand-wired; the entry goes when it converts.
+    // Feature 072 (T101) — inherited credit limits, owned by `organizations`,
+    // which provides `organizationInheritancePort`. This entry is the root's
+    // bridge to it and goes when the consumer resolves the port directly.
+    // Feature 072 (T111) — the composed attribute read model, owned by
+    // `catalog`. A root bridge, not a module that is unconverted.
     // Feature 072 (wave 2) — how this composition names the acting admin for an
     // audit record: the admin's id, or `null` for a non-admin caller. The ad
     // modules each declared an identically-shaped `resolveAuditContext` option
@@ -1322,7 +1322,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // make rather than something inferred from a missing option.
     moduleQueueRedis: redis,
     // Feature 072 (wave 2) — the sales-channel code⇄id lookup `google_analytics`
-    // resolves. Owned by `sales_channels`, which is still hand-wired (T110).
+    // resolves. Owned by `sales_channels`; this is a root bridge to its port.
     salesChannelCodeIdPort: {
       idByCode: async (code: string) =>
         (await salesChannels.resolver.getByCode(code))?.id ?? null,

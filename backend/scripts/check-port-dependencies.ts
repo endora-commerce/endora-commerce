@@ -1326,8 +1326,8 @@ export function describe(violation: PortViolation, srcRoot = SRC_ROOT): string {
   if (violation.kind === 'unowned-name') {
     return (
       `  - ${resolution.moduleId} resolves '${resolution.name}' (${where}), which no module ` +
-      `registers.\n    Register it in the owning module's backend.ts, or — while that module ` +
-      `is still hand-wired — declare its owner in HOST_REGISTERED_PORTS in this script.`
+      `registers.\n    Register it in the owning module's backend.ts, or — while a root ` +
+      `still bridges this port — declare its owner in HOST_REGISTERED_PORTS in this script.`
     );
   }
   return (

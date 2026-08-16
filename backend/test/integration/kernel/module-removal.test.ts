@@ -129,8 +129,8 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
 
   // `composition.ts` still reaches into `email` twice: for the `EmailCradle`
   // type it resolves the mailer with, and for `absolutizePublicUrl`, a URL
-  // helper it applies on behalf of modules that are still hand-wired. Both
-  // disappear when those consumers convert; neither belongs to `email`.
+  // helper it applies on behalf of its consumers. Both disappear when those
+  // consumers resolve it themselves; neither belongs to `email`.
   email: ['src/composition.ts'],
   // Two central registries name blog by path, and they are different problems.
   //

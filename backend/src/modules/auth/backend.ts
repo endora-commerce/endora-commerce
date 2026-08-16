@@ -44,9 +44,9 @@ export interface AuthCradle {
   readonly sessionService: SessionService;
   /**
    * `api_keys`' bearer-token resolver. Registered by the composition root
-   * **after** this module composes, because `api_keys` is still hand-wired and
-   * is constructed later; it is read per request, so the late registration is
-   * invisible to the plugin below.
+   * **after** this module composes: `api_keys` provides the port, and the
+   * single-pass composition orders it by the manifest graph rather than by
+   * this file. It is read per request, so the ordering is invisible here.
    */
   readonly apiKeyResolver:
     | ((token: string) => Promise<{

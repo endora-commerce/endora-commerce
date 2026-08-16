@@ -200,10 +200,10 @@ export class MissingModuleDependencyError extends Error {
 /**
  * Every declared dependency names a module that exists (T056).
  *
- * Scope is deliberately **every present module**, not only the converted ones:
- * a dangling declaration is just as wrong in a module that is still hand-wired,
- * and the generator is the only place in the build that already has the whole
- * manifest set in front of it.
+ * Scope is deliberately **every present module**, including overlay ones the
+ * emitted list does not order: a dangling declaration is wrong wherever it is
+ * declared, and the generator is the only place in the build that already has
+ * the whole manifest set in front of it.
  */
 export function assertDependenciesPresent(modules: readonly PresentModule[]): void {
   const present = new Set(modules.map((module) => module.id));
@@ -248,8 +248,8 @@ async function discoverPresentModules(): Promise<PresentModule[]> {
  * emitted file is a function of the tree and nothing else.
  *
  * Kahn's algorithm over the subgraph induced by the modules actually in the
- * list: a declared dependency on a module that is still hand-wired constrains
- * nothing here, because that module is not in this order at all.
+ * list: a declared dependency on a module absent from it constrains nothing
+ * here, because that module is not in this order at all.
  */
 export function orderModules(nodes: readonly ComposerNode[]): ComposerNode[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -324,8 +324,10 @@ function emitComposer(nodes: readonly ComposerNode[]): string {
 //   3. overlay modules (feature 057) last, so a deployment's \`di.decorate\`
 //      wins over the core registration it decorates.
 //
-// A module missing from this list is a module with no \`backend.ts\` — it is
-// still hand-wired in \`composition.ts\` until its own conversion lands.
+// A module missing from this list is a module the tree walk found no
+// \`backend.ts\` for. Every core module exports \`registerModule\` today, so an
+// absence here means a file was not written or not named \`backend.ts\` — not
+// that the module is composed somewhere else.
 
 import type { ModuleEntry } from './kernel/compose.js';
 
