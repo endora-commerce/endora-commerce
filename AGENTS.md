@@ -298,14 +298,17 @@ number", never pick a number, never edit an execution list.
    timestamp. The class name is derived mechanically from the filename
    (`Migration<STAMP><PascalCaseTail>`); it is the name persisted in `mikro_orm_migrations`,
    so never rename an applied class.
-2. **Register it** — paste the two printed lines (import + `migration('<id>', Class)`) into
-   the module's group in **`backend/src/db/migrations-registry.ts`**. This registry replaced
-   the hand-ordered `migrationsList` in `mikro-orm.config.ts`. An unregistered migration does
-   not run; `test/unit/db/migrations-registry.test.ts` fails the build for it.
-3. **Do not order by hand.** Declaration order in the registry has no effect. Execution order
-   is computed by `backend/src/db/migration-order.ts` from the timestamps, corrected by the
-   module-manifest dependency graph (45-day horizon). If `db:fresh` fails on ordering, bump
-   the timestamp or fix the manifest `dependencies` — never move a registry line.
+2. **Register it** — run `pnpm --filter backend run composer:generate` and commit
+   **`backend/src/db/migrations-registry.generated.ts`** alongside the migration. The
+   registry is generated from a filesystem walk (feature 071, F2) and replaced the
+   hand-ordered `migrationsList` in `mikro-orm.config.ts`; never edit it by hand. An
+   unregistered migration does not run; `test/unit/db/migrations-registry.test.ts` and
+   `overlay:check` both fail the build for a stale artefact.
+3. **Do not order by hand.** Declaration order in the registry has no effect — and there is
+   nothing to reorder, since regenerating restores it. Execution order is computed by
+   `backend/src/db/migration-order.ts` from the timestamps, corrected by the module-manifest
+   dependency graph (45-day horizon). If `db:fresh` fails on ordering, bump the timestamp or
+   fix the manifest `dependencies`.
 4. **Cross-module FK ⇒ declare the dependency.** A new foreign key to another module's table
    requires that module in your manifest's `dependencies` (transitively), or
    `pnpm --filter backend exec vitest run test/unit/db/fk-dependency-drift.test.ts` fails.
@@ -323,6 +326,12 @@ number", never pick a number, never edit an execution list.
    dependency-corrected, so a migration landing there silently loses the ordering its
    manifest `dependencies` are supposed to buy it. `migration:new` clamps the stamp for you;
    do not hand-write one below the watermark.
+
+**Entities are registered the same way.** `backend/src/db/entities-registry.generated.ts`
+comes out of the same command and the same walk: add the `@Entity()` class under the
+module's `entities/`, run `composer:generate`, commit the artefact. Both registries are
+core-only — an overlay module cannot ship a migration, so the generator refuses an entity or
+a migration under `backend/src/apps/` rather than emitting schema nothing creates.
 
 Full guide: `docs/docs/architecture/migrations.md`; contracts under
 `specs/065-manifest-aware-migrations/contracts/`.

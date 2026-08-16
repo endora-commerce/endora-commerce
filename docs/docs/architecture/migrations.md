@@ -13,7 +13,7 @@ Two files carry the mechanism, both under `backend/src/db/`:
 
 | File | Role |
 |------|------|
-| `migrations-registry.ts` | The single registration point — one static import + one entry per migration, grouped by owning module. |
+| `migrations-registry.generated.ts` | The single registration point — one static import + one entry per migration, grouped by owning module. **Generated** from a filesystem walk by `scripts/generate-composer.ts` and committed; never edited by hand. |
 | `migration-order.ts` | The pure `orderMigrations()` function that computes the execution order, plus the `UNCORRECTED_THROUGH` watermark. No I/O, no clock, no ORM. |
 
 `mikro-orm.config.ts` only wires them together; it holds no ordering knowledge.
@@ -100,31 +100,26 @@ The scaffolder (`backend/scripts/new-migration.ts`):
    never dependency-corrected — the migration would silently lose the ordering its
    manifest `dependencies` are supposed to buy it. The scaffolder emits a stamp one
    second past the watermark instead;
-4. writes the file from a template into the module's `migrations/` directory;
-5. **prints** the import line, the `migration(...)` entry line, and the `// ── <id> ──`
-   group banner they belong under.
+4. writes the file from a template into the module's `migrations/` directory.
 
-It deliberately does **not** edit the registry — text-munging a source file for a
-two-line paste is fragile and can land in the wrong module block, and a forgotten
-registration is already a CI failure.
+Register it by regenerating the committed registry, and commit both files:
 
-Paste the two printed lines into `backend/src/db/migrations-registry.ts`, in the
-owning module's group, chronologically inside that group:
-
-```ts
-// import block, under the module's banner
-import { Migration20260805T141530OrdersPlacementIntents }
-  from '../modules/orders/migrations/20260805T141530_orders_placement_intents.js';
-
-// entry array, under the same banner
-  // ── orders ────────────────────────────────────────────────────────────
-  migration('orders', Migration20260805T141530OrdersPlacementIntents),
+```bash
+pnpm --filter backend run composer:generate
 ```
+
+The generator walks `src/db/migrations/` and every `src/modules/<id>/migrations/`,
+derives each class name from its filename, and refuses — rather than skips — a file it
+cannot place: an unrecognized `.ts` in a migrations directory, a class the file does
+not export, two files deriving the same name, or a migration under
+`src/apps/<deployment>/` (overlay modules cannot ship migrations, so registering one
+would be a new capability rather than a side effect of generating the list).
 
 **An unregistered migration does not run.** The registry is a static-import list, not
 a glob (glob discovery needs runtime dynamic `import()` of `.ts`, which Node's ESM
 loader cannot transform and which breaks under Vitest — the same reason
-`entities-registry.ts` exists). The round-trip guard
+`entities-registry.generated.ts` exists, and it is emitted by the same command). The
+round-trip guard
 `backend/test/unit/db/migrations-registry.test.ts` fails the build for a file with no
 entry, an entry with no file, a class name that does not match its filename, a
 declared `moduleId` that disagrees with the owning directory, a filename segment that
@@ -284,15 +279,15 @@ All of these throw at **config-build time** — i.e. the first time anything imp
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `duplicate-timestamp: 20260801T000001: "MigrationA…" and "MigrationB…"` | Two branches scaffolded in the same second (common: both were clamped to the same `UNCORRECTED_THROUGH + 1s` floor) and then merged. | Advance one of them by a whole second — rename the file **and** the class, and update its registry import. This is designed behaviour: the collision is loud and names both classes rather than silently reordering. |
+| `duplicate-timestamp: 20260801T000001: "MigrationA…" and "MigrationB…"` | Two branches scaffolded in the same second (common: both were clamped to the same `UNCORRECTED_THROUGH + 1s` floor) and then merged. | Advance one of them by a whole second — rename the file **and** the class, then regenerate. This is designed behaviour: the collision is loud and names both classes rather than silently reordering. |
 | `cycle in module dependency graph: [carts → promotions → catalog → carts]` | A manifest `dependencies` edit closed a loop. | Drop one edge per the precedence rules and comment it in the manifest that would have declared it; add an `ACKNOWLEDGED_FK_EDGES` entry if a real foreign key backs it. |
 | `migration "…" declares the unknown owning module "x"` | A brand-new module whose manifest is not in the generated index. | `pnpm --filter backend run manifest-index:generate` |
 | `migration class "…" does not match the naming convention` | Hand-written or hand-renamed file; class and filename disagree. | Re-derive the class name from the filename (see the table above) or re-scaffold. |
-| Round-trip guard fails naming a file/class | A migration on disk with no registry entry, or the reverse. | Add (or remove) the import + `migration(...)` line. |
+| Round-trip guard fails naming a file/class | A migration on disk with no registry entry, or the reverse. | `pnpm --filter backend run composer:generate` and commit the artefact. |
 | `db:fresh` fails on a foreign key the chain should already have created | An inversion **beyond** the 45-day horizon — the corrector deliberately refuses to reorder that far back. | Advance the new migration's timestamp so the pair falls inside the horizon. Do **not** reorder the registry: declaration order has no effect. |
 
 The last row is worth repeating: **never "fix" an ordering surprise by moving a line
-in `migrations-registry.ts`.** Declaration order is not execution order. Bump the
+in the generated registry.** Declaration order is not execution order, and regenerating restores it anyway. Bump the
 timestamp, or fix the manifest `dependencies`.
 
 ## The uncorrected block, and renaming an applied migration

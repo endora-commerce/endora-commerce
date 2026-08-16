@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_ENTITIES } from '../../../src/db/entities-registry.js';
+import { ALL_ENTITIES } from '../../../src/db/entities-registry.generated.js';
 import { entities as blogEntities } from '../../../src/modules/blog/backend.js';
 
 /**
@@ -11,7 +11,11 @@ import { entities as blogEntities } from '../../../src/modules/blog/backend.js';
  * `blog` and forgotten in one of the two places is a failure here rather than a
  * missing table at runtime or an orphan the removal check cannot see.
  *
- * `ALL_ENTITIES` stays hand-maintained until the generator of T049 replaces it.
+ * `ALL_ENTITIES` is generated from the tree since feature 071's F2, so the
+ * "forgotten in one of the two places" half is now structurally impossible on
+ * the registry side. What is left is the half that still matters: the module's
+ * own exported list is hand-written and can drift from what it actually
+ * declares.
  */
 
 describe('blog — the exported entity list', () => {

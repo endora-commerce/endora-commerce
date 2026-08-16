@@ -1,5 +1,11 @@
+import { readdirSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { compareArtifact } from '../../../scripts/check-overlay-determinism.js';
+import {
+  compareArtifact,
+  coveredArtifactPaths,
+} from '../../../scripts/check-overlay-determinism.js';
 
 /**
  * The determinism gate's own test (issue #113).
@@ -48,5 +54,29 @@ describe('compareArtifact', () => {
       ok: false,
       reason: 'empty',
     });
+  });
+});
+
+describe('coveredArtifactPaths', () => {
+  const srcRoot = resolve(fileURLToPath(new URL('../../../src', import.meta.url)));
+
+  function generatedFilesUnder(dir: string, out: string[] = []): string[] {
+    for (const name of readdirSync(dir)) {
+      if (name === 'node_modules' || name === 'dist') continue;
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) generatedFilesUnder(full, out);
+      else if (name.endsWith('.generated.ts')) out.push(full);
+    }
+    return out;
+  }
+
+  it('covers every committed generated artifact, and names nothing else', () => {
+    // The two-way ratchet the check itself cannot have: a generator that starts
+    // emitting a fifth file, or a check that quietly stops comparing one, is a
+    // committed artifact drifting from the tree with nothing watching. Run in
+    // the bare-core shape, which is what the repository commits — a
+    // per-deployment build renders a sixth artifact that is deliberately not
+    // committed (issue #120).
+    expect(generatedFilesUnder(srcRoot).sort()).toEqual([...coveredArtifactPaths()].sort());
   });
 });

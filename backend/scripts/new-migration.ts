@@ -14,12 +14,12 @@ import { UNCORRECTED_THROUGH } from '../src/db/migration-order.js';
  * specs/065-manifest-aware-migrations/contracts/naming-convention.md §1, §2
  * and §6. This script implements them and nothing else.
  *
- * It writes the file and **prints** the import line, the registry entry line
- * and the module group they belong in. It deliberately does not edit
- * `src/db/migrations-registry.ts`: text-munging a source file for a two-line
- * paste is fragile and can land in the wrong module block, and a forgotten
- * registration is already a CI failure via the round-trip guard in
- * test/unit/db/migrations-registry.test.ts.
+ * It writes the file and stops there. Registration used to be two printed lines
+ * to paste into a hand-maintained registry; since feature 071's F2 the registry
+ * is emitted from a filesystem walk, so registering the new migration is
+ * `pnpm --filter backend run composer:generate`. A forgotten regeneration is a
+ * CI failure twice over: the round-trip guard in
+ * test/unit/db/migrations-registry.test.ts and `overlay:check`.
  *
  * `mikro-orm migration:create` / `migration:generate` are not sanctioned —
  * they write into a single configured path and cannot know the owning module.
@@ -152,17 +152,6 @@ export interface Scaffold {
   /** Path relative to `backend/`. */
   relativePath: string;
   contents: string;
-  /** The line to paste into the registry's import block. */
-  importLine: string;
-  /** The line to paste into the registry's entry array. */
-  entryLine: string;
-  /** The `// ── <id> ──` banner the two lines belong under. */
-  groupBanner: string;
-}
-
-function bannerFor(moduleId: string): string {
-  const prefix = `// ── ${moduleId} `;
-  return `${prefix}${'─'.repeat(Math.max(3, 78 - prefix.length))}`;
 }
 
 export function buildScaffold(input: ScaffoldInput): Scaffold {
@@ -171,9 +160,6 @@ export function buildScaffold(input: ScaffoldInput): Scaffold {
   const className = classNameFromFile(filename);
   const isCore = input.moduleId === CORE_MODULE_ID;
   const relativeDir = isCore ? 'src/db/migrations' : `src/modules/${input.moduleId}/migrations`;
-  const importPath = isCore
-    ? `./migrations/${filename.replace(/\.ts$/, '.js')}`
-    : `../modules/${input.moduleId}/migrations/${filename.replace(/\.ts$/, '.js')}`;
 
   const contents =
     `import { Migration } from '@mikro-orm/migrations';\n` +
@@ -181,8 +167,10 @@ export function buildScaffold(input: ScaffoldInput): Scaffold {
     `/**\n` +
     ` * TODO describe the change this migration makes.\n` +
     ` *\n` +
-    ` * Register it in src/db/migrations-registry.ts — an unregistered migration\n` +
-    ` * does not run, and the round-trip guard fails the build for it.\n` +
+    ` * Registration is a regeneration: run\n` +
+    ` * \`pnpm --filter backend run composer:generate\` and commit the result. An\n` +
+    ` * unregistered migration does not run, and the round-trip guard fails the\n` +
+    ` * build for it.\n` +
     ` */\n` +
     `export class ${className} extends Migration {\n` +
     `  override async up(): Promise<void> {\n` +
@@ -201,9 +189,6 @@ export function buildScaffold(input: ScaffoldInput): Scaffold {
     className,
     relativePath: `${relativeDir}/${filename}`,
     contents,
-    importLine: `import { ${className} } from '${importPath}';`,
-    entryLine: `  migration('${input.moduleId}', ${className}),`,
-    groupBanner: bannerFor(input.moduleId),
   };
 }
 
@@ -281,13 +266,9 @@ function main(): void {
   process.stdout.write(
     `[migration:new] wrote backend/${scaffold.relativePath}\n` +
       `\n` +
-      `Add these two lines to backend/src/db/migrations-registry.ts, under the\n` +
-      `"${scaffold.moduleId}" group (chronological inside the group):\n` +
+      `Register it by regenerating the committed registry, and commit both files:\n` +
       `\n` +
-      `  ${scaffold.importLine}\n` +
-      `\n` +
-      `  ${scaffold.groupBanner}\n` +
-      `${scaffold.entryLine}\n` +
+      `  pnpm --filter backend run composer:generate\n` +
       `\n` +
       `An unregistered migration does not run — test/unit/db/migrations-registry.test.ts\n` +
       `fails the build for it. See docs/docs/architecture/migrations.md.\n`,

@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /**
- * Generates the two files that name every module by hand today:
+ * Generates the four files that name every module by hand today:
  *
  *   - `backend/src/composition.generated.ts` — the list a composition root
  *     walks: one `{ id, version, registerModule }` entry per converted module,
@@ -12,6 +12,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
  *   - `backend/src/modules/_lifecycle/manifest-index.generated.ts` — the one
  *     manifest registry: every module's manifest, plus the install hooks it
  *     exports and whether it came from a deployment's overlay tree.
+ *   - `backend/src/db/entities-registry.generated.ts` — the explicit entity
+ *     class list MikroORM discovers through.
+ *   - `backend/src/db/migrations-registry.generated.ts` — every migration in
+ *     the repository, with the module that owns it.
  *
  * Why generate them (feature 072, FR-030..FR-040): adding a module was three
  * edits in files it does not own, and removing one was an archaeology exercise.
@@ -28,10 +32,19 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
  * that derives `REGISTERED_MANIFESTS` from the index, and this is the only
  * generator that names a manifest.
  *
+ * Why the two `db/` registries joined it (feature 071, F2): they were the last
+ * two hand-maintained lists, 219 imports and 130 entries, and both fail
+ * silently. An entity nobody added surfaces as an ORM error somewhere
+ * unrelated; a migration nobody registered simply does not run, so
+ * `migration:pending` reports nothing pending and the first symptom is a query
+ * against a table that was never created. They are emitted from the same tree
+ * walk, by the same command, so the drift that produced this consolidation
+ * cannot come back through a fourth file.
+ *
  * Usage:
  *   pnpm --filter backend run composer:generate
  *
- * Both outputs are committed so a build needs no filesystem walk and so a
+ * Every output is committed so a build needs no filesystem walk and so a
  * reviewer sees the composition change in the diff. `check-overlay-determinism`
  * re-renders them in-process and byte-compares to disk, which is why the render
  * functions below are pure and exported (and why nothing here shells out to
@@ -48,6 +61,22 @@ const manifestIndexOutputPath = join(
   '_lifecycle',
   'manifest-index.generated.ts',
 );
+const entitiesRegistryOutputPath = join(srcRoot, 'db', 'entities-registry.generated.ts');
+const migrationsRegistryOutputPath = join(srcRoot, 'db', 'migrations-registry.generated.ts');
+
+/**
+ * Where every committed artefact lands. Exported so `overlay:check` can state
+ * what it covers without rendering anything, and so a test can compare that
+ * against the `*.generated.ts` files actually on disk — a generated file no
+ * determinism gate looks at is a file that drifts unnoticed, which is the
+ * defect this generator was consolidated to end.
+ */
+export const GENERATED_ARTIFACT_PATHS: readonly string[] = [
+  composerOutputPath,
+  manifestIndexOutputPath,
+  entitiesRegistryOutputPath,
+  migrationsRegistryOutputPath,
+];
 
 /**
  * The one ordering constraint that is a **construction** dependency rather than
@@ -524,8 +553,353 @@ export function renderManifestIndex(): { outputPath: string; content: string } {
   };
 }
 
+// ── the two db/ registries ──────────────────────────────────────────────────
+//
+// Both are derived from one input: every `.ts` under `src/`, keyed by its
+// `src`-relative path. The collectors take that map rather than reading the
+// disk so each way the tree can be wrong is drivable on synthetic input
+// (`test/unit/scripts/generate-registries.test.ts`) — a generator whose walk
+// silently narrows emits a shorter list, and a shorter list of migrations is a
+// table that is never created.
+
+/** Every hand-written `.ts` source under `src/`, keyed by its `src`-relative path. */
+export type SourceTree = ReadonlyMap<string, string>;
+
+/**
+ * A generated artefact is **output, not input**. Excluding `*.generated.ts` is
+ * not tidiness: the emitted registries quote the decorators and paths they
+ * scanned for, so reading them back made the second run of the generator
+ * disagree with the first — which is the one property a committed artefact must
+ * never lack.
+ */
+function readSourceTree(root: string = srcRoot, prefix = '', out = new Map<string, string>()): Map<string, string> {
+  for (const name of readdirSync(root).sort()) {
+    if (name === 'node_modules' || name === 'dist' || name.startsWith('.')) continue;
+    const full = join(root, name);
+    const relativePath = prefix === '' ? name : `${prefix}/${name}`;
+    if (statSync(full).isDirectory()) {
+      readSourceTree(full, relativePath, out);
+    } else if (
+      name.endsWith('.ts') &&
+      !name.endsWith('.d.ts') &&
+      !name.endsWith('.test.ts') &&
+      !name.endsWith('.generated.ts')
+    ) {
+      out.set(relativePath, readFileSync(full, 'utf8'));
+    }
+  }
+  return out;
+}
+
+/** Import specifier from a file in `src/db/` to a `src`-relative source file. */
+function specifierFromDb(file: string): string {
+  const asJs = file.replace(/\.ts$/, '.js');
+  return asJs.startsWith('db/') ? `./${asJs.slice('db/'.length)}` : `../${asJs}`;
+}
+
+/** One `@Entity`-decorated class, as the generator sees it. */
+export interface DiscoveredEntity {
+  readonly className: string;
+  /** `src`-relative path of the file declaring it. */
+  readonly file: string;
+}
+
+/**
+ * Every persisted entity in the core tree.
+ *
+ * Detection is by the **decorator**, not by the `.entity.ts` suffix. Nothing
+ * enforces that suffix, so a suffix-scoped walk reports a complete registry for
+ * an entity declared in a file next door — the same narrowing
+ * `check-entity-tenant-classification.ts` was widened away from. The suffix is
+ * still checked, in the other direction: a `.entity.ts` file with no decorator
+ * is either a dropped decorator or a misnamed file, and both are worth saying.
+ */
+export function collectEntities(sources: SourceTree): DiscoveredEntity[] {
+  const found: DiscoveredEntity[] = [];
+  const byClassName = new Map<string, string>();
+  for (const [file, source] of [...sources].sort(([a], [b]) => a.localeCompare(b))) {
+    const declares = source.includes('@Entity(');
+    if (!declares) {
+      if (file.endsWith('.entity.ts')) {
+        throw new Error(
+          `[composer] ${file} declares no @Entity() class. Either the decorator is missing ` +
+            `or the file is misnamed; an entity the registry does not carry is absent from ` +
+            `the ORM metadata and fails at the first query.`,
+        );
+      }
+      continue;
+    }
+    if (file.startsWith('apps/')) {
+      throw new Error(
+        `[composer] ${file} declares an entity under a deployment overlay. The entity and ` +
+          `migration registries are core-only: an overlay module cannot ship a migration ` +
+          `today, so an overlay entity would be ORM metadata for a table nothing creates. ` +
+          `Ship the schema from a core module, or make overlay migrations run first.`,
+      );
+    }
+    let cursor = source.indexOf('@Entity(');
+    while (cursor !== -1) {
+      const match = /export\s+class\s+(\w+)/.exec(source.slice(cursor));
+      const className = match?.[1];
+      if (className === undefined) {
+        throw new Error(
+          `[composer] ${file} declares @Entity() but the class it decorates could not be read. ` +
+            `Write it as 'export class <Name>' directly below the decorator.`,
+        );
+      }
+      const previous = byClassName.get(className);
+      if (previous !== undefined) {
+        throw new Error(
+          `[composer] two entities are called '${className}' (${previous} and ${file}). ` +
+            `The registry is a flat list of classes, so the second would shadow the first.`,
+        );
+      }
+      byClassName.set(className, file);
+      found.push({ className, file });
+      cursor = source.indexOf('@Entity(', cursor + 1);
+    }
+  }
+  return found;
+}
+
+function emitEntitiesHeader(): string {
+  return `${HEADER('generate-composer.ts')}//
+// The entity registry \`mikro-orm.config.ts\` discovers through.
+//
+// Explicit classes rather than a glob: glob discovery needs a runtime dynamic
+// \`import()\` of a \`.ts\` file, which Node's ESM loader cannot transform and which
+// breaks under Vitest. Listing them side-steps that — and since feature 071's F2
+// the list is a filesystem walk rather than 219 imports someone kept in sync by
+// hand, so adding an entity is adding a file and removing a module is deleting
+// its directory.
+//
+// Every class carrying the MikroORM entity decorator anywhere under \`src/\` is
+// here, in path order. Detection is by that decorator, not by the
+// \`.entity.ts\` suffix, because nothing enforces the suffix — and the decorator
+// is deliberately not spelled out in this comment, so that a walk looking for
+// it does not find its own output. The walk is core-only: an overlay module cannot
+// ship a migration today, so an overlay entity is refused by the generator
+// rather than registered for a table nothing creates.
+`;
+}
+
+/** Pure emit — the entity registry's content for a given set of entities. */
+export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): string {
+  const imports = entities
+    .map((entity) => `import { ${entity.className} } from '${specifierFromDb(entity.file)}';`)
+    .join('\n');
+  const listed = entities.map((entity) => `  ${entity.className},`).join('\n');
+  return `${emitEntitiesHeader()}
+${imports}
+
+export const ALL_ENTITIES = [
+${listed}
+] as const;
+`;
+}
+
+/** Pure render — the target path + expected content of the entity registry. */
+export function renderEntitiesRegistry(sources: SourceTree = readSourceTree()): {
+  outputPath: string;
+  content: string;
+} {
+  return {
+    outputPath: entitiesRegistryOutputPath,
+    content: emitEntitiesRegistry(collectEntities(sources)),
+  };
+}
+
+/**
+ * contracts/naming-convention.md §1 — the only recognizer any tool may use.
+ * `test/unit/db/migrations-registry.test.ts` deliberately keeps its own copy:
+ * the round trip is worth something only when the two implementations are
+ * independent.
+ */
+const MIGRATION_FILE_RE = /^(\d{8}T\d{6})_([a-z0-9_]+)\.ts$/;
+
+/** contracts/naming-convention.md §4 — non-migration helpers in a migrations/ dir. */
+const MIGRATION_HELPER_ALLOW_LIST = new Set([
+  'modules/quote_requests/migrations/status-mapping.ts',
+]);
+
+/** contracts/naming-convention.md §2 — the name `mikro_orm_migrations` persists. */
+function classNameFromMigrationFile(filename: string): string {
+  const match = MIGRATION_FILE_RE.exec(filename);
+  if (!match) throw new Error(`[composer] unexpected migration filename: ${filename}`);
+  const tail = match[2]!
+    .split('_')
+    .filter((segment) => segment.length > 0)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join('');
+  return `Migration${match[1]}${tail}`;
+}
+
+/** One migration file, as the generator sees it. */
+export interface DiscoveredMigration {
+  /** Owning module id — `core` for `src/db/migrations/`. */
+  readonly moduleId: string;
+  readonly className: string;
+  /** `src`-relative path of the migration file. */
+  readonly file: string;
+}
+
+/** `src/db/migrations/<file>` and `src/modules/<id>/migrations/<file>`. */
+const CORE_MIGRATION_RE = /^db\/migrations\/([^/]+\.ts)$/;
+const MODULE_MIGRATION_RE = /^modules\/([^/]+)\/migrations\/([^/]+\.ts)$/;
+const OVERLAY_MIGRATION_RE = /^apps\/[^/]+\/modules\/[^/]+\/migrations\//;
+
+/**
+ * Every migration in the core tree, with the module that owns it.
+ *
+ * The class name is **derived from the filename** and is the name
+ * `mikro_orm_migrations` persists, so the generator asserts the file actually
+ * exports it rather than guessing: a name that drifted would make every
+ * database that already ran the migration see it as pending and re-apply it.
+ *
+ * An unrecognized `.ts` in a migrations directory is refused rather than
+ * skipped. Skipping is how a migration goes missing without a word — the exact
+ * failure the registry exists to prevent.
+ */
+export function collectMigrations(sources: SourceTree): DiscoveredMigration[] {
+  const found: DiscoveredMigration[] = [];
+  const byClassName = new Map<string, string>();
+  for (const [file, source] of [...sources].sort(([a], [b]) => a.localeCompare(b))) {
+    if (OVERLAY_MIGRATION_RE.test(file)) {
+      throw new Error(
+        `[composer] ${file} is a migration under a deployment overlay. The migration ` +
+          `registry is core-only, so an overlay migration is never executed — registering ` +
+          `it here would be a new capability, not a side effect of generating the list. ` +
+          `Move the schema into a core module.`,
+      );
+    }
+    const core = CORE_MIGRATION_RE.exec(file);
+    const owned = MODULE_MIGRATION_RE.exec(file);
+    if (!core && !owned) continue;
+    const moduleId = core ? 'core' : owned![1]!;
+    const filename = core ? core[1]! : owned![2]!;
+    if (!MIGRATION_FILE_RE.test(filename)) {
+      if (MIGRATION_HELPER_ALLOW_LIST.has(file)) continue;
+      throw new Error(
+        `[composer] ${file} sits in a migrations directory but is not named like a ` +
+          `migration (<YYYYMMDDTHHmmss>_<module-segment>_<slug>.ts). Rename it per ` +
+          `specs/065-manifest-aware-migrations/contracts/naming-convention.md §1, or add it ` +
+          `to the helper allow-list in this generator. It is not registered as written, and ` +
+          `an unregistered migration does not run.`,
+      );
+    }
+    const className = classNameFromMigrationFile(filename);
+    if (!new RegExp(`export\\s+class\\s+${className}\\b`).test(source)) {
+      throw new Error(
+        `[composer] ${file} must export 'class ${className}' — the class name is derived ` +
+          `from the filename and is what \`mikro_orm_migrations\` persists. Rename the class ` +
+          `to match the file, not the other way round.`,
+      );
+    }
+    const previous = byClassName.get(className);
+    if (previous !== undefined) {
+      throw new Error(
+        `[composer] two migrations resolve to '${className}' (${previous} and ${file}). ` +
+          `The persisted name would collide, so one of the two would never run.`,
+      );
+    }
+    byClassName.set(className, file);
+    found.push({ moduleId, className, file });
+  }
+  return found;
+}
+
+function emitMigrationsHeader(): string {
+  return `${HEADER('generate-composer.ts')}//
+// The single registration point for every migration in the repository.
+//
+// Static imports only — no glob, no dynamic \`import()\`: Node's ESM loader
+// cannot transform \`.ts\` at runtime and it breaks under Vitest (the same reason
+// ./entities-registry.generated.ts exists). A migration that is not registered
+// here does not run; since feature 071's F2 registration is a filesystem walk
+// rather than a line someone remembers to paste, and the round-trip guard in
+// test/unit/db/migrations-registry.test.ts fails the build on a stale artefact.
+//
+// **Declaration order has no effect on execution order.** That is computed by
+// migration-order.ts from each migration's UTC timestamp, corrected by the
+// module-manifest dependency graph, with UNCORRECTED_THROUGH marking the
+// pre-065 block that is emitted chronologically. Entries below are grouped by
+// owning module purely so the diff reads; never "fix" an ordering surprise by
+// moving a line, and there is nothing to move — regenerating restores it. Bump
+// the timestamp or fix the manifest \`dependencies\` instead.
+//
+// The \`moduleId\` is load-bearing beyond ordering: a hard uninstall reverts
+// exactly the migrations registered under the module being removed
+// (\`_lifecycle/services/orchestrator.ts\`). It is the directory the file lives
+// in, which for kernel-owned tables is \`core\` —
+// test/unit/db/kernel-migration-ownership.test.ts enforces that the tables a
+// migration writes to agree with it.
+//
+// Add one with: pnpm --filter backend run migration:new -- --module <id> --name <slug>
+`;
+}
+
+/** Pure emit — the migration registry's content for a given set of migrations. */
+export function emitMigrationsRegistry(migrations: readonly DiscoveredMigration[]): string {
+  const grouped = [...migrations].sort(
+    (a, b) => a.moduleId.localeCompare(b.moduleId) || a.file.localeCompare(b.file),
+  );
+  const sections: string[] = [];
+  const imports: string[] = [];
+  let currentModule: string | null = null;
+  for (const entry of grouped) {
+    if (entry.moduleId !== currentModule) {
+      currentModule = entry.moduleId;
+      const rule = '─'.repeat(Math.max(1, 72 - currentModule.length));
+      sections.push(`\n  // ── ${currentModule} ${rule}`);
+      imports.push(`\n// ── ${currentModule} ${rule}`);
+    }
+    imports.push(`import { ${entry.className} } from '${specifierFromDb(entry.file)}';`);
+    sections.push(`  migration('${entry.moduleId}', ${entry.className}),`);
+  }
+
+  return `${emitMigrationsHeader()}
+import type { MigrationClass, MigrationRegistryEntry } from './migration-order.js';
+${imports.join('\n')}
+
+export type { MigrationClass, MigrationRegistryEntry };
+
+/** One-line helper: the migration name is always \`cls.name\`, never hand-written. */
+function migration(moduleId: string, cls: MigrationClass): MigrationRegistryEntry {
+  return { moduleId, cls };
+}
+
+export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [${sections.join('\n')}
+];
+`;
+}
+
+/** Pure render — the target path + expected content of the migration registry. */
+export function renderMigrationsRegistry(sources: SourceTree = readSourceTree()): {
+  outputPath: string;
+  content: string;
+} {
+  return {
+    outputPath: migrationsRegistryOutputPath,
+    content: emitMigrationsRegistry(collectMigrations(sources)),
+  };
+}
+
+/** Every committed artefact, rendered from one read of the tree. */
+export async function renderAll(): Promise<
+  ReadonlyArray<{ label: string; outputPath: string; content: string }>
+> {
+  const sources = readSourceTree();
+  const composer = await renderComposer();
+  return [
+    { label: 'composition.generated', ...composer },
+    { label: 'manifest-index', ...renderManifestIndex() },
+    { label: 'entities-registry', ...renderEntitiesRegistry(sources) },
+    { label: 'migrations-registry', ...renderMigrationsRegistry(sources) },
+  ];
+}
+
 async function main(): Promise<void> {
-  const rendered = [await renderComposer(), renderManifestIndex()];
+  const rendered = await renderAll();
 
   // `--check` never writes: it is the CI form, and a CI job that repairs the
   // tree it is checking reports green on a commit nobody can reproduce.

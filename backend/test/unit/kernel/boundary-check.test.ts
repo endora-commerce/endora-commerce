@@ -371,7 +371,7 @@ describe('analyzePlatformImports over the platform roots', () => {
     expect(platformRootOf(srcFile('http/error-envelope.ts'))).toBe('http');
     expect(platformRootOf(srcFile('events/bus.ts'))).toBe('events');
     expect(platformRootOf(srcFile('tenancy/scoped-em.ts'))).toBe('tenancy');
-    expect(platformRootOf(srcFile('db/entities-registry.ts'))).toBeNull();
+    expect(platformRootOf(srcFile('db/entities-registry.generated.ts'))).toBeNull();
     expect(platformRootOf(moduleFile('catalog/backend.ts'))).toBeNull();
   });
 
@@ -429,13 +429,15 @@ describe('analyzePlatformImports over the platform roots', () => {
   });
 
   it('says nothing about src/db, src/commands or src/overlay — they are not platform roots', () => {
-    // `src/db` names every module by construction (F2 of the packaging roadmap
-    // replaces it with a generator) and `src/commands` sits *above* the kernel,
-    // so D-57 flags it for F4 rather than folding it in here.
+    // `src/db` names every module by construction — F2 of the packaging
+    // roadmap made both registries generated, so the names are emitted from a
+    // tree walk rather than typed, but they are still there. `src/commands`
+    // sits *above* the kernel, so D-57 flags it for F4 rather than folding it
+    // in here.
     expect(
       analyzePlatformImports(
         "import { Category } from '../modules/catalog/entities/category.entity.js';",
-        srcFile('db/entities-registry.ts'),
+        srcFile('db/entities-registry.generated.ts'),
       ),
     ).toEqual([]);
     expect(

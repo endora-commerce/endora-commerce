@@ -9,7 +9,7 @@ import {
   type MigrationClass,
   type MigrationRegistryEntry,
 } from '../../../src/db/migration-order.js';
-import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.js';
+import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
 
 /**
