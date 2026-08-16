@@ -189,6 +189,9 @@ export class ReturnSettlementService {
       const inv = await this.deps.correctiveInvoice.createCorrection({
         orderId: rc.orderId,
         lines: items.map((it) => ({
+          // The order item is what ties this credit to the invoice line it
+          // corrects, so the correction can mirror that line's VAT rate.
+          orderItemId: it.orderItemId,
           productName: it.productName,
           quantity: it.quantity,
           amount: Number(it.approvedRefundAmount),
