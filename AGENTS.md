@@ -258,9 +258,29 @@ pattern to copy.
    kept in a plugin body is what produced twenty-two ungated subscribers (issue #107).
    `pnpm --filter backend run check:subscribe-seam` fails the build on a bare `eventBus.on`
    in a module, against an empty two-way ledger.
-3. **Cross-module calls** — service entry points reachable from another module call
-   `requireModuleEnabled('<id>')`, so a caller gets the explicit 503 envelope
-   (`ERROR_CODES.MODULE_DISABLED`) instead of a half-executed operation.
+3. **Cross-module calls** — the gate is the **port registration**, not a call you write.
+   `ctx.di.providePort('<name>', …)` wraps the registration in a transient gate on the owner's
+   effective state, so a consumer resolving it through `lazyPort` gets the 503 `MODULE_DISABLED`
+   envelope at the call site instead of a half-executed operation. That is the whole instruction for
+   an entry point another module can reach: **publish it as a port and declare the edge** (composition
+   checklist items 2–4). A gate the registration applies cannot be forgotten in the one service
+   somebody adds later, which a hand-placed call can and did.
+
+   `requireModuleEnabled('<id>')` (`backend/src/kernel/lifecycle/plugin-helpers.ts:82`) is kept for
+   the entry point that has **no port and no request** — a `module:*` CLI script, a one-off
+   maintenance entry — and it has **zero call sites in `src/` today**; this item used to instruct
+   every module author to call it, which is how it came to be cited far more often than used.
+   `check-port-catches.ts` knows the spelling, so a `catch` around one is refused like a `catch`
+   around a port.
+
+   **Where nothing can catch the throw, presence is *decided* before the work — not caught after
+   it.** A timer callback is the standing example: it has nowhere to throw *to*, so a
+   `ModuleDisabledError` raised inside it is either swallowed by a `catch` that was meant for
+   transient failures or it takes out the tick. So ask `effectiveState.isPresent('<id>')` and return
+   — **first, and outside the `try`**, so a genuine failure and a switched-off module do not share
+   one silent no-op. `backend/src/modules/ksef/plugin.ts:179-190` is the worked example and says so
+   in its own comment. The same rule holds for any entry point with no caller to answer: a boot hook,
+   a signal handler, a `process.on` sweep.
 4. **Manifest** — declare the module's activation control and its default, and, if the
    platform genuinely cannot run without the module, declare it non-deactivatable with a
    reason. The lifecycle orchestrator refuses to disable a module that declares it, with no
