@@ -69,10 +69,19 @@ describe('health_checks — GET /api/v1/_health', () => {
    * on a part of the platform without becoming circular.
    */
   describe('while the module is absent', () => {
-    const enabled = registryCache.enabledIds();
+    // Captured in a hook, not in the describe body. A describe body runs at
+    // collection time — before the outer `beforeAll` boots the harness, and
+    // therefore before presence is loaded. Since D-38 a read taken there throws
+    // `ModulePresenceNotLoadedError` rather than answering "not installed", so
+    // the whole file failed to collect and reported no tests at all.
+    let enabled: readonly string[];
+
+    beforeAll(() => {
+      enabled = registryCache.enabledIds();
+    });
 
     afterEach(() => {
-      registryCache.__setEnabledForTesting(enabled);
+      registryCache.__setEnabledForTesting([...enabled]);
     });
 
     it('still answers the health envelope when the operator deactivated it', async () => {
