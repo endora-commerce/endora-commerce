@@ -9,9 +9,8 @@
 
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { renderManifestIndex } from './generate-manifest-index.js';
 import { renderOverrideManifest } from './generate-override-manifest.js';
-import { renderComposer, renderRegisteredManifests } from './generate-composer.js';
+import { renderComposer, renderManifestIndex } from './generate-composer.js';
 
 /** Why an artifact failed, or `null` when it is byte-identical to the committed file. */
 export type ArtifactVerdict =
@@ -27,7 +26,7 @@ export type ArtifactVerdict =
  * equal, so a generator whose tree walk silently found no module would report
  * every artifact deterministic and up to date. That is the vacuous pass this
  * check refuses (issue #113); it reports it as a verdict rather than exiting,
- * because `main` owns the exit code for all four artifacts.
+ * because `main` owns the exit code for every artifact it checks.
  */
 export function compareArtifact(
   outputPath: string,
@@ -59,7 +58,6 @@ function check(label: string, outputPath: string, expected: string): boolean {
   if (verdict.reason === 'stale') {
     process.stderr.write(
       `  Regenerate and commit:\n` +
-        `    pnpm --filter backend run manifest-index:generate\n` +
         `    pnpm --filter backend run overlay:manifest\n` +
         `    pnpm --filter backend run composer:generate\n`,
     );
@@ -68,18 +66,16 @@ function check(label: string, outputPath: string, expected: string): boolean {
 }
 
 async function main(): Promise<void> {
-  const mi = renderManifestIndex();
   const om = renderOverrideManifest();
   // Feature 072 — the composer and the manifest registry are generated from the
   // same tree walk and committed the same way, so they are checked here rather
   // than in a second script with the same shape.
   const composer = await renderComposer();
-  const registry = renderRegisteredManifests();
+  const mi = renderManifestIndex();
   const ok = [
     check('manifest-index', mi.outputPath, mi.content),
     check('override-manifest (core)', om.outputPath, om.content),
     check('composition.generated', composer.outputPath, composer.content),
-    check('registered-manifests', registry.outputPath, registry.content),
   ].every(Boolean);
   if (!ok) process.exit(1);
   process.stdout.write('[overlay:check] all generated artifacts deterministic ✓\n');

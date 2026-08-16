@@ -9,9 +9,9 @@
   },
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
-    "build": "pnpm run manifest-index:generate && pnpm run overlay:manifest && pnpm run composer:generate && tsc -p tsconfig.build.json",
-    "manifest-index:generate": "tsx scripts/generate-manifest-index.ts",
+    "build": "pnpm run overlay:manifest && pnpm run composer:generate && tsc -p tsconfig.build.json",
     "composer:generate": "tsx scripts/generate-composer.ts",
+    "manifest-index:generate": "tsx scripts/generate-composer.ts",
     "composer:check": "tsx scripts/generate-composer.ts --check",
     "overlay:manifest": "tsx scripts/generate-override-manifest.ts",
     "overlay:check": "tsx scripts/check-overlay-determinism.ts",

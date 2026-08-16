@@ -41,8 +41,8 @@ import { registerCustomFieldsAdminRoutes } from './routes.admin.js';
  * `customFieldValueService` is built *from* it rather than beside it.
  *
  * **The hard-uninstall cleanup stays in `manifest.ts`.** That is the only place
- * the lifecycle orchestrator looks: it reads `uninstallHook` off the
- * `registered-manifests.ts` entry the composer generates. There is no
+ * the lifecycle orchestrator looks: it reads `uninstallHook` off the registry
+ * entry the composer generates into the manifest index. There is no
  * container-side equivalent — `ctx.onInstall`/`ctx.onUninstall` existed, were
  * never run by anything, and were deleted by D-46 precisely because a hook
  * placed there would compile, pass every test, and quietly stop dropping

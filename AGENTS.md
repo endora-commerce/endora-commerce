@@ -172,9 +172,11 @@ Every module with routes gated by `requireAdmin(...)` **must** register its perm
 so they appear on `/admin-roles` and pass the CI inventory.
 
 1. **`manifest.ts`** — `permissions: [{ code, label, module? }]` for every code this module owns.
-2. **`registered-manifests.ts`** — **generated** (feature 072): a module that ships a
+2. **`manifest-index.generated.ts`** — **generated** (feature 072): a module that ships a
    lifecycle-shape `manifest.ts` is picked up by the tree walk. Run
    `pnpm --filter backend run composer:generate` and commit the result; never edit the file.
+   It is the only generated manifest registry (feature 071, F2) — `registered-manifests.ts`
+   derives `REGISTERED_MANIFESTS` from it, and the deployment-resolved set on top of that.
 3. **Routes** — `requireAdmin('…')` literals must match manifest `code` values exactly.
    The inventory scanner reads the call in every shape the tree writes it (bare,
    through `deps.`/a cradle, optional-call, `requireAdminAny([…])`, a constant or a

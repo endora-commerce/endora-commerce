@@ -10,7 +10,7 @@
  *
  * Static analysis via the TypeScript compiler API — no DB, no new dependency
  * (`typescript` is already a devDependency). Sits alongside the existing
- * `i18n-hardcoded-strings.ts` / `generate-manifest-index.ts` checks.
+ * `i18n-hardcoded-strings.ts` / `generate-composer.ts` checks.
  *
  * Usage: `tsx scripts/check-entity-tenant-classification.ts [--list]`
  * Exit 0 = every entity classified; exit 1 = at least one unclassified.

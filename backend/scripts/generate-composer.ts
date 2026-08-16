@@ -9,13 +9,24 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
  *   - `backend/src/composition.generated.ts` — the list a composition root
  *     walks: one `{ id, version, registerModule }` entry per converted module,
  *     in the order it must be composed.
- *   - `backend/src/modules/_lifecycle/registered-manifests.ts` — the manifest
- *     registry, which was a 317-line hand-maintained array.
+ *   - `backend/src/modules/_lifecycle/manifest-index.generated.ts` — the one
+ *     manifest registry: every module's manifest, plus the install hooks it
+ *     exports and whether it came from a deployment's overlay tree.
  *
  * Why generate them (feature 072, FR-030..FR-040): adding a module was three
  * edits in files it does not own, and removing one was an archaeology exercise.
  * When the list is a filesystem walk, adding a module is adding a folder and
  * removing one is deleting it — which is the property US4 tests.
+ *
+ * Why *one* manifest registry (feature 071, F2): there were two generated files
+ * importing the same manifest of the same module, refreshed by two different
+ * commands, and only a full build ran both — so deleting a module directory
+ * regenerated one and left the other importing a path that no longer existed.
+ * Everything the second file added is derivable from the first: a core module's
+ * `filePath` is its id under the modules root, and its hooks are exports of the
+ * manifest already imported. So `registered-manifests.ts` is now ordinary source
+ * that derives `REGISTERED_MANIFESTS` from the index, and this is the only
+ * generator that names a manifest.
  *
  * Usage:
  *   pnpm --filter backend run composer:generate
@@ -32,10 +43,10 @@ const srcRoot = resolve(here, '../src');
 const modulesRoot = join(srcRoot, 'modules');
 
 const composerOutputPath = join(srcRoot, 'composition.generated.ts');
-const registeredManifestsOutputPath = join(
+const manifestIndexOutputPath = join(
   modulesRoot,
   '_lifecycle',
-  'registered-manifests.ts',
+  'manifest-index.generated.ts',
 );
 
 /**
@@ -368,17 +379,14 @@ export async function renderComposer(): Promise<{ outputPath: string; content: s
 
 interface DiscoveredManifest {
   id: string;
+  /** Import specifier from the emitted index to the module's `manifest.ts`. */
+  importPath: string;
+  /** Discovered under the active deployment's overlay tree (feature 057). */
+  isOverlay: boolean;
   hasInstallHook: boolean;
   hasUninstallHook: boolean;
 }
 
-/**
- * Every **core** module with a lifecycle-shape manifest. Overlay modules are
- * deliberately absent: they are merged at runtime by `resolvedManifestEntries`
- * below, because their `filePath` depends on the deployment the process runs
- * as, which a committed array cannot carry (FR-004 keeps the core array free of
- * per-deployment edits).
- */
 /**
  * Does this manifest export `<name>`, and is the export in a shape we can wire?
  *
@@ -412,35 +420,57 @@ export function detectHookExport(name: string, source: string, moduleId: string)
   return false;
 }
 
+/**
+ * Every module with a lifecycle-shape manifest: core first, then the active
+ * deployment's overlay tree (feature 057). An overlay manifest for a core id
+ * shadows the core one, so the index imports exactly one manifest per id — the
+ * property `resolvedManifestEntries()` relies on when it merges.
+ *
+ * The overlay half is why `DEPLOYMENT` changes the output: the committed
+ * artefact is the bare-core render, and a per-deployment build runs this same
+ * generator with `DEPLOYMENT=<name>` set.
+ */
 function discoverManifests(): DiscoveredManifest[] {
-  const out: DiscoveredManifest[] = [];
-  for (const id of directoriesIn(modulesRoot)) {
-    const manifestPath = join(modulesRoot, id, 'manifest.ts');
-    if (!existsSync(manifestPath)) continue;
-    const source = readFileSync(manifestPath, 'utf8');
-    if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(source)) continue;
-    out.push({
-      id,
-      hasInstallHook: detectHookExport('installHook', source, id),
-      hasUninstallHook: detectHookExport('uninstallHook', source, id),
-    });
+  const byId = new Map<string, DiscoveredManifest>();
+  const collect = (root: string, importPathFor: (id: string) => string, isOverlay: boolean): void => {
+    for (const id of directoriesIn(root)) {
+      const manifestPath = join(root, id, 'manifest.ts');
+      if (!existsSync(manifestPath)) continue;
+      const source = readFileSync(manifestPath, 'utf8');
+      if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(source)) continue;
+      byId.set(id, {
+        id,
+        importPath: importPathFor(id),
+        isOverlay,
+        hasInstallHook: detectHookExport('installHook', source, id),
+        hasUninstallHook: detectHookExport('uninstallHook', source, id),
+      });
+    }
+  };
+  // The index lives in `_lifecycle/`, so a core manifest is one folder up and a
+  // deployment's is two, through `apps/<deployment>/modules/`.
+  collect(modulesRoot, (id) => `../${id}/manifest.js`, false);
+  const overlay = overlayRoot();
+  if (overlay) {
+    collect(overlay.root, (id) => `../../apps/${overlay.deployment}/modules/${id}/manifest.js`, true);
   }
-  return out;
+  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function emitRegisteredManifests(manifests: readonly DiscoveredManifest[]): string {
+function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
   const imports = manifests
     .map((m, i) => {
       const named = [`manifest as manifest${i}`];
       if (m.hasInstallHook) named.push(`installHook as installHook${i}`);
       if (m.hasUninstallHook) named.push(`uninstallHook as uninstallHook${i}`);
-      return `import { ${named.join(', ')} } from '../${m.id}/manifest.js';`;
+      return `import { ${named.join(', ')} } from '${m.importPath}';`;
     })
     .join('\n');
 
   const entries = manifests
     .map((m, i) => {
-      const fields = [`manifest: manifest${i}`, `filePath: pathFor('${m.id}')`];
+      const fields = [`id: '${m.id}'`, `manifest: manifest${i}`];
+      if (m.isOverlay) fields.push('overlay: true');
       if (m.hasInstallHook) fields.push(`installHook: installHook${i}`);
       if (m.hasUninstallHook) fields.push(`uninstallHook: uninstallHook${i}`);
       return `  { ${fields.join(', ')} },`;
@@ -448,94 +478,54 @@ function emitRegisteredManifests(manifests: readonly DiscoveredManifest[]): stri
     .join('\n');
 
   return `${HEADER('generate-composer.ts')}//
-// The manifest registry: every core module that ships a lifecycle-shape
-// \`manifest.ts\`. It used to be a hand-maintained array, so a module could ship
-// a manifest and still contribute no permissions, no i18n bundle and no palette
-// action because nobody remembered the third edit.
+// The manifest registry — the **only** file that imports a module's manifest.
+// Every module that ships a lifecycle-shape \`manifest.ts\` is here, with the
+// install hooks it exports and, for a per-deployment build, the overlay modules
+// of the selected deployment.
+//
+// It used to have a twin (\`registered-manifests.ts\`) importing the same
+// manifests behind a second command, which is a drift waiting to happen; that
+// file now derives its entries from this array instead.
 //
 // Order is alphabetical and no consumer depends on it:
 // \`collectRegisteredSettingsManifests()\` re-imposes its own (settings first,
 // because every other module's settings fall back to its \`general\` group), and
 // everything else topo-sorts or set-ifies.
 
-import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
-import { DISCOVERED_MANIFESTS } from './manifest-index.generated.js';
-import { overlayModulesRootFor, selectedDeployment } from '../../overlay/overlay-roots.js';
 
 ${imports}
 
-/**
- * Each entry carries a real \`filePath\` so downstream reconcilers can locate the
- * module's directory on disk — notably the i18n bundle loader
- * (\`_i18n/plugin.ts\`) does \`dirname(entry.filePath)\` and joins \`bundlesDir\` to
- * find each module's \`i18n/<lang>.json\` files. Without a real path,
- * \`dirname('<static>')\` resolves to \`.\`, no bundle ever loads, and every action
- * label renders as its raw i18n key.
- */
-export interface RegisteredManifestEntry {
+export interface DiscoveredManifestEntry {
+  id: string;
   manifest: ModuleManifest;
-  filePath: string;
+  /**
+   * Present only for a module found under the active deployment's overlay tree.
+   * It is what keeps the core registry deployment-free (feature 057, FR-004)
+   * and what tells the runtime merge to resolve the module's directory under
+   * \`apps/<deployment>/modules/\` rather than under the core modules root.
+   */
+  overlay?: true;
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
 }
 
-/**
- * Convention: every module lives at \`backend/src/modules/<id>/manifest.ts\`.
- * \`import.meta.url\` points at this \`_lifecycle/registered-manifests.ts\`, so
- * \`dirname(dirname(...))\` lands on the modules root.
- */
-const MODULES_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-const pathFor = (id: string): string => join(MODULES_ROOT, id, 'manifest.ts');
-
-export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
+export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
 ${entries}
 ];
-
-/**
- * The **deployment-resolved** manifest set = the generated core array PLUS any
- * overlay-only module discovered for the active deployment (feature 057).
- *
- * This stays a runtime merge on purpose: an overlay-only module's \`filePath\`
- * resolves against the deployment root, behind an \`existsSync\` guard, and the
- * answer depends on which deployment the process runs as — not on which tree it
- * was generated from. For a bare-core build (\`DEPLOYMENT\` unset) the generated
- * index contains only core modules, so this returns \`REGISTERED_MANIFESTS\`
- * unchanged (FR-008).
- */
-export function resolvedManifestEntries(): RegisteredManifestEntry[] {
-  const byId = new Map<string, RegisteredManifestEntry>(
-    REGISTERED_MANIFESTS.map((e) => [e.manifest.id, e]),
-  );
-  const deployment = selectedDeployment();
-  for (const discovered of DISCOVERED_MANIFESTS) {
-    if (byId.has(discovered.id)) continue; // core module already registered
-    // An overlay-only module: prefer a real core path if one somehow exists,
-    // else resolve under the deployment's overlay tree.
-    const corePath = pathFor(discovered.id);
-    const filePath =
-      existsSync(corePath) || deployment === null
-        ? corePath
-        : join(overlayModulesRootFor(deployment), discovered.id, 'manifest.ts');
-    byId.set(discovered.id, { manifest: discovered.manifest, filePath });
-  }
-  return [...byId.values()];
-}
 `;
 }
 
 /** Pure render — the target path + expected content of the manifest registry. */
-export function renderRegisteredManifests(): { outputPath: string; content: string } {
+export function renderManifestIndex(): { outputPath: string; content: string } {
   return {
-    outputPath: registeredManifestsOutputPath,
-    content: emitRegisteredManifests(discoverManifests()),
+    outputPath: manifestIndexOutputPath,
+    content: emitManifestIndex(discoverManifests()),
   };
 }
 
 async function main(): Promise<void> {
-  const rendered = [await renderComposer(), renderRegisteredManifests()];
+  const rendered = [await renderComposer(), renderManifestIndex()];
 
   // `--check` never writes: it is the CI form, and a CI job that repairs the
   // tree it is checking reports green on a commit nobody can reproduce.

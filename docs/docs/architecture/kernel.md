@@ -547,7 +547,8 @@ export const uninstallHook: ModuleUninstallHook = async (ctx) => {
 ```
 
 `backend/scripts/generate-composer.ts` detects the export and emits it into
-`_lifecycle/registered-manifests.ts`; you never edit a registry. Run
+`_lifecycle/manifest-index.generated.ts`, the one generated manifest registry;
+you never edit a registry. Run
 `pnpm --filter backend run composer:generate` and commit the result.
 
 Six properties, all of them load-bearing and none of them obvious from the hook

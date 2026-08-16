@@ -203,16 +203,18 @@ The `<YYYYMMDDTHHmmss>` prefix is a UTC timestamp, not a sequence number; the cl
 
 ### 4. Register the module
 
-There is nothing to hand-edit. `backend/src/modules/_lifecycle/registered-manifests.ts` is
+There is nothing to hand-edit. `backend/src/modules/_lifecycle/manifest-index.generated.ts` is
 **generated** (feature 072): every module directory that exports a lifecycle-shape
 `manifest.ts` is discovered by the tree walk, together with its optional `installHook` /
-`uninstallHook` exports. Regenerate and commit the result:
+`uninstallHook` exports. It is the only file that imports a manifest —
+`registered-manifests.ts` derives `REGISTERED_MANIFESTS` from it, so there is one generated
+registry and one command that refreshes it. Regenerate and commit the result:
 
 ```bash
 pnpm --filter backend run composer:generate
 ```
 
-Both generators are also wired into `pnpm --filter backend run build`, and
+The generator is also wired into `pnpm --filter backend run build`, and
 `pnpm --filter backend run overlay:check` fails the build when a committed artefact is stale
 with respect to the tree — which is the one drift that is still possible now that the array
 is the walk.

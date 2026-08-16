@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   assertDependenciesPresent,
@@ -6,11 +7,14 @@ import {
   MissingModuleDependencyError,
   orderModules,
   renderComposer,
-  renderRegisteredManifests,
+  renderManifestIndex,
   type ComposerNode,
 } from '../../../scripts/generate-composer.js';
 import { MODULES } from '../../../src/composition.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+
+const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 /**
  * The generated composer (feature 072, T046–T049).
@@ -37,8 +41,8 @@ describe('T046 — the committed artefacts match the generator', () => {
     ).toBe(content);
   });
 
-  it('registered-manifests.ts is up to date', () => {
-    const { outputPath, content } = renderRegisteredManifests();
+  it('manifest-index.generated.ts is up to date', () => {
+    const { outputPath, content } = renderManifestIndex();
     expect(
       readFileSync(outputPath, 'utf8'),
       'stale — run `pnpm --filter backend run composer:generate`',
@@ -49,6 +53,59 @@ describe('T046 — the committed artefacts match the generator', () => {
     const first = await renderComposer();
     const second = await renderComposer();
     expect(second.content).toBe(first.content);
+    expect(renderManifestIndex().content).toBe(renderManifestIndex().content);
+  });
+});
+
+/**
+ * F2 (feature 071) — one manifest registry, not two.
+ *
+ * `manifest-index.generated.ts` and `registered-manifests.ts` each imported the
+ * same manifest of every module, and two generated files refreshed by two
+ * different commands drift: deleting a module directory regenerated one and
+ * left the other importing a path that no longer existed. The index is now the
+ * only file that names a manifest; the registry is a derivation of it.
+ */
+describe('F2 — a single generated manifest registry', () => {
+  it('has no second generator to fall out of step with', () => {
+    expect(existsSync(new URL('../../../scripts/generate-manifest-index.ts', import.meta.url)))
+      .toBe(false);
+  });
+
+  it('is the only file that imports a module manifest statically', () => {
+    const registry = readFileSync(
+      new URL('../../../src/modules/_lifecycle/registered-manifests.ts', import.meta.url),
+      'utf8',
+    );
+    expect(registry).not.toMatch(/from '\.\.\/[a-z_]+\/manifest\.js'/);
+    expect(renderManifestIndex().content).toMatch(/from '\.\.\/blog\/manifest\.js'/);
+  });
+
+  it('carries the install hooks the registry used to import a second time', () => {
+    const hooked = REGISTERED_MANIFESTS.filter(
+      (entry) => entry.installHook !== undefined || entry.uninstallHook !== undefined,
+    );
+    // The hooks the tree actually ships, whichever modules they are: the point
+    // is that the derivation carries them, not which module has one today.
+    expect(hooked.length).toBeGreaterThan(0);
+    for (const entry of hooked) {
+      const source = readFileSync(entry.filePath, 'utf8');
+      if (entry.installHook) expect(source).toMatch(/\binstallHook\b/);
+      if (entry.uninstallHook) expect(source).toMatch(/\buninstallHook\b/);
+    }
+  });
+
+  it('registers exactly the core modules the index discovered', () => {
+    expect(REGISTERED_MANIFESTS.map((entry) => entry.manifest.id)).toEqual(
+      DISCOVERED_MANIFESTS.filter((entry) => entry.overlay !== true).map((entry) => entry.id),
+    );
+  });
+
+  it('gives every entry a filePath that exists on disk', () => {
+    for (const entry of REGISTERED_MANIFESTS) {
+      expect(entry.filePath.startsWith(BACKEND_ROOT), entry.filePath).toBe(true);
+      expect(existsSync(entry.filePath), entry.filePath).toBe(true);
+    }
   });
 });
 

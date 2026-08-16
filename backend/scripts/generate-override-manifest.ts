@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 // Emits the committed override-manifest artifact for the active deployment.
 //
-// Reuses the codegen pattern of `generate-manifest-index.ts` (feature 018).
+// Reuses the codegen pattern of `generate-composer.ts` (feature 018).
 // The manifest is the deterministic audit record of a deployment's divergence
 // from core (US3, FR-005/FR-006). Resolution fails the build on a conflict, an
 // unknown/stale target or a schema override (the resolver throws — see

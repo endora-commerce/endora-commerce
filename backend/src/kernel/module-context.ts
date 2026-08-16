@@ -388,7 +388,7 @@ export interface ModuleContext {
    * every boot of every process, including `BACKEND_ROLE=worker`. Install-time
    * work belongs to the **other** lifecycle: a module that needs it exports
    * `installHook` / `uninstallHook` from its `manifest.ts`, which the composer
-   * generator wires into `registered-manifests.ts` and the lifecycle
+   * generator wires into the generated manifest index and the lifecycle
    * orchestrator runs. There is deliberately no container-side equivalent
    * (D-46) — `module:install` runs in a process that composes nothing, so a
    * hook collected by the composition sink would never fire.
