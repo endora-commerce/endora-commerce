@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   assertDependenciesPresent,
+  detectHookExport,
   MissingModuleDependencyError,
   orderModules,
   renderComposer,
@@ -164,5 +165,49 @@ describe('T056 — a removed module still named as a dependency fails generation
     // `renderComposer` runs the check before it emits anything, so this is the
     // same failure a build would hit.
     await expect(renderComposer()).resolves.toBeDefined();
+  });
+});
+
+/**
+ * The manifest install seam is the only one there is (D-46 deleted the
+ * container-side `ctx.onInstall`), so a hook the generator cannot see is a hook
+ * that never runs — and it looks exactly like a hook with nothing to do.
+ */
+describe('the install-hook detector', () => {
+  const constDeclared = `export const manifest = defineModuleManifest({});
+export const installHook = async () => {};`;
+
+  const functionDeclared = `export const manifest = defineModuleManifest({});
+export async function uninstallHook(ctx) { return ctx; }`;
+
+  it('sees a hook declared as a const', () => {
+    expect(detectHookExport('installHook', constDeclared, 'demo')).toBe(true);
+  });
+
+  it('sees a hook declared as a function — the spelling it used to drop silently', () => {
+    expect(detectHookExport('uninstallHook', functionDeclared, 'demo')).toBe(true);
+  });
+
+  it('sees a plain function declaration too, not only an async one', () => {
+    const source = 'export function installHook(ctx) { return ctx; }';
+    expect(detectHookExport('installHook', source, 'demo')).toBe(true);
+  });
+
+  it('answers false when the module declares no such hook', () => {
+    expect(detectHookExport('installHook', functionDeclared, 'demo')).toBe(false);
+  });
+
+  it('throws rather than dropping an export it cannot wire', () => {
+    const reExported = `const installHook = async () => {};
+export { installHook };`;
+    expect(() => detectHookExport('installHook', reExported, 'demo')).toThrow(
+      /cannot wire[\s\S]*would never run/,
+    );
+  });
+
+  it('names the module and both admissible spellings, so the message is actionable', () => {
+    expect(() => detectHookExport('uninstallHook', 'export { uninstallHook };', 'payments')).toThrow(
+      /payments\/manifest\.ts[\s\S]*export const uninstallHook[\s\S]*export async function uninstallHook/,
+    );
   });
 });
