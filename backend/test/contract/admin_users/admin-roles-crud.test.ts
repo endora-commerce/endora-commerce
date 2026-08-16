@@ -6,6 +6,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { READ_ONLY_ROLE_ID } from '../../helpers/seed-admins.js';
+import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
 
 /**
  * T193 — Admin role CRUD + permissions catalogue exposure. Validates the
@@ -32,31 +34,15 @@ describe('Admin roles CRUD', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: Array<{ code: string; module: string }> };
-    // +2 for feature 042 MFA codes (mfa:reset, mfa:manage).
-    // +1 for feature 043 (prompt_actions:use).
-    // +3 for feature 045 promotions (promotions:read, :write, :delete).
-    // +3 for feature 046 PWA (pwa:read, pwa:write, pwa:send_push).
-    // +2 for feature 046 returns (returns:read, returns:write).
-    // +2 for feature 047 transactional emails (transactional_emails:read, :write).
-    // +2 for feature 047 invoices (invoices:read, invoices:write).
-    // +2 for feature 048 newsletter (newsletter:read, newsletter:write).
-    // +2 for feature 049 google_analytics (google_analytics:read, :write).
-    // +2 for feature 049 stripe (stripe:read, stripe:write).
-    // +2 for feature 055 custom fields (custom_fields:read, custom_fields:write).
-    // +1 for feature 056 hierarchical organizations (organizations:rollup).
-    // +2 for feature 058 credentials (credentials:read, credentials:write).
-    // +2 for feature 059 KSeF (ksef:read, ksef:write).
-    // +2 for feature 063 LinkedIn Ads (linkedin_ads:read, linkedin_ads:write).
-    // +2 for feature 064 Meta Ads (meta_ads:read, meta_ads:write).
-    // +2 for feature 063 TPay (tpay:read, tpay:write).
-    // +2 for feature 065 PayU (payu:read, payu:write).
-    // +2 for feature 067 Product Feed (product_feeds:read, product_feeds:write).
-    // +2 for feature 067 Autopay (autopay:read, autopay:write).
-    // +2 for feature 068 Ergonode PIM (pim_ergonode:read, pim_ergonode:write).
-    // +1 for feature 073 module activation (platform.modules.activate).
-    // +2 for feature 072 T136 (carts:read, carts:reject) — declared for the
-    //    first time; `routes.admin.ts` had gated on both since feature 027.
-    expect(body.data.length).toBe(74);
+    // The endpoint must serve exactly what the catalogue service builds from the
+    // deployment-resolved manifests. This replaced a `toBe(<count>)` assertion
+    // carrying a per-feature changelog: the number said nothing about which code
+    // moved, and every feature adding a permission had to edit it regardless.
+    // Whether each of those codes is enforced, grantable and labelled is
+    // `permission-inventory.test.ts`.
+    expect([...body.data.map((p) => p.code)].sort()).toEqual(
+      listAssignablePermissionCodes(resolvedManifestEntries()).sort(),
+    );
     expect(body.data.some((p) => p.code === 'promotions:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'stripe:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'tpay:write')).toBe(true);

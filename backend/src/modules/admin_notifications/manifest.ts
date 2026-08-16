@@ -36,4 +36,13 @@ export const manifest = defineModuleManifest({
     ],
   },
   activation: { settingCode: 'admin_notifications.enabled', default: true },
+  // Feature 026 checklist — `routes.admin.ts` has gated the bell on this code
+  // since 026 while no manifest declared it, so only a role holding `'*'` could
+  // open the notification feed. The code keeps its historical spelling for the
+  // same reason `audit_log:read` and `integrations:manage` keep theirs: it is
+  // the string the route checks, and `module` is what puts the row under the
+  // right heading on the role matrix.
+  permissions: [
+    { code: 'admin:read', module: 'admin_notifications', label: 'View admin notifications' },
+  ],
 });
