@@ -13,28 +13,33 @@ import {
 } from './services/bundle-reconciler.js';
 
 /**
- * `_i18n` — the module whose boot-time work must not run at boot (feature 072,
- * wave 1, T089).
+ * `_i18n` — the module whose boot-time work does not run in `ctx.onBoot`
+ * (feature 072, wave 1, T089).
  *
  * Seventeen conversions before this one put their boot-time work in
- * `ctx.onBoot`, and that is the wrong answer here in a way nothing would tell
- * you about.
+ * `ctx.onBoot`. This one does not, and the reason is worth stating because the
+ * natural move is to make it uniform with the other seventeen.
  *
  * This module walks the lifecycle manifest registry to refresh every module's
  * `translation_bundles` rows from disk. It reaches that registry through a lazy
- * accessor, because `_lifecycle` is constructed *after* it — the chicken-and-egg
- * the original `registry?: T | (() => T | undefined)` option shape exists to
- * break. In `composition.ts` the late pass composes at :2087 and its boot hooks
- * run at :2122; `lifecycleRef` is not assigned until :3240. So a reconcile in
- * `onBoot` finds no registry, and the reconciler's documented behaviour for
- * that case is to return `{installed: 0, skipped: 0, failed: 0}` — success.
+ * accessor, because `_lifecycle`'s orchestrator is constructed *after* it — the
+ * chicken-and-egg the original `registry?: T | (() => T | undefined)` option
+ * shape exists to break. The reconcile therefore runs from the `ctx.routes`
+ * callback, at **plugin attach**, which is the point at which every root has
+ * finished composing and the accessor is guaranteed to answer.
  *
- * The result would be that every module's translation bundles quietly stop
- * being refreshed at boot: no exception, no warning, and a first symptom of
- * screens rendering raw i18n keys some time after somebody edits a JSON bundle.
- * Plugin attach happens after :3240, so the reconcile stays where it already
- * was — inside the routes callback — and `test/unit/_i18n/reconcile-timing.test.ts`
- * pins that, because the harness cannot: it passes no registry at all, so this
+ * D-45 made the boot phase the last thing a root does before it builds the
+ * server, so `ctx.onBoot` would find the registry today too. The reconcile stays
+ * where it is all the same: the two placements are not equivalent in general (a
+ * root that composes without building a server runs one and not the other), and
+ * the failure mode if the accessor ever answered `undefined` again is silent —
+ * the reconciler's documented behaviour for an absent registry is to return
+ * `{installed: 0, skipped: 0, failed: 0}`, i.e. success. Every module's
+ * translation bundles would quietly stop being refreshed, with no exception and
+ * no warning, and the first symptom would be screens rendering raw i18n keys
+ * some time after somebody edits a JSON bundle. Moving it therefore needs
+ * evidence, not tidiness. `test/unit/_i18n/reconcile-timing.test.ts` pins the
+ * placement, because the harness cannot: it passes no registry at all, so this
  * reconcile has always been a no-op under `setupBackendServer`.
  *
  * **The third `AdminUserService` goes away.** `composition.ts` built one

@@ -2262,13 +2262,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // and every contribution above and before `index.ts` calls `buildServer`
   // (D-45). That is what makes the rule statable in one sentence: a boot hook
   // may resolve anything, and a root contribution goes between `composeModules`
-  // and this line. Under the two-pass shape it could not be — nineteen
-  // `registerValues` calls landed after the late pass's hooks, six of them over
-  // names their owning module defaults (`organizationsLoginHook`,
-  // `ksefVerificationResolver`, `newsletterEmailBranding`,
-  // `shoppingListServiceSink`, `lifecycleOrchestrator`,
-  // `promptActionsBulkProgressResolver`), so a hook that read one of those read
-  // the module's default and this root's value arrived afterwards, silently.
+  // and this line.
+  //
+  // Why one phase rather than several: a contribution registered *after* a boot
+  // hook has already run is invisible to that hook, which reads the owning
+  // module's default instead and reports nothing — no error, no warning, a
+  // value that is simply the wrong one. Any split of this phase reopens that
+  // window for every name a module defaults; D-45 counted six live ones when it
+  // closed the split (`organizationsLoginHook`, `ksefVerificationResolver`,
+  // `newsletterEmailBranding`, `shoppingListServiceSink`, `lifecycleOrchestrator`,
+  // `promptActionsBulkProgressResolver`). One `composeModules` call, one
+  // contribution slot, one `runBootHooks()` is what keeps that unspellable.
   await composedModules.runBootHooks();
 
   return {

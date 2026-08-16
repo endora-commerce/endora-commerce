@@ -843,7 +843,7 @@ export async function setupBackendServer(
   ).adminNotificationService;
   // The enabled-set accessor is wired here rather than with the seeding above,
   // because the catalogue it wires is `admin_roles`' registration and does not
-  // exist until the early pass has run.
+  // exist until `composeModules` has run.
   permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
 
   // The mailer this composition sends through. A test that asserts on sent mail
@@ -860,8 +860,8 @@ export async function setupBackendServer(
   //
   // `emailMailer` is a `ctx.di.register` contribution point rather than a
   // `providePort`, so overwriting it is the sanctioned move rather than a root
-  // shadowing a module's port. It is registered after the early pass that
-  // composes `email`, so this overrides that module's default rather than being
+  // shadowing a module's port. It is registered after `composeModules`, in the
+  // one contribution slot, so this overrides `email`'s default rather than being
   // overwritten by it.
   const emailMailer = (container.cradle as unknown as EmailCradle).emailMailer;
   const injectedMailer = options.organizationsMailer ?? emailMailer;
@@ -941,9 +941,9 @@ export async function setupBackendServer(
   const getTestMfaLoginPort = (): MfaLoginPort | undefined => testMfaLoginPort;
 
   // Feature 072 (T094) — contributed to `customer_accounts`, which defaults it
-  // absent. Registered after the early pass so it overrides the module's own
+  // absent. Registered after `composeModules` so it overrides the module's own
   // default rather than being overwritten by it; the getter is late-bound, so
-  // `mfa` composing later is not a race.
+  // the order the modules register in is not a race.
   registerValues(container, { mfaLoginPortGetter: getTestMfaLoginPort });
 
 
@@ -1067,7 +1067,7 @@ export async function setupBackendServer(
   // These three stay here: the org-status gate and the Rule Builder picker
   // sources read `organizations`, `categories`, `payment_methods` and
   // `delivery_methods` directly, and the catalog read port is `catalog`'s.
-  // Registered after the late pass, where the module declares its defaults.
+  // Registered after `composeModules`, where the module declares its defaults.
   registerValues(container, {
     organizationStatusResolver: async (orgId: string) => {
       const row = (await em().getKnex()
@@ -1409,9 +1409,8 @@ export async function setupBackendServer(
   // OTHER modules' tables, so moving them into the module would give it
   // direct reads of `catalog`, `cms` and `assets_library` storage.
   //
-  // Registered after the late pass, where `megamenu` composes and declares
-  // its own defaults — contributing earlier would let the module overwrite
-  // the root.
+  // Registered after `composeModules`, where `megamenu` declares its own
+  // defaults — contributing earlier would let the module overwrite the root.
   registerValues(container, {
     megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
@@ -1883,10 +1882,10 @@ export async function setupBackendServer(
   });
 
   // Feature 072 (T138) — the two `organizations` contributions this harness
-  // makes, registered after the early pass that composes the module so they
-  // overwrite its defaults rather than being overwritten by them. Both are read
-  // lazily — the clients when the tax-ID service is first constructed, the hook
-  // at login — so this placement is safe.
+  // makes, registered after `composeModules` so they overwrite the module's
+  // defaults rather than being overwritten by them. Both are read lazily — the
+  // clients when the tax-ID service is first constructed, the hook at login — so
+  // this placement is safe.
   registerValues(container, {
     // No test may open a socket to VIES or Ministerstwo Finansow. The fake
     // returns `validated` for any taxId ending in `00000` and `failed` /
@@ -2267,9 +2266,10 @@ export async function setupBackendServer(
   // Production does this inside the same load; without it the operator axis has
   // nothing to resolve, the settings write guards never fire and the activation
   // endpoint reports every module as having no control.
-  // Feature 072 (D-38) — the seeding above happens before the early pass, which
-  // is the same order production now runs in: presence is a composition input,
-  // and `__setEnabledForTesting` is the load without a database.
+  // Feature 072 (D-38) — the seeding above happens before the first module
+  // registers, which is the same order production now runs in: presence is a
+  // composition input, and `__setEnabledForTesting` is the load without a
+  // database.
   // Feature 072 (T073) — the other half of the pub/sub path production runs: a
   // module-state change invalidates the permission catalogue.
   //

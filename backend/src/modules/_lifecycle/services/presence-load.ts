@@ -17,16 +17,20 @@ import { registryCache } from '../../../kernel/lifecycle/registry-cache.js';
  * bug; the cache, the gate and the composer were each doing exactly their job.
  *
  * So this is called from the composition root **before the first module
- * registers**, and it is awaited and fatal: it needs the EntityManager factory
- * and the manifest list, and both exist long before the early pass composes.
- * Redis is not involved — arming the notification channel is
+ * registers**, and it is awaited and fatal: its two inputs are the EntityManager
+ * factory and the manifest list, and a root has both before it composes
+ * anything. Redis is not involved — arming the notification channel is
  * `registryCache.watch()`, which happens after composition and cannot fail a
  * boot.
  *
- * It lives under `_lifecycle` rather than in `src/kernel/` because the cache
- * does, and the kernel may not import from `src/modules/`
- * (`check-kernel-boundary.ts`). D-37 relocates the whole presence machinery into
- * the kernel; the call site is already where it needs to be.
+ * It lives under `_lifecycle` rather than in `src/kernel/` even though D-37 A1
+ * moved the cache, the resolver and the gating wrappers into the kernel. The
+ * reason is `installGatingGraph` below: `gating-graph.ts` defaults its graph to
+ * `REGISTERED_MANIFESTS`, so a kernel that took this file would import the
+ * module registry, and severing that default turns every activation-refusal test
+ * in the harness — which never calls this function — into a refusal that cannot
+ * fire. D-37 §2.3 records the call as deliberate and arguable; the call site is
+ * already where it needs to be either way.
  */
 export async function loadModulePresence(opts: {
   em: () => EntityManager;

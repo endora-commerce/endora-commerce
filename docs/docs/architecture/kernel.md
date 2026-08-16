@@ -473,6 +473,40 @@ subscriptions in 7 modules** (`search`, `product_feeds`, `inventory`, `pwa`,
 There is no static check for this seam, unlike routes and workers — use
 `ctx.subscribe`.
 
+### Writing an ordering rationale that does not rot
+
+Collapsing the two passes invalidated nothing in the code and fifteen comments in
+it — plus two rationales that had already been corrected once. That is not a
+tidiness problem: three times in this feature an implementer read one of them,
+believed it, and spent a session on a defect that did not exist. Two rules come
+out of it, and they apply to any explanation of *when* something happens.
+
+**Name the mechanism, not the coordinates.** A rationale that reads "the accessor
+is not assigned until `composition.ts:3240`, and the hooks run at `:2122`" is
+wrong the moment either number moves, and nothing tells you: no test covers a
+comment, and the reader has no reason to doubt a number. The same rationale
+written as "the orchestrator is built after the modules compose, so the accessor
+answers `undefined` during registration" survives every edit that does not change
+the mechanism — and if it does change the mechanism, the sentence is visibly
+about the thing that changed. Where a reference genuinely helps, make it a
+**symbol** or a **file plus symbol** (`compose.ts`'s `registering` guard,
+`presence-load.ts`'s `installGatingGraph`), never a line number.
+
+**Do not write a counterfactual in the past tense.** "A reconcile here would have
+found no registry and reported success" reads as an incident report; the next
+reader takes it as evidence that the platform once broke this way, and goes
+looking for the outage. If the hazard is hypothetical, say so in the first
+sentence — `test/unit/_i18n/reconcile-timing.test.ts` opens with "everything
+below is about a move that was never made" for exactly this reason, after the
+paragraph beneath it had already misled someone once. If the hazard is real and
+past, name the decision or the commit that closed it in the same breath, the way
+`api_keys/backend.ts` does with its retired `EARLY_PASS_MODULE_IDS` entry.
+
+The same applies to the ledgers in `check-port-dependencies.ts`: the staleness
+sweep fires when the owner **registers the name**, which is not the same fact as
+the owner being converted, so a reason written as "still hand-wired" rots without
+failing a build. Write each entry's reason as a statement about the name.
+
 ## Install-time work: the one seam is `manifest.ts`
 
 `ctx.onBoot` is the only lifecycle hook a `ModuleContext` carries. There is no

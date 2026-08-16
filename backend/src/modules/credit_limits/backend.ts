@@ -48,7 +48,7 @@ export interface CreditLimitsCradle {
     customerAccountId: string;
     organizationId: string;
   };
-  /** Owned by `organizations`; a root registers it until that module converts. */
+  /** A port `organizations` provides — read it per call, never captured. */
   readonly organizationInheritancePort: OrganizationInheritanceService;
   readonly creditLimitService: CreditLimitService;
 }
@@ -63,13 +63,15 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             eventBus as unknown as CreditLimitEventBus,
             commandBus,
-            // Resolved per call, not destructured. This module composes in the
-            // early pass — both roots read `creditLimitService` well before the
-            // late pass — while `organizationInheritancePort` is registered
-            // later, after `organizations` is built. Taking it as a constructor
-            // argument resolves it at composition time and fails on a name that
-            // does not exist yet. `creditOwner` is the only method reached, so
-            // the delegate is exact rather than a cast hiding a gap.
+            // Resolved per call, not destructured. `organizationInheritancePort`
+            // is a port `organizations` provides, which makes it a transient gate
+            // on that module's effective state: capturing it in this singleton's
+            // factory is refused by awilix strict mode, and a captured gate would
+            // keep answering after an operator switched `organizations` off.
+            // Resolving at the point of use also means this registration does not
+            // care which module registered first — registration resolves nothing.
+            // `creditOwner` is the only method reached, so the delegate is exact
+            // rather than a cast hiding a gap.
             {
               creditOwner: (orgId: string) =>
                 ctx.cradle<CreditLimitsCradle>().organizationInheritancePort.creditOwner(orgId),

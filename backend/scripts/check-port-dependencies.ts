@@ -162,11 +162,21 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Ports a **composition root** still registers on behalf of a module that has
- * not been converted yet. Each entry is a temporary stand-in for a
- * `ctx.di.providePort` call in the owning module's `backend.ts`, and it is
- * deleted by that module's conversion — the check fails if an entry survives
- * its owner's conversion, so the list drains rather than accumulating.
+ * Ports a **composition root** registers on behalf of the module that owns the
+ * name. Each entry is a stand-in for a `ctx.di.providePort` call in that
+ * module's `backend.ts`, and the staleness sweep in `main` deletes it for you
+ * the day the owner makes that call.
+ *
+ * **What the sweep does not see, and what that costs the comments here.** It
+ * fires on one condition only: the owner's `backend.ts` registers the name
+ * itself. All 65 modules are composed through the container now, so "the owner
+ * is converted" and "the owner provides this port" are two different facts, and
+ * only the second one is checked. An entry can therefore be correct while the
+ * sentence next to it is not — several said "still hand-wired" of a module that
+ * had been converted for weeks. Write each reason as a statement about *this
+ * name* (who owns it, why a root supplies it, what would let the entry go), not
+ * as a statement about the owner's conversion status, which nothing here
+ * verifies.
  */
 export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `requireAdmin` and `requireAdminAny` are gone from here: `auth` provides
@@ -176,15 +186,13 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // Registered as `undefined` today: blog ships no storefront ports and both
   // composition roots pass nothing. The name is blog's own.
   blogStorefrontDeps: 'blog',
-  // `_i18n` reads it to serve the per-admin language preference; `admin_users`
-  // owns the audited instance and is still hand-wired.
-  // The lazy accessor `_i18n` walks to reconcile every module's bundles. The
-  // registry does not exist until `_lifecycle` is constructed, which in a root
-  // happens after the late pass, so a root supplies the accessor.
+  // The lazy accessor `_i18n` and `admin_actions` walk to reconcile every
+  // module's bundles and palette actions. It is an accessor rather than the
+  // registry because `_lifecycle`'s orchestrator is built after both of them, so
+  // the value does not exist at the moment either module registers; a root
+  // supplies the closure that will read it later. The entry goes when
+  // `_lifecycle` provides the accessor as a port of its own.
   lifecycleManifestRegistry: '_lifecycle',
-  // The audited settings write path. `settingsReadPort` is platform-owned
-  // because the kernel holds the store (D-32), but the *admin* service is still
-  // the `settings` module's, and that module is hand-wired.
   // `auth`'s customer-side guard, still declared inline in each root while the
   // harness runs a separate `requireTestCustomer()` — the divergence T011/T012
   // fixed for `requireAdmin` and never did for this one. Owner is `auth`; the
@@ -194,8 +202,11 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // by nature — production reads `request.actor`, the harness `request.testActor`
   // — so it is a composition input rather than any module's property.
   adminAuditActorResolver: 'auth',
-  // The sales-channel code⇄id lookup. Owned by `sales_channels`, which is still
-  // hand-wired (T110); the entry goes when that module converts.
+  // The sales-channel code⇄id lookup `google_analytics` resolves. `sales_channels`
+  // owns the name and has been container-composed since T110, but it provides
+  // `salesChannelsService` rather than this two-method projection of it, so each
+  // root still assembles the projection. The entry goes when the module provides
+  // the projection itself — not when it converted, which it already has.
   salesChannelCodeIdPort: 'sales_channels',
   // How a composition resolves the calling customer. Root-shaped for the same
   // reason `requireCustomer` is; owned by `auth` in principle.
@@ -231,15 +242,14 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `customerContextResolver` and `customerAccountIdResolver`, same owner, and
   // it drains with them (T136).
   cartActorResolver: 'auth',
-  // The guard that refuses a cart mutation for an organization that may not
-  // transact. Owned by `organizations`, still hand-wired.
-  // `inventory`'s root-built adapter (T129) — the Organization's warehouse
-  // assignment that scopes a storefront stock read. Its transactional-email
-  // twin drained in T120, when `transactional_emails` converted and offered one
-  // `templateEmailPort` to every module that sends unscoped template mail.
-  // The seven `catalog` services `pim_ergonode` reads drained in T142, along
-  // with `catalogAttributeReadPort` and `catalogQueryPort` — that module
-  // provides all nine now.
+  // **Drained, and the notes kept because the drain order is the record of how
+  // this table empties.** No root bridges any of these names now: the guard that
+  // refuses a cart mutation for an organization that may not transact
+  // (`organizations`), `inventory`'s warehouse-assignment adapter (T129), its
+  // transactional-email twin (T120, replaced by one `templateEmailPort` for
+  // every module that sends unscoped template mail), and the nine `catalog`
+  // names `pim_ergonode` used to read, `catalogAttributeReadPort` and
+  // `catalogQueryPort` among them (T142).
   // The asset service the Ergonode media pipeline stores through.
   assetsLibraryService: 'assets_library',
   // How this composition assembles a feed row: opening a storage backend,
@@ -247,10 +257,10 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // port, and turning asset ids into stable public URLs (T137). Each crosses a
   // boundary `product_feeds` must not reach through directly.
   productFeedsBridge: 'product_feeds',
-  // `shopping_lists`' two cross-module reaches (T133): the RFQ service a list
-  // converts into, the org restriction the preference routes re-check against,
-  // the lazy order service one-click buy places through, and the sink that
-  // hands its own service back to `carts`. All four owners are still hand-wired.
+  // Drained as well: `shopping_lists`' four cross-module reaches (T133) — the
+  // RFQ service a list converts into, the org restriction the preference routes
+  // re-check against, the lazy order service one-click buy places through, and
+  // the sink that hands its own service back to `carts`.
   // `quote_requests`' three composition-shaped inputs (T132): who is asking
   // (production reads `request.actor`, the harness `request.testActor`), the
   // organization's tax rate, and the subtree the RFQ admin scope rolls up over.
@@ -360,9 +370,9 @@ export interface PortResolution {
  *     a singleton that captures one — correctly, because a captured gate keeps
  *     answering after the operator switches its module off.
  *  2. **Ordering.** A name a root registers may not exist yet when a module
- *     composes; the early pass runs long before most of a root's
- *     `registerValues` calls. Capturing resolves against a name that is not
- *     there, and the failure is a boot crash rather than a type error.
+ *     registers: a root's contribution slot is *after* `composeModules`, which
+ *     is where the module bodies run. Capturing resolves against a name that is
+ *     not there, and the failure is a boot crash rather than a type error.
  *
  * Both are invisible at the call site and neither is caught by `tsc`.
  */

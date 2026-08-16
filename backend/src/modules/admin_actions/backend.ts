@@ -16,16 +16,17 @@ import { adminActionsModule, type AdminActionsModuleHandle } from './plugin.js';
  * This is `_i18n`'s shape repeated, and it is worth naming rather than
  * rediscovering. The module walks the lifecycle manifest registry to refresh
  * every module's palette actions, and reaches that registry through the same
- * lazy accessor, for the same chicken-and-egg reason — `_lifecycle` is
- * constructed after it. The reconcile therefore runs at **plugin attach**,
- * which is after `lifecycleRef` is assigned, and it stays there.
+ * lazy accessor, for the same chicken-and-egg reason — `_lifecycle`'s
+ * orchestrator is constructed after it. The reconcile therefore runs at
+ * **plugin attach**, the point at which every root has finished composing and
+ * the accessor is guaranteed to answer, and it stays there.
  *
- * `ctx.onBoot` would run it with the late pass, roughly a thousand lines before
- * that assignment, where the accessor answers `undefined`. Neither reconciler
- * treats an absent registry as an error — this one simply walks nothing — so
- * the failure is silent: every module's palette actions stop being refreshed at
- * boot and the first symptom is a stale ⌘K entry pointing at a route that
- * moved.
+ * It stays there for `_i18n`'s reason too: neither reconciler treats an absent
+ * registry as an error — this one simply walks nothing — so an accessor that
+ * answers `undefined` fails silently. Every module's palette actions would stop
+ * being refreshed at boot and the first symptom would be a stale ⌘K entry
+ * pointing at a route that moved. Moving the reconcile is a change that has to
+ * carry its own evidence; uniformity with the other conversions is not it.
  *
  * **`isModuleActivated` stops being optional**, and its absent form is the
  * permissive one. The option's own comment says what that costs: *"Without it
