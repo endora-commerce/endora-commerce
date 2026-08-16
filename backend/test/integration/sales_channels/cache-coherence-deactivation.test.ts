@@ -81,8 +81,10 @@ describe('sales-channel cache coherence on deactivation (feature 053 / FR-008)',
     // `dispatch` awaits its handlers in registration order — so "the
     // invalidation has completed" is not a fixed number of ticks. It used to be
     // one `setImmediate`, which held only while this event had exactly one
-    // handler; issue #101 added `dictionaries` ahead of it in the early pass,
-    // and its Redis SCAN pushed the channel invalidator past that tick. Wait
+    // handler; issue #101 put `dictionaries`' handler ahead of it, and its Redis
+    // SCAN pushed the channel invalidator past that tick. (D-45 composes the
+    // channel invalidator before every module, so it is first again — but the
+    // number of ticks is still not the thing to assert.) Wait
     // for the condition itself instead of for a tick count — the assertion
     // below is unchanged and still the point.
     await waitForCacheMiss();

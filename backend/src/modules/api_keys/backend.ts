@@ -15,9 +15,11 @@ import { integrationsModule } from './plugin.js';
  * that ordering has to survive the conversion. It does, by a different
  * mechanism than a line position. `auth` resolves `apiKeyResolver` from the
  * cradle *inside its request hook*, so what matters is that the name is
- * registered before a request arrives, not before `auth` composes. The
- * `EARLY_PASS_MODULE_IDS` entry makes that true by construction rather than by
- * a comment asking the next editor not to move a `const`.
+ * registered before a request arrives, not before `auth` composes — and every
+ * module registers before the first route is even attached, so it is true by
+ * construction rather than by a comment asking the next editor not to move a
+ * `const`. (This module used to carry an `EARLY_PASS_MODULE_IDS` entry saying
+ * so; D-45 deleted the list, and nothing about the guarantee moved.)
  *
  * `apiKeyResolver` becomes a port this module provides, and its
  * `HOST_REGISTERED_PORTS` entry goes — the third such entry retired, after

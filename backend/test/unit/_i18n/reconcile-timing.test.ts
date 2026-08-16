@@ -21,19 +21,26 @@ import { registerModule } from '../../../src/modules/_i18n/backend.js';
  * is wrong.
  *
  * Every other converted module puts its boot-time work in `ctx.onBoot`. Doing
- * that here breaks the platform silently. `_i18n` walks the lifecycle manifest
- * registry to refresh every module's `translation_bundles` rows, and it reaches
- * that registry through a **lazy accessor** because `_lifecycle` is built after
- * it. In `composition.ts` the late pass composes at :2087 and its boot hooks run
- * at :2122 — but `lifecycleRef` is not assigned until :3240. A reconcile in
- * `onBoot` therefore finds no registry, and the reconciler's contract for that
- * case is to return `{installed: 0, skipped: 0, failed: 0}` and carry on.
+ * that here used to break the platform silently. `_i18n` walks the lifecycle
+ * manifest registry to refresh every module's `translation_bundles` rows, and it
+ * reaches that registry through a **lazy accessor** because `_lifecycle`'s
+ * orchestrator is built near the bottom of `composition.ts`. Under the two-pass
+ * shape the late pass's boot hooks ran ~700 lines above that line, so a
+ * reconcile in `onBoot` found no registry — and the reconciler's contract for
+ * that case is to return `{installed: 0, skipped: 0, failed: 0}` and carry on.
  *
- * So the failure mode is: every module's translation bundles quietly stop being
+ * The failure mode was: every module's translation bundles quietly stop being
  * refreshed at boot, no exception is raised, no log line says anything is
  * wrong, and the first symptom is a screen rendering raw i18n keys after
- * somebody edits a JSON bundle. Plugin attach happens after :3240, which is why
- * the reconcile lives in the `ctx.routes` callback and has to stay there.
+ * somebody edits a JSON bundle.
+ *
+ * D-45 removed that hazard rather than this test: there is one boot phase now
+ * and it runs at the very bottom of `composeApp()`, after the orchestrator
+ * exists. So `onBoot` would find the registry today. The reconcile stays in the
+ * `ctx.routes` callback all the same, and this test keeps pinning it there —
+ * moving it is a behaviour change (a `BACKEND_ROLE=worker` process attaches no
+ * routes and would start reconciling bundles it never did) and wants its own
+ * decision, not a silent edit.
  *
  * The harness cannot catch this: `test-server.ts` passes no registry at all, so
  * `reconcileBundles` has always been a no-op under `setupBackendServer`. Hence
