@@ -850,3 +850,59 @@ ledger, the exit code — while the inventory is what keeps a shape from
 disappearing when that file is edited. The inventory also pins which CI job runs
 each check and compares it against `.gitlab-ci.yml`, so a check that quietly
 leaves the job has to say so.
+
+### A benchmark asserts that it measured something before it asserts how long it took
+
+The section above is about a rule that cannot see. This one is the same defect in
+a **measurement**, and it is easier to miss, because the number a benchmark
+prints is never *wrong* — it is simply not about the thing anyone reads it for.
+`test/perf/catalog-list.bench.ts` seeded a synthetic corpus that belonged to no
+sales channel, so `filterByChannel` dropped every row (Principle XII fails
+closed) and the page it timed contained zero summaries. It reported a p95 of
+7 ms and was green from the day channel scoping landed; with the corpus bound
+to the channel the same read measures 13–18 ms, all of the difference being the
+per-summary work that had never run (issue #140). **A budget met by measuring
+nothing and a budget met by being fast look identical in CI.**
+
+So the question to ask a benchmark is the one asked of a check: *if the thing
+being measured silently did nothing, would this notice?* Four rules come out of
+it.
+
+**Count the work, in the same loop that times it, and assert the count first.**
+Not a smoke test in a neighbouring file — the timed run itself carries the
+evidence: summaries per page, projected attributes, cart lines served, up-sell
+candidates returned, products emitted, carts swept, registry entries resolved.
+Assert that count **before** the latency assertion, so a run that measured
+nothing fails saying so rather than failing a budget by an unexplained margin —
+or worse, passing one.
+
+**Print what was measured next to the duration.** Every `[perf/*]` line carries
+its own denominator, because the reader of a benchmark log is usually comparing
+two runs weeks apart, and a p95 that halved because the fixture stopped
+producing rows is indistinguishable from a p95 that halved because the code got
+faster.
+
+**Consume the result.** A microbenchmark that discards the return value is
+measuring a call V8 is free to eliminate. `enabled-check.bench.ts` counted the
+answers instead, and the honest number came out higher than the one it had been
+reporting — which is the correction, not a regression.
+
+**A scenario's precondition is an assertion, not a comment.** "Cold path" was
+a `redis.del` on a two-layer cache: the per-process LRU in front of Redis kept
+answering, so the cold scenario timed the warm one and both printed 0.1 ms.
+The loop now drops both layers and asserts the cache reports a miss before it
+starts. Where a fixture is what makes the measurement real — channel membership,
+`product_links` rows for an up-sell strip — seed it, then assert the endpoint
+returned it.
+
+Where the guard then puts a budget in the red, **report it; do not raise the
+budget**. Telling "we are slower than we said" apart from "we were never
+measuring this" is the entire value of the guard, and a number moved to make a
+build green destroys both.
+
+One caveat the same incident exposed: these benchmarks are gated on `PERF_RUN`
+and **no CI job sets it**, so nothing in the pipeline has ever executed one.
+`test/perf/catalog/visible-attributes.bench.ts` had been throwing rather than
+timing since channel scoping landed, and `pnpm --filter backend run test:perf`
+is the only thing that would have said so. Run it locally when touching a hot
+path; a scheduled job is the standing debt.

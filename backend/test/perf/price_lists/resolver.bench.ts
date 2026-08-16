@@ -121,6 +121,7 @@ describe.skipIf(!shouldRun)('pricing resolver — p95 latency', () => {
     }
 
     const samples: number[] = [];
+    let seededListWins = 0;
     for (let i = 0; i < iterations; i++) {
       const qty = 1 + (i % bracketsPerCurrency);
       const start = performance.now();
@@ -131,7 +132,12 @@ describe.skipIf(!shouldRun)('pricing resolver — p95 latency', () => {
       });
       samples.push(performance.now() - start);
       expect(out.base.bracket).not.toBeNull();
+      // The claim is "with N active lists", and the Default list alone would
+      // also produce a bracket — cheaply. A winner from the seeded corpus is
+      // what says the priority chain and the tie-break actually ran.
+      if (out.base.listId !== DEFAULT_PRICE_LIST_ID) seededListWins += 1;
     }
+    expect(seededListWins).toBe(iterations);
 
     samples.sort((a, b) => a - b);
     const p50 = samples[Math.floor(samples.length * 0.5)] ?? 0;
