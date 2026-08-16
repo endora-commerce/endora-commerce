@@ -2,7 +2,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { closureOf, providedPortNames } from '../../../scripts/check-port-dependencies.js';
-import { acknowledgedPortEdgesFrom } from '../../../src/modules/_lifecycle/services/gating-graph.js';
+import {
+  acknowledgedPortEdgesFrom,
+  nonBindingPortEdgesFrom,
+} from '../../../src/modules/_lifecycle/services/gating-graph.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
 /**
@@ -196,6 +199,32 @@ describe('nonDeactivatable — the declaring set beyond the criterion (grounds 2
       // closure-only check would report them unjustified and drop them.
       expect(criterionClosure.has(id)).toBe(false);
       expect(portEdgeJustified.has(id)).toBe(true);
+    }
+  });
+});
+
+describe('nonDeactivatable — a non-binding edge is not a ground (D-44)', () => {
+  it('carries no module into the port-edge ground, however core the declarer', () => {
+    // The exclusion is explicit rather than incidental. `portEdgeJustifiedModules`
+    // reads `acknowledgedPortEdgesFrom`, and folding the third array in beside it
+    // is a one-word edit that would invert the field's whole purpose: `auth` is a
+    // criterion module and declares `api_keys:apiKeyResolver`, so `api_keys` would
+    // become non-deactivatable **because** the manifest that withdrew the refusal
+    // said so.
+    const edges = nonBindingPortEdgesFrom(REGISTERED_MANIFESTS.map((e) => e.manifest));
+
+    // Non-vacuous: a criterion module declares one of these today.
+    expect(edges.map((edge) => edge.moduleId)).toContain('auth');
+
+    for (const edge of edges) {
+      expect(
+        portEdgeJustified.has(edge.dependsOn),
+        `${edge.dependsOn} was carried into the port-edge ground by ${edge.moduleId}`,
+      ).toBe(false);
+      expect(
+        groundFor(edge.dependsOn),
+        `${edge.dependsOn} rests on the port-edge ground`,
+      ).not.toBe('acknowledged-port-edge');
     }
   });
 });

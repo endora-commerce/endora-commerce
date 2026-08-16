@@ -95,6 +95,21 @@ export const manifest = defineModuleManifest({
     'settings',
     'transactional_emails',
   ],
+  // D-44 — real to the container, binding on no operator.
+  nonBindingDependencies: [
+    {
+      moduleId: 'prompt_actions',
+      name: 'promptActionToolRegistry',
+      kind: 'contributes-to',
+      reason:
+        'A push, from this module’s boot hook, of the order resolver and the status-change ' +
+        'mutations built over its own transition service. Nothing is read back: the ' +
+        'registry is a plain registration that drops every tool whose owner is not ' +
+        'effectively present, so an absent contributor costs the host nothing and an ' +
+        'absent host holds a table nobody walks. Declaring the edge would make an optional ' +
+        'assistant undeactivatable for as long as the platform takes orders.',
+    },
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — transactional emails owned by this module. Default subject +

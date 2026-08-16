@@ -51,9 +51,10 @@ export interface CustomersSelfDeps {
   /**
    * Lazy getter — OrderListService is built inside the orders plugin's
    * registration, so it is only available once the server has booted. Routes
-   * resolve it at request time.
+   * resolve it at request time — and, since D-44, may get an empty reader back
+   * when `orders` is not effectively present.
    */
-  getOrderListService: () => OrderListService;
+  getOrderListService: () => Pick<OrderListService, 'list'>;
   rfqService: RfqService;
   customerAddressService: CustomerAddressService;
   customerDefaultsService: CustomerDefaultsService;

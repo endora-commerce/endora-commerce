@@ -460,45 +460,24 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
       'This module still hands its service out through a root-registered `assetsLibraryService`, ' +
       'so the entry drains with that conversion rather than before it.',
   },
-  'catalog:catalogPromptResolverTools': {
-    owner: 'catalog',
-    roots: ['production', 'harness'],
-    reason:
-      'Prompt-assistant tools are pushed into `prompt_actions`’ registry at boot, so the ' +
-      'contribution cannot be gated and the contributing module would have to declare ' +
-      '`prompt_actions` as a dependency — which makes an optional assistant undeactivatable ' +
-      'while `catalog` is present. Same shape as the `alias-debt` cluster: a product ruling, ' +
-      'not a static fix.',
-  },
-  'catalog:catalogPromptMutationTools': {
-    owner: 'catalog',
-    roots: ['production', 'harness'],
-    reason:
-      'The mutation half of `catalog:catalogPromptResolverTools` — the same registry, the same ' +
-      'boot-time contribution, and it drains with the same ruling about which module may make ' +
-      'another undeactivatable.',
-  },
+  // `catalog:catalogPromptResolverTools`, `catalog:catalogPromptMutationTools`,
+  // `inventory:inventoryPromptTools` and `orders:ordersPromptTools` were here.
+  // All four were the same entry: a boot-time push into `prompt_actions`'
+  // registry that could not move into the contributing module without declaring
+  // `prompt_actions` a dependency — the declaration that would have made an
+  // optional assistant undeactivatable. D-44's `nonBindingDependencies` is that
+  // declaration without the claim, so all four now push from their own module's
+  // boot hook. The `orders` one also closed a parity gap on its way out: it was
+  // production-only, so no test composed an order tool.
   'catalog:catalogBulkProgressResolver': {
     owner: 'catalog',
     roots: ['production', 'harness'],
     reason:
-      'The progress reader for the bulk operations those tools start — a contribution over a ' +
-      'name `prompt_actions` defaults, so it drains with the same ruling.',
-  },
-  'inventory:inventoryPromptTools': {
-    owner: 'inventory',
-    roots: ['production', 'harness'],
-    reason:
-      'Same registry and the same ruling as the `catalog` prompt tools: `inventory` would have ' +
-      'to declare `prompt_actions` to push into it at boot, and that declaration is what makes ' +
-      'the assistant undeactivatable.',
-  },
-  'orders:ordersPromptTools': {
-    owner: 'orders',
-    roots: ['production'],
-    reason:
-      'Same registry and ruling as the `catalog` prompt tools. Production-only, and that is ' +
-      'itself a gap: the harness composes no orders tools, so nothing exercises them.',
+      'The progress reader for the bulk operations those tools start, and the one of the five ' +
+      'that D-44 does **not** drain: `promptActionsBulkProgressResolver` is not a registry but ' +
+      'a single name `prompt_actions` defaults, and a module may not write a name another ' +
+      'module owns. It drains when `prompt_actions` turns that slot into a registry keyed by ' +
+      'contributing module — a shape change in the host, not a manifest entry.',
   },
   'product_feeds:FeedDeliveryError': {
     owner: 'product_feeds',
@@ -521,8 +500,8 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
  * its way past.
  */
 const ROOT_MODULE_IMPORT_CEILING: Readonly<Record<RootName, number>> = {
-  production: 17,
-  harness: 12,
+  production: 15,
+  harness: 11,
 };
 
 /** What the restated SC-001 / SC-006 ask for, kept beside what is true. */

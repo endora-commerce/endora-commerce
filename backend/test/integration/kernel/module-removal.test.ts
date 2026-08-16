@@ -120,14 +120,18 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // root reading a module's registrations. It leaves when nothing hand-wired
   // needs the annotation.
   admin_roles: ['src/composition.ts'],
-  // `prompt_actions` (wave 1) — the inverted case, and the reason this ledger
-  // is worth keeping. Its `composition.ts` reference is not a leftover of the
-  // conversion: three *other* modules contribute tools into the registry this
-  // one owns, and the root is where "which modules does this deployment ship"
-  // is known. So the root imports `PromptActionTool` to type the contributions
-  // and `PromptActionToolRegistry` to type what it resolves. Both stay until
-  // `catalog`, `inventory` and `orders` convert and contribute for themselves.
-  prompt_actions: ['src/composition.ts'],
+  // `prompt_actions` (wave 1) — the inverted case, and the reason this ledger is
+  // worth keeping. Its `composition.ts` reference was never a leftover of the
+  // conversion: three *other* modules contributed into the registry it owns, and
+  // the root imported `PromptActionTool` and `PromptActionToolRegistry` to type
+  // that. D-44 moved every one of those pushes into the contributing module's
+  // own boot hook, and both type imports went with them, so the entry is gone.
+  //
+  // One root contribution into this module survives and is **not** recorded
+  // here, because the import it needs names `catalog`, not this module:
+  // `catalogBulkProgressResolver` is written over a single name
+  // `prompt_actions` *defaults* rather than a registry, and a module may not
+  // write a name another module owns.
   // `customer_accounts` (wave 1, T094). `composition.ts` imports the cradle
   // type to annotate the services it resolves and hands to `customers` and
   // `organizations`. Both of those built their own before this conversion, and
@@ -244,10 +248,10 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/apps/example/decorations/pricing-service.ts',
     'src/composition.ts',
   ],
-  // `inventory` (wave 3, T129). Both roots contribute the two adapters it
-  // reaches outside itself through — the transactional-email sender and the
-  // Organization's warehouse assignment — plus the admin audit shape.
-  inventory: ['src/composition.ts'],
+  // `inventory` left this ledger with D-44: its last root reference was the
+  // prompt-tool contribution, and the module pushes that from its own boot hook
+  // now. The two adapters and the admin audit shape it reaches outside itself
+  // through are registered by name rather than imported from here.
   // `shopping_lists` (wave 3, T133). Both roots contribute the four
   // cross-module names it must not reach for directly — the RFQ service, the
   // org restriction, the lazy order service, and the sink that hands its own

@@ -52,7 +52,11 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import type { ModuleManifest } from '@b2b/contracts';
-import { acknowledgedPortEdgesFrom } from '../src/modules/_lifecycle/services/gating-graph.js';
+import {
+  acknowledgedPortEdgesFrom,
+  nonBindingPortEdgesFrom,
+  type NonBindingPortEdge,
+} from '../src/modules/_lifecycle/services/gating-graph.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -496,26 +500,19 @@ export const WIRING_RESOLUTIONS_TO_DRAIN: ReadonlySet<string> = new Set([]);
  * the moment the site stops resolving.
  */
 export const ALIAS_HIDDEN_RESOLUTIONS: Readonly<Record<string, string>> = {
-  'auth:apiKeyResolver':
-    'The request hook binds `request.actor` from an API key when one is presented. ' +
-    '`api_keys` declares `auth`, so the edge cannot be declared; acknowledging it would ' +
-    'add `auth` — present in every deployment — to the port owner’s dependents, and the ' +
-    'flip-time refusal would then make `api_keys.enabled` a control an operator can never ' +
-    'switch off. Deciding that is a product call about how far fail-closed reaches, not a ' +
-    'static-check fix.',
-  'catalog:requireApiKey':
-    'Same edge as `auth:apiKeyResolver`, on the external catalog namespace: the two gates ' +
-    'guard machine-to-machine routes. Declaring `api_keys` closes a cycle through ' +
-    '`customer_accounts` → `price_lists` → `catalog`, and acknowledging it would make ' +
-    '`api_keys` undeactivatable while `catalog` is present.',
-  'catalog:requireBoundApiKey':
-    'The organization-bound half of the pair above; identical reasoning and it drains with it.',
-  'customers:orderListServiceAccessor':
-    'The self-service order history reads the late-bound `OrderListService` `orders` ' +
-    'exposes. Declaring `orders` is cycle-free and matches the composition order, but it ' +
-    'makes `orders` undeactivatable while `customers` is present — a presence rule this ' +
-    'platform has not decided anywhere, and the read is already written to tolerate an ' +
-    'unbound service.',
+  // `auth:apiKeyResolver`, `catalog:requireApiKey`, `catalog:requireBoundApiKey`
+  // and `customers:orderListServiceAccessor` were here. All four were the same
+  // shape — a real edge whose ordinary declaration would have made the owner's
+  // activation control unusable — and D-44 gave that shape a spelling:
+  // `manifest.nonBindingDependencies`, with the degradation written down and a
+  // presence probe at the call site. They are declared, not suppressed, now.
+  //
+  // What is left is a different debt. These four read a **plain**
+  // `ctx.di.register` name at construction, so their outstanding violation is
+  // `captured-name`, which no manifest entry can clear: the value goes into
+  // `commerceModule`'s options object and keeps answering after its owner is
+  // switched off. Draining them means giving that constructor accessors, which
+  // is `orders`' own conversion work.
   'orders:paymentAdapterRegistry':
     'Read at construction — the value goes into `commerceModule`’s options object — so it ' +
     'is a capture of another module’s registration. Deferring it means changing that ' +
@@ -557,6 +554,183 @@ export function acknowledgedPortEdges(
     ]),
   );
 }
+
+/**
+ * Port edges a module resolves and deliberately keeps out of `dependencies`
+ * because the owner disappearing is a state it handles — D-44.
+ *
+ * Merged into the same keyed lookup `acknowledgedPortEdges` feeds, because the
+ * ownership rule this check enforces takes no interest in which of the three
+ * arrays the declaration lives in: *the name you read belongs to someone, and
+ * you said whose*. What differs is everything downstream — an acknowledged edge
+ * reaches the flip-time refusal, one of these reaches nothing.
+ *
+ * Keyed `<resolving module>:<name>` and **direct only**: there is no closure to
+ * walk, so contributing to a module does not inherit that module's own
+ * dependencies. That is deliberate — the declaration is about one name.
+ */
+export function nonBindingPortEdges(
+  manifests: readonly ModuleManifest[],
+): Record<string, string> {
+  return Object.fromEntries(
+    nonBindingPortEdgesFrom(manifests).map((edge) => [
+      `${edge.moduleId}:${edge.name}`,
+      edge.reason,
+    ]),
+  );
+}
+
+export interface NonBindingIssue {
+  readonly kind:
+    | 'wrong-owner'
+    | 'nothing-resolves'
+    | 'contribution-registry-without-policy'
+    | 'contribution-over-a-gated-port'
+    | 'contribution-not-pushed-at-boot';
+  readonly edge: NonBindingPortEdge;
+  readonly detail: string;
+}
+
+export interface NonBindingInput {
+  readonly edges: readonly NonBindingPortEdge[];
+  readonly owners: ReadonlyMap<string, string>;
+  readonly providedPorts: ReadonlyMap<string, string>;
+  readonly resolutions: readonly PortResolution[];
+  /** Defaults to {@link CONTRIBUTION_POLICY_STATED}; a fixture supplies its own. */
+  readonly contributionPolicies?: Readonly<Record<string, 'skip' | 'honour'>> | undefined;
+}
+
+/**
+ * What a `nonBindingDependencies` entry has to be true of, checked against the
+ * tree rather than taken on the author's word.
+ *
+ * Two of the five are about the declaration itself — it names the module that
+ * really owns the name, and something really resolves it — because the entry
+ * clears an `undeclared-dependency` outright and a wrong or stale one clears a
+ * resolution nobody declared. The other three are D-44 §7's guard-rails on
+ * `contributes-to`, and they exist because that kind withdraws the refusal on
+ * the strength of an argument that only holds for a push into a stated-policy
+ * registry. `degrades-without` withdraws it on the strength of a written
+ * degradation and an off-state test, which no static check can see, so it is
+ * held only to the first two.
+ */
+export function findNonBindingIssues(input: NonBindingInput): NonBindingIssue[] {
+  const policies = input.contributionPolicies ?? CONTRIBUTION_POLICY_STATED;
+  const issues: NonBindingIssue[] = [];
+  for (const edge of input.edges) {
+    const sites = input.resolutions
+      .filter(
+        (resolution) =>
+          resolution.moduleId === edge.moduleId && resolution.name === edge.name,
+      )
+      .map((resolution) => resolution.site);
+
+    const owner = input.owners.get(edge.name);
+    if (owner !== undefined && owner !== edge.dependsOn) {
+      issues.push({
+        kind: 'wrong-owner',
+        edge,
+        detail: `'${edge.name}' is registered by '${owner}', not by '${edge.dependsOn}'`,
+      });
+    }
+    if (sites.length === 0) {
+      issues.push({
+        kind: 'nothing-resolves',
+        edge,
+        detail: `'${edge.moduleId}' resolves no name '${edge.name}' anywhere`,
+      });
+      continue;
+    }
+    if (edge.kind !== 'contributes-to') continue;
+
+    if (input.providedPorts.get(edge.name) !== undefined) {
+      issues.push({
+        kind: 'contribution-over-a-gated-port',
+        edge,
+        detail: `'${edge.name}' is registered with di.providePort, so resolving it asks a gate`,
+      });
+    } else if (policies[`${edge.dependsOn}:${edge.name}`] === undefined) {
+      issues.push({
+        kind: 'contribution-registry-without-policy',
+        edge,
+        detail: `'${edge.dependsOn}' states no enumeration policy for '${edge.name}'`,
+      });
+    }
+    if (sites.some((site) => site !== 'boot')) {
+      issues.push({
+        kind: 'contribution-not-pushed-at-boot',
+        edge,
+        detail: `resolved at ${[...new Set(sites)].sort().join(', ')}, not only from a boot hook`,
+      });
+    }
+  }
+  return issues;
+}
+
+export function describeNonBindingIssue(issue: NonBindingIssue): string {
+  const { edge } = issue;
+  const head = `  - ${edge.moduleId} declares ${edge.dependsOn}:${edge.name} as \`${edge.kind}\` — ${issue.detail}.`;
+  const tail: Record<NonBindingIssue['kind'], string> = {
+    'wrong-owner':
+      `    The entry clears the ownership rule for '${edge.moduleId}:${edge.name}' outright, so a\n` +
+      `    mis-attributed owner clears a resolution the manifest never mentions. Name the\n` +
+      `    module that registers it.`,
+    'nothing-resolves':
+      `    A declaration with no resolution under it is a claim about the tree that is no\n` +
+      `    longer true, and it will go on clearing the rule for whatever takes the name next.\n` +
+      `    Delete it.`,
+    'contribution-registry-without-policy':
+      `    A \`contributes-to\` edge rests on the host filtering an absent contributor's entry\n` +
+      `    at enumeration. A host that states no such enumeration policy may act on it, and\n` +
+      `    this edge has withdrawn the refusal that would have stopped it. State the policy at\n` +
+      `    the registry class and list it in CONTRIBUTION_POLICY_STATED, or declare the edge in\n` +
+      `    \`dependencies\`.`,
+    'contribution-over-a-gated-port':
+      `    A port is a transient gate, and a gate that says no throws rather than being absent.\n` +
+      `    That is a pull with a failure mode, not an inert push: it needs \`degrades-without\`\n` +
+      `    with the behaviour written in \`whenAbsent\`.`,
+    'contribution-not-pushed-at-boot':
+      `    Reading an answer out of an ungated registry is a pull. \`contributes-to\` is for a\n` +
+      `    push, which happens once from a boot hook and reads nothing back; anything resolved\n` +
+      `    at call or wiring time needs \`degrades-without\` and an off-state test for the edge.`,
+  };
+  return `${head}\n${tail[issue.kind]}`;
+}
+
+/**
+ * Contribution registries whose host states an absent-contributor policy at the
+ * class, keyed `<owner>:<registration name>` — D-44 §7, guard-rail 1.
+ *
+ * A `contributes-to` declaration rests on one argument: the descriptor a switched
+ * off module pushed is filtered by the **host** at enumeration, so the edge
+ * cannot break anybody in either direction. That argument holds only for a host
+ * that has decided, and written down, what it does with an absent contributor's
+ * entry — the requirement `test/unit/kernel/contribution-seams.test.ts` pins for
+ * the converted registries. A registry without one may act on the entry, and the
+ * declaring module has withdrawn the refusal that would have stopped it.
+ *
+ * `gatewayRefundRegistry` (`modules/payments/services/gateway-refund-registry.ts`)
+ * is deliberately **absent**: it records no contributing module id and states no
+ * policy, so no edge may name it until it does. That is the whole enforcement —
+ * an entry naming a registry that is not here fails the build.
+ *
+ * The value is what the host does, so a reader does not have to open the class
+ * to learn whether an absent owner's entry still counts.
+ */
+export const CONTRIBUTION_POLICY_STATED: Readonly<Record<string, 'skip' | 'honour'>> = {
+  // Honoured: the definition row is created from the platform axis regardless,
+  // so skipping the defaults would create it with empty content instead.
+  'transactional_emails:emailDefaultsPort': 'honour',
+  // Honoured: referential integrity, not a surface — a switched-off module still
+  // owns the rows that point at the asset.
+  'assets_library:assetReferenceRegistry': 'honour',
+  'cms:cmsReferenceRegistry': 'honour',
+  'megamenu:megamenuReferenceRegistry': 'honour',
+  // Skipped: a surface. `PromptActionToolRegistry.visibleFor` drops every tool
+  // whose recorded owner is not effectively present, and `PlanExecutorService`
+  // re-checks at execution.
+  'prompt_actions:promptActionToolRegistry': 'skip',
+};
 
 export interface PortViolation {
   readonly kind:
@@ -1361,9 +1535,17 @@ async function main(): Promise<void> {
   const dependencies = new Map<string, readonly string[]>(
     DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
   );
+  const manifests = DISCOVERED_MANIFESTS.map((entry) => entry.manifest);
   // The withheld edges, read from the manifests that withhold them — the same
-  // declarations the lifecycle's flip-time refusal reads (feature 073, A1).
-  const acknowledged = acknowledgedPortEdges(DISCOVERED_MANIFESTS.map((entry) => entry.manifest));
+  // declarations the lifecycle's flip-time refusal reads (feature 073, A1) —
+  // merged with the ones that withhold the refusal instead (D-44). The
+  // ownership rule below is satisfied by either; nothing else this check does
+  // reads them, and nothing else in the tree reads the second kind at all.
+  const acknowledged = {
+    ...acknowledgedPortEdges(manifests),
+    ...nonBindingPortEdges(manifests),
+  };
+  const nonBindingEdges = nonBindingPortEdgesFrom(manifests);
 
   // A host entry whose owner now registers the port itself is dead weight, and
   // dead weight in a bridging table is how the bridge outlives the gap.
@@ -1404,6 +1586,16 @@ async function main(): Promise<void> {
     providedPorts: moduleRegistered,
     neverAbsentOwners,
     acknowledged,
+  });
+
+  // What the third array has to be true of, D-44 §7. An entry here clears the
+  // ownership rule outright, so it is held to the tree rather than to its
+  // author's word.
+  const nonBindingIssues = findNonBindingIssues({
+    edges: nonBindingEdges,
+    owners,
+    providedPorts: moduleRegistered,
+    resolutions,
   });
 
   // A drain-list entry whose site is fixed is dead weight, and dead weight in a
@@ -1458,7 +1650,8 @@ async function main(): Promise<void> {
       `resolutions=${resolutions.length} violations=${violations.length} ` +
       `root-issues=${rootIssues.length} ` +
       `wiring-debt=${WIRING_RESOLUTIONS_TO_DRAIN.size - drained.length} ` +
-      `alias-debt=${Object.keys(ALIAS_HIDDEN_RESOLUTIONS).length - aliasDrained.length}`,
+      `alias-debt=${Object.keys(ALIAS_HIDDEN_RESOLUTIONS).length - aliasDrained.length} ` +
+      `non-binding=${nonBindingEdges.length} non-binding-issues=${nonBindingIssues.length}`,
   );
 
   if (drained.length > 0) {
@@ -1492,6 +1685,15 @@ async function main(): Promise<void> {
     for (const issue of rootIssues) console.error(describeRootIssue(issue));
   }
 
+  if (nonBindingIssues.length > 0) {
+    console.error(
+      `\nA \`nonBindingDependencies\` entry does not hold. The entry withdraws the refusal ` +
+        `that would have stopped an operator switching the owner off underneath it, so what ` +
+        `it claims about the edge has to be true:`,
+    );
+    for (const issue of nonBindingIssues) console.error(describeNonBindingIssue(issue));
+  }
+
   if (violations.length > 0) {
     console.error(
       `\nA module resolves a port it does not declare. The declaration is what makes the ` +
@@ -1506,7 +1708,8 @@ async function main(): Promise<void> {
       stale.length === 0 &&
       rootIssues.length === 0 &&
       drained.length === 0 &&
-      aliasDrained.length === 0
+      aliasDrained.length === 0 &&
+      nonBindingIssues.length === 0
       ? 0
       : 1,
   );

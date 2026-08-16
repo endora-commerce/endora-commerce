@@ -1,10 +1,15 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   ALIAS_HIDDEN_RESOLUTIONS,
+  CONTRIBUTION_POLICY_STATED,
   closureOf,
   describe as describeViolation,
+  describeNonBindingIssue,
+  findNonBindingIssues,
   findViolations,
   findRootIssues,
+  nonBindingPortEdges,
   NON_LITERAL_PORT_NAME,
   providedPortNames,
   registeredNames,
@@ -14,6 +19,7 @@ import {
   PLATFORM_OWNED_NAMES,
   type PortResolution,
 } from '../../../scripts/check-port-dependencies.js';
+import { defineModuleManifest } from '@b2b/contracts';
 import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
 
 /**
@@ -813,5 +819,228 @@ describe('resolvedNames — lazyPort', () => {
     expect(violations).toHaveLength(1);
     expect(violations[0]).toMatchObject({ kind: 'unowned-name' });
     expect(describeViolation(violations[0]!)).toContain('computed name');
+  });
+});
+
+/**
+ * D-44 — `manifest.nonBindingDependencies` satisfies the ownership rule.
+ *
+ * The check asks one thing of a cross-module resolution: *the name you read
+ * belongs to someone, and you said whose*. That is container hygiene, not a
+ * lifecycle claim, so it is satisfied by a declaration in any of the three
+ * arrays. What the new one withholds — the flip-time refusal — this file has no
+ * opinion about; `gating-graph.test.ts` holds that half.
+ */
+describe('nonBindingPortEdges — the third declaration array', () => {
+  const contributor = defineModuleManifest({
+    id: 'shop',
+    name: 'Shop',
+    version: '1.0.0',
+    dependencies: [],
+    nonBindingDependencies: [
+      {
+        moduleId: 'assistant',
+        name: 'toolRegistry',
+        kind: 'contributes-to',
+        reason: 'Pushes an inert tool descriptor into the assistant catalogue at boot.',
+      },
+    ],
+  });
+
+  const resolution = (
+    moduleId: string,
+    name: string,
+    site: PortResolution['site'] = 'call',
+  ): PortResolution => ({
+    moduleId,
+    name,
+    file: `/repo/backend/src/modules/${moduleId}/backend.ts`,
+    line: 1,
+    kind: 'deferred',
+    site,
+  });
+
+  it('keys an edge the way the acknowledged lookup is keyed', () => {
+    expect(nonBindingPortEdges([contributor])).toEqual({
+      'shop:toolRegistry':
+        'Pushes an inert tool descriptor into the assistant catalogue at boot.',
+    });
+  });
+
+  it('clears the undeclared-dependency for exactly that pair', () => {
+    expect(
+      findViolations({
+        resolutions: [resolution('shop', 'toolRegistry')],
+        owners: new Map([['toolRegistry', 'assistant']]),
+        dependencies: new Map([['shop', []]]),
+        acknowledged: nonBindingPortEdges([contributor]),
+      }),
+    ).toEqual([]);
+  });
+
+  it('clears the name, not the module — a second name owned by the same module still fails', () => {
+    // Keyed by name on purpose. "I contribute to the assistant's tool table" is
+    // not "I may read anything the assistant registers".
+    const violations = findViolations({
+      resolutions: [resolution('shop', 'assistantPlanExecutor')],
+      owners: new Map([['assistantPlanExecutor', 'assistant']]),
+      dependencies: new Map([['shop', []]]),
+      acknowledged: nonBindingPortEdges([contributor]),
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.kind).toBe('undeclared-dependency');
+  });
+
+  it('inherits nothing transitively from the module it names', () => {
+    // `dependencies` clears a resolution through its transitive closure; this
+    // array has none. Contributing to the assistant does not declare whatever
+    // the assistant itself declares.
+    const violations = findViolations({
+      resolutions: [resolution('shop', 'ledgerService')],
+      owners: new Map([['ledgerService', 'accounting']]),
+      dependencies: new Map([
+        ['shop', []],
+        ['assistant', ['accounting']],
+      ]),
+      acknowledged: nonBindingPortEdges([contributor]),
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.owner).toBe('accounting');
+  });
+});
+
+/**
+ * The two guard-rails D-44 §7 ships with the `contributes-to` kind, without
+ * which it is a blanket exemption from the ownership rule.
+ */
+describe('findNonBindingIssues — the guard-rails on `contributes-to`', () => {
+  const edge = (
+    over: Partial<{
+      dependsOn: string;
+      kind: 'contributes-to' | 'degrades-without';
+      whenAbsent: string | null;
+    }> = {},
+  ) => ({
+    moduleId: 'shop',
+    dependsOn: 'assistant',
+    name: 'toolRegistry',
+    kind: 'contributes-to' as 'contributes-to' | 'degrades-without',
+    whenAbsent: null as string | null,
+    reason: 'Pushes an inert tool descriptor into the assistant catalogue at boot.',
+    ...over,
+  });
+
+  const push: PortResolution = {
+    moduleId: 'shop',
+    name: 'toolRegistry',
+    file: '/repo/backend/src/modules/shop/backend.ts',
+    line: 1,
+    kind: 'deferred',
+    site: 'boot',
+  };
+
+  const input = (
+    over: Partial<Parameters<typeof findNonBindingIssues>[0]> = {},
+  ): Parameters<typeof findNonBindingIssues>[0] => ({
+    edges: [edge()],
+    owners: new Map([['toolRegistry', 'assistant']]),
+    providedPorts: new Map<string, string>(),
+    resolutions: [push],
+    contributionPolicies: { 'assistant:toolRegistry': 'skip' },
+    ...over,
+  });
+
+  it('accepts a boot push into a registry whose host states a policy', () => {
+    expect(findNonBindingIssues(input())).toEqual([]);
+  });
+
+  it('refuses a contribution to a registry whose host states no policy', () => {
+    // Guard-rail 1. Without a stated absent-contributor policy the host may
+    // enumerate an absent module's descriptor and act on it, which is the one
+    // shape §7's argument does not cover.
+    const issues = findNonBindingIssues(input({ contributionPolicies: {} }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.kind).toBe('contribution-registry-without-policy');
+    expect(describeNonBindingIssue(issues[0]!)).toContain('enumeration policy');
+  });
+
+  it('refuses a contribution over a gated port', () => {
+    // A `providePort` name is a gate, and a gate that says no throws. Whatever
+    // that is, it is not an inert push.
+    const issues = findNonBindingIssues(
+      input({ providedPorts: new Map([['toolRegistry', 'assistant']]) }),
+    );
+    expect(issues.map((issue) => issue.kind)).toContain('contribution-over-a-gated-port');
+  });
+
+  it('refuses a contribution the declaring module reads at call time', () => {
+    // Guard-rail 2. Reading an answer out of an ungated registry is a pull, and
+    // a pull needs `degrades-without` plus a stated degradation — which is what
+    // an off-state test can be held to.
+    const issues = findNonBindingIssues(input({ resolutions: [{ ...push, site: 'call' }] }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.kind).toBe('contribution-not-pushed-at-boot');
+  });
+
+  it('accepts a call-time read declared as `degrades-without`', () => {
+    expect(
+      findNonBindingIssues(
+        input({
+          edges: [
+            edge({ kind: 'degrades-without', whenAbsent: 'the assistant offers no tools' }),
+          ],
+          resolutions: [{ ...push, site: 'call' }],
+          contributionPolicies: {},
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses an edge that names the wrong owner', () => {
+    // The lookup clears `<module>:<name>` outright, so a mis-attributed edge
+    // would clear a resolution of a module the manifest never mentions.
+    const issues = findNonBindingIssues(input({ edges: [edge({ dependsOn: 'accounting' })] }));
+    expect(issues.map((issue) => issue.kind)).toContain('wrong-owner');
+  });
+
+  it('refuses an edge nothing in the declaring module resolves', () => {
+    // The staleness sweep the alias table already has: a suppression with no
+    // site under it is a claim about the tree that is no longer true.
+    const issues = findNonBindingIssues(input({ resolutions: [] }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.kind).toBe('nothing-resolves');
+  });
+});
+
+describe('CONTRIBUTION_POLICY_STATED — the registries a contribution may name', () => {
+  it('attributes every listed registry to the module that registers it, ungated', () => {
+    // The ledger stays honest the same way `HOST_REGISTERED_PORTS` does: it is
+    // a claim about the tree, so the tree is asked.
+    for (const key of Object.keys(CONTRIBUTION_POLICY_STATED)) {
+      const [owner, name] = key.split(':');
+      const file = `/repo/backend/src/modules/${owner}/backend.ts`;
+      const source = readFileSync(
+        new URL(`../../../src/modules/${owner}/backend.ts`, import.meta.url),
+        'utf8',
+      );
+      expect(registeredNames(source, file), `${key} is not registered by ${owner}`).toContain(
+        name,
+      );
+      expect(
+        providedPortNames(source, file),
+        `${key} is a gated port, so a contribution to it is a pull`,
+      ).not.toContain(name);
+    }
+  });
+
+  it('does not list `gatewayRefundRegistry`, which states no policy', () => {
+    // Named in D-44 §7 as the live counter-example: it records no contributing
+    // module id and its class states nothing about an absent one. Listing it
+    // would let a `contributes-to` edge past the guard-rail that exists for it.
+    expect(
+      Object.keys(CONTRIBUTION_POLICY_STATED).some((key) =>
+        key.endsWith(':gatewayRefundRegistry'),
+      ),
+    ).toBe(false);
   });
 });

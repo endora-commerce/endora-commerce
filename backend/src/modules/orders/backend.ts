@@ -20,6 +20,8 @@ import type { OrderTransitionService } from './services/order-transition-service
 import { ORDER_CONFIRMATION_DEFAULT } from './email-templates/order-confirmation.default.js';
 import { ADMIN_CREATED_ORDER_DEFAULT, ORDER_COMMENT_DEFAULT, REORDER_CREATED_DEFAULT } from './email-templates/secondary-defaults.js';
 import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
+import type { PromptActionToolRegistry } from '../prompt_actions/services/tool-registry.js';
+import { ordersPromptTools } from './prompt-tools.js';
 
 /**
  * `orders` — forty options, twenty-seven of them optional, and nine settings
@@ -115,6 +117,12 @@ export interface OrdersCradle {
   readonly orderListServiceAccessor: () => OrderListService | null;
   readonly orderTransitionServiceAccessor: () => OrderTransitionService | null;
   readonly orders: ReturnType<typeof commerceModule>;
+  /**
+   * Owned by `prompt_actions`: the assistant's tool catalogue. An ungated
+   * registration this module pushes into once, from a boot hook — declared as a
+   * `contributes-to` edge rather than a dependency (D-44).
+   */
+  readonly promptActionToolRegistry: PromptActionToolRegistry;
 }
 
 type TaxRateInput = {
@@ -321,6 +329,10 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  /** The transition service the assistant's status-change tools call at confirm time. */
+  const transitionService = (): OrderTransitionService | null =>
+    cradle().orderTransitionServiceAccessor();
+
   /**
    * The order facts a return settlement needs (feature 046 R4), as this
    * module's port instead of a class both roots constructed (T143c).
@@ -367,4 +379,30 @@ export function registerModule(ctx: ModuleContext): void {
     defaults.register('admin_created_order', ADMIN_CREATED_ORDER_DEFAULT, 'orders');
   });
 
+  /**
+   * The assistant tools this module contributes (D-44).
+   *
+   * The production root built these and the harness did not, so the order
+   * resolver and the status-change mutations were exercised by no test at all.
+   * Composing them here composes them in both, which closes that parity gap as
+   * a side effect of the move.
+   *
+   * A push, not a pull: the registry is a plain registration, so this resolves
+   * no gate, and the host drops every tool whose recorded owner is not
+   * effectively present. `getTransitionService` stays a getter — it is read at
+   * confirm time, long after boot, and answers `null` until the plugin binds —
+   * and it is declared **outside** this hook: the port resolution inside it
+   * would be a boot-site read of a gated port whichever function it sits in,
+   * because `siteAt` is lexical, and this module's own gate is one that can
+   * close.
+   */
+  ctx.onBoot(() => {
+    const registry = cradle().promptActionToolRegistry;
+    for (const tool of ordersPromptTools({
+      emFactory: cradle().emFactory,
+      getTransitionService: transitionService,
+    })) {
+      registry.register(tool);
+    }
+  });
 }

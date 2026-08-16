@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import type { ModuleContext } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { AdminPermissionChecker } from '../../kernel/ports/require-admin.js';
 import { Session } from './entities/session.entity.js';
 import { authPlugin } from './plugin.js';
@@ -109,7 +110,19 @@ export function registerModule(ctx: ModuleContext): void {
         // Read per request, so a resolver the root registers after this module
         // composed is still found. Passing the cradle read rather than the
         // value is what makes the late binding work without a mutable holder.
-        apiKeyResolver: async (token) => (await cradle.apiKeyResolver?.(token)) ?? null,
+        //
+        // The presence probe is D-44's `degrades-without` guard, and the `?.`
+        // beside it does **not** replace it: optional chaining defends against
+        // "nobody registered this name", while `apiKeyResolver` is a gated port
+        // and a closed gate throws. Without the probe an operator switching
+        // `api_keys` off would turn every API-key request into a 503 from the
+        // request hook instead of the declared degradation, which is that such
+        // a request is simply not authenticated — the same answer a request
+        // presenting no key at all gets.
+        apiKeyResolver: async (token) => {
+          if (!effectiveState.isPresent('api_keys')) return null;
+          return (await cradle.apiKeyResolver?.(token)) ?? null;
+        },
         customerOrgResolver: async (customerAccountId) =>
           (await cradle.customerOrgResolver?.(customerAccountId)) ?? null,
       });

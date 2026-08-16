@@ -1,12 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
+import { ERROR_CODES } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
+import { HttpError } from '../../http/error-envelope.js';
 import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import { catalogModule, type CatalogModuleOptions } from './plugin.js';
@@ -21,7 +24,13 @@ import { CatalogAttributeReadService } from './services/catalog-attribute-read.s
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import type { CatalogEventBus } from './services/catalog-admin.service.js';
 import { registerCatalogAssetReferences } from './services/asset-references.js';
+import {
+  catalogPromptMutationTools,
+  catalogPromptResolverTools,
+  type CatalogPromptToolsDeps,
+} from './prompt-tools.js';
 import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
+import type { PromptActionToolRegistry } from '../prompt_actions/services/tool-registry.js';
 
 /**
  * `catalog` — seven services each composition built **twice** (feature 072,
@@ -62,6 +71,12 @@ export interface CatalogCradle {
   readonly commandBus: CommandBus;
   readonly auditLogService: AuditLogService;
   readonly moduleQueueRedis: Redis | undefined;
+  /**
+   * The process connection, distinct from `moduleQueueRedis`: the assistant's
+   * bulk tools delegate over the same queue in both compositions, which is a
+   * property the harness asserts.
+   */
+  readonly redis: Redis;
   readonly requireAdmin: RequireAdminFactory;
   readonly salesChannelMembershipPort: SalesChannelMembershipService;
   readonly customFieldValueService: NonNullable<CatalogModuleOptions['customFieldValues']>;
@@ -99,6 +114,12 @@ export interface CatalogCradle {
    * product gallery, attachment, virtual download or category image points at.
    */
   readonly assetReferenceRegistry: AssetReferenceRegistry;
+  /**
+   * Owned by `prompt_actions`: the assistant's tool catalogue. An ungated
+   * registration this module pushes into once, from a boot hook — declared as a
+   * `contributes-to` edge rather than a dependency (D-44).
+   */
+  readonly promptActionToolRegistry: PromptActionToolRegistry;
   readonly catalogAttributeReadPort: CatalogAttributeReadService;
   readonly catalogQueryPort: CatalogQueryService;
   readonly catalogAdminService: CatalogAdminService;
@@ -114,6 +135,44 @@ export interface CatalogCradle {
 
 export function registerModule(ctx: ModuleContext): void {
   const cradle = (): CatalogCradle => ctx.cradle<CatalogCradle>();
+
+  /**
+   * The two API-key gates, with the presence probe D-44 requires of a
+   * `degrades-without` edge.
+   *
+   * The manifest withdraws the flip-time refusal on these, so `api_keys` may be
+   * absent while these routes are mounted — route *registration* runs whatever
+   * any module's effective state is. `requireApiKey` is a gated port, and a
+   * closed gate **throws** rather than resolving to `undefined`, so optional
+   * chaining defends against nothing here: the probe has to come first.
+   *
+   * Per request rather than per registration, because the operator flips
+   * between the two. The absent answer is the same 401 an unauthenticated
+   * caller gets — the door is shut, not broken.
+   *
+   * Written out twice rather than parameterised by the port name: a computed
+   * cradle read is a name `check-port-dependencies.ts` cannot verify, and it
+   * refuses the shape rather than guessing at it.
+   */
+  const apiKeysPresent = (): void => {
+    if (!effectiveState.isPresent('api_keys')) {
+      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'API key required.');
+    }
+  };
+
+  const requireApiKeyGate =
+    (scope: string) =>
+    async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+      apiKeysPresent();
+      return cradle().requireApiKey(scope)(request, reply);
+    };
+
+  const requireBoundApiKeyGate =
+    (scope: string) =>
+    async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+      apiKeysPresent();
+      return cradle().requireBoundApiKey(scope)(request, reply);
+    };
 
   ctx.di.register({
     /**
@@ -184,10 +243,8 @@ export function registerModule(ctx: ModuleContext): void {
             mailer: lazyPort<CatalogCradle['emailMailer']>(ctx, 'emailMailer'),
             requireAdmin: (permission) => async (req, reply) =>
               cradle().requireAdmin(permission)(req, reply),
-            requireApiKey: (...args: Parameters<CatalogCradle['requireApiKey']>) =>
-              cradle().requireApiKey(...args),
-            requireBoundApiKey: (...args: Parameters<CatalogCradle['requireBoundApiKey']>) =>
-              cradle().requireBoundApiKey(...args),
+            requireApiKey: requireApiKeyGate,
+            requireBoundApiKey: requireBoundApiKeyGate,
             resolveAdminAuditContext: (req: FastifyRequest) =>
               cradle().catalogAdminAuditContext(req),
             resolveExternalAvailability: (productIds, salesChannelId) =>
@@ -344,6 +401,44 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.onBoot(() => {
     const { assetReferenceRegistry, emFactory } = cradle();
     registerCatalogAssetReferences(assetReferenceRegistry, emFactory);
+  });
+
+  /**
+   * The assistant tools this module contributes (D-44).
+   *
+   * Both roots built these from `catalog`'s own services and pushed them into
+   * `prompt_actions`' registry, because pushing from here would have made
+   * `prompt_actions` a declared dependency — and that declaration is what would
+   * have made an optional assistant undeactivatable for as long as `catalog` is
+   * present. `nonBindingDependencies` is the declaration without that claim, so
+   * the contribution moves to the module whose services it is built from.
+   *
+   * A push, not a pull: nothing is read back out of the registry here. The
+   * registry is a plain `ctx.di.register`, so the resolution cannot ask a gate,
+   * and `PromptActionToolRegistry` drops every tool whose recorded owner is not
+   * effectively present — so a switched-off `catalog` contributes tools nobody
+   * can see, and a switched-off `prompt_actions` holds a table nobody walks.
+   */
+  ctx.onBoot(() => {
+    // `redis`, not `moduleQueueRedis`: this is the connection both roots handed
+    // these tools, and the harness deliberately registers the first while
+    // withholding the second. Switching to the queue-shaped name here would
+    // quietly stop the > 50-selection delegation in every test that exercises
+    // it, which is a behaviour change this move has no business making.
+    const deps: CatalogPromptToolsDeps = {
+      emFactory: cradle().emFactory,
+      events: cradle().eventBus,
+      auditLogService: cradle().auditLogService,
+      salesChannelMembership: cradle().salesChannelMembershipPort,
+      redis: cradle().redis,
+    };
+    const registry = cradle().promptActionToolRegistry;
+    for (const tool of [
+      ...catalogPromptResolverTools(deps),
+      ...catalogPromptMutationTools(deps),
+    ]) {
+      registry.register(tool);
+    }
   });
 
   /**

@@ -74,8 +74,15 @@ export interface CustomersModuleOptions {
   resolveCustomerActor: ResolveCustomerActor;
   /** Reads `customers.allow_registration_without_organization`. */
   resolveAllowRegistrationWithoutOrganization: () => Promise<boolean>;
-  /** Lazy — OrderListService is bound during the orders plugin registration. */
-  getOrderListService: () => OrderListService;
+  /**
+   * Lazy — OrderListService is bound during the orders plugin registration.
+   *
+   * Narrowed to the one method the two history panels call, so the degrade
+   * `orders` being absent produces can be expressed in the type rather than in
+   * a comment (D-44): an empty page is a value this shape can hold, and a whole
+   * `OrderListService` is not.
+   */
+  getOrderListService: () => Pick<OrderListService, 'list'>;
   rfqService: RfqService;
   auditLogService: AuditLogService;
   /** Org allow-list port for default-preference eligibility (optional). */

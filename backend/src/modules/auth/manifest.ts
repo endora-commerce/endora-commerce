@@ -40,6 +40,23 @@ export const manifest = defineModuleManifest({
         'is non-deactivatable, so the acknowledged edge adds no refusal that was not there.',
     },
   ],
+  // D-44 — real to the container, binding on no operator.
+  nonBindingDependencies: [
+    {
+      moduleId: 'api_keys',
+      name: 'apiKeyResolver',
+      kind: 'degrades-without',
+      whenAbsent: 'requests presenting an API key are not authenticated',
+      reason:
+        'The request hook binds `request.actor` from a bearer API key when one is presented. ' +
+        '`api_keys` declares this module, so the ordinary declaration closes a cycle, and ' +
+        'acknowledging it would put `auth` — present in every deployment — among the ' +
+        'dependents that refuse the flip, making an integration surface permanently ' +
+        'unswitchable. The hook has a defined behaviour instead: it probes presence, and an ' +
+        'API key presented to a deployment with the module off authenticates nobody, exactly ' +
+        'as a request carrying no key does. Every session-authenticated request is untouched.',
+    },
+  ],
   // Feature 072/073 (Constitution XVII) — `auth` resolves `request.actor` for
   // every request and owns the `requireAdmin` port that gates 205 call sites in
   // 60 modules. A deployment with it switched off has no admin surface and no

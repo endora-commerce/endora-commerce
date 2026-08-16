@@ -153,12 +153,7 @@ import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef
 import type { PwaBridge, PwaCradle } from '../../src/modules/pwa/backend.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
-import {
-  catalogBulkProgressResolver,
-  catalogPromptMutationTools,
-  catalogPromptResolverTools,
-} from '../../src/modules/catalog/prompt-tools.js';
-import { inventoryPromptTools } from '../../src/modules/inventory/prompt-tools.js';
+import { catalogBulkProgressResolver } from '../../src/modules/catalog/prompt-tools.js';
 import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js';
 import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { z } from 'zod';
@@ -1139,7 +1134,17 @@ export async function setupBackendServer(
         // Feature 062 — mirror production: Bearer sk_live_* resolves to an
         // api_key actor (incl. distributor binding) before the tenant hook
         // and the sales-channel resolver run.
-        apiKeyResolver: async (token) => apiKeysCradle.apiKeyService.authenticate(token),
+        // The presence probe mirrors `auth/backend.ts` and is load-bearing for
+        // the same reason (D-44): `apiKeyService` is a **gated port** read off
+        // the live cradle, so with `api_keys` switched off the resolution
+        // throws — and this hook runs on every request carrying an
+        // `Authorization: Bearer` header, whatever the route. Without it the
+        // harness answers 503 to requests production answers normally, and the
+        // degradation `auth` declares is untestable here.
+        apiKeyResolver: async (token) => {
+          if (!effectiveState.isPresent('api_keys')) return null;
+          return apiKeysCradle.apiKeyService.authenticate(token);
+        },
       });
       // Feature 050 — establish the ambient TenantContext from the resolved test
       // actor, after registerTestAuth sets it. Mirrors composition.ts wiring
@@ -1757,15 +1762,18 @@ export async function setupBackendServer(
   // `composition.ts`. They are registered **after `composeModules`** because the
   // module registers its own empty defaults there; a value written before
   // composition would be overwritten by them.
-  const catalogToolDeps = {
-    emFactory: em,
-    events: eventBus,
-    auditLogService,
-    salesChannelMembership: salesChannels.membershipService,
-    redis,
-  };
+  //
+  // The tools themselves are no longer here: since D-44 each contributing module
+  // pushes its own from its own boot hook, which is also how the `orders` tools
+  // — production-only until then — came to be composed in this harness at all.
   registerValues(container, {
-    promptActionsBulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
+    promptActionsBulkProgressResolver: catalogBulkProgressResolver({
+      emFactory: em,
+      events: eventBus,
+      auditLogService,
+      salesChannelMembership: salesChannels.membershipService,
+      redis,
+    }),
     ...(options.promptActionsLlmFetch === undefined
       ? {}
       : { promptActionsLlmFetch: options.promptActionsLlmFetch }),
@@ -1776,14 +1784,8 @@ export async function setupBackendServer(
       ? {}
       : { promptActionsTtlMinutes: options.promptActionsTtlMinutes }),
   });
-  const promptActionsCradle = container.cradle as unknown as PromptActionsCradle;
-  for (const tool of [
-    ...catalogPromptResolverTools(catalogToolDeps),
-    ...catalogPromptMutationTools(catalogToolDeps),
-    ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
-  ]) {
-    promptActionsCradle.promptActionToolRegistry.register(tool);
-  }
+  const promptActionsCradle = (): PromptActionsCradle =>
+    container.cradle as unknown as PromptActionsCradle;
 
   const blogCradle = container.cradle as unknown as BlogCradle;
   if (blogCradle.blogCacheService) await blogCradle.blogCacheService.invalidateAll();
@@ -2319,9 +2321,9 @@ export async function setupBackendServer(
     sessionService,
     auditLogService,
     promptActions: {
-      registry: promptActionsCradle.promptActionToolRegistry,
-      requestService: promptActionsCradle.promptRequestService,
-      providerFactory: promptActionsCradle.llmProviderFactory,
+      registry: promptActionsCradle().promptActionToolRegistry,
+      requestService: promptActionsCradle().promptRequestService,
+      providerFactory: promptActionsCradle().llmProviderFactory,
     },
     credentials: {
       service: credentialsService,

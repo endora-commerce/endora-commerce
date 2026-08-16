@@ -5,6 +5,7 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
@@ -90,6 +91,19 @@ export interface CustomersCradle {
   readonly customers: ReturnType<typeof customersModule>;
 }
 
+/**
+ * What the two order-history panels read while `orders` is not effectively
+ * present — the behaviour `customers`' `degrades-without` declaration promises,
+ * written as a value so the promise is one object a test can point at.
+ *
+ * Empty rather than a refusal because the panel is a read-only history and an
+ * account with no orders sees exactly this. `counts` is the per-status tally
+ * the admin list renders; there are no orders to tally.
+ */
+const EMPTY_ORDER_LIST: ReturnType<CustomersModuleOptions['getOrderListService']> = {
+  list: async () => ({ rows: [], total: 0, counts: {} }),
+};
+
 export function registerModule(ctx: ModuleContext): void {
   const cradle = (): CustomersCradle => ctx.cradle<CustomersCradle>();
 
@@ -166,6 +180,14 @@ export function registerModule(ctx: ModuleContext): void {
             resolveModerationActor: (req: FastifyRequest) =>
               cradle().customerModerationActorResolver(req),
             getOrderListService: () => {
+              // D-44 `degrades-without`: the manifest withdraws the flip-time
+              // refusal on `orders`, so an operator may switch it off with the
+              // two history panels still mounted. `orderListServiceAccessor` is
+              // a **gated port** — a closed gate throws rather than answering
+              // `null` — so the presence probe comes before the resolution, not
+              // after it. The declared degradation is an empty page, which is
+              // also what an account with no orders sees.
+              if (!effectiveState.isPresent('orders')) return EMPTY_ORDER_LIST;
               const service = cradle().orderListServiceAccessor();
               if (!service) throw new Error('OrderListService not yet bound');
               return service;
