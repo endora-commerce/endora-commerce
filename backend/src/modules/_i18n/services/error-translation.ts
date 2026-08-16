@@ -110,6 +110,10 @@ function moduleIdForErrorCode(code: ErrorCode): string {
   if (code.startsWith('MEGAMENU_')) return 'megamenu';
   if (code.startsWith('BLOG_')) return 'blog';
   if (code.startsWith('DICTIONARY_')) return 'dictionaries';
+  // `INVALID_CREDENTIALS` is auth's sign-in failure and does not start with this
+  // prefix, so it keeps routing to core. Only the credential-configuration
+  // family lands here.
+  if (code.startsWith('CREDENTIAL_')) return 'credentials';
   if (code.startsWith('MODULE_')) return 'core';
   return 'core';
 }
