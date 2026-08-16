@@ -19,6 +19,42 @@ export interface SalesRepSubtreeDeps {
   readonly hasRollupCapability: (adminUserId: string) => Promise<boolean>;
 }
 
+/** One assignment row, as a module outside `organizations` sees it. */
+export interface SalesRepAssignmentRow {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly adminUserId: string;
+  readonly assignedByAdminUserId?: string | null;
+  readonly createdAt: Date;
+}
+
+/**
+ * The sales-rep assignment relation as **other modules** see it:
+ * `organizations`' `organizationSalesRepScopePort` (T143a, widened for issue
+ * #108).
+ *
+ * One implementation, five questions. Before this port existed, every consumer
+ * built its own `SalesRepAssignmentService`, and each build was free to omit the
+ * optional third constructor argument — which `customers` did, so
+ * `CustomerAuthorityService` applied the flat pre-056 rule and the roll-up was
+ * skipped for every block / unblock / delete / org-assign decision. `tsc` cannot
+ * see an omitted optional argument; a single port removes the chance to omit it.
+ *
+ * Structural rather than the entity type on purpose: a consumer wants the reps,
+ * not `organizations`' ORM rows.
+ */
+export interface SalesRepAssignmentPort {
+  canSeeOrganization(adminUserId: string, organizationId: string): Promise<boolean>;
+  listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+  listForOrganization(organizationId: string): Promise<SalesRepAssignmentRow[]>;
+  assign(input: {
+    organizationId: string;
+    adminUserId: string;
+    assignedByAdminUserId?: string | null;
+  }): Promise<SalesRepAssignmentRow>;
+  unassign(input: { organizationId: string; adminUserId: string }): Promise<boolean>;
+}
+
 /**
  * Centralised visibility predicate for the sales-rep ↔ organization
  * relation. Every endpoint that lists or operates on Quote Requests
@@ -32,7 +68,7 @@ export interface SalesRepSubtreeDeps {
  *   - An organization with ZERO assignment rows is in
  *     "unassigned-org fallback" mode and is visible to every sales rep.
  */
-export class SalesRepAssignmentService {
+export class SalesRepAssignmentService implements SalesRepAssignmentPort {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly auditLog?: AuditLogService,

@@ -44,6 +44,23 @@ export function makeTemplateEmail(deps: TemplateEmailDeps): TemplateEmail {
       const sender = deps.getSender?.();
       if (!sender) return false;
       const salesChannelId = (await deps.resolveScopeSalesChannelId?.()) ?? null;
+      // **Not the seventh site of the `''`-sentinel family (issue #103) — do
+      // not "fix" this line to pass `null` through.**
+      //
+      // `TransactionalEmailSendInput.salesChannelId` is `string | null` now, so
+      // the compiler would let it. Two things make this branch different from
+      // the six that were changed. It is a **producer**, and its `false` is not
+      // silence: it means "caller, use your legacy in-code builder", so the
+      // message still goes out — the other six turned an absent channel into a
+      // failed settings read that a `catch` then reported as "not configured".
+      // And the channel it wants is the **system-default** one, which D-47
+      // establishes always exists, so this is a near-dead branch rather than a
+      // wrong one.
+      //
+      // Passing `null` here would be a behaviour change for every module that
+      // holds `templateEmailPort`: each would start sending the platform-wide
+      // template where it sends its own builder's output today. That is a
+      // product decision about what mail goes out, not a sentinel repair.
       if (!salesChannelId) return false;
       let language = 'en-US';
       if (deps.resolveLanguage) {

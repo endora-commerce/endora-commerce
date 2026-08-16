@@ -9,13 +9,15 @@ import type { CustomFieldValueService } from '../custom_fields/services/custom-f
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import type { CustomerAuthService as CustomerAuthServiceType } from '../customer_accounts/services/customer-auth-service.js';
 import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
-import { SalesRepAssignmentService } from '../organizations/services/sales-rep-assignment-service.js';
 import { ImpersonationService } from '../admin_users/services/impersonation-service.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
 import { PersonalOrganizationService } from '../organizations/services/personal-organization-service.js';
 import { CustomerAddressService } from './services/customer-address-service.js';
 import { CustomerDefaultsService } from './services/customer-defaults-service.js';
-import { CustomerAuthorityService } from './services/customer-authority-service.js';
+import {
+  CustomerAuthorityService,
+  type SalesRepVisibility,
+} from './services/customer-authority-service.js';
 import { CustomerModerationService } from './services/customer-moderation-service.js';
 import { CustomerAdminQueryService } from './services/customer-admin-query-service.js';
 import { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
@@ -55,6 +57,19 @@ export interface CustomersModuleOptions {
   passwordResetService: PasswordResetServiceType;
   emFactory: () => EntityManager;
   sessionService: SessionService;
+  /**
+   * Which organizations the acting staff member may see —
+   * `organizations`' `organizationSalesRepScopePort` (issue #108).
+   *
+   * Injected rather than built here. This module used to construct its own
+   * `SalesRepAssignmentService` from an entity-manager factory and an audit log,
+   * and that class's third argument — the feature-056 subtree deps — is
+   * optional, so omitting it compiled and quietly reverted every
+   * staff-authority decision to the flat pre-056 rule: a rep holding
+   * `organizations:rollup` could not act on a customer belonging to a
+   * descendant of an organization assigned to them.
+   */
+  salesRepVisibility: SalesRepVisibility;
   requireCustomer: RequireCustomerGuard;
   resolveCustomerActor: ResolveCustomerActor;
   /** Reads `customers.allow_registration_without_organization`. */
@@ -85,6 +100,12 @@ export interface CustomersModuleOptions {
 export interface CustomersModuleHandle {
   registrationService: CustomerRegistrationService;
   anonymizationSweepWorker: AnonymizationSweepWorker;
+  /**
+   * Exposed so the sales-rep scope this module *uses* can be asserted (issue
+   * #108). The defect it closes was invisible to `tsc` and to every route test,
+   * because a flat scope answers plausibly — just not with the roll-up.
+   */
+  authorityService: CustomerAuthorityService;
 }
 
 export function customersModule(options: CustomersModuleOptions): {
@@ -112,9 +133,7 @@ export function customersModule(options: CustomersModuleOptions): {
     defaultPreferenceService,
     customerAddressService,
   );
-  const authorityService = new CustomerAuthorityService(
-    new SalesRepAssignmentService(options.emFactory, options.auditLogService),
-  );
+  const authorityService = new CustomerAuthorityService(options.salesRepVisibility);
   const moderationService = new CustomerModerationService(
     options.emFactory,
     authorityService,
@@ -200,6 +219,6 @@ export function customersModule(options: CustomersModuleOptions): {
 
   return {
     plugin,
-    handle: () => ({ registrationService, anonymizationSweepWorker }),
+    handle: () => ({ registrationService, anonymizationSweepWorker, authorityService }),
   };
 }

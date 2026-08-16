@@ -5,7 +5,7 @@ import { HttpError } from '../../http/error-envelope.js';
 import { AdminUser } from '../admin_users/entities/admin-user.entity.js';
 import { Organization } from './entities/organization.entity.js';
 import { QuoteRequest } from '../quote_requests/entities/quote-request.entity.js';
-import type { SalesRepAssignmentService } from './services/sales-rep-assignment-service.js';
+import type { SalesRepAssignmentPort } from './services/sales-rep-assignment-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
@@ -22,7 +22,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 export interface SalesRepRoutesDeps {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
-  salesRepAssignment: SalesRepAssignmentService;
+  salesRepAssignment: SalesRepAssignmentPort;
 }
 
 export async function registerOrganizationsSalesRepRoutes(

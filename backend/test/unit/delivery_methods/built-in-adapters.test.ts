@@ -22,7 +22,9 @@ describe('built-in shipping adapters', () => {
     for (const a of adapters) {
       const elig = {
         deliveryMethod: {} as never,
-        salesChannelId: '',
+        // Issue #103 — "no channel" is `null`; `''` was the stand-in the
+        // contract's old `string` forced, and it is not a channel id.
+        salesChannelId: null,
         organizationId: null,
         customerAccountId: null,
         surface: 'storefront' as const,

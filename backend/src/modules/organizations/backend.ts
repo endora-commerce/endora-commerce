@@ -26,7 +26,10 @@ import { OrganizationInheritanceService } from './services/organization-inherita
 import { OrganizationModerationService } from './services/organization-moderation-service.js';
 import { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
 import { OrganizationTaxIdValidationService } from './services/organization-tax-id-validation-service.js';
-import { SalesRepAssignmentService } from './services/sales-rep-assignment-service.js';
+import {
+  SalesRepAssignmentService,
+  type SalesRepAssignmentPort,
+} from './services/sales-rep-assignment-service.js';
 import { OrgRegistrationNotifier } from './services/org-registration-notifier.js';
 import { ViesClient } from './integrations/vies-client.js';
 import { MinisterstwoFinansowClient } from './integrations/ministerstwo-finansow-client.js';
@@ -169,9 +172,7 @@ export interface OrganizationsCradle {
    * Which organizations a sales-rep admin may see, subtree-expanded when the
    * rep holds `organizations:rollup` (feature 056 / T143a).
    */
-  readonly organizationSalesRepScopePort: {
-    listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
-  };
+  readonly organizationSalesRepScopePort: SalesRepAssignmentPort;
   readonly organizationInheritancePort: OrganizationInheritanceService;
   readonly organizationModerationService: OrganizationModerationService;
   readonly organizationRegistrationNotifier: OrgRegistrationNotifier;
@@ -423,11 +424,20 @@ export function registerModule(ctx: ModuleContext): void {
    * Both collaborators are read through `lazyPort`: the tree is this module's
    * own gated port and the permission check is `admin_roles`', and a singleton
    * may hold neither gate.
+   *
+   * Issue #108 widened it from one method to five. `customers` built its own
+   * `SalesRepAssignmentService` **without** the subtree deps, so the roll-up was
+   * skipped for every staff-authority decision, and `quote_requests` spelled the
+   * same wiring out again. What kept them off this port was the methods it
+   * did not carry — the visibility predicate, the per-organization rep list, and
+   * the two writes this module's own admin routes make (routes `quote_requests`
+   * hosts, because they count Quote Requests and moving them here would close a
+   * manifest dependency cycle). So the port grew and the copies went.
    */
   ctx.di.providePort(
     'organizationSalesRepScopePort',
     ctx
-      .asFunction(({ emFactory, auditLogService }: OrganizationsCradle) => {
+      .asFunction(({ emFactory, auditLogService }: OrganizationsCradle): SalesRepAssignmentPort => {
         const assignments = new SalesRepAssignmentService(emFactory, auditLogService, {
           treeService: lazyPort<OrganizationTreeService>(ctx, 'organizationTreeService'),
           hasRollupCapability: (adminUserId: string) =>
@@ -440,8 +450,13 @@ export function registerModule(ctx: ModuleContext): void {
             ).hasPermission(adminUserId, 'organizations:rollup'),
         });
         return {
-          listAssignedOrganizationIds: (adminUserId: string) =>
+          canSeeOrganization: (adminUserId, organizationId) =>
+            assignments.canSeeOrganization(adminUserId, organizationId),
+          listAssignedOrganizationIds: (adminUserId) =>
             assignments.listAssignedOrganizationIds(adminUserId),
+          listForOrganization: (organizationId) => assignments.listForOrganization(organizationId),
+          assign: (input) => assignments.assign(input),
+          unassign: (input) => assignments.unassign(input),
         };
       })
       .singleton(),
