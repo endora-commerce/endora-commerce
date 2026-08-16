@@ -1604,11 +1604,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
                 : (role?.name ?? 'Administrator'),
         };
       },
-      // No `catch` (issue #84). `taxRateFor` already answers "nothing applies"
-      // as a value — `{ rate: 0, source: 'none' }` when neither a rule nor a
-      // default matches — so the only errors left here are a failing database
-      // and `taxes` being switched off. Returning 0 for either quoted a
-      // zero-VAT price on an operator's behalf and called it an answer.
+      // No `catch` (issue #84). `taxRateFor` answers "nothing applies" as a
+      // value — `{ source: 'none' }`, with no rate to read — so the only errors
+      // left here are a failing database and `taxes` being switched off.
+      // Returning 0 for either quoted a zero-VAT price on an operator's behalf
+      // and called it an answer.
       // T143c — the Organization is read through `organizations`' own port
       // rather than by loading its entity here. Both roots spelled the same
       // query, and being a root's it answered with `organizations` switched
@@ -1626,7 +1626,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           productType: 'simple',
           vatStatus,
         });
-        return resolved.rate;
+        // `none` is the operator's own configuration state — `taxes` is present
+        // and holds no rule that applies and no default — so a quote is priced
+        // net, and the quote view drops its VAT row rather than printing a 0%
+        // one. An *absent* `taxes` never reaches this line: the port gate above
+        // throws (issue #124).
+        return resolved.source === 'none' ? 0 : resolved.rate;
       },
   });
 

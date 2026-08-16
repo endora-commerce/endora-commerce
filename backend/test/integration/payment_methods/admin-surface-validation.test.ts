@@ -49,7 +49,14 @@ describe('placeOrder — payment-method submit re-validation', () => {
       undefined,
       undefined,
       undefined,
-      { paymentAdapters: registry, orderStatusRegistry: new EnumOrderStatusRegistry() },
+      {
+        // Issue #124 — a rig states its own tax authority. `OrderService` has no
+        // fallback rate, so an order it cannot price is refused rather than taxed
+        // at a figure nobody configured.
+        resolveTaxRate: async () => 0.23,
+        paymentAdapters: registry,
+        orderStatusRegistry: new EnumOrderStatusRegistry(),
+      },
     );
 
     await expect(

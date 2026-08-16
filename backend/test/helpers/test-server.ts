@@ -1884,7 +1884,10 @@ export async function setupBackendServer(
           productType: 'simple',
           vatStatus,
         });
-        return resolved.rate;
+        // Same narrowing production does (issue #124): `none` is "no rule and no
+        // default configured", never "no `taxes` module" — that one throws at
+        // the port gate before this line runs.
+        return resolved.source === 'none' ? 0 : resolved.rate;
       },
   });
 

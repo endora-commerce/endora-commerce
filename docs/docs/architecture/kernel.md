@@ -322,7 +322,9 @@ not, and the 24 were:
 
 - **defensive** — a `catch` over a port whose return type *already* says
   "nothing applies". `resolveLinePrice` answers `null`; `taxRateFor` answers
-  `{ rate: 0, source: 'none' }`; `applyToCart` answers `discountTotal: 0`. The
+  `{ source: 'none' }` (a variant carrying no rate — issue #124 removed the
+  `rate: 0` that made it readable as an answer); `applyToCart` answers
+  `discountTotal: 0`. The
   `catch` bought nothing except the ability to hide a 503, and one of them wrote
   the hidden answer into a cache with a TTL, so `price_lists` coming back did not
   end it. **Delete it.**

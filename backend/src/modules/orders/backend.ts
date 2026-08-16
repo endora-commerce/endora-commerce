@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import { z } from 'zod';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type { ResolvedTax, TransactionalEmailSender } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
@@ -99,7 +99,12 @@ export interface OrdersCradle {
   readonly pricingService: NonNullable<OrdersModuleOptions['pricingService']>;
   readonly promotionService: NonNullable<OrdersModuleOptions['promotionService']>;
   readonly rfqService: NonNullable<ReturnType<NonNullable<OrdersModuleOptions['getRfqService']>>>;
-  readonly taxService: { taxRateFor(input: TaxRateInput): Promise<{ rate: number }> };
+  /**
+   * `ResolvedTax` rather than `{ rate: number }` (issue #124): the narrower
+   * hand-written shape was a structural lie the moment the resolver grew an
+   * answer that carries no rate, and `tsc` had no way to say so.
+   */
+  readonly taxService: { taxRateFor(input: TaxRateInput): Promise<ResolvedTax> };
   readonly salesChannelMembershipPort: NonNullable<OrdersModuleOptions['salesChannelMembership']>;
   readonly paymentAdapterRegistry: OrdersModuleOptions['paymentAdapterRegistry'];
   readonly shippingAdapterRegistry: OrdersModuleOptions['shippingAdapterRegistry'];
@@ -270,18 +275,22 @@ export function registerModule(ctx: ModuleContext): void {
             resolveChannelAllowNegativeStock: (channelId) =>
               readSetting('inventory.allow_negative_stock', channelId, z.boolean(), false),
             // Real per-product VAT from the tax rules. No `catch` (issue #84):
-            // `taxRateFor` already answers "no rule and no default" as
-            // `{ rate: 0, source: 'none' }`, so the only errors it raises are a
-            // failing database and `taxes` being switched off — and a flat 23%
-            // invented for either is a tax figure on a real order, printed on a
-            // real invoice, that no rule in the deployment supports.
+            // `taxRateFor` answers "no rule and no default" as `{ source:
+            // 'none' }`, so the only errors it raises are a failing database and
+            // `taxes` being switched off — and a flat 23% invented for either is
+            // a tax figure on a real order, printed on a real invoice, that no
+            // rule in the deployment supports.
             resolveTaxRate: async ({ country, productType, vatStatus }) => {
               const resolved = await cradle().taxService.taxRateFor({
                 country: country ?? 'PL',
                 productType: productType as TaxRateInput['productType'],
                 vatStatus: vatStatus as TaxRateInput['vatStatus'],
               });
-              return resolved.rate;
+              // Narrowed rather than read (issue #124): the `none` arm carries
+              // no `rate`, and this closure is typed against the cradle's own
+              // structural declaration, so reading it would compile and hand
+              // `undefined` to the totals as a rate.
+              return resolved.source === 'none' ? 0 : resolved.rate;
             },
 
             exposeOrderService: (service) => {

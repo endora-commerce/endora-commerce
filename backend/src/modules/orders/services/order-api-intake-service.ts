@@ -48,10 +48,14 @@ export interface OrderApiIntakeDeps {
    */
   salesChannelMembership?: SalesChannelMembershipService | undefined;
   /**
-   * The SAME resolver cart pricing uses. Absent ⇒ the `defaultPrice` fallback
-   * below is the only price source (mirrors CartService's legacy path).
+   * The SAME resolver cart pricing uses.
+   *
+   * Required since issue #124. "Absent" used to select the `defaultPrice`
+   * fallback below, so the distributor API accepted orders priced from a
+   * catalogue attribute whenever the pricing engine was not wired — including
+   * with `price_lists` switched off, which is exactly when nobody was watching.
    */
-  pricingService?: PricingServiceContract | undefined;
+  pricingService: PricingServiceContract;
   /** Per-key intake lock (research §R8 step 2). Absent ⇒ no serialization. */
   redis?: Redis | undefined;
   /**
@@ -334,7 +338,7 @@ export class OrderApiIntakeService {
     // the catalogue default below already covers it. Catching turned "the
     // pricing engine is unreachable" into "this product is priced at the
     // catalogue default", and the API accepted an order at that price.
-    if (this.deps.pricingService && channel) {
+    if (channel) {
       const resolved = await this.deps.pricingService.resolveLinePrice({
         product,
         context: {

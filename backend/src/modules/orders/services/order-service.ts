@@ -127,6 +127,25 @@ export interface OrderEvents extends Record<string, EventBase> {
 }
 export type OrderEventBus = EventBus<OrderEvents>;
 
+/**
+ * Composed without a tax authority (issue #124).
+ *
+ * Not an `HttpError`: a module an operator switched off answers with the 503
+ * `MODULE_DISABLED` envelope at the port gate, long before this. Reaching here
+ * means the service was constructed with no `resolveTaxRate` at all — a wiring
+ * mistake in a composition root or a test rig, which used to be papered over
+ * with a flat 23% and shipped as a real order total.
+ */
+export class MissingTaxAuthorityError extends Error {
+  constructor() {
+    super(
+      'OrderService was composed without `resolveTaxRate`, so this order has no tax authority. ' +
+        'Wire the `taxes` port through `OrdersModuleOptions.resolveTaxRate`; there is no default rate.',
+    );
+    this.name = 'MissingTaxAuthorityError';
+  }
+}
+
 export interface CustomerContext {
   customerAccountId: string;
   organizationId: string;
@@ -213,8 +232,9 @@ export class OrderService {
       /**
        * Resolve the VAT rate (as a fraction, e.g. `0.23`) for a single product
        * line, given the billing country, the product's tax class (its `type`),
-       * and the organization's VAT status. When unwired, placeOrder falls back
-       * to a flat 23% (legacy behavior / tests).
+       * and the organization's VAT status. Optional only because the parameter
+       * chain around it is; unwired, pricing raises
+       * {@link MissingTaxAuthorityError} rather than inventing a rate.
        */
       resolveTaxRate?: (input: {
         country: string | null;
@@ -243,7 +263,7 @@ export class OrderService {
   /**
    * Feature — real per-product VAT. Resolves the applicable rate for a product
    * line (billing country + product tax class + org VAT status). Unwired ⇒ the
-   * caller falls back to a flat 23%.
+   * order is refused, never priced from a fallback rate (issue #124).
    */
   private readonly resolveTaxRate:
     | ((input: {
@@ -673,26 +693,34 @@ export class OrderService {
 
     // Real VAT: resolve the rate per product tax class (its `type`) against the
     // billing country + org VAT status. VAT-exempt / reverse-charge orgs resolve
-    // to 0. Falls back to a flat 23% only when no tax resolver is wired.
+    // to 0.
+    //
+    // There is no fallback rate (issue #124). A flat 23% invented here because
+    // no resolver was wired put a figure no rule in the deployment supports onto
+    // a real order and a real invoice, and it did so most confidently exactly
+    // when the tax authority was missing. An order the platform cannot price is
+    // refused; the refusal is loud, and an audit six months later is not.
+    const resolveTaxRate = this.resolveTaxRate;
+    if (!resolveTaxRate) throw new MissingTaxAuthorityError();
     const rateByType = new Map<string, number>();
     for (const productType of new Set(
       items.map((it) => productById.get(it.productId)?.type ?? 'simple'),
     )) {
-      let rate = 0.23;
-      if (this.resolveTaxRate) {
-        rate =
-          input.vatStatus === 'vat_payer'
-            ? await this.resolveTaxRate({
-                country: input.taxCountry,
-                productType,
-                vatStatus: input.vatStatus,
-              })
-            : 0;
-      }
+      const rate =
+        input.vatStatus === 'vat_payer'
+          ? await resolveTaxRate({
+              country: input.taxCountry,
+              productType,
+              vatStatus: input.vatStatus,
+            })
+          : 0;
       rateByType.set(productType, rate);
     }
+    // Every product type in `items` seeded the map above, so a miss here is a
+    // programming error rather than an unpriced line — and 0 is the only value
+    // that cannot be mistaken for a resolved rate.
     const rateForProductId = (productId: string): number =>
-      rateByType.get(productById.get(productId)?.type ?? 'simple') ?? 0.23;
+      rateByType.get(productById.get(productId)?.type ?? 'simple') ?? 0;
     const taxTotal =
       Math.round(
         items.reduce(
