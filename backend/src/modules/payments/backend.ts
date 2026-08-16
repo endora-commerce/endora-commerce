@@ -8,6 +8,7 @@ import type { PaymentAdapterRegistry } from '../payment_methods/services/payment
 import { builtInPaymentAdapters } from './adapters/built-in-adapters.js';
 import { ReceivePaymentHandler, type PaymentEventBus } from './services/receive-payment-handler.js';
 import { PaymentService } from './services/payment-service.js';
+import { PaymentRefundProvider } from './services/payment-refund.js';
 import { PaymentEmailNotifier } from './services/payment-email-notifier.js';
 import type { PaymentEmailNotifierDeps } from './services/payment-email-notifier.js';
 import { registerPaymentsRoutes } from './routes.js';
@@ -86,6 +87,22 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort(
     'paymentService',
     ctx.asFunction(({ emFactory }: PaymentsCradle) => new PaymentService(emFactory)).singleton(),
+  );
+
+  /**
+   * How a return settlement refunds a payment (feature 046 R5), as this
+   * module's port instead of a class both roots constructed (T143c).
+   *
+   * `PaymentRefundProvider` resolves the order's PSP adapter out of
+   * `gatewayRefundRegistry` — this module's registry — so a root's instance
+   * refunded through a switched-off `payments`. The bridge `returns` receives
+   * forwards to this name per settlement, which is where the gate belongs.
+   */
+  ctx.di.providePort(
+    'paymentRefundPort',
+    ctx
+      .asFunction(({ emFactory }: PaymentsCradle) => new PaymentRefundProvider(emFactory))
+      .singleton(),
   );
 
   ctx.di.providePort(

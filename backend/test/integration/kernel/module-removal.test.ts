@@ -289,7 +289,10 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `mfa` (wave 1, T096). The two registries name its entities and migrations;
   // `composition.ts` imports the cradle and bridge types to annotate what it
   // contributes — the actor shape, which is a root's to know — and the login
-  // port it hands `customer_accounts` through `mfaLoginPortGetter`.
+  // port it hands `customer_accounts` through `mfaLoginPortGetter`. Type-only
+  // since T143c: the provider class and the `MFA_OAUTH_*` reader were value
+  // imports, because a root decided on this module's behalf whether it had
+  // social sign-in; the module reads its own environment now.
   mfa: [
     'src/composition.ts',
     'src/db/entities-registry.ts',
@@ -335,14 +338,13 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // root reference to remove.
   seo: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   // `credit_limits` (wave 2, T101). The two central registries name its entity
-  // and migrations; `composition.ts` imports the cradle type to annotate the
-  // `creditLimitService` port it resolves and hands to `orders` and the
-  // credit-topup payment provider. That reference goes when those convert.
-  credit_limits: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
+  // and migrations, and nothing else does. The `composition.ts` entry drained
+  // in T143c: the root imported the cradle type only to annotate the
+  // `creditLimitService` it resolved and handed to a `CreditTopupProvider` it
+  // built itself. The module provides that adapter as `creditTopupPort` now, so
+  // there is nothing left for the root to annotate — which is the shape a
+  // conversion is supposed to end in.
+  credit_limits: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
   // `comparisons` (wave 2, T111). The two central registries name its two
   // entities and its migrations; `composition.ts` imports the cradle type to
   // annotate the `comparisonService` port it resolves and binds the login
@@ -415,10 +417,11 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/migrations-registry.ts',
   ],
   // `invoices` (wave 2, T113). The two central registries name its entities and
-  // migrations; `composition.ts` imports the bridge and cradle types to
-  // annotate what it contributes and the three ports it threads into `ksef`
-  // and the corrective-invoice payment provider. Those go when `ksef` and
-  // `payments` convert.
+  // migrations; `composition.ts` imports the bridge type to annotate what it
+  // contributes. The cradle import went with T143c: it existed to reach
+  // `invoiceNumberGenerator` for a `CorrectiveInvoiceProvider` the root built,
+  // and that adapter is `correctiveInvoicePort` now — which is also what ended
+  // the two roots numbering corrections out of two different counters.
   invoices: [
     'src/composition.ts',
     'src/db/entities-registry.ts',
@@ -534,12 +537,12 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
   ],
-  // `payments` (wave 3, T126). Same shape as `shipments`: the entity registry
-  // names its entities, both roots register its transactional-email default
-  // into the shared `emailDefaultsRegistry` and contribute the sender. Its
+  // `payments` (wave 3, T126). The entity registry names its entities; its
   // migrations live in `orders`' group, which is why the migration registry
-  // does not name it.
-  payments: ['src/composition.ts', 'src/db/entities-registry.ts'],
+  // does not name it. The `composition.ts` entry drained in T143c with the
+  // `PaymentRefundProvider` the root constructed out of this module to settle a
+  // return; it is `paymentRefundPort` now.
+  payments: ['src/db/entities-registry.ts'],
   // `shopping_lists` (wave 3, T133). The two central registries name its
   // entities and migrations; both roots contribute the four cross-module names
   // it must not reach for directly — the RFQ service, the org restriction, the

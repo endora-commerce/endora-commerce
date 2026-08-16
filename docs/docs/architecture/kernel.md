@@ -192,9 +192,17 @@ it from is unreachable. A root defers the same way `lifecycleManifestRegistry`
 does — a thunk resolved where the value is used:
 
 ```ts
-// Not `creditLimitsCradle.creditLimitService`: resolved when a return is settled.
-creditTopup: new CreditTopupProvider(() => creditLimitsCradle.creditLimitService),
+// Not `container.cradle.searchReindexPort`: resolved when the reindex is asked for.
+catalogSearchReindex: async () => searchCradle().searchReindexPort.reindexAll(),
 ```
+
+The deferral is the minimum, not the goal. If the thing the root is deferring is
+a **service the owning module could build**, the answer is not a better thunk —
+it is the owner registering it and the root forwarding onto that name. Every
+root-built service is ungated whatever the root does with it, so it keeps
+answering after its module is switched off, and the two roots build it slightly
+differently sooner or later. `ROOT_MODULE_VALUE_IMPORTS` is where that is
+measured; the count of services a root constructs is zero and stays zero.
 
 A **`ctx.routes` body** is the other one. `defineModuleRoutes` gates *requests*;
 the registration itself runs whatever the module's effective state is, inside
@@ -587,7 +595,7 @@ is no container in the process running it.
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
 | `check-entry-scope.ts` | a non-HTTP entry point — CLI script, BullMQ worker, `setInterval` sweep — that establishes no scope (T037) |
 | `check-channel-resolution.ts` | a raw `x-sales-channel` header read outside the resolver; a storefront surface re-resolving the request channel; a settings read whose channel argument can be a string that is not a channel uuid (D-42); a channel id invented by a default parameter or a `randomUUID()` fallback (D-48). Runs `--enforce` in CI |
-| `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger |
+| `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger — including `ROOT_MODULE_VALUE_IMPORTS` (T143c): every **value** import a root takes out of `src/modules/**`, keyed by owner, with what has to happen for it to drain, and "no root constructs a module-owned service" against a named allow-list |
 
 That table is the kernel's own checks. The **whole** inventory — including
 `check-command-coverage.ts`, `check-subscribe-seam.ts`, `check-doc-snippets.ts`,
