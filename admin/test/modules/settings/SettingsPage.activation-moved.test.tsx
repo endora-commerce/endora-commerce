@@ -18,7 +18,10 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 
 const activationSetting: SettingDto = {
   id: '00000000-0000-4000-8000-000000000001',
-  code: 'blog.enabled',
+  // `blog.activation` rather than `blog.enabled`: feature 074 gave the module
+  // an activation code of its own, because the older `blog.enabled` is
+  // channel-scoped and governs storefront URLs, not the module.
+  code: 'blog.activation',
   name: 'Blog enabled',
   description: 'Whether the blog is available.',
   valueType: 'boolean',
