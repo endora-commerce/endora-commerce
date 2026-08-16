@@ -10,7 +10,12 @@ import type { Mailer } from '../../email/services/mailer.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { buildReorderCreatedEmail } from '../email-templates/reorder-created.js';
-import { sendOrderTransactionalEmail } from './transactional-email-helper.js';
+import {
+  orderEmailNotSent,
+  sendOrderTransactionalEmail,
+  type OrderEmailResult,
+} from './transactional-email-helper.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 export interface ReorderUnavailableItem {
   productId: string;
@@ -115,27 +120,39 @@ export class OrderReorderService {
     };
   }
 
-  private async notify(em: EntityManager, order: Order): Promise<void> {
+  /**
+   * Tells the customer their cart was rebuilt, and reports whether it went out.
+   *
+   * It answered `void` before (issue #78): no address on the customer, no
+   * mailer in the composition, an operator-deactivated template and a send that
+   * raised all produced the same nothing as a delivered message.
+   */
+  private async notify(em: EntityManager, order: Order): Promise<OrderEmailResult> {
+    const context = { orderId: order.id, code: 'reorder_created' };
     const customer = await em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId });
-    if (!customer?.email) return;
+    if (!customer?.email) return orderEmailNotSent(undefined, context, 'no_recipient');
     const sender = this.getTransactionalEmailSender?.();
+    if (sender) {
+      return sendOrderTransactionalEmail(em, sender, order, {
+        orderId: order.id,
+        code: 'reorder_created',
+        to: customer.email,
+        messageId: `order_reorder:${order.id}`,
+        variables: { order: { sourceBusinessId: order.businessId, id: order.id } },
+        meta: { sourceOrderId: order.id, kind: 'order_reorder' },
+      });
+    }
+    if (!this.mailer) return orderEmailNotSent(undefined, context, 'no_transport');
     try {
-      if (sender) {
-        await sendOrderTransactionalEmail(em, sender, order, {
-          code: 'reorder_created',
-          to: customer.email,
-          messageId: `order_reorder:${order.id}`,
-          variables: { order: { sourceBusinessId: order.businessId, id: order.id } },
-          meta: { sourceOrderId: order.id, kind: 'order_reorder' },
-        });
-        return;
-      }
-      if (!this.mailer) return;
       await this.mailer.send(
         buildReorderCreatedEmail({ to: customer.email, sourceBusinessId: order.businessId, orderId: order.id }),
       );
-    } catch {
-      // Best-effort.
+      return { sent: true };
+    } catch (error) {
+      // Best-effort: the cart is rebuilt either way. A switched-off module is
+      // not a delivery failure, so it travels on.
+      rethrowIfModuleDisabled(error);
+      return orderEmailNotSent(undefined, context, 'failed', error);
     }
   }
 }
