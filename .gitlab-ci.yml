@@ -94,6 +94,13 @@ quality:
     # scheduled for mass production — six were found across three batches before
     # this check existed.
     - pnpm --filter backend run check:doc-snippets
+    # Principle VIII — an error code the operator can see has a sentence, in both
+    # shipped languages. The envelope replaces the message wholesale with the
+    # bundle string, so a missing key renders the raw code and nothing reports it:
+    # `credentials` shipped eight written, translated sentences under keys the
+    # envelope does not read, while all six of its codes rendered untranslated.
+    # The ledger is the standing debt and may only shrink.
+    - pnpm --filter backend run check:error-translations
     # Feature 057 (FR-006/SC-003) — the manifest index + override manifest
     # regenerate deterministically for the bare-core build; `overlay:check`
     # regenerates and fails on ANY drift (identical inputs ⇒ identical artifact).
