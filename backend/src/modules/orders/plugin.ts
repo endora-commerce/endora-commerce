@@ -78,12 +78,17 @@ export interface OrdersModuleOptions {
    */
   salesChannelMembership?: SalesChannelMembershipService;
   /**
-   * Optional pricing-engine service. When wired, cart-line creation
-   * uses `PricingService.resolveLinePrice()` for the unit price + the
-   * displayMode='none' guard (T076 / T084). Foundation tests that
-   * don't care about pricing engine semantics can omit it.
+   * The pricing engine. Cart-line creation uses
+   * `PricingService.resolveLinePrice()` for the unit price and the
+   * displayMode='none' guard (T076 / T084).
+   *
+   * Required since issue #124. It was optional, and "omitted" and "the module
+   * an operator switched off" were the same thing at every call site: both
+   * produced `null`, and every consumer then priced the line from the
+   * catalogue's legacy `defaultPrice` attribute. Absence is now a `lazyPort`
+   * gate that throws `MODULE_DISABLED`, which nothing can mistake for a price.
    */
-  pricingService?: PricingServiceContract;
+  pricingService: PricingServiceContract;
   /**
    * Feature 038 (US3) — org address book service. Used by the admin
    * create-order flow to persist (and clean up) addresses typed inline on the
@@ -213,10 +218,14 @@ export interface OrdersModuleOptions {
   resolveChannelAllowNegativeStock?: (salesChannelId: string) => Promise<boolean>;
   /**
    * Real per-product VAT — resolves the rate (fraction, e.g. `0.23`) for a
-   * product line from its tax class, billing country, and org VAT status. Omit
-   * ⇒ placeOrder falls back to a flat 23%.
+   * product line from its tax class, billing country, and org VAT status.
+   *
+   * Required since issue #124: omitting it used to mean "price the order at a
+   * flat 23%", which is a figure no rule in the deployment supports, printed on
+   * a real invoice. An absent `taxes` module surfaces through this resolver as
+   * the 503 `MODULE_DISABLED` envelope instead.
    */
-  resolveTaxRate?: (input: {
+  resolveTaxRate: (input: {
     country: string | null;
     productType: string;
     vatStatus: string;
@@ -312,7 +321,7 @@ export function commerceModule(options: OrdersModuleOptions) {
         // structurally; threaded so placeOrder stamps the cart's coupon
         // discount onto the Order.
         ...(options.promotionService ? { promotion: options.promotionService } : {}),
-        ...(options.resolveTaxRate ? { resolveTaxRate: options.resolveTaxRate } : {}),
+        resolveTaxRate: options.resolveTaxRate,
         ...(options.mailer ? { mailer: options.mailer } : {}),
         ...(options.getTransactionalEmailSender
           ? { getTransactionalEmailSender: options.getTransactionalEmailSender }
@@ -392,7 +401,8 @@ export function commerceModule(options: OrdersModuleOptions) {
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,
       resolveCustomerContext: options.resolveCustomerContext,
-      ...(options.pricingService ? { pricingService: options.pricingService } : {}),
+      pricingService: options.pricingService,
+      resolveTaxRate: options.resolveTaxRate,
       ...(options.assertOrganizationCanTransact
         ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
         : {}),

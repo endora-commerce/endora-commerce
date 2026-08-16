@@ -73,10 +73,24 @@ export interface OrdersDeps {
   orderCreationAdminService: OrderCreationAdminService;
   /**
    * Feature 038 US3 — pricing engine, used by the read-only create-order
-   * preview to resolve per-line prices for the chosen customer/channel. When
-   * absent the preview endpoint returns a graceful zeroed summary.
+   * preview to resolve per-line prices for the chosen customer/channel.
+   *
+   * Required since issue #124: "absent" used to mean "preview every line from
+   * the catalogue's legacy `defaultPrice` attribute", which is a price no price
+   * list supports, on the form an operator is about to turn into an order.
    */
-  pricingService?: PricingServiceContract;
+  pricingService: PricingServiceContract;
+  /**
+   * The same VAT authority `placeOrder` uses (issue #124). The preview used to
+   * apply a hard-coded 23% — so it disagreed with the order it claims to mirror
+   * in every deployment whose tax rules say anything else, and it kept quoting
+   * that 23% with `taxes` switched off entirely.
+   */
+  resolveTaxRate: (input: {
+    country: string | null;
+    productType: string;
+    vatStatus: string;
+  }) => Promise<number>;
   emFactory: () => EntityManager;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
@@ -470,6 +484,8 @@ export async function registerOrderRoutes(
       }> = [];
       const messages: Array<{ productId: string; code: string }> = [];
       let subtotal = 0;
+      /** Net per product tax class, so VAT resolves the way `placeOrder` resolves it. */
+      const taxableByProductType = new Map<string, number>();
 
       for (const it of body.items) {
         const product = await em.findOne(Product, { id: it.productId });
@@ -487,19 +503,17 @@ export async function registerOrderRoutes(
           continue;
         }
 
-        const resolved = deps.pricingService
-          ? await deps.pricingService.resolveLinePrice({
-              product,
-              variantId: it.variantId ?? null,
-              context: {
-                quantity: it.quantity,
-                organization: organization ?? null,
-                customerGroupId,
-                salesChannel,
-                currencyCode: currency,
-              },
-            })
-          : null;
+        const resolved = await deps.pricingService.resolveLinePrice({
+          product,
+          variantId: it.variantId ?? null,
+          context: {
+            quantity: it.quantity,
+            organization: organization ?? null,
+            customerGroupId,
+            salesChannel,
+            currencyCode: currency,
+          },
+        });
 
         // Quote-only products (displayMode 'none') cannot be ordered directly —
         // CartService rejects them at add time, so the preview flags them.
@@ -517,8 +531,11 @@ export async function registerOrderRoutes(
           continue;
         }
 
-        // Mirror CartService.addItem: resolved engine price, else the legacy
-        // `defaultPrice` / `price` attribute fallback (so preview == order).
+        // Mirror CartService.addItem: the resolved engine price, else the legacy
+        // `defaultPrice` / `price` catalogue attribute (so preview == order).
+        // `resolved === null` is `price_lists` answering "no list applies"; an
+        // absent `price_lists` never reaches here, because resolving the port
+        // above throws `MODULE_DISABLED` (issue #124).
         const unitPrice = resolved
           ? Number(resolved.amount).toFixed(2)
           : Number(
@@ -528,6 +545,10 @@ export async function registerOrderRoutes(
             ).toFixed(2);
         const lineCurrency = resolved?.currency ?? currency;
         subtotal += Number(unitPrice) * it.quantity;
+        taxableByProductType.set(
+          product.type,
+          (taxableByProductType.get(product.type) ?? 0) + Number(unitPrice) * it.quantity,
+        );
         lines.push({
           productId: it.productId,
           variantId: it.variantId ?? null,
@@ -538,9 +559,23 @@ export async function registerOrderRoutes(
         });
       }
 
-      // Same expressions as placeOrder (order-service.ts:686/722-725).
-      const taxRate = 0.23;
-      const taxTotal = Math.round(subtotal * taxRate * 100) / 100;
+      // VAT from the same authority `placeOrder` uses, per product tax class —
+      // not the flat 23% this endpoint used to apply (issue #124). That constant
+      // was the preview's own invention: it disagreed with the order it claims
+      // to mirror wherever the deployment's tax rules said anything else, and it
+      // went on quoting a rate with `taxes` switched off, which is precisely
+      // when nobody could tell it was wrong.
+      const vatStatus = organization?.vatStatus ?? 'vat_payer';
+      const taxCountry = organization?.registeredAddress?.country ?? null;
+      let taxTotal = 0;
+      for (const [productType, taxable] of taxableByProductType) {
+        const rate =
+          vatStatus === 'vat_payer'
+            ? await deps.resolveTaxRate({ country: taxCountry, productType, vatStatus })
+            : 0;
+        taxTotal += taxable * rate;
+      }
+      taxTotal = Math.round(taxTotal * 100) / 100;
       const deliveryTotal = deliveryMethod ? Number(deliveryMethod.cost) : 0;
       const paymentSurcharge = paymentMethod ? Number(paymentMethod.additionalPrice ?? '0') : 0;
       const discountTotal = 0;

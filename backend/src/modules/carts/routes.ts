@@ -21,6 +21,7 @@ import { Product } from '../catalog/entities/product.entity.js';
 import type { CartItem } from './entities/cart-item.entity.js';
 import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
 import { HttpError } from '../../http/error-envelope.js';
+import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 
 const ANON_COOKIE = 'b2b_cart_anon';
 
@@ -202,9 +203,19 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
             .filter((r) => r.amount !== null)
             .map((r) => [r.cartItemId, { amount: r.amount as number, currency: r.currency }]),
         );
-      } catch {
-        // Never block a cart read on a resolver hiccup; fall back to the
-        // snapshotted unit price.
+      } catch (err) {
+        // The tolerance is narrow and stays: a resolver hiccup on one read must
+        // not take the whole cart down, and the snapshotted unit price is a
+        // figure the platform actually quoted.
+        //
+        // What it may not absorb is the presence answer (issue #124). `carts`
+        // declares `price_lists` a hard dependency, so an absent one fails
+        // closed — and this `catch` was quietly deciding the opposite: it
+        // rendered every line at its snapshot with `price_lists` switched off
+        // and said nothing, so the buyer read prices from a module the platform
+        // was refusing to serve and found out at checkout.
+        rethrowIfModuleDisabled(err);
+        request.log.warn({ err, cartId: cart.id }, 'cart repricing failed; rendering snapshots');
         recomputedPrices = null;
       }
     }
@@ -221,8 +232,11 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         if (result.dropped) {
           couponDroppedThisRead = result.dropped;
         }
-      } catch {
-        // Never block a cart read on a coupon-engine hiccup.
+      } catch (err) {
+        // Never block a cart read on a coupon-engine hiccup — but an absent
+        // `promotions` is not a hiccup (issue #124). Swallowing it charged the
+        // buyer the undiscounted total while the cart went on showing the code.
+        rethrowIfModuleDisabled(err);
         couponDroppedThisRead = null;
       }
     }
@@ -233,7 +247,10 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     if (deps.cartCouponService && items.length > 0) {
       try {
         application = await deps.cartCouponService.computeApplication(cart, items);
-      } catch {
+      } catch (err) {
+        // Same rule as the coupon re-evaluation above: a hiccup degrades to "no
+        // breakdown", an absent `promotions` does not degrade at all.
+        rethrowIfModuleDisabled(err);
         application = null;
       }
     }

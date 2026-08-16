@@ -49,11 +49,13 @@ export const CART_MAX_LINES = 200;
 
 export class CartService {
   /**
-   * `pricingService` is optional so test rigs that don't wire the
-   * full pricing module still construct the service. Production
-   * composition (composition.ts) supplies it; when absent the cart
-   * silently falls back to the legacy `attributeValues['defaultPrice']`
-   * read so the foundation flow stays intact.
+   * `pricingService` is **required** since issue #124. It used to be optional
+   * "for test rigs", and the cart then read the legacy
+   * `attributeValues['defaultPrice']` whenever it was missing — so a rig, a
+   * wiring slip and `price_lists` switched off all produced the same thing: a
+   * cart line priced from a catalogue attribute that no price list supports.
+   * Absence is now a `lazyPort` gate that throws `MODULE_DISABLED` at the call,
+   * which nothing downstream can mistake for a price.
    *
    * Cart entities don't currently track which sales channel they were
    * created on (multi-channel cart attribution is a separate
@@ -73,7 +75,7 @@ export class CartService {
    */
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly pricingService?: PricingServiceContract,
+    private readonly pricingService: PricingServiceContract,
     private readonly approvalService?: CartApprovalService,
     private readonly auditService?: CartAuditService,
     private readonly recomputeCache?: CartRecomputeCache,
@@ -239,6 +241,11 @@ export class CartService {
             }
           : {}),
         quantity: effectiveQuantity,
+        // `resolved === null` is `price_lists` answering "no list applies to
+        // this line"; the catalogue attribute is the legacy stand-in for that
+        // case and is reported as remaining debt (issue #124). What can no
+        // longer land here is an *absent* `price_lists`: resolving the port
+        // throws `MODULE_DISABLED` before this expression runs.
         unitPrice: resolved
           ? Number(resolved.amount).toFixed(2)
           : (Number(
@@ -280,15 +287,15 @@ export class CartService {
   }
 
   /**
-   * Look up the line's unit price via the resolver when the pricing
-   * service is wired (production); fall back to `null` so the legacy
-   * read path runs (foundation tests).
+   * Look up the line's unit price via the resolver.
    *
-   * `null` means "no resolvable price", and `resolveLinePrice` already answers
-   * that as a value — so there is no `catch` here (issue #84). There used to
-   * be one, and it made the two answers indistinguishable: a `price_lists`
-   * switched off, or a resolver bug, both came back as "this line has no
-   * price", and the cart quietly re-priced from the catalogue default.
+   * `null` means "the price-list engine answered, and nothing applies" —
+   * `resolveLinePrice`'s own documented answer — so there is no `catch` here
+   * (issue #84). There used to be one, and it made the two answers
+   * indistinguishable: a `price_lists` switched off, or a resolver bug, both
+   * came back as "this line has no price", and the cart quietly re-priced from
+   * the catalogue default. An absent `price_lists` now throws through this
+   * method to the route (issue #124).
    */
   async #resolveLineUnitPrice(
     em: EntityManager,
@@ -304,7 +311,6 @@ export class CartService {
     priceListId: string;
     displayMode: DisplayMode;
   } | null> {
-    if (!this.pricingService) return null;
     const channel = await em.findOne(SalesChannel, { systemDefault: true });
     if (!channel) return null;
     const organization = input.organizationId

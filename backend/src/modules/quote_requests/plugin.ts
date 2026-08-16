@@ -58,10 +58,14 @@ export interface QuoteRequestsModuleOptions {
   /**
    * Resolves the VAT rate (fraction, e.g. `0.23`) applied to a quote's net
    * prices for the given Organization. Supplied by composition (reads the
-   * Organization VAT status + tax rules). Optional — omitted in legacy/test
-   * compositions, where prices stay net.
+   * Organization VAT status + tax rules).
+   *
+   * Required since issue #124: omitting it quoted every organization at 0% VAT
+   * and called that a price, which is indistinguishable from a deployment whose
+   * rules genuinely say 0%. An absent `taxes` module now reaches the caller as
+   * the 503 `MODULE_DISABLED` envelope through this resolver.
    */
-  resolveTaxRate?: (organizationId: string) => Promise<number>;
+  resolveTaxRate: (organizationId: string) => Promise<number>;
   /** Feature 054 — audits RFQ lifecycle writes co-transactionally when provided. */
   auditLog?: AuditLogService;
   /** Feature 055 — validates + reads RFQ custom-field values on the admin edit path. */
@@ -117,7 +121,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     notificationService,
     salesRepAssignment,
     businessId: businessIdGenerator,
-    ...(options.resolveTaxRate ? { resolveTaxRate: options.resolveTaxRate } : {}),
+    resolveTaxRate: options.resolveTaxRate,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 

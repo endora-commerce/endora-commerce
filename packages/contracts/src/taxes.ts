@@ -52,9 +52,37 @@ export const taxResolutionInputSchema = z.object({
 });
 export type TaxResolutionInput = z.infer<typeof taxResolutionInputSchema>;
 
-export const resolvedTaxSchema = z.object({
-  rate: z.number().finite().nonnegative(),
-  taxId: uuidSchema.nullable(),
-  source: z.enum(['rule', 'default', 'none']),
-});
+/**
+ * The resolver's answer, as a union rather than a record with a `rate` that is
+ * sometimes meaningless (issue #124).
+ *
+ * A **configured** 0% rate is a legitimate answer — zero-rated supplies exist —
+ * so `rule` and `default` carry a `rate` that a caller may spend. "No rule
+ * matched and no default is configured" is not an answer at all, so the `none`
+ * arm carries **no `rate` field**: a caller has to narrow on `source` before it
+ * can read a number, and therefore has to decide, in the open, what its own
+ * surface does about it.
+ *
+ * `{ rate: 0, source: 'none' }` was the previous shape and it collapsed exactly
+ * that distinction — every consumer read `.rate`, got `0`, and quoted a zero-VAT
+ * figure nobody had configured onto documents that had already gone out.
+ *
+ * A third state, "the `taxes` module is absent", is deliberately **not** in this
+ * union: absence is not a value. The port gate throws `MODULE_DISABLED` before a
+ * resolution runs, so a caller never has to tell an absent owner from a silent
+ * one.
+ */
+export const resolvedTaxSchema = z.discriminatedUnion('source', [
+  z.object({
+    source: z.literal('rule'),
+    rate: z.number().finite().nonnegative(),
+    taxId: uuidSchema,
+  }),
+  z.object({
+    source: z.literal('default'),
+    rate: z.number().finite().nonnegative(),
+    taxId: uuidSchema,
+  }),
+  z.object({ source: z.literal('none') }),
+]);
 export type ResolvedTax = z.infer<typeof resolvedTaxSchema>;

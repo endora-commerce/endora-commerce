@@ -41,6 +41,10 @@ describe('placeOrder — business Order ID + nextAction (feature 036)', () => {
       undefined,
       undefined,
       {
+        // Issue #124 — a rig states its own tax authority. `OrderService` has no
+        // fallback rate, so an order it cannot price is refused rather than taxed
+        // at a figure nobody configured.
+        resolveTaxRate: async () => 0.23,
         paymentAdapters: registry,
         orderStatusRegistry: new EnumOrderStatusRegistry(),
         // Prefix/suffix resolvers stand in for the SettingsService-backed ones.

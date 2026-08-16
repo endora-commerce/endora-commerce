@@ -23,8 +23,14 @@ import { Tax } from '../entities/tax.entity.js';
  *   - Among matching rules, the one with the most narrowed fields wins.
  *   - Ties are broken by `priority` desc, then `createdAt` asc.
  *   - When no rule matches, the row with `isDefault=true` wins.
- *   - When no default exists either, the resolver returns
- *     `{ rate: 0, source: 'none' }`.
+ *   - When no default exists either, the resolver returns `{ source: 'none' }` —
+ *     an answer that carries no rate, because there is none to carry.
+ *
+ * The last line is the whole point of the union (issue #124). A configured 0%
+ * rate comes back as `{ source: 'rule' | 'default', rate: 0 }` and prices an
+ * order; "nothing is configured" comes back without a `rate` at all, so no
+ * consumer can spend it as zero by accident. Absence of the module itself is
+ * neither: the port gate refuses the resolution before it starts.
  */
 export class TaxService {
   constructor(
@@ -151,7 +157,7 @@ export class TaxService {
     if (defaultRule) {
       return { rate: Number(defaultRule.rate), taxId: defaultRule.id, source: 'default' };
     }
-    return { rate: 0, taxId: null, source: 'none' };
+    return { source: 'none' };
   }
 
   private async validateCountry(

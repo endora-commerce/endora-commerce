@@ -50,6 +50,10 @@ describe('placeOrder — confirmation CC to additional recipients (US4)', () => 
     for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
 
     const service = new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
+      // Issue #124 — a rig states its own tax authority. `OrderService` has no
+      // fallback rate, so an order it cannot price is refused rather than taxed
+      // at a figure nobody configured.
+      resolveTaxRate: async () => 0.23,
       paymentAdapters: registry,
       orderStatusRegistry: new EnumOrderStatusRegistry(),
       mailer,

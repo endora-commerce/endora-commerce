@@ -62,10 +62,16 @@ describe('Admin create-order pricing preview (US3)', () => {
     expect(Number(line.unitPrice)).toBeGreaterThan(0);
     expect(line.lineTotal).toBeCloseTo(Number(line.unitPrice) * 2, 2);
 
-    // subtotal + 23% tax + delivery + surcharge == total (placeOrder math).
+    // subtotal + resolved tax + delivery + surcharge == total (placeOrder math).
+    //
+    // The rate comes from the tax rules, not from this endpoint (issue #124):
+    // this fixture configures none, so the resolver answers `{ source: 'none' }`
+    // and the preview quotes no VAT — exactly what `placeOrder` does with the
+    // same fixture. It used to assert a hard-coded 23% here while the order it
+    // claims to mirror charged 0%.
     const s = data.summary;
     expect(s.subtotal).toBeCloseTo(line.lineTotal, 2);
-    expect(s.taxTotal).toBeCloseTo(Math.round(s.subtotal * 0.23 * 100) / 100, 2);
+    expect(s.taxTotal).toBe(0);
     expect(s.total).toBeCloseTo(
       Math.round((s.subtotal + s.taxTotal + s.deliveryTotal + s.paymentSurcharge) * 100) / 100,
       2,

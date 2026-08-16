@@ -33,7 +33,7 @@ import { CartConvertButtons } from '../../../components/CartConvertButtons';
 import { CartDroppedLinesBanner } from '../../../components/CartDroppedLinesBanner';
 import { CartApprovalBanner } from '../../../components/CartApprovalBanner';
 import { getMe } from '../../../lib/api/account';
-import { getProductDisplayMode } from '../../../lib/api/pricing';
+import { getProductDisplayMode, PRICING_UNAVAILABLE } from '../../../lib/api/pricing';
 import type { DisplayMode } from '@b2b/contracts';
 
 /**
@@ -92,9 +92,20 @@ export default async function CartPage({
   // wrapper does not forward customer auth), so the whole cart shares one mode
   // — exactly the "single version everywhere" the display setting expresses.
   // Resolved from the first line's product; falls back to net when unreachable.
-  const displayMode: DisplayMode =
+  //
+  // Absent `price_lists` resolves to net too, and that is a decision rather than
+  // a fallback (issue #124): a cart line carries the net price that was quoted
+  // when it was added, which is a real figure, while a gross presentation would
+  // have to be derived from a tax authority this deployment is not serving.
+  // Showing what was quoted is honest; deriving a gross total from it would not
+  // be.
+  const resolvedDisplayMode =
     cart.items.length > 0 && cart.items[0]
-      ? (await getProductDisplayMode(cart.items[0].productId, ctx))?.displayMode ?? 'net_only'
+      ? await getProductDisplayMode(cart.items[0].productId, ctx)
+      : null;
+  const displayMode: DisplayMode =
+    resolvedDisplayMode && resolvedDisplayMode !== PRICING_UNAVAILABLE
+      ? resolvedDisplayMode.displayMode
       : 'net_only';
 
   const upsells = cart.items.length > 0 ? await getCartUpsells(jar).catch(() => []) : [];

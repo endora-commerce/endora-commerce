@@ -1,5 +1,6 @@
 import type { DisplayMode } from '@b2b/contracts';
 import { apiGet, type RequestContext } from './client';
+import { isModuleDisabled } from './module-absence';
 
 /**
  * Storefront-public pricing bindings (feature 011 / US5+US6+US7).
@@ -40,6 +41,18 @@ export interface ResolvedPrice {
   } | null;
 }
 
+/**
+ * The pricing module is not present — issue #124.
+ *
+ * Distinct from `null`, which is the engine answering "no price list applies to
+ * this product for this buyer". Callers must render an absence: no price, and no
+ * action that would post a price back. Collapsing the two is how an absent
+ * `price_lists` came to show the catalogue's legacy `defaultPrice` on a product
+ * page whose Add-to-cart button could only ever return 503.
+ */
+export const PRICING_UNAVAILABLE = 'pricing-unavailable' as const;
+export type PricingUnavailable = typeof PRICING_UNAVAILABLE;
+
 interface ResolvedPriceResponse {
   data: { resolvedPrice: ResolvedPrice };
 }
@@ -58,7 +71,7 @@ export async function getResolvedPrice(
   productId: string,
   query: ResolvePriceQuery = {},
   ctx?: RequestContext,
-): Promise<ResolvedPrice | null> {
+): Promise<ResolvedPrice | PricingUnavailable | null> {
   const params = new URLSearchParams();
   params.set('quantity', String(query.quantity && query.quantity > 0 ? query.quantity : 1));
   // Fall back to the buyer's selected display currency (the `currency` cookie,
@@ -74,9 +87,14 @@ export async function getResolvedPrice(
       { revalidate: 60, tags: ['pricing:resolved', `pricing:product:${productId}`] },
     );
     return res.data.resolvedPrice;
-  } catch {
-    // Pricing failures are non-fatal at the rendering surface — the caller
-    // falls back to the foundation-era ProductSummary.price projection.
+  } catch (err) {
+    // A switched-off `price_lists` is a decision the platform made, and it is
+    // the one failure a rendering surface must not paper over (issue #124).
+    if (isModuleDisabled(err)) return PRICING_UNAVAILABLE;
+    // Everything else stays non-fatal here: a transient pricing failure should
+    // not take a product page down, and the caller falls back to the
+    // foundation-era ProductSummary.price projection. Narrowing that tolerance
+    // further is a separate question from module presence.
     return null;
   }
 }
@@ -100,7 +118,10 @@ export async function getResolvedPricesBulk(
       const id = queue.shift();
       if (!id) return;
       const resolved = await getResolvedPrice(id, query, ctx);
-      if (resolved) out.set(id, resolved);
+      // An absence contributes no entry, exactly as "no price" does: the bulk
+      // map is a lookup of prices that exist, and the caller's own absence
+      // handling belongs on the surface, not in a Map miss.
+      if (resolved && resolved !== PRICING_UNAVAILABLE) out.set(id, resolved);
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, productIds.length) }, worker));
@@ -115,7 +136,7 @@ export interface ProductDisplayMode {
 export async function getProductDisplayMode(
   productId: string,
   ctx?: RequestContext,
-): Promise<ProductDisplayMode | null> {
+): Promise<ProductDisplayMode | PricingUnavailable | null> {
   try {
     const res = await apiGet<DisplayModeOnlyResponse>(
       `/api/v1/storefront/pricing/display-mode/${encodeURIComponent(productId)}`,
@@ -123,7 +144,8 @@ export async function getProductDisplayMode(
       { revalidate: 60, tags: ['pricing:display-mode', `pricing:product:${productId}`] },
     );
     return { displayMode: res.data.displayMode };
-  } catch {
+  } catch (err) {
+    if (isModuleDisabled(err)) return PRICING_UNAVAILABLE;
     return null;
   }
 }

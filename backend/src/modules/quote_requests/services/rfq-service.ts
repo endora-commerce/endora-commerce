@@ -79,10 +79,11 @@ export interface RfqServiceDeps {
   businessId?: QuoteRequestBusinessIdGenerator;
   /**
    * Resolves the VAT rate (fraction, e.g. `0.23`) applied to the quote's net
-   * prices for the given Organization. Mirrors the Orders flow. Optional —
-   * when omitted (legacy/test compositions), prices stay net (rate `0`).
+   * prices for the given Organization. Mirrors the Orders flow.
+   *
+   * Required since issue #124 — see `QuoteRequestsModuleOptions.resolveTaxRate`.
    */
-  resolveTaxRate?: (organizationId: string) => Promise<number>;
+  resolveTaxRate: (organizationId: string) => Promise<number>;
   /** Feature 054 — audits RFQ writes co-transactionally when provided. */
   auditLog?: AuditLogService;
 }
@@ -119,12 +120,14 @@ export class RfqService {
   }
 
   /**
-   * Resolves the VAT rate applied to a quote's net prices for an
-   * Organization. Returns `0` when no resolver is wired so net-only
-   * compositions keep their current behaviour.
+   * Resolves the VAT rate applied to a quote's net prices for an Organization.
+   *
+   * No unwired branch (issue #124): the resolver is required, and an absent
+   * `taxes` module surfaces through it as `MODULE_DISABLED` rather than as a
+   * quote silently priced at 0% VAT.
    */
   async taxRateForOrganization(organizationId: string): Promise<number> {
-    return this.deps.resolveTaxRate ? this.deps.resolveTaxRate(organizationId) : 0;
+    return this.deps.resolveTaxRate(organizationId);
   }
 
   // -------------------------------------------------------------------------
