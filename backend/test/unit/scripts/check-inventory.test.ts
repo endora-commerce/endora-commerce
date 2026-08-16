@@ -1,14 +1,19 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { defineModuleManifest, type ModuleManifest } from '@b2b/contracts';
 
 import {
   analyzeSource as channelAnalyze,
   type Violation as ChannelViolation,
 } from '../../../scripts/check-channel-resolution.js';
-import { analyzeSource as commandCoverageAnalyze } from '../../../scripts/check-command-coverage.js';
+import {
+  analyzeSource as commandCoverageAnalyze,
+  collectScannedFiles,
+  isMigratedModulePath,
+} from '../../../scripts/check-command-coverage.js';
 import { analyzeSource as containerAnalyze } from '../../../scripts/check-container-imports.js';
 import {
   checkDocument,
@@ -36,14 +41,22 @@ import {
 import { compareArtifact } from '../../../scripts/check-overlay-determinism.js';
 import { checkPortCatches } from '../../../scripts/check-port-catches.js';
 import {
+  findNonBindingIssues,
+  findRootIssues,
   findViolations,
+  importedContributionSeams,
   ledgerReads,
   providedPortNames,
+  registeredNames,
   resolvedNames,
+  rootRegisteredNames,
+  type NonBindingIssue,
   type PortResolution,
   type PortViolation,
+  type RootRegistrationIssue,
 } from '../../../scripts/check-port-dependencies.js';
 import { buildDeactivationLedger } from '../../../src/modules/_lifecycle/services/deactivation-ledger.js';
+import { nonBindingPortEdgesFrom } from '../../../src/modules/_lifecycle/services/gating-graph.js';
 import { checkSubscribeSeam } from '../../../scripts/check-subscribe-seam.js';
 import {
   checkTimerPresence,
@@ -272,6 +285,188 @@ function portViolations(
   }).filter((v) => v.kind === kind).length;
 }
 
+/**
+ * The two composition roots, as source text — the top of `findRootIssues`.
+ *
+ * Its three shapes are all *differences between the roots*, so the proofs feed
+ * it what a real run does: each root's file read through `rootRegisteredNames`,
+ * the module's own ports through `providedPortNames`, and the names something
+ * resolves through `resolvedNames`. Handing it two ready-made sets would prove
+ * the comparison and leave the two scanners under it unproven, which is the
+ * shape of issue #130.
+ */
+const PRODUCTION_ROOT_FILE = '/repo/backend/src/composition.ts';
+const HARNESS_ROOT_FILE = '/repo/backend/test/helpers/test-server.ts';
+
+function rootIssues(input: {
+  readonly roots: Readonly<Record<string, string>>;
+  readonly moduleSource: string;
+  readonly hostRegistered: Readonly<Record<string, string>>;
+  readonly consumerSource: string;
+}): RootRegistrationIssue[] {
+  const rootNames = new Map<string, ReadonlySet<string>>(
+    Object.entries(input.roots).map(([label, source]) => [
+      label,
+      new Set(
+        rootRegisteredNames(
+          source,
+          label === 'production' ? PRODUCTION_ROOT_FILE : HARNESS_ROOT_FILE,
+        ),
+      ),
+    ]),
+  );
+  return findRootIssues({
+    moduleRegistered: new Map(
+      providedPortNames(input.moduleSource, PAYMENTS_FILE).map((name) => [
+        name,
+        'payment_methods',
+      ]),
+    ),
+    rootNames,
+    hostRegistered: input.hostRegistered,
+    resolvedNames: new Set(ordersResolutions(input.consumerSource).map((r) => r.name)),
+  });
+}
+
+/** A root registering nothing the fixtures care about, so a divergence has a silent half. */
+const ROOT_REGISTERS_NOTHING = 'registerValues(container, { orm, em });';
+const ROOT_SHADOWS_THE_PORT =
+  'registerValues(container, { paymentAdapterRegistry: builtHere });';
+const ROOT_SUPPLIES_THE_BRIDGE = 'container.register({ ordersAdminScopeResolver: fromRequest });';
+const ORDERS_RESOLVES_THE_BRIDGE = [
+  'export function registerModule(ctx: ModuleContext): void {',
+  '  ctx.di.register({',
+  '    orderService: ctx.asFunction(() => ({',
+  '      scope: () => ctx.cradle<Deps>().ordersAdminScopeResolver(),',
+  '    })).singleton(),',
+  '  });',
+  '}',
+].join('\n');
+
+/**
+ * A contribution host and the module that pushes into it, as source text — the
+ * top of `findNonBindingIssues`.
+ *
+ * Its five shapes are all statements about the tree that a `nonBindingDependencies`
+ * entry makes and the check refuses to take on the author's word, so the fixture
+ * is a real manifest (through `defineModuleManifest`, so the contract's own
+ * rules apply) plus the two module sources. `nonBindingPortEdgesFrom` flattens
+ * the declaration, `registeredNames` and `providedPortNames` decide who owns the
+ * name, and `resolvedNames` decides where it is read — every stage on the way.
+ */
+const PROMPT_ACTIONS_FILE = '/repo/backend/src/modules/prompt_actions/backend.ts';
+const CATALOG_FILE = '/repo/backend/src/modules/catalog/backend.ts';
+
+const PROMPT_ACTIONS_REGISTERS = [
+  'export function registerModule(ctx: ModuleContext): void {',
+  '  ctx.di.register({',
+  '    promptActionToolRegistry: ctx.asFunction(() => new Registry()).singleton(),',
+  '  });',
+  '}',
+].join('\n');
+
+const PROMPT_ACTIONS_PROVIDES_A_PORT = [
+  'export function registerModule(ctx: ModuleContext): void {',
+  "  ctx.di.providePort('promptActionToolRegistry', ctx.asFunction(() => new Registry()).singleton());",
+  '}',
+].join('\n');
+
+const CATALOG_PUSHES_AT_BOOT = [
+  'export function registerModule(ctx: ModuleContext): void {',
+  '  ctx.onBoot(() => {',
+  '    ctx.cradle<Deps>().promptActionToolRegistry.register(catalogTool);',
+  '  });',
+  '}',
+].join('\n');
+
+const CATALOG_READS_AT_CALL = [
+  'export function registerModule(ctx: ModuleContext): void {',
+  '  ctx.di.register({',
+  '    toolLister: ctx.asFunction(() => ({',
+  '      list: () => ctx.cradle<Deps>().promptActionToolRegistry.visibleFor(),',
+  '    })).singleton(),',
+  '  });',
+  '}',
+].join('\n');
+
+type NonBindingEdge = NonNullable<ModuleManifest['nonBindingDependencies']>[number];
+
+function nonBindingIssues(input: {
+  readonly edge: NonBindingEdge;
+  readonly ownerSource: string;
+  readonly consumerSource: string;
+  readonly policies: Readonly<Record<string, 'skip' | 'honour'>>;
+}): NonBindingIssue[] {
+  const manifest = defineModuleManifest({
+    id: 'catalog',
+    name: 'Catalog',
+    version: '1.0.0',
+    dependencies: [],
+    nonBindingDependencies: [input.edge],
+  });
+  return findNonBindingIssues({
+    edges: nonBindingPortEdgesFrom([manifest]),
+    owners: new Map(
+      registeredNames(input.ownerSource, PROMPT_ACTIONS_FILE).map((name) => [
+        name,
+        'prompt_actions',
+      ]),
+    ),
+    providedPorts: new Map(
+      providedPortNames(input.ownerSource, PROMPT_ACTIONS_FILE).map((name) => [
+        name,
+        'prompt_actions',
+      ]),
+    ),
+    resolutions: resolvedNames(input.consumerSource, CATALOG_FILE),
+    contributionPolicies: input.policies,
+  });
+}
+
+/**
+ * The other wiring: a module that **imports** another module's singleton and
+ * pushes into it, which no container scan sees. The fixture is the importing
+ * file's source, and the proof runs the seam through the ledger, because the
+ * seam on its own refuses nothing — what makes `gatewayRefundRegistry`'s policy
+ * requirement bite is the unassigned edge at the far end.
+ */
+const STRIPE_FILE = '/repo/backend/src/modules/stripe/backend.ts';
+
+const STRIPE_PUSHES = [
+  "import { gatewayRefundRegistry } from '../payments/services/gateway-refund-registry.js';",
+  'export function registerModule(ctx: ModuleContext): void {',
+  '  ctx.onBoot(() => {',
+  "    gatewayRefundRegistry.register('stripe', handler);",
+  '  });',
+  '}',
+].join('\n');
+
+const STRIPE_WITHDRAWS = [
+  "import { paymentAdapterRegistry } from '../payment_methods/services/payment-adapter-registry.js';",
+  'export function registerModule(ctx: ModuleContext): void {',
+  '  ctx.onBoot(() => {',
+  "    paymentAdapterRegistry.unregister('stripe');",
+  '  });',
+  '}',
+].join('\n');
+
+/** Seams found in one file, classified by the ledger with no policy stated for them. */
+function importedSeamShapes(source: string): number {
+  return buildDeactivationLedger({
+    reads: ledgerReads({
+      resolutions: [],
+      seams: importedContributionSeams(source, STRIPE_FILE),
+      owners: new Map(),
+      providedPorts: new Map(),
+    }),
+    declaredDependencies: new Map(),
+    nonBinding: [],
+    neverAbsentOwners: new Set(),
+    contributionPolicies: {},
+    excludedNames: new Set(),
+  }).unassigned.filter((edge) => edge.shape === 'registry-without-policy').length;
+}
+
 const PORT_CATCH_TREE = new Map([
   [
     'modules/promotions/backend.ts',
@@ -463,6 +658,81 @@ function handReleases(file: string, source: string, resource: string): number {
 /** The `let h: BackendServerHandle` + `beforeAll` shape every converted file uses. */
 const HANDLE_DECLARED = 'let h: BackendServerHandle;\n';
 
+/**
+ * The command-coverage **population**, on disk — the half of that check no
+ * proof reached (issue #134).
+ *
+ * `analyzeSource` was proven on three shapes and the two stages above it were
+ * not: `collectScannedFiles`, which decides what is judged at all, and
+ * `isMigratedModulePath`, which decides whether a finding blocks the build or
+ * only prints. That is the same seam issue #128 sat behind — a violation list
+ * stays empty for a file that was never handed to the analyzer, and unread and
+ * clean print the same line. The walk once anchored on `/services/`, so the
+ * fixture puts the write in a `routes.admin.ts`.
+ */
+function commandCoverageTree(): string {
+  const root = mkdtempSync(join(tmpdir(), 'endora-command-coverage-'));
+  mkdirSync(join(root, 'src/modules/orders/migrations'), { recursive: true });
+  mkdirSync(join(root, 'src/modules/audit_logs/services'), { recursive: true });
+  mkdirSync(join(root, 'src/modules/blog/services'), { recursive: true });
+  for (const file of [
+    'src/modules/orders/routes.admin.ts',
+    'src/modules/orders/migrations/20260901T000000_orders_thing.ts',
+    'src/modules/audit_logs/services/audit-log.service.ts',
+    'src/modules/blog/services/blog.service.ts',
+  ]) {
+    writeFileSync(join(root, file), UNAUDITED_WRITE, 'utf8');
+  }
+  return root;
+}
+
+/** Repo-relative path → how many findings the analyzer reports for it. */
+function commandCoverageWalk(root: string): Map<string, number> {
+  return new Map(
+    collectScannedFiles(join(root, 'src/modules')).map((file) => {
+      const rel = relative(root, file).replaceAll('\\', '/');
+      return [rel, commandCoverageAnalyze(rel, readFileSync(file, 'utf8')).length] as const;
+    }),
+  );
+}
+
+/** The walk reaches the file the rule is about, and only the arguable exclusions are missing. */
+function commandCoveragePopulation(): number {
+  const root = commandCoverageTree();
+  try {
+    const walked = commandCoverageWalk(root);
+    // A walk that returned everything would also be non-zero, and would mean
+    // the two exclusions in the header are not exclusions at all.
+    return (walked.get('src/modules/orders/routes.admin.ts') ?? 0) > 0 &&
+      !walked.has('src/modules/orders/migrations/20260901T000000_orders_thing.ts') &&
+      !walked.has('src/modules/audit_logs/services/audit-log.service.ts')
+      ? 1
+      : 0;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+/** `--module orders` makes that module's findings blocking and leaves the rest report-only. */
+function commandCoverageModuleSelection(): number {
+  const root = commandCoverageTree();
+  try {
+    const walked = commandCoverageWalk(root);
+    const named = 'src/modules/orders/routes.admin.ts';
+    const unnamed = 'src/modules/blog/services/blog.service.ts';
+    // Named on both sides: a classifier that answered `true` for everything
+    // would block the whole tree, which is the mirror of answering `false`.
+    return (walked.get(named) ?? 0) > 0 &&
+      (walked.get(unnamed) ?? 0) > 0 &&
+      isMigratedModulePath(named, ['orders']) &&
+      !isMigratedModulePath(unnamed, ['orders'])
+      ? 1
+      : 0;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
 /** Ungated uncatchable entry points of one construct, in one synthetic file. */
 function ungatedTimers(file: string, source: string, construct: TimerConstruct): number {
   return checkTimerPresence({ sources: new Map([[file, source]]) }, {}).violations.filter(
@@ -557,6 +827,12 @@ const CHECKS: readonly CheckEntry[] = [
           commandCoverageAnalyze('src/modules/catalog/services/thing.service.ts', STALE_IGNORE)
             .filter((f) => f.kind === 'stale-ignore').length,
       ),
+      // The two stages above the analyzer, which nothing proved until issue
+      // #134: the disk walk that decides what is judged at all, and the
+      // `--module` classifier that decides whether a finding blocks. Both take
+      // a fixture tree on disk, because that is what a real run reads.
+      'scan-walk-population': top(commandCoveragePopulation),
+      'module-selection-blocks': top(commandCoverageModuleSelection),
     },
   },
   {
@@ -849,12 +1125,21 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
-    // Two analyses in one script since feature 074 — the ownership rule and the
-    // deactivation-consequence ledger — and both are fed here by the **scanner**
-    // rather than by a hand-built resolution list (issue #130). The blindness
-    // this check has actually suffered was in `resolvedNames`: a `port(ctx,
-    // name)` helper hid fourteen resolutions, several registered by nobody,
-    // while the rule below them read clean.
+    // Ten analyses in one script, and each of the five rules below is fed here
+    // by the **scanner** rather than by a hand-built list (issue #130). The
+    // blindness this check has actually suffered was in `resolvedNames`: a
+    // `port(ctx, name)` helper hid fourteen resolutions, several registered by
+    // nobody; a module-local cradle alias hid ninety-eight more; and
+    // `const { a, b } = cradle()` — the two shapes above written together — hid
+    // `catalog`'s asset-reference boot hook until issue #127. Every proof here
+    // therefore starts from source text.
+    //
+    // Three of the rules had no proof at all until issue #134, and two of them
+    // were a week old and load-bearing: `findNonBindingIssues` carries D-44's
+    // guard-rails on `contributes-to`, and `importedContributionSeams` is the
+    // only reason `gatewayRefundRegistry`'s policy requirement bites — the
+    // payment gateways reach that registry by importing the singleton, which no
+    // container scan sees.
     script: 'backend/scripts/check-port-dependencies.ts',
     npmScript: 'check:port-dependencies',
     job: 'quality',
@@ -887,6 +1172,118 @@ const CHECKS: readonly CheckEntry[] = [
             excludedNames: new Set(),
           }).unassigned.length,
       ),
+      // `findRootIssues` — the three ways a composition root breaks a port with
+      // every module correct. Each fixture names only its own shape: the
+      // shadowing root registers nothing the host table mentions, and the two
+      // host-table shapes register no module port.
+      'root-shadows-module-port': top(
+        () =>
+          rootIssues({
+            roots: { production: ROOT_SHADOWS_THE_PORT, harness: ROOT_REGISTERS_NOTHING },
+            moduleSource: PAYMENTS_BACKEND,
+            hostRegistered: {},
+            consumerSource: ORDERS_RESOLVES_AT_CALL,
+          }).filter((issue) => issue.kind === 'root-shadows-module-port').length,
+      ),
+      'root-supplies-nothing': top(
+        () =>
+          rootIssues({
+            roots: { production: ROOT_REGISTERS_NOTHING, harness: ROOT_REGISTERS_NOTHING },
+            moduleSource: '',
+            hostRegistered: { ordersAdminScopeResolver: 'auth' },
+            consumerSource: ORDERS_RESOLVES_THE_BRIDGE,
+          }).filter((issue) => issue.kind === 'root-supplies-nothing').length,
+      ),
+      'root-divergence': top(
+        () =>
+          rootIssues({
+            roots: { production: ROOT_REGISTERS_NOTHING, harness: ROOT_SUPPLIES_THE_BRIDGE },
+            moduleSource: '',
+            hostRegistered: { ordersAdminScopeResolver: 'auth' },
+            consumerSource: ORDERS_RESOLVES_THE_BRIDGE,
+          }).filter((issue) => issue.kind === 'root-divergence').length,
+      ),
+      // `findNonBindingIssues` — D-44's five. The first two hold every kind of
+      // entry to the tree; the last three are the guard-rails `contributes-to`
+      // rests on, so each of those fixtures satisfies the other two guard-rails
+      // and trips only its own.
+      'non-binding-wrong-owner': top(
+        () =>
+          nonBindingIssues({
+            edge: {
+              moduleId: 'assets_library',
+              name: 'promptActionToolRegistry',
+              kind: 'degrades-without',
+              whenAbsent: 'The assistant offers no catalog tools.',
+              reason: 'Declaring it would make an optional assistant bind the operator.',
+            },
+            ownerSource: PROMPT_ACTIONS_REGISTERS,
+            consumerSource: CATALOG_READS_AT_CALL,
+            policies: {},
+          }).filter((issue) => issue.kind === 'wrong-owner').length,
+      ),
+      'non-binding-nothing-resolves': top(
+        () =>
+          nonBindingIssues({
+            edge: {
+              moduleId: 'prompt_actions',
+              name: 'promptActionToolRegistry',
+              kind: 'degrades-without',
+              whenAbsent: 'The assistant offers no catalog tools.',
+              reason: 'Declaring it would make an optional assistant bind the operator.',
+            },
+            ownerSource: PROMPT_ACTIONS_REGISTERS,
+            consumerSource: 'export function registerModule(ctx: ModuleContext): void {}',
+            policies: {},
+          }).filter((issue) => issue.kind === 'nothing-resolves').length,
+      ),
+      'contribution-over-a-gated-port': top(
+        () =>
+          nonBindingIssues({
+            edge: {
+              moduleId: 'prompt_actions',
+              name: 'promptActionToolRegistry',
+              kind: 'contributes-to',
+              reason: 'A push of inert descriptors the host filters at enumeration.',
+            },
+            ownerSource: PROMPT_ACTIONS_PROVIDES_A_PORT,
+            consumerSource: CATALOG_PUSHES_AT_BOOT,
+            policies: { 'prompt_actions:promptActionToolRegistry': 'skip' },
+          }).filter((issue) => issue.kind === 'contribution-over-a-gated-port').length,
+      ),
+      'contribution-registry-without-policy': top(
+        () =>
+          nonBindingIssues({
+            edge: {
+              moduleId: 'prompt_actions',
+              name: 'promptActionToolRegistry',
+              kind: 'contributes-to',
+              reason: 'A push of inert descriptors the host filters at enumeration.',
+            },
+            ownerSource: PROMPT_ACTIONS_REGISTERS,
+            consumerSource: CATALOG_PUSHES_AT_BOOT,
+            policies: {},
+          }).filter((issue) => issue.kind === 'contribution-registry-without-policy').length,
+      ),
+      'contribution-not-pushed-at-boot': top(
+        () =>
+          nonBindingIssues({
+            edge: {
+              moduleId: 'prompt_actions',
+              name: 'promptActionToolRegistry',
+              kind: 'contributes-to',
+              reason: 'A push of inert descriptors the host filters at enumeration.',
+            },
+            ownerSource: PROMPT_ACTIONS_REGISTERS,
+            consumerSource: CATALOG_READS_AT_CALL,
+            policies: { 'prompt_actions:promptActionToolRegistry': 'skip' },
+          }).filter((issue) => issue.kind === 'contribution-not-pushed-at-boot').length,
+      ),
+      // `importedContributionSeams` — the two spellings of a push into an
+      // imported singleton, each in its own fixture so neither can go blind
+      // behind the other's red.
+      'imported-seam-register': top(() => importedSeamShapes(STRIPE_PUSHES)),
+      'imported-seam-unregister': top(() => importedSeamShapes(STRIPE_WITHDRAWS)),
     },
   },
   {
@@ -1176,7 +1573,7 @@ describe('every red proof enters at the top of the analysis', () => {
     );
     expect(shapes).toEqual({
       'backend/scripts/check-channel-resolution.ts': 5,
-      'backend/scripts/check-command-coverage.ts': 3,
+      'backend/scripts/check-command-coverage.ts': 5,
       'backend/scripts/check-container-imports.ts': 5,
       'backend/scripts/check-doc-snippets.ts': 4,
       'backend/scripts/check-entity-tenant-classification.ts': 2,
@@ -1186,7 +1583,7 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-kernel-boundary.ts': 3,
       'backend/scripts/check-overlay-determinism.ts': 3,
       'backend/scripts/check-port-catches.ts': 3,
-      'backend/scripts/check-port-dependencies.ts': 5,
+      'backend/scripts/check-port-dependencies.ts': 15,
       'backend/scripts/check-subscribe-seam.ts': 3,
       'backend/scripts/check-timer-presence.ts': 3,
       'backend/scripts/i18n-hardcoded-strings.ts': 2,

@@ -1050,6 +1050,14 @@ function isWithin(node: ts.Node, scope: ts.Node): boolean {
  * named), the deferred surface (`ctx.cradle<C>()`) read by destructuring or by
  * property access, and either of those bound to a local first — see
  * {@link collectCradleAliases}.
+ *
+ * **Each shape is read both ways round.** The alias and the destructuring are
+ * independent axes, and the check used to see only five of their six
+ * combinations: `cradle().a` yes, `const { a } = ctx.cradle<C>()` yes,
+ * `const { a } = cradle()` no. That last one is what `catalog`'s
+ * asset-reference boot hook is written as, so its two reads were invisible
+ * until issue #127 — the eighth time this scanner's *reach*, rather than the
+ * rules under it, turned out to be the defect.
  */
 export function resolvedNames(source: string, file: string): PortResolution[] {
   const moduleId = moduleOf(file);
@@ -1151,6 +1159,28 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
       const argument = node.argumentExpression;
       const name = ts.isStringLiteralLike(argument) ? argument.text : NON_LITERAL_PORT_NAME;
       record(name, node, readKindAt(node));
+    }
+
+    // The same alias, destructured instead of read a name at a time:
+    // `const { a, b } = cradle()` for an accessor alias, `const { a } = cradle`
+    // for an object one. The check saw each half — `cradle().a`, and
+    // `const { a } = ctx.cradle<C>()` written inline — and not the two combined,
+    // so `catalog`'s asset-reference boot hook resolved two names invisibly
+    // (issue #127). The destructuring *is* the resolution, exactly as the
+    // property access is, so its own position decides the kind and the site.
+    //
+    // Keyed on the alias table rather than on the shape, which is what keeps the
+    // widening from swallowing the tree: `const { rows } = await list()` is the
+    // commonest line in `src/` and resolves nothing. And the receiver must be
+    // the alias itself — `const { x } = cradle().service` destructures a
+    // *resolved value*, whose fields are not container names.
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isObjectBindingPattern(node.name) &&
+      node.initializer !== undefined &&
+      aliasReceiverOf(node.initializer) !== null
+    ) {
+      recordBindingPattern(node.name, readKindAt(node.initializer));
     }
 
     if (ts.isCallExpression(node)) {
