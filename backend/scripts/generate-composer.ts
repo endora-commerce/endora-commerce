@@ -377,6 +377,39 @@ interface DiscoveredManifest {
  * as, which a committed array cannot carry (FR-004 keeps the core array free of
  * per-deployment edits).
  */
+/**
+ * Does this manifest export `<name>`, and is the export in a shape we can wire?
+ *
+ * Two spellings are wired: `export const <name> = …` and
+ * `export [async] function <name>(…)`. The second used to be invisible — the
+ * detector matched only `export const`, so a module that wrote the hook as an
+ * async function declaration, which is the spelling a TypeScript author reaches
+ * for first, was silently ignored: the generated composer wired nothing, the
+ * hook never ran, and nothing anywhere said so.
+ *
+ * Any *other* export of that name — a re-export, a destructured binding — throws
+ * rather than being dropped. Silently accepting one spelling is what produced
+ * the defect; a generator that cannot wire a hook must say so, because the
+ * manifest is now the **only** install seam (D-46 deleted the container-side one)
+ * and a hook that does not run looks exactly like a hook with nothing to do.
+ */
+export function detectHookExport(name: string, source: string, moduleId: string): boolean {
+  const asConst = new RegExp(`export\\s+(?:const|let|var)\\s+${name}\\s*[:=]`).test(source);
+  const asFunction = new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}\\s*[<(]`).test(source);
+  if (asConst || asFunction) return true;
+
+  const mentionedInAnExport = new RegExp(`export[^\\n]*\\b${name}\\b`).test(source);
+  if (mentionedInAnExport) {
+    throw new Error(
+      `[composer] ${moduleId}/manifest.ts exports '${name}' in a shape the generator ` +
+        `cannot wire. Write it as 'export const ${name} = …' or ` +
+        `'export async function ${name}(…)'. It is not wired as written, so the hook ` +
+        `would never run.`,
+    );
+  }
+  return false;
+}
+
 function discoverManifests(): DiscoveredManifest[] {
   const out: DiscoveredManifest[] = [];
   for (const id of directoriesIn(modulesRoot)) {
@@ -386,8 +419,8 @@ function discoverManifests(): DiscoveredManifest[] {
     if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(source)) continue;
     out.push({
       id,
-      hasInstallHook: /export\s+const\s+installHook\s*[:=]/.test(source),
-      hasUninstallHook: /export\s+const\s+uninstallHook\s*[:=]/.test(source),
+      hasInstallHook: detectHookExport('installHook', source, id),
+      hasUninstallHook: detectHookExport('uninstallHook', source, id),
     });
   }
   return out;
