@@ -6,8 +6,8 @@ import { MODULES } from '../../../src/composition.generated.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
-import { ALL_ENTITIES } from '../../../src/db/entities-registry.js';
-import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.js';
+import { ALL_ENTITIES } from '../../../src/db/entities-registry.generated.js';
+import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import {
   orderMigrations,
   UNCORRECTED_THROUGH,
@@ -54,148 +54,72 @@ const SUBJECT = 'health_checks';
  * residue that its owner's conversion has to clear, and the test fails both
  * when an entry becomes stale and when a new one appears.
  *
- * `audit_logs` (wave 1, T084) is the second module to be **absent from this
+ * `audit_logs` (wave 1, T084) was the second module to be **absent from this
  * ledger entirely**, and the first that got there by being disentangled rather
  * than by having been simple all along. Before its conversion it was not even a
  * candidate: `admin_users/plugin.ts` imported both its route files and
  * constructed its service. It owns no entity (`AuditLogEntry` moved to the
- * kernel in T016) and no migration, so neither central registry names it, and
+ * kernel in T016) and no migration, so neither central registry named it, and
  * the `auditActorResolver` a root contributes is a closure over `admin_users`'
  * own service — it imports nothing from `audit_logs`. Deleting the directory
- * really is all there is to it. That is the target shape for the rest of the
- * sweep.
+ * really was all there was to it.
  *
- * `google_tag_manager` (wave 2, T103) is the third, and it reached the shape by
- * being simple: it owns no entity and no migration, because its only persistent
- * state is Settings values written and audited by the `settings` module. An
- * absent key here means "no residue", which is not the same as a key with an
- * empty list — the scan only reports modules something still refers to, so an
- * empty array would be a key the scan never produces and the comparison would
- * fail on the count alone. Absence is the record.
+ * That used to be the exceptional shape, reached by three modules out of 65,
+ * because two central lists named everything with an entity or a migration.
+ * Feature 071's F2 generates both, so it is now the *ordinary* shape: 36 of the
+ * 65 modules are absent below. What is left is references from a composition
+ * root, which F3 and F4 drain.
  */
 const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
-  // ── Wave 4 and T120: the last six conversions ──────────────────────────
+  // ── What feature 071's F2 drained ─────────────────────────────────────────
   //
-  // Every entry below is a converted module's *structural* residue rather than
-  // a leftover: `entities-registry.ts` and `migrations-registry.ts` are
-  // explicit core-owned lists by design (feature 065 — an unregistered
-  // migration does not run, and the registry exists so it cannot be forgotten),
-  // so every converted module names itself there and always will.
+  // This ledger had 61 entries, and 55 of them named `entities-registry.ts`,
+  // `migrations-registry.ts` or both. They were recorded as *structural*
+  // residue — explicit core-owned lists a converted module names by design —
+  // and the note above `blog` called the entity one "the last structural hole
+  // in US4". Both are generated from a filesystem walk now, so they are
+  // excluded from the scan for the same reason every other generated artefact
+  // is: deleting a module's directory and regenerating removes the reference.
   //
-  // `catalog` (wave 4, T142). The two registries; `composition.ts` types the
-  // five contributions a root supplies — the bulk-operation worker flag, the
-  // admin audit actor shape, availability bands, the image placeholder, and the
-  // Meilisearch reindex production runs and the harness must not.
-  catalog: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `customers` (wave 4, T140). The registries only — its three root-supplied
-  // names are actor-shaped closures the root writes inline, so nothing imports
-  // this module to spell them.
-  customers: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `orders` (wave 4, T141). The registries; `composition.ts` types the
-  // sales-rep admin scope it still supplies, which drains when `auth`'s actor
-  // resolution unifies.
-  orders: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `organizations` (wave 4, T138). The registries, and `composition.ts` for
-  // the deployment inputs and the login hook. There used to be a fourth entry:
-  // the kernel type-imported the `Organization` entity to declare
-  // `OrganizationReadPort`, recorded here as "meant to be permanent". D-55
-  // dissolved it — the port now declares a structural `OrganizationSnapshot`
-  // over `@b2b/contracts`' status union, and the entity stays in this module.
-  // The kernel owning the shape never required it to own the class.
-  organizations: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `quick_order` (wave 4, T139). The registries only — it took its five route
-  // files back from `shopping_lists` and needs nothing from a root.
-  quick_order: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `transactional_emails` (T120, the last module). The registries only, since
-  // T143a: the fourteen e-mail defaults left `composition.ts` for the boot
-  // hooks of the seven modules that own them, and the asset-URL resolver a root
-  // supplies is a closure that names nothing of this module.
-  transactional_emails: [
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
+  // The result is that **36 of the 65 modules are removable by deleting the
+  // directory**, against four before. Everything below is a reference from a
+  // composition root, which is the residue shape F3 and F4 are scoped to
+  // finish — no central list holds a module any more.
+  //
+  // `catalog` (wave 4, T142). `composition.ts` types the five contributions a
+  // root supplies — the bulk-operation worker flag, the admin audit actor
+  // shape, availability bands, the image placeholder, and the Meilisearch
+  // reindex production runs and the harness must not.
+  catalog: ['src/composition.ts'],
+  // `orders` (wave 4, T141). `composition.ts` types the sales-rep admin scope
+  // it still supplies, which drains when `auth`'s actor resolution unifies.
+  orders: ['src/composition.ts'],
+  // `organizations` (wave 4, T138). `composition.ts` for the deployment inputs
+  // and the login hook. There used to be another entry: the kernel
+  // type-imported the `Organization` entity to declare `OrganizationReadPort`,
+  // recorded here as "meant to be permanent". D-55 dissolved it — the port now
+  // declares a structural `OrganizationSnapshot` over `@b2b/contracts`' status
+  // union, and the entity stays in this module. The kernel owning the shape
+  // never required it to own the class.
+  organizations: ['src/composition.ts'],
 
   // `composition.ts` still reaches into `email` twice: for the `EmailCradle`
   // type it resolves the mailer with, and for `absolutizePublicUrl`, a URL
   // helper it applies on behalf of its consumers. Both disappear when those
   // consumers resolve it themselves; neither belongs to `email`.
   email: ['src/composition.ts'],
-  // Two central registries name blog by path, and they are different problems.
-  //
-  //  - `entities-registry.ts` is a hand-maintained flat import list, so blog's
-  //    11 entities are declared in a file blog does not own. Feature 072 does
-  //    not rewire it: it is imported by `mikro-orm.config.ts`, which the
-  //    migration CLI loads, and sourcing it from the generated composer would
-  //    pull every module's full import graph into the ORM config. It is the
-  //    last structural hole in US4 and it belongs to the harness convergence.
-  //  - `migrations-registry.ts` names every migration on purpose (feature 065:
-  //    static imports, no glob), so a module's migrations are registered
-  //    outside it by design. Removing a module deletes its group from that
-  //    file, which is a mechanical, single-region edit the file's grouping was
-  //    built for — not archaeology.
-  blog: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `auth` (T078). Two references, both of which say something:
-  //
-  //  - `entities-registry.ts` names its `Session` entity, the same
-  //    hand-maintained list blog is caught by above.
-  //  - `composition.ts` imports `promoteAdminActor` and the `AuthCradle` type.
-  //    The type import is the ordinary shape of a root resolving a module's
-  //    registrations. `promoteAdminActor` is the interesting one: it is the
-  //    admin-session promotion the hand-wired `requireCustomer` closure applies
-  //    before deciding whether a request carries a customer, and it leaves when
-  //    `customer_accounts` converts.
-  auth: ['src/composition.ts', 'src/db/entities-registry.ts'],
-  // `admin_roles` (wave 1). Same two shapes as `auth`: its `AdminRole` entity
-  // is named by the hand-maintained ORM registry, and `composition.ts` imports
-  // its service types to annotate what it resolves out of the container. The
-  // second one is the ordinary shape of a root reading a module's
-  // registrations, and it leaves when nothing hand-wired needs the annotation.
-  admin_roles: ['src/composition.ts', 'src/db/entities-registry.ts'],
-  // `currencies` (wave 1). Same two shapes again — the ORM registry names its
-  // entity, and `composition.ts` imports the service type to annotate what it
-  // resolves and hands to `dictionaries` and `languages`. Both hosts take the
-  // service as an argument now instead of each constructing one.
-  // `currencies` (wave 1). Only the entity registry names it now: the last
-  // root reference was a local `currencyService` binding that existed to hand
-  // the service to `pim_ergonode`, and T131 made that module resolve the port
-  // itself.
-  currencies: ['src/db/entities-registry.ts'],
-  // `analytics` (wave 1) — the first converted module with **no reference from
-  // a composition root at all**. Only the two central registries hold it, and
-  // both are known structural holes rather than anything this module did: the
-  // ORM entity list is hand-maintained, and the migration registry names every
-  // migration on purpose (feature 065). This is the residue shape the rest of
-  // the sweep should be aiming at.
-  analytics: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `admin_notifications` (wave 1). Its service type is still imported by both
-  // roots, which annotate what they resolve out of the container and hand to
-  // the four modules that write notifications. It leaves when those convert.
-  admin_notifications: [
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `credentials` (wave 1). The two registries only, since T143a. The
-  // `composition.ts` reference was the configuration-type registry and the four
-  // core descriptors a root pushed into it, recorded here as "the root's job,
-  // not this module's" — which was true of *which modules a deployment ships*
-  // and not of the registrations themselves. Each type is declared by the
-  // module that owns it now, and the registry by this one.
-  credentials: [
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
+  // `auth` (T078). `composition.ts` imports `promoteAdminActor` and the
+  // `AuthCradle` type. The type import is the ordinary shape of a root
+  // resolving a module's registrations. `promoteAdminActor` is the interesting
+  // one: it is the admin-session promotion the hand-wired `requireCustomer`
+  // closure applies before deciding whether a request carries a customer, and
+  // it leaves when `customer_accounts` converts.
+  auth: ['src/composition.ts'],
+  // `admin_roles` (wave 1). `composition.ts` imports its service types to
+  // annotate what it resolves out of the container — the ordinary shape of a
+  // root reading a module's registrations. It leaves when nothing hand-wired
+  // needs the annotation.
+  admin_roles: ['src/composition.ts'],
   // `prompt_actions` (wave 1) — the inverted case, and the reason this ledger
   // is worth keeping. Its `composition.ts` reference is not a leftover of the
   // conversion: three *other* modules contribute tools into the registry this
@@ -203,286 +127,95 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // is known. So the root imports `PromptActionTool` to type the contributions
   // and `PromptActionToolRegistry` to type what it resolves. Both stay until
   // `catalog`, `inventory` and `orders` convert and contribute for themselves.
-  prompt_actions: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `addresses` (wave 1, T090). The ORM registry names its `Address` entity —
-  // the hand-maintained list blog is caught by above — and both roots import
-  // the service type to annotate what they resolve and hand to `orders` and
-  // `organizations`. Those two took the service as an argument already; what
-  // changed is that there is now one of it instead of three.
-  addresses: ['src/db/entities-registry.ts'],
-  // `delivery_methods` and `payment_methods` (wave 1, T095/T097), converted as
-  // a pair. Both roots used to import their registry and order-status types to
-  // annotate what they resolve and hand to `orders`, and `payment_methods`
-  // additionally to seed the built-in payment adapters. T143a drained both: the
-  // adapters are pushed by `payments`, which owns the classes, from its own
-  // boot hook, and with the seeding gone the type annotations had no remaining
-  // reader — `orders` resolves both registries itself. Two central registries
-  // each, and nothing else.
-  delivery_methods: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  payment_methods: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `webhooks` (wave 1, T098). The two central registries, and nothing else
-  // since T143a. The root used to keep the delivery **worker** on the grounds
-  // that whether workers run at all is a `BACKEND_ROLE` decision; only the flag
-  // ever was. The worker goes through `ctx.worker` now — which is what pauses
-  // it with the module — and the flag a root contributes is a plain boolean
-  // that names nothing of this module.
-  webhooks: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `customer_accounts` (wave 1, T094). The ORM and migration registries name
-  // its two entities and five migrations; `composition.ts` imports the cradle
+  prompt_actions: ['src/composition.ts'],
+  // `customer_accounts` (wave 1, T094). `composition.ts` imports the cradle
   // type to annotate the services it resolves and hands to `customers` and
   // `organizations`. Both of those built their own before this conversion, and
   // the reference leaves when they convert.
-  customer_accounts: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `assets_library` (wave 1, T092). The two registries name its entities and
-  // migrations; `composition.ts` imports the cradle type to annotate the handle
-  // it resolves and hands the `catalog`, `cms` and `megamenu` reference
-  // resolvers to. Contributing those is a root's job — which modules a
-  // deployment ships is not this module's business — so that one stays.
-  assets_library: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `custom_fields` (wave 1, T087). The two registries name its entities and
-  // migrations. `composition.ts` imports the cradle type to annotate the two
-  // ports it resolves and threads into the eight hand-wired modules that
-  // validate writes through them — `catalog`, `orders`, `organizations`,
-  // `customers`, `quote_requests`, `product_feeds` and the two catalog admin
-  // services. That reference is gone as of the wave-4 conversions: every one of
-  // those eight modules resolves the two ports itself.
-  custom_fields: [
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `_i18n` (wave 1, T089). The two registries name its entity and migrations;
-  // `composition.ts` imports the cradle type to annotate the service it hands
-  // the error envelope and the reconciler it hands the lifecycle orchestrator.
-  // Both consumers are the root itself rather than a module, and the reconciler
-  // one goes when `_lifecycle` converts.
-  _i18n: [
-    // `composition.ts` imports the cradle type and, since D-54, the
-    // `ERROR_TRANSLATION_KEYS` map it injects into the error envelope. That map
-    // used to be imported by `src/http/error-envelope.ts` itself, which made a
-    // kernel-obeying platform peer name a module (D-52) and put the cycle
-    // `kernel → http → mod-i18n → kernel` in F4's package graph. A root naming a
-    // module is ordinary; a peer doing it is the defect.
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `cms` (wave 1, T093). The two registries only, since T143a: `megamenu`
-  // cross-registers into this module's reference registry from its own boot
-  // hook, so no root types that registry any more, and the asset resolver a
-  // root contributes is a closure that names nothing of this module.
-  cms: [
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `mfa` (wave 1, T096). The two registries name its entities and migrations;
-  // `composition.ts` imports the cradle and bridge types to annotate what it
-  // contributes — the actor shape, which is a root's to know — and the login
-  // port it hands `customer_accounts` through `mfaLoginPortGetter`. Type-only
-  // since T143c: the provider class and the `MFA_OAUTH_*` reader were value
-  // imports, because a root decided on this module's behalf whether it had
-  // social sign-in; the module reads its own environment now.
-  mfa: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `meta_ads` and `linkedin_ads` (wave 2, T108/T106), converted as a pair.
-  // Only the two central registries name them: both roots stopped referring to
-  // them entirely, because everything they took is either a kernel registration
-  // or the one shared `adminAuditActorResolver` contribution. That makes them
-  // the third and fourth fully removable modules in this transition.
-  meta_ads: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  linkedin_ads: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `google_analytics` (wave 2, T102). The two central registries name its
-  // entity and migrations. Unlike its three siblings it is not fully removable
-  // yet: a root still supplies `salesChannelCodeIdPort`, built from
-  // `sales_channels`' resolver — but that is a *root's* closure over another
-  // module's service and imports nothing from here, so it leaves no reference
-  // either. Both registry entries go when nothing owns the entity any more.
-  google_analytics: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `taxes` (wave 2, T119). The two central registries name its entity and
-  // migrations; `composition.ts` imports the cradle type to annotate the
-  // `taxService` port it resolves and threads into `orders` and `carts` for
-  // line pricing. That reference goes when those two convert.
-  taxes: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `languages` (wave 2, T105). The two central registries name its entity and
-  // migrations; `composition.ts` imports the cradle type and the
-  // `LANGUAGE_CHANGED_EVENT` name, because the root is what listens for the
-  // announcement and drops the dictionary caches. That listener is a root's
-  // job by design — a language must not know a dictionary cache exists, and
-  // declaring the call as a dependency produces a real cycle — so unlike most
-  // entries here, this one is not waiting on another conversion.
-  languages: [
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `seo` (wave 2, T117). Only the two central registries, for its two
-  // entities and its migrations: neither root consumed its handle even before
-  // the conversion — they pushed its plugin and nothing else — so there was no
-  // root reference to remove.
-  seo: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `credit_limits` (wave 2, T101). The two central registries name its entity
-  // and migrations, and nothing else does. The `composition.ts` entry drained
-  // in T143c: the root imported the cradle type only to annotate the
-  // `creditLimitService` it resolved and handed to a `CreditTopupProvider` it
-  // built itself. The module provides that adapter as `creditTopupPort` now, so
-  // there is nothing left for the root to annotate — which is the shape a
-  // conversion is supposed to end in.
-  credit_limits: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `comparisons` (wave 2, T111). The two central registries name its two
-  // entities and its migrations; `composition.ts` imports the cradle type to
+  customer_accounts: ['src/composition.ts'],
+  // `assets_library` (wave 1, T092). `composition.ts` imports the cradle type
+  // to annotate the handle it resolves and hands the `catalog`, `cms` and
+  // `megamenu` reference resolvers to. Contributing those is a root's job —
+  // which modules a deployment ships is not this module's business — so that
+  // one stays.
+  assets_library: ['src/composition.ts'],
+  // `_i18n` (wave 1, T089). `composition.ts` imports the cradle type and, since
+  // D-54, the `ERROR_TRANSLATION_KEYS` map it injects into the error envelope.
+  // That map used to be imported by `src/http/error-envelope.ts` itself, which
+  // made a kernel-obeying platform peer name a module (D-52) and put the cycle
+  // `kernel → http → mod-i18n → kernel` in F4's package graph. A root naming a
+  // module is ordinary; a peer doing it is the defect.
+  _i18n: ['src/composition.ts'],
+  // `mfa` (wave 1, T096). `composition.ts` imports the cradle and bridge types
+  // to annotate what it contributes — the actor shape, which is a root's to
+  // know — and the login port it hands `customer_accounts` through
+  // `mfaLoginPortGetter`. Type-only since T143c: the provider class and the
+  // `MFA_OAUTH_*` reader were value imports, because a root decided on this
+  // module's behalf whether it had social sign-in; the module reads its own
+  // environment now.
+  mfa: ['src/composition.ts'],
+  // `taxes` (wave 2, T119). `composition.ts` imports the cradle type to
+  // annotate the `taxService` port it resolves and threads into `orders` and
+  // `carts` for line pricing. That reference goes when those two convert.
+  taxes: ['src/composition.ts'],
+  // `comparisons` (wave 2, T111). `composition.ts` imports the cradle type to
   // annotate the `comparisonService` port it resolves and binds the login
   // flow's anonymous-comparison adoption to. That reference goes when
   // `organizations` converts and reads the port itself.
-  comparisons: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `dictionaries` (wave 2, T112). Only the two central registries, for its
-  // `Country` entity and its migrations. Both roots stopped referring to it
-  // entirely: the `dictionaryValidator` they used to register on its behalf is
-  // a port this module provides now, and the currency/language invalidation
-  // listeners they ran moved inside — this module owns the cache they were
-  // dropping. Fifth fully-root-free module in the transition.
-  dictionaries: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `megamenu` (wave 2, T107). The two central registries name its three
-  // entities and migrations; `composition.ts` imports the cradle type plus the
-  // two dependency-bundle types, because the bundles themselves stay in the
+  comparisons: ['src/composition.ts'],
+  // `megamenu` (wave 2, T107). `composition.ts` imports the cradle type plus
+  // the two dependency-bundle types, because the bundles themselves stay in the
   // root — they are existence checks and URL lookups against `catalog`, `cms`
   // and `assets_library` tables, and moving them into the module would give it
   // direct reads of another module's storage. Those references are a root's by
   // design rather than a leftover, so unlike most entries here they do not go
   // when some other module converts.
-  megamenu: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `promotions` (wave 2, T115). The two central registries name its six
-  // entities and its migrations; `composition.ts` imports the cradle type to
-  // annotate the `promotionService` port it hands `orders` for cart pricing,
-  // and holds the three bundles the module must not own — the catalog read
-  // port, the organization-status gate and the Rule Builder picker sources.
-  // The first goes when `catalog` converts, the second when `organizations`
-  // does; the pickers are a root's by design, like `megamenu`'s.
-  promotions: [
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `api_keys` (wave 2, T100). The two central registries name its `ApiKey`
-  // entity and its migrations; `composition.ts` imports the cradle type to
-  // annotate the two gates it threads into `catalog`'s external namespace.
-  // That reference goes when `catalog` converts. The `apiKeyResolver` a root
-  // used to register on this module's behalf is a port it provides now, so
-  // that host entry is gone.
-  api_keys: [
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `admin_actions` (wave 2, T099). The two central registries name its
-  // `ModuleAction` entity and its migrations; `composition.ts` imports the
-  // cradle type to annotate the reconciler it hands the lifecycle
-  // orchestrator. That reference goes when `_lifecycle` converts.
-  admin_actions: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `pwa` (wave 2, T116). The two central registries name its entities and
-  // migrations; `composition.ts` imports the bridge type to annotate the nine
-  // cross-module resolvers it contributes as one. Those are a root's by design
-  // — reaching `assets_library` and `sales_channels` is not this module's
-  // business — so unlike most entries here they do not go when another module
-  // converts.
-  pwa: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `invoices` (wave 2, T113). The two central registries name its entities and
-  // migrations; `composition.ts` imports the bridge type to annotate what it
-  // contributes. The cradle import went with T143c: it existed to reach
-  // `invoiceNumberGenerator` for a `CorrectiveInvoiceProvider` the root built,
-  // and that adapter is `correctiveInvoicePort` now — which is also what ended
-  // the two roots numbering corrections out of two different counters.
-  invoices: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `returns` (wave 2, T109). The two central registries name its eleven
-  // entities and its migrations; `composition.ts` imports the bridge type to
-  // annotate the four settlement adapters it contributes. Those are a root's
-  // by design — each is an adapter over a module `returns` must not read
-  // directly — so unlike most entries here they do not go when another module
-  // converts.
-  returns: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `ksef` (wave 2, T104). The two central registries name its entities and
-  // migrations; `composition.ts` imports the cradle type to annotate the seller
-  // NIP resolver it contributes and the verification block it contributes into
-  // `invoices`. The second is a root's by design: `ksef` reads `invoiceService`,
-  // so `invoices` resolving a `ksef` port would close a dependency cycle.
-  ksef: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `newsletter` (wave 2, T114). The two central registries name its entities
-  // and migrations; `composition.ts` imports the bridge type to annotate the
-  // pinned token secret and base URLs, and contributes the email branding.
-  // Both are a root's by design: the branding source announces itself through a
-  // callback a root holds, so a port would point the dependency the wrong way.
-  newsletter: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `search` (wave 2, T123). The two central registries, and nothing else since
-  // T143a: `composition.ts` used to import `SearchIndexer` to run the full
-  // reindex `catalog` triggers, building a second one beside the module's own.
-  // It forwards to `searchReindexPort` now, so the last name a root knew of
-  // this module is gone. The worker-role gate it still contributes is a plain
-  // boolean and names nothing.
-  search: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `admin_users` (wave 2, T121). The two central registries name its entities
-  // and migrations; both roots contribute the late-bound MFA getter and the
-  // `auditActorResolver` adapter that `audit_logs` owns the name for. The
-  // second is a root's by design — see `audit_logs/backend.ts` — and the first
-  // goes when a deployment stops needing to say which module supplies MFA.
-  admin_users: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
+  megamenu: ['src/composition.ts'],
+  // `admin_actions` (wave 2, T099). `composition.ts` imports the cradle type to
+  // annotate the reconciler it hands the lifecycle orchestrator. That reference
+  // goes when `_lifecycle` converts.
+  admin_actions: ['src/composition.ts'],
+  // `pwa` (wave 2, T116). `composition.ts` imports the bridge type to annotate
+  // the nine cross-module resolvers it contributes as one. Those are a root's
+  // by design — reaching `assets_library` and `sales_channels` is not this
+  // module's business — so unlike most entries here they do not go when another
+  // module converts.
+  pwa: ['src/composition.ts'],
+  // `invoices` (wave 2, T113). `composition.ts` imports the bridge type to
+  // annotate what it contributes. The cradle import went with T143c: it existed
+  // to reach `invoiceNumberGenerator` for a `CorrectiveInvoiceProvider` the root
+  // built, and that adapter is `correctiveInvoicePort` now — which is also what
+  // ended the two roots numbering corrections out of two different counters.
+  invoices: ['src/composition.ts'],
+  // `returns` (wave 2, T109). `composition.ts` imports the bridge type to
+  // annotate the four settlement adapters it contributes. Those are a root's by
+  // design — each is an adapter over a module `returns` must not read directly
+  // — so unlike most entries here they do not go when another module converts.
+  returns: ['src/composition.ts'],
+  // `ksef` (wave 2, T104). `composition.ts` imports the cradle type to annotate
+  // the seller NIP resolver it contributes and the verification block it
+  // contributes into `invoices`. The second is a root's by design: `ksef` reads
+  // `invoiceService`, so `invoices` resolving a `ksef` port would close a
+  // dependency cycle.
+  ksef: ['src/composition.ts'],
+  // `newsletter` (wave 2, T114). `composition.ts` imports the bridge type to
+  // annotate the pinned token secret and base URLs, and contributes the email
+  // branding. Both are a root's by design: the branding source announces itself
+  // through a callback a root holds, so a port would point the dependency the
+  // wrong way.
+  newsletter: ['src/composition.ts'],
+  // `admin_users` (wave 2, T121). Both roots contribute the late-bound MFA
+  // getter and the `auditActorResolver` adapter that `audit_logs` owns the name
+  // for. The second is a root's by design — see `audit_logs/backend.ts` — and
+  // the first goes when a deployment stops needing to say which module supplies
+  // MFA.
+  admin_users: ['src/composition.ts'],
   // `sales_channels` (wave 2, T110). Both roots compose the kernel half —
   // cache, resolver, membership, middleware — through
   // `composeSalesChannelsKernel`, and build `salesChannelCodeIdPort` over the
   // module's CRUD service. That is not residue of a half-finished conversion:
   // channel resolution backs every channel-scoped read (Principle XII) and is
   // kernel infrastructure by design since T019.
-  // Neither central registry names it: T019 moved the `SalesChannel` entity
-  // into the kernel and T020 moved its migrations with it.
   sales_channels: ['src/composition.ts'],
   // `settings` (wave 2, T118). Both roots compose the kernel reader through
   // `composeSettingsKernel` and register the two deployment properties the
@@ -491,24 +224,18 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // settings read backs behaviour in nearly every module and cannot be gated
   // on the settings screens.
   settings: ['src/composition.ts'],
-  // `shipments` (wave 2, T124). The entity registry only, since T143a: its
-  // transactional-email default is registered from this module's own boot hook
-  // rather than by both roots. Its migrations live in `orders`' group
-  // (migration 052), which is why the migration registry does not name it.
-  shipments: ['src/db/entities-registry.ts'],
   // `_lifecycle` (wave 2, T125). It was the longest entry here until D-37 A1
   // moved the presence machinery into `src/kernel/lifecycle/`: the entity left
-  // the module, so `entities-registry.ts` no longer names it, and the two kernel
-  // files — which held the gating wrappers this module used to own — now import
-  // a sibling rather than a module. What is left is the boot half
-  // `composition.ts` composes (the first-boot reconciler, the registry-cache
-  // warm, the worker resume, the orchestrator and the activation propagation)
-  // and the migration group named by `mikro-orm.config.ts`.
+  // the module and the two kernel files — which held the gating wrappers this
+  // module used to own — now import a sibling rather than a module. What is
+  // left is the boot half `composition.ts` composes (the first-boot reconciler,
+  // the registry-cache warm, the worker resume, the orchestrator and the
+  // activation propagation) and the migration group named by
+  // `mikro-orm.config.ts`.
   _lifecycle: ['src/composition.ts', 'src/db/mikro-orm.config.ts'],
-  // `price_lists` (wave 3, T127). The two central registries name its entities
-  // and migrations; both roots contribute the sweeper flag, the cache TTL and
-  // the admin audit shape, and production contributes the pricing decoration
-  // (D-28) — the seam this module exists in the feature to prove.
+  // `price_lists` (wave 3, T127). Both roots contribute the sweeper flag, the
+  // cache TTL and the admin audit shape, and production contributes the pricing
+  // decoration (D-28) — the seam this module exists in the feature to prove.
   price_lists: [
     // The overlay decoration itself — `decorate(inner)` written against
     // `pricing-service.interface.ts`. It is the point of D-28 rather than
@@ -516,84 +243,30 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     // wraps, and `tsc` is the gate that keeps the wrapper assignable.
     'src/apps/example/decorations/pricing-service.ts',
     'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
   ],
-  // The four payment gateways (wave 3, T128/T130/T134/T135). Identical entries
-  // because the conversion was identical: the two central registries name their
-  // entities and migrations, and no composition root refers to any of them any
-  // more — the twelve options each took were all names the container already
-  // knew.
-  autopay: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  payu: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  stripe: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  tpay: ['src/db/entities-registry.ts', 'src/db/migrations-registry.ts'],
-  // `inventory` (wave 3, T129). The two central registries name its entities
-  // and migrations; both roots contribute the two adapters it reaches outside
-  // itself through — the transactional-email sender and the Organization's
-  // warehouse assignment — plus the admin audit shape.
-  inventory: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `payments` (wave 3, T126). The entity registry names its entities; its
-  // migrations live in `orders`' group, which is why the migration registry
-  // does not name it. The `composition.ts` entry drained in T143c with the
-  // `PaymentRefundProvider` the root constructed out of this module to settle a
-  // return; it is `paymentRefundPort` now.
-  payments: ['src/db/entities-registry.ts'],
-  // `shopping_lists` (wave 3, T133). The two central registries name its
-  // entities and migrations; both roots contribute the four cross-module names
-  // it must not reach for directly — the RFQ service, the org restriction, the
-  // lazy order service, and the sink that hands its own service to `carts`.
-  // Each goes when its owner converts.
-  shopping_lists: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `quote_requests` (wave 3, T132). The two central registries name its
-  // entities and migrations; both roots contribute who is asking, the
-  // organization's tax rate and the sales-rep subtree. The first is a root's by
-  // nature — production reads `request.actor`, the harness `request.testActor`
-  // — and the other two go when `taxes` and `organizations` convert.
-  quote_requests: [
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `pim_ergonode` (wave 3, T131). The two central registries only. The
-  // `composition.ts` reference recorded the seven `catalog` services a root
-  // built a second time for this module; `catalog`'s conversion (T142) took
-  // those, and T143a took the last one — the Ergonode credential type, which
-  // both roots used to push into `credentials`' registry and which this module
-  // now declares from its own boot hook. What a root still supplies for it —
-  // the worker-role gate, the harness's scripted source client — is a value,
-  // and names nothing of this module.
-  pim_ergonode: [
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `product_feeds` (wave 3, T137). The two central registries name its
-  // entities and migrations; both roots contribute the four adapters it reaches
-  // outside itself through — storage, availability, category expansion and
-  // stable public image URLs — plus the worker-role gate, and the harness adds
-  // the taxonomy and delivery seams. The four go when their owners convert.
-  product_feeds: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `carts` (wave 3, T136). The two central registries name its entities and
-  // migrations; both roots contribute who is asking and the bridge into
-  // `shopping_lists`, which points outward and so cannot be a port. The
+  // `inventory` (wave 3, T129). Both roots contribute the two adapters it
+  // reaches outside itself through — the transactional-email sender and the
+  // Organization's warehouse assignment — plus the admin audit shape.
+  inventory: ['src/composition.ts'],
+  // `shopping_lists` (wave 3, T133). Both roots contribute the four
+  // cross-module names it must not reach for directly — the RFQ service, the
+  // org restriction, the lazy order service, and the sink that hands its own
+  // service to `carts`. Each goes when its owner converts.
+  shopping_lists: ['src/composition.ts'],
+  // `product_feeds` (wave 3, T137). Both roots contribute the four adapters it
+  // reaches outside itself through — storage, availability, category expansion
+  // and stable public image URLs — plus the worker-role gate, and the harness
+  // adds the taxonomy and delivery seams. The four go when their owners convert.
+  product_feeds: ['src/composition.ts'],
+  // `carts` (wave 3, T136). Both roots contribute who is asking and the bridge
+  // into `shopping_lists`, which points outward and so cannot be a port. The
   // abandonment-sweep CLI still constructs its own services — filed separately.
-  carts: [
-    'src/composition.ts',
-    'src/db/entities-registry.ts',
-    'src/db/migrations-registry.ts',
-  ],
-  // `audit_logs` is deliberately absent — see the note above the ledger.
+  carts: ['src/composition.ts'],
+  // Every other module is absent, and absence is the record: an absent key
+  // means "no residue", which is not the same as a key with an empty list. The
+  // scan only reports modules something still refers to, so an empty array
+  // would be a key it never produces and the comparison would fail on the count
+  // alone.
 };
 
 function walk(dir: string, out: string[] = []): string[] {

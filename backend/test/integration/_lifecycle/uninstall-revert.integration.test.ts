@@ -11,7 +11,7 @@ import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-gra
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
-import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.js';
+import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 
 /**
  * Hard uninstall must revert the target module's migrations.

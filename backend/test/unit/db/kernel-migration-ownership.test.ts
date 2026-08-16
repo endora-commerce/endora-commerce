@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectMigrationTables, kernelOwnedTables } from '../../helpers/migration-tables.js';
-import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.js';
+import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 
 /**
  * Feature 072 T020 — the kernel's schema is filed under `core`, not under a

@@ -1,9 +1,9 @@
 import { defineConfig } from '@mikro-orm/postgresql';
 import { Migrator } from '@mikro-orm/migrations';
 import { PluralizingNamingStrategy } from './pluralizing-naming-strategy.js';
-import { ALL_ENTITIES } from './entities-registry.js';
+import { ALL_ENTITIES } from './entities-registry.generated.js';
 import { DISCOVERED_MANIFESTS } from '../modules/_lifecycle/manifest-index.generated.js';
-import { MIGRATION_REGISTRY } from './migrations-registry.js';
+import { MIGRATION_REGISTRY } from './migrations-registry.generated.js';
 import { orderMigrations, UNCORRECTED_THROUGH } from './migration-order.js';
 
 /**
@@ -16,14 +16,15 @@ import { orderMigrations, UNCORRECTED_THROUGH } from './migration-order.js';
  *   under src/modules/<module>/migrations/. Only the few genuinely cross-cutting
  *   bootstrap migrations (foundation/commerce init, module-lifecycle, tenant
  *   indexes) live in src/db/migrations/. Adding a migration means dropping a
- *   file in the owning module's migrations/ dir and adding one import + entry
- *   in ./migrations-registry.ts — never here.
- * - The registry stays an explicit static-import list rather than a filesystem
+ *   file in the owning module's migrations/ dir and regenerating — never here.
+ * - Both registries stay explicit static-import lists rather than a filesystem
  *   glob: glob discovery needs runtime dynamic `import()` of .ts files, which
- *   Node's ESM loader cannot transform and which breaks under Vitest (same
- *   reason entities are listed in ./entities-registry.ts). The
- *   "registered ⇔ on-disk" round-trip is enforced by
- *   test/unit/db/migrations-registry.test.ts.
+ *   Node's ESM loader cannot transform and which breaks under Vitest. Since
+ *   feature 071's F2 the lists are *emitted* from a filesystem walk by
+ *   scripts/generate-composer.ts and committed, so they are static imports
+ *   nobody maintains by hand. The "registered ⇔ on-disk" round-trip is enforced
+ *   by test/unit/db/migrations-registry.test.ts, and `overlay:check` fails on a
+ *   committed artefact that drifted from the tree.
  * - Execution order is computed by ./migration-order.ts from each migration's
  *   UTC timestamp, corrected by the module-manifest dependency graph. See
  *   docs/docs/architecture/migrations.md.
@@ -54,7 +55,8 @@ export default defineConfig({
   namingStrategy: PluralizingNamingStrategy,
   // Explicit class list, not a glob — glob discovery requires runtime dynamic
   // `import()` of .ts files, which Node's ESM loader cannot transform and which
-  // breaks under Vitest. See src/db/entities-registry.ts for the rationale.
+  // breaks under Vitest. See src/db/entities-registry.generated.ts for the
+  // rationale and for what emits it.
   entities: [...ALL_ENTITIES],
   debug: process.env['NODE_ENV'] === 'development' && process.env['DB_DEBUG'] === 'true',
   allowGlobalContext: false,

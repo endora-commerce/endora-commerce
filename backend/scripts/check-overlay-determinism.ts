@@ -1,8 +1,9 @@
 #!/usr/bin/env tsx
-// Git-free determinism gate for the overlay-generated artifacts (feature 057,
-// FR-006/SC-003). Renders the manifest index + the bare-core override manifest
-// in-process and compares them to the committed files on disk. Fails if either
-// drifted — identical inputs MUST produce the identical committed artifact.
+// Git-free determinism gate for every generated artifact (feature 057,
+// FR-006/SC-003). Renders the composer, the manifest index, the two `db/`
+// registries and the bare-core override manifest in-process and compares them
+// to the committed files on disk. Fails if any drifted — identical inputs MUST
+// produce the identical committed artifact.
 //
 // Deliberately does NOT shell out to `git` (the CI `node:*-slim` image has no
 // git) and does NOT write the files — it only reads + compares.
@@ -10,7 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { renderOverrideManifest } from './generate-override-manifest.js';
-import { renderComposer, renderManifestIndex } from './generate-composer.js';
+import { GENERATED_ARTIFACT_PATHS, renderAll } from './generate-composer.js';
 
 /** Why an artifact failed, or `null` when it is byte-identical to the committed file. */
 export type ArtifactVerdict =
@@ -65,17 +66,29 @@ function check(label: string, outputPath: string, expected: string): boolean {
   return false;
 }
 
+/**
+ * Every committed artefact this check covers, by output path.
+ *
+ * Exported without rendering anything so a test can compare it against the
+ * `*.generated.ts` files actually on disk: an artefact no determinism gate
+ * looks at is one that drifts unnoticed, which is the failure this check
+ * exists for.
+ */
+export function coveredArtifactPaths(): readonly string[] {
+  return [...GENERATED_ARTIFACT_PATHS, renderOverrideManifest({}).outputPath];
+}
+
 async function main(): Promise<void> {
   const om = renderOverrideManifest();
   // Feature 072 — the composer and the manifest registry are generated from the
   // same tree walk and committed the same way, so they are checked here rather
-  // than in a second script with the same shape.
-  const composer = await renderComposer();
-  const mi = renderManifestIndex();
+  // than in a second script with the same shape. Feature 071's F2 added the two
+  // `db/` registries to that same walk, for the same reason.
   const ok = [
-    check('manifest-index', mi.outputPath, mi.content),
+    ...(await renderAll()).map((artifact) =>
+      check(artifact.label, artifact.outputPath, artifact.content),
+    ),
     check('override-manifest (core)', om.outputPath, om.content),
-    check('composition.generated', composer.outputPath, composer.content),
   ].every(Boolean);
   if (!ok) process.exit(1);
   process.stdout.write('[overlay:check] all generated artifacts deterministic ✓\n');

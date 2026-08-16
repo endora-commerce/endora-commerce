@@ -2,17 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.js';
+import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 
 /**
  * Round-trip guard for the migration registry.
  *
- * `src/db/migrations-registry.ts` keeps an explicit list of statically imported
- * migration classes (no glob discovery — Node's ESM loader cannot transform
- * `.ts` at runtime and it breaks under Vitest), so a migration that lives on
- * disk but is missing from the registry is invisible to the migrator,
+ * `src/db/migrations-registry.generated.ts` keeps an explicit list of statically
+ * imported migration classes (no glob discovery — Node's ESM loader cannot
+ * transform `.ts` at runtime and it breaks under Vitest), so a migration that
+ * lives on disk but is missing from the registry is invisible to the migrator,
  * `migration:pending` silently reports "no pending migrations", and the runtime
  * crashes the first time something queries the missing table.
+ *
+ * Since feature 071's F2 that list is **generated** from a filesystem walk, and
+ * this file is emphatically not redundant because of it. It asserts the
+ * property against the *committed* artefact using its own independent
+ * implementation of the naming contract — a different recognizer, a different
+ * class-name derivation, a different walk. So it fails on the one thing the
+ * generator cannot catch about itself, a stale committed file (someone added a
+ * migration and did not run `composer:generate`), and it fails on a generator
+ * whose own walk narrowed, because two implementations would have to narrow
+ * identically to agree. Do not fold it into the generator's own helpers.
  *
  * The naming and registration rules asserted here are specified once, in
  * specs/065-manifest-aware-migrations/contracts/naming-convention.md.
@@ -101,13 +111,13 @@ describe('migration registry round-trip', () => {
   });
 
   it.each(onDisk.map((migration) => [migration.className, migration.relativePath]))(
-    '%s is registered in migrations-registry.ts',
+    '%s is registered in the committed migration registry',
     (className) => {
       expect(
         registeredNames.includes(className),
         `Migration file for ${className} exists on disk but is not in ` +
-          `MIGRATION_REGISTRY — add an import + migration() entry in ` +
-          `backend/src/db/migrations-registry.ts.`,
+          `MIGRATION_REGISTRY. Regenerate and commit the artefact: ` +
+          `pnpm --filter backend run composer:generate`,
       ).toBe(true);
     },
   );

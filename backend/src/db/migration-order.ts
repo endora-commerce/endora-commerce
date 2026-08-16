@@ -156,7 +156,8 @@ function parseEntries(
         'duplicate-name',
         `[migration-order] migration "${name}" is registered more than once ` +
           `(modules "${duplicateName.moduleId}" and "${entry.moduleId}"). ` +
-          `Remove the duplicate entry from src/db/migrations-registry.ts.`,
+          `Two migration files derive the same class name; rename one and ` +
+          `regenerate with \`pnpm --filter backend run composer:generate\`.`,
       );
     }
 

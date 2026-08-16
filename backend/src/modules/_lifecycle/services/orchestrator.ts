@@ -27,7 +27,7 @@ import {
   resumeWorkersFor,
 } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { LoadedManifestRegistry } from './manifest-loader.js';
-import { MIGRATION_REGISTRY } from '../../../db/migrations-registry.js';
+import { MIGRATION_REGISTRY } from '../../../db/migrations-registry.generated.js';
 
 // ---------------------------------------------------------------------------
 // Public types
