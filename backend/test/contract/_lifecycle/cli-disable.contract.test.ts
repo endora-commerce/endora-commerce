@@ -33,11 +33,27 @@ describe('module:disable CLI — argv contract', () => {
   });
 
   it('accepts --cascade as a valid flag', async () => {
-    // Without a live DB the orchestrator will error out — what we assert
-    // here is that the parser accepts --cascade and that the resulting
-    // exit code is NOT 64 (the misuse code).
-    const { exitCode } = await run(['settings', '--cascade']);
-    expect(exitCode).not.toBe(64);
+    // Issue #69 — the subject is a module id no manifest declares, and the
+    // assertion is the usage banner rather than the exit code. Both changes
+    // are load-bearing.
+    //
+    // This used to run `disable settings --cascade` against the shared test
+    // database and assert `exitCode !== 64`. `mapError` maps `wrong-state` and
+    // `unknown-module` onto 64 as well as argv misuse, so the case only passed
+    // once some *other* file had written a `settings` row into
+    // `module_registrations` — a table nothing truncates and this file does not
+    // own. In a `test/contract`-only invocation nothing had, and it failed. Worse,
+    // when it did pass it really disabled `settings` and cascaded to every
+    // dependent, leaving the registry mutated for every later file in the run.
+    //
+    // An unregistered id makes the orchestrator refuse before it writes
+    // anything, so the CLI reaches it in exactly one state on every ordering.
+    // Reaching it at all is the contract: had `--cascade` been rejected as
+    // misuse, the parser would have printed the usage banner and the
+    // orchestrator would never have been called.
+    const { stderr } = await run(['nonexistent_module', '--cascade']);
+    expect(stderr).not.toContain('usage: module:disable');
+    expect(stderr).toMatch(/unknown module/);
   }, 30_000);
 
   it('exits 64 with an unknown flag', async () => {
