@@ -20,27 +20,39 @@ import { registerModule } from '../../../src/modules/_i18n/backend.js';
  * the other seventeen, and it is worth stating plainly because the natural move
  * is wrong.
  *
+ * Everything below is about a move that was never made. `_i18n` has always
+ * reconciled from its `ctx.routes` callback and registers no boot hook at all,
+ * so its reconcile has never been affected by where a composition root runs its
+ * boot phase. Read the next paragraph as the argument against moving it, not as
+ * the record of an outage.
+ *
  * Every other converted module puts its boot-time work in `ctx.onBoot`. Doing
- * that here used to break the platform silently. `_i18n` walks the lifecycle
+ * that here would have broken the platform silently. `_i18n` walks the lifecycle
  * manifest registry to refresh every module's `translation_bundles` rows, and it
  * reaches that registry through a **lazy accessor** because `_lifecycle`'s
  * orchestrator is built near the bottom of `composition.ts`. Under the two-pass
  * shape the late pass's boot hooks ran ~700 lines above that line, so a
- * reconcile in `onBoot` found no registry — and the reconciler's contract for
- * that case is to return `{installed: 0, skipped: 0, failed: 0}` and carry on.
+ * reconcile in `onBoot` would have found no registry — and the reconciler's
+ * contract for that case is to return `{installed: 0, skipped: 0, failed: 0}`
+ * and carry on: every module's translation bundles quietly stop being refreshed
+ * at boot, no exception is raised, no log line says anything is wrong, and the
+ * first symptom is a screen rendering raw i18n keys after somebody edits a JSON
+ * bundle.
  *
- * The failure mode was: every module's translation bundles quietly stop being
- * refreshed at boot, no exception is raised, no log line says anything is
- * wrong, and the first symptom is a screen rendering raw i18n keys after
- * somebody edits a JSON bundle.
- *
- * D-45 removed that hazard rather than this test: there is one boot phase now
+ * D-45 retired that hazard rather than this test: there is one boot phase now
  * and it runs at the very bottom of `composeApp()`, after the orchestrator
- * exists. So `onBoot` would find the registry today. The reconcile stays in the
- * `ctx.routes` callback all the same, and this test keeps pinning it there —
- * moving it is a behaviour change (a `BACKEND_ROLE=worker` process attaches no
- * routes and would start reconciling bundles it never did) and wants its own
- * decision, not a silent edit.
+ * exists, so `onBoot` would find the registry today. Nothing observable moved —
+ * `production-boot` logs the same `installed=42 skipped=23 failed=0` either side
+ * of the collapse.
+ *
+ * The reconcile stays in the `ctx.routes` callback all the same, and this test
+ * keeps pinning it there. Not because the old hazard survives, but because
+ * moving it buys nothing and would need its own evidence: the two placements are
+ * not equivalent in general (a root that composes without building a server runs
+ * one and not the other), and the current one is what every deployment has been
+ * running. `BACKEND_ROLE=worker` is **not** the distinguishing case — `worker.ts`
+ * calls `buildServer` too, precisely to register module plugins — so anyone
+ * arguing for the move has to find the case that is.
  *
  * The harness cannot catch this: `test-server.ts` passes no registry at all, so
  * `reconcileBundles` has always been a no-op under `setupBackendServer`. Hence
