@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AttributeValueType } from '@b2b/contracts';
 import type { DefinitionSource } from '../../custom_fields/services/custom-field-value.service.js';
 import type { CachedDefinition } from '../../custom_fields/services/custom-field-definitions-cache.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { cfToLegacyValueType } from './attribute-type-mapping.js';
 
@@ -159,6 +160,12 @@ export class CatalogAttributeReadService {
     try {
       return await build();
     } catch (err) {
+      // Said at the site rather than left to the condition below. The `throw`
+      // already carries `ModuleDisabledError` out, but by accident: the test is
+      // for an integrity error, and one more `instanceof` branch would turn
+      // "custom_fields is off" into a cache reload that reads the same absent
+      // port twice.
+      rethrowIfModuleDisabled(err);
       if (!(err instanceof CatalogAttributeIntegrityError) || !this.definitions.publishInvalidate) {
         throw err;
       }

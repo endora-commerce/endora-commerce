@@ -400,12 +400,63 @@ rather than by decision. And a **timer callback** cannot re-throw at all —
 instead, which is what freed its `catch` to log the genuine sweep failures that
 used to vanish beside the presence answer.
 
-`PORT_CATCHES_TO_DRAIN` holds the three sites where absorbing the answer is
-still the least-wrong behaviour, each with its reason. All three share one shape:
-the guarded call runs **after** the operation it belongs to has committed — a
-transient-address cleanup, a verification e-mail — so re-throwing would report a
-failure for work that succeeded. Retiring them means giving those calls somewhere
-to report to, which is a feature rather than a fix.
+One thing it allows on purpose: a `catch` may hand the error to a **delegate
+that re-throws it** — a helper ending in `throw <its own parameter>`
+(`toCatalogHttpError(…): never`) or one calling the narrowing on the caller's
+behalf (`ReturnEmailNotifier#contained`). Eight sites in the tree are written
+that way and all eight are correct.
+
+### What the check can see (issues #133 and #113)
+
+The rule is about the `catch`; the blind spots were about **how the port
+arrives**. Both of these read clean for months:
+
+- a `catch` around the **holder** rather than the resolution —
+  `new CartPricingRecompute(em, lazyPort(ctx, 'pricingService'), cache)` reached
+  later as `deps.cartPricingRecompute.recompute(…)`. Three of them sat on
+  `GET /api/v1/cart` and rendered a full priced cart from stale snapshots with
+  `price_lists` switched off;
+- a port a **root contributes** —
+  `registerValues(container, { shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor() })`,
+  resolved by the module as an ordinary cradle name with no `lazyPort` literal
+  anywhere on the path. The five e-mail notifiers were invisible for this reason,
+  and the count read `catches=42 violations=0` before and after their repair.
+
+They are one defect, and they close with one mechanism: the alias table is a
+**fixpoint over port-carrying values** rather than a scan for `lazyPort`
+literals. A value carries the gate if it is a resolution, if it is constructed
+from one, if it is handed to a factory, or if it is a closure whose body reads
+one; every name such a value is bound to becomes an alias, and that feeds the
+next round. The holder is one round of that loop and a root's registration key is
+another. Widening it moved the tree from `catches=42 violations=0` to
+`catches=94 violations=24`.
+
+What does **not** carry is equally load-bearing, and each exclusion was paid for
+in false positives: a call's **result** (`proxy.applyToCart(…)` is the gated
+call, the discount it returns is data), an **object literal** (a deps bag is a
+record — tainting it made `this.deps.<anything>()` a port call, 39 of them in one
+run), and a **field read off a port**. Scope follows the binding: a `const` is
+file-scoped because it is, a deps key or constructor parameter is module-scoped
+because the receiving class reads it from another file, and a root's container
+registration is visible everywhere because a container name is global. Run with
+`PORT_CATCH_WHY=1` to see every alias with the site that introduced it.
+
+`PORT_CATCHES_TO_DRAIN` holds the sites where absorbing the answer is still the
+least-wrong behaviour, each with its reason, in three shapes the entries name:
+
+- **after the fact** — the guarded call runs once the operation it belongs to has
+  committed (a transient-address cleanup, a verification e-mail, a bell
+  notification for a finished bulk job, webhook delivery bookkeeping). Re-throwing
+  would report a failure for work that succeeded, and on a retry would redo it;
+- **a degrade the owner should be answering** — the caller is right to keep
+  serving without the module (Constitution XVII), so `rethrowIfModuleDisabled`
+  would be the *wrong* fix: catalog availability degrades to "no indication", the
+  Meilisearch listing falls back to Postgres. The answer belongs in the
+  contribution's return type or a `nonBindingDependencies` entry;
+- **a boot hook** — `runBootHooks` catches, so the presence answer has no caller
+  to reach. `product_feeds` and `pim_ergonode` reconcile their schedules that way,
+  and narrowing those two was tried and reverted: it changed what the harness
+  boots with. The fix there is the timer rule — decide presence *before* the work.
 
 ## The request scope
 
@@ -685,7 +736,7 @@ is no container in the process running it.
 | --- | --- |
 | `check-kernel-boundary.ts` | an ORM relation from the kernel into a module, or from a module into another module; **and** any import specifier under `src/kernel/**` resolving into `src/modules/` or `src/apps/` — every shape, `import type` included. Carries `KERNEL_MODULE_IMPORTS_TO_DRAIN`, a two-way ratchet holding the one edge D-37 A1 escalated rather than fixed |
 | `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a **gated port resolved from a `ctx.onBoot` hook or a `ctx.routes` body**; a root shadowing a module's port; a computed port name; **and an edge into a switchable module with no defined behaviour when that module is off** (the deactivation-consequence ledger above) |
-| `check-port-catches.ts` | a `catch` around a gated-port call that does not let `ModuleDisabledError` past — unconditional re-throw, `rethrowIfModuleDisabled`, or naming the error. Carries `PORT_CATCHES_TO_DRAIN`, a two-way ratchet |
+| `check-port-catches.ts` | a `catch` around a gated-port call that does not let `ModuleDisabledError` past — unconditional re-throw, `rethrowIfModuleDisabled`, naming the error, or a delegate that re-throws it. Follows the port through a holder and through a root contribution (issues #133/#113). Carries `PORT_CATCHES_TO_DRAIN`, a two-way ratchet |
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
 | `check-entry-scope.ts` | a non-HTTP entry point — CLI script, BullMQ worker, repeating-timer sweep — that establishes no scope (T037). The timer class is the *shape*, not the constructor: it reads `lib/repeating-timers.ts`, shared with `check-timer-presence.ts`, so a `setTimeout` the callback re-arms counts (issue #128) |
 | `check-channel-resolution.ts` | a raw `x-sales-channel` header read outside the resolver; a storefront surface re-resolving the request channel; a settings read whose channel argument can be a string that is not a channel uuid (D-42); a channel id invented by a default parameter or a `randomUUID()` fallback (D-48). Runs `--enforce` in CI |

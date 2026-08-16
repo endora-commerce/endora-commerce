@@ -12,6 +12,7 @@ import type {
   ToolContext,
   ToolVisibilityContext,
 } from './tool-registry.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { LlmProviderFactory, ResolvedAssistant } from './llm/provider-factory.js';
 import {
   LlmProviderError,
@@ -113,6 +114,11 @@ export class InterpreterService {
     } catch (err) {
       // disabled / not_configured are route-level concerns; reaching here
       // means config flipped mid-flight — surface as failure (FR-017).
+      // A module switched off mid-flight is a different sentence: FR-017 is
+      // about the assistant's own provider configuration, and reporting an
+      // absent owner as a failed interpretation sends the operator to the
+      // provider settings for something no setting controls.
+      rethrowIfModuleDisabled(err);
       return { kind: 'failed', detail: (err as Error).message };
     }
     const { adapter, provider, model, bulkLimit } = resolved;
