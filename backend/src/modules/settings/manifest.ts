@@ -36,19 +36,6 @@ const settings = defineModuleSettingsManifest({
   ],
   settings: [
     {
-      // Feature 073 — the operator's activation control. Platform-wide, and it
-      // covers the administration surface only: since T118 the kernel composes
-      // the universal reader, so switching this off freezes what an operator
-      // can change rather than stopping the platform reading its configuration.
-      code: 'settings.enabled',
-      name: 'Settings administration enabled',
-      description:
-        'Switches the settings administration screens on or off: browsing and editing per-module settings, the per-channel overrides and the cache-clear action. Every module keeps reading its configuration, every stored value stays, and the module activation controls are unaffected — they live on the Platform modules screen, which this does not touch.',
-      groupCode: 'general',
-      valueType: 'boolean',
-      defaultValue: true,
-    },
-    {
       // Image URL shown when a product has no image of its own, on product
       // cards / listings (and the product page). Resolvable globally or
       // per sales channel via the standard settings scope mechanism.
@@ -227,17 +214,31 @@ export const manifest = defineModuleManifest({
   // the kernel and it ships no migrations of its own.
   dependencies: ['auth'],
   settings,
-  // Feature 072/073 (Constitution XVII) — deactivatable, deliberately. Making
-  // this module non-deactivatable would have been the obvious call, and it is
-  // the wrong one: D-36 moved the activation controls onto the kernel-served
-  // `/platform/modules` screen precisely so that switching Settings off is a
-  // recoverable state rather than the circle it used to be. T118 completes the
-  // other half — the universal reader is kernel-composed, so every module keeps
-  // reading settings while this module's admin surface is off.
+  // Feature 074 (Constitution XVII), test C2 — functional base, and named by
+  // ruling 1. The control that used to be here was one of the nineteen that
+  // never accepted a deactivation; making the lock explicit replaces an
+  // accidental refusal with a declared one and takes the dead button off the
+  // screen.
   //
-  // No recursion follows: `resolveActivation` reads the `Setting` row through
-  // the EntityManager, not through this module's service graph.
-  activation: { settingCode: 'settings.enabled', default: true },
+  // The recoverability argument that used to carry the switch — D-36 moved the
+  // activation controls onto the kernel-served `/platform/modules`, T118 made
+  // the settings reader kernel-composed — is still true and is why switching
+  // this off is survivable. It is not why it should be offered. This module is
+  // the configuration surface for every other one, and a module that is off
+  // has no editable configuration, so `settings` off means nothing on the
+  // platform is configurable: a different product, not a smaller one.
+  //
+  // `settings.enabled` goes with the control. Left declared it would classify
+  // as an ordinary editable boolean that changes nothing, which is the
+  // present-but-ignored shape Principle XVII prohibits; the reconciler never
+  // deletes a row it stops seeing, so the existing rows are removed by a core
+  // data migration instead (feature 074, FR-010a).
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'The configuration surface for every other module. A module that is off has no editable ' +
+      'configuration, so switching this off would leave nothing on the platform configurable.',
+  },
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'settings:read', label: 'View settings' },

@@ -640,18 +640,25 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
     });
 
     /**
-     * Issue #88 — the two capabilities the business decided every deployment
-     * keeps: `currencies` and `transactional_emails`.
+     * SC-009, the platform half — every module in the core set, on the shipped
+     * manifests rather than a fixture.
      *
-     * Asserted against `REGISTERED_MANIFESTS` rather than a fixture, because
-     * the fixture cases above already prove the mechanism works; what these
-     * two need proving is that the *shipped* declarations reach it. Without
-     * this, `assertDeactivatable` could keep passing on a fixture forever
-     * while `module:disable currencies` sailed through in production — which
-     * is exactly the drift the sibling `non-deactivatable-set.test.ts` was
-     * written to catch on the manifest side.
+     * `assertDeactivatable` binds **both** axes, which is what makes this a
+     * release-note item rather than bookkeeping: declaring ten more modules
+     * core also takes `module:disable catalog` and `module:disable orders` away
+     * from a deployment operator, with no `--force`. Asserting it here is how
+     * that consequence stays visible — the fixture cases above prove the
+     * mechanism, and these prove the shipped declarations reach it. It began as
+     * issue #88's pair (`currencies`, `transactional_emails`) and feature 074
+     * widened it to the whole set, because a lock nobody exercises is a lock
+     * that can be dropped from a manifest without a test going red.
      */
-    it.each(['currencies', 'transactional_emails'])(
+    it.each(
+      REGISTERED_MANIFESTS.filter(
+        (e) =>
+          e.manifest.activation !== undefined && 'nonDeactivatable' in e.manifest.activation,
+      ).map((e) => e.manifest.id),
+    )(
       'refuses `module:disable %s` on the shipped manifest',
       async (moduleId) => {
         const entries = REGISTERED_MANIFESTS.map((e) => ({

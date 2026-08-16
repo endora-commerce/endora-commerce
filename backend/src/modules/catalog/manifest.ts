@@ -98,6 +98,17 @@ export const manifest = defineModuleManifest({
         '401, and it drains with it.',
     },
   ],
+  // Feature 074 (Constitution XVII), test C2 — functional base. This module had
+  // no activation declaration at all, which resolved as "always activated" and
+  // read as an omission; the lock says the same thing on purpose and with a
+  // reason. Products, variants and categories are what a commerce platform is
+  // for: their absence does not reduce it, it makes it something else.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Products, variants and categories. A commerce platform without a catalogue is a ' +
+      'different product, not a reduced one.',
+  },
   i18n: { bundlesDir: 'i18n' },
   actions: [
     {

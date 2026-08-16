@@ -74,30 +74,53 @@ const DEACTIVATED = [
   'admin_actions',
   'cms',
   // Issue #90: the twelve `ctx.routes` bodies that still destructured their own
-  // gated port. Ten were the named `WIRING_RESOLUTIONS_TO_DRAIN` inventory; the
-  // `carts` and `settings` ones were invisible to the check until it learned to
-  // follow a module-local cradle alias, and `settings` is the one an operator
-  // is most likely to reach for — D-36 made it deactivatable on purpose. Every
-  // one of them is a module an operator may switch off, and every one of them
-  // stopped the next start before this list named it.
+  // gated port. Ten were the named `WIRING_RESOLUTIONS_TO_DRAIN` inventory; two
+  // more were invisible to the check until it learned to follow a module-local
+  // cradle alias. Every one of them stopped the next start before this list
+  // named it.
   'admin_notifications',
-  'carts',
   'credentials',
   'payments',
   'promotions',
-  'sales_channels',
-  'settings',
   'shipments',
-  'taxes',
   'webhooks',
+  // Feature 074 gave this module an activation control it never had, which
+  // moves it from the platform list below onto this one. The read it covers is
+  // unchanged; what changed is who can produce the state.
+  'mfa',
 ] as const;
 
 /**
- * The platform axis, in the same boot: `mfa` declares no activation control, so
- * only a deployment operator can take it away — with `module:disable mfa`, which
- * used to be just as fatal to the next start, at the same kind of read.
+ * The platform axis, in the same boot — modules this deployment does not offer.
+ *
+ * Four of them arrive here from the operator list (feature 074): `carts`,
+ * `sales_channels`, `settings` and `taxes` are core now, and
+ * `effectiveState` forces a core module's operator axis on whatever a Setting
+ * says, so seeding them as deactivated would have simulated a state no operator
+ * and no CLI can reach — and the boot cases under them would have passed
+ * without the modules ever being absent. Absence is still reachable for every
+ * one of them, by the axis that was always the deployment's: a build that never
+ * installs the module. That is the same absence at the same reads, which is
+ * what these cases are about, so the coverage of issue #90's `carts` and
+ * `settings` sites is preserved rather than dropped.
+ *
+ * `health_checks` is here for a second reason as well: it is the one module
+ * that declares no activation block at all, so with its registry row gone it is
+ * unknown to *both* axes — the tri-state's "not a module this deployment has",
+ * which is a different answer from "installed and absent". Its probes answer
+ * regardless, because `ctx.ungatedRoutes` exempts them, and the health-route
+ * case at the bottom of this file is what shows it.
  */
-const PLATFORM_UNAVAILABLE = 'mfa';
+const PLATFORM_UNAVAILABLE = [
+  'carts',
+  'sales_channels',
+  'settings',
+  'taxes',
+  'health_checks',
+] as const;
+
+/** The only one of those with no activation declaration, hence no presence row. */
+const UNDECLARED = 'health_checks';
 
 const ALL_MODULE_IDS = REGISTERED_MANIFESTS.map((e) => e.manifest.id);
 
@@ -123,7 +146,7 @@ vi.mock('../../../src/modules/_lifecycle/services/presence-load.js', async (impo
         '../../../src/kernel/lifecycle/registry-cache.js'
       );
       cache.__setEnabledForTesting(
-        ALL_MODULE_IDS.filter((id) => id !== PLATFORM_UNAVAILABLE),
+        ALL_MODULE_IDS.filter((id) => !(PLATFORM_UNAVAILABLE as readonly string[]).includes(id)),
         { deactivated: [...DEACTIVATED] },
       );
     },
@@ -186,11 +209,25 @@ describe('the production composition root boots with modules switched off', () =
       expect(presence?.operatorActivated, `${moduleId} operator axis`).toBe(false);
       expect(effectiveState.isPresent(moduleId), `${moduleId} effective presence`).toBe(false);
     }
-    // `mfa` declares no activation control, so with its registry row gone it is
-    // unknown to both axes — the tri-state's "not a module this deployment has",
-    // which is a different answer from "installed and switched off" above.
-    expect(effectiveState.isPresent(PLATFORM_UNAVAILABLE)).toBe(false);
-    expect(effectiveState.presence(PLATFORM_UNAVAILABLE)).toBeUndefined();
+  });
+
+  it('has every platform-unavailable module absent on the other axis', () => {
+    for (const moduleId of PLATFORM_UNAVAILABLE) {
+      if (moduleId === UNDECLARED) continue;
+      const presence = effectiveState.presence(moduleId);
+      expect(presence?.platformAvailable, `${moduleId} platform axis`).toBe(false);
+      // Core, so the operator axis reads `true` whatever is stored — and the
+      // conjunction is still absent. That is the two axes staying orthogonal,
+      // which is the property that makes this list a valid substitute for the
+      // deactivation it replaced.
+      expect(presence?.operatorActivated, `${moduleId} operator axis`).toBe(true);
+      expect(effectiveState.isPresent(moduleId), `${moduleId} effective presence`).toBe(false);
+    }
+  });
+
+  it('has the one module with no activation declaration unknown to both axes', () => {
+    expect(effectiveState.isPresent(UNDECLARED)).toBe(false);
+    expect(effectiveState.presence(UNDECLARED)).toBeUndefined();
   });
 
   for (const moduleId of DEACTIVATED) {
@@ -200,15 +237,22 @@ describe('the production composition root boots with modules switched off', () =
     });
   }
 
-  it(`composes with \`${PLATFORM_UNAVAILABLE}\` platform-unavailable`, () => {
-    expect(compositionError, describeFailure(PLATFORM_UNAVAILABLE, compositionError)).toBeUndefined();
-  });
+  for (const moduleId of PLATFORM_UNAVAILABLE) {
+    it(`composes with \`${moduleId}\` platform-unavailable`, () => {
+      expect(compositionError, describeFailure(moduleId, compositionError)).toBeUndefined();
+    });
+  }
 
   it('builds the server, so every module plugin body ran with them off', () => {
     expect(app).toBeDefined();
   });
 
   it('answers a request, which is what "the backend started" means', async () => {
+    // And it answers it from `health_checks`, which this boot did not install:
+    // the probes are exempt from gating through `ctx.ungatedRoutes`, which is
+    // the whole reason that module declares no activation control (feature 074,
+    // FR-013). If gating ever reached them, a deployment could lose its own
+    // liveness endpoint by withdrawing a module — and this case would say so.
     const health = await app!.inject({ method: 'GET', url: '/api/v1/_health' });
 
     expect(health.statusCode).toBe(200);
@@ -218,7 +262,7 @@ describe('the production composition root boots with modules switched off', () =
 function describeFailure(moduleId: string, err: unknown): string {
   const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   return (
-    `switching \`${moduleId}\` off must not stop the next start — ` +
+    `\`${moduleId}\` being absent must not stop the next start — ` +
     `composeApp()/buildServer() threw, which index.ts turns into process.exit(1): ${message}`
   );
 }

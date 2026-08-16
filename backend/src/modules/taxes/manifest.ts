@@ -21,21 +21,33 @@ export const manifest = defineModuleManifest({
   settings: {
     moduleCode: 'taxes',
     groups: [{ code: 'taxes', name: 'Taxes' }],
-    settings: [
-      {
-        // Feature 073 — the operator's activation control. Platform-wide.
-        code: 'taxes.enabled',
-        name: 'Taxes enabled',
-        description:
-          'Switches the tax-rate admin screen, its API and order tax computation on or off. Nothing is dropped: configured rates stay in the database and apply again exactly as before when you switch it back on.',
-        groupCode: 'taxes',
-        valueType: 'boolean',
-        defaultValue: true,
-      },
-    ],
+    // The group is kept as a reservation while the module ships no settings of
+    // its own: `taxes.enabled` was the only one, and it went with the control
+    // it backed (feature 074). Dropping the group too would only turn it into
+    // an orphan the boot reconciler warns about at every start.
+    settings: [],
   },
-  // Feature 073 — the operator's activation control. Platform-wide. A platform
-  // without configurable tax rates is a smaller platform, not a broken one:
-  // rates stay in the database and reappear when it is switched back on.
-  activation: { settingCode: 'taxes.enabled', default: true },
+  // Feature 074 (Constitution XVII), test C2 — functional base, and one of the
+  // escalation answers. 073 read this module as "a platform without
+  // configurable tax rates is a smaller platform, not a broken one", and the
+  // deciding fact is what that reading missed: the absence does not announce
+  // itself. Every price becomes tax-free with no operator-visible signal and
+  // the invoice carries a wrong figure. A platform that cannot compute tax
+  // cannot state a lawful price, which is a different product rather than a
+  // reduced one.
+  //
+  // This closes the *operator* route to that state. The platform route — a
+  // deployment that never installs this module — is still open and is a
+  // separate follow-up, which inherits one constraint: a correctly-configured
+  // 0% rate is a legitimate answer in some jurisdictions, so absence and a
+  // configured zero must stay distinguishable.
+  //
+  // `taxes.enabled` goes with the control. The existing rows are removed by a
+  // core data migration (feature 074, FR-010a).
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Absent, every price becomes tax-free with no operator-visible signal and the invoice ' +
+      'carries a wrong figure. A platform that cannot compute tax cannot state a lawful price.',
+  },
 });

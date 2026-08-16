@@ -41,16 +41,17 @@ export const manifest = defineModuleManifest({
   dependencies: ['currencies', 'languages', 'auth'],
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: DICTIONARY_PERMISSIONS.WRITE, label: 'Manage dictionary registry' }],
-  // Feature 073, Amendment A1 (Constitution XVII). Not one of the four the
-  // specification names as the criterion set. It holds the flag because
-  // `organizations` — which is in that set — declares `dictionaries` in its
-  // manifest `dependencies`: registration validates the Organization's country
-  // code against this registry. Dependencies fail closed, so switching this off
-  // would take the tenancy root with it.
+  // Feature 074 (Constitution XVII), test C3 — platform primitive. The flag
+  // used to rest on `organizations` declaring this module; ruling 2 withdraws
+  // a dependent's authority to impose the lock, so the ground is now this
+  // module's own. It is the shared reference-data primitive — countries,
+  // units, document types — that every other module validates and renders
+  // against. There is no business decision underneath it: nobody chooses to
+  // stop having countries.
   activation: {
     nonDeactivatable: true,
     reason:
-      'The non-deactivatable `organizations` declares this module in its manifest ' +
-      'dependencies — registration validates a country code against it — and it fails closed.',
+      'The shared reference-data primitive — countries, units, document types — that every ' +
+      'other surface validates and renders against.',
   },
 });

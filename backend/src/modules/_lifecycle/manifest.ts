@@ -38,20 +38,23 @@ export const manifest = defineModuleManifest({
         'installation. auth is non-deactivatable, so the gate never closes.',
     },
   ],
-  // Feature 073, Amendment A1 (Constitution XVII). The ground is the
-  // `_`-prefix infrastructure rule, not the specification's criterion set and
-  // not "it owns the screen that switches modules on and off" — that argument
-  // was circular, and D-36 removed its premise by moving the activation surface
-  // to `/platform/modules`, which belongs to no module. An `_`-prefixed id is
-  // platform-internal, and `assertActivationRules`
-  // (`packages/contracts/src/modules.ts`) refuses any other activation form for
-  // one. The route exemption (`ctx.ungatedRoutes`, T125) is a separate
-  // mechanism and is not what this declaration rests on.
+  // Feature 074 (Constitution XVII), test C1 — reachability. The ground is the
+  // presence machinery itself: this module resolves every other module's two
+  // axes, owns the orchestrator that flips them and the Command the activation
+  // endpoint runs, so switched off there is no way back on for anything,
+  // including itself. That is a statement about what this module *is*, not
+  // about the screen it once hosted — D-36 moved the activation surface to
+  // `/platform/modules`, which belongs to no module, and the old circular
+  // argument went with it. The `_`-prefix rule is the structural second
+  // ground: `assertActivationRules` (`packages/contracts/src/modules.ts`)
+  // refuses any other activation form for a platform-internal id. The route
+  // exemption (`ctx.ungatedRoutes`, T125) is a separate mechanism and is not
+  // what this declaration rests on.
   activation: {
     nonDeactivatable: true,
     reason:
-      'Platform-internal by the `_`-prefix rule the manifest schema enforces; it is the ' +
-      'subsystem that resolves every other module\'s presence.',
+      'Owns the presence machinery and the activation switches themselves; switched off, ' +
+      'there is no way back on.',
   },
   i18n: { bundlesDir: 'i18n' },
   /**

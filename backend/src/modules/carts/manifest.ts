@@ -37,16 +37,6 @@ const settings = defineModuleSettingsManifest({
   groups: [{ code: 'carts', name: 'Carts' }],
   settings: [
     {
-      // Feature 073 — the operator's activation control. Platform-wide.
-      code: 'carts.enabled',
-      name: 'Carts enabled',
-      description:
-        'Switches the cart on or off: the storefront cart, coupons and upsells, the organization approval workflow, the admin cart screens and the abandonment sweep. Checkout goes with it, because an order is placed from a cart. Nothing is dropped — every cart, its lines, its approval state and its audit history stay in the database.',
-      groupCode: 'carts',
-      valueType: 'boolean',
-      defaultValue: true,
-    },
-    {
       code: CARTS_SETTING_CODES.ABANDONMENT_INACTIVITY_MINUTES,
       name: 'Cart abandonment threshold (minutes)',
       description:
@@ -82,13 +72,24 @@ export const manifest = defineModuleManifest({
     'settings',
   ],
   settings,
-  // Feature 073 (Constitution XVII) — deactivatable, and the reason it is not
-  // `nonDeactivatable` is a product one: a quote-only B2B deployment is a real
-  // configuration, where RFQ replaces checkout and `quote_requests` stands on
-  // its own. `orders` declares `carts` as a dependency, so dependencies-fail-
-  // closed means switching this off takes checkout with it — which is the
-  // intended meaning, not an accident.
-  activation: { settingCode: 'carts.enabled', default: true },
+  // Feature 074 (Constitution XVII), test C2 — functional base. This reverses
+  // the reading 073 took. The quote-only deployment that argued for a switch
+  // here is real, but it does not want the *basket* gone: checkout, quick order
+  // and the quote flow all assemble one, so switching this off removes the
+  // structure every ordering path is built on rather than one path among
+  // several. A deployment that quotes and never checks out simply does not use
+  // checkout; `quote_requests` is where that choice belongs, and it stays
+  // operator-controlled.
+  //
+  // `carts.enabled` goes with the control it backed: one of the nineteen that
+  // never accepted a deactivation. The existing rows are removed by a core data
+  // migration (feature 074, FR-010a).
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'The basket every ordering path assembles — checkout, quick order and the quote flow all ' +
+      'go through it.',
+  },
   // Feature 026 checklist — `routes.admin.ts` gates on both codes and this
   // manifest declared neither, so until T136 only a role holding `'*'` could
   // reach the admin cart screens. The permission-inventory scanner that should

@@ -65,7 +65,8 @@ const bundle = passthroughBundle('core', [
   'platform.modules.activation.on',
   'platform.modules.activation.off',
   'platform.modules.activation.locked',
-  'platform.modules.activation.unmanaged',
+  'platform.modules.activation.alwaysOn',
+  'platform.modules.activation.alwaysOnReason',
   'platform.modules.flag.orphan',
   'platform.modules.flag.pendingUpgrade',
   'platform.modules.flag.depMissing',
@@ -184,17 +185,62 @@ describe('ModulesPage — the four states read differently (FR-034)', () => {
     ).toBeInTheDocument();
   });
 
-  it('reads a module that has declared no control at all as unmanaged, not as locked', async () => {
-    // 66 of 67 modules are in this state until their conversion batch lands.
-    listed = [moduleItem({ id: 'catalog', name: 'Catalog' })];
+  it('reads a module that declares no control as always-on, in the locked shape (FR-016)', async () => {
+    // Feature 074. This used to render "No switch yet", which announced an
+    // omission: 66 of 67 modules were in this state while the conversion sweep
+    // ran, and the label named the backlog. With the sweep finished exactly one
+    // module is left here — `health_checks`, whose probes are exempt from
+    // gating outright — so the cell says *why there is no switch* instead, in
+    // the same affordance a core module's lock uses. An operator learns one
+    // rendering for "you cannot switch this"; the difference between "core" and
+    // "no seam to close" is carried by the sentence.
+    listed = [moduleItem({ id: 'health_checks', name: 'Health Checks' })];
     presence = [
-      presenceItem({ id: 'catalog', deactivatable: false, nonDeactivatableReason: null }),
+      presenceItem({ id: 'health_checks', deactivatable: false, nonDeactivatableReason: null }),
     ];
     await renderPage();
 
-    const catalog = row('catalog');
-    expect(within(catalog).getByText('platform.modules.activation.unmanaged')).toBeInTheDocument();
-    expect(within(catalog).queryByText('platform.modules.activation.locked')).toBeNull();
+    const probes = row('health_checks');
+    expect(within(probes).getByText('platform.modules.activation.alwaysOn')).toBeInTheDocument();
+    expect(
+      within(probes).getByText('platform.modules.activation.alwaysOnReason'),
+    ).toBeInTheDocument();
+    // Not a core lock: that copy states a platform invariant this module does
+    // not have.
+    expect(within(probes).queryByText('platform.modules.activation.locked')).toBeNull();
+    // And the state column reads "on" like any other present module, because it
+    // is: the effective state forces the operator axis true.
+    expect(within(probes).getByText('platform.modules.activation.on')).toBeInTheDocument();
+  });
+
+  it('selects that copy on the absent declaration, never on the module id (FR-016)', async () => {
+    // The property that keeps this from being the hard-coded exception list
+    // Constitution XVII prohibits. A future module in the same position gets the
+    // same cell without an edit here, and `health_checks` gets an ordinary
+    // control the moment its projection carries one.
+    listed = [
+      moduleItem({ id: 'some_future_module', name: 'Future' }),
+      moduleItem({ id: 'health_checks', name: 'Health Checks' }),
+    ];
+    presence = [
+      presenceItem({
+        id: 'some_future_module',
+        deactivatable: false,
+        nonDeactivatableReason: null,
+      }),
+      presenceItem({ id: 'health_checks', deactivatable: true, activated: false, present: false }),
+    ];
+    await renderPage();
+
+    expect(
+      within(row('some_future_module')).getByText('platform.modules.activation.alwaysOn'),
+    ).toBeInTheDocument();
+    expect(
+      within(row('health_checks')).queryByText('platform.modules.activation.alwaysOn'),
+    ).toBeNull();
+    expect(
+      within(row('health_checks')).getByText('platform.modules.activation.off'),
+    ).toBeInTheDocument();
   });
 });
 

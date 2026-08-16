@@ -21,6 +21,16 @@ export const manifest = defineModuleManifest({
   // axis to close, so an orchestrator that reports this module disabled still
   // answers /health.
   //
+  // Feature 074 makes that a **third category** rather than the last unconverted
+  // module: *structurally unswitchable*. It is neither core (which would
+  // announce a hazard, see below) nor operator-controlled (there is nothing for
+  // a control to close), and it is the only member — pinned by
+  // `test/unit/_lifecycle/non-deactivatable-set.test.ts`, which asserts that the
+  // set of manifests with no activation block is exactly this one. No third
+  // schema arm was added for it (Constitution IV): a test with a stated reason
+  // is the whole mechanism, so a second module arriving here fails the build
+  // instead of joining a category by omission.
+  //
   // What the flag would add is therefore nothing. It binds **both** axes since
   // `assertDeactivatable` shipped — the platform CLI refuses the disable with no
   // `--force`, exactly as the operator write does (feature 073, Amendment A1;

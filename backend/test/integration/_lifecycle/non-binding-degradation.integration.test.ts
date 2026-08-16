@@ -62,6 +62,22 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
     registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: [moduleId] });
   };
 
+  /**
+   * Absence on the **platform** axis, for an owner feature 074 made core.
+   *
+   * `orders` is now `nonDeactivatable`, and `operatorActivated` short-circuits
+   * to `true` for such a module however the activation map is seeded — so
+   * `deactivate('orders')` stopped making it absent, and the three cases under
+   * it went on passing while asserting nothing (an empty order history is also
+   * what a customer with no orders sees). The declared degradation is still
+   * reachable, by the axis a deployment operator drives: a deployment that does
+   * not install `orders` at all. Withdrawing the module from the enabled set is
+   * that state, and it is the honest way to keep the edge covered.
+   */
+  const withdraw = (moduleId: string): void => {
+    registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== moduleId));
+  };
+
   beforeAll(async () => {
     h = await setupBackendServer();
     unboundToken = await mint({
@@ -203,13 +219,21 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
    *
    * The accessor's `() => OrderListService | null` return type looks like it
    * already tolerates an absent `orders`, and that is the trap: it is a gated
-   * port, so an operator who switches `orders` off makes the resolution throw
-   * before the `null` check is ever reached. The declared behaviour is an empty
-   * page — the same page a customer with no orders sees.
+   * port, so an absent `orders` makes the resolution throw before the `null`
+   * check is ever reached. The declared behaviour is an empty page — the same
+   * page a customer with no orders sees.
+   *
+   * **The platform axis, not the operator axis** (feature 074). `orders` is
+   * core now: the transaction the platform exists to record is not a capability
+   * a business declines, so no operator can produce this state. A deployment
+   * that never installs the module still can, the container claim is unchanged,
+   * and the spec keeps the declaration legal for exactly that reason. Left on
+   * `deactivate` these three cases would pass without the module ever being
+   * absent, which is worse than deleting them.
    */
   describe('customers → orders:orderListServiceAccessor', () => {
     it('answers an empty self-service order history rather than failing', async () => {
-      deactivate('orders');
+      withdraw('orders');
 
       const res = await h.app.inject({
         method: 'GET',
@@ -224,7 +248,7 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
     });
 
     it('answers an empty admin order-history panel rather than failing', async () => {
-      deactivate('orders');
+      withdraw('orders');
 
       const res = await h.app.inject({
         method: 'GET',
@@ -237,7 +261,7 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
     });
 
     it('leaves the rest of the customer surface serving', async () => {
-      deactivate('orders');
+      withdraw('orders');
 
       // Same guard as on the `catalog` edge: an empty history proves nothing if
       // the whole module has stopped answering.
@@ -249,7 +273,7 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
       expect(res.statusCode).toBe(200);
     });
 
-    it('lists orders again once the module is switched back on', async () => {
+    it('lists orders again once the module is available again', async () => {
       const res = await h.app.inject({
         method: 'GET',
         url: '/api/v1/me/customer/orders',
@@ -320,12 +344,30 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
     // it is the one the edges above are written for: a module the deployment
     // still ships, that the business has switched off. A test that simulated a
     // missing installation would prove something else.
-    for (const moduleId of ['api_keys', 'orders', 'payment_methods', 'delivery_methods']) {
+    for (const moduleId of ['api_keys', 'payment_methods', 'delivery_methods']) {
       deactivate(moduleId);
       const presence = effectiveState.presence(moduleId);
       expect(presence?.platformAvailable, `${moduleId} platform axis`).toBe(true);
       expect(presence?.operatorActivated, `${moduleId} operator axis`).toBe(false);
       expect(effectiveState.isPresent(moduleId), `${moduleId} effective presence`).toBe(false);
     }
+  });
+
+  it('reaches the `orders` edge by the one axis that can still produce it', () => {
+    // The fourth edge, stated separately rather than dropped from the list
+    // above. Feature 074 makes `orders` core, so the operator axis is closed to
+    // it by declaration — asserted here, so that a future change which reopens
+    // the operator route is visible — and the platform axis is what the three
+    // cases above drive.
+    deactivate('orders');
+    expect(
+      effectiveState.presence('orders')?.operatorActivated,
+      'orders is core; no seeded activation value may make it absent',
+    ).toBe(true);
+
+    withdraw('orders');
+    const presence = effectiveState.presence('orders');
+    expect(presence?.platformAvailable, 'orders platform axis').toBe(false);
+    expect(effectiveState.isPresent('orders'), 'orders effective presence').toBe(false);
   });
 });
