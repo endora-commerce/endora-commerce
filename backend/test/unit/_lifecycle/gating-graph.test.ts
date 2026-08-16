@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import type { ModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@b2b/contracts';
 import {
   ModuleGatingGraph,
   acknowledgedPortEdgesFrom,
   gatingGraph,
+  nonBindingPortEdgesFrom,
 } from '../../../src/modules/_lifecycle/services/gating-graph.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
@@ -122,6 +125,85 @@ describe('dependencies — the activation direction', () => {
 
   it('reports nothing when everything the module needs is present', () => {
     expect(graph.absentDependenciesOf('pim_ergonode', allPresent)).toEqual([]);
+  });
+});
+
+/**
+ * D-44 — a `nonBindingDependencies` edge is real to the container and invisible
+ * to this graph, in **both** directions.
+ *
+ * Synthetic manifests rather than shipped ones on purpose: the property is that
+ * the graph does not read the field at all, and a fixture pair is the only way
+ * to state it without waiting for a module to declare one. The shipped
+ * declarations are held to the same property by the last case.
+ */
+describe('non-binding edges — declared, and absent from both directions', () => {
+  const host = defineModuleManifest({
+    id: 'assistant',
+    name: 'Assistant',
+    version: '1.0.0',
+    dependencies: [],
+  });
+  const contributor = defineModuleManifest({
+    id: 'shop',
+    name: 'Shop',
+    version: '1.0.0',
+    dependencies: [],
+    nonBindingDependencies: [
+      {
+        moduleId: 'assistant',
+        name: 'toolRegistry',
+        kind: 'contributes-to',
+        reason: 'Pushes an inert tool descriptor into the assistant catalogue at boot.',
+      },
+    ],
+  });
+  const fixture = new ModuleGatingGraph([host, contributor]);
+
+  it('flattens the edges the way the port check keys them', () => {
+    expect(nonBindingPortEdgesFrom([host, contributor])).toEqual([
+      {
+        moduleId: 'shop',
+        dependsOn: 'assistant',
+        name: 'toolRegistry',
+        kind: 'contributes-to',
+        whenAbsent: null,
+        reason: 'Pushes an inert tool descriptor into the assistant catalogue at boot.',
+      },
+    ]);
+  });
+
+  it('does not make the contributor a dependent of the host', () => {
+    // The whole point: the host keeps a live activation control. An
+    // `acknowledgedDependencies` entry in the same position would appear here.
+    expect(fixture.dependentsOf('assistant')).toEqual([]);
+    expect(fixture.presentDependentsOf('assistant', allPresent)).toEqual([]);
+  });
+
+  it('does not make the host a dependency of the contributor', () => {
+    expect(fixture.declaredDependenciesOf('shop')).toEqual([]);
+    expect(fixture.acknowledgedDependenciesOf('shop')).toEqual([]);
+    expect(fixture.absentDependenciesOf('shop', onlyPresent())).toEqual([]);
+  });
+
+  it('leaves every shipped non-binding target out of `dependentsOf`', () => {
+    // The shipped half of the same property, so a later edit that folds the
+    // field into the constructor fails here rather than in an operator's 409.
+    for (const edge of nonBindingPortEdgesFrom(MANIFESTS)) {
+      expect(
+        graph.dependentsOf(edge.dependsOn),
+        `${edge.moduleId} declares ${edge.dependsOn}:${edge.name} as non-binding`,
+      ).not.toContain(edge.moduleId);
+    }
+  });
+
+  it('names a module that ships, and carries an argument rather than a label', () => {
+    const ids = new Set(MANIFESTS.map((manifest: ModuleManifest) => manifest.id));
+    for (const edge of nonBindingPortEdgesFrom(MANIFESTS)) {
+      expect(ids, `${edge.moduleId} → ${edge.dependsOn}`).toContain(edge.dependsOn);
+      expect(edge.reason.length).toBeGreaterThan(30);
+      if (edge.kind === 'degrades-without') expect(edge.whenAbsent).not.toBeNull();
+    }
   });
 });
 

@@ -85,6 +85,23 @@ export const manifest = defineModuleManifest({
     'quote_requests',
     'settings',
   ],
+  // D-44 — real to the container, binding on no operator.
+  nonBindingDependencies: [
+    {
+      moduleId: 'orders',
+      name: 'orderListServiceAccessor',
+      kind: 'degrades-without',
+      whenAbsent: 'order history is empty on the self-service and admin customer panels',
+      reason:
+        'Two read-only history panels list a customer’s orders through `orders`’ late-bound ' +
+        'list service. Declaring the edge is cycle-free, and that is precisely the problem: ' +
+        'it would make `orders` undeactivatable for as long as the customer surface is ' +
+        'present, which is a presence rule nobody decided. The panels have a defined ' +
+        'behaviour instead — an empty page, the same one an account with no orders sees — ' +
+        'reached through a presence probe ahead of the port, because a closed gate throws ' +
+        'rather than answering `null`.',
+    },
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
   actions: [

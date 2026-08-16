@@ -16,6 +16,8 @@ import { WarehouseChannelService } from './services/warehouse-channel-service.js
 import { WarehouseChannelReconciler } from './services/warehouse-channel-reconciler.js';
 import { AVAILABILITY_BACK_IN_STOCK_DEFAULT, LOW_STOCK_ALERT_DEFAULT } from './email-templates/transactional-defaults.js';
 import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
+import type { PromptActionToolRegistry } from '../prompt_actions/services/tool-registry.js';
+import { inventoryPromptTools } from './prompt-tools.js';
 
 /**
  * `inventory` — three capabilities the test harness never had (feature 072,
@@ -77,6 +79,12 @@ export interface InventoryCradle {
     ): Promise<string[] | null>;
   };
   readonly inventory: ReturnType<typeof inventoryModule>;
+  /**
+   * Owned by `prompt_actions`: the assistant's tool catalogue. An ungated
+   * registration this module pushes into once, from a boot hook — declared as a
+   * `contributes-to` edge rather than a dependency (D-44).
+   */
+  readonly promptActionToolRegistry: PromptActionToolRegistry;
   /**
    * Availability bands for a set of products, scoped to the warehouses the
    * caller's sales channel is bound to (T143a).
@@ -232,4 +240,29 @@ export function registerModule(ctx: ModuleContext): void {
     defaults.register('availability_back_in_stock', AVAILABILITY_BACK_IN_STOCK_DEFAULT, 'inventory');
   });
 
+  /**
+   * The assistant tools this module contributes (D-44).
+   *
+   * Both roots built the warehouse resolver and the `set_stock_level` mutation
+   * from this module's own services and pushed them into `prompt_actions`'
+   * registry, because pushing from here would have made `prompt_actions` a
+   * declared dependency — and that declaration is what would have made an
+   * optional assistant undeactivatable while `inventory` is present.
+   * `nonBindingDependencies` declares the edge without that claim.
+   *
+   * A push, not a pull. The registry is a plain registration, so this resolves
+   * no gate, and the host drops every tool whose recorded owner is not
+   * effectively present.
+   */
+  ctx.onBoot(() => {
+    const cradle = ctx.cradle<InventoryCradle>();
+    const registry = cradle.promptActionToolRegistry;
+    for (const tool of inventoryPromptTools({
+      emFactory: cradle.emFactory,
+      eventBus: cradle.eventBus,
+      auditLogService: cradle.auditLogService,
+    })) {
+      registry.register(tool);
+    }
+  });
 }

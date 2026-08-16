@@ -80,7 +80,8 @@ export interface CustomersAdminDeps {
   orgAssignmentService: CustomerOrgAssignmentService;
   addressService: CustomerAddressService;
   cartQueryService: CartQueryService;
-  getOrderListService: () => OrderListService;
+  /** Narrowed to the one method this surface calls — see `plugin.ts` (D-44). */
+  getOrderListService: () => Pick<OrderListService, 'list'>;
   rfqService: RfqService;
   vatValidator: VatValidator;
   impersonationService: ImpersonationService;

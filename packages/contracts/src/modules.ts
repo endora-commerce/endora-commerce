@@ -124,6 +124,54 @@ export type ModuleAcknowledgedDependency = z.infer<
   typeof ModuleAcknowledgedDependencySchema
 >;
 
+/**
+ * An edge that is real to the container but does not bind the operator — D-44.
+ *
+ * `dependencies` is read as three claims at once: install-and-migration order,
+ * "the container resolution is declared", and "an operator may not switch the
+ * owner off underneath me". `acknowledgedDependencies` withdraws the first.
+ * This withdraws the third, and only the third: a module declares here that it
+ * reads a name `moduleId` owns and that it has a defined behaviour when
+ * `moduleId` is not there, so the flip-time refusal has nothing to protect.
+ *
+ * Read by `check-port-dependencies.ts`, which needs the ownership claim and
+ * nothing else, and — when the deactivation-consequence dialog ships — by
+ * `/platform/modules`, which renders {@link whenAbsent}. Read by **nothing
+ * else**: not `ModuleDepGraph`, not `db/migration-order.ts`, and not
+ * `ModuleGatingGraph` in either direction. A cross-module foreign key therefore
+ * still forces a `dependencies` entry, and `fk-dependency-drift.test.ts` still
+ * fails for one declared here instead.
+ *
+ * The two kinds are the two ways an edge can exist without the bind bit:
+ *
+ *  - **`contributes-to`** — the declaring module pushes an inert descriptor
+ *    into `moduleId`'s ungated registry at boot. It has no failure mode in
+ *    either direction: an absent contributor's descriptor is filtered by the
+ *    host at enumeration, and an absent host's registry is a table nobody
+ *    walks. `whenAbsent` is forbidden, because nothing degrades.
+ *  - **`degrades-without`** — the declaring module reads an answer from
+ *    `moduleId`, checks presence before it does, and keeps working with less.
+ *    `whenAbsent` is required and states that behaviour, which is what an
+ *    off-state test for the edge is held to.
+ *
+ * The fourth quadrant — order without bind — stays deliberately unspellable
+ * (Constitution IV). An edge that needs both goes back to `dependencies`, and
+ * the bind comes back with it.
+ */
+export const ModuleNonBindingDependencySchema = z.object({
+  /** The module that owns the registration. */
+  moduleId: z.string().regex(moduleIdRe),
+  /** The container registration name, e.g. `promptActionToolRegistry`. */
+  name: z.string().min(1),
+  kind: z.enum(['contributes-to', 'degrades-without']),
+  /** `degrades-without` only: what stops working. Rendered beside the control. */
+  whenAbsent: z.string().min(1).max(200).optional(),
+  reason: z.string().min(1).max(800),
+});
+export type ModuleNonBindingDependency = z.infer<
+  typeof ModuleNonBindingDependencySchema
+>;
+
 export const ModuleManifestSchema = z.object({
   id: z.string().regex(moduleIdRe),
   name: z.string().min(1).max(120),
@@ -137,6 +185,12 @@ export const ModuleManifestSchema = z.object({
    * order or the migration order.
    */
   acknowledgedDependencies: z.array(ModuleAcknowledgedDependencySchema).optional(),
+  /**
+   * Real container edges that deliberately do **not** bind the operator (D-44).
+   * Consumed by `check-port-dependencies.ts` for the ownership claim; read by
+   * no graph and by no ordering. See {@link ModuleNonBindingDependencySchema}.
+   */
+  nonBindingDependencies: z.array(ModuleNonBindingDependencySchema).optional(),
   license: ModuleLicenseTierSchema.optional(),
   /**
    * Operator-activation control (feature 073). Optional only while the
@@ -228,6 +282,66 @@ function assertActivationRules(id: string, activation: unknown): void {
 }
 
 /**
+ * The three `nonBindingDependencies` rules (D-44 §5).
+ *
+ * They sit beside the activation rules for the same reason: two of the three
+ * are cross-field — one reads `dependencies` and `acknowledgedDependencies`,
+ * one reads `kind` against `whenAbsent` — and the message has to name the
+ * module the author is looking at.
+ */
+function assertNonBindingRules(m: ModuleManifest): void {
+  const acknowledged = new Set(
+    (m.acknowledgedDependencies ?? []).map((edge) => edge.moduleId),
+  );
+  for (const edge of m.nonBindingDependencies ?? []) {
+    // 1. No self-edges. The array's element regex applies per element and
+    //    cannot see the outer id, exactly as with `dependencies`.
+    if (edge.moduleId === m.id) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares a non-binding dependency on ` +
+          `itself (forbidden).`,
+      );
+    }
+    // 2. One edge, one claim, in one place — the mirror of the
+    //    `acknowledgedDependencies` rule above. A target declared in either of
+    //    the other two arrays already carries the bind, so a withdrawal beside
+    //    it is a second record of the same edge that nothing keeps in step.
+    if (m.dependencies.includes(edge.moduleId)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares a non-binding dependency on ` +
+          `"${edge.moduleId}", which it already declares in \`dependencies\` — that ` +
+          `declaration already binds the operator, so drop one of the two.`,
+      );
+    }
+    if (acknowledged.has(edge.moduleId)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares a non-binding dependency on ` +
+          `"${edge.moduleId}", which it already acknowledges — an acknowledged edge is ` +
+          `read by the refusal graph, so the two claims contradict each other.`,
+      );
+    }
+    // 3. `whenAbsent` is the `degrades-without` kind's entire content: the
+    //    behaviour the module promises and the sentence the platform screen
+    //    renders. A `contributes-to` edge has no degradation to describe.
+    if (edge.kind === 'degrades-without' && edge.whenAbsent === undefined) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares "${edge.moduleId}:${edge.name}" ` +
+          `as \`degrades-without\` with no \`whenAbsent\` — the kind is a promise about ` +
+          `behaviour and the sentence is what a reviewer and an off-state test hold it to.`,
+      );
+    }
+    if (edge.kind === 'contributes-to' && edge.whenAbsent !== undefined) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares "${edge.moduleId}:${edge.name}" ` +
+          `as \`contributes-to\` with a \`whenAbsent\` — a push into an ungated registry ` +
+          `degrades nothing, so either drop the sentence or the edge is a pull and the ` +
+          `kind is \`degrades-without\`.`,
+      );
+    }
+  }
+}
+
+/**
  * Identity-with-validation helper for module authors. Modules export a
  * single `manifest` constant via this helper so TypeScript inference is
  * preserved and the loader can ingest the validated payload directly.
@@ -269,6 +383,7 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
       );
     }
   }
+  assertNonBindingRules(m);
   return ModuleManifestSchema.parse(m);
 }
 

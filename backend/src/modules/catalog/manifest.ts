@@ -61,6 +61,43 @@ export const manifest = defineModuleManifest({
         'on it, which is how this was found.',
     },
   ],
+  // D-44 — three edges that are real to the container and bind no operator.
+  nonBindingDependencies: [
+    {
+      moduleId: 'prompt_actions',
+      name: 'promptActionToolRegistry',
+      kind: 'contributes-to',
+      reason:
+        'A push, from this module’s boot hook, of the six assistant tools built over its ' +
+        'own admin services. It reads nothing back: the registry is a plain registration ' +
+        'that drops every tool whose owner is not effectively present, so an absent ' +
+        'contributor costs the host nothing and an absent host holds a table nobody walks. ' +
+        'Declaring the edge would make an optional assistant undeactivatable for as long as ' +
+        'the catalogue is present, which is a claim this contribution does not support.',
+    },
+    {
+      moduleId: 'api_keys',
+      name: 'requireApiKey',
+      kind: 'degrades-without',
+      whenAbsent: 'the external catalog namespace stops accepting machine-to-machine callers',
+      reason:
+        'The two gates guard `/api/v1/external/catalog/*` and the by-SKU upsert. Declaring ' +
+        '`api_keys` closes a cycle through `customer_accounts` → `price_lists` → `catalog`, ' +
+        'and acknowledging it would bind the operator instead. The namespace has a defined ' +
+        'behaviour without the module: the gate answers 401 rather than resolving a port ' +
+        'whose owner is gone, so the catalogue keeps serving its own surfaces and only the ' +
+        'machine-to-machine door closes.',
+    },
+    {
+      moduleId: 'api_keys',
+      name: 'requireBoundApiKey',
+      kind: 'degrades-without',
+      whenAbsent: 'the external catalog namespace stops accepting machine-to-machine callers',
+      reason:
+        'The organization-bound half of the gate above — same namespace, same cycle, same ' +
+        '401, and it drains with it.',
+    },
+  ],
   i18n: { bundlesDir: 'i18n' },
   actions: [
     {

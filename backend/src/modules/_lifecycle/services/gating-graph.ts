@@ -26,6 +26,18 @@ import { REGISTERED_MANIFESTS } from '../registered-manifests.js';
  * That asymmetry is the same trade the install order makes, applied to the
  * other axis, and it is why one union graph with two accessors beats two
  * graphs.
+ *
+ * **`manifest.nonBindingDependencies` is the third array and this class reads
+ * none of it** (D-44). Those edges are real container resolutions whose
+ * declaring module has a defined behaviour when the owner is absent — a boot
+ * push into an ungated registry, or a read guarded by an
+ * `effectiveState.isPresent` probe — so there is nothing for a refusal to
+ * protect and refusing anyway would kill the owner's activation control for no
+ * gain. {@link nonBindingPortEdgesFrom} flattens them for
+ * `check-port-dependencies.ts`, which wants the ownership claim and not the
+ * lifecycle one; the omission from the constructor below is the decision, not
+ * an oversight, and `test/unit/_lifecycle/gating-graph.test.ts` pins it in both
+ * directions.
  */
 
 /** One withheld edge, flattened from the declaring manifest. */
@@ -57,6 +69,49 @@ export function acknowledgedPortEdgesFrom(
         moduleId: manifest.id,
         dependsOn: edge.moduleId,
         port: edge.port,
+        reason: edge.reason,
+      });
+    }
+  }
+  return edges;
+}
+
+/** One non-binding edge, flattened from the declaring manifest — D-44. */
+export interface NonBindingPortEdge {
+  /** The module that reads the name. */
+  readonly moduleId: string;
+  /** The module that owns it. */
+  readonly dependsOn: string;
+  /** The container registration name, e.g. `promptActionToolRegistry`. */
+  readonly name: string;
+  readonly kind: 'contributes-to' | 'degrades-without';
+  /** What stops working — `degrades-without` only, `null` for a contribution. */
+  readonly whenAbsent: string | null;
+  readonly reason: string;
+}
+
+/**
+ * Every non-binding edge in a manifest set, keyed the way
+ * `check-port-dependencies.ts` needs them: `<resolving module>:<name>`.
+ *
+ * It sits beside {@link acknowledgedPortEdgesFrom} rather than in the check,
+ * for the reason that function exists: one declaration set, read by the check
+ * and by the runtime, so the two cannot disagree about which edges exist. What
+ * differs is who else reads it — an acknowledged edge reaches the graph below,
+ * a non-binding one reaches nothing.
+ */
+export function nonBindingPortEdgesFrom(
+  manifests: readonly ModuleManifest[],
+): NonBindingPortEdge[] {
+  const edges: NonBindingPortEdge[] = [];
+  for (const manifest of manifests) {
+    for (const edge of manifest.nonBindingDependencies ?? []) {
+      edges.push({
+        moduleId: manifest.id,
+        dependsOn: edge.moduleId,
+        name: edge.name,
+        kind: edge.kind,
+        whenAbsent: edge.whenAbsent ?? null,
         reason: edge.reason,
       });
     }

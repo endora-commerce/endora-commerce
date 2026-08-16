@@ -122,6 +122,21 @@ export const manifest = defineModuleManifest({
     'settings',
     'transactional_emails',
   ],
+  // D-44 — real to the container, binding on no operator.
+  nonBindingDependencies: [
+    {
+      moduleId: 'prompt_actions',
+      name: 'promptActionToolRegistry',
+      kind: 'contributes-to',
+      reason:
+        'A push, from this module’s boot hook, of the warehouse resolver and the ' +
+        '`set_stock_level` mutation built over its own services. Nothing is read back: ' +
+        'the registry is a plain registration that drops every tool whose owner is not ' +
+        'effectively present, so an absent contributor costs the host nothing and an ' +
+        'absent host holds a table nobody walks. Declaring the edge would make an ' +
+        'optional assistant undeactivatable for as long as stock is tracked.',
+    },
+  ],
   settings,
   // Feature 073 (Constitution XVII) — the operator's activation control.
   activation: { settingCode: 'inventory.enabled', default: true },

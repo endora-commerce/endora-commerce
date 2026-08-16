@@ -69,9 +69,6 @@ import type { ReturnsBridge } from './modules/returns/backend.js';
 import type { InvoicesBridge } from './modules/invoices/backend.js';
 import type { KsefCradle } from './modules/ksef/backend.js';
 import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
-import type { OrderListService } from './modules/orders/services/order-list-service.js';
-import type { OrderTransitionService } from './modules/orders/services/order-transition-service.js';
-import type { OrderService } from './modules/orders/services/order-service.js';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge, MfaCradle } from './modules/mfa/backend.js';
 import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
@@ -98,17 +95,7 @@ import type { NewsletterBridge } from './modules/newsletter/backend.js';
 import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
-import {
-  catalogBulkProgressResolver,
-  catalogPromptMutationTools,
-  catalogPromptResolverTools,
-} from './modules/catalog/prompt-tools.js';
-import { inventoryPromptTools } from './modules/inventory/prompt-tools.js';
-import { ordersPromptTools } from './modules/orders/prompt-tools.js';
-import type {
-  PromptActionTool,
-  PromptActionToolRegistry,
-} from './modules/prompt_actions/services/tool-registry.js';
+import { catalogBulkProgressResolver } from './modules/catalog/prompt-tools.js';
 import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
 import { loadModulePresence } from './modules/_lifecycle/services/presence-load.js';
@@ -892,14 +879,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // stamps into URLs. Plugin is pushed onto `modules` further below.
   // Feature 072 (T117) — `seo` owns its services and routes now.
   let shoppingListService: ShoppingListService | null = null;
-  // Feature 072 (T141) — the three services `orders` used to hand out through
-  // `expose…` callbacks into variables held here are ports now. The module owns
-  // the binding; this root reads the accessors like any other consumer.
-  const ordersCradle = (): {
-    orderServiceAccessor: () => OrderService | null;
-    orderListServiceAccessor: () => OrderListService | null;
-    orderTransitionServiceAccessor: () => OrderTransitionService | null;
-  } => container.cradle as never;
 
   // Feature 072 (T079) — the platform mailer, resolved from the container the
   // `email` module registered it into. Six senders share it, which is why it
@@ -2173,44 +2152,26 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // registry cache and resuming workers. Its routes are the module's own now.
   modules.push(lifecycle.plugin);
 
-  // Feature 043 — prompt assistant for the admin command palette. The module
-  // owns the registry port; catalog/inventory contribute their tool handlers
-  // here (adapter-registry pattern — Principle I).
-  const catalogToolDeps = {
-    emFactory: em,
-    events: eventBus,
-    auditLogService,
-    salesChannelMembership: salesChannels.membershipService,
-    redis,
-  };
-  // Feature 072 — the module composed itself; what is left
-  // here is the one thing a module cannot do for itself: hand it the
-  // contributions of whichever modules this deployment happens to ship.
-  registerValues(container, {
-    promptActionsBulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
-  });
-  const promptActionToolRegistry = (
-    container.cradle as unknown as { promptActionToolRegistry: PromptActionToolRegistry }
-  ).promptActionToolRegistry;
-  // Feature 043 — per-module AI-assistant command registration.
+  // Feature 043 — prompt assistant for the admin command palette.
   //
-  // Each module contributes its prompt-action tools (resolvers + mutations) as
-  // a flat `PromptActionTool[]`; the registry validates `<moduleId>.*` id
-  // prefixing, uniqueness, and the mutation-preview rule on `register()`.
-  // Onboarding a new module's assistant commands is exactly one entry here —
-  // see `prompt_actions/PROMPT_TOOLS.md` for the contribution contract.
-  const promptActionToolProviders: PromptActionTool[] = [
-    ...catalogPromptResolverTools(catalogToolDeps),
-    ...catalogPromptMutationTools(catalogToolDeps),
-    ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
-    ...ordersPromptTools({
+  // The **tools** left this root with D-44: `catalog`, `inventory` and `orders`
+  // each push their own from their own boot hook, declaring the edge as
+  // `nonBindingDependencies` — a contribution that says nothing about who may
+  // switch whom off. What a root cannot hand over is a name a module *defaults*:
+  // `prompt_actions` registers `promptActionsBulkProgressResolver` as `undefined`
+  // for a deployment that ships no `catalog`, and a module may not write a name
+  // another module owns (`kernel.md`). So this one stays here, in the single slot
+  // between `composeModules` and `runBootHooks` (D-45), until `prompt_actions`
+  // turns that slot into a registry keyed by contributing module.
+  registerValues(container, {
+    promptActionsBulkProgressResolver: catalogBulkProgressResolver({
       emFactory: em,
-      getTransitionService: () => ordersCradle().orderTransitionServiceAccessor(),
+      events: eventBus,
+      auditLogService,
+      salesChannelMembership: salesChannels.membershipService,
+      redis,
     }),
-  ];
-  for (const tool of promptActionToolProviders) {
-    promptActionToolRegistry.register(tool);
-  }
+  });
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings
