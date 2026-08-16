@@ -332,6 +332,14 @@ literals (`pnpm --filter backend run i18n:hardcoded`).
 
 ## Static checks and their escape hatches
 
+**Adding or changing a check?** It needs an entry in
+`backend/test/unit/scripts/check-inventory.test.ts` (which enumerates every `check-*` script
+and fails on one it does not name), a companion test that drives it **red on synthetic
+input**, and an exit code of **2** for "nothing was read" — an empty file list, a missing
+input, a tree it could not walk. A green result must not be able to mean "not looking":
+that is issue #113, and `docs/docs/architecture/kernel.md` § *Writing a check that can go
+red* is the working guide.
+
 Both run in CI as GitLab's `quality:static` job — full tree, every MR and every push to
 `master`. They need only bash, grep, perl and POSIX awk (no `pnpm install`), so keep them
 free of gawk-isms and of anything that assumes a node toolchain. Neither script may pass on

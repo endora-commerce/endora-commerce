@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -5,6 +6,8 @@ import {
   analyzeClosure,
   analyzePlatformImports,
   analyzeSource,
+  collectSources,
+  RELATION_DECORATOR_HINT,
   importFindingKey,
   isDraining,
   isImportViolation,
@@ -145,6 +148,52 @@ describe('analyzeSource', () => {
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('kernel');
     expect(isViolation(findings[0]!)).toBe(false);
+  });
+});
+
+/**
+ * What rule A looks at (issue #113). The rule was scoped to `*.entity.ts`,
+ * which is a filename convention nothing enforces: a relation declared in an
+ * `entities/index.ts` or in an ordinary service file was not permitted, it was
+ * unread — and an unread file and a clean one produce the same green line.
+ */
+describe('rule A — the scan scope', () => {
+  const srcRoot = join(BACKEND_ROOT, 'src');
+
+  it('collects sources that are not named *.entity.ts', () => {
+    const files = collectSources(srcRoot);
+    expect(files.length).toBeGreaterThan(500);
+    expect(files.some((f) => f.endsWith('/backend.ts'))).toBe(true);
+    expect(files.every((f) => !f.endsWith('.test.ts'))).toBe(true);
+  });
+
+  it('flags a cross-module relation declared in a file with no entity suffix', () => {
+    const findings = analyzeSource(
+      ENTITY('@OneToMany(() => Category, (c) => c.thing)', CATALOG_CATEGORY_IMPORT),
+      moduleFile('search/entities/index.ts'),
+    );
+    expect(findings).toHaveLength(1);
+    expect(isViolation(findings[0]!)).toBe(true);
+  });
+
+  it('the pre-filter admits every relation decorator and nothing else', () => {
+    for (const decorator of ['ManyToOne', 'OneToMany', 'OneToOne', 'ManyToMany']) {
+      expect(RELATION_DECORATOR_HINT.test(`  @${decorator}(() => X)`), decorator).toBe(true);
+    }
+    expect(RELATION_DECORATOR_HINT.test('@Property({ type: "uuid" })')).toBe(false);
+    expect(RELATION_DECORATOR_HINT.test('@Entity()')).toBe(false);
+  });
+
+  it('every relation in the tree sits in a file the pre-filter keeps', () => {
+    // The filter is the scan scope now, so its recall is the rule's reach.
+    const kept = collectSources(srcRoot).filter((f) =>
+      RELATION_DECORATOR_HINT.test(readFileSync(f, 'utf8')),
+    );
+    expect(kept.length).toBeGreaterThan(0);
+    const missed = collectSources(srcRoot).filter(
+      (f) => !kept.includes(f) && /@(?:ManyToOne|OneToMany|OneToOne|ManyToMany)/.test(readFileSync(f, 'utf8')),
+    );
+    expect(missed).toEqual([]);
   });
 });
 

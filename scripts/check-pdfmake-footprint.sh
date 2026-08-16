@@ -24,9 +24,13 @@ cd "$REPO_ROOT"
 # not a tight budget.
 MAX_BYTES=$((32 * 1024 * 1024))
 
+# Both preconditions below used to `exit 0` with a "skipping" line. A gate that
+# reports success when it measured nothing is indistinguishable from one that
+# measured and approved — the whole of issue #113 — so an unmeasurable run exits
+# 2: not clean (0), not over budget (1), but "this said nothing".
 if ! command -v du >/dev/null 2>&1; then
-  echo "[pdfmake-gate] du(1) is not available; skipping the footprint check." >&2
-  exit 0
+  echo "[pdfmake-gate] du(1) is not available — refusing to report a vacuous pass." >&2
+  exit 2
 fi
 
 # pnpm hoists pdfmake into .pnpm/pdfmake@<version>/node_modules/pdfmake.
@@ -44,8 +48,8 @@ for c in "${candidates[@]}"; do
   fi
 done
 if [ -z "$target" ]; then
-  echo "[pdfmake-gate] pdfmake not installed; skipping (run pnpm install first)." >&2
-  exit 0
+  echo "[pdfmake-gate] pdfmake is not installed — nothing was measured; run pnpm install first." >&2
+  exit 2
 fi
 
 actual=$(du -sb "$target" | awk '{print $1}')

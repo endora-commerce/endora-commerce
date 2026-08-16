@@ -29,19 +29,62 @@
  * Uniform indentation is normalised, so a block may be dedented for reading.
  * Nothing else is: if the code changed, the document is wrong and says so.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 
-/** Documents whose fenced blocks participate. Add a file, get the guarantee. */
-export const CHECKED_DOCUMENTS: readonly string[] = [
-  'specs/072-module-kernel-di/quickstart.md',
-  'specs/073-lifecycle-gating-completion/quickstart.md',
-];
+/**
+ * Where a citing document may live. Everything under these roots is walked.
+ *
+ * Membership used to be an opt-in list of two files, and one of the two carried
+ * no marker at all while a third document that did (`d37-relocation-plan.md`)
+ * was not on it — so the check reported "2 documents checked" over one document
+ * that participated (issue #113). A marker is now the only thing that enrols a
+ * file: writing one is the act of asking for the guarantee, which is what the
+ * marker already reads as.
+ */
+export const DOCUMENT_ROOTS: readonly string[] = ['docs/docs', 'specs'];
 
 const MARKER = /^<!--\s*verbatim-from:\s*(\S+?)\s*-->$/;
+
+/** The substring that makes a file worth parsing — see {@link MARKER} for the shape. */
+const MARKER_HINT = 'verbatim-from:';
+
+/**
+ * Every markdown file under {@link DOCUMENT_ROOTS} that cites a source file,
+ * as a path relative to the repository root, sorted for a stable report.
+ *
+ * `read` is injected so the discovery itself can be driven over a synthetic
+ * tree; `list` is the directory walk, for the same reason.
+ */
+export function discoverCitingDocuments(
+  repoRoot: string = REPO_ROOT,
+  read: (p: string) => string = (p) => readFileSync(p, 'utf8'),
+): string[] {
+  const found: string[] = [];
+  const walk = (dir: string): void => {
+    let names: string[];
+    try {
+      names = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      if (name === 'node_modules' || name === 'build' || name.startsWith('.')) continue;
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!name.endsWith('.md')) continue;
+      if (read(full).includes(MARKER_HINT)) found.push(relative(repoRoot, full));
+    }
+  };
+  for (const root of DOCUMENT_ROOTS) walk(join(repoRoot, root));
+  return found.sort();
+}
 
 export interface SnippetFinding {
   readonly doc: string;
@@ -159,13 +202,24 @@ export function checkDocument(docPath: string, readFile: (p: string) => string):
 
 function main(): void {
   const read = (p: string): string => readFileSync(p, 'utf8');
-  const findings = CHECKED_DOCUMENTS.flatMap((d) => checkDocument(d, read));
+  const documents = discoverCitingDocuments();
+  if (documents.length === 0) {
+    // Discovery finding nothing is indistinguishable, on the exit code, from
+    // every quotation being correct. It means the walk broke or the roots
+    // moved, and the guarantee is off for every document at once.
+    console.error(
+      `[doc-snippets] no document under ${DOCUMENT_ROOTS.join(', ')} cites a source file — ` +
+        'refusing to report a vacuous pass',
+    );
+    process.exit(2);
+  }
+  const findings = documents.flatMap((d) => checkDocument(d, read));
 
   for (const f of findings) {
     console.error(`[doc-snippets] ${f.doc}:${f.docLine} → cites ${f.source}\n      ${f.message}`);
   }
 
-  const scanned = CHECKED_DOCUMENTS.length;
+  const scanned = documents.length;
   if (findings.length > 0) {
     console.error(
       `\n[doc-snippets] ${findings.length} stale snippet(s) across ${scanned} document(s).\n` +

@@ -371,6 +371,16 @@ function main(): void {
 
   const modulesRoot = join(process.cwd(), 'src', 'modules');
   const files = collectServiceFiles(modulesRoot);
+  if (files.length === 0) {
+    // Run from the wrong directory, or after a layout change, the walk finds
+    // nothing and every write in the platform passes unexamined. Exit 2: a
+    // green line here would say "no unaudited write", which is not what it
+    // would mean.
+    process.stderr.write(
+      `[command-coverage] no service files under ${modulesRoot} — refusing to report a vacuous pass\n`,
+    );
+    process.exit(2);
+  }
 
   let blocking = 0;
   let reportOnly = 0;

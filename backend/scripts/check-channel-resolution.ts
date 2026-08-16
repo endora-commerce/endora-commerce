@@ -418,6 +418,12 @@ function main(): void {
   const enforce = process.argv.includes('--enforce');
   const listMode = process.argv.includes('--list');
   const files = walk(SRC_ROOT);
+  if (files.length === 0) {
+    console.error(
+      '[channel-resolution] no sources under src/ — refusing to report a vacuous pass',
+    );
+    process.exit(2);
+  }
 
   const all: Violation[] = [];
   for (const file of files) {

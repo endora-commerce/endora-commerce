@@ -150,6 +150,10 @@ export function staleAllowances(entries: readonly EntryPoint[]): string[] {
 function main(): void {
   const listMode = process.argv.includes('--list');
   const files = walk(SRC_ROOT);
+  if (files.length === 0) {
+    console.error('[entry-scope] no sources under src/ — refusing to report a vacuous pass');
+    process.exit(2);
+  }
   const entries = files
     .map((f) => analyzeSource(f, readFileSync(f, 'utf8')))
     .filter((e): e is EntryPoint => e !== null);
@@ -166,6 +170,17 @@ function main(): void {
       console.log(`${tag} ${entry.kind.padEnd(8)} ${relative(entry.file)}`);
     }
     console.log('');
+  }
+
+  // The tree has fifteen CLI scripts, eleven workers and four sweeps. Finding
+  // none of them means the classifier stopped recognising an entry point, which
+  // reads exactly like a clean tree and is not one.
+  if (entries.length === 0) {
+    console.error(
+      '[entry-scope] no entry point recognised in the whole tree — ' +
+        'refusing to report a vacuous pass',
+    );
+    process.exit(2);
   }
 
   const byKind = (kind: EntryKind): number => entries.filter((e) => e.kind === kind).length;
