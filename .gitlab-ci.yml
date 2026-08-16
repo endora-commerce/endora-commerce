@@ -111,6 +111,21 @@ quality:
     # envelope does not read, while all six of its codes rendered untranslated.
     # The ledger is the standing debt and may only shrink.
     - pnpm --filter backend run check:error-translations
+    # Feature 021 / Principle VIII (issue #116) — a user-visible string in the
+    # admin SPA is a translation key, not a literal. `AGENTS.md` has cited this
+    # script as the gate since 021 and it ran in no job at all: first because its
+    # default root resolved against the working directory and read zero files,
+    # then because fixing that surfaced 274 findings across 47 screens. It runs
+    # against HARDCODED_STRINGS_BASELINE, a two-way per-file ratchet — a new
+    # string fails, and so does a number left standing after the strings under it
+    # were translated.
+    - pnpm --filter backend run i18n:hardcoded
+    # Constitution IV — pdfmake's bundled fonts set the single-VPS disk floor.
+    # Also in no job until issue #116, on the stated grounds that it needs an
+    # installed node_modules — which this job has had all along, in
+    # `before_script`. It measures a real directory or exits 2; it never reports
+    # a budget it did not measure.
+    - pnpm run check:pdfmake-footprint
     # Feature 057 (FR-006/SC-003) — the manifest index + override manifest
     # regenerate deterministically for the bare-core build; `overlay:check`
     # regenerates and fails on ANY drift (identical inputs ⇒ identical artifact).

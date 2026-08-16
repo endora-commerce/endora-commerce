@@ -1,10 +1,17 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { analyzeSource, collectTsxFiles } from '../../../scripts/i18n-hardcoded-strings.js';
+import {
+  analyzeSource,
+  collectTsxFiles,
+  compareToBaseline,
+  countByFile,
+  HARDCODED_STRINGS_BASELINE,
+  type Finding,
+} from '../../../scripts/i18n-hardcoded-strings.js';
 
 /**
- * The hard-coded-string rule's own test (issue #113).
+ * The hard-coded-string rule's own test (issue #113, issue #116).
  *
  * The walk was reachable only through `main`, so nothing exercised it, and the
  * default root was `admin/src` resolved against the working directory — which
@@ -12,9 +19,11 @@ import { analyzeSource, collectTsxFiles } from '../../../scripts/i18n-hardcoded-
  * i18n:hardcoded` runs) matches nothing. The check read zero files, reported
  * "0 finding(s) across 0 file(s)" and exited 0 for as long as it has existed.
  *
- * So two things are proved here: the analysis goes **red** on each shape the
- * header claims to flag, and the default root is a real directory with `.tsx`
- * files under it.
+ * Fixing that revealed 274 findings across 47 files, which is why the check ran
+ * in no CI job even after it could see anything: strict would have failed on
+ * history. It runs against a per-file baseline now, and the half of that which
+ * rots is the second one — so both directions are driven here, on counts the
+ * repository does not contain.
  */
 
 const FILE = '/repo/admin/src/pages/orders/order-list.tsx';
@@ -63,5 +72,68 @@ describe('the default scan root', () => {
     const files: string[] = [];
     collectTsxFiles(adminSrc, files);
     expect(files.length).toBeGreaterThan(100);
+  });
+});
+
+describe('countByFile', () => {
+  it('groups findings by a path relative to the scan root', () => {
+    const findings: Finding[] = [
+      { filePath: '/repo/admin/src/pages/a.tsx', line: 1, column: 1, text: 'A', kind: 'jsx-text' },
+      { filePath: '/repo/admin/src/pages/a.tsx', line: 2, column: 1, text: 'B', kind: 'jsx-text' },
+      { filePath: '/repo/admin/src/b.tsx', line: 1, column: 1, text: 'C', kind: 'jsx-attr' },
+    ];
+    expect([...countByFile(findings, '/repo/admin/src')]).toEqual([
+      ['pages/a.tsx', 2],
+      ['b.tsx', 1],
+    ]);
+  });
+});
+
+describe('the baseline ratchet goes red in BOTH directions', () => {
+  const baseline = { 'pages/orders.tsx': 3 } as const;
+
+  it('flags a file that gained a hard-coded string', () => {
+    const verdict = compareToBaseline(new Map([['pages/orders.tsx', 4]]), baseline);
+    expect(verdict.regressions).toEqual([{ file: 'pages/orders.tsx', baseline: 3, actual: 4 }]);
+    expect(verdict.drained).toEqual([]);
+  });
+
+  it('flags a file the ledger never mentioned', () => {
+    const verdict = compareToBaseline(new Map([['pages/new-screen.tsx', 1]]), baseline);
+    expect(verdict.regressions).toEqual([{ file: 'pages/new-screen.tsx', baseline: 0, actual: 1 }]);
+  });
+
+  it('flags a ledger entry that describes a debt already paid', () => {
+    // The half that rots. A number left standing after the strings were
+    // translated is a claim the tree stopped backing, which is the whole of
+    // what makes an allow-list rather than a ratchet.
+    const verdict = compareToBaseline(new Map([['pages/orders.tsx', 1]]), baseline);
+    expect(verdict.drained).toEqual([{ file: 'pages/orders.tsx', baseline: 3, actual: 1 }]);
+    expect(verdict.regressions).toEqual([]);
+  });
+
+  it('flags a ledger entry whose file is clean or gone', () => {
+    expect(compareToBaseline(new Map(), baseline).drained).toEqual([
+      { file: 'pages/orders.tsx', baseline: 3, actual: 0 },
+    ]);
+  });
+
+  it('is silent when the tree matches the ledger exactly', () => {
+    expect(compareToBaseline(new Map([['pages/orders.tsx', 3]]), baseline)).toEqual({
+      regressions: [],
+      drained: [],
+    });
+  });
+});
+
+describe('the tree itself (what CI asserts)', () => {
+  it('matches HARDCODED_STRINGS_BASELINE exactly — no new string, no stale entry', () => {
+    const adminSrc = fileURLToPath(new URL('../../../../admin/src', import.meta.url));
+    const files: string[] = [];
+    collectTsxFiles(adminSrc, files);
+    const findings = files.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
+    const verdict = compareToBaseline(countByFile(findings, adminSrc), HARDCODED_STRINGS_BASELINE);
+    expect(verdict.regressions).toEqual([]);
+    expect(verdict.drained).toEqual([]);
   });
 });

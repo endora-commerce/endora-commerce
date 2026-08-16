@@ -330,7 +330,13 @@ Full guide: `docs/docs/architecture/migrations.md`; contracts under
 ### i18n
 
 All user-facing strings ship in **both `en` and `pl`**; a static CI check rejects hard-coded
-literals (`pnpm --filter backend run i18n:hardcoded`).
+literals in the admin SPA (`pnpm --filter backend run i18n:hardcoded`, in the `quality` job since
+issue #116 — before that it was cited here while running nowhere). It compares the tree to
+`HARDCODED_STRINGS_BASELINE`, a **per-file two-way ratchet** over the 274 pre-existing findings: a
+new hard-coded string fails, and so does a baseline number left standing after the strings under it
+were translated. Never raise a number to make the build pass — add the key. Run
+`pnpm --filter backend run i18n:hardcoded -- --strict` to see the whole remaining debt, or pass one
+path while draining a screen.
 
 ## Static checks and their escape hatches
 
