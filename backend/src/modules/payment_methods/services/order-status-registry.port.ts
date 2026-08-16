@@ -38,6 +38,28 @@ const humanize = (code: string): string =>
 
 /**
  * Default enum-backed implementation. Seed set = the order `status` enum.
+ *
+ * **The absent-owner policy this registry states (issue #129): honour — and the
+ * reason is that there is nothing to skip.** It is named a registry, and the
+ * ledger classifies it as a contribution seam because `payments` reads it across
+ * a module boundary, but no module contributes to it: the option set is
+ * `orderStatusSchema`, fixed at compile time, so it holds no per-contributor
+ * state that an operator's flip could invalidate and no entry that could outlive
+ * the module that pushed it.
+ *
+ * Filtering would therefore not withdraw a stale answer, it would withdraw the
+ * only answer — and the reads are guards rather than surfaces. `payments` asks
+ * `has` before moving an order into the status a settled payment names, so a
+ * skip would silently leave a paid order in its old status; a throw would make a
+ * PSP webhook retry forever. Every status here is one live orders are already
+ * in, and a status an order is in has to stay nameable while the module holding
+ * this table is off. The buyer-facing consequence of that module being off is
+ * carried where it belongs: `payment_methods` closes its own catalogue at its
+ * own seam, and `orders` declares the sentence an operator is shown.
+ *
+ * The policy is structural rather than promised: the class takes no presence
+ * input, so no read of it can be made to drop a status without changing the
+ * policy first.
  */
 export class EnumOrderStatusRegistry implements OrderStatusRegistry {
   private readonly codes: readonly string[] = orderStatusSchema.options;

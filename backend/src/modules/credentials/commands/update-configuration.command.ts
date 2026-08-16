@@ -1,6 +1,7 @@
 import { ERROR_CODES, type UpdateConfiguration } from '@b2b/contracts';
 import type { AuditState, Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
+import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { CredentialConfiguration } from '../entities/credential-configuration.entity.js';
 import type { ConfigurationTypeRegistry } from '../services/configuration-type-registry.js';
 import {
@@ -25,8 +26,12 @@ export function makeUpdateConfigurationCommand(input: {
 }): Command<CredentialConfiguration> {
   const { code, data, registry, secretEncryptionKey } = input;
 
+  // The registry's diagnostic read (issue #129), for the same reason as in the
+  // delete command: an audit snapshot must know which value was a secret
+  // whatever the contributing module's state. The write itself reads the acting
+  // side and refuses — see `run`.
   const loadVariantFields = (entity: CredentialConfiguration) => {
-    const descriptor = registry.get(entity.typeCode);
+    const descriptor = registry.entry(entity.typeCode);
     const variant = descriptor?.providers.find((p) => p.code === entity.providerCode);
     return variant?.fields ?? [];
   };
@@ -58,6 +63,16 @@ export function makeUpdateConfigurationCommand(input: {
           ERROR_CODES.VERSION_CONFLICT,
           'The configuration was modified by someone else. Reload and try again.',
         );
+      }
+
+      // The acting read, and the two "no descriptor" answers kept apart: a type
+      // nobody registers is the inert row FR-016 describes, while a type whose
+      // contributing module is switched off comes straight back with that module
+      // — so it refuses with the 503 envelope naming it, rather than telling an
+      // operator their configuration has lost its type.
+      const owner = registry.ownerOf(entity.typeCode);
+      if (owner !== null && !registry.isAvailable(entity.typeCode)) {
+        throw new ModuleDisabledError(owner);
       }
 
       const descriptor = registry.get(entity.typeCode);

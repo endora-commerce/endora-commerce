@@ -152,9 +152,17 @@ export class CredentialsService {
     };
   }
 
-  /** Map an entity to a masked DTO, marking unregistered-type rows as inert. */
+  /**
+   * Map an entity to a masked DTO, marking unregistered-type rows as inert.
+   *
+   * The registry's **diagnostic** read (issue #129): a stored configuration
+   * whose contributing module is merely switched off keeps its label and its
+   * field shape, because deactivation drops no data and an inert row would say
+   * the type is gone. `resolve` above stays on the acting read, so nothing
+   * decrypted leaves for the same configuration.
+   */
   private toDto(entity: CredentialConfiguration): ConfigurationDto {
-    const descriptor = this.deps.registry.get(entity.typeCode);
+    const descriptor = this.deps.registry.entry(entity.typeCode);
     const variant = descriptor?.providers.find((p) => p.code === entity.providerCode);
     const inert = !descriptor || !variant;
     return {

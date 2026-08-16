@@ -317,6 +317,37 @@ already gets. The presence probe is wired at the singleton
 twin gives: a registry a test builds for itself must keep answering about the
 handlers that test registered.
 
+**Three more converted with issue #129, and they did not get one answer, because
+"state a policy" is a question rather than a sweep.** `ConfigurationTypeRegistry`
+(`credentials`) states **skip**, on the ground the skip column already gives: a
+configuration type is what the credentials screen offers to configure and what a
+write is validated against, so a capability an operator switched off is neither
+offered nor creatable, and `resolve` raises `ModuleDisabledError` naming the
+contributor. Its contributor was already recorded — the descriptor carries
+`ownerModule` — so the host had the id and was simply not consulting it. The
+split is the adapter registries': `entry`, `ownerOf`, `isRegistered` and
+`listAll` stay presence-blind, and the paths that read them are the ones that
+*render* a stored configuration and the ones that redact it into an audit
+snapshot, which must keep knowing which of its values was a secret. Its probe is
+the tri-state `effectiveState.presenceOf`, not `isPresent`: this registry is the
+seam an overlay or external module pushes a type through, so `ownerModule` may
+be a string no manifest declares, and collapsing "unknown id" into "absent"
+would filter the extension point away.
+
+The two order-status registries — `payment_methods:paymentOrderStatusRegistry`
+and its `delivery_methods` twin — state **honour**, and the reason is that there
+is nothing to skip. The ledger classifies them as contribution seams because
+`payments` and `shipments` read them across a module boundary, but no module
+contributes to either: the option set is `orderStatusSchema`, fixed at compile
+time. The reads are guards rather than surfaces — `has` is asked before an order
+is moved into the status a settlement names — so a skip would leave a paid or
+shipped order silently in its old status, and every code in the table is one live
+orders are already in. The policy is structural rather than promised: the class
+takes no presence input, so no read of it can be made to drop a status without
+changing the policy first. What an operator loses by switching those modules off
+is carried where it belongs — each module closes its own catalogue at its own
+seam, and `orders` declares the sentence the confirmation dialog renders.
+
 ## The deactivation-consequence ledger
 
 Principle XVII's flip-time refusal is becoming an informed confirmation
