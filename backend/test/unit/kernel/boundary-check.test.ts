@@ -82,6 +82,16 @@ describe('isViolation', () => {
 const CATALOG_CATEGORY_IMPORT =
   "import { Category } from '../../catalog/entities/category.entity.js';";
 
+/**
+ * Derived, never written out. `analyzeSource` reads the owning module out of the
+ * path and resolves the relation target as a file on disk, so a literal path
+ * only works on the machine it was typed on: in CI the checkout lives under
+ * `/builds/…`, every lookup missed, and three cases failed with "expected [] to
+ * have a length of 1" — green locally, red in the pipeline.
+ */
+const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const moduleFile = (relative: string): string => join(BACKEND_ROOT, 'src/modules', relative);
+
 describe('analyzeSource', () => {
   it('finds the relation target through the import that declares it', () => {
     const findings = analyzeSource(
@@ -89,7 +99,7 @@ describe('analyzeSource', () => {
         '@ManyToOne(() => Category, { fieldName: "category_id" })',
         CATALOG_CATEGORY_IMPORT,
       ),
-      '/home/mzabielski/www/b2b-platform/backend/src/modules/search/entities/search-phrase-record.entity.ts',
+      moduleFile('search/entities/search-phrase-record.entity.ts'),
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
@@ -104,7 +114,7 @@ describe('analyzeSource', () => {
   it('ignores a plain @Property — an FK column is not an ORM relation', () => {
     const findings = analyzeSource(
       ENTITY('@Property({ type: "uuid" })', CATALOG_CATEGORY_IMPORT),
-      '/home/mzabielski/www/b2b-platform/backend/src/modules/search/entities/x.entity.ts',
+      moduleFile('search/entities/x.entity.ts'),
     );
     expect(findings).toEqual([]);
   });
@@ -115,7 +125,7 @@ describe('analyzeSource', () => {
         '@ManyToMany({ entity: () => Category, pivotTable: "setting_categories" })',
         CATALOG_CATEGORY_IMPORT,
       ),
-      '/home/mzabielski/www/b2b-platform/backend/src/modules/settings/entities/setting.entity.ts',
+      moduleFile('settings/entities/setting.entity.ts'),
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('catalog');
@@ -127,7 +137,7 @@ describe('analyzeSource', () => {
         '@ManyToOne(() => SalesChannel, { fieldName: "sales_channel_id" })',
         "import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';",
       ),
-      '/home/mzabielski/www/b2b-platform/backend/src/modules/search/entities/search-phrase-record.entity.ts',
+      moduleFile('search/entities/search-phrase-record.entity.ts'),
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('kernel');
@@ -169,7 +179,6 @@ describe('the pending-relocation ratchet', () => {
  * so the check has to be able to go **red** on shapes the tree does not contain
  * yet — every specifier form of the plan's §4.2 table.
  */
-const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const kernelFile = (relative: string): string => join(BACKEND_ROOT, 'src/kernel', relative);
 
 describe('analyzeKernelImports', () => {
