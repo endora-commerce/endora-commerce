@@ -63,10 +63,19 @@ It looks at **direct specifiers only**: `src/http/error-envelope.ts` imports
 `ERROR_TRANSLATION_KEYS` from `src/modules/_i18n/`, and `src/http/` is a *peer*
 of the kernel, so the kernel still reaches `_i18n` transitively through it. A
 transitive rule would have failed on day one for a file D-37 does not touch.
-Cleaning that up is part of the `src/http` / `src/events` / `src/tenancy`
-peer-boundary question, which is D-32's unfinished half. The second limit: a
-colocated `*.test.ts` under `src/kernel/` is not scanned, because a test may
-import a fixture and is not the artefact packaging cares about.
+The second limit: a colocated `*.test.ts` under `src/kernel/` is not scanned,
+because a test may import a fixture and is not the artefact packaging cares
+about.
+
+That first limit is **decided and not yet implemented**. D-52 … D-57
+(`specs/072-module-kernel-di/kernel-peer-boundary.md`, issues #91/#92) classify
+`src/events`, `src/http` and `src/tenancy` as **kernel-obeying platform peers**:
+platform infrastructure the kernel cannot compile without, and therefore bound by
+the same rule. D-53 widens the check from one hard-coded path test to a set of
+declared platform roots and adds a closure backstop; D-54 turns the one live
+violation — that `ERROR_TRANSLATION_KEYS` import — into an injection. Until those
+land, read the rule as covering `src/kernel/**` only. `src/db`, `src/overlay` and
+`src/commands` are outside that decision on purpose.
 
 `ports/organizations.ts` shows the split at its clearest — and also the one place
 it is not yet true. The kernel declares
@@ -78,13 +87,21 @@ platform-wide and the behaviour stays in the module that owns the table.
 
 The port does, however, **type** all three of its methods with the `Organization`
 entity class, imported from `organizations` — so the kernel borrows a shape it
-does not own, which is the surviving ledger entry. Dissolving it is a design
-decision, not a file move: either the kernel declares a structural
-`OrganizationSnapshot` and `organizations` maps its entity onto it, or the entity
-follows `SalesChannel` into the kernel as D-32/T019 did. Twenty-three modules
-import that class directly, and the second option costs a coordinated database
-rebuild, so the question belongs to whoever owns the F3/F4 packaging boundary.
-Until it is answered the check reports it on every run.
+does not own, which is the surviving ledger entry.
+
+**D-55 answered it: the kernel declares a structural `OrganizationSnapshot`
+(`{ id, status }`, with `OrganizationStatus` from `@b2b/contracts`) and the
+entity stays in `organizations`.** Because TypeScript is structural,
+`OrganizationContextService` satisfies the retyped port with no implementation
+change, so the mapping layer the ledger anticipated costs nothing and the blast
+radius is one file. Relocating the entity — the `SalesChannel` move's shape — was
+rejected on measurement rather than taste: `organizations` ships eight migrations
+and six of them also create module-owned tables, so it is a migration split, eight
+class renames and a coordinated `db:fresh` for every developer, where
+`sales_channels` shipped zero migrations and its table was already `core`.
+
+The decision has not shipped yet, so the check still reports the edge on every
+run.
 
 ## Registering: the three seams
 
@@ -233,7 +250,27 @@ Two answers are legitimate, and which one is right depends on what the entry is:
   skipping would not remove a row, it would create one with an empty template.
 
 All four registries D-39 converted honour, each with its reason in place; the
-policies are pinned by `backend/test/unit/kernel/contribution-seams.test.ts`.
+policies are pinned by `backend/test/unit/kernel/contribution-seams.test.ts`
+(`emailDefaultsPort`, `assetReferenceRegistry`, `cmsReferenceRegistry`,
+`megamenuReferenceRegistry`).
+
+**Two more registries state the opposite policy, and they are the worked *skip*
+example** (issue #96, 2026-08-15). `PaymentAdapterRegistry` and
+`ShippingAdapterRegistry` stamp the contributing module on every entry and split
+their surface by who is asking: `get`, `resolve` and `list` filter on the
+owner's effective state — a buyer never sees a payment method that cannot take
+their money, and `resolve` raises the ordinary `ModuleDisabledError` — while
+`entry`, `ownerOf`, `isRegistered` and `listAll` deliberately do not, because the
+admin screen keeps showing the row *and* the reason it is unavailable. Switching
+a module off is not uninstalling it. The presence probe is injected at the
+process singleton (`payment_methods/services/registry-singleton.ts`) rather than
+baked into the class, so a registry a test builds for itself keeps answering
+about the adapters that test registered.
+
+One registry of the same family is still unconverted: `gatewayRefundRegistry`
+(`payments/services/gateway-refund-registry.js`) is imported directly by
+`stripe`, `tpay` and `autopay`, records no contributing module id, and states no
+policy for an absent owner.
 
 **Do not wrap a port call in a bare `catch`.** `lazyPort` resolves inside the
 forwarded call, so `ModuleDisabledError` surfaces at the call site, and a
@@ -393,11 +430,21 @@ kernel cache invalidators — `composeSettingsKernel` and
 `composeSalesChannelsKernel`, each of which attaches one — are composed **before**
 `composeModules(MODULES, …)` in both roots. A module subscribing to
 `settings.value_changed` ahead of the settings cache's own invalidator runs its
-handler against the pre-write value; five modules subscribe to that event
-(`blog`, `google_analytics`, `google_tag_manager`, `linkedin_ads`, `meta_ads`),
-and the two-pass era recorded the symptom the first time `meta_ads` and
-`linkedin_ads` were moved ahead of it. Compose the invalidators first and the
-question cannot be asked.
+handler against the pre-write value, and the two-pass era recorded the symptom
+the first time `meta_ads` and `linkedin_ads` were moved ahead of it. Compose the
+invalidators first and the question cannot be asked.
+
+**Eight modules subscribe to that event, and only five do it through the seam.**
+`blog`, `google_analytics`, `google_tag_manager`, `linkedin_ads` and `meta_ads`
+use `ctx.subscribe`. `inventory`, `search` and `product_feeds` attach a bare
+`eventBus.on` from a plugin body instead — which means the invalidator ordering
+above still protects them, but the module's effective state does not: a bare
+`eventBus.on` is not wrapped by `subscribeForModule`, so the handler goes on
+running with the module switched off. Across the tree that is **20 live
+subscriptions in 7 modules** (`search`, `product_feeds`, `inventory`, `pwa`,
+`quote_requests`, `invoices`, `pim_ergonode`) against 12 through `ctx.subscribe`.
+There is no static check for this seam, unlike routes and workers — use
+`ctx.subscribe`.
 
 ## Install-time work: the one seam is `manifest.ts`
 
@@ -469,6 +516,8 @@ is no container in the process running it.
 | `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a **gated port resolved from a `ctx.onBoot` hook or a `ctx.routes` body**; a root shadowing a module's port; a computed port name |
 | `check-port-catches.ts` | a `catch` around a gated-port call that does not let `ModuleDisabledError` past — unconditional re-throw, `rethrowIfModuleDisabled`, or naming the error. Carries `PORT_CATCHES_TO_DRAIN`, a two-way ratchet |
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
+| `check-entry-scope.ts` | a non-HTTP entry point — CLI script, BullMQ worker, `setInterval` sweep — that establishes no scope (T037) |
+| `check-channel-resolution.ts` | a raw `x-sales-channel` header read outside the resolver; a storefront surface re-resolving the request channel; a settings read whose channel argument can be a string that is not a channel uuid (D-42); a channel id invented by a default parameter or a `randomUUID()` fallback (D-48). Runs `--enforce` in CI |
 | `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger |
 
 The check reads three resolution shapes, and the third took a second pass to get
@@ -482,12 +531,29 @@ inside an `asFunction` factory is a **capture**, because the factory body runs
 when Awilix constructs the registration.
 
 The port check carries three allow-lists, all meant to drain rather than grow:
-`HOST_REGISTERED_PORTS` (a root registering on behalf of a module that has not
-converted), `WIRING_RESOLUTIONS_TO_DRAIN` — the gated ports still destructured
+`HOST_REGISTERED_PORTS` (a root registering on behalf of a module), then
+`WIRING_RESOLUTIONS_TO_DRAIN` — the gated ports still destructured
 in a `ctx.routes` body when D-39 taught the check to see the shape, **now
 empty** — and `ALIAS_HIDDEN_RESOLUTIONS`, the reads the alias hid whose repair is
 a manifest decision with an operator-visible consequence rather than a one-liner.
-A **new** one fails the build. Ports
+A **new** one fails the build.
+
+Read the first list's size with its own history in mind. It was written as
+conversion residue and drained that way — every entry whose owner converted was
+deleted, and the check fails when one outlives its owner. All 65 core modules have
+converted, and **28 entries remain**, so what is left is not residue: it is the
+composition inputs no module can default. Three shapes account for nearly all of
+them — *who is asking* (`customerContextResolver`, `cartActorResolver`,
+`adminAuditActorResolver` and the rest of the actor family, where production reads
+`request.actor` and the harness `request.testActor`), *does this composition run
+that consumer* (`pwaRunWorkers`, `searchRunWorkers`, `webhooksRunWorkers`), and
+*bridges a root assembles across boundaries a module must not reach through*
+(`pwaBridge`, `invoicesBridge`, `returnsBridge`, `productFeedsBridge`,
+`megamenu*Deps`). Several of the per-entry comments still say "still hand-wired"
+about a module that converted; the staleness check only fires when the owner
+registers the port itself, so a comment can rot without failing the build.
+
+Ports
 owned by a `nonDeactivatable` module are not on that list and never will be: the
 exemption is computed from the manifests, because a gate the orchestrator refuses
 to close on either axis has no state in which it can throw. The other exemption
