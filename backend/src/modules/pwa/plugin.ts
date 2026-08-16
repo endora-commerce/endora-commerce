@@ -3,14 +3,13 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { Queue } from 'bullmq';
 import { z } from 'zod';
-import type { EventBus } from '../../events/bus.js';
 import { PwaConfigResolver, type SettingsReadPort } from './services/pwa-config-resolver.js';
 import { PwaIconService, type AssetUploadPort } from './services/pwa-icon-service.js';
 import { PushSubscriptionService } from './services/push-subscription-service.js';
 import { PushMessageService } from './services/push-message-service.js';
 import { PushProviderRegistry } from './services/push-provider-registry.js';
 import { WebPushProvider } from './services/providers/web-push-provider.js';
-import { setupPushEventSubscriber, type PushEventTarget } from './services/push-event-subscriber.js';
+import { createPushEventHandlers, type PushEventTarget } from './services/push-event-subscriber.js';
 import {
   createPushDeliveryQueue,
   createPushDeliveryWorker,
@@ -37,7 +36,6 @@ export interface PwaModuleOptions {
   settings: SettingsReadPort & { get<T>(code: string, channelId: string, schema: z.ZodType<T>): Promise<T> };
   settingsWrite: SettingsWritePort;
   requireAdmin: RequireAdminFactory;
-  eventBus: EventBus;
   /** assets_library upload facade. */
   assetUpload: AssetUploadPort;
   resolveAssetUrl: (assetId: string) => Promise<string | null>;
@@ -67,6 +65,8 @@ export interface PwaModuleOptions {
 }
 
 export interface PwaModuleHandle {
+  /** The FR-024 auto-trigger handlers; `backend.ts` owns their registration. */
+  pushEventHandlers: ReturnType<typeof createPushEventHandlers>;
   configResolver: PwaConfigResolver;
   iconService: PwaIconService;
   subscriptionService: PushSubscriptionService;
@@ -92,8 +92,9 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
   const messageService = new PushMessageService(options.emFactory, deliveryQueue);
 
   // Auto-triggered push (FR-024) — producer only; enqueues, never sends inline.
-  setupPushEventSubscriber({
-    eventBus: options.eventBus,
+  // `backend.ts` registers these two through `ctx.subscribe`, so they stop with
+  // the module (issue #107).
+  const pushEventHandlers = createPushEventHandlers({
     messageService,
     ...(options.resolveOrderTarget ? { resolveOrderTarget: options.resolveOrderTarget } : {}),
     ...(options.resolveQuoteTarget ? { resolveQuoteTarget: options.resolveQuoteTarget } : {}),
@@ -117,6 +118,7 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
   }
 
   const handle: PwaModuleHandle = {
+    pushEventHandlers,
     configResolver,
     iconService,
     subscriptionService,

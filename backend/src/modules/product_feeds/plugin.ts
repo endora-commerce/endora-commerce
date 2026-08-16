@@ -19,7 +19,6 @@ import {
   type ArtefactStorePort,
 } from './services/artefact-store.js';
 import {
-  attachFeedCacheInvalidator,
   NoopFeedTokenCache,
   RedisFeedTokenCache,
   type FeedTokenCache,
@@ -65,8 +64,6 @@ import {
 } from './services/artefact-retention.service.js';
 import { FailedRunNotifier } from './services/failed-run-notifier.js';
 import {
-  attachFeedScheduleSync,
-  attachTaxonomyScheduleSync,
   FeedScheduleReconciler,
   type TaxonomyRefreshSchedulePort,
 } from './services/feed-schedule-reconciler.js';
@@ -325,7 +322,6 @@ export function productFeedsModule(
   const tokenCache: FeedTokenCache = options.redis
     ? new RedisFeedTokenCache(options.redis)
     : new NoopFeedTokenCache();
-  const cacheInvalidator = attachFeedCacheInvalidator(options.eventBus, tokenCache);
 
   /**
    * Three of these four are **platform-wide** (`null`): a run's page size, its
@@ -803,17 +799,9 @@ export function productFeedsModule(
     },
   });
 
-  // The schedule lifecycle: Postgres commits first, Redis is touched after
-  // (research §R5.4). Subscribing to the module's own events rather than
-  // calling from the service keeps the ordering true for every write path —
-  // create, update, duplicate and delete alike — and means a Redis failure can
-  // never roll back a committed feed.
-  const scheduleSync = attachFeedScheduleSync(options.eventBus, schedules);
-  // The Settings module emits `settings.value_changed` on commit, so flipping
-  // the taxonomy master switch takes effect at that moment rather than at the
-  // next boot: an operator told the platform will stop contacting Google should
-  // not have to restart it to make that true.
-  const taxonomyScheduleSync = attachTaxonomyScheduleSync(options.eventBus, schedules);
+  // The schedule lifecycle (research §R5.4) and the taxonomy master switch both
+  // react to events; `backend.ts` registers both through `ctx.subscribe`, which
+  // is what stops them when an operator switches this module off.
 
   let worker: ReturnType<typeof createFeedGenerationWorker> | undefined;
   let reaperWorker: ReturnType<typeof createFeedReaperWorker> | undefined;
@@ -944,9 +932,6 @@ export function productFeedsModule(
     plugin,
     handle,
     close: async () => {
-      cacheInvalidator.dispose();
-      scheduleSync.dispose();
-      taxonomyScheduleSync.dispose();
       await worker?.close().catch(() => undefined);
       await reaperWorker?.close().catch(() => undefined);
       await taxonomyRefreshWorker?.close().catch(() => undefined);

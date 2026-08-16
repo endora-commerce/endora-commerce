@@ -1,6 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EventBus } from '../../events/bus.js';
 import { z } from 'zod';
 import { SearchIndexer } from './services/search-indexer.js';
 import { SearchEventSubscriber } from './services/search-event-subscriber.js';
@@ -68,7 +67,6 @@ function warnOnceForSearch(condition: string, message: string): void {
 
 export interface SearchModuleOptions {
   emFactory: () => EntityManager;
-  eventBus: EventBus;
   /**
    * Feature 061 — the catalog's composed attribute read model (Principle I).
    * Backs the indexer's searchable/filterable settings + option-label
@@ -138,8 +136,9 @@ const numberSchema = z.number();
 
 export function searchModule(options: SearchModuleOptions): SearchModuleResult {
   const indexer = new SearchIndexer({ attributeRead: options.catalogAttributeRead });
+  // Handlers only: `backend.ts` registers them through `ctx.subscribe`, which
+  // is what makes this module's effective state decide whether they run.
   const subscriber = new SearchEventSubscriber({
-    eventBus: options.eventBus as never,
     emFactory: options.emFactory,
     indexer,
     ...(options.settingsService !== undefined
@@ -253,8 +252,6 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
       resolveReindexIntervalMinutes,
     },
     plugin: async (app) => {
-      const teardown = subscriber.subscribe();
-      app.addHook('onClose', async () => teardown());
       // US1 — typeahead popup feed.
       // US3 — analytics ingest. Both live in routes.public.ts.
       await registerSearchPublicRoutes(app, {

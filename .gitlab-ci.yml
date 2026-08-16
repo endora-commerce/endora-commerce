@@ -89,6 +89,16 @@ quality:
     # two-way ratchet: an unledgered bare catch fails, and so does a ledger
     # entry that no longer describes one.
     - pnpm --filter backend run check:port-catches
+    # Issue #107 — a module subscribes to the EventBus through `ctx.subscribe`,
+    # never a bare `eventBus.on`. Routes and workers each had a seam check;
+    # subscriptions had none, and twenty-two accumulated across nine modules
+    # while every one of those modules' conversion tasks read done — fifteen of
+    # them writing (an invoice issued and e-mailed, a quote request completed, a
+    # push delivered to a device) for a module an operator had switched off.
+    # `BARE_SUBSCRIPTIONS_TO_DRAIN` is an empty two-way ratchet: an unledgered
+    # bare subscription fails, and so does a ledger entry that no longer
+    # describes one.
+    - pnpm --filter backend run check:subscribe-seam
     # Documentation code blocks are quotations, not paraphrases. The quickstarts
     # are copied by every module conversion, so a stale snippet is a defect
     # scheduled for mass production — six were found across three batches before

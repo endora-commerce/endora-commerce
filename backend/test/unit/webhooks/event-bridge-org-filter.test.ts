@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { EventBus } from '../../../src/events/bus.js';
-import { wireEventBridge } from '../../../src/modules/webhooks/services/event-bridge.js';
+import { bridgeEventHandler } from '../../../src/modules/webhooks/services/event-bridge.js';
+import { BRIDGED_EVENT_TYPES } from '../../../src/modules/webhooks/backend.js';
 import { WebhookService } from '../../../src/modules/webhooks/services/webhook-service.js';
 import type { WebhookJobData } from '../../../src/modules/webhooks/services/webhook-queue.js';
 
@@ -61,12 +62,10 @@ function makeHarness(rows: WebhookRow[]): {
       return undefined as never;
     }),
   };
-  const unwire = wireEventBridge({
-    eventBus: bus,
-    queue,
-    subscriptionLookup: service,
-    bridgedEventTypes: ['order.created.v1', 'order.status_changed.v1'],
-  });
+  const offs = BRIDGED_EVENT_TYPES.map((eventType) =>
+    bus.on(eventType, bridgeEventHandler(eventType, { queue, subscriptionLookup: service })),
+  );
+  const unwire = (): void => offs.forEach((off) => off());
   return { bus, jobs, unwire };
 }
 

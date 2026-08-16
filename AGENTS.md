@@ -159,7 +159,7 @@ never add a "module options" object for something the module can read itself.
    — the pattern `ErrorEnvelopeOptions` uses. `src/db`, `src/overlay` and `src/commands` are
    not platform roots.
 11. **CI** — `pnpm --filter backend run check:port-dependencies`, `check:port-catches`,
-   `check:kernel-boundary`, `check:container-imports`, and
+   `check:kernel-boundary`, `check:container-imports`, `check:subscribe-seam`, and
    `pnpm --filter backend exec vitest run test/contract/kernel/harness-parity.test.ts`
    (drift between the two composition roots, as an explicit draining ledger).
 
@@ -244,6 +244,11 @@ pattern to copy.
    ones. Never gate per handler.
 2. **Workers and subscribers** — register BullMQ workers through `defineModuleWorker` and
    EventBus subscriptions through `subscribeForModule`, so both stop when the module is off.
+   In a composed module that means `ctx.worker` / `ctx.subscribe`, and the subscription is
+   registered from `backend.ts` — a handler kept in a service is fine, a **registration**
+   kept in a plugin body is what produced twenty-two ungated subscribers (issue #107).
+   `pnpm --filter backend run check:subscribe-seam` fails the build on a bare `eventBus.on`
+   in a module, against an empty two-way ledger.
 3. **Cross-module calls** — service entry points reachable from another module call
    `requireModuleEnabled('<id>')`, so a caller gets the explicit 503 envelope
    (`ERROR_CODES.MODULE_DISABLED`) instead of a half-executed operation.

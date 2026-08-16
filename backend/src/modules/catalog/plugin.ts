@@ -8,7 +8,7 @@ import type {
 } from '../custom_fields/services/custom-field-value.service.js';
 import { BULK_OPERATION_TYPES } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
-import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
+import type { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
 import {
   createBulkOperationQueue,
@@ -72,6 +72,13 @@ export type RequireApiKeyFactory = (
 export interface CatalogModuleOptions {
   emFactory: () => EntityManager;
   eventBus: EventBus;
+  /**
+   * Feature 068 — flushes the storefront's `catalog:categories` fetch-cache tag.
+   * Owned by `backend.ts`, which also owns the `category.updated.v1`
+   * subscription that drives it; passed here only so it can pick up `app.log`
+   * once the Fastify instance exists.
+   */
+  categoryRevalidator?: StorefrontRevalidator;
   requireAdmin?: RequireAdminFactory;
   /** Audit-log writer; if provided, mutations land an AuditLogEntry. */
   auditLogService?: AuditLogService;
@@ -291,21 +298,11 @@ export function catalogModule(options: CatalogModuleOptions) {
     );
 
     // Feature 068 — the storefront serves the category tree from a fetch cache
-    // tagged `catalog:categories` with a 5-minute TTL. An activation toggle has
-    // to be visible immediately, so flush the tag on every category write.
-    // A no-op unless STOREFRONT_BASE_URL and REVALIDATE_SECRET are configured.
-    const categoryRevalidator = new StorefrontRevalidator({
-      baseUrl: process.env['STOREFRONT_BASE_URL'],
-      secret: process.env['REVALIDATE_SECRET'],
-    });
-    categoryRevalidator.setLogger(app.log);
-    const unsubscribeCategoryRevalidation = (options.eventBus as CategoryEventBus).on(
-      'category.updated.v1',
-      () => {
-        void categoryRevalidator.revalidate(['catalog:categories']);
-      },
-    );
-    app.addHook('onClose', async () => unsubscribeCategoryRevalidation());
+    // tagged `catalog:categories` with a 5-minute TTL, flushed on every category
+    // write so an activation toggle is visible immediately. The subscription
+    // lives in `backend.ts` and goes through `ctx.subscribe` (issue #107); this
+    // is where `app.log` exists, so the revalidator picks it up here.
+    options.categoryRevalidator?.setLogger(app.log);
     const attributeSetService = new AttributeSetService(
       options.emFactory,
       options.commandBus,

@@ -3,10 +3,9 @@ import { AvailabilityNotification } from '../entities/availability-notification.
 import { Product } from '../../catalog/entities/product.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { Mailer } from '../../email/services/mailer.js';
-import type { EventBus } from '../../../events/bus.js';
 import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 
-interface AdjustedPayload {
+export interface AdjustedPayload {
   productId: string;
   warehouseId: string;
   variantId: string | null;
@@ -108,18 +107,15 @@ export class AvailabilityWorker {
   }
 
   /**
-   * Wire the worker to the event bus — fan out only when cumulative
-   * across all warehouses crossed from 0 to > 0 for the (product, variant)
-   * pair, not on every stock_levels row tweak.
+   * `inventory.adjusted.v1` — fan out only when cumulative on-hand across all
+   * warehouses crossed from 0 to > 0 for the (product, variant) pair, not on
+   * every `stock_levels` row tweak.
+   *
+   * The subscription lives in this module's `backend.ts` and goes through
+   * `ctx.subscribe`, so a switched-off `inventory` sends no back-in-stock mail
+   * (issue #107). It used to be a bare `eventBus.on` here.
    */
-  attach(eventBus: EventBus): void {
-    eventBus.on('inventory.adjusted.v1', (payload) => {
-      const cast = payload as unknown as AdjustedPayload;
-      void this.handleAdjusted(cast);
-    });
-  }
-
-  private async handleAdjusted(payload: AdjustedPayload): Promise<void> {
+  async handleAdjusted(payload: AdjustedPayload): Promise<void> {
     if (payload.after <= 0) return;
     const em = this.emFactory();
     const knex = em.getKnex();

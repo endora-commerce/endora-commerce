@@ -206,14 +206,6 @@ export class FeedScheduleReconciler {
   }
 }
 
-export interface FeedScheduleSyncHandle {
-  dispose: () => void;
-}
-
-export interface ScheduleEventBus {
-  on(eventName: string, handler: (payload: unknown) => void | Promise<void>): () => void;
-}
-
 /**
  * Keeps Redis following Postgres for every write path at once — feature 067 /
  * research §R5.4.
@@ -231,25 +223,18 @@ export interface ScheduleEventBus {
  * `switch` that has to be updated every time a write path is added — and the
  * symptom of forgetting is an orphaned scheduler nobody notices.
  *
- * Returns `dispose()` for deterministic teardown, matching
- * `attachFeedCacheInvalidator` and the sales-channels invalidator it copies.
+ * The registration itself lives in this module's `backend.ts` and goes through
+ * `ctx.subscribe` (issue #107). As a bare `eventBus.on` it kept re-asserting Job
+ * Schedulers in Redis for a module the operator had switched off — the feeds
+ * would then generate on schedule while every route serving them refused.
  */
-export function attachFeedScheduleSync(
-  eventBus: ScheduleEventBus,
+export async function syncFeedScheduleFromEvent(
   schedules: Pick<FeedScheduleReconciler, 'syncOne'>,
-): FeedScheduleSyncHandle {
-  const onChange = async (payload: unknown): Promise<void> => {
-    const feedId = (payload as { feedId?: string } | null)?.feedId;
-    if (!feedId) return;
-    await schedules.syncOne(feedId);
-  };
-
-  const off = eventBus.on('product_feeds.feed_changed', onChange);
-  return {
-    dispose() {
-      off();
-    },
-  };
+  payload: unknown,
+): Promise<void> {
+  const feedId = (payload as { feedId?: string } | null)?.feedId;
+  if (!feedId) return;
+  await schedules.syncOne(feedId);
 }
 
 /** The two settings whose value decides whether the check scheduler exists. */
@@ -262,25 +247,22 @@ const TAXONOMY_SCHEDULE_SETTING_CODES = new Set([
  * Makes the taxonomy master switch take effect immediately — feature 067 /
  * FR-087, FR-089, research §R21.
  *
- * The Settings module emits `settings.value_changed` on commit, so subscribing
- * here means turning the switch off removes the Job Scheduler at that moment
+ * The Settings module emits `settings.value_changed` on commit, so reacting to
+ * it means turning the switch off removes the Job Scheduler at that moment
  * rather than at the next boot. An operator who has just been told the platform
  * will stop contacting Google should not have to restart it to make that true.
+ *
+ * `backend.ts` registers this through `ctx.subscribe`, so the reconcile it
+ * triggers re-reads the two settings *after* the kernel's cache invalidator has
+ * dropped them: that invalidator subscribes in `composeSettingsKernel`, which
+ * runs before any module registers, and the bus dispatches in registration
+ * order.
  */
-export function attachTaxonomyScheduleSync(
-  eventBus: ScheduleEventBus,
+export async function syncTaxonomyScheduleFromEvent(
   schedules: Pick<FeedScheduleReconciler, 'reconcileTaxonomyRefreshSchedule'>,
-): FeedScheduleSyncHandle {
-  const onChange = async (payload: unknown): Promise<void> => {
-    const settingCode = (payload as { settingCode?: string } | null)?.settingCode;
-    if (!settingCode || !TAXONOMY_SCHEDULE_SETTING_CODES.has(settingCode)) return;
-    await schedules.reconcileTaxonomyRefreshSchedule();
-  };
-
-  const off = eventBus.on('settings.value_changed', onChange);
-  return {
-    dispose() {
-      off();
-    },
-  };
+  payload: unknown,
+): Promise<void> {
+  const settingCode = (payload as { settingCode?: string } | null)?.settingCode;
+  if (!settingCode || !TAXONOMY_SCHEDULE_SETTING_CODES.has(settingCode)) return;
+  await schedules.reconcileTaxonomyRefreshSchedule();
 }

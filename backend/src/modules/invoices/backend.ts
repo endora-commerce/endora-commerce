@@ -138,6 +138,20 @@ export function registerModule(ctx: ModuleContext): void {
     ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.pdfRenderer).singleton(),
   );
 
+  /**
+   * FR-002 — auto-issue on an order status change (issue #107).
+   *
+   * A bare `eventBus.on` here meant the heaviest write in the sweep that found
+   * this: a switched-off `invoices` still issued a numbered legal document, took
+   * a number out of the sequence and e-mailed the PDF, with no surface an
+   * operator could see it on. `ctx.subscribe` gates it on the effective state.
+   */
+  ctx.subscribe('order.status_changed.v1', async (payload) => {
+    await ctx
+      .cradle<InvoicesCradle>()
+      .invoices.handle.autoIssueReactor.onOrderStatusChanged(payload);
+  });
+
   ctx.routes(async (app) => {
     const plugin = ctx.cradle<InvoicesCradle>().invoices.plugin as (
       a: typeof app,

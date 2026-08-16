@@ -4,6 +4,7 @@ import type Redis from 'ioredis';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
+import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -107,6 +108,7 @@ export interface CatalogCradle {
   readonly attachmentService: AttachmentService;
   readonly productLinkService: ProductLinkService;
   readonly groupedService: GroupedService;
+  readonly catalogCategoryRevalidator: StorefrontRevalidator;
   readonly catalog: ReturnType<typeof catalogModule>;
 }
 
@@ -114,6 +116,26 @@ export function registerModule(ctx: ModuleContext): void {
   const cradle = (): CatalogCradle => ctx.cradle<CatalogCradle>();
 
   ctx.di.register({
+    /**
+     * Feature 068 — the storefront serves the category tree from a fetch cache
+     * tagged `catalog:categories`, flushed on every category write so an
+     * activation toggle shows immediately. A no-op unless STOREFRONT_BASE_URL
+     * and REVALIDATE_SECRET are configured.
+     *
+     * Registered here rather than built in the plugin body because the
+     * subscription that drives it belongs in this file (issue #107); the plugin
+     * still hands it `app.log` when the Fastify instance exists.
+     */
+    catalogCategoryRevalidator: ctx
+      .asFunction(
+        () =>
+          new StorefrontRevalidator({
+            baseUrl: process.env['STOREFRONT_BASE_URL'],
+            secret: process.env['REVALIDATE_SECRET'],
+          }),
+      )
+      .singleton(),
+
     catalog: ctx
       .asFunction(
         ({
@@ -173,6 +195,7 @@ export function registerModule(ctx: ModuleContext): void {
             resolveProductImagePlaceholderUrl: (salesChannelCode) =>
               cradle().catalogImagePlaceholderUrl(salesChannelCode),
             reindexSearchIndexes: () => cradle().catalogSearchReindex(),
+            categoryRevalidator: cradle().catalogCategoryRevalidator,
           }),
       )
       .singleton(),
@@ -321,6 +344,18 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.onBoot(() => {
     const { assetReferenceRegistry, emFactory } = cradle();
     registerCatalogAssetReferences(assetReferenceRegistry, emFactory);
+  });
+
+  /**
+   * Feature 068's cache flush (issue #107).
+   *
+   * It was a bare `eventBus.on` in the plugin body, so a switched-off `catalog`
+   * still posted revalidation requests at the storefront on every category
+   * write. `ctx.subscribe` stops it with the module — and the storefront's own
+   * category surface is gone at that point anyway.
+   */
+  ctx.subscribe('category.updated.v1', () => {
+    void cradle().catalogCategoryRevalidator.revalidate(['catalog:categories']);
   });
 
   ctx.routes(async (app) => {
