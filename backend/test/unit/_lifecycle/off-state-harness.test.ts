@@ -8,6 +8,8 @@ import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { defineModuleRoutes } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { expectModuleAbsent } from '../../helpers/off-state.js';
+import { activationDeclarationsFrom } from '../../../src/kernel/lifecycle/activation-resolver.js';
+import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
 /**
  * The off-state harness is about to be used by ~66 modules, so it gets its own
@@ -22,6 +24,13 @@ import { expectModuleAbsent } from '../../helpers/off-state.js';
 
 const GATED = 'fixture_gated';
 const UNGATED = 'fixture_ungated';
+/**
+ * A real module that declares itself non-deactivatable (feature 074). Named
+ * rather than invented, because the branch it exercises is selected from
+ * `REGISTERED_MANIFESTS`: a fixture id would take the ordinary path and the
+ * case would assert nothing.
+ */
+const CORE = 'audit_logs';
 
 describe('expectModuleAbsent', () => {
   let app: FastifyInstance;
@@ -35,6 +44,17 @@ describe('expectModuleAbsent', () => {
       scoped.get('/api/v1/admin/fixture-gated/ping', async () => ({ ok: true }));
     });
     await gated(app);
+    const core = defineModuleRoutes(CORE, async (scoped) => {
+      scoped.get('/api/v1/admin/fixture-core/ping', async () => ({ ok: true }));
+    });
+    await core(app);
+    // The real activation declarations, which a booted server loads before the
+    // first module registers. Without them `effectiveState` cannot tell a core
+    // module from an unconverted one, and the core branch below would assert
+    // the opposite of what it says.
+    registryCache.setActivationDeclarations(
+      activationDeclarationsFrom(REGISTERED_MANIFESTS.map((entry) => entry.manifest)),
+    );
     // The failure mode the ratchet exists to catch: a module that registers
     // its routes outside the wrapper.
     app.get('/api/v1/admin/fixture-ungated/ping', async () => ({ ok: true }));
@@ -46,6 +66,9 @@ describe('expectModuleAbsent', () => {
   });
 
   afterAll(async () => {
+    // Put the singleton back the way this file found it: an empty declaration
+    // set is what a unit file that never booted a server expects.
+    registryCache.setActivationDeclarations([]);
     await app.close();
   });
 
@@ -89,6 +112,30 @@ describe('expectModuleAbsent', () => {
     await expect(
       expectModuleAbsent({ app }, GATED, { routes: ['/api/v1/admin/fixture-gated/ping'] }),
     ).rejects.toThrow(/not enabled before the test runs/);
+  });
+
+  it('proves the operator axis is shut for a core module instead of measuring it off', async () => {
+    // Feature 074. Seeding a deactivation for a `nonDeactivatable` module leaves
+    // it present, so the ordinary path would have asserted a 503 that could
+    // never come — and if the harness had simply skipped the axis, the platform
+    // half would still have to run. It does both: the closed door is asserted,
+    // then the axis a deployment can still reach is driven.
+    registryCache.__setEnabledForTesting([GATED, UNGATED, CORE]);
+    await expectModuleAbsent({ app }, CORE, {
+      routes: ['/api/v1/admin/fixture-core/ping'],
+    });
+  });
+
+  it('still fails for a core module whose platform axis is not gated', async () => {
+    // The core branch must not become a way to pass without a seam. The
+    // ungated route is registered outside the wrapper, so the platform half
+    // catches it exactly as it does for an ordinary module.
+    registryCache.__setEnabledForTesting([GATED, UNGATED, CORE]);
+    await expect(
+      expectModuleAbsent({ app }, CORE, {
+        routes: ['/api/v1/admin/fixture-ungated/ping'],
+      }),
+    ).rejects.toThrow(/platform-unavailable/);
   });
 
   it('exercises the deactivated-while-platform-available axis, not just the platform one', async () => {

@@ -27,6 +27,15 @@ import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered
  * `{ rate: 0, source: 'none' }` collapsed those two into one value, which is how
  * an order came to be taxed at 0% on nobody's authority and the number reached
  * an invoice.
+ *
+ * **Absence here is the platform axis** (feature 074). This module is core now,
+ * on exactly the ground above — a platform that cannot compute tax cannot state
+ * a lawful price — so no operator can produce the absent case, and
+ * `effectiveState` forces a core module's operator axis to `true` whatever the
+ * activation map holds. A deployment that never installs the module still can,
+ * which is the route the Q6 follow-up closes and the one these cases drive.
+ * Left seeded as a deactivation they would have gone on passing with `taxes`
+ * present the whole time, which is worse than not having them.
  */
 
 const ALL_IDS = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id);
@@ -96,7 +105,7 @@ describe('taxes — a configured zero prices, an absent owner refuses [integrati
 
   it('refuses to place an order while `taxes` is absent', async () => {
     await seedZeroRatedDefault();
-    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['taxes'] });
+    registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'taxes'));
 
     const { statusCode, body } = await placeOrder();
     expect(statusCode).toBe(503);
@@ -133,7 +142,7 @@ describe('taxes — a configured zero prices, an absent owner refuses [integrati
 
   it('refuses the admin order preview while `taxes` is absent', async () => {
     await seedZeroRatedDefault();
-    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['taxes'] });
+    registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'taxes'));
 
     const res = await h.app.inject({
       method: 'POST',
