@@ -96,8 +96,8 @@ describe('T047 — ordering', () => {
   });
 
   it('ignores a dependency on a module that is not in the list', () => {
-    // 66 modules are still hand-wired; a converted module depending on one of
-    // them constrains nothing about this list's order.
+    // A dependency on a module absent from the list — an overlay module, or a
+    // name no manifest claims — constrains nothing about this list's order.
     const ordered = orderModules([node('blog', ['dictionaries', 'assets_library'])]);
     expect(ordered.map((n) => n.id)).toEqual(['blog']);
   });

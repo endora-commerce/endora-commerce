@@ -15,8 +15,10 @@
 //   3. overlay modules (feature 057) last, so a deployment's `di.decorate`
 //      wins over the core registration it decorates.
 //
-// A module missing from this list is a module with no `backend.ts` — it is
-// still hand-wired in `composition.ts` until its own conversion lands.
+// A module missing from this list is a module the tree walk found no
+// `backend.ts` for. Every core module exports `registerModule` today, so an
+// absence here means a file was not written or not named `backend.ts` — not
+// that the module is composed somewhere else.
 
 import type { ModuleEntry } from './kernel/compose.js';
 

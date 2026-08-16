@@ -44,7 +44,8 @@ import { customersModule, type CustomersModuleOptions } from './plugin.js';
  * principle: who the calling customer is, and who the moderating admin is. They
  * join the four `auth` entries already in `HOST_REGISTERED_PORTS` and drain with
  * them. `customerOrderListServiceGetter` is the third, late-bound because
- * `orders` builds the service and is still hand-wired (T141).
+ * `orders` builds the service and a root bridges it (T141); the binding is late
+ * because the service is constructed there, not because the module is unconverted.
  */
 
 /** What `customers` resolves from the container, and the names it owns. */
