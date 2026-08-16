@@ -663,7 +663,7 @@ Six checks were found weaker than their own description in one week. One walked
 imports; one could not see a module-local cradle alias, and widening it turned
 0 violations into 21 across 17 modules; one scanner matched **4 of 492**
 enforcement sites because a `\.` in its regex was not optional; EventBus
-subscriptions had no ratchet at all until twenty-three had accumulated. None of
+subscriptions had no ratchet at all until twenty-two had accumulated. None of
 those was carelessness, and none of them announced itself: **a green result
 cannot be told apart from a check that looked at nothing**, and nothing in the
 repository forced the distinction. Four rules come out of it.
