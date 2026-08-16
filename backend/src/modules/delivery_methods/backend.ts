@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleContext } from '../../kernel/index.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import { builtInShippingAdapters } from './adapters/built-in-adapters.js';
@@ -42,7 +42,7 @@ export const entities = [DeliveryMethod];
 export interface DeliveryMethodsCradle {
   readonly emFactory: () => EntityManager;
   readonly requireAdmin: RequireAdminFactory;
-  readonly auditLogService: AuditLogService;
+  readonly commandBus: CommandBus;
   readonly salesChannelMembershipPort: SalesChannelMembershipService | undefined;
   /** The two halves the allow-list is composed from — see the payment twin (T138). */
   readonly customerOrganizationIdResolver: (req: FastifyRequest) => string | null;
@@ -100,7 +100,7 @@ export function registerModule(ctx: ModuleContext): void {
     await registerDeliveryMethodsAdminRoutes(app, {
       emFactory,
       requireAdmin,
-      auditLogService: ctx.cradle<DeliveryMethodsCradle>().auditLogService,
+      commandBus: ctx.cradle<DeliveryMethodsCradle>().commandBus,
       registry,
       orderStatusRegistry: shippingOrderStatusRegistry,
       ...(membership === undefined ? {} : { salesChannelMembership: membership }),

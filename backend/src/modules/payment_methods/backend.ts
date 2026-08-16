@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleContext } from '../../kernel/index.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import { PaymentMethod } from './entities/payment-method.entity.js';
@@ -44,7 +44,7 @@ export const entities = [PaymentMethod];
 export interface PaymentMethodsCradle {
   readonly emFactory: () => EntityManager;
   readonly requireAdmin: RequireAdminFactory;
-  readonly auditLogService: AuditLogService;
+  readonly commandBus: CommandBus;
   readonly salesChannelMembershipPort: SalesChannelMembershipService | undefined;
   /**
    * The two halves the allow-list is composed from (T138). This used to be one
@@ -123,7 +123,7 @@ export function registerModule(ctx: ModuleContext): void {
     await registerPaymentMethodsAdminRoutes(app, {
       emFactory,
       requireAdmin,
-      auditLogService: ctx.cradle<PaymentMethodsCradle>().auditLogService,
+      commandBus: ctx.cradle<PaymentMethodsCradle>().commandBus,
       registry,
       orderStatusRegistry: paymentOrderStatusRegistry,
       ...(membership === undefined ? {} : { salesChannelMembership: membership }),

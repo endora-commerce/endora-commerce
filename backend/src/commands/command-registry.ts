@@ -405,6 +405,37 @@ export const COMMAND_REGISTRY = {
   // background importer's products were written with no audit row at all.
   'product.create': { reversible: false, description: 'Create a product' },
   'product.delete': { reversible: false, description: 'Soft-delete a product' },
+  // Issue #125 — payment- and delivery-method configuration. MR !545 audited
+  // these by hand (`recordAuditFromContext`), which lands a row but leaves the
+  // write outside the bus; they are Commands now. None is `reversible`: that
+  // flag marks the commands wired into feature 054's stored-revert undo, and a
+  // configuration row has no such surface. The inverse of an edit is the same
+  // request carrying the values `stateBefore` holds.
+  'payment_method.create': { reversible: false, description: 'Create a payment method' },
+  'payment_method.update': { reversible: false, description: 'Update a payment method' },
+  'payment_method.delete': { reversible: false, description: 'Delete a payment method' },
+  'delivery_method.create': { reversible: false, description: 'Create a delivery method' },
+  'delivery_method.update': { reversible: false, description: 'Update a delivery method' },
+  'delivery_method.delete': { reversible: false, description: 'Delete a delivery method' },
+  // The same write one gateway down: a provider's own rules for one of its
+  // methods — the shop-wide switch, the minimum order amount, the allowed
+  // countries and the per-Organization deny list. Four modules, one shape.
+  'stripe_payment_method.update': {
+    reversible: false,
+    description: 'Update the Stripe rules for one payment method',
+  },
+  'autopay_payment_method.update': {
+    reversible: false,
+    description: 'Update the Autopay rules for one payment method',
+  },
+  'payu_payment_method.update': {
+    reversible: false,
+    description: 'Update the PayU rules for one payment method',
+  },
+  'tpay_payment_method.update': {
+    reversible: false,
+    description: 'Update the Tpay rules for one payment method',
+  },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
   // conversion so the coverage check and undo affordance recognize them.
   'product.bulk_update': { reversible: true, description: 'Queued bulk edit of products' },
