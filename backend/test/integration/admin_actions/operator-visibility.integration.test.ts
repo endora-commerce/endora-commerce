@@ -21,6 +21,27 @@ import type { SupportedAdminLanguage } from '@b2b/contracts';
 
 const TEST_MODULES = ['fix_av_a', 'fix_av_b', 'fix_av_c'] as const;
 
+/**
+ * Issue #102 — every assertion below is scoped to the three fixture modules
+ * above, never to the whole `module_actions` table.
+ *
+ * `module_actions` is not in the harness's `SEEDED_TABLES` and cannot be: it is
+ * repopulated at boot by the real reconciler, so a truncate would be undone by
+ * the very file that fills it. `test/integration/kernel/production-boot.test.ts`
+ * composes the production root, which reconciles one row per declared action
+ * and one `module_registrations` row per registered module into the shared test
+ * database and leaves both there; `seeded-set` and `i18n-resolution` add and
+ * remove their own. Asserting over the whole table therefore passed only on a
+ * pristine database and turned this file into a coin flip decided by shard
+ * membership.
+ *
+ * The service is still fully exercised — the join, the permission filter, the
+ * weight/label sort and the cache all run over every row in the table; only the
+ * expectation is narrowed to the rows this file owns.
+ */
+const isFixture = (action: { moduleId: string }): boolean =>
+  (TEST_MODULES as readonly string[]).includes(action.moduleId);
+
 describe('AdminActionsService.listVisibleForOperator (integration)', () => {
   let orm: MikroORM;
   let em: EntityManager;
@@ -75,7 +96,7 @@ describe('AdminActionsService.listVisibleForOperator (integration)', () => {
       adminUserId: 'admin',
     });
     // Module C is disabled — its row should not appear.
-    expect(result.actions.map((a) => a.actionId)).toEqual([
+    expect(result.actions.filter(isFixture).map((a) => a.actionId)).toEqual([
       'a1', // weight 100, label "fix_av_a:a1.label"
       'a2', // weight 200
       'b1', // weight 300
@@ -89,7 +110,11 @@ describe('AdminActionsService.listVisibleForOperator (integration)', () => {
       adminUserId: 'ops',
     });
     // Only a1 and b1 require catalog:write; a2 has no perm so visible too.
-    expect(result.actions.map((a) => a.actionId).sort()).toEqual(['a1', 'a2', 'b1']);
+    expect(result.actions.filter(isFixture).map((a) => a.actionId).sort()).toEqual([
+      'a1',
+      'a2',
+      'b1',
+    ]);
   });
 
   it('operator with no permissions sees only actions that have no requiredPermission', async () => {
@@ -98,7 +123,7 @@ describe('AdminActionsService.listVisibleForOperator (integration)', () => {
       language: 'en',
       adminUserId: 'guest',
     });
-    expect(result.actions.map((a) => a.actionId)).toEqual(['a2']);
+    expect(result.actions.filter(isFixture).map((a) => a.actionId)).toEqual(['a2']);
   });
 
   it('disabled-module action is hidden from a platform admin', async () => {
