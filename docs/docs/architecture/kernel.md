@@ -301,19 +301,29 @@ an implicit one.
 
 ## Composition order — read this before writing a boot hook
 
-Composition runs in **two passes** over the generated module list, defined by
-`EARLY_PASS_MODULE_IDS` in `backend/src/composition-passes.ts`. Each pass
-registers every module in it, then runs that pass's boot hooks:
+Composition runs in **one pass** over the generated module list, and every boot
+hook runs once, after every registration and every root contribution:
 
 ```
-       load module presence                          (PostgreSQL, awaited, fatal)
-early: register all early modules → runBootHooks()   (early hooks only)
-late:  register all late modules  → runBootHooks()   (late hooks only)
-                                  → the Fastify app is built, plugin bodies run
-                                  → registryCache.watch()   (Redis, non-fatal)
+load module presence                 (PostgreSQL, awaited, fatal)
+composeModules(MODULES)              (one call; registration resolves nothing)
+…all root contributions…             (registerValues, bridges, eager reads)
+runBootHooks()                       (once, after every contribution)
+the Fastify app is built             (plugin bodies run)
+registryCache.watch()                (Redis, non-fatal)
 ```
 
-Five consequences, in the order they bite:
+It used to run two passes, split by an `EARLY_PASS_MODULE_IDS` list, so that a
+root's hand-wired module code could sit *between* them. There is no hand-wired
+module code left in either root, and **D-45** measured what the split still
+bought: 13 of its 26 members were forced by nothing, and the route-ordering
+reason its header gave was false (a root `onRequest` hook added by a
+`fastify-plugin` plugin registered *after* an encapsulated child still runs for
+that child's routes). A single pass satisfies every ordering constraint for
+every module at once, which no partition of the module set can, so
+`composition-passes.ts` was deleted.
+
+Four consequences, in the order they bite:
 
 **0. Module presence is loaded before the first module registers.**
 `loadModulePresence()` runs as a composition step in `composeApp()`, because
@@ -334,28 +344,30 @@ A presence read before the load throws `ModulePresenceNotLoadedError`. It is
 neither of the two answers: `false` is what took the platform down, and `true`
 would run a switched-off module's work.
 
-**1. A late-pass registration does not exist during an early-pass boot hook.**
-Not "runs later" — *does not exist*. If an early-pass module's `ctx.onBoot`
-resolves a name a late-pass module registers, you get
-`AwilixResolutionError: Could not resolve '<name>'` from inside the hook. The
-fix is to move the **host** into the early pass, never to reorder hooks. Its
-registrations are lazy, so composing it early costs nothing measurable.
-
-This caught three conversions in feature 072 (`pim_ergonode`, `product_feeds`,
-`transactional_emails`), which is why the list is suspected of being inverted
-rather than mistuned: most modules want to be early.
+**1. A boot hook may resolve anything.** Every module has registered by the time
+the first hook runs, so `ctx.onBoot` reaches any registration and any root
+contribution. Registration order is meaningless by construction: `composeModules`
+sets `registering = true` for the whole call (`kernel/compose.ts`) and
+`ctx.cradle()` refuses to resolve while it is set, so a module cannot observe
+which modules registered before it. If your `registerModule` needs a value at
+registration time, it does not — take it lazily (`lazyPort`, a getter, or the
+cradle at the point of use).
 
 **2. Boot hooks run before every plugin body.** Plugin bodies run when the
-Fastify app is built, after both passes. So a push-at-boot contribution always
-lands before a host reconciles in its plugin body — by construction, not by
-luck.
+Fastify app is built, after `runBootHooks()`. So a push-at-boot contribution
+always lands before a host reconciles in its plugin body — by construction, not
+by luck.
 
 **3. A root's contribution has exactly one legal slot**: after
-`composeModules(...)` of the pass that composes the owner, and before that
-pass's `runBootHooks()`. Earlier and the module's own default overwrites it;
-later and a boot hook has already read the default. The window only matters for
+`composeModules(MODULES, …)` and before `runBootHooks()`. Earlier and the
+module's own default overwrites it — `registerValues` is a bare
+`container.register`, with no ownership ledger, so the last writer wins; later
+and a boot hook may already have read that default. The window only matters for
 values read *at construction*; anything read per request or per call is
-insensitive to it — but do not rely on that without saying so.
+insensitive to it — but do not rely on that without saying so. A **host value**
+no module defaults (`redis`, `eventBus`, `commandBus`, `auditLogService`, the
+`*RunWorkers` flags) has no such window and is registered where the value comes
+into existence.
 
 **4. Boot hooks run regardless of effective state.** `runBootHooks()` does not
 consult module presence, so a switched-off module's hook still runs. Two
@@ -373,6 +385,19 @@ answers, not the rule: *skip* suits surface-like contributions — the way
 not enabled — and *honour* suits integrity-like ones, where skipping would let an
 absent module's data be silently orphaned. State which one, per registry, with
 the reason.
+
+### The one thing a root still has to do in order
+
+`EventBus.dispatch` awaits its handlers in **registration order**, so the two
+kernel cache invalidators — `composeSettingsKernel` and
+`composeSalesChannelsKernel`, each of which attaches one — are composed **before**
+`composeModules(MODULES, …)` in both roots. A module subscribing to
+`settings.value_changed` ahead of the settings cache's own invalidator runs its
+handler against the pre-write value; five modules subscribe to that event
+(`blog`, `google_analytics`, `google_tag_manager`, `linkedin_ads`, `meta_ads`),
+and the two-pass era recorded the symptom the first time `meta_ads` and
+`linkedin_ads` were moved ahead of it. Compose the invalidators first and the
+question cannot be asked.
 
 ## Install-time work: the one seam is `manifest.ts`
 

@@ -11,12 +11,12 @@ import type { ModuleContext } from './module-context.js';
  *     that consults its module's effective state. Awilix's strict mode refuses
  *     a singleton that captures one — correctly, because a captured gate goes
  *     on answering after an operator switches the module off.
- *  2. **Ordering.** A name a composition root registers may not exist yet when
- *     a module composes. The early pass runs long before most of a root's
- *     `registerValues` calls, and joining that pass is a decision made *later*,
- *     for unrelated reasons — so a capture that works today breaks when
- *     somebody adds an `EARLY_PASS_MODULE_IDS` entry for a different reason
- *     entirely. That happened twice.
+ *  2. **Ordering.** A name a composition root registers does not exist yet when
+ *     a module composes — that is the whole shape of a composition since D-45:
+ *     `composeModules(MODULES, …)` runs first and every root contribution lands
+ *     after it. A capture taken during registration therefore captures nothing,
+ *     or, worse, captures the module's own default and never sees the root's
+ *     value. That happened twice.
  *
  * The rule `scripts/check-port-dependencies.ts` enforces is therefore blunt: a
  * module may capture only names it owns and the handful of eagerly-registered

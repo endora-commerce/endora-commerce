@@ -23,10 +23,12 @@ import { type TenantContext } from './tenancy/tenant-context.js';
 import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-tenant-context.js';
 import { enterSystemScope } from './kernel/scope.js';
 import { registerRequestScopeHook } from './kernel/request-scope-hook.js';
-// Feature 072 — the generated module list and how a root still walks it in two
-// passes while the hand-wired remainder sits between them.
+// Feature 072 — the generated module list. D-45 collapsed the early/late split
+// into a single pass: registration resolves nothing (`kernel/compose.ts`'s
+// `registering` guard), so the order modules register in carries no meaning,
+// and every contribution this root makes over a name a module defaults belongs
+// in the one slot between `composeModules` and `runBootHooks`.
 import { MODULES } from './composition.generated.js';
-import { earlyPassModules, latePassModules } from './composition-passes.js';
 import {
   composeModules,
   createRootContainer,
@@ -291,21 +293,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     isModuleEnabled: (moduleId) => registryCache.isEnabled(moduleId),
   });
 
-  // Feature 072 — the early pass of the **generated** module list
-  // (`composition.generated.ts`). Nothing about these modules is named here any
-  // more: the list is a walk of the tree, so adding a module is adding a folder
-  // and removing one is deleting it.
-  //
-  // They are composed ahead of the hand-wired remainder because what they
-  // register is read by it — `emailMailer` by six senders below — and because
-  // `health_checks` must contribute its routes before the auth plugin. See
-  // `composition-passes.ts` for why there are two passes at all; both share one
-  // ownership ledger, so a name registered twice still collides naming both
-  // modules.
-  //
-  // `redis` is registered here rather than beside the late pass because
-  // `health_checks` pings it: a host name belongs where the value first exists,
-  // and the client has existed since the top of this function.
+  // Feature 072 — the **host values** this root owns outright. No module
+  // registers a default for any of them, so they have no contribution window
+  // (D-45's one-slot rule is about overwriting a module's default) and are
+  // registered where the value comes into existence rather than after
+  // `composeModules`. Everything a module does default is contributed below,
+  // between that call and `runBootHooks()`.
   registerValues(container, {
     redis,
     // Feature 072 (T125) — the interceptor registry, so `_lifecycle` can serve
@@ -313,9 +306,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // platform-owned; until this conversion nothing resolved it by name, so
     // nothing noticed that no root registered it.
     apiInterceptors,
-    // Registered here rather than beside the module's other names: its
-    // `ctx.onBoot` schedule reconcile resolves this, and boot hooks run
-    // several hundred lines before that block (T131).
+    // The module's `ctx.onBoot` schedule reconcile resolves this (T131), and
+    // nothing else in this file has an opinion about it.
     pimErgonodeRunWorkers: runWorkers,
     productFeedsRunWorkers: runWorkers,
     productFeedsPublicBaseUrl: process.env['PUBLIC_API_BASE_URL'] ??
@@ -337,8 +329,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // input, not something a module decides.
     resolvedModuleRegistry: resolvedRegistry,
     auditLogService,
-    // Feature 072 (T138) — the four `organizations` inputs, registered here
-    // because that module composes in the early pass.
+    // Feature 072 (T138) — the three `organizations` inputs no module defaults.
     //
     // `customerOrganizationIdResolver` is the actor half of what used to be
     // `buildOrgAllowListResolver`: who is asking, as a bare Organization id.
@@ -373,7 +364,48 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     };
   } => container.cradle as never;
 
-  const earlyModules = composeModules(earlyPassModules(MODULES), {
+  // Feature 072 (T110/T118) — the two pieces of kernel infrastructure that
+  // subscribe to the EventBus: the sales-channel cache invalidator and the
+  // settings cache invalidator. Both are composed **before** the modules, and
+  // that is the one ordering this root still has to get right (D-45).
+  // `EventBus.dispatch` awaits its handlers in registration order, and
+  // `ctx.subscribe` calls `eventBus.on` while the module registers — so a
+  // module subscribed to `settings.value_changed` ahead of the settings cache's
+  // own invalidator runs its handler against the pre-write value. Five modules
+  // subscribe to that event; composing the invalidators first means none of
+  // them can be ahead of it.
+  //
+  // Channel *resolution* is kernel infrastructure for the reason T110 gave:
+  // every channel-scoped read depends on it (Principle XII), so it must keep
+  // working whether or not an operator wants the administration screens. The
+  // module owns the admin CRUD service and its routes, and composes itself.
+  const salesChannels = composeSalesChannelsKernel({
+    emFactory: em,
+    eventBus,
+    redis,
+    auditLogService,
+  });
+  // Feature 072 (T118) — the universal settings *reader* is kernel
+  // infrastructure: almost every module calls `SettingsService.get`, so it
+  // cannot be gated on whether an operator wants the settings screens. The
+  // module owns the admin write service, the cache-clear action, the four
+  // storefront resolvers and its routes, and composes itself.
+  const settings = composeSettingsKernel({
+    emFactory: em,
+    eventBus,
+    redis,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
+  });
+
+  // Feature 072 — the **generated** module list, composed in one pass (D-45).
+  // Nothing about these modules is named here any more: the list is a walk of
+  // the tree, so adding a module is adding a folder and removing one is
+  // deleting it. Registration resolves nothing, so this call has no opinion
+  // about the order the composer emitted; the boot hooks it collects run once,
+  // at the bottom of this function, after every contribution below.
+  const composedModules = composeModules(MODULES, {
     container,
     eventBus,
     // Composition runs before `buildServer`, so there is no `app.log` yet.
@@ -382,7 +414,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ownership: registrationOwnership,
   });
 
-  await earlyModules.runBootHooks();
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument
   // differed between them; there is one now, and both modules resolve it as a
@@ -521,7 +552,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // reads are registered below, once the modules that own them exist; the
   // plugin reads them per request, so the order is not a race.
   const authModulePlugin: ModulePlugin = async (app) => {
-    for (const plugin of earlyModules.sink.rootPlugins) await plugin(app);
+    for (const plugin of composedModules.sink.rootPlugins) await plugin(app);
   };
 
   // Feature 042 — the MFA login port, read from the container **on every
@@ -538,9 +569,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     (container.cradle as unknown as MfaCradle).mfaLoginPort;
 
   // Feature 072 (T094) — contributed to `customer_accounts`, which defaults it
-  // absent. Registered after the early pass so it overrides the module's own
+  // absent. Registered after `composeModules` so it overrides the module's own
   // default rather than being overwritten by it; the getter resolves lazily, so
-  // `mfa` composing later is not a race.
+  // nothing about `mfa` is a race.
   registerValues(container, { mfaLoginPortGetter: getMfaLoginPort });
 
 
@@ -612,23 +643,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // served from the Redis dictionary cache for up to an hour, while a currency
   // change dropped both immediately.
 
-  // Feature 072 (T110) — the channel *resolution* machinery is kernel
-  // infrastructure and stays ungated: every channel-scoped read depends on it
-  // (Principle XII), so it must keep working whether or not an operator wants
-  // the administration screens. The module owns the admin CRUD service and its
-  // routes, and composes itself.
-  const salesChannels = composeSalesChannelsKernel({
-    emFactory: em,
-    eventBus,
-    redis,
-    auditLogService,
-  });
+  // Feature 072 (T110) — the channel-resolution names. The kernel itself is
+  // composed above `composeModules`, for the subscriber ordering; what belongs
+  // here is the registration, in the one contribution slot.
   registerValues(container, {
     salesChannelsCache: salesChannels.cache,
     // The kernel-reserved membership port. `payment_methods` and
     // `delivery_methods` resolve it to auto-bind a new method to the system
-    // default channel; both are composed early, but they read it when their
-    // routes register, which is after this line.
+    // default channel; both read it when their routes register, which is well
+    // after this line.
     salesChannelMembershipPort: salesChannels.membershipService,
     // The channel resolver itself. `inventory` has resolved this name since
     // T129 and neither root registered it, so the channel-scoped storefront
@@ -679,7 +702,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // These three stay here: the org-status gate and the Rule Builder picker
   // sources read `organizations`, `categories`, `payment_methods` and
   // `delivery_methods` directly, and the catalog read port is `catalog`'s.
-  // Registered after the late pass, where the module declares its defaults.
+  // Registered after `composeModules`, where the module declares its defaults.
   registerValues(container, {
     promotionRuleTargets: {
       salesChannels: async () => {
@@ -717,22 +740,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
   });
 
-  // Settings module is constructed up here (rather than further down) so its
-  // SettingsService handle can be threaded into inventory + search at module
-  // construction time. The plugin itself is still pushed onto `modules` below.
-  // Feature 072 (T118) — the universal settings *reader* is kernel
-  // infrastructure: almost every module calls `SettingsService.get`, so it
-  // cannot be gated on whether an operator wants the settings screens. The
-  // module owns the admin write service, the cache-clear action, the four
-  // storefront resolvers and its routes, and composes itself.
-  const settings = composeSettingsKernel({
-    emFactory: em,
-    eventBus,
-    redis,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
-  });
+  // Feature 072 (T118) — the settings names. The kernel itself is composed
+  // above `composeModules`, for the subscriber ordering; what belongs here is
+  // the registration, in the one contribution slot.
   registerValues(container, {
     settingsSecretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
     // Feature 073 — the effective-state reader. Registered here rather than
@@ -1048,15 +1058,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // no event emission, no audit.
 
   const modules: ModulePlugin[] = [
-    // Feature 072 — the early pass's route contribution: `health_checks`. It
-    // stays ahead of the auth plugin for the reason the inline `healthPlugin`
-    // did: Fastify binds a route's hook chain when the route is registered, so
-    // a liveness probe registered first is one no later `onRequest` hook can
-    // start authenticating.
-    ...earlyModules.sink.plugins,
+    // Feature 072 — every module's route contribution, in the generated order.
+    //
+    // They sit ahead of the three root plugins, and that is not an ordering
+    // claim: `buildServer` calls each of these with the root instance, so an
+    // `onRequest` hook any of them adds is a root hook, and Fastify assembles a
+    // route's hook chain when the application is readied rather than when the
+    // route is registered. D-45 measured it — a root hook added after an
+    // encapsulated child still runs for that child's routes — which is why the
+    // 26 modules that used to be "early" have always authenticated correctly
+    // despite mounting before `authModulePlugin`.
+    ...composedModules.sink.plugins,
     authModulePlugin,
     tenantContextModulePlugin,
-    // Feature 058 — Credentials (instantiated earlier, right after settings).
   ];
 
   // Feature 005 — Sales Channels plugin (resolver middleware on every
@@ -1168,9 +1182,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // OTHER modules' tables, so moving them into the module would give it
   // direct reads of `catalog`, `cms` and `assets_library` storage.
   //
-  // Registered after the late pass, where `megamenu` composes and declares
-  // its own defaults — contributing earlier would let the module overwrite
-  // the root.
+  // Registered after `composeModules`, where `megamenu` declares its own
+  // defaults — contributing earlier would let the module overwrite the root.
   registerValues(container, {
     megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
@@ -1253,15 +1266,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     } satisfies StorefrontDeps,
   });
 
-  // Feature 072 — the late pass of the generated module list. No converted
-  // module is named here: what this root still owns are the **host values** any
-  // module may resolve — each one a port its owning module will register itself
-  // once converted.
-  //
-  // The host names are registered where the values become available, which is
-  // why this sits at the same point in the boot order the hand-written blog
-  // factory call did — after `DefaultChannelReconciler`, so blog's boot hook
-  // attaches the Default category to a channel that already exists.
+  // Feature 072 — the **host values** any module may resolve. No converted
+  // module is named here: each entry is a name whose value only a composition
+  // can supply, and several are ports their owning module will register itself
+  // once the surface they wrap is theirs.
   registerValues(container, {
     // `requireAdmin` is NOT here any more: `auth` provides it as a port
     // (T078), and re-registering the name would silently replace a gated
@@ -1342,26 +1350,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // and neither composition root ever passed one.
     blogStorefrontDeps: undefined,
   });
-  const lateModules = composeModules(latePassModules(MODULES), {
-    container,
-    eventBus,
-    // Composition runs before `buildServer`, so there is no `app.log` yet.
-    log: console,
-    interceptorRegistry: apiInterceptors,
-    ownership: registrationOwnership,
-  });
   // Feature 072 (T121) — `admin_users` owns its services and routes now. The
   // MFA getter is a contribution the module defaults absent, so it is
-  // registered **after the late pass** that composes `admin_users`: earlier and
-  // the module's own default would overwrite it and every admin login would
-  // silently go password-only. The getter is late-bound, so `mfa` composing
-  // later is not a race.
+  // registered **after `composeModules`**: earlier and the module's own default
+  // would overwrite it and every admin login would silently go password-only.
+  // The getter is late-bound, so nothing about `mfa` is a race.
   registerValues(container, { adminMfaLoginPortGetter: getMfaLoginPort });
-  modules.push(...lateModules.sink.plugins);
 
-  // Registered **after** the late pass on purpose: `audit_logs` registers its
-  // own empty default there, so a value written before composition would be
-  // overwritten by it (the same trap `prompt_actions` hit).
+  // `audit_logs` registers its own empty default for this name, so a value
+  // written before `composeModules` would be overwritten by it (the same trap
+  // `prompt_actions` hit).
   registerValues(container, {
     // Feature 072 (T084) — `audit_logs` owns its routes now and no longer
     // reaches into `admin_users` for identities. Turning an actor id into a
@@ -1389,8 +1387,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }));
     },
   });
-  // The explicit boot phase (FR-021): registration stays lazy, and the work
-  // that genuinely has to run at boot runs here, in its own system scope.
   // Feature 072 (T136) — `carts` owns its thirteen services and three route
   // files now. What stays a composition's: who is asking (production reads
   // `request.actor`, the harness `request.testActor`), and the bridge into
@@ -1535,8 +1531,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     } satisfies CartShoppingListBridge,
   });
 
-  await lateModules.runBootHooks();
-
   // Feature 017 — Dictionary module. Boot reconciler populates the
   // ISO 3166-1 country catalogue, the major-currency seed metadata,
   // Polish translations for the active subset, and primary
@@ -1664,10 +1658,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // from `organizations` to two modules that depend on it, so it cannot be a
   // port; the module defaults it to a no-op and this overwrites that default.
   //
-  // Registered after the early pass that composes `organizations` rather than
-  // before it, because a value registered before is what the module's own
-  // default then overwrites. It is safe this late for the reason it is safe at
-  // all: the hook is read at login time, not at construction.
+  // Registered after `composeModules` rather than before it, because a value
+  // registered before is what the module's own default then overwrites. It is
+  // safe this late for the reason it is safe at all: the hook is read at login
+  // time, not at construction.
   registerValues(container, {
     organizationsLoginHook: async (loginCtx: {
       customerAccountId: string;
@@ -2154,9 +2148,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   // Feature 072 (T089) — the accessor `_i18n` walks to reconcile every module's
   // translation bundles. It stays an accessor rather than the registry itself
-  // because of the order this file is written in: `_i18n` composes with the
-  // late pass ~1100 lines above, and the registry it needs does not exist until
-  // the line above this one. `_i18n` resolves it at plugin-attach time, which
+  // because of the order this file is written in: `_i18n` composes ~1900 lines
+  // above, and the registry it needs does not exist until the line above this
+  // one. `_i18n` resolves it at plugin-attach time, which
   // is after this function returns. Goes when `_lifecycle` converts.
   registerValues(container, {
     lifecycleManifestRegistry: () => lifecycleRef?.handle.registry,
@@ -2183,7 +2177,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     salesChannelMembership: salesChannels.membershipService,
     redis,
   };
-  // Feature 072 — the module composed itself in the late pass; what is left
+  // Feature 072 — the module composed itself; what is left
   // here is the one thing a module cannot do for itself: hand it the
   // contributions of whichever modules this deployment happens to ship.
   registerValues(container, {
@@ -2260,6 +2254,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     apiInterceptors,
   });
   for (const plugin of overlayModulePlugins) modules.push(plugin);
+
+  // The explicit boot phase (FR-021), run **once**, after every registration
+  // and every contribution above and before `index.ts` calls `buildServer`
+  // (D-45). That is what makes the rule statable in one sentence: a boot hook
+  // may resolve anything, and a root contribution goes between `composeModules`
+  // and this line. Under the two-pass shape it could not be — nineteen
+  // `registerValues` calls landed after the late pass's hooks, six of them over
+  // names their owning module defaults (`organizationsLoginHook`,
+  // `ksefVerificationResolver`, `newsletterEmailBranding`,
+  // `shoppingListServiceSink`, `lifecycleOrchestrator`,
+  // `promptActionsBulkProgressResolver`), so a hook that read one of those read
+  // the module's default and this root's value arrived afterwards, silently.
+  await composedModules.runBootHooks();
 
   return {
     orm,

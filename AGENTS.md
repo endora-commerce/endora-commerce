@@ -130,11 +130,14 @@ never add a "module options" object for something the module can read itself.
    `pnpm --filter backend run check:port-catches`, which also refuses a *conditional*
    re-throw: `ModuleDisabledError` is an `HttpError`, so a status-code test lets it through by
    accident rather than by decision.
-8. **Boot hooks run per pass.** Composition runs two passes (`EARLY_PASS_MODULE_IDS` in
-   `backend/src/composition-passes.ts`), each registering its modules and then running *its*
-   boot hooks — so **a late-pass registration does not exist during an early-pass hook**. If
-   `ctx.onBoot` cannot resolve a name, move the **host** into the early pass; never reorder
-   hooks.
+8. **One registration pass, one boot phase (D-45).** A root calls `composeModules(MODULES, …)`
+   once and `runBootHooks()` once, immediately before it builds the Fastify app — so **a boot
+   hook may resolve anything**, whichever module registered it. Registration itself resolves
+   nothing (`compose.ts`'s `registering` guard), which is what makes its order meaningless.
+   The one ordering rule left is for the **root**: a contribution over a name a module
+   defaults goes in the single slot between `composeModules(MODULES, …)` and `runBootHooks()`
+   — earlier and the module's default overwrites it, later and a boot hook has already read
+   that default.
 9. **Install-time work goes in `manifest.ts`, never in the context.** `ctx.onBoot` is the
    only lifecycle hook a `ModuleContext` carries; `ctx.onInstall` / `ctx.onUninstall` were
    deleted (D-46) because `module:install` composes nothing, so a hook the container

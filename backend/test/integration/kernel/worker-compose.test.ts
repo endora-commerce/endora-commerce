@@ -6,7 +6,6 @@ import { EventBus } from '../../../src/events/bus.js';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { MODULES } from '../../../src/composition.generated.js';
-import { earlyPassModules, latePassModules } from '../../../src/composition-passes.js';
 import { stripCommentsAndStrings } from '../../../scripts/check-entry-scope.js';
 
 /**
@@ -44,7 +43,7 @@ function log(): { info: () => void; warn: () => void; error: () => void } {
 function composeGeneratedList(): { ids: string[]; registrations: string[] } {
   const container = createRootContainer();
   const eventBus = new EventBus();
-  const entries = [...earlyPassModules(MODULES), ...latePassModules(MODULES)];
+  const entries = [...MODULES];
   const before = new Set(Object.keys(container.registrations));
   const composed = composeModules(entries, { container, eventBus, log: log() });
   const registrations = Object.keys(container.registrations)
