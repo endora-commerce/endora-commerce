@@ -29,6 +29,7 @@ import {
   SettingOutOfScopeForChannel,
   type SettingsService,
 } from '../../kernel/settings/settings.service.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { DEFAULT_REINDEX_INTERVAL_MINUTES, SEARCH_SETTING_CODES } from './manifest.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
@@ -286,6 +287,21 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
         };
 
         const tick = (): void => {
+          // Presence is decided here, before any work and outside the `try`s
+          // below (issue #126). A timer callback has nowhere to throw to, so
+          // `ModuleDisabledError` cannot propagate from it and must be decided;
+          // asked from inside one of those `try`s, a switched-off module and a
+          // failed sweep would land in the same handler.
+          //
+          // The reschedule is deliberate and is not a leak: this timer *is* the
+          // loop, so returning without re-arming would stop the scheduler for
+          // the life of the process and no re-enable would bring it back. It is
+          // the same shape as the `minutes <= 0` branch below — keep polling,
+          // do nothing.
+          if (!effectiveState.isPresent('search')) {
+            scheduleNext(DISABLED_POLL_MS);
+            return;
+          }
           void (async () => {
             let minutes = 0;
             try {

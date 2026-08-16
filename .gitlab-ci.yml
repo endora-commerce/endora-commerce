@@ -92,13 +92,24 @@ quality:
     # Issue #107 — a module subscribes to the EventBus through `ctx.subscribe`,
     # never a bare `eventBus.on`. Routes and workers each had a seam check;
     # subscriptions had none, and twenty-two accumulated across nine modules
-    # while every one of those modules' conversion tasks read done — fifteen of
-    # them writing (an invoice issued and e-mailed, a quote request completed, a
-    # push delivered to a device) for a module an operator had switched off.
+    # while every one of those modules' conversion tasks read done — ten of them
+    # writing to the platform's own database (an invoice issued and e-mailed, a
+    # quote request completed, a push message row delivered to a device) and
+    # twenty-one of the twenty-two mutating something, for a module an operator
+    # had switched off.
     # `BARE_SUBSCRIPTIONS_TO_DRAIN` is an empty two-way ratchet: an unledgered
     # bare subscription fails, and so does a ledger entry that no longer
     # describes one.
     - pnpm --filter backend run check:subscribe-seam
+    # Issue #126 — an entry point nothing can catch a throw from decides presence
+    # before it works. Routes, workers and subscribers each have a seam; a timer
+    # a module starts in its own plugin body had none, and `price_lists` went on
+    # activating and expiring price lists five minutes at a time with the module
+    # switched off — it changed what customers were charged. Sees `setInterval`,
+    # a self-rescheduling `setTimeout` and `process.on`, not a one-shot deadline.
+    # `TIMERS_WITHOUT_PRESENCE` is two-way and is not expected to empty: an entry
+    # says why a timer must keep running while its module is off.
+    - pnpm --filter backend run check:timer-presence
     # Documentation code blocks are quotations, not paraphrases. The quickstarts
     # are copied by every module conversion, so a stale snippet is a defect
     # scheduled for mass production — six were found across three batches before

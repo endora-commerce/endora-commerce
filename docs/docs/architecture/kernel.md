@@ -489,6 +489,34 @@ one. The kernel is deliberately out of scope — it composes before any module a
 has no effective state to gate on, so its two cache invalidators subscribe
 directly, which is the ordering fact the paragraph above depends on.
 
+### An entry point with no caller decides presence
+
+A route seam gates requests; a plugin **body** is not a request. It runs at boot
+whatever the module's effective state, so a timer started there keeps firing
+after an operator switches the module off — `price_lists` went on flipping
+`scheduled → active` and `active → expired` every five minutes, which changes
+what customers are charged. A timer callback also has nowhere to throw *to*, so
+`ModuleDisabledError` cannot propagate from it: raised there it is either
+swallowed by a `catch` meant for transient failures or it takes out the tick.
+The callback therefore **decides** — `if (!effectiveState.isPresent('<id>'))
+return;`, first and outside any `try`, so a switched-off module and a failed tick
+never share one silent no-op. Where the timer *is* the loop, as in `search`'s
+self-rescheduling reindex tick, the off branch re-arms and skips the work;
+returning without re-arming would stop the scheduler for the life of the process.
+
+`pnpm --filter backend run check:timer-presence` is the ratchet (issue #126), and
+what it sees is narrower than the rule: a `setInterval`, a `setTimeout` whose
+callback re-arms a timer or calls back into the function that armed it, and a
+`process.on` lifecycle handler — in a module's own sources. A one-shot deadline
+inside an operation that already has a caller is out of scope, and so is
+`ctx.onBoot`: `runBootHooks` wraps every hook and turns a throw into a
+`ModuleCompositionError` that aborts the boot, which makes "should a boot hook run
+for an absent module" one kernel decision rather than a guard each module writes.
+`TIMERS_WITHOUT_PRESENCE` is two-way like the ledgers above but, unlike them, is
+not expected to empty: an entry says why a timer is right to keep running while
+its module is off — the lifecycle lock's lease heartbeat belongs to the command
+that holds the lock, and `_lifecycle` is non-deactivatable.
+
 ### Writing an ordering rationale that does not rot
 
 Collapsing the two passes invalidated nothing in the code and fifteen comments in
