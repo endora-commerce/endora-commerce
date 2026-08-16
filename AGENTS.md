@@ -176,10 +176,17 @@ so they appear on `/admin-roles` and pass the CI inventory.
    lifecycle-shape `manifest.ts` is picked up by the tree walk. Run
    `pnpm --filter backend run composer:generate` and commit the result; never edit the file.
 3. **Routes** — `requireAdmin('…')` literals must match manifest `code` values exactly.
+   The inventory scanner reads the call in every shape the tree writes it (bare,
+   through `deps.`/a cradle, optional-call, `requireAdminAny([…])`, a constant or a
+   permission-map member, and a `hasPermission` capability check), and **fails on an
+   argument it cannot resolve** rather than skipping it. Write the code as a literal or
+   a resolvable constant; do not compute it.
 4. **i18n** — `adminRoles.permission.<code>` in `_i18n/i18n/en.json` and `pl.json`.
 5. **AppShell** — `requiredPermission` on nav entries where applicable.
 6. **CI** — `pnpm --filter backend exec vitest run test/contract/admin_users/permission-inventory.test.ts`
-   before opening the MR.
+   before opening the MR. It sweeps **both** directions — enforced ⇒ grantable and
+   grantable ⇒ enforced — plus the label coverage, so a permission declared before its
+   gate lands fails just as loudly as one gated before it is declared.
 
 Do not duplicate shared codes from core `PERMISSION_CATALOGUE`
 (`packages/contracts/src/admin.ts`). Contract:

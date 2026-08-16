@@ -1,49 +1,101 @@
-/**
- * Baseline enforced codes (2026-05-22, feature 026):
- * catalog:read, catalog:write, orders:read, orders:write, rfqs:handle,
- * customers:manage, customers:impersonate, integrations:manage,
- * audit_log:read, admin_users:manage, credit_limits:manage,
- * settings:read, settings:write, sales_channels:read, sales_channels:write,
- * search:write, comparisons:read, assets.read, assets.write, analytics:read,
- * dictionary.write, cms.read, cms.write, megamenu.read, megamenu.write,
- * platform.modules.read
- */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { scanEnforcedPermissionCodes } from '../../../src/modules/admin_roles/permission-inventory.js';
+import {
+  REGISTERED_MANIFESTS,
+  resolvedManifestEntries,
+} from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { scanEnforcedPermissionGates } from '../../../src/modules/admin_roles/permission-inventory.js';
 import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
 
+/**
+ * The `/admin-roles` catalogue and the server's gates have to describe the same
+ * set of codes, in both directions (feature 026, SC-001):
+ *
+ *  - a gate argument the scanner cannot read is a code nothing checks;
+ *  - a code enforced but not assignable is a screen only a `'*'` role can open;
+ *  - a code assignable but enforced nowhere is a checkbox that grants nothing;
+ *  - a code with no `adminRoles.permission.<code>` entry falls back to the
+ *    manifest label, which is English-only however many languages ship.
+ *
+ * These sweeps replace a `toBe(<count>)` assertion that carried a per-feature
+ * changelog: a number cannot say which side of the pair moved, and every feature
+ * had to edit it whether or not anything was wrong.
+ *
+ * The scan is deployment-resolved on both sides — the gates under the active
+ * overlay root and the manifests discovered for it (feature 057, FR-009) — so
+ * `DEPLOYMENT=<name>` checks that deployment and a bare-core run checks core.
+ */
+
+const I18N_DIR = fileURLToPath(new URL('../../../src/modules/_i18n/i18n/', import.meta.url));
+const SHIPPED_LANGUAGES = ['en', 'pl'] as const;
+
+function bundleFor(language: string): Record<string, string> {
+  return JSON.parse(readFileSync(`${I18N_DIR}${language}.json`, 'utf8')) as Record<string, string>;
+}
+
 describe('permission inventory (SC-001)', () => {
-  it('every requireAdmin gate references an assignable catalogue code', () => {
-    const enforced = scanEnforcedPermissionCodes();
-    const assignable = new Set(listAssignablePermissionCodes(REGISTERED_MANIFESTS));
-    const missing = [...enforced].filter((code) => !assignable.has(code)).sort();
-    expect(missing, `codes not in assignable catalogue: ${missing.join(', ')}`).toEqual([]);
-    // +2 for feature 042 MFA codes (mfa:reset, mfa:manage).
-    // +1 for feature 043 (prompt_actions:use).
-    // +3 for feature 045 promotions (promotions:read, :write, :delete).
-    // +3 for feature 046 PWA (pwa:read, pwa:write, pwa:send_push).
-    // +2 for feature 046 returns (returns:read, returns:write).
-    // +2 for feature 047 transactional emails (transactional_emails:read, :write).
-    // +2 for feature 047 invoices (invoices:read, invoices:write).
-    // +2 for feature 048 newsletter (newsletter:read, newsletter:write).
-    // +2 for feature 049 google_analytics (google_analytics:read, google_analytics:write).
-    // +2 for feature 049 Stripe (stripe:read, stripe:write).
-    // +2 for feature 055 custom fields (custom_fields:read, custom_fields:write).
-    // +1 for feature 056 hierarchical organizations (organizations:rollup).
-    // +2 for feature 058 credentials (credentials:read, credentials:write).
-    // +2 for feature 059 KSeF (ksef:read, ksef:write).
-    // +2 for feature 063 LinkedIn Ads (linkedin_ads:read, linkedin_ads:write).
-    // +2 for feature 064 Meta Ads (meta_ads:read, meta_ads:write).
-    // +2 for feature 063 TPay (tpay:read, tpay:write).
-    // +2 for feature 065 PayU (payu:read, payu:write).
-    // +2 for feature 067 Product Feed (product_feeds:read, product_feeds:write).
-    // +2 for feature 067 Autopay (autopay:read, autopay:write).
-    // +2 for feature 068 Ergonode PIM (pim_ergonode:read, pim_ergonode:write).
-    // +1 for feature 073 module activation (platform.modules.activate).
-    // +2 for feature 072 T136 (carts:read, carts:reject) — `routes.admin.ts`
-    //    had gated on both since feature 027 while the manifest declared
-    //    neither, so only a role holding `'*'` could reach those screens.
-    expect(assignable.size).toBe(74);
+  const scan = scanEnforcedPermissionGates();
+  const assignable = listAssignablePermissionCodes(resolvedManifestEntries());
+  /**
+   * The `adminRoles.permission.<code>` keys live in the `core` namespace, and
+   * `AdminRolesPage` falls back to the manifest `label` when a key is absent.
+   * An overlay module ships its own bundle and takes that fallback by design,
+   * so the label sweeps run over the core-owned codes only.
+   */
+  const coreAssignable = listAssignablePermissionCodes(REGISTERED_MANIFESTS);
+
+  it('resolves every enforcement site to a code, a bare admin gate or a runtime value', () => {
+    const unresolved = scan.unresolved.map((site) => `${site.file}: ${site.expression}`);
+    expect(
+      unresolved,
+      'gate arguments the inventory scanner cannot read — it therefore cannot ' +
+        'check them, so either write the code as a literal or a resolvable ' +
+        'constant, or teach the scanner the shape',
+    ).toEqual([]);
+    // Non-vacuity needs no count of its own: a scanner that stopped matching
+    // would report no enforced code at all, and the reverse sweep below fails
+    // on every assignable code at once.
+  });
+
+  it('every enforced code is assignable on /admin-roles', () => {
+    const assignableSet = new Set(assignable);
+    const missing = [...scan.codes].filter((code) => !assignableSet.has(code)).sort();
+    const where = missing
+      .map((code) => {
+        const sites = scan.sites.filter((s) => s.codes.includes(code));
+        return `${code} (${sites.map((s) => s.file).join(', ')})`;
+      })
+      .join('; ');
+    expect(
+      missing,
+      `enforced but not grantable — declare each in the owning module's manifest ` +
+        `\`permissions\`, or drop the gate: ${where}`,
+    ).toEqual([]);
+  });
+
+  it('every assignable code is enforced somewhere', () => {
+    const stale = assignable.filter((code) => !scan.codes.has(code)).sort();
+    expect(
+      stale,
+      'grantable but enforced by no gate and no capability check — a checkbox ' +
+        'on /admin-roles that grants nothing',
+    ).toEqual([]);
+  });
+
+  it.each(SHIPPED_LANGUAGES)('every core assignable code has a %s label', (language) => {
+    const bundle = bundleFor(language);
+    const missing = coreAssignable.filter((code) => !(`adminRoles.permission.${code}` in bundle));
+    expect(missing, `missing adminRoles.permission.<code> entries in ${language}.json`).toEqual([]);
+  });
+
+  it.each(SHIPPED_LANGUAGES)('the %s bundle carries no label for a dropped code', (language) => {
+    const assignableSet = new Set(coreAssignable);
+    const prefix = 'adminRoles.permission.';
+    const orphaned = Object.keys(bundleFor(language))
+      .filter((key) => key.startsWith(prefix))
+      .map((key) => key.slice(prefix.length))
+      .filter((code) => !assignableSet.has(code));
+    expect(orphaned, `${language}.json labels codes no module declares`).toEqual([]);
   });
 });
