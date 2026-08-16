@@ -1,5 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { analyzeSource, isMigratedServicePath } from '../../../scripts/check-command-coverage.js';
+import {
+  analyzeSource,
+  collectServiceFiles,
+  isMigratedServicePath,
+} from '../../../scripts/check-command-coverage.js';
 
 /** Fixture path under a service dir so the migrated-scope check applies. */
 const PATH = 'src/modules/catalog/services/thing.service.ts';
@@ -235,5 +241,25 @@ describe('command coverage check (feature 054, FR-009 / FR-010) — method-level
     expect(isMigratedServicePath('src/modules/catalog/services/x.ts', ['catalog'])).toBe(true);
     expect(isMigratedServicePath('src/modules/catalog/services/x.ts', ['pricing'])).toBe(false);
     expect(isMigratedServicePath('src/modules/catalog/services/x.ts', [])).toBe(false);
+  });
+});
+
+/**
+ * The `--strict` assertion CI makes, inside the suite.
+ *
+ * The rollout is complete, so CI build-breaks on ANY finding in ANY module —
+ * but that gate lived only in the `quality` job, and it was red on `master` for
+ * a day while work continued (issue #93), because moving a function into a
+ * `services/` file brought it into the check's scan for the first time. The
+ * working agreement asks for typecheck + lint + tests before a push, so this is
+ * where an unaudited write has to become visible as well.
+ */
+describe('the tree itself (what CI asserts with --strict)', () => {
+  it('has no service method that mutates without a Command, an audit entry or a documented ignore', () => {
+    const modulesRoot = fileURLToPath(new URL('../../../src/modules', import.meta.url));
+    const findings = collectServiceFiles(modulesRoot).flatMap((file) =>
+      analyzeSource(file.replace(modulesRoot, 'src/modules'), readFileSync(file, 'utf8')),
+    );
+    expect(findings.map((f) => `${f.filePath}:${f.line} → ${f.kind}: ${f.message}`)).toEqual([]);
   });
 });

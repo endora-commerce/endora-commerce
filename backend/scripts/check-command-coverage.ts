@@ -330,7 +330,14 @@ export function isMigratedServicePath(
 
 // ---- CLI (disk-backed) ----------------------------------------------------
 
-function collectServiceFiles(root: string): string[] {
+/**
+ * Every service file the check judges, under `root` (normally `src/modules`).
+ *
+ * Exported so the check's own test can assert the **real** tree is clean rather
+ * than only that the analyzer can go red on a fixture — the scan scope then has
+ * one definition, shared by the CLI and the test.
+ */
+export function collectServiceFiles(root: string): string[] {
   const files: string[] = [];
   const walk = (dir: string): void => {
     for (const name of readdirSync(dir)) {

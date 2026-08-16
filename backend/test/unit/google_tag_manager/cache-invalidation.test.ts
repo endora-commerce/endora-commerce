@@ -5,11 +5,11 @@ import {
   createModuleContext,
   createModuleRegistrationSink,
   createRootContainer,
-} from '../../kernel/index.js';
-import { EventBus } from '../../events/bus.js';
-import { registryCache } from '../../kernel/lifecycle/registry-cache.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
-import { registerModule } from './backend.js';
+} from '../../../src/kernel/index.js';
+import { EventBus } from '../../../src/events/bus.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
+import { registerModule } from '../../../src/modules/google_tag_manager/backend.js';
 
 /**
  * FR-009 — a configuration change must reach the storefront without waiting for
@@ -26,6 +26,17 @@ import { registerModule } from './backend.js';
  * subscription is `subscribeForModule`, so it stops when the module is off. It
  * used to be a bare `eventBus.on` and kept POSTing to the storefront no matter
  * what the operator had switched off.
+ *
+ * It lives here rather than beside `backend.ts` (issue #93) because composing a
+ * module in isolation means registering, on the root container, what the module
+ * itself may not: `settingsReadPort` is another module's port and is registered
+ * before a `ModuleContext` exists, so `ctx.asValue` cannot express it. Written
+ * under `src/modules/`, that made the module a container importer and
+ * `check:container-imports` — the FR-032 seam — was right to fail. Under
+ * `backend/test/` the file is not module code, and the two sibling composition
+ * tests (`test/unit/dictionaries/plugin-skeleton.test.ts`,
+ * `test/unit/_i18n/reconcile-timing.test.ts`) already sit here for the same
+ * reason.
  */
 
 const MODULE_ID = 'google_tag_manager';

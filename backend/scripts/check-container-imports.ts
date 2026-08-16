@@ -66,6 +66,18 @@ export function moduleOf(file: string): string | null {
   return null;
 }
 
+/**
+ * Every file the rule applies to: the shared core module tree plus every
+ * deployment overlay's module tree.
+ *
+ * Exported so the check's own test can assert the **real** tree is clean, not
+ * only that the analyzer can go red on a fixture. Both callers therefore agree
+ * on the scan scope by construction.
+ */
+export function collectModuleFiles(srcRoot: string = SRC_ROOT): string[] {
+  return [...walk(join(srcRoot, 'modules')), ...walk(join(srcRoot, 'apps'))];
+}
+
 function walk(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir)) {
@@ -130,7 +142,7 @@ export function analyzeSource(source: string, file: string): ContainerImportFind
 
 function main(): void {
   const listMode = process.argv.includes('--list');
-  const files = [...walk(join(SRC_ROOT, 'modules')), ...walk(join(SRC_ROOT, 'apps'))];
+  const files = collectModuleFiles();
   const findings = files.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
   const rel = (p: string): string => p.replace(`${SRC_ROOT}/`, 'src/');
 
