@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { DisplayMode } from '@b2b/contracts';
 import type { PricingMoney } from '../../lib/api/pricing';
+import { DEFAULT_VAT_RATE, grossFromNet } from '../../lib/i18n/money';
 
 /**
  * Renders the customer-facing price block from a resolver-provided
@@ -23,7 +24,13 @@ export function BaseSalePriceBlock(props: {
   salePrice?: PricingMoney | null;
   displayMode: DisplayMode;
   locale: string;
-  /** Default 0.23 — matches the Polish VAT rate used in ProductCard. */
+  /**
+   * Fractional VAT rate used to derive gross from net. Defaults to the
+   * deployment assumption in `lib/i18n/money` — see its note for why the
+   * storefront cannot read a resolved rate yet (issue #132). This block used to
+   * default to its own `0.23` literal, which meant a deployment outside Poland
+   * had two other copies to find before it could correct anything.
+   */
   vatRate?: number;
   /** Visual variant — `card` is compact (catalog grid), `pdp` is the
    *  larger PDP-friendly layout. */
@@ -42,7 +49,7 @@ export function BaseSalePriceBlock(props: {
     salePrice = null,
     displayMode,
     locale,
-    vatRate = 0.23,
+    vatRate = DEFAULT_VAT_RATE,
     variant = 'pdp',
     baseLabel = 'before',
     saleLabel = 'Special price',
@@ -54,9 +61,9 @@ export function BaseSalePriceBlock(props: {
   if (!basePrice) return null;
 
   const baseNet = parseAmount(basePrice.amount);
-  const baseGross = baseNet === null ? null : baseNet * (1 + vatRate);
+  const baseGross = baseNet === null ? null : grossFromNet(baseNet, vatRate);
   const saleNet = salePrice ? parseAmount(salePrice.amount) : null;
-  const saleGross = saleNet === null ? null : saleNet * (1 + vatRate);
+  const saleGross = saleNet === null ? null : grossFromNet(saleNet, vatRate);
 
   const fmt = (value: number, currency: string): string =>
     new Intl.NumberFormat(locale, {

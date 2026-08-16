@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
+import type { ListingPricePort } from '@b2b/contracts';
 import { SearchIndexer } from './services/search-indexer.js';
 import { SearchEventSubscriber } from './services/search-event-subscriber.js';
 import { SearchQueryService } from './services/search-query.service.js';
@@ -105,6 +106,12 @@ export interface SearchModuleOptions {
    */
   enrichSuggestionPricing: SuggestionPricingEnricher;
   /**
+   * Issue #132 — the pricing engine behind the *result list* (the enricher
+   * above covers the typeahead popup). A search hit is a listing and prices
+   * through the same chain as the catalogue grid.
+   */
+  listingPrices: ListingPricePort;
+  /**
    * When `true`, the module starts the periodic full-reindex sweep. The
    * composition passes its deployment-role gate (`runWorkers`) here so the
    * sweep only runs in worker/all processes, never in a dedicated
@@ -151,6 +158,8 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
   const searchQueryService = new SearchQueryService(
     options.emFactory,
     options.catalogAttributeRead,
+    {},
+    options.listingPrices,
   );
 
   // Settings-aware suggest config, with fallback to manifest defaults

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { ListingPrice } from '@b2b/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import {
   AmbiguousDecorationError,
@@ -8,6 +9,7 @@ import {
 import { createRootContainer, type KernelContainer } from '../../../src/kernel/container.js';
 import type { ModuleContext } from '../../../src/kernel/module-context.js';
 import type {
+  ListingPricesInput,
   PricingEngineResult,
   PricingLineResult,
   PricingResolutionInput,
@@ -65,6 +67,14 @@ class CorePricingService implements PricingServiceContract {
   async listBracketMinQuantities(_productId: string, _currencyCode: string): Promise<number[]> {
     return [1, 10];
   }
+
+  async resolveListingPrices(): Promise<Map<string, ListingPrice>> {
+    return new Map();
+  }
+
+  async namedListPrices(): Promise<Map<string, string>> {
+    return new Map();
+  }
 }
 
 /**
@@ -90,6 +100,20 @@ class TaggingPricingService implements PricingServiceContract {
 
   async listBracketMinQuantities(productId: string, currencyCode: string): Promise<number[]> {
     return this.inner.listBracketMinQuantities(productId, currencyCode);
+  }
+
+  async resolveListingPrices(
+    input: ListingPricesInput,
+  ): Promise<Map<string, ListingPrice>> {
+    return this.inner.resolveListingPrices(input);
+  }
+
+  async namedListPrices(input: {
+    priceListId: string;
+    currencyCode: string;
+    productIds: readonly string[];
+  }): Promise<Map<string, string>> {
+    return this.inner.namedListPrices(input);
   }
 }
 

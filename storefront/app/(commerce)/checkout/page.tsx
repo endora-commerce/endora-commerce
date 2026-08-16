@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessionCookie, getAnonCartCookie, setAnonCartCookie } from '../../../lib/session';
 import {
+  CART_UNAVAILABLE,
   getCart,
   applyCartCoupon,
   clearCartCoupon,
@@ -126,6 +127,10 @@ export default async function CheckoutPage({
     payuConfig,
     autopayConfig,
   ] = loaded;
+  // `carts` is not present (issue #132). There is nothing to check out, and the
+  // cart page owns the copy that says so — sending the buyer there is one
+  // absence explained in one place rather than two.
+  if (cartResult === CART_UNAVAILABLE) redirect('/cart');
   if (cartResult.newAnonCookie) await setAnonCartCookie(cartResult.newAnonCookie);
   const cart = cartResult.cart;
   const canTransact = me?.organization?.canTransact ?? true;

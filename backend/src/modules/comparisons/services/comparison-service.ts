@@ -1,8 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import type {
-  ComparisonOwnerView,
-  ComparisonDisplayMode,
+import {
+  listingPriceMoney,
+  type ComparisonOwnerView,
+  type ComparisonDisplayMode,
+  type ListingPrice,
+  type ListingPricePort,
 } from '@b2b/contracts';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
@@ -63,7 +66,22 @@ export class ComparisonService {
      * replaces the former direct `ProductAttribute` entity find).
      */
     private readonly catalogAttributes?: CatalogAttributeReadService,
+    /**
+     * Issue #132 — the pricing engine, through the `pricingService` port. A
+     * comparison exists so a buyer can put prices side by side, so the figures
+     * in its columns have to be the ones a price list stands behind.
+     */
+    private readonly listingPrices?: ListingPricePort,
   ) {}
+
+  #requireListingPrices(): ListingPricePort {
+    if (!this.listingPrices) {
+      throw new Error(
+        'ComparisonService: the pricing port is not wired — a comparison cannot be priced.',
+      );
+    }
+    return this.listingPrices;
+  }
 
   // ------------------------------------------------------------------
   // Reads
@@ -253,6 +271,19 @@ export class ComparisonService {
     const currency = channel?.defaultCurrency ?? 'PLN';
     const isPublic = channel?.isPublic ?? true;
 
+    // The pricing engine's answer per product (issue #132). A channel that
+    // withholds prices is not asked for them, so the map stays empty and every
+    // column renders `null`.
+    const resolvedPrices =
+      isPublic && products.length > 0
+        ? await this.#requireListingPrices().resolveListingPrices({
+            products,
+            context: {
+              salesChannel: { id: viewerSalesChannelId, defaultCurrency: currency },
+            },
+          })
+        : new Map<string, ListingPrice>();
+
     // Base-image lookup per product (label='base_image' only — spec
     // FR-006 names *base image* explicitly; no fallback to other labels).
     const baseImageByProduct =
@@ -281,13 +312,8 @@ export class ComparisonService {
           addedAt: row.addedAt.toISOString(),
         };
       }
-      const rawPrice = Number(
-        p.attributeValues['defaultPrice'] ?? p.attributeValues['price'] ?? Number.NaN,
-      );
-      const price =
-        isPublic && Number.isFinite(rawPrice)
-          ? { amount: rawPrice, currency }
-          : null;
+      const resolved = resolvedPrices.get(p.id);
+      const price = resolved === undefined ? null : listingPriceMoney(resolved);
       return {
         id: p.id,
         sku: p.sku,

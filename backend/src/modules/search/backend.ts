@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { ListingPricePort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -102,6 +103,9 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             pricingService: lazyPort<SuggestionPriceResolverPort>(ctx, 'pricingService'),
           }),
+          // Issue #132 — the result list prices through the same port the
+          // popup already used.
+          listingPrices: lazyPort<ListingPricePort>(ctx, 'pricingService'),
         }),
       )
       .singleton(),

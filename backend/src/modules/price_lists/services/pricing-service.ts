@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DisplayMode } from '@b2b/contracts';
+import type { DisplayMode, ListingPrice } from '@b2b/contracts';
 import type { Product } from '../../catalog/entities/product.entity.js';
 import type { Organization } from '../../organizations/entities/organization.entity.js';
 import { PriceList } from '../entities/price-list.entity.js';
@@ -16,7 +16,11 @@ import {
   resolvePriceBracket,
   type PriceBracketRow,
 } from './price-bracket-resolver.js';
-import type { PricingServiceContract } from './pricing-service.interface.js';
+import { listingPriceFrom } from './listing-price-chain.js';
+import type {
+  ListingPricesInput,
+  PricingServiceContract,
+} from './pricing-service.interface.js';
 
 /**
  * PricingService (feature 011).
@@ -275,6 +279,66 @@ export class PricingService implements PricingServiceContract {
       bracketStartQuantity: out.base.bracket.minQuantity,
       displayMode: out.displayMode,
     };
+  }
+
+  /**
+   * Issue #132 — the price a catalogue listing may render, per product.
+   *
+   * The chain is `listingPriceFrom`; this method is the loop that feeds it, so
+   * the listing paths make one call and get an answer whose type states which
+   * step of the chain produced it. Every requested product gets an entry.
+   */
+  async resolveListingPrices(input: ListingPricesInput): Promise<Map<string, ListingPrice>> {
+    const currencyCode = (
+      input.context.currencyCode ?? input.context.salesChannel.defaultCurrency
+    ).toUpperCase();
+    const out = new Map<string, ListingPrice>();
+    for (const product of input.products) {
+      const line = await this.resolveLinePrice({
+        product,
+        variantId: null,
+        context: {
+          quantity: 1,
+          organization: input.context.organization ?? null,
+          customerGroupId: input.context.customerGroupId ?? null,
+          salesChannel: input.context.salesChannel,
+          currencyCode,
+        },
+      });
+      out.set(product.id, listingPriceFrom(line, product, currencyCode));
+    }
+    return out;
+  }
+
+  /**
+   * Issue #132 — the lowest-quantity bracket amount on one named price list.
+   *
+   * `product_feeds` used to run this `select` itself, which put another
+   * module's table in its SQL and let a feed publish prices while this module
+   * was refusing to serve them. The read is the same; owning it here is what
+   * makes the port gate apply.
+   */
+  async namedListPrices(input: {
+    priceListId: string;
+    currencyCode: string;
+    productIds: readonly string[];
+  }): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (input.productIds.length === 0) return out;
+    const em = this.emFactory();
+    const placeholders = input.productIds.map(() => '?').join(',');
+    const rows = await em.getConnection().execute<Array<{ product_id: string; amount: string }>>(
+      `select distinct on ("product_id") "product_id", "amount"
+         from "price_list_price_brackets"
+        where "price_list_id" = ? and "currency_code" = ?
+          and "product_id" in (${placeholders})
+        order by "product_id" asc, "min_quantity" asc`,
+      [input.priceListId, input.currencyCode.toUpperCase(), ...input.productIds],
+      'all',
+      em.getTransactionContext(),
+    );
+    for (const row of rows) out.set(row.product_id, row.amount);
+    return out;
   }
 
   /**

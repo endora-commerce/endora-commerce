@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { ProductSummary, StorefrontProductStock } from '@b2b/contracts';
 import { tForLocale } from '../lib/i18n/messages';
+import { DEFAULT_VAT_RATE, grossFromNet } from '../lib/i18n/money';
 import { CompareToggle } from './CompareToggle';
 import { BaseSalePriceBlock } from './pricing/BaseSalePriceBlock';
 import { QuoteRequestCta } from './pricing/QuoteRequestCta';
@@ -47,8 +48,14 @@ export function ProductCard(props: {
   /** Optional feature-011 resolver payload — when present it drives
    *  the price block, sale treatment, and display-mode handling. */
   resolved?: ResolvedPrice | null;
+  /**
+   * Fractional VAT rate used to derive gross from net; defaults to the
+   * deployment assumption in `lib/i18n/money` (issue #132). The card used to
+   * bake its own `1.23` literal here.
+   */
+  vatRate?: number;
 }): ReactNode {
-  const { product, locale, stock, resolved } = props;
+  const { product, locale, stock, resolved, vatRate = DEFAULT_VAT_RATE } = props;
   const t = tForLocale(locale);
 
   const stockNode = stock ? renderFromStorefrontStock(stock, locale, t) : stockFor(product, t);
@@ -91,7 +98,7 @@ export function ProductCard(props: {
           </h3>
         </Link>
         <div className="mt-auto flex items-end justify-between gap-2 border-t border-line pt-[10px]">
-          <div>{renderPriceSlot({ product, locale, resolved, t })}</div>
+          <div>{renderPriceSlot({ product, locale, resolved, t, vatRate })}</div>
           {stockNode}
         </div>
         <ProductCardActions
@@ -112,8 +119,9 @@ function renderPriceSlot(args: {
   locale: string;
   resolved: ResolvedPrice | null | undefined;
   t: ReturnType<typeof tForLocale>;
+  vatRate: number;
 }): ReactNode {
-  const { product, locale, resolved, t } = args;
+  const { product, locale, resolved, t, vatRate } = args;
 
   if (resolved) {
     if (resolved.displayMode === 'none') {
@@ -134,15 +142,16 @@ function renderPriceSlot(args: {
           salePrice={resolved.salePrice}
           displayMode={resolved.displayMode}
           locale={locale}
+          vatRate={vatRate}
           variant="card"
         />
       </>
     );
   }
 
-  // Foundation fallback path — the legacy `attributeValues.defaultPrice`
-  // pipeline that fed `product.price`. Migration 031 keeps this surface
-  // working until US5 wires every read site through the resolver.
+  // `ProductSummary.price` — since issue #132 this is the pricing engine's own
+  // answer for the listing, resolved server-side through the `pricingService`
+  // port, not the catalogue's legacy `defaultPrice` projection it used to be.
   const priceFmt = product.price
     ? new Intl.NumberFormat(locale, {
         style: 'currency',
@@ -150,9 +159,13 @@ function renderPriceSlot(args: {
         minimumFractionDigits: 2,
       }).format(product.price.amount)
     : null;
-  const grossAmount = product.price ? product.price.amount * 1.23 : null;
+  // Derived through the shared seam (issue #132). The previous form multiplied
+  // by a literal `1.23` and then tested the product with `grossAmount &&`, so a
+  // price of zero lost its gross line entirely — the "no price" / "price zero"
+  // collapse, on the render side.
+  const grossAmount = product.price ? grossFromNet(product.price.amount, vatRate) : null;
   const grossFmt =
-    grossAmount && product.price
+    grossAmount !== null && product.price
       ? new Intl.NumberFormat(locale, {
           style: 'currency',
           currency: product.price.currency,

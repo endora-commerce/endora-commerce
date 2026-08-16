@@ -158,6 +158,7 @@ import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js
 import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { z } from 'zod';
 import type { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
+import type { PricingServiceContract } from '../../src/modules/price_lists/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
 import { collectRegisteredSettingsManifests } from '../../src/modules/settings/services/registered-settings-manifests.js';
@@ -359,6 +360,12 @@ export interface BackendServerHandle {
   };
   /** Feature 061 — the composed attribute read model (definition + extension views). */
   catalogAttributeRead: CatalogAttributeReadService;
+  /**
+   * The `pricingService` port, for fixtures that construct a listing service by
+   * hand (issue #132). Read off the container so a fixture prices through the
+   * same engine the composed modules do.
+   */
+  pricingService: PricingServiceContract;
   /** Feature 026 — moderation lifecycle, admin notifications, org context. */
   organizations: {
     moderationService: OrganizationModerationService;
@@ -2398,6 +2405,12 @@ export async function setupBackendServer(
     get catalogAttributeRead(): CatalogAttributeReadService {
       return (container.cradle as never as { catalogAttributeReadPort: CatalogAttributeReadService })
         .catalogAttributeReadPort;
+    },
+    // Issue #132 — the same port the listing paths resolve, so a hand-built
+    // fixture prices the way the composed catalogue does.
+    get pricingService(): PricingServiceContract {
+      return (container.cradle as never as { pricingService: PricingServiceContract })
+        .pricingService;
     },
     // Feature 072 (T138) — read off the container rather than off a handle the
     // module block used to fill in. The `?? null as unknown as …` fallbacks are

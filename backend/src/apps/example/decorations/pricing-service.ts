@@ -16,7 +16,9 @@
 //     price_lists" — so an override no longer breaks when core moves a file,
 //     and a reader can tell what is overridden without diffing two trees.
 
+import type { ListingPrice } from '@b2b/contracts';
 import type {
+  ListingPricesInput,
   PricingLineResult,
   PricingResolutionInput,
   PricingServiceContract,
@@ -44,6 +46,24 @@ class ExamplePricingService implements PricingServiceContract {
 
   async listBracketMinQuantities(productId: string, currencyCode: string): Promise<number[]> {
     return this.inner.listBracketMinQuantities(productId, currencyCode);
+  }
+
+  /**
+   * Issue #132 — the catalogue-listing chain. Delegated whole, so the listing a
+   * buyer browses and the line a buyer buys keep agreeing on this deployment;
+   * the tag this decoration adds rides along on the `price_list` arm because
+   * core builds that arm from `resolveLinePrice` above.
+   */
+  async resolveListingPrices(input: ListingPricesInput): Promise<Map<string, ListingPrice>> {
+    return this.inner.resolveListingPrices(input);
+  }
+
+  async namedListPrices(input: {
+    priceListId: string;
+    currencyCode: string;
+    productIds: readonly string[];
+  }): Promise<Map<string, string>> {
+    return this.inner.namedListPrices(input);
   }
 }
 

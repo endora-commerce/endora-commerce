@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { ListingPricePort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -76,6 +77,9 @@ export function registerModule(ctx: ModuleContext): void {
               listByFlag: (flag: Parameters<CatalogAttributeReadService['listByFlag']>[0]) =>
                 ctx.cradle<ComparisonsCradle>().catalogAttributeReadPort.listByFlag(flag),
             } as CatalogAttributeReadService,
+            // Issue #132 — a comparison column is a listing and prices through
+            // the engine, not off the catalogue's legacy attribute.
+            lazyPort<ListingPricePort>(ctx, 'pricingService'),
           ),
       )
       .singleton(),
