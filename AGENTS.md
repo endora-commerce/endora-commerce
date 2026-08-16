@@ -390,11 +390,20 @@ path while draining a screen.
 
 **Adding or changing a check?** It needs an entry in
 `backend/test/unit/scripts/check-inventory.test.ts` (which enumerates every `check-*` script
-and fails on one it does not name), a companion test that drives it **red on synthetic
-input**, and an exit code of **2** for "nothing was read" — an empty file list, a missing
-input, a tree it could not walk. A green result must not be able to mean "not looking":
-that is issue #113, and `docs/docs/architecture/kernel.md` § *Writing a check that can go
-red* is the working guide.
+and fails on one it does not name), a companion test, and an exit code of **2** for "nothing
+was read" — an empty file list, a missing input, a tree it could not walk. A green result
+must not be able to mean "not looking": that is issue #113.
+
+The inventory entry carries the red proofs, and two properties decide whether they are worth
+anything (issue #130). **The fixture enters at the top of the analysis** — source text, a
+file map, an injected reader, a fixture tree on disk — never a value the check normally
+computes: the entry for `check-entry-scope` handed a *pre-classified* record to the last
+function in the chain, so the classifier it was supposed to protect never ran, and the
+`setInterval(`-only grep inside it hid a live FR-020 gap. A fixture that enters below the
+defect cannot catch it. And **one proof per shape the check claims to refuse**, each
+asserting the finding's kind, or four of a check's five signals can go blind behind the
+fifth's red. `docs/docs/architecture/kernel.md` § *Writing a check that can go red* is the
+working guide.
 
 Both run in CI as GitLab's `quality:static` job — full tree, every MR and every push to
 `master`. They need only bash, grep, perl and POSIX awk (no `pnpm install`), so keep them

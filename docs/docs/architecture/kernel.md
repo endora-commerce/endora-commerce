@@ -761,7 +761,7 @@ is how a wrong count survives: a document disagreeing with itself reads as
 two authors, not as an error. None of
 those was carelessness, and none of them announced itself: **a green result
 cannot be told apart from a check that looked at nothing**, and nothing in the
-repository forced the distinction. Four rules come out of it.
+repository forced the distinction. Six rules come out of it.
 
 **Take the input as a parameter.** A check whose analysis reads the disk can
 only be run against the tree, and against a clean tree it agrees with a function
@@ -770,6 +770,32 @@ and `compareArtifact(path, expected, read)` all take what they read, so their
 tests drive them over sources the repository does not contain — which is the
 only way to see the rule fire on the shape it was written for. Keep the CLI a
 thin `main` that supplies the real reader.
+
+**The fixture enters at the top of the analysis.** "It goes red on a synthetic
+fixture" is not enough on its own, and the counter-example was the guard itself:
+the inventory's entry for `check-entry-scope` handed `violationsOf` a
+**pre-classified record**, so it proved the last function in the chain while the
+classifier — which was the broken part — never ran. That classifier grepped for
+`setInterval(`, could not see a self-rescheduling `setTimeout`, and a live
+FR-020 gap sat behind it for as long as the proof read green (issues #128,
+#130). **A fixture that enters below the defect cannot catch it.** So the proof
+starts from what the check reads in a real run — source text, a file map, an
+injected reader, a fixture tree on disk — and every stage the check owns,
+population filter and classifier included, runs on the way to the assertion.
+Each entry in the inventory declares `enters: 'top'` for exactly this, and
+anything else goes in `PROOFS_ENTERING_BELOW` with what it would take to raise
+it.
+
+**Prove the set of shapes, not the one that existed when it was written.** A
+proof can enter at the top and still test one spelling of five, and then four
+fifths of the check can go blind behind the fifth's red. `check-subscribe-seam`
+names three signals and its fixture — `eventBus.on('inventory.adjusted.v1', …)`
+— satisfied two of them at once, so neither could fail alone; `check-timer-presence`
+names three constructs and proved `setInterval`; `check-channel-resolution`
+names four signals and proved one. Where a check's header enumerates a set, the
+inventory carries one proof per member, each fixture narrowed so it can only
+trip the signal it is named after, and each asserting the finding's **kind**
+rather than a bare count.
 
 **Make the scan scope a property of the rule, not of a filename.** Two checks
 enumerated `*.entity.ts`. Nothing in the repository enforces that suffix, so an
@@ -815,10 +841,12 @@ that decision is written down, and `none` has to be argued in the entry.
 
 The enforcement point is `backend/test/unit/scripts/check-inventory.test.ts`. It
 enumerates every `check-*` script, and for each one **runs the check's own
-analysis over a synthetic violation and asserts a finding comes back**. That is
-deliberately more than "a companion test file exists": a file at a path proves
-nothing, which is the failure this whole section is about. The companion test
-named in each entry is where the shapes go — this one proves the check can go
-red at all, that one proves it goes red on everything it claims to refuse. The
-inventory also pins which CI job runs each check and compares it against
-`.gitlab-ci.yml`, so a check that quietly leaves the job has to say so.
+analysis, from its top, over a synthetic violation of every shape it claims to
+refuse, and asserts a finding of that kind comes back**. That is deliberately
+more than "a companion test file exists": a file at a path proves nothing, which
+is the failure this whole section is about. The companion test named in each
+entry is where the shape's detail goes — the assertion on the message, the
+ledger, the exit code — while the inventory is what keeps a shape from
+disappearing when that file is edited. The inventory also pins which CI job runs
+each check and compares it against `.gitlab-ci.yml`, so a check that quietly
+leaves the job has to say so.

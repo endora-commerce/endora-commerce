@@ -51,6 +51,9 @@ case "$sub" in
 esac
 `;
 
+/** Where a pdfmake install sits: pnpm's hoisted store, or a plain top-level one. */
+export type PdfmakeLayout = 'hoisted' | 'top-level';
+
 export interface ShellRunResult {
   readonly status: number | null;
   readonly output: string;
@@ -68,11 +71,17 @@ export interface ShellCheckFixture {
     env?: Record<string, string>,
   ) => ShellRunResult;
   /**
-   * A `node_modules/pdfmake` of `bytes` apparent size, for the footprint gate.
-   * The file is sparse, so a 40 MB fixture costs no disk — `du -sb` reports the
+   * A `pdfmake` install of `bytes` apparent size, for the footprint gate. The
+   * file is sparse, so a 40 MB fixture costs no disk — `du -sb` reports the
    * apparent size, which is what the gate measures.
+   *
+   * `layout` picks which of the gate's two candidate paths the install lands
+   * on. `hoisted` is what this repository actually has
+   * (`node_modules/.pnpm/pdfmake@<version>/node_modules/pdfmake`), so a
+   * candidate glob that stopped matching it would measure the fallback or exit
+   * 2 — and only a fixture in that layout can tell.
    */
-  installPdfmake: (bytes: number) => void;
+  installPdfmake: (bytes: number, layout?: PdfmakeLayout) => void;
   cleanup: () => void;
 }
 
@@ -106,8 +115,11 @@ export function createShellCheckFixture(): ShellCheckFixture {
   write('docs/docs/intro.md', '# Intro\n\nEnglish prose.\n');
   lists(['backend/src/modules/orders/order-service.ts']);
 
-  const installPdfmake = (bytes: number): void => {
-    const dir = join(root, 'node_modules', 'pdfmake');
+  const installPdfmake = (bytes: number, layout: PdfmakeLayout = 'top-level'): void => {
+    const dir =
+      layout === 'hoisted'
+        ? join(root, 'node_modules', '.pnpm', 'pdfmake@0.2.20', 'node_modules', 'pdfmake')
+        : join(root, 'node_modules', 'pdfmake');
     mkdirSync(dir, { recursive: true });
     const file = join(dir, 'build', 'pdfmake.js');
     mkdirSync(dirname(file), { recursive: true });

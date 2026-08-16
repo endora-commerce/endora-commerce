@@ -86,6 +86,19 @@ describe('check-naming.sh', () => {
     expect(result.output).toContain('order_id');
   });
 
+  // The fourth of the script's four rules, and the last one with no red fixture
+  // anywhere in the repository until issue #130.
+  it('goes red on a non-kebab-case URL segment in a route registration', () => {
+    fixture.write(
+      'backend/src/modules/orders/routes.admin.ts',
+      "app.get('/api/v1/orderItems', handler);\n",
+    );
+    fixture.lists(['backend/src/modules/orders/routes.admin.ts']);
+    const result = fixture.run('check-naming.sh');
+    expect(result.status).toBe(1);
+    expect(result.output).toContain('orderItems');
+  });
+
   it('exits 2 on an empty full-tree listing instead of reporting a clean tree', () => {
     fixture.lists([]);
     const result = fixture.run('check-naming.sh');
@@ -182,6 +195,16 @@ describe('check-pdfmake-footprint.sh', () => {
     const result = fixture.run('check-pdfmake-footprint.sh');
     expect(result.status).toBe(1);
     expect(result.output).toContain('FAIL');
+  });
+
+  // The layout this repository actually installs. The gate lists it first and
+  // falls back to the top-level path; a fixture that only ever builds the
+  // fallback proves the fallback.
+  it('measures a pnpm-hoisted install too, not only a top-level one', () => {
+    fixture.installPdfmake(MAX_BYTES + 8 * 1024 * 1024, 'hoisted');
+    const result = fixture.run('check-pdfmake-footprint.sh');
+    expect(result.status).toBe(1);
+    expect(result.output).toContain('.pnpm');
   });
 
   it('exits 2 when pdfmake is not installed, rather than reporting a pass', () => {
