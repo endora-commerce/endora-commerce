@@ -69,22 +69,32 @@ describe('T075 — a converted module costs no test-helper edit', () => {
     expect(named).toEqual([]);
   });
 
-  it('both roots reach the generated list through the same two-pass split', () => {
-    // The split itself is shared code (`composition-passes.ts`), so the only
-    // thing to check is that neither root has grown a private opinion about it.
+  it('both roots compose the whole generated list, unfiltered', () => {
+    // D-45 deleted `composition-passes.ts`: there is one pass, so a root that
+    // wants to name a subset has to write the filter itself — and this is where
+    // that shows up.
     for (const source of [harness, production]) {
-      expect(source).toContain('earlyPassModules(MODULES)');
-      expect(source).toContain('latePassModules(MODULES)');
+      expect(source).toContain('composeModules(MODULES,');
     }
   });
 
-  it('every generated entry is composed exactly once per pass', () => {
-    // `composeModules` is called twice in each root — once per pass — and never
-    // a third time with a hand-picked subset, which is how a root would start
-    // choosing its own module set again.
+  it('every generated entry is composed exactly once', () => {
+    // `composeModules` is called once in each root, and never a second time
+    // with a hand-picked subset, which is how a root would start choosing its
+    // own module set again.
     for (const source of [harness, production]) {
       const calls = [...source.matchAll(/\bcomposeModules\s*\(/g)].length;
-      expect(calls).toBe(2);
+      expect(calls).toBe(1);
+    }
+  });
+
+  it('each root runs the one boot phase exactly once', () => {
+    // The other half of D-45: a second `runBootHooks()` would mean a root had
+    // grown a second boot phase, and with it the question of which half of the
+    // root's contributions a module's hook can see.
+    for (const source of [harness, production]) {
+      const calls = [...source.matchAll(/\.runBootHooks\s*\(/g)].length;
+      expect(calls).toBe(1);
     }
   });
 });

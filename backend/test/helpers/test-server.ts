@@ -40,10 +40,9 @@ import { effectiveState } from '../../src/kernel/lifecycle/effective-state.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { type TenantContext } from '../../src/tenancy/tenant-context.js';
 import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js';
-// Feature 072 — the generated module list, walked in the same two passes the
-// production root walks it in (`src/composition-passes.ts`).
+// Feature 072 — the generated module list, composed in one pass exactly as
+// `src/composition.ts` composes it (D-45).
 import { MODULES } from '../../src/composition.generated.js';
-import { earlyPassModules, latePassModules } from '../../src/composition-passes.js';
 import {
   composeModules,
   createRegistrationOwnership,
@@ -698,11 +697,8 @@ export async function setupBackendServer(
   // Feature 054 — mirror production: the Command Bus is the audited write path.
   const commandBus = new CommandBus(orm, auditLogService, eventBus);
 
-  // Feature 072 — the early pass of the generated module list, composed exactly
-  // as `composition.ts` composes it and at the same point in the boot order:
-  // ahead of the hand-wired remainder, which reads what it registers.
-  // Feature 072 (T078) — seeded **before** the early pass, not at the end of
-  // this function where it used to sit.
+  // Feature 072 (T078) — the enabled set is seeded **before** the modules
+  // compose, not at the end of this function where it used to sit.
   //
   // The enabled set is a precondition for every gated resolution, and a
   // converted module's port is resolved as soon as something asks for it. While
@@ -715,6 +711,9 @@ export async function setupBackendServer(
   );
   registryCache.__setEnabledForTesting(REGISTERED_MANIFESTS.map((e) => e.manifest.id));
 
+  // Mirrors `composition.ts`: the **host values** this root owns outright. No
+  // module registers a default for any of them, so they have no contribution
+  // window and are registered where the value comes into existence.
   registerValues(container, {
     redis,
     // Feature 072 (T125) — the interceptor registry, so `_lifecycle` can serve
@@ -722,9 +721,7 @@ export async function setupBackendServer(
     // platform-owned; until this conversion nothing resolved it by name, so
     // nothing noticed that no root registered it.
     apiInterceptors,
-    // Registered here rather than beside the module's other names: its
-    // `ctx.onBoot` schedule reconcile resolves this, and boot hooks run
-    // several hundred lines before that block (T131).
+    // The module's `ctx.onBoot` schedule reconcile resolves this (T131).
     pimErgonodeRunWorkers: false,
     productFeedsRunWorkers: false,
     productFeedsPublicBaseUrl: 'http://feeds.test.local',
@@ -769,7 +766,31 @@ export async function setupBackendServer(
     };
   } => container.cradle as never;
 
-  const earlyModules = composeModules(earlyPassModules(MODULES), {
+  // Mirrors `composition.ts` (D-45): the two kernel pieces that subscribe to
+  // the EventBus are composed **before** the modules, so no module's
+  // `ctx.subscribe` handler can be ahead of the settings or sales-channel cache
+  // invalidator. `EventBus.dispatch` awaits its handlers in registration order.
+  const salesChannels = composeSalesChannelsKernel({
+    emFactory: em,
+    eventBus,
+    redis,
+    auditLogService,
+  });
+  // Feature 072 (T118) — the kernel composes the settings reader; the module
+  // owns the admin surface and composes itself.
+  const settings = composeSettingsKernel({
+    emFactory: em,
+    eventBus,
+    redis,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
+  });
+
+  // Feature 072 — the generated module list, composed in one pass at the same
+  // point in the boot order `composition.ts` composes it. Its boot hooks run
+  // once, at the bottom of this function, after every contribution below.
+  const composedModules = composeModules(MODULES, {
     container,
     eventBus,
     log: { info: () => {}, warn: () => {}, error: () => {} },
@@ -777,7 +798,6 @@ export async function setupBackendServer(
     ownership: registrationOwnership,
   });
 
-  await earlyModules.runBootHooks();
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument
   // differed between them; there is one now, and it can always reach the port.
@@ -997,17 +1017,9 @@ export async function setupBackendServer(
   // served from the Redis dictionary cache for up to an hour, while a currency
   // change dropped both immediately.
 
-  // Feature 005 — sales-channels module is built BEFORE every other module
-  // that consumes its membership service in their composition (catalog,
-  // cms, taxes, promotions, commerce for payment + delivery methods).
-  // Feature 072 (T110) — the kernel composes channel resolution; the module
-  // owns the admin surface and composes itself.
-  const salesChannels = composeSalesChannelsKernel({
-    emFactory: em,
-    eventBus,
-    redis,
-    auditLogService,
-  });
+  // Feature 072 (T110) — the channel-resolution names. The kernel itself is
+  // composed above `composeModules`, for the subscriber ordering; what belongs
+  // here is the registration, in the one contribution slot.
   registerValues(container, {
     salesChannelsCache: salesChannels.cache,
     salesChannelMembershipPort: salesChannels.membershipService,
@@ -1109,12 +1121,13 @@ export async function setupBackendServer(
   // namespace's availability indication (mirrors composition.ts).
 
   const modules: ModulePlugin[] = [
-    // Feature 072 — the early pass's route contribution, ahead of the auth
-    // plugin for the same reason production keeps it there.
-    ...earlyModules.sink.plugins,
+    // Feature 072 — every module's route contribution, in the generated order,
+    // ahead of the root plugins for the same reason production keeps them
+    // there (D-45).
+    ...composedModules.sink.plugins,
     // Feature 072 (T078) — `auth`'s root plugin, at the same point in the boot
-    // order `composition.ts` puts it: after the liveness probe's routes, before
-    // everything that reads `request.actor`.
+    // order `composition.ts` puts it: before everything that reads
+    // `request.actor`.
     //
     // It registers **before** `registerTestAuth`, so its `onRequest` hook runs
     // first and the harness's synthetic actor still wins. That ordering is the
@@ -1122,7 +1135,7 @@ export async function setupBackendServer(
     // real session cookies, and `registerTestAuth` then assigns the test actor
     // over the top through the same decorator.
     async (app) => {
-      for (const plugin of earlyModules.sink.rootPlugins) await plugin(app);
+      for (const plugin of composedModules.sink.rootPlugins) await plugin(app);
     },
     async (app) => {
       registerTestAuth(app, {
@@ -1183,16 +1196,9 @@ export async function setupBackendServer(
     },
   ];
 
-  // Feature 072 (T118) — the kernel composes the settings reader; the module
-  // owns the admin surface and composes itself.
-  const settings = composeSettingsKernel({
-    emFactory: em,
-    eventBus,
-    redis,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
-  });
+  // Feature 072 (T118) — the settings names. The kernel itself is composed
+  // above `composeModules`, for the subscriber ordering; what belongs here is
+  // the registration, in the one contribution slot.
   registerValues(container, {
     settingsSecretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
     // Mirrors composition.ts: the effective-state reader that classifies each
@@ -1490,9 +1496,8 @@ export async function setupBackendServer(
     await megamenuCradle.megamenuServices.cache.invalidateAll();
   }
 
-  // Feature 072 — the late pass of the generated module list, at the same point
-  // in the boot order `composition.ts` composes it. The host names below are the
-  // only thing this root knows about those modules.
+  // Feature 072 — the host names, mirroring `composition.ts`. They are the only
+  // thing this root knows about the modules it composes.
   registerValues(container, {
     // `requireAdmin` is NOT here: `auth` provides it as a port (T078).
     // `apiKeyResolver` is NOT here either: `api_keys` provides it as a gated
@@ -1549,35 +1554,26 @@ export async function setupBackendServer(
       (await salesChannels.resolver.getSystemDefault()).id,
     blogStorefrontDeps: undefined,
   });
-  const lateModules = composeModules(latePassModules(MODULES), {
-    container,
-    eventBus,
-    log: { info: () => {}, warn: () => {}, error: () => {} },
-    interceptorRegistry: apiInterceptors,
-    ownership: registrationOwnership,
-  });
   // Feature 072 (T121) — `admin_users` owns its services and routes now. The
   // MFA getter is a contribution the module defaults absent, so it is
-  // registered **after the late pass** that composes `admin_users`: earlier and
-  // the module's own default would overwrite it and every admin login would
-  // silently go password-only. The getter is late-bound, so `mfa` composing
-  // later is not a race.
+  // registered **after `composeModules`**: earlier and the module's own default
+  // would overwrite it and every admin login would silently go password-only.
+  // The getter is late-bound, so nothing about `mfa` is a race.
   registerValues(container, { adminMfaLoginPortGetter: getTestMfaLoginPort });
-  modules.push(...lateModules.sink.plugins);
 
-  // Registered **after** the late pass on purpose: `audit_logs` registers its
-  // own empty default there, so a value written before composition would be
-  // overwritten by it (the same trap `prompt_actions` hit).
+  // `audit_logs` registers its own empty default for `auditActorResolver`, so a
+  // value written before `composeModules` would be overwritten by it (the same
+  // trap `prompt_actions` hit).
   registerValues(container, {
     // Feature 072 (T117) — composition-specific sitemap tuning: regeneration is
     // deterministic with no staleness window, and a fixed base URL gives the
     // assertions something stable. Production contributes nothing and takes the
     // module's own `{}`.
     //
-    // Registered **after** the late pass on purpose. `seo` composes there and
-    // registers its own `{}` default, so contributing earlier would have the
-    // module overwrite the root — which is exactly what happened, and the
-    // sitemap silently fell through to `http://localhost:3000`.
+    // Registered **after `composeModules`** on purpose. `seo` registers its own
+    // `{}` default there, so contributing earlier would have the module
+    // overwrite the root — which is exactly what happened, and the sitemap
+    // silently fell through to `http://localhost:3000`.
     sitemapOptions: { staleAfterMs: 0, baseUrl: 'http://test.local' },
     // Feature 072 (T089) — the harness composes no `_lifecycle`, so there is no
     // manifest registry to walk and `_i18n`'s reconcile is a no-op here. That
@@ -1603,11 +1599,11 @@ export async function setupBackendServer(
       }));
     },
   });
-  // Feature 072 (T137) — contributed in the window between the pass that
-  // composes `product_feeds` and that pass's boot hooks. Before the pass is too
-  // early (the module registers its own `{}` default when it composes, and
-  // overwrites this); after `runBootHooks()` is too late (the boot reconcile has
-  // already constructed the module and read the default).
+  // Feature 072 (T137) — contributed in the one slot, between `composeModules`
+  // and `runBootHooks()`. Before `composeModules` is too early (the module
+  // registers its own `{}` default when it composes, and overwrites this);
+  // after `runBootHooks()` is too late (the boot reconcile has already
+  // constructed the module and read the default).
   //
   // What it substitutes: `taxonomyDataRoot` is deliberately a path that does not
   // exist, so the boot reconcile never reads the shipped ~1.5 MB taxonomy files;
@@ -1753,10 +1749,8 @@ export async function setupBackendServer(
     } satisfies CartShoppingListBridge,
   });
 
-  await lateModules.runBootHooks();
-
   // Feature 043 / 072 — the assistant's contribution points, mirroring
-  // `composition.ts`. They are registered **after** the late pass because the
+  // `composition.ts`. They are registered **after `composeModules`** because the
   // module registers its own empty defaults there; a value written before
   // composition would be overwritten by them.
   const catalogToolDeps = {
@@ -2224,6 +2218,12 @@ export async function setupBackendServer(
   // drift from it — it previously carried its own hand-maintained copy, which
   // is why tests saw KSeF/MFA settings that production never created.
   await new ManifestReconciler(em()).apply(collectRegisteredSettingsManifests());
+
+  // The explicit boot phase (FR-021), run **once**, after every registration
+  // and every contribution above and immediately before the app is built —
+  // exactly where `composition.ts` runs it (D-45). A boot hook may therefore
+  // resolve anything this composition registers.
+  await composedModules.runBootHooks();
 
   const app = await buildServer({
     sessionCookieSecret: 'test-secret-do-not-use-in-production',
