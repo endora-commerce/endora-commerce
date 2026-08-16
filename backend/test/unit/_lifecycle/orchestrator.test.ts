@@ -752,4 +752,68 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
       expect(orphan?.flags).toContain('orphan');
     });
   });
+
+  /**
+   * The two axes differ on what they do to the operator's activation choice, and
+   * nothing in the tree said so until the product owner ruled on it (2026-08-15).
+   *
+   * `disable` → `enable` is a **pause**: the platform row flips, the settings are
+   * untouched, and the operator's choice comes back. Soft `uninstall` → `install`
+   * is **taking the module off the table**: the settings sweep at
+   * `orchestrator.ts:454-461` runs on soft and hard alike, and the activation
+   * control is a Setting the module owns, so a re-install starts from the
+   * manifest default.
+   *
+   * That asymmetry is deliberate, not an oversight — but it is surprising enough
+   * that someone would "fix" it. These two assertions are what makes the fix
+   * fail.
+   */
+  describe('what each axis does to the operator activation choice', () => {
+    /** The activation Setting, as the sweep sees it: a row owned by the module. */
+    const activationSetting = (moduleId: string): FakeRow =>
+      ({ moduleId: `${moduleId}.enabled`, ownerModule: moduleId } as unknown as FakeRow);
+
+    const installedRow = (moduleId: string): FakeRow => ({
+      moduleId,
+      state: 'installed',
+      version: '1.0.0',
+      installedAt: new Date(),
+      lastStateChangeAt: new Date(),
+      lastInstallFailedAt: null,
+      lastInstallError: null,
+    });
+
+    it('disable then enable preserves it — a pause drops no setting', async () => {
+      const reg = buildRegistry([
+        { id: 'blog', activation: { settingCode: 'blog.enabled', default: true } },
+      ]);
+      const em = new FakeEm([installedRow('blog'), activationSetting('blog')]);
+      const { orchestrator } = buildOrchestrator({ registry: reg, em });
+
+      await orchestrator.disable('blog', { cascade: false });
+      await orchestrator.enable('blog');
+
+      expect(
+        em.rows.some((r) => (r as unknown as Record<string, unknown>)['ownerModule'] === 'blog'),
+        'the activation setting must survive a disable/enable cycle',
+      ).toBe(true);
+    });
+
+    it('a soft uninstall drops it, so a re-install starts from the manifest default', async () => {
+      const reg = buildRegistry([
+        { id: 'blog', activation: { settingCode: 'blog.enabled', default: true } },
+      ]);
+      const em = new FakeEm([installedRow('blog'), activationSetting('blog')]);
+      const { orchestrator } = buildOrchestrator({ registry: reg, em });
+
+      await orchestrator.uninstall('blog', { hard: false });
+
+      expect(
+        em.rows.some((r) => (r as unknown as Record<string, unknown>)['ownerModule'] === 'blog'),
+        'a soft uninstall sweeps the module-owned settings, the activation one included',
+      ).toBe(false);
+      // And the registration row is preserved — that is what makes it *soft*.
+      expect(em.rows.find((r) => r.moduleId === 'blog')?.state).toBe('uninstalled');
+    });
+  });
 });

@@ -254,6 +254,14 @@ pattern to copy.
 Switching a module off is **not** uninstalling: it drops no data, configuration, bundles,
 permissions or schema.
 
+**The two therefore differ on the operator's activation choice, and the difference is
+deliberate.** `disable` → `enable` is a pause: the platform row flips, nothing else moves,
+and the choice comes back. A soft `uninstall` → `install` is taking the module off the
+table: the settings sweep in the orchestrator runs on soft and hard alike, and the
+activation control is a Setting the module owns, so a re-install starts from the manifest
+default. Do not "fix" that asymmetry — it is the product's answer, and
+`test/unit/_lifecycle/orchestrator.test.ts` asserts both halves so a fix fails.
+
 ### Migrations (feature 065)
 
 There is **no repo-wide sequential migration number**. Never write "the next free `NNN_*`
