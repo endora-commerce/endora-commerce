@@ -28,6 +28,10 @@ export class HardDeleteAssetWorker {
   ) {}
 
   async sweep(now: Date = new Date()): Promise<HardDeleteSweepResult> {
+    // command-coverage-ignore: retention purge, not an operator write. The
+    // auditable decision was the soft delete that set `deletedAt` and
+    // `purgeAfterAt`; this pass only executes the retention window that write
+    // already committed, with no actor behind it and nothing to undo.
     const em = this.emFactory();
     const due = await em.find(Asset, {
       deletedAt: { $ne: null },
@@ -64,6 +68,8 @@ export class HardDeleteAssetWorker {
    * Same logic as `sweep` but selects rows with pending_cleanup = true.
    */
   async sweepPending(): Promise<HardDeleteSweepResult> {
+    // command-coverage-ignore: the retry half of `sweep()` — same already-audited
+    // retention decision, re-attempted for rows whose storage delete failed.
     const em = this.emFactory();
     const due = await em.find(Asset, {
       deletedAt: { $ne: null },

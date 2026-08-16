@@ -179,6 +179,10 @@ function mustBeNonProduction(): void {
 }
 
 async function main(): Promise<void> {
+  // command-coverage-ignore: the development seed. `mustBeNonProduction()` on
+  // the next line is the enforcement, not the convention — this entry point
+  // refuses to run against a production database at all, so the writes below
+  // have no operator, no tenant and no audit reader.
   mustBeNonProduction();
   const orm = await initOrm();
   const em = orm.em.fork();

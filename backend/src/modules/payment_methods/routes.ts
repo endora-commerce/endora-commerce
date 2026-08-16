@@ -7,6 +7,8 @@ import {
   type PaymentMethodAvailability,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../commands/index.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import {
   effectiveState,
   toModulePresenceDto,
@@ -41,9 +43,26 @@ export interface PaymentMethodsPublicDeps {
   eligibility?: PaymentMethodEligibilityService;
 }
 
+/** The audit projection of a payment method — configuration only, no secrets. */
+function auditState(row: PaymentMethod): Record<string, unknown> {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    kind: row.kind,
+    adapter: row.adapter,
+    status: row.status,
+    additionalPrice: row.additionalPrice,
+    statusOnPending: row.statusOnPending,
+    statusOnSuccess: row.statusOnSuccess,
+    statusOnFailure: row.statusOnFailure,
+  };
+}
+
 export interface PaymentMethodsAdminDeps {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  auditLogService: AuditLogService;
   /** Feature 005 / T027b — new payment methods auto-bind to the system default. */
   salesChannelMembership?: SalesChannelMembershipService;
   /** Feature 034 — validates `adapter` against the registered adapters. */
@@ -155,6 +174,7 @@ export async function registerPaymentMethodsAdminRoutes(
 
       let row = await em.findOne(PaymentMethod, { code: request.params.code });
       let isNew = false;
+      const before = row === null ? null : auditState(row);
       if (row) {
         row.name = body.name;
         row.kind = body.kind;
@@ -178,6 +198,16 @@ export async function registerPaymentMethodsAdminRoutes(
         });
         isNew = true;
       }
+      // Which methods a shop offers, and which order status each payment result
+      // moves an order to, is operator configuration — and it went unaudited
+      // until the coverage scan reached route files (issue #122).
+      recordAuditFromContext(deps.auditLogService, em, {
+        action: isNew ? 'payment_method.create' : 'payment_method.update',
+        objectType: 'payment_method',
+        objectId: row.id,
+        stateBefore: before,
+        stateAfter: auditState(row),
+      });
       await em.persistAndFlush(row);
 
       if (isNew && deps.salesChannelMembership) {
@@ -210,6 +240,13 @@ export async function registerPaymentMethodsAdminRoutes(
           `Cannot delete payment method: ${referencing} payment(s) reference it. Set status to "inactive" instead.`,
         );
       }
+      recordAuditFromContext(deps.auditLogService, em, {
+        action: 'payment_method.delete',
+        objectType: 'payment_method',
+        objectId: row.id,
+        stateBefore: auditState(row),
+        stateAfter: null,
+      });
       await em.removeAndFlush(row);
       return reply.status(204).send();
     },

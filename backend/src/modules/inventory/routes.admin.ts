@@ -10,6 +10,8 @@ import {
   setStockLevelRequestSchema,
   updateWarehouseRequestSchema,
 } from '@b2b/contracts';
+import { recordAuditFromContext } from '../../commands/index.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { StockLevel } from './entities/stock-level.entity.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { DEFAULT_WAREHOUSE_ID } from './entities/warehouse.entity.js';
@@ -34,6 +36,8 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
  */
 export interface InventoryAdminDeps {
   emFactory: () => EntityManager;
+  /** Feature 024 — optional, matching the plugin options it is threaded from. */
+  auditLogService?: AuditLogService;
   warehouseService: WarehouseService;
   stockLevelService: StockLevelService;
   warehouseChannelService: WarehouseChannelService;
@@ -483,6 +487,7 @@ export async function registerInventoryAdminRoutes(
         variantId,
         warehouseId: DEFAULT_WAREHOUSE_ID,
       });
+      const before = row?.onHand ?? null;
       if (row) {
         row.onHand = body.onHand;
       } else {
@@ -491,6 +496,26 @@ export async function registerInventoryAdminRoutes(
           ...(variantId ? { variantId } : {}),
           warehouseId: DEFAULT_WAREHOUSE_ID,
           onHand: body.onHand,
+        });
+      }
+      // The audited path for a stock change is `StockLevelService`
+      // (`stock_level.adjust`); this legacy single-warehouse endpoint wrote
+      // straight through the EntityManager and recorded nothing, which the
+      // coverage scan could not see until it reached route files (issue #122).
+      // Same action token, so the two paths land in one audit history.
+      if (deps.auditLogService && before !== body.onHand) {
+        recordAuditFromContext(deps.auditLogService, em, {
+          action: 'stock_level.adjust',
+          objectType: 'stock_level',
+          objectId: `${body.productId}:${DEFAULT_WAREHOUSE_ID}`,
+          stateBefore: before === null ? null : { onHand: before },
+          stateAfter: {
+            productId: body.productId,
+            variantId,
+            warehouseId: DEFAULT_WAREHOUSE_ID,
+            onHand: body.onHand,
+            delta: body.onHand - (before ?? 0),
+          },
         });
       }
       await em.persistAndFlush(row);

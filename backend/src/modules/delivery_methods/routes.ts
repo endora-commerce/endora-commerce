@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, deliveryMethodUpsertSchema } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../commands/index.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { DeliveryMethod } from './entities/delivery-method.entity.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { ShippingAdapterRegistry } from './services/shipping-adapter-registry.js';
@@ -33,9 +35,25 @@ export interface DeliveryMethodsPublicDeps {
   eligibility?: ShippingMethodEligibilityService;
 }
 
+/** The audit projection of a delivery method — configuration only. */
+function auditState(row: DeliveryMethod): Record<string, unknown> {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    cost: row.cost,
+    currency: row.currency,
+    adapter: row.adapter,
+    status: row.status,
+    statusOnSuccess: row.statusOnSuccess,
+    statusOnFailure: row.statusOnFailure,
+  };
+}
+
 export interface DeliveryMethodsAdminDeps {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  auditLogService: AuditLogService;
   /** Feature 005 / T027b — new delivery methods auto-bind to the system default. */
   salesChannelMembership?: SalesChannelMembershipService;
   /** Feature 035 — validates `adapter` against the registered adapters. */
@@ -113,6 +131,7 @@ export async function registerDeliveryMethodsAdminRoutes(
 
       let row = await em.findOne(DeliveryMethod, { code: request.params.code });
       let isNew = false;
+      const before = row === null ? null : auditState(row);
       // The adapter is set at registration time and rarely changed; preserve an
       // existing row's adapter unless the body explicitly overrides it. A new
       // row defaults its adapter to the code.
@@ -156,6 +175,16 @@ export async function registerDeliveryMethodsAdminRoutes(
         });
         isNew = true;
       }
+      // What a shop charges for shipping, and which order status a delivery
+      // result moves an order to, is operator configuration — unaudited until
+      // the coverage scan reached route files (issue #122).
+      recordAuditFromContext(deps.auditLogService, em, {
+        action: isNew ? 'delivery_method.create' : 'delivery_method.update',
+        objectType: 'delivery_method',
+        objectId: row.id,
+        stateBefore: before,
+        stateAfter: auditState(row),
+      });
       await em.persistAndFlush(row);
 
       if (isNew && deps.salesChannelMembership) {
@@ -188,6 +217,13 @@ export async function registerDeliveryMethodsAdminRoutes(
           `Cannot delete delivery method: ${referencing} shipment(s) reference it. Set status to "inactive" instead.`,
         );
       }
+      recordAuditFromContext(deps.auditLogService, em, {
+        action: 'delivery_method.delete',
+        objectType: 'delivery_method',
+        objectId: row.id,
+        stateBefore: auditState(row),
+        stateAfter: null,
+      });
       await em.removeAndFlush(row);
       return reply.status(204).send();
     },

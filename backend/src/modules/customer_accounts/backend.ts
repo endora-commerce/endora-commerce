@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import { recordAuditFromContext } from '../../commands/index.js';
 import { withSystemScope } from '../../tenancy/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -181,7 +182,7 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort(
     'customerSocialLoginPort',
     ctx
-      .asFunction(({ emFactory }: CustomerAccountsCradle) => ({
+      .asFunction(({ emFactory, auditLogService }: CustomerAccountsCradle) => ({
         async resolveByEmail(email: string): Promise<{ id: string } | null> {
           return withSystemScope('mfa: resolve customer by email', async () => {
             const customer = await emFactory().findOne(CustomerAccount, {
@@ -235,6 +236,19 @@ export function registerModule(ctx: ModuleContext): void {
               role: 'regular_user',
               organizationId: null,
               emailVerifiedAt: new Date(),
+            });
+            // The other way an account is created without an admin —
+            // `customers`' standalone self-registration — records this same
+            // shape with a null actor, and this path did not record anything at
+            // all until the coverage scan reached `backend.ts` (issue #122). An
+            // account appearing out of a federated sign-in is exactly the event
+            // an operator later needs to explain.
+            recordAuditFromContext(auditLogService, em, {
+              action: 'customer_account.register_social',
+              objectType: 'customer_account',
+              objectId: account.id,
+              stateBefore: null,
+              stateAfter: { email: account.email },
             });
             await em.persistAndFlush(account);
             return { id: account.id };

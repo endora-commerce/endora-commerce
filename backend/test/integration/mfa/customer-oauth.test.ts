@@ -6,6 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { MfaSocialIdentity } from '../../../src/modules/mfa/entities/mfa-social-identity.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
 /**
  * Feature 042 / US4 — storefront federated sign-in (Google), OIDC client faked.
@@ -97,6 +98,20 @@ describe('MFA US4 — customer social login', () => {
     const created = await h.em().findOne(CustomerAccount, { email });
     expect(created).not.toBeNull();
     expect(created!.organizationId ?? null).toBeNull(); // standalone (no org)
+
+    // Issue #122 — the other way an account appears without an admin
+    // (`customers`' standalone self-registration) has always recorded an entry
+    // with a null actor; this path recorded nothing, because the coverage scan
+    // never opened a `backend.ts`. An account arriving out of a federated
+    // sign-in is exactly what an operator later has to be able to explain.
+    const audit = await h
+      .em()
+      .find(AuditLogEntry, {
+        action: 'customer_account.register_social',
+        objectId: created!.id,
+      });
+    expect(audit).toHaveLength(1);
+    expect((audit[0]!.stateAfter as { email?: string } | null)?.email).toBe(email);
   });
 
   it('refuses to auto-create while org-less registration is off', async () => {

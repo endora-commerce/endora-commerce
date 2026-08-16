@@ -99,14 +99,40 @@ auditable event is captured elsewhere, and always with a one-line reason.
 
 ## Coverage check (CI-enforced)
 
-`scripts/check-command-coverage.ts` statically flags, per method in every
-`modules/*/services/*.ts` file, a sensitive mutation (`persist*`, `nativeUpdate`,
-`nativeDelete`, `remove*`, `flush`) that is neither audited nor escape-hatched, and the
-**double-audit** shape (a method that both runs a Command and audits by hand). A method
-counts as covered when it runs a Command, defines a Command literal, records audit
-(`auditLog.record`/`recordWithin`, `recordAuditFromContext`, or a `.audit` recorder),
-delegates to such a method (`this.<runner>()`), is itself a helper invoked by a covered
-method (reverse delegation), or carries a `command-coverage-ignore` comment.
+`scripts/check-command-coverage.ts` statically flags, per method **and per route
+handler**, in every `.ts` file under `src/modules/` and `src/apps/`, a sensitive mutation
+(`persist*`, `nativeUpdate`, `nativeDelete`, `remove*`, `flush`) that is neither audited
+nor escape-hatched, and the **double-audit** shape (a unit that both runs a Command and
+audits by hand). A unit counts as covered when it runs a Command, defines a Command
+literal, records audit (`auditLog.record`/`recordWithin`, `recordAuditFromContext`, or a
+`.audit` recorder), delegates to such a unit (`this.<runner>()`, a module-level helper, or
+a function-valued local such as a route file's `const audit = …`), is itself a helper
+invoked by a covered unit (reverse delegation), or carries a `command-coverage-ignore`
+comment.
+
+### What it opens (issue #122)
+
+The walk used to match `**/services/<file>.ts` — one level, nothing else, which is **472
+of the tree's 1152 module files**. `pim_ergonode/services/import/`,
+`product_feeds/services/delivery/` and `services/queues/` were a level too deep;
+`workers/`, `queues/`, `jobs/`, `commands/`, every `routes*.ts`, every `backend.ts` boot
+hook, every `scripts/` entry point and every `seeds/` reconciler were outside it
+altogether — which is to say the check read clean over queue consumers and admin route
+handlers, the two places writes actually live. Widening it found ten unaudited
+operator-visible writes (nine admin route handlers across seven modules, one federated
+sign-in account creation).
+
+Four exclusions remain, each an argument rather than an omission: `migrations/` (DDL with
+no request and no actor), `*.test.ts` / `*.d.ts` (not shipped code) and `audit_logs/` (the
+audit writer itself — requiring an audit of the audit is circular). `seeds/` and
+`scripts/` are **in** scope and carry written escape hatches instead.
+
+Two narrowings paid for the widening. `remove` counts as an ORM mutation only off an
+EntityManager — 30 of the first-pass findings were `deps.<x>Service.remove(id)` in a route
+handler, a call into an audited service — while the staleness half keeps counting it
+everywhere. And a route file is judged **per handler**: read as one unit, a single
+`commandBus.run` anywhere in it clears every other handler, which is the masking the
+per-method rule exists to prevent, one level up.
 
 The platform-wide rollout is **complete** — all backend modules are migrated (207
 registered command actions, ~120 documented escape hatches). CI runs the check with
@@ -125,10 +151,21 @@ found on the first run, all four in payment-gateway services whose local mirrori
 moved into `ReceivePaymentHandler`; their prose stayed as ordinary comments.
 
 The staleness half deliberately looks for writes **more widely** than the flagging half —
-it also counts a raw SQL write statement and any write reached through `this.<name>(…)`
-in the same file — so a marker guarding a real write the check cannot itself see is left
-alone. Both errors then fall on the safe side: at worst a marker outlives its write for
-one more refactor, never the reverse.
+it also counts a raw SQL write statement, a queue or Redis write (`removeJobScheduler`,
+`obliterate`, `del`, …), an ambiguous `remove` off any receiver, and any write reached
+through a call in the same file — so a marker guarding a real write the check cannot
+itself see is left alone. Both errors then fall on the safe side: at worst a marker
+outlives its write for one more refactor, never the reverse. Widening the scan (issue
+#122) had to widen this half first: `product_feeds/workers/taxonomy-refresh-worker.ts`
+documents its `queue.removeJobScheduler(…)` as "Redis-only", and a sweep that knew only
+ORM and SQL would have demanded the deletion of a correct decision the moment `workers/`
+came into scope.
+
+A marker also has to be **on** the unit it exempts: inside the body, or in the doc comment
+directly above it. Four command files describe their module's policy in a file header that
+quotes the token, and reading a unit's full leading trivia let that header exempt whichever
+declaration happened to come first — then, once the sweep landed, report it as a dead
+marker nobody had written.
 
 ## Converting a write
 

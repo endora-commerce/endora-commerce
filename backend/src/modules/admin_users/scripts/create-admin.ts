@@ -70,6 +70,12 @@ function parseArgs(argv: string[]): ParsedArgs {
 }
 
 async function main(): Promise<void> {
+  // command-coverage-ignore: the bootstrap CLI that mints the first
+  // administrator. It runs with shell access to the deployment and, by
+  // construction, before any Admin User exists — so there is no acting
+  // principal for the Command Bus to attribute the write to. Every subsequent
+  // admin-user write goes through the audited admin_users surface; this one
+  // exists so that surface has somebody to sign in to it.
   const args = parseArgs(process.argv.slice(2));
 
   if (args.password.length < 12) {

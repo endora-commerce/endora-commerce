@@ -71,11 +71,12 @@ export async function loadModulePresence(opts: {
  *
  * **Why the hatch appears only now.** The write is feature 018's, unchanged
  * since 2026-05-06. It lived in `_lifecycle/plugin.ts`, which
- * `check-command-coverage` does not scan — it judges `modules/<m>/services/*.ts`
- * — and D-38 moved it here, into a services file, when presence became a
- * composition step. So what changed in feature 072 is the check's line of
- * sight, not the decision being made; nothing about the reconcile became
- * sensitive on the way across.
+ * `check-command-coverage` did not scan at the time — it judged
+ * `modules/<m>/services/*.ts` and nothing else, one level deep (issue #122
+ * widened it to every file a module owns) — and D-38 moved it here, into a
+ * services file, when presence became a composition step. So what changed in
+ * feature 072 is the check's line of sight, not the decision being made;
+ * nothing about the reconcile became sensitive on the way across.
  *
  * **What it writes.** One `module_registrations` row per shipped manifest that
  * has none, carrying `state='installed'` and the manifest's version. Inserts
