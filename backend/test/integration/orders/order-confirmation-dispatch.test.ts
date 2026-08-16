@@ -37,7 +37,7 @@ describe('placeOrder — order-confirmation e-mail dispatch', () => {
 
   it('sends a confirmation e-mail to the customer with all sections', async () => {
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
 
     const service = new OrderService(
       h.em,

@@ -1,15 +1,33 @@
 import type { PaymentAdapter } from '@b2b/contracts';
+import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /**
  * PaymentAdapterRegistry (feature 034) — in-memory map of adapter key →
  * implementation. A module is recognised as a payment-method adapter iff it
- * registers a `PaymentAdapter` here (FR-001). The existing bank_transfer /
- * pickup / gateway drivers are the first entries; external modules register
- * their own adapter from their lifecycle install hook.
+ * registers a `PaymentAdapter` here (FR-001). `payments` contributes the four
+ * built-in adapters from its boot hook; each gateway module contributes its own.
+ *
+ * **Every entry names the module that contributed it (issue #96).** This is a
+ * contribution registry in D-39's sense: the push is ungated — a boot hook runs
+ * whatever the module's effective state is, and gating the push would make a
+ * deactivation survive as a permanently missing entry — so the presence
+ * question is answered *here*, at enumeration, keyed on the owner recorded with
+ * the entry.
+ *
+ * The policy this registry states, per D-39's requirement that each host state
+ * one: an adapter whose owner is not effectively present is **skipped**. A
+ * payment method is a surface-like contribution — the product ruling of
+ * 2026-08-15 is that a buyer never sees a method that cannot take their money —
+ * so `get`, `resolve` and `list` answer as if the adapter were not registered.
+ * `entry`, `ownerOf`, `isRegistered` and `listAll` deliberately do not filter:
+ * they are what the admin surface reads to keep showing the method *and* the
+ * reason it is unavailable, and switching a module off is not uninstalling it.
  *
  * Collision policy mirrors the CMS PageBuilderRegistry: last-writer-wins with
  * a warning, so a re-registration during a hot reload or re-enable does not
- * throw.
+ * throw. Re-registration by the *same* owner is a re-composition rather than a
+ * collision (the test suite performs several hundred against this one process
+ * singleton) and is silent.
  */
 export interface RegistryLogger {
   warn(message: string): void;
@@ -19,44 +37,96 @@ const consoleLogger: RegistryLogger = {
   warn: (message) => console.warn(message),
 };
 
+/** One contributed adapter, with the module that contributed it. */
+export interface PaymentAdapterEntry {
+  readonly adapter: PaymentAdapter;
+  readonly module: string;
+}
+
 export class PaymentAdapterRegistry {
-  private readonly adapters = new Map<string, PaymentAdapter>();
+  private readonly entries = new Map<string, PaymentAdapterEntry>();
 
-  constructor(private readonly log: RegistryLogger = consoleLogger) {}
+  /**
+   * @param log            collision warnings.
+   * @param isModulePresent the effective-state probe. Defaults to
+   *   always-present so a registry built for a unit test or a bare harness
+   *   behaves exactly as it did before this filter existed; the process
+   *   singleton wires it to the kernel's effective state.
+   */
+  constructor(
+    private readonly log: RegistryLogger = consoleLogger,
+    private readonly isModulePresent: (moduleId: string) => boolean = () => true,
+  ) {}
 
-  register(adapter: PaymentAdapter): void {
-    if (this.adapters.has(adapter.adapterKey)) {
+  register(adapter: PaymentAdapter, moduleId: string): void {
+    const existing = this.entries.get(adapter.adapterKey);
+    if (existing && existing.module !== moduleId) {
       this.log.warn(
-        `PaymentAdapterRegistry: adapter "${adapter.adapterKey}" re-registered; overwriting previous registration.`,
+        `PaymentAdapterRegistry: adapter "${adapter.adapterKey}" re-registered by ` +
+          `module "${moduleId}" (was "${existing.module}"); overwriting previous registration.`,
       );
     }
-    this.adapters.set(adapter.adapterKey, adapter);
+    this.entries.set(adapter.adapterKey, { adapter, module: moduleId });
   }
 
   unregister(adapterKey: string): void {
-    this.adapters.delete(adapterKey);
+    this.entries.delete(adapterKey);
   }
 
+  /** Whether any module has contributed this key — presence-blind. */
   isRegistered(adapterKey: string): boolean {
-    return this.adapters.has(adapterKey);
+    return this.entries.has(adapterKey);
   }
 
-  /** Returns the adapter or `undefined` when not registered. */
+  /** The contributed entry, presence-blind. Admin and diagnostics read this. */
+  entry(adapterKey: string): PaymentAdapterEntry | undefined {
+    return this.entries.get(adapterKey);
+  }
+
+  /** The module that contributed `adapterKey`, or `null` when nobody did. */
+  ownerOf(adapterKey: string): string | null {
+    return this.entries.get(adapterKey)?.module ?? null;
+  }
+
+  /** Registered AND its owner effectively present. */
+  isAvailable(adapterKey: string): boolean {
+    const entry = this.entries.get(adapterKey);
+    return entry !== undefined && this.isModulePresent(entry.module);
+  }
+
+  /** The adapter, or `undefined` when unregistered or its owner is absent. */
   get(adapterKey: string): PaymentAdapter | undefined {
-    return this.adapters.get(adapterKey);
+    const entry = this.entries.get(adapterKey);
+    if (!entry || !this.isModulePresent(entry.module)) return undefined;
+    return entry.adapter;
   }
 
-  /** Returns the adapter or throws when not registered. */
+  /**
+   * The adapter, or a throw. An unregistered key is a programming error; a
+   * registered one whose owner is absent is the ordinary 503 envelope, so a
+   * caller reached through a service boundary learns the capability is off
+   * rather than that the platform is broken.
+   */
   resolve(adapterKey: string): PaymentAdapter {
-    const adapter = this.adapters.get(adapterKey);
-    if (!adapter) {
+    const entry = this.entries.get(adapterKey);
+    if (!entry) {
       throw new Error(`PaymentAdapterRegistry: no adapter registered for key "${adapterKey}".`);
     }
-    return adapter;
+    if (!this.isModulePresent(entry.module)) {
+      throw new ModuleDisabledError(entry.module);
+    }
+    return entry.adapter;
   }
 
-  /** Registered adapter keys (stable order of insertion). */
+  /** Adapter keys whose owner is present (stable insertion order). */
   list(): string[] {
-    return [...this.adapters.keys()];
+    return [...this.entries.entries()]
+      .filter(([, entry]) => this.isModulePresent(entry.module))
+      .map(([key]) => key);
+  }
+
+  /** Every registered adapter key, presence-blind. */
+  listAll(): string[] {
+    return [...this.entries.keys()];
   }
 }

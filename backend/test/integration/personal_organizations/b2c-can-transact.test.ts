@@ -43,7 +43,7 @@ describe('B2C (personal-org) customer can transact (feature 051 US1)', () => {
 
   function buildOrderService() {
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     return new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
       paymentAdapters: registry,
       orderStatusRegistry: new EnumOrderStatusRegistry(),

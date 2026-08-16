@@ -34,8 +34,8 @@ const method = (code: string, adapterKey: string): DeliveryMethod => {
 describe('ShippingMethodEligibilityService', () => {
   it('keeps methods whose adapter validator returns true', async () => {
     const reg = new ShippingAdapterRegistry();
-    reg.register(adapter('ok', true));
-    reg.register(adapter('blocked', false));
+    reg.register(adapter('ok', true), 'delivery_methods');
+    reg.register(adapter('blocked', false), 'delivery_methods');
     const svc = new ShippingMethodEligibilityService(reg);
 
     const result = await svc.filter([method('a', 'ok'), method('b', 'blocked')], {

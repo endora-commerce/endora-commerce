@@ -19,22 +19,15 @@ import { expectModuleAbsent } from '../../helpers/off-state.js';
  * with *no* payment list at all rather than a partial one.
  *
  * **What this file does not cover, deliberately.** The product ruling of
- * 2026-08-15 says a payment method whose *gateway* module is absent or switched
- * off must disappear from cart and checkout. That is a different question from
- * this module's own presence, and it is still open (issue #96).
- * `PaymentMethodEligibilityService` keeps a method only while its adapter is in
- * `paymentAdapterRegistry`, but that registry is a process singleton every
- * gateway writes itself into at composition time — `payments` pushes the
- * built-ins from its boot hook, `stripe`/`payu`/`tpay`/`autopay` from their
- * `plugin.ts` — and nothing withdraws an adapter when its owner is switched off
- * on either axis. Measured while writing this file: with `payments` and
- * `stripe` deactivated, `GET /api/v1/payment-methods` still answers 200 and
- * still lists the `bank_transfer`-backed methods.
- *
- * That gap is orthogonal to this module's flag — dropping `nonDeactivatable`
- * here neither creates nor widens it, because the eligibility filter reads the
- * registry rather than any presence axis — so it is left to #96 rather than
- * half-fixed under this change.
+ * 2026-08-15 — a payment method whose *gateway* module is absent or switched
+ * off disappears from cart and checkout — is a different question from this
+ * module's own presence, and it has its own file:
+ * `gateway-presence.test.ts`. It was open as issue #96 when this test was
+ * written (measured then: with `payments` and `stripe` deactivated,
+ * `GET /api/v1/payment-methods` answered 200 and still listed the
+ * `bank_transfer`-backed methods) and is closed now — `paymentAdapterRegistry`
+ * records the contributing module on every entry and skips an entry whose owner
+ * is not effectively present.
  */
 
 const ALL_IDS = REGISTERED_MANIFESTS.map((e) => e.manifest.id);

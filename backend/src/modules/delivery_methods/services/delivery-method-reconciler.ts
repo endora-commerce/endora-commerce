@@ -1,6 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { DeliveryMethod } from '../entities/delivery-method.entity.js';
-import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
 
 /**
  * DeliveryMethodReconciler (feature 035, FR-002).
@@ -11,6 +10,12 @@ import type { SalesChannelMembershipService } from '../../../kernel/sales-channe
  * entry at `/delivery-methods` with no core change. Idempotent and prune-safe:
  * an existing row (matched by `code`) keeps its admin-edited configuration; the
  * reconciler only fills a missing `adapter` link.
+ *
+ * **It no longer touches sales-channel membership (issue #96)** — see the
+ * payment twin (`payment_methods/services/payment-method-reconciler.ts`).
+ * The mechanism was identical here; only the exposure differed, because no
+ * carrier module contributes an adapter yet. Removing it before one does is
+ * the point.
  */
 export interface EnsureMethodDefaults {
   code: string;
@@ -23,10 +28,7 @@ export interface EnsureMethodDefaults {
 }
 
 export class DeliveryMethodReconciler {
-  constructor(
-    private readonly emFactory: () => EntityManager,
-    private readonly salesChannelMembership?: SalesChannelMembershipService,
-  ) {}
+  constructor(private readonly emFactory: () => EntityManager) {}
 
   async ensureMethodForAdapter(
     adapterKey: string,
@@ -57,12 +59,6 @@ export class DeliveryMethodReconciler {
       statusOnFailure: defaults.statusOnFailure ?? 'processing',
     });
     await em.persistAndFlush(row);
-
-    // Bind to the system-default sales channel when no membership exists yet,
-    // matching the behaviour of the existing admin upsert path.
-    if (this.salesChannelMembership) {
-      await this.salesChannelMembership.bindToDefaultIfEmpty('delivery-method', row.id);
-    }
     return row;
   }
 }

@@ -77,27 +77,25 @@ during its lifecycle install hook (FR-001). No core change is required.
    };
    ```
 
-2. **Register the adapter and reconcile a row** from the install hook:
+2. **Contribute the adapter from the boot hook**, naming the owning module, and
+   ship the method row as a migration:
 
    ```ts
    import { shippingAdapterRegistry } from '.../delivery_methods/services/registry-singleton.js';
-   import { DeliveryMethodReconciler } from '.../delivery_methods/services/delivery-method-reconciler.js';
-   import type { ModuleInstallHook, ModuleUninstallHook } from '@b2b/contracts';
 
-   export const installHook: ModuleInstallHook = async (ctx) => {
-     shippingAdapterRegistry.register(myCarrierAdapter);
-     await new DeliveryMethodReconciler(() => ctx.em).ensureMethodForAdapter(
-       'my_carrier',
-       { code: 'my_carrier', name: { default: 'My Carrier' } },
-     );
-   };
-
-   export const uninstallHook: ModuleUninstallHook = async () => {
-     shippingAdapterRegistry.unregister('my_carrier');
-     // The delivery_methods row and its Shipments are preserved (FR-003);
-     // the method is simply excluded from new selections.
-   };
+   ctx.onBoot(() => {
+     shippingAdapterRegistry.register(myCarrierAdapter, 'my_carrier_module');
+   });
    ```
+
+   The owner id is what lets the registry skip the adapter while its module is
+   absent, so a carrier an operator switches off stops being offered instead of
+   being offered and failing (issue #96 — the payment twin's defect, fixed on
+   both sides). The `delivery_methods` row itself is static reference data and
+   belongs in your module's migration; `DeliveryMethodReconciler` remains
+   available from an `installHook` for a row that must be created from code. No
+   uninstall hook is needed to withdraw the adapter — a module that is not
+   present is not enumerated.
 
 3. **Optional renderers** — register custom renderers under the keys you
    declared:

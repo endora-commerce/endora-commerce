@@ -84,34 +84,43 @@ module's configurable registry later with no change here.
    `validateUse*` (return `true` if unconstrained), `onStorefrontOrderCreated`
    (return a `redirect` / `awaiting_transfer` / `none`), and
    `onReceivePayment` (map your PSP callback to `success` / `failure`).
-3. From the module's `installHook`, register the adapter into the shared
-   singleton and reconcile its entry:
+3. Contribute the adapter from the module's **boot hook**, naming the module as
+   its owner:
 
    ```ts
    import { paymentAdapterRegistry } from '.../payment_methods/services/registry-singleton.js';
-   import { PaymentMethodReconciler } from '.../payment_methods/services/payment-method-reconciler.js';
 
-   export const installHook: ModuleInstallHook = async (ctx) => {
-     paymentAdapterRegistry.register(myAdapter);
-     await new PaymentMethodReconciler(() => ctx.em).ensureMethodForAdapter(
-       myAdapter.adapterKey,
-       { code: 'p24', type: 'gateway', name: { default: 'Przelewy24' } },
-     );
-   };
+   ctx.onBoot(() => {
+     paymentAdapterRegistry.register(myAdapter, 'my_module');
+   });
    ```
 
-   `ensureMethodForAdapter` is idempotent and never clobbers admin edits.
-4. (Optional) register storefront / admin / email renderers under the keys the
+   The owner id is not decoration: the registry skips an adapter whose module is
+   not effectively present, so a gateway an operator switches off stops being
+   offered at checkout without anything unregistering it (issue #96). Boot hooks
+   run whatever the module's state is — the *enumeration* answers presence, not
+   the registration.
+4. Ship the method rows as a **migration** owned by your module. The codes,
+   kinds and default names are compile-time constants, so they are static
+   reference data, not a per-boot reconcile: `insert … on conflict (code) do
+   nothing`, seeded `inactive` so an operator opts in. The four bundled gateways
+   do exactly this (`stripe/migrations/…_stripe_seed_payment_methods.ts`).
+   `PaymentMethodReconciler.ensureMethodForAdapter` remains available from an
+   `installHook` for a module that must create a row from code; it is idempotent,
+   never clobbers admin edits, and never touches sales-channel membership.
+5. (Optional) register storefront / admin / email renderers under the keys the
    adapter declares; otherwise the defaults render it.
-5. Enable the module → a configurable Payment Method appears at
+6. Enable the module → a configurable Payment Method appears at
    `/payment-methods`. No core change required.
 
 The `paymentAdapterRegistry` is a **process-wide singleton**
-(`registry-singleton.ts`): the install-hook context cannot carry services, so
-the singleton is the explicit interface that lets an install hook register into
-the same instance `commerceModule` wires into the live eligibility, admin, and
-order-placement paths. An adapter registered on enable is recognised
-immediately — no core change.
+(`registry-singleton.ts`): one table of adapters per process, however many times
+the platform is composed, wired into the live eligibility, admin and
+order-placement paths. Every entry records the module that contributed it, and
+every buyer-facing read (`get`, `resolve`, `list`) skips an entry whose owner is
+absent. The admin-facing reads (`entry`, `ownerOf`, `isRegistered`, `listAll`)
+deliberately do not: switching a module off is not uninstalling it, so the
+`/payment-methods` screen keeps the row and shows why it is unavailable.
 
 ## Per-Organization availability
 

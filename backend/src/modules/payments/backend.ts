@@ -164,14 +164,18 @@ export function registerModule(ctx: ModuleContext): void {
    * The singleton decides *where* a descriptor lands, not *who* may declare
    * one, and this module owns the adapter classes.
    *
-   * The `isRegistered` guard travels with them, and it is that process
-   * singleton that makes it necessary: boot hooks run once per composition and
-   * the test suite performs several hundred, all writing the same instance.
+   * Each one names this module as it lands (issue #96): the registry filters
+   * its enumeration on the contributing module's effective state, so an entry
+   * that does not know who contributed it is an entry that keeps being offered
+   * to a buyer after an operator switches its owner off. Re-registration by the
+   * same owner is silent, which is what the old `isRegistered` guard was
+   * really for — the test suite performs several hundred compositions against
+   * this one process singleton.
    */
   ctx.onBoot(() => {
     const registry = ctx.cradle<PaymentsCradle>().paymentAdapterRegistry;
     for (const adapter of builtInPaymentAdapters()) {
-      if (!registry.isRegistered(adapter.adapterKey)) registry.register(adapter);
+      registry.register(adapter, 'payments');
     }
   });
 }

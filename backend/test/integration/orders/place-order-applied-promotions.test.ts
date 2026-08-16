@@ -41,7 +41,7 @@ describe('placeOrder — automatic promotion carried to order (feature 045)', ()
 
   it('stamps discountTotal and an order_applied_promotions row', async () => {
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     const service = new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
       paymentAdapters: registry,
       orderStatusRegistry: new EnumOrderStatusRegistry(),

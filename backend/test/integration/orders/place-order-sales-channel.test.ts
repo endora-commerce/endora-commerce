@@ -63,7 +63,7 @@ describe('placeOrder — the recorded sales channel (issue #85)', () => {
 
   function buildService(): OrderService {
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     return new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
       paymentAdapters: registry,
       orderStatusRegistry: new EnumOrderStatusRegistry(),
