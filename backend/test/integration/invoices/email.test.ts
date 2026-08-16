@@ -76,8 +76,10 @@ describe('invoices — invoice email dispatch (US5)', () => {
 
   it('attachment mode sends one email with a PDF attachment', async () => {
     const id = await issue();
-    const ok = await withSystemScope('test', () => dispatcher.dispatch(id, { mode: 'attachment' }));
-    expect(ok).toBe(true);
+    const result = await withSystemScope('test', () =>
+      dispatcher.dispatch(id, { mode: 'attachment' }),
+    );
+    expect(result).toEqual({ sent: true });
     const last = sender.sent.at(-1)!;
     expect(last.code).toBe('invoice_issued');
     expect(last.to).toBe('buyer@example.com');
@@ -87,8 +89,8 @@ describe('invoices — invoice email dispatch (US5)', () => {
 
   it('link mode sends no attachment but supplies a download URL variable', async () => {
     const id = await issue();
-    const ok = await withSystemScope('test', () => dispatcher.dispatch(id, { mode: 'link' }));
-    expect(ok).toBe(true);
+    const result = await withSystemScope('test', () => dispatcher.dispatch(id, { mode: 'link' }));
+    expect(result).toEqual({ sent: true });
     const last = sender.sent.at(-1)!;
     expect(last.attachments).toBeUndefined();
     const vars = last.variables as { invoice: { downloadUrl: string } };
@@ -102,8 +104,9 @@ describe('invoices — invoice email dispatch (US5)', () => {
     expect(last.messageId).toBe(`invoice_issued:${id}`);
   });
 
-  it('a failed email does not invalidate the issued invoice', async () => {
+  it('a failed email does not invalidate the issued invoice, and says so', async () => {
     const id = await issue();
+    const logged: Array<{ message: string; context: Record<string, unknown> }> = [];
     const throwingDispatcher = new InvoiceEmailDispatcher({
       emFactory: h.em,
       invoiceService: new InvoiceService(
@@ -120,9 +123,14 @@ describe('invoices — invoice email dispatch (US5)', () => {
       }),
       resolveRecipientEmail: async () => 'buyer@example.com',
       resolveLanguage: async () => 'en-US',
+      log: (message, context) => logged.push({ message, context }),
     });
-    const ok = await withSystemScope('test', () => throwingDispatcher.dispatch(id));
-    expect(ok).toBe(false); // swallowed
+    const result = await withSystemScope('test', () => throwingDispatcher.dispatch(id));
+    // Contained (FR-029) — but named, and written to the log. Issue #103: this
+    // used to be a bare `false` with nothing anywhere recording it.
+    expect(result).toEqual({ sent: false, reason: 'failed' });
+    expect(logged).toHaveLength(1);
+    expect(logged[0]!.context).toMatchObject({ invoiceId: id, reason: 'failed' });
     const inv = await h.em().findOneOrFail(Invoice, { id });
     expect(inv.status).toBe('ready'); // still valid
   });

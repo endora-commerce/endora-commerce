@@ -121,7 +121,14 @@ export type ShippingSurface = 'storefront' | 'admin' | 'api';
 
 export interface ShippingEligibilityContext {
   deliveryMethod: DeliveryMethodAdmin;
-  salesChannelId: string;
+  /**
+   * The channel the buyer is on, or `null` when none is resolved. Widened from
+   * `string` (issue #103) for the reason spelled out on
+   * `PaymentEligibilityContext.salesChannelId`: the empty-string stand-in it
+   * forced is rejected by the settings seam guard, so an adapter reading its own
+   * configuration answered "not eligible". `null` is the platform-wide tier.
+   */
+  salesChannelId: string | null;
   organizationId: string | null;
   customerAccountId: string | null;
   surface: ShippingSurface;

@@ -64,6 +64,8 @@ export interface CustomersCradle {
   readonly organizationRestrictionPort: NonNullable<
     CustomersModuleOptions['organizationRestrictionService']
   >;
+  /** Owned by `organizations`: which organizations a staff member may act on. */
+  readonly organizationSalesRepScopePort: CustomersModuleOptions['salesRepVisibility'];
   readonly emailMailer: CustomersModuleOptions['mailer'];
   /** The storefront origin the set-password link points at. */
   readonly storefrontBaseUrl: string;
@@ -144,6 +146,15 @@ export function registerModule(ctx: ModuleContext): void {
             organizationRestrictionService: lazyPort<
               CustomersCradle['organizationRestrictionPort']
             >(ctx, 'organizationRestrictionPort'),
+            // Issue #108 — `organizations`' scope, not a private copy of its
+            // wiring. The copy this replaces omitted the optional subtree deps,
+            // so feature 056's roll-up was skipped for every block / unblock /
+            // delete / org-assign decision, and `tsc` had nothing to say about
+            // it.
+            salesRepVisibility: lazyPort<CustomersCradle['organizationSalesRepScopePort']>(
+              ctx,
+              'organizationSalesRepScopePort',
+            ),
             mailer: lazyPort<CustomersCradle['emailMailer']>(ctx, 'emailMailer'),
             vatValidator: cradle().customersVatValidator,
             storefrontBaseUrl: cradle().storefrontBaseUrl,

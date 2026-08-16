@@ -190,7 +190,14 @@ export class OrderService {
         organizationId: string;
         salesChannelId: string;
       }) => Promise<string[]>;
-      resolveMinOrderValue?: (salesChannelId: string) => Promise<number>;
+      /**
+       * Issue #103 — `null` is "no channel", read platform-wide. The parameter
+       * used to be `string`, so the gate passed `''` for a placement that named
+       * no channel; the settings read behind it then threw at the seam guard and
+       * the `.catch(() => 0)` reported "no minimum", silently disabling a
+       * configured one.
+       */
+      resolveMinOrderValue?: (salesChannelId: string | null) => Promise<number>;
       resolveChannelFulfilmentStrategy?: (salesChannelId: string) => Promise<FulfilmentStrategy>;
       resolveChannelFulfilmentWarehouseOrder?: (salesChannelId: string) => Promise<string[]>;
       resolveChannelAllowNegativeStock?: (salesChannelId: string) => Promise<boolean>;
@@ -268,7 +275,9 @@ export class OrderService {
    * Feature 038 (US3/FR-035) — resolves the minimum order value for a sales
    * channel (0 = no minimum). Gates both Checkout and admin order creation.
    */
-  private readonly resolveMinOrderValue: ((salesChannelId: string) => Promise<number>) | undefined;
+  private readonly resolveMinOrderValue:
+    | ((salesChannelId: string | null) => Promise<number>)
+    | undefined;
 
   /**
    * Feature 034 — order-confirmation e-mail, dispatched post-commit (best
@@ -448,10 +457,17 @@ export class OrderService {
    * registry is not wired or the adapter is unregistered (the active-status
    * check already gates those). API-surface detection is a follow-up; an
    * impersonated submission counts as the admin surface.
+   *
+   * `salesChannelId` is the channel the placement named, or `null` when it named
+   * none (issue #103). It used to be hard-coded `''` here, which told the
+   * adapter neither: an empty string is not a channel id, so an adapter reading
+   * its own per-channel configuration hit the settings seam guard, and a
+   * placement that *did* name a channel had it discarded on the way in.
    */
   private async assertPaymentMethodUsable(
     ctx: CustomerContext,
     method: PaymentMethod,
+    salesChannelId: string | null,
   ): Promise<void> {
     const adapter = this.paymentAdapters?.get(method.adapter);
     if (!adapter) {
@@ -481,7 +497,7 @@ export class OrderService {
         statusOnFailure: method.statusOnFailure,
         salesChannelIds: [] as string[],
       },
-      salesChannelId: '',
+      salesChannelId,
       organizationId: ctx.organizationId,
       customerAccountId: ctx.customerAccountId,
       surface: surface as 'admin' | 'storefront',
@@ -504,10 +520,13 @@ export class OrderService {
    * method's adapter validator for the submission surface. No-op when the
    * registry is not wired or the adapter is unregistered (the active-status
    * check already gates those). An impersonated submission counts as admin.
+   *
+   * `salesChannelId` follows the payment twin above, for the same reason.
    */
   private async assertShippingMethodUsable(
     ctx: CustomerContext,
     method: DeliveryMethod,
+    salesChannelId: string | null,
   ): Promise<void> {
     const adapter = this.shippingAdapters?.get(method.adapter);
     if (!adapter) {
@@ -530,7 +549,7 @@ export class OrderService {
         salesChannelIds: [] as string[],
         rendererKey: adapter.renderers?.storefront ?? null,
       },
-      salesChannelId: '',
+      salesChannelId,
       organizationId: ctx.organizationId,
       customerAccountId: ctx.customerAccountId,
       surface: surface as 'admin' | 'storefront',
@@ -843,7 +862,7 @@ export class OrderService {
       // Feature 038 (FR-035) — minimum order value gate (Checkout + admin
       // create both reach here). 0 ⇒ no minimum; resolver failures ⇒ no gate.
       if (this.resolveMinOrderValue) {
-        const min = await this.resolveMinOrderValue(req.salesChannelId ?? '').catch(() => 0);
+        const min = await this.resolveMinOrderValue(req.salesChannelId ?? null).catch(() => 0);
         if (min > 0) {
           const cartSubtotal = items.reduce((sum, it) => sum + Number(it.unitPrice) * it.quantity, 0);
           if (cartSubtotal < min) {
@@ -877,9 +896,9 @@ export class OrderService {
       // submit using the surface-appropriate validator. Admin (impersonated)
       // submissions use validateUseOnAdmin; customer submissions use
       // validateUseOnStorefront. A stale/ineligible selection is rejected.
-      await this.assertPaymentMethodUsable(ctx, paymentMethod);
+      await this.assertPaymentMethodUsable(ctx, paymentMethod, req.salesChannelId ?? null);
       // Feature 035 (FR-014/FR-015) — same re-validation for the shipping method.
-      await this.assertShippingMethodUsable(ctx, deliveryMethod);
+      await this.assertShippingMethodUsable(ctx, deliveryMethod, req.salesChannelId ?? null);
 
       // Reserve stock — feature 010 / US7 strategy-driven multi-warehouse
       // allocation (T079). Replaces the foundation 001 single-bucket

@@ -26,13 +26,15 @@ import { quoteRequestsModule, type QuoteRequestsModuleOptions } from './plugin.j
  * and they did: the harness passed neither business-ID resolver, so RFQ numbers
  * in tests never carried the prefix or suffix production stamps on them.
  *
- * `salesRepSubtree` has the same story with a sharper edge. Absent, the RFQ
+ * The sales-rep scope has the same story with a sharper edge. Absent, the RFQ
  * admin scope silently stops being subtree-aware, so a sales representative
  * holding `organizations:rollup` sees only their own rows. The harness passed
- * nothing, so feature 056's rollup was exercised by no test at all. It is a
- * contribution now — the org tree and the permission check are both other
- * modules' — but a contribution a root always makes rather than an argument it
- * can forget.
+ * nothing, so feature 056's rollup was exercised by no test at all. It became a
+ * `salesRepSubtree` contribution out of which this module assembled its own
+ * `SalesRepAssignmentService`; issue #108 found the third such assembly, in
+ * `customers`, missing the optional argument that carries the roll-up. So the
+ * assembly moved to its owner and this module resolves
+ * `organizationSalesRepScopePort` — one implementation, nothing to forget.
  *
  * The two actor resolvers stay root-shaped for the reason they always were:
  * production reads `request.actor` and throws a 401 envelope, the harness reads
@@ -63,19 +65,16 @@ export interface QuoteRequestsCradle {
   /** Contributed: the organization's effective tax rate for a quoted line. */
   readonly rfqTaxRateResolver: NonNullable<QuoteRequestsModuleOptions['resolveTaxRate']>;
   /**
-   * The two ports the sales-rep roll-up scope is built from (T138). They used
-   * to arrive fused as a root-built `rfqSalesRepSubtree` object, which no
-   * `HOST_REGISTERED_PORTS` owner column could describe honestly: the tree
-   * belongs to `organizations`, the permission check to `admin_roles`. Split,
-   * each is an ordinary port and this module writes the one line of policy it
-   * already owns — that a rep holding the roll-up capability sees the subtree.
+   * The sales-rep assignment scope, owned by `organizations` (issue #108).
+   *
+   * T138 split it into the two ports it is *built* from — the org tree and the
+   * `organizations:rollup` capability check — and this module assembled a
+   * `SalesRepAssignmentService` out of them. That put the assembly in three
+   * places, and the one place that got it wrong (`customers`, which omitted the
+   * optional subtree argument entirely) compiled. The assembled port is one
+   * name, and nobody can assemble it differently.
    */
-  readonly organizationTreeService: NonNullable<
-    QuoteRequestsModuleOptions['salesRepSubtree']
-  >['treeService'];
-  readonly permissionService: {
-    hasPermission(adminUserId: string, permission: string): Promise<boolean>;
-  };
+  readonly organizationSalesRepScopePort: QuoteRequestsModuleOptions['salesRepAssignment'];
   readonly quoteRequests: ReturnType<typeof quoteRequestsModule>;
   readonly rfqService: ReturnType<typeof quoteRequestsModule>['handle'] extends () => infer H
     ? H extends { rfqService: infer S }
@@ -199,25 +198,14 @@ export function registerModule(ctx: ModuleContext): void {
             ctx.cradle<QuoteRequestsCradle>().rfqAdminContextResolver(req),
           resolveTaxRate: (organizationId) =>
             ctx.cradle<QuoteRequestsCradle>().rfqTaxRateResolver(organizationId),
-          salesRepSubtree: {
-            // Resolved under the owner's own name. T132 tried exactly this
-            // spelling and it answered 500: the name was declared in
-            // `HOST_REGISTERED_PORTS` and registered by nobody, because a table
-            // entry is a claim about who *would* own it (issue #49). T138 made
-            // the claim true — `organizations` provides it — so the workaround
-            // that read it off a fused root contribution is gone.
-            treeService: lazyPort<QuoteRequestsCradle['organizationTreeService']>(
-              ctx,
-              'organizationTreeService',
-            ),
-            // `organizations:rollup` is a core `PERMISSION_CATALOGUE` code, not
-            // another module's private string, so naming it here crosses no
-            // boundary.
-            hasRollupCapability: (adminUserId: string) =>
-              ctx
-                .cradle<QuoteRequestsCradle>()
-                .permissionService.hasPermission(adminUserId, 'organizations:rollup'),
-          },
+          // Issue #108 — `organizations`' scope, resolved. This used to be the
+          // two feature-056 subtree deps, out of which this module built its own
+          // `SalesRepAssignmentService`: one of three assemblies of one class,
+          // and the shape whose optional third argument `customers` omitted.
+          salesRepAssignment: lazyPort<QuoteRequestsCradle['organizationSalesRepScopePort']>(
+            ctx,
+            'organizationSalesRepScopePort',
+          ),
           resolveExpiryDays: () =>
             setting(QUOTE_REQUESTS_SETTING_CODES.EXPIRY_DAYS, z.number().int().nonnegative(), 0),
           resolveBoolSetting: (key) =>

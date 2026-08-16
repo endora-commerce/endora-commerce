@@ -42,7 +42,11 @@ export class PaymentMethodEligibilityService {
           statusOnFailure: m.statusOnFailure,
           salesChannelIds: [] as string[],
         },
-        salesChannelId: ctx.salesChannelId ?? '',
+        // Issue #103 — passed through, `null` included. It used to be
+        // `?? ''`, and an empty string is not a channel id: an adapter that
+        // reads its own per-channel configuration hit the settings seam guard
+        // and dropped every method. `null` is the platform-wide tier.
+        salesChannelId: ctx.salesChannelId,
         organizationId: ctx.organizationId,
         customerAccountId: ctx.customerAccountId,
         surface: ctx.surface,

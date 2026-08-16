@@ -5,7 +5,7 @@ import { CustomerAccount } from '../../customer_accounts/entities/customer-accou
 import type { RfqEventBus } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqNotificationService, NotificationRecipient } from './rfq-notification-service.js';
-import type { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
+import type { SalesRepAssignmentPort } from '../../organizations/services/sales-rep-assignment-service.js';
 import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
 import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 
@@ -34,7 +34,7 @@ export interface RfqExpiryWorkerDeps {
   events: RfqEventBus;
   eventService: RfqEventService;
   notificationService: RfqNotificationService;
-  salesRepAssignment: SalesRepAssignmentService;
+  salesRepAssignment: SalesRepAssignmentPort;
   /** Resolves the current `quote_requests.expiryDays` from settings.
    * Implementation lives in plugin.ts so the worker isn't coupled to
    * the settings module's read API. */

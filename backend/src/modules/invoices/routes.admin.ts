@@ -12,13 +12,14 @@ import { INVOICE_PAGE_BUILDER_DESCRIPTOR } from './pdf-components/descriptor.js'
 import { sampleInvoiceDetail } from './pdf-components/sample.js';
 import { pickLanguageTree } from './pdf-components/tree-mapper.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { InvoiceEmailDispatchResult } from './services/invoice-email-dispatch.js';
 
 /** Minimal email-dispatch seam — implemented by the US5 dispatcher. */
 export interface InvoiceEmailDispatcher {
   dispatch(
     invoiceId: string,
     opts?: { mode?: 'attachment' | 'link'; messageId?: string },
-  ): Promise<boolean>;
+  ): Promise<InvoiceEmailDispatchResult>;
   sendOnIssueEnabled(salesChannelId: string | null): Promise<boolean>;
 }
 
@@ -172,11 +173,15 @@ export async function registerInvoicesAdminRoutes(
         return { data: { ok: false, reason: 'email_not_configured' } };
       }
       const messageId = `invoice_issued:${request.params.id}:resend:${Date.now()}`;
-      const ok = await deps.emailDispatcher.dispatch(request.params.id, {
+      // Issue #103 — the operator asked for this send explicitly, so the reason
+      // it did not happen belongs in the answer rather than only in the log.
+      const result = await deps.emailDispatcher.dispatch(request.params.id, {
         ...(body.mode ? { mode: body.mode } : {}),
         messageId,
       });
-      return { data: { ok } };
+      return {
+        data: result.sent ? { ok: true } : { ok: false, reason: result.reason },
+      };
     },
   );
 

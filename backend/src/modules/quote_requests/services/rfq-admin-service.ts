@@ -20,7 +20,7 @@ import { type RfqEventBus } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
-import type { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
+import type { SalesRepAssignmentPort } from '../../organizations/services/sales-rep-assignment-service.js';
 import {
   CustomFieldValidationError,
   type CustomFieldValueService,
@@ -64,7 +64,7 @@ export interface RfqAdminServiceDeps {
   eventService: RfqEventService;
   revisionService: RfqRevisionService;
   notificationService: RfqNotificationService;
-  salesRepAssignment: SalesRepAssignmentService;
+  salesRepAssignment: SalesRepAssignmentPort;
   /** Feature 054 — audits RFQ admin writes co-transactionally when provided. */
   auditLog?: AuditLogService;
   /** Feature 055 — validates + merges custom-field values on RFQ edit. */

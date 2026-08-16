@@ -4,8 +4,16 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { sellerCompanyDataSchema, type SellerCompanyData } from '@b2b/contracts';
 import { INVOICES_SETTING_CODES } from '../manifest.js';
 
+/**
+ * The slice of `SettingsService` this module reads through.
+ *
+ * `salesChannelId` is `string | null`, matching the service (D-41): `null` is a
+ * platform-wide read, and it is the only honest thing to pass for an invoice
+ * whose order carries no channel. The narrower `string` this used to declare is
+ * what pushed `invoices` into the `''` sentinel (issue #103).
+ */
 export interface SettingsReader {
-  get<T>(code: string, salesChannelId: string, schema: z.ZodType<T>): Promise<T>;
+  get<T>(code: string, salesChannelId: string | null, schema: z.ZodType<T>): Promise<T>;
 }
 
 /**

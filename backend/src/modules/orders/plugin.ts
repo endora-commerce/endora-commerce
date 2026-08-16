@@ -186,8 +186,11 @@ export interface OrdersModuleOptions {
   resolveReorderEnabled?: (salesChannelId: string) => Promise<boolean>;
   /** Feature 038 US4 — resolves `orders.confirmation_recipients` per Sales Channel. Omit ⇒ none. */
   resolveOrderConfirmationRecipients?: (salesChannelId: string) => Promise<string[]>;
-  /** Feature 038 US3/FR-035 — resolves `orders.min_order_value` per Sales Channel. Omit ⇒ no minimum. */
-  resolveMinOrderValue?: (salesChannelId: string) => Promise<number>;
+  /**
+   * Feature 038 US3/FR-035 — resolves `orders.min_order_value` per Sales
+   * Channel. Omit ⇒ no minimum; `null` ⇒ read it platform-wide (issue #103).
+   */
+  resolveMinOrderValue?: (salesChannelId: string | null) => Promise<number>;
   /**
    * Sales-channel layer of the fulfilment-strategy precedence chain — resolves
    * `inventory.fulfilment_strategy` (+ its warehouse order) per Sales Channel

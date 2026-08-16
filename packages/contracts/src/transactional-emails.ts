@@ -289,7 +289,17 @@ export type EmailPageBuilderDescriptor = z.infer<typeof emailPageBuilderDescript
 
 export interface TransactionalEmailSendInput {
   code: string;
-  salesChannelId: string;
+  /**
+   * The channel whose content, branding and embeds apply, or `null` for the
+   * platform-wide ones.
+   *
+   * Widened from `string` (issue #103). The sender's own resolution chain has
+   * always been channel → global → default and has always spelled "global" as
+   * `null`; only this input type could not say it, so `invoices` passed `''`,
+   * which the settings seam guard rejects — the branding read threw, the
+   * dispatcher's `catch` absorbed it, and the invoice e-mail vanished.
+   */
+  salesChannelId: string | null;
   language: string;
   to: string;
   variables: Record<string, unknown>;

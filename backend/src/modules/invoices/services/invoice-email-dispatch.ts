@@ -1,11 +1,52 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type { TransactionalEmailSender } from '@b2b/contracts';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
+import {
+  SettingNotRegistered,
+  SettingOutOfScopeForChannel,
+} from '../../../kernel/settings/settings.service.js';
 import { Order } from '../../orders/entities/order.entity.js';
 import type { InvoiceService } from './invoice-service.js';
 import type { InvoicePdfRenderer } from './invoice-pdf-renderer.js';
 import type { SettingsReader } from './seller-settings.js';
 import { INVOICES_SETTING_CODES } from '../manifest.js';
+
+/**
+ * Why the invoice e-mail did — or did not — go out (issue #103).
+ *
+ * `dispatch` used to answer a bare `boolean`, and the two send-on-issue call
+ * sites discarded even that. Six unrelated situations therefore looked
+ * identical from outside and four of them were silent: no sender wired, no
+ * recipient, the operator switched the e-mail off, no template for the code, no
+ * transport, and an error the FR-029 `catch` absorbed. An invoice was issued and
+ * nothing anywhere said that no message had been sent.
+ */
+export type InvoiceEmailNotSentReason =
+  /** No transactional sender is wired in this composition. */
+  | 'no_sender'
+  /** The invoice, or the order behind it, could not be loaded. */
+  | 'invoice_not_found'
+  /** No recipient address could be resolved for the order. */
+  | 'no_recipient'
+  /** The operator switched the `invoice_issued` e-mail off. */
+  | 'deactivated'
+  /** No mailer is wired behind the sender. */
+  | 'no_transport'
+  /** No `invoice_issued` template exists yet. */
+  | 'no_definition'
+  /** The send raised, and issuance was kept (FR-029). */
+  | 'failed';
+
+export type InvoiceEmailDispatchResult =
+  | { sent: true }
+  | { sent: false; reason: InvoiceEmailNotSentReason };
+
+/**
+ * Where a failed dispatch is reported. Injectable so a test can read it;
+ * defaults to `console.warn`, which is what the rest of this layer uses.
+ */
+export type InvoiceEmailLog = (message: string, context: Record<string, unknown>) => void;
 
 export interface InvoiceEmailDispatchDeps {
   emFactory: () => EntityManager;
@@ -15,32 +56,46 @@ export interface InvoiceEmailDispatchDeps {
   getSender: () => TransactionalEmailSender | undefined;
   resolveRecipientEmail: (order: Order) => Promise<string | null>;
   resolveLanguage: (salesChannelId: string | null) => Promise<string>;
+  log?: InvoiceEmailLog;
 }
 
 /**
  * Dispatches the `invoice_issued` transactional email (feature 047, US5).
  * Builds template variables, optionally attaches the rendered PDF (attachment
  * mode) or supplies a storefront download link (link mode), and sends through
- * the transactional_emails sender. Idempotent on `messageId`. Best-effort: a
- * failure never throws to the caller (issuance must not be undone).
+ * the transactional_emails sender. Idempotent on `messageId`.
+ *
+ * **Best-effort, and now audible.** A failure still never throws to the caller
+ * — issuance must not be undone (FR-029) — but the tolerance is narrow: a
+ * `ModuleDisabledError` is a presence answer and is re-thrown, everything else
+ * is named in the result and written to the log. Issue #78 tracks the callers
+ * that discard the result; the log is what covers them until it lands.
+ *
+ * An invoice whose order carries **no sales channel** is an ordinary case, not a
+ * failure: every setting below is then read platform-wide (`null`, D-41), and
+ * the send names the same `null`.
  */
 export class InvoiceEmailDispatcher {
-  constructor(private readonly deps: InvoiceEmailDispatchDeps) {}
+  private readonly log: InvoiceEmailLog;
+
+  constructor(private readonly deps: InvoiceEmailDispatchDeps) {
+    this.log = deps.log ?? ((message, context): void => console.warn(message, context));
+  }
 
   async dispatch(
     invoiceId: string,
     opts: { mode?: 'attachment' | 'link'; messageId?: string } = {},
-  ): Promise<boolean> {
+  ): Promise<InvoiceEmailDispatchResult> {
     try {
       const sender = this.deps.getSender();
-      if (!sender) return false;
+      if (!sender) return this.notSent(invoiceId, 'no_sender');
 
       const detail = await this.deps.invoiceService.buildDetail(invoiceId);
       const em = this.deps.emFactory();
       const order = await em.findOne(Order, { id: detail.orderId });
-      if (!order) return false;
+      if (!order) return this.notSent(invoiceId, 'invoice_not_found');
       const to = await this.deps.resolveRecipientEmail(order);
-      if (!to) return false;
+      if (!to) return this.notSent(invoiceId, 'no_recipient');
 
       const channelId = detail.salesChannelId;
       const language = await this.deps.resolveLanguage(channelId);
@@ -71,9 +126,9 @@ export class InvoiceEmailDispatcher {
             ]
           : undefined;
 
-      await sender.send({
+      const outcome = await sender.send({
         code: 'invoice_issued',
-        salesChannelId: channelId ?? '',
+        salesChannelId: channelId,
         language,
         to,
         messageId: opts.messageId ?? `invoice_issued:${detail.id}`,
@@ -81,51 +136,84 @@ export class InvoiceEmailDispatcher {
         ...(attachments ? { attachments } : {}),
         meta: { kind: 'invoice_issued', invoiceId: detail.id, orderId: detail.orderId },
       });
-      return true;
-    } catch {
-      // Best-effort: never undo issuance because of an email failure (FR-029).
-      return false;
+      if (outcome.status !== 'sent') return this.notSent(invoiceId, outcome.status);
+      return { sent: true };
+    } catch (error) {
+      // A switched-off module is a presence answer about the whole operation,
+      // not an e-mail that failed to render; absorbing it would report "sent
+      // nothing" where the truthful answer is "this capability is off".
+      rethrowIfModuleDisabled(error);
+      // Everything else is contained: issuance is committed and must not be
+      // undone because the message did not go out (FR-029). It is named, though.
+      return this.notSent(invoiceId, 'failed', error);
+    }
+  }
+
+  private notSent(
+    invoiceId: string,
+    reason: InvoiceEmailNotSentReason,
+    error?: unknown,
+  ): InvoiceEmailDispatchResult {
+    this.log('[invoices] the invoice e-mail was not sent', {
+      invoiceId,
+      reason,
+      ...(error === undefined ? {} : { error: error instanceof Error ? error.message : error }),
+    });
+    return { sent: false, reason };
+  }
+
+  /**
+   * The two conditions that degrade to the module's compiled-in default, and no
+   * others: the setting is not registered yet, or it is scoped to a subset of
+   * channels this read is not inside. A malformed channel id is a code defect
+   * and propagates — the bare `catch` this replaces is precisely what turned the
+   * `''` sentinel into a silent "not configured" (D-43, issue #103).
+   */
+  private async readSetting<T>(
+    code: string,
+    salesChannelId: string | null,
+    schema: z.ZodType<T>,
+    fallback: T,
+  ): Promise<T> {
+    try {
+      return await this.deps.settingsService.get(code, salesChannelId, schema);
+    } catch (error) {
+      if (error instanceof SettingNotRegistered) return fallback;
+      if (error instanceof SettingOutOfScopeForChannel) return fallback;
+      throw error;
     }
   }
 
   private async resolveMode(channelId: string | null): Promise<'attachment' | 'link'> {
-    if (!channelId) return 'attachment';
-    try {
-      const v = await this.deps.settingsService.get(
-        INVOICES_SETTING_CODES.EMAIL_DELIVERY_MODE,
-        channelId,
-        z.enum(['attachment', 'link']),
-      );
-      return v;
-    } catch {
-      return 'attachment';
-    }
+    return this.readSetting(
+      INVOICES_SETTING_CODES.EMAIL_DELIVERY_MODE,
+      channelId,
+      z.enum(['attachment', 'link']),
+      'attachment',
+    );
   }
 
   private async resolveBaseUrl(channelId: string | null): Promise<string> {
-    if (!channelId) return '';
-    try {
-      return await this.deps.settingsService.get(
-        INVOICES_SETTING_CODES.STOREFRONT_BASE_URL,
-        channelId,
-        z.string(),
-      );
-    } catch {
-      return '';
-    }
+    return this.readSetting(
+      INVOICES_SETTING_CODES.STOREFRONT_BASE_URL,
+      channelId,
+      z.string(),
+      '',
+    );
   }
 
-  /** Whether send-on-issue is enabled for the channel. */
+  /**
+   * Whether send-on-issue is enabled for the channel — or, with no channel, for
+   * the platform. It used to answer `false` for the no-channel case without
+   * reading anything, which is how an invoice issued outside a channel reached
+   * the operator with no e-mail and no explanation.
+   */
   async sendOnIssueEnabled(channelId: string | null): Promise<boolean> {
-    if (!channelId) return false;
-    try {
-      return await this.deps.settingsService.get(
-        INVOICES_SETTING_CODES.EMAIL_SEND_ON_ISSUE,
-        channelId,
-        z.boolean(),
-      );
-    } catch {
-      return false;
-    }
+    return this.readSetting(
+      INVOICES_SETTING_CODES.EMAIL_SEND_ON_ISSUE,
+      channelId,
+      z.boolean(),
+      false,
+    );
   }
 }

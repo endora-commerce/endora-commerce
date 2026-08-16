@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -159,6 +160,54 @@ describe('T143a cluster 6 — module-owned machinery is built by its module', ()
   it.each(CLUSTER_SIX)('no composition root builds $what', ({ what, notInRoot }) => {
     for (const [label, source] of Object.entries(ROOTS)) {
       expect(flat(source).includes(flat(notInRoot)), `${label} still builds ${what}`).toBe(false);
+    }
+  });
+});
+
+/**
+ * Issue #108 — the rule cluster 6 wrote for the two composition roots holds for
+ * **other modules** too, and that is where it was being broken.
+ *
+ * Cluster 6 stopped the roots from building `SalesRepAssignmentService`, and
+ * left three modules building it: `organizations` (its owner), `quote_requests`
+ * and `customers`. `customers`' copy omitted the class's optional third
+ * argument — the feature-056 subtree deps — so every staff-authority decision
+ * silently reverted to the flat pre-056 rule. Nothing could catch that: the
+ * argument is optional, so `tsc` is content, and a flat scope returns plausible
+ * answers, so the route tests were content too.
+ *
+ * The scope is a port now. This is the assertion that keeps it one.
+ */
+const modulesRoot = `${backendRoot}src/modules`;
+
+function moduleFiles(): string[] {
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (name.endsWith('.ts')) out.push(full);
+    }
+  };
+  walk(modulesRoot);
+  return out;
+}
+
+describe('issue #108 — the sales-rep scope is built once, by organizations', () => {
+  it('no module but organizations constructs SalesRepAssignmentService', () => {
+    const offenders = moduleFiles().filter(
+      (file) =>
+        !file.startsWith(join(modulesRoot, 'organizations')) &&
+        flat(readFileSync(file, 'utf8')).includes(flat('new SalesRepAssignmentService(')),
+    );
+    expect(offenders.map((f) => f.slice(backendRoot.length))).toEqual([]);
+  });
+
+  it('customers and quote_requests resolve the port instead', () => {
+    for (const owner of ['customers', 'quote_requests']) {
+      expect(read(`src/modules/${owner}/backend.ts`)).toContain(
+        "'organizationSalesRepScopePort'",
+      );
     }
   });
 });

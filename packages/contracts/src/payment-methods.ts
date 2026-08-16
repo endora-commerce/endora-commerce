@@ -139,7 +139,18 @@ export type PaymentSurface = 'storefront' | 'admin' | 'api';
 
 export interface PaymentEligibilityContext {
   paymentMethod: PaymentMethodAdmin;
-  salesChannelId: string;
+  /**
+   * The channel the buyer is on, or `null` when none is resolved — a checkout
+   * reached without a channel, an admin-created order, a direct API submission.
+   *
+   * Widened from `string` (issue #103): the narrower type left a caller with no
+   * way to say "there is no channel", so `''` was passed instead, and an empty
+   * string is not a spelling of platform-wide — it is rejected by the settings
+   * seam guard, which made every adapter that reads its own configuration
+   * answer "not eligible". An adapter must treat `null` as the platform-wide
+   * tier (or resolve the system-default channel), never as "match nothing".
+   */
+  salesChannelId: string | null;
   organizationId: string | null;
   customerAccountId: string | null;
   surface: PaymentSurface;

@@ -76,4 +76,40 @@ describe('Admin create order on behalf (US3)', () => {
       ),
     ).rejects.toMatchObject({ statusCode: 422 });
   });
+
+  /**
+   * Issue #103 — the gate used to read `req.salesChannelId ?? ''`.
+   *
+   * An empty string is not a channel id, so the settings read behind
+   * `resolveMinOrderValue` threw at the D-42 seam guard and the `.catch(() =>
+   * 0)` around it reported "no minimum" — a configured minimum was therefore
+   * ignored on every placement that did not name a channel. "No channel" is
+   * `null`, which reads the platform-wide tier.
+   */
+  it('names an absent sales channel as null in the minimum-order-value read', async () => {
+    await seedCartForStubCustomer(h.em());
+    const seen: Array<string | null> = [];
+    const registry = new PaymentAdapterRegistry();
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
+    const service = new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
+      paymentAdapters: registry,
+      orderStatusRegistry: new EnumOrderStatusRegistry(),
+      resolveMinOrderValue: async (salesChannelId) => {
+        seen.push(salesChannelId);
+        return 0;
+      },
+    });
+
+    await service.placeOrder(
+      { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID },
+      {
+        deliveryAddressId: DELIVERY_ADDRESS_ID,
+        billingAddressId: BILLING_ADDRESS_ID,
+        deliveryMethodId: DELIVERY_METHOD_ID,
+        paymentMethodId: SEED_PAYMENT_METHOD_ID,
+      },
+    );
+
+    expect(seen).toEqual([null]);
+  });
 });
