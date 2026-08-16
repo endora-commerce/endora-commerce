@@ -22,6 +22,12 @@
  * module→kernel, which is permitted — and this check is what keeps the fifth
  * from appearing.
  *
+ * The scan is over **every** `.ts` under `src/` that spells a relation
+ * decorator, not over `*.entity.ts`. Nothing in the repository enforces that
+ * suffix, so scoping the rule to it made the rule's reach a filename
+ * convention: a relation declared in an ordinary file was not refused, it was
+ * never read (issue #113).
+ *
  * ## Rule B — import specifiers, over the platform roots (D-37, widened by D-53)
  *
  * No file under a **platform root** — `src/kernel`, `src/http`, `src/events`,
@@ -146,18 +152,36 @@ function isPlatformOwner(owner: string): boolean {
   return owner === 'kernel' || owner === 'core';
 }
 
-function walk(dir: string, out: string[] = []): string[] {
+/**
+ * Every `.ts` under `dir` except tests and declaration files.
+ *
+ * Rule A used to walk `*.entity.ts` only. Nothing enforces that naming — an
+ * entity declared in `entities/index.ts`, or a relation added to a class in an
+ * ordinary file, was simply not scanned, and a scan that does not look is
+ * indistinguishable from one that finds nothing. The file list is now the whole
+ * tree and {@link RELATION_DECORATOR_HINT} decides what is worth parsing, so the
+ * rule's scope is a property of the code rather than of a filename.
+ */
+export function collectSources(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
     if (statSync(full).isDirectory()) {
       if (name === 'node_modules' || name === 'dist') continue;
-      walk(full, out);
-    } else if (name.endsWith('.entity.ts')) {
+      collectSources(full, out);
+    } else if (name.endsWith('.ts') && !name.endsWith('.test.ts') && !name.endsWith('.d.ts')) {
       out.push(full);
     }
   }
   return out;
 }
+
+/**
+ * A cheap pre-filter: only a file that spells one of the four relation
+ * decorators can produce a rule-A finding, and parsing 2 600 files to learn that
+ * is wasted work. It over-matches deliberately (a mention in a comment passes
+ * it) — {@link analyzeSource} is the parse that decides.
+ */
+export const RELATION_DECORATOR_HINT = /@(?:ManyToOne|OneToMany|OneToOne|ManyToMany)\s*[(<]/;
 
 function decoratorName(decorator: ts.Decorator): string | undefined {
   const expr = decorator.expression;
@@ -636,8 +660,9 @@ function walkKernel(dir: string, out: string[] = []): string[] {
 
 function main(): void {
   const listMode = process.argv.includes('--list');
-  const files = walk(SRC_ROOT);
-  const findings = files.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
+  const files = collectSources(SRC_ROOT);
+  const relationFiles = files.filter((f) => RELATION_DECORATOR_HINT.test(readFileSync(f, 'utf8')));
+  const findings = relationFiles.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
   const violations = findings.filter((f) => isViolation(f) && !isPending(f));
   const pending = findings.filter((f) => isViolation(f) && isPending(f));
   const stale = stalePending(findings);
@@ -681,8 +706,24 @@ function main(): void {
     console.log('');
   }
 
+  // A green run must mean "nothing found", never "nothing looked at". Each of
+  // the three rules has its own file list, and each can be emptied by an
+  // unrelated edit — a moved directory, a renamed root, a walk that stops
+  // matching. Exit 2 rather than 0 when one of them comes back empty.
+  const vacuous: string[] = [];
+  if (files.length === 0) vacuous.push('no sources under src/ (rule A)');
+  if (platformFiles.length === 0) vacuous.push('no files under the platform roots (rule B)');
+  if (closure.files.length === 0) vacuous.push('empty kernel import closure (rule C)');
+  if (vacuous.length > 0) {
+    console.error(
+      `[kernel-boundary] ${vacuous.join('; ')} — refusing to report a vacuous pass`,
+    );
+    process.exit(2);
+  }
+
   console.log(
-    `[kernel-boundary] entity files=${files.length} relations=${findings.length} ` +
+    `[kernel-boundary] sources=${files.length} relation files=${relationFiles.length} ` +
+      `relations=${findings.length} ` +
       `violations=${violations.length} pending-relocation=${pending.length}`,
   );
   console.log(

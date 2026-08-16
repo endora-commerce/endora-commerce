@@ -39,8 +39,14 @@ fi
 
 # Build the file list. In --diff mode we use the changed-files set against $BASE_REF;
 # fall back to a full-tree scan if the base ref isn't fetched.
+if [[ "$mode" == "diff" ]] && git rev-parse --verify --quiet "$base_ref" >/dev/null; then
+  listing="diff"
+else
+  listing="full"
+fi
+
 list_files() {
-  if [[ "$mode" == "diff" ]] && git rev-parse --verify --quiet "$base_ref" >/dev/null; then
+  if [[ "$listing" == "diff" ]]; then
     git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD
   else
     git ls-files --cached --others --exclude-standard
@@ -48,6 +54,15 @@ list_files() {
 }
 
 mapfile -t changed_files < <(list_files | grep -Ev '^(node_modules/|dist/|build/|\.next/|\.docusaurus/|pnpm-lock\.yaml|package-lock\.json)' || true)
+
+# A full-tree listing that comes back empty is a broken listing, not a clean
+# repository: every rule below iterates this array, so all four would report
+# nothing and the script would exit 0 having read no file at all. In --diff mode
+# an empty list is the ordinary "this MR touched nothing in scope".
+if [[ "$listing" == "full" ]] && [ "${#changed_files[@]}" -eq 0 ]; then
+  red "✗ check-naming listed no files — refusing to report a vacuous pass."
+  exit 2
+fi
 
 fail=0
 

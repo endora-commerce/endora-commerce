@@ -589,6 +589,14 @@ is no container in the process running it.
 | `check-channel-resolution.ts` | a raw `x-sales-channel` header read outside the resolver; a storefront surface re-resolving the request channel; a settings read whose channel argument can be a string that is not a channel uuid (D-42); a channel id invented by a default parameter or a `randomUUID()` fallback (D-48). Runs `--enforce` in CI |
 | `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger |
 
+That table is the kernel's own checks. The **whole** inventory — including
+`check-command-coverage.ts`, `check-subscribe-seam.ts`, `check-doc-snippets.ts`,
+`check-error-translations.ts`, `check-entity-tenant-classification.ts`,
+`overlay:check`, the two toolchain-free shell checks and the pdfmake footprint
+gate — is enumerated in `backend/test/unit/scripts/check-inventory.test.ts`,
+which fails when a `check-*` script exists without an entry, and when an entry
+names a script that does not. Read the next section before adding one.
+
 The check reads three resolution shapes, and the third took a second pass to get
 right (issue #90): a factory's cradle parameter (destructured or named), an
 inline `ctx.cradle<C>()`, and **either of those bound to a local first** —
@@ -635,3 +643,58 @@ rather than here because the lifecycle's flip-time dependency refusal reads the
 same declaration (feature 073, Amendment A1): while the edges lived only in this
 script, an operator could switch `price_lists` off underneath `catalog`'s
 `pricingService` resolution and nothing refused the flip.
+
+### Writing a check that can go red
+
+Six checks were found weaker than their own description in one week. One walked
+`*.entity.ts` and inspected relation decorators while its header spoke of
+imports; one could not see a module-local cradle alias, and widening it turned
+0 violations into 21 across 17 modules; one scanner matched **4 of 492**
+enforcement sites because a `\.` in its regex was not optional; EventBus
+subscriptions had no ratchet at all until twenty-three had accumulated. None of
+those was carelessness, and none of them announced itself: **a green result
+cannot be told apart from a check that looked at nothing**, and nothing in the
+repository forced the distinction. Four rules come out of it.
+
+**Take the input as a parameter.** A check whose analysis reads the disk can
+only be run against the tree, and against a clean tree it agrees with a function
+that returns `[]`. `checkSubscribeSeam({ sources })`, `checkDocument(doc, read)`
+and `compareArtifact(path, expected, read)` all take what they read, so their
+tests drive them over sources the repository does not contain — which is the
+only way to see the rule fire on the shape it was written for. Keep the CLI a
+thin `main` that supplies the real reader.
+
+**Make the scan scope a property of the rule, not of a filename.** Two checks
+enumerated `*.entity.ts`. Nothing in the repository enforces that suffix, so an
+entity declared in an `entities/index.ts` was not *unclassified* as far as they
+were concerned — it was unread, and unread and clean print the same line. Walk
+the tree, pre-filter on the thing the rule is about (`@Entity(`, a relation
+decorator), and let the parse decide.
+
+**Give "nothing was read" its own exit code.** Exit 2, distinct from clean (0)
+and from violations found (1), whenever the file list, the routing table or the
+resolution count comes back empty in a tree that has hundreds. This is not
+defensive coding: `pnpm --filter backend run i18n:hardcoded` resolved its
+default root against the working directory, found no file from `backend/`, and
+printed "0 finding(s) across 0 file(s)" with exit 0 for as long as it existed.
+`check-pdfmake-footprint.sh` exited 0 when pdfmake was not installed, so the one
+state in which it measured nothing was also the one in which it reported the
+budget met.
+
+**A ledger is two-way or it is an allow-list.** An unledgered violation fails,
+*and* an entry that no longer describes a violation fails. The second half is
+the one that rots: `PORT_CATCHES_TO_DRAIN`, `BARE_SUBSCRIPTIONS_TO_DRAIN` and
+`UNTRANSLATED_ERROR_CODES` all sweep for stale entries, and each entry carries a
+reason written as a statement about the thing it names — see "Writing an
+ordering rationale that does not rot" above for why "still hand-wired" is not
+one.
+
+The enforcement point is `backend/test/unit/scripts/check-inventory.test.ts`. It
+enumerates every `check-*` script, and for each one **runs the check's own
+analysis over a synthetic violation and asserts a finding comes back**. That is
+deliberately more than "a companion test file exists": a file at a path proves
+nothing, which is the failure this whole section is about. The companion test
+named in each entry is where the shapes go — this one proves the check can go
+red at all, that one proves it goes red on everything it claims to refuse. The
+inventory also pins which CI job runs each check and compares it against
+`.gitlab-ci.yml`, so a check that quietly leaves the job has to say so.

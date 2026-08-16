@@ -1340,6 +1340,10 @@ export function describe(violation: PortViolation, srcRoot = SRC_ROOT): string {
 
 async function main(): Promise<void> {
   const files = [...walk(join(SRC_ROOT, 'modules')), ...walk(join(SRC_ROOT, 'apps'))];
+  if (files.length === 0) {
+    console.error('[port-deps] no module sources under src/ — refusing to report a vacuous pass');
+    process.exit(2);
+  }
 
   const owners = new Map<string, string>(Object.entries(HOST_REGISTERED_PORTS));
   const resolutions: PortResolution[] = [];
@@ -1434,6 +1438,19 @@ async function main(): Promise<void> {
       const owner = owners.get(resolution.name) ?? (PLATFORM_OWNED_NAMES.has(resolution.name) ? 'platform' : '?');
       console.log(`  ${resolution.moduleId} → ${resolution.name} [${owner}]`);
     }
+  }
+
+  // This check measures container resolutions, and its reach has twice been the
+  // defect: a `port(ctx, name)` helper hid fourteen of them, and a module-local
+  // cradle alias hid ninety-eight more, both while the run read clean (issue
+  // #113). Eight hundred and fifty resolutions collapsing to none is that
+  // failure, not a tree in which no module reads another's port.
+  if (resolutions.length === 0) {
+    console.error(
+      '[port-deps] no container resolution seen anywhere in the tree — ' +
+        'refusing to report a vacuous pass',
+    );
+    process.exit(2);
   }
 
   console.log(

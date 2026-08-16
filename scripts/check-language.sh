@@ -175,7 +175,16 @@ report_violations() {
   return 1
 }
 
+# Which listing is actually in use. `--diff` degrades to a full scan when the
+# base ref is not fetched (GitLab clones shallow), and the two answer the
+# "is an empty list legitimate?" question differently — see the guards below.
 if [[ "$mode" == "diff" ]] && git rev-parse --verify --quiet "$base_ref" >/dev/null; then
+  listing="diff"
+else
+  listing="full"
+fi
+
+if [[ "$listing" == "diff" ]]; then
   mapfile -t candidate_files < <(
     git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD -- "${exceptions[@]}" 2>/dev/null || true
   )
@@ -245,7 +254,7 @@ docs_globs=(
   'docs/docs/**/*.mdx'
 )
 
-if [[ "$mode" == "diff" ]] && git rev-parse --verify --quiet "$base_ref" >/dev/null; then
+if [[ "$listing" == "diff" ]]; then
   mapfile -t docs_files < <(
     git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD -- "${docs_globs[@]}" 2>/dev/null || true
   )
@@ -253,6 +262,15 @@ else
   mapfile -t docs_files < <(
     git ls-files --cached --others --exclude-standard -- "${docs_globs[@]}" 2>/dev/null || true
   )
+fi
+
+# In full-tree mode both lists are the whole repository's worth of files, so an
+# empty one means the listing broke (a moved root, a glob that stopped matching,
+# a `git ls-files` that answered nothing) and every file went unread. In --diff
+# mode an empty list is the ordinary "this MR touched none of them".
+if [[ "$listing" == "full" ]] && { [ "${#tracked[@]}" -eq 0 ] || [ "${#docs_files[@]}" -eq 0 ]; }; then
+  red "✗ check-language listed no source files (${#tracked[@]}) or no docs pages (${#docs_files[@]}) — refusing to report a vacuous pass."
+  exit 2
 fi
 
 if [ "${#docs_files[@]}" -gt 0 ]; then

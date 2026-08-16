@@ -8,30 +8,63 @@
 // git) and does NOT write the files — it only reads + compares.
 
 import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { renderManifestIndex } from './generate-manifest-index.js';
 import { renderOverrideManifest } from './generate-override-manifest.js';
 import { renderComposer, renderRegisteredManifests } from './generate-composer.js';
 
-function check(label: string, outputPath: string, expected: string): boolean {
+/** Why an artifact failed, or `null` when it is byte-identical to the committed file. */
+export type ArtifactVerdict =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: 'missing' | 'stale' | 'empty'; readonly detail: string };
+
+/**
+ * Compare one rendered artifact with the file on disk.
+ *
+ * Reading is injected so this can be driven red on inputs the repository does
+ * not contain — a stale file, a deleted one, and a generator that rendered
+ * nothing. The last is not hypothetical politeness: two empty strings compare
+ * equal, so a generator whose tree walk silently found no module would report
+ * every artifact deterministic and up to date. That is the vacuous pass this
+ * check refuses (issue #113); it reports it as a verdict rather than exiting,
+ * because `main` owns the exit code for all four artifacts.
+ */
+export function compareArtifact(
+  outputPath: string,
+  expected: string,
+  read: (p: string) => string,
+): ArtifactVerdict {
+  if (expected.trim().length === 0) {
+    return { ok: false, reason: 'empty', detail: 'the generator rendered an empty artifact' };
+  }
   let onDisk: string;
   try {
-    onDisk = readFileSync(outputPath, 'utf8');
+    onDisk = read(outputPath);
   } catch {
-    process.stderr.write(`[overlay:check] ${label}: committed file missing at ${outputPath}\n`);
-    return false;
+    return { ok: false, reason: 'missing', detail: `committed file missing at ${outputPath}` };
   }
   if (onDisk !== expected) {
+    return { ok: false, reason: 'stale', detail: `committed file is STALE at ${outputPath}` };
+  }
+  return { ok: true };
+}
+
+function check(label: string, outputPath: string, expected: string): boolean {
+  const verdict = compareArtifact(outputPath, expected, (p) => readFileSync(p, 'utf8'));
+  if (verdict.ok) {
+    process.stdout.write(`[overlay:check] ${label}: up-to-date and deterministic ✓\n`);
+    return true;
+  }
+  process.stderr.write(`[overlay:check] ${label}: ${verdict.detail}\n`);
+  if (verdict.reason === 'stale') {
     process.stderr.write(
-      `[overlay:check] ${label}: committed file is STALE at ${outputPath}\n` +
-        `  Regenerate and commit:\n` +
+      `  Regenerate and commit:\n` +
         `    pnpm --filter backend run manifest-index:generate\n` +
         `    pnpm --filter backend run overlay:manifest\n` +
         `    pnpm --filter backend run composer:generate\n`,
     );
-    return false;
   }
-  process.stdout.write(`[overlay:check] ${label}: up-to-date and deterministic ✓\n`);
-  return true;
+  return false;
 }
 
 async function main(): Promise<void> {
@@ -52,4 +85,8 @@ async function main(): Promise<void> {
   process.stdout.write('[overlay:check] all generated artifacts deterministic ✓\n');
 }
 
-await main();
+// Run as CLI only — importing this module (e.g. from a unit test) must not
+// regenerate every artifact and exit the process.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}

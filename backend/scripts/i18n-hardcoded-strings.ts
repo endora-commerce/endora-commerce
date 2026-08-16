@@ -1,6 +1,10 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+
+/** `<repo>/admin/src` — the SPA this rule is about, wherever the checkout lives. */
+const DEFAULT_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', 'admin', 'src');
 
 /**
  * `pnpm --filter backend run i18n:hardcoded -- <path> [--strict]` — feature 021.
@@ -32,7 +36,7 @@ const USER_VISIBLE_ATTRS = new Set([
   'alt',
 ]);
 
-interface Finding {
+export interface Finding {
   filePath: string;
   line: number;
   column: number;
@@ -50,7 +54,18 @@ function isLikelyCodeIdentifier(s: string): boolean {
 }
 
 function walkFile(filePath: string, findings: Finding[]): void {
-  const source = readFileSync(filePath, 'utf8');
+  findings.push(...analyzeSource(readFileSync(filePath, 'utf8'), filePath));
+}
+
+/**
+ * Every hard-coded user-visible string in one source.
+ *
+ * Exported so the rule can be driven red on a fixture rather than only agreeing
+ * with whatever `admin/src` currently holds — the walk used to be reachable only
+ * through `main`, which meant the analysis had no test at all (issue #113).
+ */
+export function analyzeSource(source: string, filePath: string): Finding[] {
+  const findings: Finding[] = [];
   const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 
   function isInsideCodeElement(node: ts.Node): boolean {
@@ -100,9 +115,10 @@ function walkFile(filePath: string, findings: Finding[]): void {
   }
 
   visit(sf);
+  return findings;
 }
 
-function collectTsxFiles(root: string, out: string[]): void {
+export function collectTsxFiles(root: string, out: string[]): void {
   for (const entry of readdirSync(root)) {
     if (entry === 'node_modules' || entry === 'dist' || entry === 'build' || entry.startsWith('.')) continue;
     const full = join(root, entry);
@@ -119,7 +135,10 @@ function main(): void {
   const argv = process.argv.slice(2);
   const strict = argv.includes('--strict');
   const positional = argv.filter((a) => !a.startsWith('--'));
-  const roots = positional.length > 0 ? positional : ['admin/src'];
+  // The default root is resolved against the repository, not the working
+  // directory. `admin/src` was relative to `process.cwd()`, and the documented
+  // invocation runs with `backend/` as the cwd, where no such directory exists.
+  const roots = positional.length > 0 ? positional : [DEFAULT_ROOT];
 
   const files: string[] = [];
   for (const r of roots) {
@@ -130,6 +149,17 @@ function main(): void {
     } catch {
       process.stderr.write(`[i18n:hardcoded] path not found: ${r}\n`);
     }
+  }
+
+  if (files.length === 0) {
+    // `admin/src` is resolved against the current directory, so running this
+    // from `backend/` (which is where the package script runs) found no file at
+    // all and still printed a 0-finding summary and exit 0. "Nothing to report"
+    // and "nothing was read" must not share an exit code (issue #113).
+    process.stderr.write(
+      `[i18n:hardcoded] no .tsx file under ${roots.join(', ')} — refusing to report a vacuous pass\n`,
+    );
+    process.exit(2);
   }
 
   const findings: Finding[] = [];
@@ -146,4 +176,8 @@ function main(): void {
   if (strict && findings.length > 0) process.exit(1);
 }
 
-main();
+// Run as CLI only — importing this module (e.g. from a unit test) must not
+// trigger the scan + process.exit.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

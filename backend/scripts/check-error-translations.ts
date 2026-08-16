@@ -23,7 +23,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ERROR_TRANSLATION_KEYS } from '../src/modules/_i18n/services/error-translation.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -92,10 +92,27 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   'SETTING_SECRET_KEY_MISSING',
 ]);
 
-interface Finding {
+export interface Finding {
   readonly code: string;
   readonly moduleId: string;
   readonly missingIn: readonly string[];
+}
+
+/** Where a code is routed: the module owning the bundle, and the key inside it. */
+export interface ErrorTranslationTarget {
+  readonly moduleId: string;
+  readonly key: string;
+}
+
+/**
+ * What the analysis reads, injected so the rule's own test can drive it red on a
+ * routing table the tree does not contain. Defaults are the real ones, so the
+ * CLI and the test share one implementation.
+ */
+export interface TranslationInput {
+  readonly keys: Readonly<Record<string, ErrorTranslationTarget>>;
+  /** The bundle for `moduleId` in `language`, as a flat key → value map. */
+  readonly readBundle: (moduleId: string, language: string) => Record<string, unknown>;
 }
 
 function bundlePath(moduleId: string, language: string): string {
@@ -115,9 +132,10 @@ function loadBundle(path: string): Record<string, unknown> {
   }
 }
 
-export function findUntranslatedErrorCodes(): Finding[] {
+/** Reads a module's on-disk bundle, memoised — the default {@link TranslationInput}. */
+export function diskBundleReader(): TranslationInput['readBundle'] {
   const cache = new Map<string, Record<string, unknown>>();
-  const read = (moduleId: string, language: string): Record<string, unknown> => {
+  return (moduleId: string, language: string): Record<string, unknown> => {
     const path = bundlePath(moduleId, language);
     let bundle = cache.get(path);
     if (!bundle) {
@@ -126,9 +144,15 @@ export function findUntranslatedErrorCodes(): Finding[] {
     }
     return bundle;
   };
+}
+
+export function findUntranslatedErrorCodes(
+  input: TranslationInput = { keys: ERROR_TRANSLATION_KEYS, readBundle: diskBundleReader() },
+): Finding[] {
+  const read = input.readBundle;
 
   const findings: Finding[] = [];
-  for (const [code, target] of Object.entries(ERROR_TRANSLATION_KEYS)) {
+  for (const [code, target] of Object.entries(input.keys)) {
     const missingIn = LANGUAGES.filter(
       (language) => typeof read(target.moduleId, language)[target.key] !== 'string',
     );
@@ -144,6 +168,15 @@ function main(): void {
   const stale = [...UNTRANSLATED_ERROR_CODES].filter((code) => !found.has(code)).sort();
 
   const total = Object.keys(ERROR_TRANSLATION_KEYS).length;
+  if (total === 0) {
+    // The routing table is the whole input. An empty one reports every code
+    // translated, which is the same green as every code having a sentence.
+    console.error(
+      '[error-translations] ERROR_TRANSLATION_KEYS routes no code — ' +
+        'refusing to report a vacuous pass',
+    );
+    process.exit(2);
+  }
   console.log(
     `[error-translations] codes=${total} translated=${total - findings.length} ` +
       `violations=${unledgered.length} ledgered=${findings.length - unledgered.length} ` +
@@ -171,6 +204,10 @@ function main(): void {
   if (unledgered.length > 0 || stale.length > 0) process.exit(1);
 }
 
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop() ?? '')) {
+// Run as CLI only — importing this module (e.g. from a unit test) must not
+// trigger the scan + process.exit. Compared as a URL, like every other check:
+// the previous `endsWith(basename)` test answers true for an argv[1] ending in
+// a slash, which would have run the whole check on import.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

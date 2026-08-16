@@ -143,6 +143,12 @@ export function analyzeSource(source: string, file: string): ContainerImportFind
 function main(): void {
   const listMode = process.argv.includes('--list');
   const files = collectModuleFiles();
+  if (files.length === 0) {
+    console.error(
+      '[container-imports] no module sources under src/ — refusing to report a vacuous pass',
+    );
+    process.exit(2);
+  }
   const findings = files.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
   const rel = (p: string): string => p.replace(`${SRC_ROOT}/`, 'src/');
 
