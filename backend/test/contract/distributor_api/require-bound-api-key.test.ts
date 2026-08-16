@@ -49,7 +49,7 @@ describe('requireBoundApiKey gate (062)', () => {
       scopes: ['catalog:read', 'orders:read', 'orders:write'],
       binding: {
         organizationId: TEST_ORGANIZATION_ID,
-        salesChannelId: defaultChannel!.id,
+        salesChannelId: defaultChannel.id,
         customerAccountId: TEST_CUSTOMER_ID,
       },
     });

@@ -88,6 +88,7 @@ export {
   parseHostMap,
   type ResolverError,
 } from './sales-channels/sales-channel-resolver.service.js';
+export { NoSystemDefaultChannel } from './sales-channels/no-system-default-channel.error.js';
 export {
   SalesChannelMembershipService,
   type MembershipMutationOptions,

@@ -36,8 +36,13 @@ export interface SalesChannelResolutionPort {
     | { ok: false; error: 'unknown_sales_channel' | 'inactive_sales_channel'; code: string }
   >;
 
-  /** The system-default channel, used as the storefront/integration fallback. */
-  getSystemDefault(): Promise<CachedChannel | null>;
+  /**
+   * The system-default channel, used as the storefront/integration fallback.
+   * Never `null` (D-48): exactly one row holds the flag on a booted deployment,
+   * so a caller has nothing to branch on. Throws `NoSystemDefaultChannel` when
+   * the registry has none, which means composition has not run the reconciler.
+   */
+  getSystemDefault(): Promise<CachedChannel>;
 
   /** Map a `Host` header onto a channel code via the env-configured host map. */
   resolveHost(host: string | undefined): string | null;

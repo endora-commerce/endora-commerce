@@ -15,7 +15,11 @@ import type { CatalogAttributeReadService } from '../catalog/services/catalog-at
 import type { OrderService } from '../orders/services/order-service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
-import { QUICK_ORDER_SETTING_CODES, DEFAULT_IMPORT_MAX_ROWS } from './manifest.js';
+import {
+  QUICK_ORDER_SETTING_CODES,
+  DEFAULT_IMPORT_MAX_ROWS,
+  DEFAULT_ONE_CLICK_BUY_ENABLED,
+} from './manifest.js';
 import { MikroOrmCatalogLookup } from './services/catalog-lookup.js';
 import { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import { QuickOrderBuildService } from './services/quick-order-build-service.js';
@@ -144,16 +148,37 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<CartService>(ctx, 'cartService'),
             () => cradle().orderServiceAccessor(),
             // This module's own setting, read here rather than through a
-            // resolver a host passes down.
-            async (salesChannelId: string) => {
+            // resolver a host passes down. The channel comes from the request
+            // (`routes.one-click.ts`), so `null` means there was none and the
+            // per-storefront value is read platform-wide (D-41 case c).
+            //
+            // The bare `catch { return false }` this replaces is what made
+            // issue #99 invisible: it swallowed `SettingsChannelIdInvalid` from
+            // the `'default'` code the service used to compile in, and reported
+            // the result as `setting_disabled`. It would swallow
+            // `ModuleDisabledError` just as happily (composition rule 7). Only
+            // the two conditions with a defined degrade are absorbed now, and
+            // both degrade to the manifest default rather than to a second
+            // literal beside it (D-43).
+            async (salesChannelId: string | null) => {
               try {
                 return await cradle().settingsReadPort.get(
                   QUICK_ORDER_SETTING_CODES.ONE_CLICK_BUY_ENABLED,
                   salesChannelId,
                   z.boolean(),
                 );
-              } catch {
-                return false;
+              } catch (error) {
+                if (error instanceof SettingNotRegistered) return DEFAULT_ONE_CLICK_BUY_ENABLED;
+                if (error instanceof SettingOutOfScopeForChannel) {
+                  warnOnce(
+                    `out-of-scope:${QUICK_ORDER_SETTING_CODES.ONE_CLICK_BUY_ENABLED}`,
+                    `[quick_order] setting "${QUICK_ORDER_SETTING_CODES.ONE_CLICK_BUY_ENABLED}" ` +
+                      `is scoped to specific sales channels, so it has no value for this read — ` +
+                      `falling back to the manifest default (logged once per process).`,
+                  );
+                  return DEFAULT_ONE_CLICK_BUY_ENABLED;
+                }
+                throw error;
               }
             },
           ),

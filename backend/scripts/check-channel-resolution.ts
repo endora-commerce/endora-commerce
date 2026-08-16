@@ -26,14 +26,38 @@
  *     query channels are not false-positived.
  *
  *  3. SETTINGS-CHANNEL LITERAL (feature 072, D-42) — a `.get` / `.getMany`
- *     call on a `settings`-ish receiver whose channel argument is a string
- *     literal that is not a channel uuid, or is the nil uuid. Both are
- *     spellings of "I have no channel", and since D-41 that has a real one:
- *     `null`. The literal `'default'` — a channel **code**, against a
- *     `sales_channel_id uuid` column — made PostgreSQL reject the comparison
- *     outright, and the caller's `catch` reported it as "not configured yet";
- *     three settings were therefore ignored on every deployment. The nil uuid
- *     resolved to the right tier, but by accident.
+ *     call on a `settings`-ish receiver whose channel argument can be a string
+ *     that is not a channel uuid, or is the nil uuid. Both are spellings of "I
+ *     have no channel", and since D-41 that has a real one: `null`. The literal
+ *     `'default'` — a channel **code**, against a `sales_channel_id uuid`
+ *     column — made PostgreSQL reject the comparison outright, and the caller's
+ *     `catch` reported it as "not configured yet"; three settings were
+ *     therefore ignored on every deployment. The nil uuid resolved to the right
+ *     tier, but by accident.
+ *
+ *  4. INVENTED CHANNEL IDENTIFIER (feature 072, D-48) — the two *positions*
+ *     signal 3 could not see, because it only ever inspected the channel
+ *     argument of a settings read:
+ *
+ *       a. a **default parameter value**: `salesChannelId: string = 'default'`.
+ *          `quick_order`'s `OneClickService` carried exactly that — a fifth
+ *          constructor argument production never passed — so one-click buy was
+ *          off on every deployment while its unit test, which *did* pass the
+ *          argument, stayed green (issue #99).
+ *       b. a **channel id falling back to `randomUUID()`**. `orders` stamped
+ *          `salesChannelId: channel?.id ?? randomUUID()` onto every order
+ *          placed without an explicit channel (issue #85) — an identifier
+ *          invented at write time, in a column other reads join on. Restricted
+ *          to `randomUUID()` deliberately: a *string* fallback off a channel id
+ *          is caught by signal 3 wherever it reaches a settings read, and
+ *          flagging every one of them here turns twenty ordinary
+ *          `channel?.defaultCurrency ?? 'PLN'` defaults into noise.
+ *
+ *     `?? null` is never flagged, in either signal: that is the sanctioned
+ *     platform-wide read, and it is the answer all four of these were reaching
+ *     for. **Signal 4 is deliberately not the settings seam** — L2 and L4 were
+ *     not settings calls at all, which is part of why D-42's check read clean
+ *     across all four.
  *
  * Reading `channel.isPublic` (price-visibility) off an already-resolved
  * channel is NOT a violation — it is a property read, neither signal.
@@ -80,6 +104,12 @@ const CHANNEL_HEADERS = new Set(['x-sales-channel', 'x-sales-channel-id']);
 // Feature 072 (D-42) added signal 3 and kept the list empty: the fix is
 // mechanical at every site, and across ~100 settings reads there were only six
 // non-uuid literals and four nil-uuid spellings, so there was nothing to drain.
+//
+// Feature 072 (D-48) added signal 4 and kept it empty for a stronger reason:
+// the four sites it exists for were deleted *before* it was written. Widening
+// the check first would have flagged code the same change removes, and an
+// allow-list entry is how that becomes permanent. If this signal fires on a new
+// site, the site is wrong — the system-default channel always exists.
 const ALLOW_LIST = new Set<string>([]);
 
 /**
@@ -167,10 +197,37 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/**
+ * A parameter that holds a sales-channel **id**. Name-based, because the check
+ * has no type information — and a name is what a reader has too. `channelCode`
+ * and `salesChannelCode` deliberately do not match: a code default is a
+ * legitimate thing to have (the reconciler seeds one), an id default is not.
+ */
+const CHANNEL_ID_PARAM = /channelid$/i;
+
+/**
+ * "This expression is a resolved channel **id**." Text-based, since the check
+ * has no type information, and narrow on purpose: signal 4b is about inventing
+ * an *identifier*, so it must not fire on a property read off an
+ * already-resolved channel. `channel?.defaultCurrency ?? 'PLN'` and
+ * `channel?.defaultLanguage ?? 'en-US'` are ordinary defaults for ordinary
+ * fields — twenty of them exist in the tree — and neither is a channel id.
+ */
+function isChannelIdExpression(text: string): boolean {
+  const trimmed = text.trim();
+  if (/(^|[^a-z0-9_])(sales)?channelid$/i.test(trimmed)) return true;
+  return /\??\.id$/.test(trimmed) && /channel|getSystemDefault/i.test(trimmed);
+}
+
+
 export interface Violation {
   file: string; // relative to src/
   line: number;
-  kind: 'raw-channel-header' | 'request-channel-reresolution' | 'settings-channel-literal';
+  kind:
+    | 'raw-channel-header'
+    | 'request-channel-reresolution'
+    | 'settings-channel-literal'
+    | 'invented-channel-identifier';
   detail: string;
 }
 
@@ -184,29 +241,68 @@ export function analyzeSource(source: string, relPath: string): Violation[] {
     sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
 
   /**
-   * Same-file `const X = '…'` initializers, so signal 3 sees the three
-   * `GLOBAL_SETTINGS_*` constants that stood between the literal and the call.
-   * One hop only, and deliberately: this is the syntactic half of D-42's
-   * defence, and a channel id that arrives as a parameter or through DI is what
-   * the runtime seam guard in `SettingsService` is for.
+   * Same-file `const X = '…'` and `const X = a ?? '…'` initializers.
+   *
+   * D-42 recorded a single value and followed one hop, which is exactly the
+   * reach `branding.service.ts` escaped on: `const scopeId = salesChannelId ??
+   * GLOBAL_SENTINEL` is two hops and a `??`. What is recorded now is the set of
+   * **string values the name can hold**, which is the question signal 3 was
+   * always asking. A channel id that arrives as a parameter or through DI still
+   * contributes nothing and is what the runtime seam guard in `SettingsService`
+   * is for.
    */
-  const stringConsts = new Map<string, string>();
+  const stringConsts = new Map<string, string[]>();
+
+  /**
+   * The string values an expression can evaluate to, as far as syntax can tell.
+   * `null`, `undefined` and anything dynamic contribute nothing — so `x ?? null`
+   * yields the empty set and is never flagged, which is the whole point.
+   */
+  const possibleStrings = (node: ts.Node, depth = 0): string[] => {
+    if (depth > 8) return [];
+    if (ts.isParenthesizedExpression(node)) return possibleStrings(node.expression, depth + 1);
+    if (ts.isStringLiteralLike(node)) return [node.text];
+    if (ts.isIdentifier(node)) return stringConsts.get(node.text) ?? [];
+    if (ts.isConditionalExpression(node)) {
+      return [
+        ...possibleStrings(node.whenTrue, depth + 1),
+        ...possibleStrings(node.whenFalse, depth + 1),
+      ];
+    }
+    if (
+      ts.isBinaryExpression(node) &&
+      (node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+        node.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+    ) {
+      return [...possibleStrings(node.left, depth + 1), ...possibleStrings(node.right, depth + 1)];
+    }
+    return [];
+  };
+
   const collectConsts = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
-      node.initializer !== undefined &&
-      ts.isStringLiteralLike(node.initializer)
+      node.initializer !== undefined
     ) {
-      stringConsts.set(node.name.text, node.initializer.text);
+      const values = possibleStrings(node.initializer);
+      if (values.length > 0) stringConsts.set(node.name.text, values);
     }
     ts.forEachChild(node, collectConsts);
   };
+  // Twice: a `const` may be initialized from one declared later in the file
+  // (a module-scope constant read inside a function), and one pass records the
+  // literals the second pass then resolves through.
+  collectConsts(sf);
   collectConsts(sf);
 
+  /** `randomUUID()` — an identifier invented on the spot (issue #85). */
+  const isRandomUuidCall = (node: ts.Node): boolean =>
+    ts.isCallExpression(node) && /(^|\.)randomUUID$/.test(node.expression.getText(sf));
+
   const visit = (node: ts.Node): void => {
-    // Signal 3 — a settings read whose channel argument is a string literal
-    // that is not a channel id (feature 072, D-42).
+    // Signal 3 — a settings read whose channel argument can be a string that is
+    // not a channel id (feature 072, D-42, widened by D-48).
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
       const method = node.expression.name.text;
       const channelArg = node.arguments[1];
@@ -215,22 +311,57 @@ export function analyzeSource(source: string, relPath: string): Violation[] {
         channelArg !== undefined &&
         isSettingsReceiver(node.expression.expression.getText(sf))
       ) {
-        let literal: string | undefined;
-        if (ts.isStringLiteralLike(channelArg)) {
-          literal = channelArg.text;
-        } else if (ts.isIdentifier(channelArg)) {
-          literal = stringConsts.get(channelArg.text);
-        }
-        if (literal !== undefined && isNotAChannelId(literal)) {
+        const offending = possibleStrings(channelArg).find(isNotAChannelId);
+        if (offending !== undefined) {
           violations.push({
             file: relPath,
             line: at(node),
             kind: 'settings-channel-literal',
             detail:
-              `settings.${method}(…) reads channel '${literal}', which is not a ` +
+              `settings.${method}(…) can read channel '${offending}', which is not a ` +
               `sales-channel id — pass a channel uuid, or null for a platform-wide read`,
           });
         }
+      }
+    }
+
+    // Signal 4a — a default parameter value standing in for a channel id.
+    if (
+      ts.isParameter(node) &&
+      ts.isIdentifier(node.name) &&
+      CHANNEL_ID_PARAM.test(node.name.text) &&
+      node.initializer !== undefined
+    ) {
+      const offending = possibleStrings(node.initializer).find(isNotAChannelId);
+      if (offending !== undefined) {
+        violations.push({
+          file: relPath,
+          line: at(node),
+          kind: 'invented-channel-identifier',
+          detail:
+            `default parameter '${node.name.text} = ${JSON.stringify(offending)}' invents a ` +
+            `sales-channel id — a parameter production never passes is a hole, not a default`,
+        });
+      }
+    }
+
+    // Signal 4b — a channel resolution with an invented fallback.
+    if (
+      ts.isBinaryExpression(node) &&
+      (node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+        node.operatorToken.kind === ts.SyntaxKind.BarBarToken) &&
+      isChannelIdExpression(node.left.getText(sf))
+    ) {
+      if (isRandomUuidCall(node.right)) {
+        violations.push({
+          file: relPath,
+          line: at(node),
+          kind: 'invented-channel-identifier',
+          detail:
+            `a channel id falls back to randomUUID(), which addresses no sales_channels row — ` +
+            `the system default always exists (D-47/D-48), so resolve it; use null only where ` +
+            `"no channel" is a real answer`,
+        });
       }
     }
 

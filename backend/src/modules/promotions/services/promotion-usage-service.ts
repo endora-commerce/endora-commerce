@@ -19,7 +19,15 @@ export interface UsageContext {
   organizationId: string | null;
   customerAccountId: string | null;
   customerGroupId: string | null;
-  salesChannelId: string | null;
+  /**
+   * The channel the order was placed through. Non-nullable (D-48): the one
+   * caller is `placeOrder`, which stamps the same id onto the order, and
+   * `promotion_usages.sales_channel_id` is `uuid not null`. It used to be
+   * `string | null` with a `?? randomUUID()` at the insert — issue #85's shape,
+   * one table over: a fabricated id in a column the statistics aggregates
+   * group by, so a usage row could never be joined back to a channel.
+   */
+  salesChannelId: string;
 }
 
 export interface FinalizeAppliedPromotion {
@@ -166,7 +174,7 @@ export class PromotionUsageService {
           customer_account_id: input.ctx.customerAccountId ?? null,
           organization_id: input.ctx.organizationId ?? null,
           customer_group_id: input.ctx.customerGroupId ?? null,
-          sales_channel_id: input.ctx.salesChannelId ?? randomUUID(),
+          sales_channel_id: input.ctx.salesChannelId,
           discount_amount: a.amount.toFixed(2),
           currency: input.currency,
           created_at: new Date(),

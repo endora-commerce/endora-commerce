@@ -26,6 +26,13 @@ export const QUICK_ORDER_SETTING_CODES = {
  */
 export const DEFAULT_IMPORT_MAX_ROWS = 2000;
 
+/**
+ * Same binding, for the one-click gate (issue #99). The read that has to
+ * degrade degrades to *this*, not to a `false` written a second time beside the
+ * manifest's `defaultValue`.
+ */
+export const DEFAULT_ONE_CLICK_BUY_ENABLED = false;
+
 const settings = defineModuleSettingsManifest({
   moduleCode: 'quick_order',
   groups: [{ code: 'quick_order', name: 'Quick Order' }],
@@ -37,7 +44,7 @@ const settings = defineModuleSettingsManifest({
         'When enabled, buyers with all four default ordering preferences set see a "Buy in one click" button on product pages. The per-channel value overrides the global value.',
       groupCode: 'quick_order',
       valueType: 'boolean',
-      defaultValue: false,
+      defaultValue: DEFAULT_ONE_CLICK_BUY_ENABLED,
     },
     {
       code: QUICK_ORDER_SETTING_CODES.IMPORT_MAX_ROWS,

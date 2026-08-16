@@ -28,7 +28,6 @@ describe('PromotionService — sales-channel gate (feature 052 US3)', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     const def = await h.salesChannels.resolver.getSystemDefault();
-    if (!def) throw new Error('system-default sales channel missing in test setup');
     channelAId = def.id;
 
     const em = h.em();

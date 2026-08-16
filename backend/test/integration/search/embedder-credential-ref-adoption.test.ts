@@ -34,7 +34,7 @@ describe('Search embedder — credential_ref adoption [real DB]', () => {
     process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] =
       process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ?? randomBytes(32).toString('base64');
     h = await setupBackendServer();
-    channelId = (await h.salesChannels.resolver.getSystemDefault())!.id;
+    channelId = (await h.salesChannels.resolver.getSystemDefault()).id;
   });
   afterAll(async () => {
     await setSetting(h, 'search.llm.embedder_credentials', '');

@@ -338,8 +338,14 @@ export function registerModule(ctx: ModuleContext): void {
             ),
             effectivePriceListsService: new OrganizationEffectivePriceListsService({
               emFactory,
+              // D-48 — this was `?? 'default'`, a channel *code* landing in
+              // `ResolutionContext.salesChannelId`, which the price-list
+              // evaluator compares against channel **uuids**. On the fallback
+              // branch every `salesChannel` criterion therefore evaluated false
+              // and the panel reported channel-scoped lists as not applying.
+              // The branch cannot be taken, so the fallback goes with it.
               resolveDefaultSalesChannelId: async () =>
-                (await cradle().salesChannelResolutionPort.getSystemDefault())?.id ?? 'default',
+                (await cradle().salesChannelResolutionPort.getSystemDefault()).id,
             }),
             taxIdValidationService: new OrganizationTaxIdValidationService({
               emFactory,

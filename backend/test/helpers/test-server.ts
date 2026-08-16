@@ -1210,8 +1210,9 @@ export async function setupBackendServer(
   // `request.testActor` where production uses `request.actor`, which is exactly
   // why the bridge is contributed rather than built into the module.
   registerValues(container, {
+    // D-48 — the system-default channel, which always exists.
     mfaDefaultChannelIdResolver: async () =>
-      (await salesChannels.resolver.getSystemDefault())?.id ?? null,
+      (await salesChannels.resolver.getSystemDefault()).id,
     mfaBaseUrls: {
       backend: 'http://localhost',
       storefront: 'http://localhost:3000',
@@ -1358,10 +1359,9 @@ export async function setupBackendServer(
           const ch = await salesChannels.resolver.getByCode(code);
           if (ch) return ch.id;
         }
-        return (await salesChannels.resolver.getSystemDefault())?.id ?? null;
+        return (await salesChannels.resolver.getSystemDefault()).id;
       },
-      defaultChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? null,
+      defaultChannelId: async () => (await salesChannels.resolver.getSystemDefault()).id,
       channelCodeForId: async (channelId: string) => {
         const ch = await em().findOne(SalesChannel, { id: channelId });
         return ch?.code ?? null;
@@ -1541,11 +1541,12 @@ export async function setupBackendServer(
         return items.find((c) => c.id === id)?.code ?? null;
       },
     },
-    // Mirrors the production root exactly (feature 072, D-41): a channel id or
-    // `null`, never a placeholder. Both used to fall back to `'default'`, a
-    // channel *code* that cannot address a `setting_values` row.
+    // Mirrors the production root exactly (feature 072, D-41/D-48): the
+    // system-default channel's id. Both used to fall back to `'default'`, a
+    // channel *code* that cannot address a `setting_values` row, and then to
+    // `?? null` on a branch the platform guarantees against.
     settingsChannelResolver: async (): Promise<string | null> =>
-      (await salesChannels.resolver.getSystemDefault())?.id ?? null,
+      (await salesChannels.resolver.getSystemDefault()).id,
     blogStorefrontDeps: undefined,
   });
   const lateModules = composeModules(latePassModules(MODULES), {
@@ -1668,12 +1669,12 @@ export async function setupBackendServer(
     },
     catalogImagePlaceholderUrl: async (salesChannelCode?: string) => {
       try {
-        const channel = salesChannelCode
-          ? await salesChannels.resolver.getByCode(salesChannelCode)
-          : await salesChannels.resolver.getSystemDefault();
+        const channelId =
+          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)?.id ??
+          (await salesChannels.resolver.getSystemDefault()).id;
         const url = await settings.settingsService.get(
           'product_image_placeholder_url',
-          channel?.id ?? null,
+          channelId,
           z.string(),
         );
         const trimmed = url.trim();
@@ -2149,7 +2150,7 @@ export async function setupBackendServer(
   registerValues(container, {
     newsletterBridge: {
       tokenSecret: 'test-newsletter-secret',
-      defaultChannelId: (await salesChannels.resolver.getSystemDefault())?.id ?? null,
+      defaultChannelId: (await salesChannels.resolver.getSystemDefault()).id,
       resolveChannelIdByCode: async (code) =>
         (await salesChannels.resolver.getByCode(code))?.id ?? null,
       publicBaseUrl: 'http://localhost',

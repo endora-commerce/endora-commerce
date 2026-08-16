@@ -25,7 +25,10 @@ import { EmbedResolver } from '../../../src/modules/transactional_emails/service
 import { EmailDefaultsRegistry } from '../../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { TransactionalEmail } from '../../../src/modules/transactional_emails/entities/transactional-email.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
+import {
+  SettingNotRegistered,
+  type SettingsService,
+} from '../../../src/kernel/settings/settings.service.js';
 
 const ADMIN = { b2b_admin_session: 'stub-admin-session' };
 const BASE = '/api/v1/admin/transactional-emails';
@@ -38,8 +41,12 @@ const ORDINARY = 'availability_back_in_stock';
 const PROTECTED = 'email_verification';
 
 const fakeSettings = {
-  get: async () => {
-    throw new Error('no settings in this test');
+  // D-48 — a *real* settings condition, not a bare `Error`. `BrandingService`
+  // degrades on the two conditions with a defined fallback and propagates the
+  // rest now (composition rule 7), so a stub throwing a generic error asserts a
+  // behaviour the service no longer has.
+  get: async (code: string) => {
+    throw new SettingNotRegistered(code);
   },
 } as unknown as SettingsService;
 

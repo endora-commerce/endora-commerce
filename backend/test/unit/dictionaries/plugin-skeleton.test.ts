@@ -22,7 +22,7 @@ import { EventBus } from '../../../src/events/bus.js';
 import { registerModule } from '../../../src/modules/dictionaries/backend.js';
 
 describe('dictionaries — what the module registers', () => {
-  it('provides the validator port and a boot hook, and subscribes to both announcements', () => {
+  it('provides the validator port and a boot hook, and subscribes to every announcement it caches for', () => {
     const container = createRootContainer();
     container.register({
       emFactory: asValue(() => ({}) as never),
@@ -48,6 +48,11 @@ describe('dictionaries — what the module registers', () => {
     // `currencies.changed` and `languages.changed` — the two announcements that
     // make this module drop its own caches. They used to be subscribed by each
     // composition root reaching into this module's handle.
-    expect(sink.unsubscribes).toHaveLength(2);
+    //
+    // Issue #101 added the two sales-channel announcements. The registry is
+    // scoped to a channel — its languages, its currencies, its defaults — so a
+    // channel write invalidates this cache exactly as a currency write does,
+    // and nothing was subscribed to say so.
+    expect(sink.unsubscribes).toHaveLength(4);
   });
 });

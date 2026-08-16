@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { NoSystemDefaultChannel } from './no-system-default-channel.error.js';
 import { SalesChannel } from './sales-channel.entity.js';
 import type {
   SalesChannelsCache} from './sales-channels-cache.js';
@@ -86,11 +87,27 @@ export class SalesChannelResolverService {
     return { ok: true, channel };
   }
 
-  /** Returns the system-default channel; used as the storefront/integration fallback. */
-  async getSystemDefault(): Promise<CachedChannel | null> {
+  /**
+   * The system-default channel; the storefront / integration fallback, and the
+   * answer to "which channel, when nobody said".
+   *
+   * **Never `null`** (feature 072, D-48). Exactly one row holds the flag on any
+   * booted deployment: the boot reconciler inserts or promotes one on every
+   * serving path, a partial unique index forbids a second, and the CRUD service
+   * refuses every delete, deactivate and `active:false` that would take it
+   * away. The nullable signature this replaces described an unreachable state,
+   * and a branch that cannot be taken but is typed as if it can is a branch
+   * every author must invent a value for — four of them did, spelling it
+   * `'default'`, the nil UUID, a `randomUUID()` and a silent switch to the
+   * platform-wide settings tier.
+   *
+   * @throws NoSystemDefaultChannel when the registry has no flagged row, which
+   * means composition has not run the reconciler yet.
+   */
+  async getSystemDefault(): Promise<CachedChannel> {
     const em = this.emFactory();
     const channel = await em.findOne(SalesChannel, { systemDefault: true });
-    if (channel === null) return null;
+    if (channel === null) throw new NoSystemDefaultChannel();
     const view = toCachedChannel(channel);
     // Make the system-default channel cheap to find on the next call too.
     await this.cache.set(view.code, view);

@@ -247,7 +247,7 @@ describe('admin sales-channels set-default + code immutability (D-50/D-51)', () 
 
     expect((await h.salesChannels.resolver.getByCode('default'))?.systemDefault).toBe(false);
     expect((await h.salesChannels.resolver.getByCode('shop-cache'))?.systemDefault).toBe(true);
-    expect((await h.salesChannels.resolver.getSystemDefault())?.code).toBe('shop-cache');
+    expect((await h.salesChannels.resolver.getSystemDefault()).code).toBe('shop-cache');
   });
 
   // -- helpers --------------------------------------------------------------

@@ -18,13 +18,22 @@ import { BrandingService } from '../../../src/modules/transactional_emails/servi
 import { EmbedResolver } from '../../../src/modules/transactional_emails/services/embed-resolver.js';
 import { EmailDefaultsRegistry } from '../../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { TransactionalEmail } from '../../../src/modules/transactional_emails/entities/transactional-email.entity.js';
-import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
+import {
+  SettingNotRegistered,
+  type SettingsService,
+} from '../../../src/kernel/settings/settings.service.js';
 
 const CHANNEL = '00000000-0000-0000-0000-0000000000aa';
 
 const fakeSettings = {
-  get: async () => {
-    throw new Error('no settings in this test');
+  // D-48 — a *real* settings condition, not a bare `Error`. Branding used to
+  // absorb anything a settings read threw, which is how it also absorbed the
+  // `SettingOutOfScopeForChannel` its nil-uuid scope produced; it degrades on
+  // the two conditions with a defined fallback and propagates the rest now
+  // (composition rule 7), so a stub throwing a generic error is asserting a
+  // behaviour the service no longer has.
+  get: async (code: string) => {
+    throw new SettingNotRegistered(code);
   },
 } as unknown as SettingsService;
 

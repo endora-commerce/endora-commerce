@@ -3,6 +3,14 @@ import type Redis from 'ioredis';
 export const DICTIONARY_CACHE_KEY_PREFIX = 'dictionary:';
 export const DICTIONARY_CACHE_DEFAULT_TTL_SECONDS = 60 * 60;
 
+/**
+ * The channel segment of a **platform-wide** registry key (issue #101), the
+ * same reserved segment the settings cache uses. A uuid can never spell it, so
+ * it cannot collide with a real channel — which the literal `'default'` it
+ * replaces could and did, because that is also a channel code.
+ */
+export const GLOBAL_CACHE_KEY_SEGMENT = '__global__';
+
 export interface DictionaryCacheOptions {
   ttlSeconds?: number;
   enabled?: boolean;
@@ -17,8 +25,9 @@ export class DictionaryCache {
     this.enabled = (options.enabled ?? true) && this.ttlSeconds > 0;
   }
 
-  static registryKey(channelCode: string, locale: string): string {
-    return `${DICTIONARY_CACHE_KEY_PREFIX}registry:v1:${channelCode}:${locale}`;
+  /** `channelKey` is a channel **id**, or {@link GLOBAL_CACHE_KEY_SEGMENT}. */
+  static registryKey(channelKey: string, locale: string): string {
+    return `${DICTIONARY_CACHE_KEY_PREFIX}registry:v1:${channelKey}:${locale}`;
   }
 
   static byCodeKey(entryType: string, entryCode: string, locale: string): string {

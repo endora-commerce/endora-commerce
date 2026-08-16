@@ -822,8 +822,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // That is contributed whole rather than as ten separate names, because a
   // composition either knows how to resolve an actor or it does not.
   registerValues(container, {
+    // D-48 — the system-default channel, which always exists. It used to be
+    // `?? null`, which switched MFA policy resolution to the platform-wide
+    // settings tier on a branch that cannot be taken.
     mfaDefaultChannelIdResolver: async () =>
-      (await salesChannels.resolver.getSystemDefault())?.id ?? null,
+      (await salesChannels.resolver.getSystemDefault()).id,
     ...(oauthProvider ? { mfaOauthProvider: oauthProvider } : {}),
     mfaSocialAccountResolvers: mfaSocialResolvers,
     mfaActorBridge: {
@@ -1122,18 +1125,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return null;
         }
       },
-      // `null` = this deployment has no channel to read for, so `pwa` resolves
-      // its configuration platform-wide (D-41 case c). It used to be the
-      // `'default'` sentinel, which resolved nothing at all.
+      // An unknown code falls back to the system-default channel, which always
+      // exists (D-48). It used to be the `'default'` sentinel, which resolved
+      // nothing at all, and then `?? null`, which read `pwa`'s per-storefront
+      // configuration platform-wide on a branch that cannot be taken.
       resolveChannelIdByCode: async (code: string | undefined) => {
         if (code) {
           const ch = await salesChannels.resolver.getByCode(code);
           if (ch) return ch.id;
         }
-        return (await salesChannels.resolver.getSystemDefault())?.id ?? null;
+        return (await salesChannels.resolver.getSystemDefault()).id;
       },
-      defaultChannelId: async () =>
-        (await salesChannels.resolver.getSystemDefault())?.id ?? null,
+      defaultChannelId: async () => (await salesChannels.resolver.getSystemDefault()).id,
       channelCodeForId: async (channelId: string) => {
         const ch = await em().findOne(SalesChannel, { id: channelId });
         return ch?.code ?? null;
@@ -1320,16 +1323,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     /**
      * The channel a **channel-scoped** settings read resolves against outside a
      * request (worker, boot hook, CLI): the deployment's system-default sales
-     * channel, or `null` when it has none. `null` says the read is impossible,
-     * which is a fact only the reader can decide what to do with — it is not a
-     * value that can address a `setting_values` row, and D-41 deleted the one
-     * that pretended to be.
+     * channel.
+     *
+     * D-48 removed the `?? null` — the resolver cannot fail to find a default,
+     * so this cannot answer "none". The return type stays `string | null`
+     * because the *seam* still admits one: a composition may register a
+     * resolver of its own that has no channel to offer, and
+     * `test/integration/quote_requests/settings-channel.test.ts` exercises
+     * exactly that, pinning D-43's warn-once degrade. What is gone is a
+     * resolver silently switching tier on an impossible branch.
      *
      * A read that is not per-storefront at all does not call this: it passes
      * `null` to `settingsReadPort.get` deliberately, for a platform-wide read.
      */
     settingsChannelResolver: async (): Promise<string | null> =>
-      (await salesChannels.resolver.getSystemDefault())?.id ?? null,
+      (await salesChannels.resolver.getSystemDefault()).id,
     // Blog ships no storefront ports today — the factory defaulted this to `{}`
     // and neither composition root ever passed one.
     blogStorefrontDeps: undefined,
@@ -1439,12 +1447,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // hiccup can never break product listings.
     catalogImagePlaceholderUrl: async (salesChannelCode?: string) => {
       try {
-        const channel = salesChannelCode
-          ? await salesChannels.resolver.getByCode(salesChannelCode)
-          : await salesChannels.resolver.getSystemDefault();
-        // `null` = no channel to read for, so read the placeholder
-        // platform-wide rather than not at all (D-41).
-        const channelId = channel?.id ?? null;
+        // An unknown code falls back to the system-default channel, which
+        // always exists (D-48); the placeholder is a per-storefront property,
+        // so the default channel's value is the wanted answer, not the
+        // platform-wide one the old `?? null` quietly switched to.
+        const channelId =
+          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)?.id ??
+          (await salesChannels.resolver.getSystemDefault()).id;
         const url = await settings.settingsService.get(
           'product_image_placeholder_url',
           channelId,
@@ -1998,7 +2007,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // system-default channel's value" and "the platform-wide value" are
       // different answers and this one wants the former. The provider config
       // reads, which are genuinely platform-wide, no longer take it at all.
-      defaultChannelId: (await salesChannels.resolver.getSystemDefault())?.id ?? null,
+      defaultChannelId: (await salesChannels.resolver.getSystemDefault()).id,
       resolveChannelIdByCode: async (code) =>
         (await salesChannels.resolver.getByCode(code))?.id ?? null,
       publicBaseUrl:

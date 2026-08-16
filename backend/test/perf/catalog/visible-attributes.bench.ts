@@ -126,7 +126,6 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
 
   it(`p95 of visibleAttributes projection stays under ${p95Budget} ms`, async () => {
     const def = await h.salesChannels.resolver.getSystemDefault();
-    if (!def) throw new Error('system-default sales channel missing in test setup');
     const resolvedChannel = {
       id: def.id,
       code: def.code,

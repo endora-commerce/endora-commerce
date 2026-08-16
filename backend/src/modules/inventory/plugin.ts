@@ -91,13 +91,16 @@ export function inventoryModule(options: InventoryModuleOptions) {
     if (options.eventBus) availabilityWorker.attach(options.eventBus);
 
     if (options.eventBus && options.settingsService) {
+      // D-48 — the last branch used to be `sysDefault?.id ?? null`, which
+      // mirrored the threshold settings platform-wide on a branch the platform
+      // guarantees against. `null` here now means only what it always should
+      // have: this composition wired no channel resolver at all.
       const resolveChannelId =
         options.resolveSystemDefaultChannelId ??
         (async (): Promise<string | null> => {
           if (options.settingsChannelId) return options.settingsChannelId;
           if (!options.channelResolver) return null;
-          const sysDefault = await options.channelResolver.getSystemDefault();
-          return sysDefault?.id ?? null;
+          return (await options.channelResolver.getSystemDefault()).id;
         });
       const mirror = new ThresholdSettingsMirror(
         options.emFactory,

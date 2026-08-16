@@ -4,13 +4,22 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 describe('Dictionary storefront cache (feature 017 / US2)', () => {
   let h: BackendServerHandle;
+  /**
+   * The registry key names the resolved channel's **id** since issue #101; it
+   * used to be the literal `'default'`, which is a channel code and therefore
+   * survived the channel it was built from.
+   */
+  let cacheKey: string;
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    await h.redis.del('dictionary:registry:v1:default:en-US');
+    const systemDefault = await h.em().findOneOrFail(SalesChannel, { systemDefault: true });
+    cacheKey = `dictionary:registry:v1:${systemDefault.id}:en-US`;
+    await h.redis.del(cacheKey);
   });
 
   afterAll(async () => {
@@ -18,7 +27,6 @@ describe('Dictionary storefront cache (feature 017 / US2)', () => {
   });
 
   it('caches registry reads and invalidates on dictionary writes', async () => {
-    const cacheKey = 'dictionary:registry:v1:default:en-US';
     expect(await h.redis.exists(cacheKey)).toBe(0);
 
     const first = await h.app.inject({
