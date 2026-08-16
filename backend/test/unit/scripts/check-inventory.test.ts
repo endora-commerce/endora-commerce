@@ -24,6 +24,7 @@ import {
   type EntryKind,
 } from '../../../scripts/check-entry-scope.js';
 import { findUntranslatedErrorCodes } from '../../../scripts/check-error-translations.js';
+import { checkHarnessTeardown } from '../../../scripts/check-harness-teardown.js';
 import {
   analyzeClosure,
   analyzePlatformImports,
@@ -440,6 +441,25 @@ function discoveredCitingDocuments(): number {
   }
 }
 
+/**
+ * Hand-released harness resources in one synthetic test file.
+ *
+ * The fixture is source text, so both stages run: the binding pass that decides
+ * which identifiers hold a `BackendServerHandle`, and the release pass over the
+ * resource table. Handing the second a name the first never produced is the
+ * shape issue #130 is about — and here it is the *binding* that would go blind
+ * first, since a handle is spelled three ways and only one of them mentions
+ * `setupBackendServer`.
+ */
+function handReleases(file: string, source: string, resource: string): number {
+  return checkHarnessTeardown({ sources: new Map([[file, source]]) }, {}).violations.filter(
+    (v) => v.resource === resource,
+  ).length;
+}
+
+/** The `let h: BackendServerHandle` + `beforeAll` shape every converted file uses. */
+const HANDLE_DECLARED = 'let h: BackendServerHandle;\n';
+
 /** Ungated uncatchable entry points of one construct, in one synthetic file. */
 function ungatedTimers(file: string, source: string, construct: TimerConstruct): number {
   return checkTimerPresence({ sources: new Map([[file, source]]) }, {}).violations.filter(
@@ -666,6 +686,83 @@ const CHECKS: readonly CheckEntry[] = [
             readBundle: (_moduleId, language) =>
               language === 'en' ? { 'errors.BLOG_POST_NOT_FOUND': 'Post not found.' } : {},
           }).length,
+      ),
+    },
+  },
+  {
+    // Two stages, and a proof for every shape of each. The resource table is
+    // five entries with two spellings for an ioredis client, so six release
+    // proofs; the binding pass reads a handle three ways, and the two that do
+    // not mention `setupBackendServer` get their own — a binding that narrows to
+    // the assignment would report zero over every shared helper in `test/`, and
+    // zero is what a clean tree looks like.
+    script: 'backend/scripts/check-harness-teardown.ts',
+    npmScript: 'check:harness-teardown',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-harness-teardown.test.ts',
+    vacuousGuard: 'exit-2',
+    red: {
+      'app-close': top(() =>
+        handReleases(
+          'contract/blog/admin-posts.contract.test.ts',
+          'const h = await setupBackendServer();\nawait h.app.close();\n',
+          'app',
+        ),
+      ),
+      'orm-close': top(() =>
+        handReleases(
+          'contract/blog/admin-posts.contract.test.ts',
+          'const h = await setupBackendServer();\nawait h.orm.close(true);\n',
+          'orm',
+        ),
+      ),
+      'redis-disconnect': top(() =>
+        handReleases(
+          'contract/blog/admin-posts.contract.test.ts',
+          'const h = await setupBackendServer();\nh.redis.disconnect();\n',
+          'redis',
+        ),
+      ),
+      // `quit` closes an ioredis client just as `disconnect` does; a table that
+      // learned only the spelling the sweep happened to find would miss it.
+      'redis-quit': top(() =>
+        handReleases(
+          'contract/blog/admin-posts.contract.test.ts',
+          'const h = await setupBackendServer();\nawait h.redis.quit();\n',
+          'redis',
+        ),
+      ),
+      // The client the hand-rolled block never disconnected — one abandoned
+      // subscriber per composed server, for the length of a single-fork run.
+      'redis-subscriber-disconnect': top(() =>
+        handReleases(
+          'contract/blog/admin-posts.contract.test.ts',
+          'const h = await setupBackendServer();\nh.redisSubscriber.disconnect();\n',
+          'redisSubscriber',
+        ),
+      ),
+      // The other one it never released: the awilix container holding every
+      // composed module's singletons.
+      'container-dispose': top(() =>
+        handReleases(
+          'contract/blog/admin-posts.contract.test.ts',
+          'const h = await setupBackendServer();\nawait h.container.dispose();\n',
+          'container',
+        ),
+      ),
+      'handle-from-variable-annotation': top(() =>
+        handReleases(
+          'contract/blog/admin-posts.contract.test.ts',
+          `${HANDLE_DECLARED}await h.app.close();\n`,
+          'app',
+        ),
+      ),
+      'handle-from-parameter-annotation': top(() =>
+        handReleases(
+          'helpers/off-state.ts',
+          'export async function stop(h: BackendServerHandle) { await h.app.close(); }\n',
+          'app',
+        ),
       ),
     },
   },
@@ -1082,6 +1179,7 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-entity-tenant-classification.ts': 2,
       'backend/scripts/check-entry-scope.ts': 4,
       'backend/scripts/check-error-translations.ts': 2,
+      'backend/scripts/check-harness-teardown.ts': 8,
       'backend/scripts/check-kernel-boundary.ts': 3,
       'backend/scripts/check-overlay-determinism.ts': 3,
       'backend/scripts/check-port-catches.ts': 3,

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { AssetFolder } from '../../../src/modules/assets_library/entities/asset-folder.entity.js';
@@ -22,9 +23,7 @@ describe('admin folder CRUD (T053)', () => {
     const all = await em.find(AssetFolder, {});
     for (const f of all) em.remove(f);
     await em.flush();
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   const adminCookie = { b2b_session: 'stub-admin-session' };

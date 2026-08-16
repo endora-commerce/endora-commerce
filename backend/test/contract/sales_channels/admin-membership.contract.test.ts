@@ -3,6 +3,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { randomUUID } from 'crypto';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
@@ -27,9 +28,7 @@ describe('admin membership routes (Phase 5b)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   beforeEach(async () => {

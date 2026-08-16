@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ScriptedLlm, seedPromptActionsSettings } from '../../helpers/prompt-actions.js';
@@ -52,9 +53,7 @@ describe('US1 — set-stock flow end to end (T025)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
     delete process.env['SETTINGS_SECRET_ENCRYPTION_KEY'];
   });
 
