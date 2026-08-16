@@ -564,6 +564,14 @@ inside an operation that already has a caller is out of scope, and so is
 `ctx.onBoot`: `runBootHooks` wraps every hook and turns a throw into a
 `ModuleCompositionError` that aborts the boot, which makes "should a boot hook run
 for an absent module" one kernel decision rather than a guard each module writes.
+The first two shapes live in `backend/scripts/lib/repeating-timers.ts` and are
+read by `check-entry-scope.ts` as well (issue #128). That check classified its
+interval entry points by grepping for `setInterval(`, so `search`'s reindex loop
+was outside the population it counted and the FR-020 gap there stayed invisible
+behind a number that never moved. Two detectors for one shape is how they drift;
+the rules stay separate — one asks whether the callback decides presence, the
+other whether the file opens a scope — but the recognizer is one.
+
 `TIMERS_WITHOUT_PRESENCE` is two-way like the ledgers above but, unlike them, is
 not expected to empty: an entry says why a timer is right to keep running while
 its module is off — the lifecycle lock's lease heartbeat belongs to the command
@@ -677,7 +685,7 @@ is no container in the process running it.
 | `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a **gated port resolved from a `ctx.onBoot` hook or a `ctx.routes` body**; a root shadowing a module's port; a computed port name; **and an edge into a switchable module with no defined behaviour when that module is off** (the deactivation-consequence ledger above) |
 | `check-port-catches.ts` | a `catch` around a gated-port call that does not let `ModuleDisabledError` past — unconditional re-throw, `rethrowIfModuleDisabled`, or naming the error. Carries `PORT_CATCHES_TO_DRAIN`, a two-way ratchet |
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
-| `check-entry-scope.ts` | a non-HTTP entry point — CLI script, BullMQ worker, `setInterval` sweep — that establishes no scope (T037) |
+| `check-entry-scope.ts` | a non-HTTP entry point — CLI script, BullMQ worker, repeating-timer sweep — that establishes no scope (T037). The timer class is the *shape*, not the constructor: it reads `lib/repeating-timers.ts`, shared with `check-timer-presence.ts`, so a `setTimeout` the callback re-arms counts (issue #128) |
 | `check-channel-resolution.ts` | a raw `x-sales-channel` header read outside the resolver; a storefront surface re-resolving the request channel; a settings read whose channel argument can be a string that is not a channel uuid (D-42); a channel id invented by a default parameter or a `randomUUID()` fallback (D-48). Runs `--enforce` in CI |
 | `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger — including `ROOT_MODULE_VALUE_IMPORTS` (T143c): every **value** import a root takes out of `src/modules/**`, keyed by owner, with what has to happen for it to drain, and "no root constructs a module-owned service" against a named allow-list |
 

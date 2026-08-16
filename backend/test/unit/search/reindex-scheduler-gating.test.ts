@@ -1,5 +1,7 @@
 import Fastify from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getCurrentPlatformScope } from '../../../src/kernel/scope.js';
+import { getTenantContext } from '../../../src/tenancy/tenant-context.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { searchModule, type SearchModuleOptions } from '../../../src/modules/search/plugin.js';
@@ -70,6 +72,46 @@ describe('search reindex scheduler is gated on effective presence', () => {
     await runLastTick(scheduled);
 
     expect(reindex).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Issue #128 — the same tick, on the other rule. `check-entry-scope` classified
+   * interval entry points by grepping for `setInterval(`, so this loop was never
+   * in its population and FR-020 went unmet here while the check read clean: the
+   * sweep queried whatever `@OrgScoped` filters happened not to apply to it.
+   *
+   * The scope wraps the **work**, not the guard: the presence decision and the
+   * reschedule stay outside it, because this timer is the loop and losing the
+   * re-arm would stop the scheduler for the life of the process.
+   */
+  it('runs the sweep inside a system scope opened at the timer', async () => {
+    const settingsGet = vi.fn(async () => 5);
+    const { handle, plugin } = searchModule(searchOptions(settingsGet));
+    const observed: ({ mode: string; entryPoint: string } | 'no scope')[] = [];
+    vi.spyOn(handle.reindexWorker, 'reindex').mockImplementation(async () => {
+      // Read the scope's own tenant, not the ambient one: the suite's tenancy
+      // setup establishes a system context around every test, so `mode` alone
+      // would pass whether or not this entry point opened anything.
+      const scope = getCurrentPlatformScope();
+      observed.push(
+        scope ? { mode: scope.tenant.mode, entryPoint: scope.entryPoint } : 'no scope',
+      );
+      // The ambient context has to agree with it — that is what the ORM filters
+      // read, and a scope whose tenancy did not propagate would still report a
+      // clean `entryPoint`.
+      expect(getTenantContext()?.mode).toBe('system');
+      return { channelsReindexed: 1, documentCount: 7 };
+    });
+
+    await plugin(Fastify());
+    await runLastTick(scheduled);
+
+    expect(observed, 'the sweep did not run').toHaveLength(1);
+    expect(observed[0], 'the sweep ran with no tenant context of its own').toEqual({
+      mode: 'system',
+      entryPoint: 'interval',
+    });
+    expect(scheduled.length, 'the scoped tick did not re-arm the loop').toBeGreaterThan(1);
   });
 });
 

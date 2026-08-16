@@ -34,6 +34,14 @@
  *      because the rule names it and a check that waits for the first site to
  *      appear is a check that arrives after it.
  *
+ * Shapes 1 and 2 come from `lib/repeating-timers.ts`, which `check-entry-scope`
+ * reads too (issue #128): that check classified interval entry points by
+ * grepping for `setInterval(`, so the reindex loop was outside its population
+ * and its unchanging count read as coverage. One recognizer, two rules — this
+ * one asks whether the callback decides presence, that one whether the file
+ * opens a scope. Shape 3 stays here: it has no caller to answer either, but it
+ * starts no repeating execution, so it is not the shape the other check needs.
+ *
  * ## What it cannot see, deliberately
  *
  *   - **A one-shot `setTimeout` inside an operation that already has a caller** —
@@ -68,6 +76,17 @@ import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { moduleOf } from './check-port-dependencies.js';
+import {
+  callbackOf,
+  calleeName,
+  enclosingName,
+  findRepeatingTimerSites,
+  localFunctions,
+  MODULE_SCOPE,
+  parseScript,
+  receiverName,
+  stringLiteralOf,
+} from './lib/repeating-timers.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -143,119 +162,6 @@ export interface TimerPresenceInput {
   readonly sources: ReadonlyMap<string, string>;
 }
 
-/** The trailing identifier of a callee: `globalThis.setInterval` → `setInterval`. */
-function calleeName(node: ts.CallExpression): string | null {
-  const expression = node.expression;
-  if (ts.isIdentifier(expression)) return expression.text;
-  if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
-  return null;
-}
-
-/** The receiver of a call, as its trailing identifier: `process.on` → `process`. */
-function receiverName(node: ts.CallExpression): string | null {
-  const expression = node.expression;
-  if (!ts.isPropertyAccessExpression(expression)) return null;
-  const receiver = expression.expression;
-  if (ts.isIdentifier(receiver)) return receiver.text;
-  if (ts.isPropertyAccessExpression(receiver)) return receiver.name.text;
-  return null;
-}
-
-function stringLiteralOf(node: ts.Node): string | null {
-  if (ts.isStringLiteralLike(node)) return node.text;
-  if (
-    ts.isAsExpression(node) ||
-    ts.isNonNullExpression(node) ||
-    ts.isParenthesizedExpression(node)
-  ) {
-    return stringLiteralOf(node.expression);
-  }
-  return null;
-}
-
-type FunctionLike = ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration;
-
-function isFunctionLike(node: ts.Node): node is FunctionLike {
-  return ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node);
-}
-
-/** File-local `function f(){}` / `const f = () => {}` bindings, by name. */
-function localFunctions(sf: ts.SourceFile): Map<string, FunctionLike> {
-  const bindings = new Map<string, FunctionLike>();
-  const visit = (node: ts.Node): void => {
-    if (ts.isFunctionDeclaration(node) && node.name) {
-      bindings.set(node.name.text, node);
-    } else if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.initializer &&
-      isFunctionLike(node.initializer)
-    ) {
-      bindings.set(node.name.text, node.initializer);
-    }
-    node.forEachChild(visit);
-  };
-  sf.forEachChild(visit);
-  return bindings;
-}
-
-/** The nearest named function around `node`, for the ledger key. */
-function enclosingName(node: ts.Node): string | null {
-  for (let cursor = node.parent; cursor; cursor = cursor.parent) {
-    if (ts.isFunctionDeclaration(cursor) && cursor.name) return cursor.name.text;
-    if (ts.isMethodDeclaration(cursor) && ts.isIdentifier(cursor.name)) return cursor.name.text;
-    // `{ plugin: async (app) => { … } }` — the shape every module's plugin body
-    // has, and the name a reader would use for it.
-    if (
-      ts.isPropertyAssignment(cursor) &&
-      ts.isIdentifier(cursor.name) &&
-      isFunctionLike(cursor.initializer)
-    ) {
-      return cursor.name.text;
-    }
-    if (
-      ts.isVariableDeclaration(cursor) &&
-      ts.isIdentifier(cursor.name) &&
-      cursor.initializer &&
-      isFunctionLike(cursor.initializer)
-    ) {
-      return cursor.name.text;
-    }
-  }
-  return null;
-}
-
-/** True when the subtree contains a call to `name` (as an identifier or a tail). */
-function callsAnyOf(root: ts.Node, names: ReadonlySet<string>): boolean {
-  let found = false;
-  const visit = (node: ts.Node): void => {
-    if (found) return;
-    if (ts.isCallExpression(node)) {
-      const name = calleeName(node);
-      if (name !== null && names.has(name)) {
-        found = true;
-        return;
-      }
-    }
-    node.forEachChild(visit);
-  };
-  root.forEachChild(visit);
-  return found;
-}
-
-const TIMER_CALLS = new Set(['setInterval', 'setTimeout']);
-
-/**
- * A `setTimeout` is this rule's business only when it repeats: the callback
- * re-arms a timer itself, or calls back into the function that armed this one.
- * That is the single shape a one-shot deadline cannot accidentally match.
- */
-function isSelfRescheduling(callback: ts.Node, armedBy: string | null): boolean {
-  if (callsAnyOf(callback, TIMER_CALLS)) return true;
-  if (armedBy === null) return false;
-  return callsAnyOf(callback, new Set([armedBy]));
-}
-
 /** Where a presence decision was found, and whether it is the right one. */
 interface PresenceDecision {
   readonly decidesOwnModule: boolean;
@@ -303,59 +209,60 @@ export function findUngatedTimers(input: TimerPresenceInput): UngatedTimer[] {
     // Only a module has an effective state to gate on. A file outside one — the
     // kernel, `http/`, `db/`, a composition root — is not this rule's business.
     if (moduleId === null) continue;
-    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+    const sf = parseScript(file, text);
     const bindings = localFunctions(sf);
 
-    const report = (node: ts.Node, construct: TimerConstruct, finding: TimerFinding): void => {
+    const report = (
+      node: ts.Node,
+      construct: TimerConstruct,
+      finding: TimerFinding,
+      at?: { readonly line: number; readonly scheduler: string },
+    ): void => {
       found.push({
         file,
-        line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+        line: at?.line ?? sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
         moduleId,
         construct,
-        scheduler: enclosingName(node) ?? '<module scope>',
+        scheduler: at?.scheduler ?? enclosingName(node) ?? MODULE_SCOPE,
         finding,
       });
     };
 
-    /** Resolve the callback argument to a function body we can read. */
-    const callbackOf = (argument: ts.Node | undefined): ts.Node | null => {
-      if (argument === undefined) return null;
-      if (isFunctionLike(argument)) return argument;
-      if (ts.isIdentifier(argument)) return bindings.get(argument.text) ?? null;
-      return null;
-    };
-
-    const judge = (node: ts.CallExpression, construct: TimerConstruct, callback: ts.Node): void => {
+    const judge = (
+      node: ts.CallExpression,
+      construct: TimerConstruct,
+      callback: ts.Node,
+      at?: { readonly line: number; readonly scheduler: string },
+    ): void => {
       const decision = presenceDecisionIn(callback, moduleId);
       if (decision.decidesOwnModule) return;
-      if (decision.insideTry) return report(node, construct, 'presence-decided-inside-try');
+      if (decision.insideTry) return report(node, construct, 'presence-decided-inside-try', at);
       if (decision.decidesOtherModule) {
-        return report(node, construct, 'presence-decided-for-another-module');
+        return report(node, construct, 'presence-decided-for-another-module', at);
       }
-      report(node, construct, 'no-presence-decision');
+      report(node, construct, 'no-presence-decision', at);
     };
 
-    const visit = (node: ts.Node): void => {
-      if (ts.isCallExpression(node)) {
-        const name = calleeName(node);
-        const callback = callbackOf(node.arguments[0]);
+    // Repeating timers come from the shared recognizer (issue #128), so this
+    // check and `check-entry-scope` cannot disagree about what one is.
+    for (const site of findRepeatingTimerSites(sf)) {
+      const at = { line: site.line, scheduler: site.scheduler };
+      // An unreadable callback is a finding, not a skip: what the check cannot
+      // see, it must not vouch for.
+      if (site.callback === null) report(site.call, site.construct, 'no-presence-decision', at);
+      else judge(site.call, site.construct, site.callback, at);
+    }
 
-        if (name === 'setInterval') {
-          // An unreadable callback is a finding, not a skip: what the check
-          // cannot see, it must not vouch for.
-          if (callback === null) report(node, 'setInterval', 'no-presence-decision');
-          else judge(node, 'setInterval', callback);
-        } else if (name === 'setTimeout' && callback !== null) {
-          if (isSelfRescheduling(callback, enclosingName(node))) {
-            judge(node, 'setTimeout', callback);
-          }
-        } else if (name === 'on' && receiverName(node) === 'process') {
-          const event = node.arguments[0] ? stringLiteralOf(node.arguments[0]) : null;
-          const handler = callbackOf(node.arguments[1]);
-          if (event !== null && PROCESS_EVENTS.has(event)) {
-            if (handler === null) report(node, 'process.on', 'no-presence-decision');
-            else judge(node, 'process.on', handler);
-          }
+    // Process-lifecycle handlers are this check's alone: they have no caller to
+    // answer either, but they start no repeating execution, so they are not the
+    // shared shape.
+    const visit = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && calleeName(node) === 'on' && receiverName(node) === 'process') {
+        const event = node.arguments[0] ? stringLiteralOf(node.arguments[0]) : null;
+        const handler = callbackOf(node.arguments[1], bindings);
+        if (event !== null && PROCESS_EVENTS.has(event)) {
+          if (handler === null) report(node, 'process.on', 'no-presence-decision');
+          else judge(node, 'process.on', handler);
         }
       }
       node.forEachChild(visit);

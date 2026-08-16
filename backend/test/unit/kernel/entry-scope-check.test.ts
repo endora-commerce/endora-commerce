@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   analyzeSource,
@@ -9,6 +12,7 @@ import {
   NO_SCOPE_NEEDED,
   type EntryPoint,
 } from '../../../scripts/check-entry-scope.js';
+import { findUngatedTimers } from '../../../scripts/check-timer-presence.js';
 
 /**
  * The entry-scope check (feature 072, T037). Its own test has to prove it can go
@@ -19,6 +23,25 @@ import {
 
 const CLI = '/repo/backend/src/modules/search/scripts/reindex.ts';
 const SERVICE = '/repo/backend/src/modules/search/services/indexer.ts';
+
+/**
+ * A repeating timer built out of `setTimeout`: the callback re-arms it. This is
+ * the shape that made `interval=4` read as a full population while `search`'s
+ * reindex loop — the same entry point, another constructor — was never counted.
+ */
+const SELF_RESCHEDULING = `
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const scheduleNext = (delayMs: number): void => {
+    timer = setTimeout(tick, delayMs);
+  };
+  const tick = (): void => {
+    void (async () => {
+      await reindexWorker.reindex();
+      scheduleNext(60_000);
+    })();
+  };
+  scheduleNext(60_000);
+`;
 
 describe('classify', () => {
   it('treats anything under scripts/ as a CLI entry point', () => {
@@ -31,6 +54,20 @@ describe('classify', () => {
 
   it('treats a setInterval call as an interval entry point', () => {
     expect(classify(SERVICE, 'setInterval(() => sweep(), 1000);')).toBe('interval');
+  });
+
+  it('treats a self-rescheduling setTimeout as an interval entry point', () => {
+    expect(classify(SERVICE, SELF_RESCHEDULING)).toBe('interval');
+  });
+
+  it('leaves a one-shot setTimeout alone — its execution already has a caller', () => {
+    const deadline = `async function fetchWithTimeout(url: string) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try { return await fetch(url, { signal: controller.signal }); }
+      finally { clearTimeout(timer); }
+    }`;
+    expect(classify(SERVICE, deadline)).toBeNull();
   });
 
   it('is not fooled by a comment quoting the pattern it looks for', () => {
@@ -101,6 +138,28 @@ describe('the allow-list ratchet', () => {
     for (const [path, reason] of NO_SCOPE_NEEDED) {
       expect(reason.length, `${path} has no reason`).toBeGreaterThan(40);
     }
+  });
+});
+
+describe('one recognizer, two checks', () => {
+  // Both checks ask the same question — "does this file start a repeating
+  // execution of its own?" — and answered it differently for a year: one by
+  // grepping for `setInterval(`, the other by reading the callback. They now
+  // share `findRepeatingTimerSites`, and this is what fails if a second
+  // implementation grows back.
+  const SEARCH_PLUGIN = 'src/modules/search/plugin.ts';
+  const source = readFileSync(
+    join(fileURLToPath(new URL('../../../', import.meta.url)), SEARCH_PLUGIN),
+    'utf8',
+  );
+
+  it('sees the reindex loop from both sides', () => {
+    expect(classify(`/repo/backend/${SEARCH_PLUGIN}`, source)).toBe('interval');
+    // Blank the presence decision out, so what the timer check reports is the
+    // site rather than its compliance.
+    const blanked = source.replaceAll("effectiveState.isPresent('search')", 'true');
+    const seen = findUngatedTimers({ sources: new Map([['modules/search/plugin.ts', blanked]]) });
+    expect(seen.map((f) => f.construct)).toContain('setTimeout');
   });
 });
 
