@@ -30,6 +30,7 @@ import {
   type SettingsService,
 } from '../../kernel/settings/settings.service.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
+import { enterSystemScope } from '../../kernel/scope.js';
 import { DEFAULT_REINDEX_INTERVAL_MINUTES, SEARCH_SETTING_CODES } from './manifest.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
@@ -302,26 +303,42 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
             scheduleNext(DISABLED_POLL_MS);
             return;
           }
-          void (async () => {
-            let minutes = 0;
-            try {
-              minutes = await resolveReindexIntervalMinutes();
-            } catch (err) {
-              app.log.error({ err }, 'search reindex: failed to resolve interval setting');
-            }
-            if (Number.isFinite(minutes) && minutes > 0) {
+          // Feature 072 (FR-020), issue #128 — the timer is the entry point, so
+          // the scope opens here: the setting read and the sweep both query, and
+          // outside a scope they would run on whatever tenancy the ambient store
+          // happened to hold. It goes around the *work* and not around the guard
+          // above, and the reschedule stays outside it, because this timer is the
+          // loop — a tick that failed to re-arm would stop the scheduler for the
+          // life of the process. `reindex()` is also reachable from the admin
+          // route, where the request's scope is already open and a second one
+          // would be wrong; that is why the scope lives at the timer rather than
+          // inside the worker.
+          void enterSystemScope(
+            'search: periodic reindex sweep',
+            async (): Promise<number> => {
+              let minutes = 0;
+              try {
+                minutes = await resolveReindexIntervalMinutes();
+              } catch (err) {
+                app.log.error({ err }, 'search reindex: failed to resolve interval setting');
+              }
+              // Disabled — poll on, so a re-enable takes effect live.
+              if (!Number.isFinite(minutes) || minutes <= 0) return DISABLED_POLL_MS;
               try {
                 const result = await reindexWorker.reindex();
                 app.log.info({ result }, 'search reindex sweep completed');
               } catch (err) {
                 app.log.error({ err }, 'search reindex sweep failed');
               }
-              scheduleNext(minutes * 60_000);
-            } else {
-              // Disabled — keep polling so a re-enable takes effect live.
+              return minutes * 60_000;
+            },
+            { entryPoint: 'interval' },
+          )
+            .then(scheduleNext)
+            .catch((err: unknown) => {
+              app.log.error({ err }, 'search reindex tick failed');
               scheduleNext(DISABLED_POLL_MS);
-            }
-          })();
+            });
         };
 
         // Kick off the first poll without an immediate reindex at boot.

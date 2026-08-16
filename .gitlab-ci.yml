@@ -71,7 +71,12 @@ quality:
     # is an empty ratchet.
     - pnpm --filter backend run check:kernel-boundary
     # Feature 072 (FR-020) — every non-HTTP entry point (CLI script, BullMQ
-    # consumer, interval sweep) establishes a scope explicitly.
+    # consumer, repeating-timer sweep) establishes a scope explicitly. The timer
+    # class was `setInterval(` as a string until issue #128, so `search`'s
+    # reindex loop — a `setTimeout` its callback re-arms — was never in the
+    # population and its unmet FR-020 sat behind a count that could not move. The
+    # shape now comes from `scripts/lib/repeating-timers.ts`, shared with
+    # check:timer-presence below.
     - pnpm --filter backend run check:entry-scope
     # Feature 072 (FR-032) — no module imports the container library. Modules see
     # only `ModuleContext`, so the container stays swappable behind that seam.

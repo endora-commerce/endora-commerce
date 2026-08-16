@@ -21,7 +21,18 @@
  *
  *   - **CLI scripts** — anything under a `scripts/` directory in `src/`.
  *   - **BullMQ consumers** — a file that constructs a `Worker`.
- *   - **Interval sweeps** — a file that calls `setInterval`.
+ *   - **Interval sweeps** — a file that starts a repeating timer. `interval` is
+ *     the *shape*, not the constructor: `setInterval`, and equally a `setTimeout`
+ *     whose callback re-arms it. It is also the word the scope itself uses
+ *     (`ScopeEntryPointKind`), which is why the label stays.
+ *
+ * That last class was classified by grepping for `setInterval(` until issue #128,
+ * so `search`'s reindex loop — a self-rescheduling `setTimeout` — was outside the
+ * population this check reports on, and the count it printed never moved because
+ * it could only move for one spelling. The shape is now recognised by
+ * `lib/repeating-timers.ts`, shared with `check-timer-presence`, which reads the
+ * callback rather than the call: a second detector for one shape is how the two
+ * drift, and the drift is what hid the site.
  *
  * Boot reconcilers are the fourth class and are *not* detectable: "a function
  * the composition root awaits before serving" has no syntactic marker. They are
@@ -35,6 +46,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { hasRepeatingTimer } from './lib/repeating-timers.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -112,7 +124,10 @@ export function classify(file: string, source: string): EntryKind | null {
   if (/\/scripts\//.test(file)) return 'cli';
   const code = stripCommentsAndStrings(source);
   if (/new Worker[<(]/.test(code)) return 'worker';
-  if (/setInterval\(/.test(code)) return 'interval';
+  // The repeating-timer shape is read from the syntax tree, not from the text:
+  // a comment quoting the call is not a call, and a `setTimeout` is an entry
+  // point only when its callback re-arms it.
+  if (hasRepeatingTimer(file, source)) return 'interval';
   return null;
 }
 
@@ -172,9 +187,10 @@ function main(): void {
     console.log('');
   }
 
-  // The tree has fifteen CLI scripts, eleven workers and four sweeps. Finding
-  // none of them means the classifier stopped recognising an entry point, which
-  // reads exactly like a clean tree and is not one.
+  // Finding no entry point at all means the classifier stopped recognising one,
+  // which reads exactly like a clean tree and is not one. The per-class counts
+  // printed below are the weaker signal and deliberately not asserted here: a
+  // class that silently narrows to one spelling still prints a number, and did.
   if (entries.length === 0) {
     console.error(
       '[entry-scope] no entry point recognised in the whole tree — ' +

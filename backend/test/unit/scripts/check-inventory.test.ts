@@ -8,7 +8,10 @@ import { analyzeSource as commandCoverageAnalyze } from '../../../scripts/check-
 import { analyzeSource as containerAnalyze } from '../../../scripts/check-container-imports.js';
 import { checkDocument } from '../../../scripts/check-doc-snippets.js';
 import { analyzeSource as classificationAnalyze } from '../../../scripts/check-entity-tenant-classification.js';
-import { violationsOf } from '../../../scripts/check-entry-scope.js';
+import {
+  analyzeSource as entryScopeAnalyze,
+  violationsOf,
+} from '../../../scripts/check-entry-scope.js';
 import { findUntranslatedErrorCodes } from '../../../scripts/check-error-translations.js';
 import {
   analyzeSource as boundaryAnalyze,
@@ -121,6 +124,24 @@ const PORT_CATCH_TREE = new Map([
   ],
 ]);
 
+/**
+ * A repeating timer built from `setTimeout`, in a file that opens no scope. The
+ * red proof runs through `analyzeSource` rather than `violationsOf` alone
+ * (issue #128): the blindness was in the **classifier**, which grepped for
+ * `setInterval(` and so kept this file out of the population entirely — a
+ * violation list can only stay empty for something it was never handed.
+ */
+const UNSCOPED_SELF_RESCHEDULING = `
+  const scheduleNext = (delayMs) => { timer = setTimeout(tick, delayMs); };
+  const tick = () => { void reindex().then(() => scheduleNext(60000)); };
+`;
+
+/** Entry points in one synthetic file that establish no scope and are not exempt. */
+function unscopedEntryPoints(file: string, source: string): number {
+  const entry = entryScopeAnalyze(file, source);
+  return violationsOf(entry === null ? [] : [entry]).length;
+}
+
 const DRIFTED_DOC = [
   '# Doc',
   '',
@@ -206,14 +227,16 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/entry-scope-check.test.ts',
     vacuousGuard: 'exit-2',
+    // The **smaller** of the two entry classes, for the reason the port check
+    // takes a minimum: one class going blind must not hide behind another's red.
     red: () =>
-      violationsOf([
-        {
-          file: '/repo/backend/src/modules/search/scripts/reindex.ts',
-          kind: 'cli',
-          scoped: false,
-        },
-      ]).length,
+      Math.min(
+        unscopedEntryPoints('/repo/backend/src/modules/search/scripts/reindex.ts', 'void main();'),
+        unscopedEntryPoints(
+          '/repo/backend/src/modules/search/plugin.ts',
+          UNSCOPED_SELF_RESCHEDULING,
+        ),
+      ),
   },
   {
     script: 'backend/scripts/check-error-translations.ts',
