@@ -18,6 +18,7 @@ import { compareArtifact } from '../../../scripts/check-overlay-determinism.js';
 import { checkPortCatches } from '../../../scripts/check-port-catches.js';
 import { findViolations } from '../../../scripts/check-port-dependencies.js';
 import { checkSubscribeSeam } from '../../../scripts/check-subscribe-seam.js';
+import { checkTimerPresence } from '../../../scripts/check-timer-presence.js';
 import { analyzeSource as hardcodedAnalyze } from '../../../scripts/i18n-hardcoded-strings.js';
 import { createShellCheckFixture } from '../../helpers/shell-check-fixture.js';
 
@@ -284,6 +285,25 @@ const CHECKS: readonly CheckEntry[] = [
             [
               'modules/inventory/services/low-stock-alert-service.ts',
               "eventBus.on('inventory.adjusted.v1', (p) => this.handle(p));",
+            ],
+          ]),
+        },
+        {},
+      ).violations.length,
+  },
+  {
+    script: 'backend/scripts/check-timer-presence.ts',
+    npmScript: 'check:timer-presence',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-timer-presence.test.ts',
+    vacuousGuard: 'exit-2',
+    red: () =>
+      checkTimerPresence(
+        {
+          sources: new Map([
+            [
+              'modules/price_lists/plugin.ts',
+              'setInterval(() => { void statusWorker.sweep(); }, 300000);',
             ],
           ]),
         },

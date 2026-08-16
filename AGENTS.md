@@ -159,7 +159,8 @@ never add a "module options" object for something the module can read itself.
    — the pattern `ErrorEnvelopeOptions` uses. `src/db`, `src/overlay` and `src/commands` are
    not platform roots.
 11. **CI** — `pnpm --filter backend run check:port-dependencies`, `check:port-catches`,
-   `check:kernel-boundary`, `check:container-imports`, `check:subscribe-seam`, and
+   `check:kernel-boundary`, `check:container-imports`, `check:subscribe-seam`,
+   `check:timer-presence`, and
    `pnpm --filter backend exec vitest run test/contract/kernel/harness-parity.test.ts`
    (drift between the two composition roots, as an explicit draining ledger).
 
@@ -281,6 +282,14 @@ pattern to copy.
    one silent no-op. `backend/src/modules/ksef/plugin.ts:179-190` is the worked example and says so
    in its own comment. The same rule holds for any entry point with no caller to answer: a boot hook,
    a signal handler, a `process.on` sweep.
+
+   `pnpm --filter backend run check:timer-presence` is the ratchet (issue #126), and it sees
+   **less than the rule says**: a `setInterval`, a `setTimeout` the callback re-arms, and a
+   `process.on` lifecycle handler, each in a module's own sources. It does not see a boot hook —
+   `runBootHooks` catches, so that is one kernel decision rather than a guard per module — nor a
+   one-shot deadline inside an operation that already has a caller. `TIMERS_WITHOUT_PRESENCE` is
+   two-way and, unlike the subscribe ledger, is not expected to empty: an entry says why a timer
+   is **right** to keep running while its module is off.
 4. **Manifest** — declare the module's activation control and its default, and, if the
    platform genuinely cannot run without the module, declare it non-deactivatable with a
    reason. The lifecycle orchestrator refuses to disable a module that declares it, with no

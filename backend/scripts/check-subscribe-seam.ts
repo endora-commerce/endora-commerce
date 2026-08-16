@@ -10,10 +10,12 @@
  *
  * That is worse than a route that keeps answering, because a subscriber
  * **writes**: the sweep that produced this check found twenty-two such
- * registrations across nine modules, and fifteen of them wrote — an invoice
- * issued and e-mailed, a quote request flipped to Completed, a push message
- * enqueued and delivered to a device, a shopping list created, a threshold row
- * mirrored, a feed's schedule re-asserted in Redis.
+ * registrations across nine modules; **ten** wrote to the platform's own
+ * database — an invoice issued and e-mailed, a quote request flipped to
+ * Completed, a push message row created and delivered to a device, a shopping
+ * list created, a threshold row mirrored, a feed's and a PIM import's next-run
+ * stamp written back — and **twenty-one of the twenty-two** mutated something,
+ * the exception being `catalog`'s cache flush at the storefront.
  *
  * Routes have `check-kernel-boundary` and the `ctx.routes` seam; workers have
  * `defineModuleWorker`; subscriptions had nothing, which is why twenty-two

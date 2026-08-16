@@ -11,6 +11,7 @@ import { registerStorefrontPricingRoutes } from './routes.storefront.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { enterSystemScope } from '../../kernel/scope.js';
 
 const STATUS_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
@@ -121,6 +122,15 @@ export function priceListsModule(options: PriceListsModuleOptions): {
 
       if (options.enableStatusSweeper !== false) {
         const handle = setInterval(() => {
+          // Presence is asked first, and outside the promise chain's `catch`
+          // (issue #126). The route seam gates *requests*; this body is not one,
+          // so it runs at boot whatever the effective state, and a timer
+          // callback has nowhere to throw to — `ModuleDisabledError` cannot
+          // propagate from here and must be *decided*, not caught. Asking it
+          // below, inside the `catch`, would make a switched-off module and a
+          // genuinely failed sweep the same silent no-op — and a sweep that runs
+          // while price lists are off changes what customers are charged.
+          if (!effectiveState.isPresent('price_lists')) return;
           // Feature 072 (T034) — the timer is the entry point, so the scope
           // opens here and not inside `sweep()`: the same method is reachable
           // from an admin route (`routes.ts`), where it already runs inside the
