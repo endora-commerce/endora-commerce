@@ -8,6 +8,8 @@ import type { FastifyRequest } from 'fastify';
 import { Invoice } from './entities/invoice.entity.js';
 import { InvoiceTemplate } from './entities/invoice-template.entity.js';
 import { invoicesModule, type InvoicesModuleOptions, type InvoicesModuleHandle } from './plugin.js';
+import { CorrectiveInvoiceProvider } from './services/corrective-invoice.js';
+import type { InvoiceNumberGenerator } from './services/invoice-number-generator.js';
 import { INVOICE_ISSUED_DEFAULT } from './email-templates/invoice-issued.default.js';
 import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 
@@ -136,6 +138,40 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort(
     'invoicePdfRenderer',
     ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.pdfRenderer).singleton(),
+  );
+
+  /**
+   * The corrective invoice a return settlement issues (feature 046 / 047 US3),
+   * as this module's port instead of a class both roots constructed (T143c).
+   *
+   * This is the entry the ledger was worth building for: the two roots built it
+   * with **different** number generators. Production passed an accessor onto
+   * `invoiceNumberGenerator`, the module's one instance; the harness built a
+   * second `InvoiceNumberGenerator` over a second pattern resolver, so every
+   * corrective number a test drew came out of a counter the module could not
+   * see. One instance now, in both compositions, and it stops answering when
+   * `invoices` is switched off — which a root's copy never did, correction
+   * numbers and all.
+   *
+   * The generator is still reached through an accessor rather than
+   * destructured: it is this module's own gated port, so resolving it while
+   * this registration is built asks the gate at composition time, which is what
+   * took the backend down for an operator who had switched the module off.
+   */
+  const numberGenerator = lazyPort<InvoiceNumberGenerator>(ctx, 'invoiceNumberGenerator');
+  ctx.di.providePort(
+    'correctiveInvoicePort',
+    ctx
+      .asFunction(
+        ({ emFactory, eventBus, auditLogService }: InvoicesCradle) =>
+          new CorrectiveInvoiceProvider(
+            emFactory,
+            () => numberGenerator,
+            auditLogService,
+            eventBus,
+          ),
+      )
+      .singleton(),
   );
 
   /**

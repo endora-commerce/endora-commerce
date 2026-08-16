@@ -10,7 +10,11 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SessionService } from '../auth/services/session-service.js';
 import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
 import type { SettingsReader } from './services/mfa-policy-resolver.js';
-import type { OAuthProviderPort } from './services/oauth-provider-service.js';
+import {
+  OpenIdOAuthProvider,
+  readOAuthConfigFromEnv,
+  type OAuthProviderPort,
+} from './services/oauth-provider-service.js';
 import type { SocialIdentityDeps } from './services/social-identity-service.js';
 import { mfaModule, type MfaModuleHandle } from './plugin.js';
 
@@ -146,7 +150,29 @@ const REFUSING_BRIDGE: MfaActorBridge = {
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     mfaActorBridge: ctx.asFunction((): MfaActorBridge => REFUSING_BRIDGE).singleton(),
-    mfaOauthProvider: ctx.asFunction((): OAuthProviderPort | undefined => undefined).singleton(),
+    /**
+     * Federated sign-in, defaulted to whatever this deployment's environment
+     * configures (T143c).
+     *
+     * It used to default to `undefined` and be contributed by a root, which
+     * meant `composition.ts` imported this module's provider class and its env
+     * reader to decide, on the module's behalf, whether the module had social
+     * sign-in — the shape the composition checklist rules out for a knob the
+     * module can read itself. `MFA_OAUTH_*` is this module's configuration and
+     * nothing else reads it.
+     *
+     * The seam it leaves is the one `organizations`' VAT clients left in T138 /
+     * T140: production takes the real `openid-client` provider by default, the
+     * test harness contributes a deterministic fake over the same name, and
+     * neither root names the class. `undefined` still means "no social sign-in
+     * on this deployment", which is what an unconfigured environment produces.
+     */
+    mfaOauthProvider: ctx
+      .asFunction((): OAuthProviderPort | undefined => {
+        const config = readOAuthConfigFromEnv();
+        return config.google || config.microsoft ? new OpenIdOAuthProvider(config) : undefined;
+      })
+      .singleton(),
     mfaSocialAccountResolvers: ctx
       .asFunction((): SocialIdentityDeps | undefined => undefined)
       .singleton(),

@@ -13,6 +13,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import { commerceModule, type OrdersModuleOptions } from './plugin.js';
+import { OrderReturnContextProvider } from './services/order-return-context.js';
 import type { OrderService } from './services/order-service.js';
 import type { OrderListService } from './services/order-list-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
@@ -317,6 +318,26 @@ export function registerModule(ctx: ModuleContext): void {
     'orderTransitionServiceAccessor',
     ctx
       .asFunction((): (() => OrderTransitionService | null) => () => exposed.orderTransitionService)
+      .singleton(),
+  );
+
+  /**
+   * The order facts a return settlement needs (feature 046 R4), as this
+   * module's port instead of a class both roots constructed (T143c).
+   *
+   * `OrderReturnContextProvider` reads `orders` tables and implements an
+   * interface `returns` declares, so it was always this module's to build — but
+   * a root's instance is ungated: it kept answering with `orders` switched off,
+   * which is the Constitution XVII hole the restated SC-001 names. The bridge
+   * `returns` receives forwards to this name per settlement, so the gate is
+   * asked at the call rather than at composition.
+   */
+  ctx.di.providePort(
+    'orderReturnContextPort',
+    ctx
+      .asFunction(
+        ({ emFactory }: OrdersCradle) => new OrderReturnContextProvider(emFactory),
+      )
       .singleton(),
   );
 

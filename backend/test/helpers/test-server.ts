@@ -75,12 +75,13 @@ import type { AdminI18nCradle } from '../../src/modules/_i18n/backend.js';
 // `src/http` may not name a module (D-52), a composition root may.
 import { ERROR_TRANSLATION_KEYS } from '../../src/modules/_i18n/services/error-translation.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
-import type { OrganizationsCradle } from '../../src/modules/organizations/backend.js';
-import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
+import type {
+  OrganizationsCradle,
+  OrganizationTaxProfilePort,
+} from '../../src/modules/organizations/backend.js';
 import type { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
 import type { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
 import type { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
-import { OrganizationTreeService } from '../../src/modules/organizations/services/organization-tree-service.js';
 import { resolveCustomerRollupSubtreeIds } from '../../src/modules/customer_accounts/services/customer-rollup-scope.js';
 import type {
   VatValidator,
@@ -96,16 +97,6 @@ import type { ShoppingListService } from '../../src/modules/shopping_lists/servi
 import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
 import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
 import type { NewsletterBridge } from '../../src/modules/newsletter/backend.js';
-import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
-import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
-import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
-import {
-  InvoiceNumberGenerator,
-  createSettingsPatternResolver,
-} from '../../src/modules/invoices/services/invoice-number-generator.js';
-import { CreditTopupProvider } from '../../src/modules/credit_limits/services/credit-topup.js';
-import { ReturnEmailNotifier } from '../../src/modules/returns/services/return-email-notifier.js';
-import type { CreditLimitsCradle } from '../../src/modules/credit_limits/backend.js';
 import type { CustomFieldsCradle } from '../../src/modules/custom_fields/backend.js';
 import type { CustomFieldDefinitionService } from '../../src/modules/custom_fields/services/custom-field-definition.service.js';
 import type { CustomFieldValueService } from '../../src/modules/custom_fields/services/custom-field-value.service.js';
@@ -957,8 +948,9 @@ export async function setupBackendServer(
 
   // Credit-limits module — its CreditLimitService is the driver passed into
   // commerceModule below so OrderService.placeOrder can reserve atomically.
-  // Feature 072 (T101) — `credit_limits` owns its service and routes now.
-  const creditLimitsCradle = container.cradle as unknown as CreditLimitsCradle;
+  // Feature 072 (T101) — `credit_limits` owns its service and routes now, and
+  // since T143c the return-settlement top-up as well, so this harness reads
+  // nothing of the module.
 
   // Feature 055 — Custom Fields Layer, converted in feature 072 (T087). The
   // module owns its services and its cache subscription now; the harness reads
@@ -1159,9 +1151,19 @@ export async function setupBackendServer(
             actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
           // Feature 056 (T032) — mirror production: a roll-up-enabled customer
           // widens to its org subtree (server-derived from the account flag).
+          // T143c — the module's one tree service, resolved per request as
+          // production resolves it. This harness built a **second** one here,
+          // per request, and being its own it walked the subtree with
+          // `organizations` switched off — the roll-up rule answering out of a
+          // module the platform was refusing to serve.
           const rollupSubtree = await resolveCustomerRollupSubtreeIds(
             em,
-            (id) => new OrganizationTreeService(em).subtreeIds(id),
+            (id) =>
+              (
+                container.cradle as never as {
+                  organizationTreeService: { subtreeIds(id: string): Promise<string[]> };
+                }
+              ).organizationTreeService.subtreeIds(id),
             actor.customerAccountId,
             orgId,
           );
@@ -1867,11 +1869,14 @@ export async function setupBackendServer(
       // No `catch`, exactly as production has none since issue #84 — a harness
       // that swallowed what production propagates would hide the 503 the
       // fail-closed tests exist to observe.
+      // T143c — read through `organizations`' port, as production reads it.
       rfqTaxRateResolver: async (organizationId: string) => {
-        const org = await em().findOne(Organization, { id: organizationId });
+        const org = await (
+          container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
+        ).organizationTaxProfilePort.taxProfileOf(organizationId);
         const vatStatus = org?.vatStatus ?? 'vat_payer';
         if (vatStatus !== 'vat_payer') return 0;
-        const country = org?.registeredAddress?.country ?? 'PL';
+        const country = org?.country ?? 'PL';
         const resolved = await taxesCradle.taxService.taxRateFor({
           country,
           productType: 'simple',
@@ -1957,37 +1962,52 @@ export async function setupBackendServer(
   });
 
   // Feature 046 — Returns & Complaints (Refunds, RMA).
-  // Feature 072 (T109) — `returns` owns its services and routes now. The
-  // four settlement adapters and the actor resolvers stay here as one
-  // bridge: each is a small adapter over `payments`, `invoices`,
-  // `credit_limits` and `orders`, and a composition supplies all or none.
+  // Feature 072 (T109) — `returns` owns its services and routes now. T143c —
+  // and the four settlement adapters belong to the modules whose money they
+  // move, so what this bridge holds is the composition's answers: who is
+  // asking, where the notification goes, and in which language.
+  const settlementCradle = (): {
+    orderReturnContextPort: ReturnsBridge['orderContext'];
+    paymentRefundPort: ReturnsBridge['paymentRefund'];
+    correctiveInvoicePort: ReturnsBridge['correctiveInvoice'];
+    creditTopupPort: ReturnsBridge['creditTopup'];
+  } => container.cradle as never;
   registerValues(container, {
     returnsBridge: {
       resolveCustomerAccountId: (req) =>
         req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
       resolveAdminUserId: (req) =>
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
-      orderContext: new OrderReturnContextProvider(em),
-      paymentRefund: new PaymentRefundProvider(em),
-      correctiveInvoice: new CorrectiveInvoiceProvider(
-        em,
-        () => new InvoiceNumberGenerator(createSettingsPatternResolver(settings.settingsService)),
-        auditLogService,
-        eventBus,
-      ),
-      // Read per settlement, as the production root reads it: `creditLimitService`
-      // is a gated port, and resolving one while wiring the bridge is what took
-      // the deployment root down when an operator switched the module off.
-      creditTopup: new CreditTopupProvider(() => creditLimitsCradle.creditLimitService),
-      notifier: new ReturnEmailNotifier(
-        injectedMailer,
-        async (cid) => (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
-        {
-          getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
-          resolveLanguage: async (salesChannelId) =>
-            (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
-        },
-      ),
+      // T143c — the four settlement adapters are their owners' ports, forwarded
+      // per settlement exactly as the production root forwards them.
+      //
+      // The corrective-invoice one is why this ledger was worth building. This
+      // harness built its own `InvoiceNumberGenerator` over its own pattern
+      // resolver, so every correction number a test drew came out of a counter
+      // `invoices` could not see, while production drew from the module's one
+      // generator. Nothing failed; the two roots simply numbered corrections
+      // differently, and no assertion in the suite could reach the difference.
+      orderContext: {
+        getReturnContext: (orderId) =>
+          settlementCradle().orderReturnContextPort.getReturnContext(orderId),
+      },
+      paymentRefund: {
+        refund: (input) => settlementCradle().paymentRefundPort.refund(input),
+      },
+      correctiveInvoice: {
+        createCorrection: (input) =>
+          settlementCradle().correctiveInvoicePort.createCorrection(input),
+      },
+      creditTopup: {
+        creditFromReturn: (input) => settlementCradle().creditTopupPort.creditFromReturn(input),
+      },
+      // The notifier is `returns`' own class and `returns` builds it since
+      // T143c, reading `emailMailer` per send — which is the name this harness
+      // already overrides with its spy, so the injected mailer still arrives.
+      resolveCustomerEmail: async (cid) =>
+        (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
+      resolveChannelLanguage: async (salesChannelId) =>
+        (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
     } satisfies ReturnsBridge,
   });
 

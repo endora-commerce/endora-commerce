@@ -7,7 +7,6 @@ import { z } from 'zod';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
 import { resolveCustomerRollupSubtreeIds } from './modules/customer_accounts/services/customer-rollup-scope.js';
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
-import { Organization } from './modules/organizations/entities/organization.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
@@ -58,6 +57,7 @@ import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 // left here is the actor half of the orders/RFQ visibility question, which only
 // a composition can answer.
 import type { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
+import type { OrganizationTaxProfilePort } from './modules/organizations/backend.js';
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
 // `backend.ts`; what stays here is the pure URL helper, which is a function,
@@ -66,14 +66,9 @@ import type { EmailCradle } from './modules/email/backend.js';
 import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { ReturnsBridge } from './modules/returns/backend.js';
-import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
-import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
-import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
-import type { InvoicesBridge, InvoicesCradle } from './modules/invoices/backend.js';
+import type { InvoicesBridge } from './modules/invoices/backend.js';
 import type { KsefCradle } from './modules/ksef/backend.js';
 import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
-import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
-import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
 import type { OrderListService } from './modules/orders/services/order-list-service.js';
 import type { OrderTransitionService } from './modules/orders/services/order-transition-service.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
@@ -81,12 +76,6 @@ import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge, MfaCradle } from './modules/mfa/backend.js';
 import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
 import { verifyPassword } from './modules/auth/services/password-hasher.js';
-import {
-  OpenIdOAuthProvider,
-  readOAuthConfigFromEnv,
-  type OAuthProviderPort,
-} from './modules/mfa/services/oauth-provider-service.js';
-import type { CreditLimitsCradle } from './modules/credit_limits/backend.js';
 import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
 import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
 import type { PriceListsCradle } from './modules/price_lists/backend.js';
@@ -585,8 +574,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     (container.cradle as never as { organizationTreeService: OrganizationTreeService })
       .organizationTreeService;
 
-  // Feature 072 (T101) — `credit_limits` owns its service and routes now.
-  const creditLimitsCradle = container.cradle as unknown as CreditLimitsCradle;
+  // Feature 072 (T101) — `credit_limits` owns its service and routes now, and
+  // since T143c the return-settlement top-up as well, so this root reads
+  // nothing of the module.
 
   // Feature 055 — Custom Fields Layer, converted in feature 072 (T087), and
   // feature 061's attribute read model, which `catalog` provides as
@@ -794,14 +784,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 042 — MFA module. Constructed here (after `settings`) so it can
   // read the per-scope MFA settings; its login port is bound to the late-bound
   // `mfaLoginPort` captured by the auth services above. Plugin pushed below.
-  // Feature 042 US4/US5 — federated sign-in. Wire the OIDC provider only when
-  // at least one provider is configured via env; otherwise the OAuth routes
-  // are simply not registered.
-  const oauthConfig = readOAuthConfigFromEnv();
-  const oauthProvider: OAuthProviderPort | undefined =
-    oauthConfig.google || oauthConfig.microsoft
-      ? new OpenIdOAuthProvider(oauthConfig)
-      : undefined;
+  // Feature 042 US4/US5 — federated sign-in. T143c — `mfa` reads `MFA_OAUTH_*`
+  // and builds its own provider now, so this root no longer decides on the
+  // module's behalf whether the module has social sign-in. The egress seam is
+  // unchanged and is declared once instead of asserted twice: production takes
+  // the module's default, the harness contributes a deterministic fake over the
+  // same name.
   // T143a — the two customer-side resolvers forward to `customer_accounts`'
   // port. They used to be written out here: a root reading and *writing*
   // another module's table, with a policy gate (`customers.allow_registration_without_organization`)
@@ -839,7 +827,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // settings tier on a branch that cannot be taken.
     mfaDefaultChannelIdResolver: async () =>
       (await salesChannels.resolver.getSystemDefault()).id,
-    ...(oauthProvider ? { mfaOauthProvider: oauthProvider } : {}),
     mfaSocialAccountResolvers: mfaSocialResolvers,
     mfaActorBridge: {
       resolveCustomerActor: (request: FastifyRequest) => {
@@ -1643,11 +1630,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // default matches — so the only errors left here are a failing database
       // and `taxes` being switched off. Returning 0 for either quoted a
       // zero-VAT price on an operator's behalf and called it an answer.
+      // T143c — the Organization is read through `organizations`' own port
+      // rather than by loading its entity here. Both roots spelled the same
+      // query, and being a root's it answered with `organizations` switched
+      // off: a quote priced from a tenancy row the platform was refusing to
+      // serve. The refusal now reaches the same place a database failure does.
       rfqTaxRateResolver: async (organizationId: string) => {
-        const org = await em().findOne(Organization, { id: organizationId });
+        const org = await (
+          container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
+        ).organizationTaxProfilePort.taxProfileOf(organizationId);
         const vatStatus = org?.vatStatus ?? 'vat_payer';
         if (vatStatus !== 'vat_payer') return 0;
-        const country = org?.registeredAddress?.country ?? 'PL';
+        const country = org?.country ?? 'PL';
         const resolved = await taxesCradle.taxService.taxRateFor({
           country,
           productType: 'simple',
@@ -1781,7 +1775,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     } satisfies InvoicesBridge,
   });
-  const invoicesCradle = container.cradle as unknown as InvoicesCradle;
 
   // Feature 059 — KSeF (Krajowy System e-Faktur). Consumes the invoices
   // domain events, submits FA(3) documents through a durable queue, and feeds
@@ -1927,34 +1920,44 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // four settlement adapters and the actor resolvers stay here as one
   // bridge: each is a small adapter over `payments`, `invoices`,
   // `credit_limits` and `orders`, and a composition supplies all or none.
+  // T143c — the four settlement adapters are their owners' ports now. Each was
+  // a class this root constructed out of `orders`, `payments`, `invoices` and
+  // `credit_limits`, so the root held an **ungated** second way into all four:
+  // a settlement kept refunding, correcting and crediting through modules an
+  // operator had switched off. Read per call, so the gate answers at the
+  // settlement it is about, which is also why the accessor shape the two
+  // money-moving ones already used is no longer needed here.
+  const settlementCradle = (): {
+    orderReturnContextPort: ReturnsBridge['orderContext'];
+    paymentRefundPort: ReturnsBridge['paymentRefund'];
+    correctiveInvoicePort: ReturnsBridge['correctiveInvoice'];
+    creditTopupPort: ReturnsBridge['creditTopup'];
+  } => container.cradle as never;
   registerValues(container, {
     returnsBridge: {
       resolveCustomerAccountId,
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
-      orderContext: new OrderReturnContextProvider(em),
-      paymentRefund: new PaymentRefundProvider(em),
-      // Both adapters take their gated collaborator as an accessor, so the two
-      // ports are resolved when a return is settled rather than while this
-      // bridge is built: reading them here asked about `invoices`' and
-      // `credit_limits`' effective state at boot, and an operator who had
-      // switched either off got `ModuleDisabledError` out of `composeApp()`.
-      correctiveInvoice: new CorrectiveInvoiceProvider(
-        em,
-        () => invoicesCradle.invoiceNumberGenerator,
-        auditLogService,
-        eventBus,
-      ),
-      creditTopup: new CreditTopupProvider(() => creditLimitsCradle.creditLimitService),
-      notifier: new ReturnEmailNotifier(
-        platformMailer,
-        async (customerAccountId) =>
-          (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
-        {
-          getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
-          resolveLanguage: async (salesChannelId) =>
-            (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
-        },
-      ),
+      orderContext: {
+        getReturnContext: (orderId) =>
+          settlementCradle().orderReturnContextPort.getReturnContext(orderId),
+      },
+      paymentRefund: {
+        refund: (input) => settlementCradle().paymentRefundPort.refund(input),
+      },
+      correctiveInvoice: {
+        createCorrection: (input) =>
+          settlementCradle().correctiveInvoicePort.createCorrection(input),
+      },
+      creditTopup: {
+        creditFromReturn: (input) => settlementCradle().creditTopupPort.creditFromReturn(input),
+      },
+      // The notifier itself is `returns`' own class and is built by `returns`
+      // since T143c; what a composition still answers is where the message goes
+      // and in which language.
+      resolveCustomerEmail: async (customerAccountId) =>
+        (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+      resolveChannelLanguage: async (salesChannelId) =>
+        (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
     } satisfies ReturnsBridge,
   });
 

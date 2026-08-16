@@ -8,6 +8,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { OrganizationInheritanceService } from '../organizations/services/organization-inheritance-service.js';
 import { CreditLimit } from './entities/credit-limit.entity.js';
 import { CreditLimitService, type CreditLimitEventBus } from './services/credit-limit-service.js';
+import { CreditTopupProvider } from './services/credit-topup.js';
 import { registerCreditLimitsRoutes } from './routes.js';
 
 /**
@@ -78,6 +79,27 @@ export function registerModule(ctx: ModuleContext): void {
             } as OrganizationInheritanceService,
           ),
       )
+      .singleton(),
+  );
+
+  /**
+   * How a return settlement credits an organization (feature 046 R7), as this
+   * module's port instead of a class both roots constructed (T143c).
+   *
+   * The provider is a thin rule over `CreditLimitService` and lives in this
+   * module already; what a root added was a second, ungated way to reach it, so
+   * a settlement kept topping up a grant with `credit_limits` switched off. The
+   * service is still handed in as an accessor, for the reason the routes below
+   * take it lazily: it is this module's own gated port, and resolving it while
+   * this registration is built asks the gate at composition time.
+   */
+  ctx.di.providePort(
+    'creditTopupPort',
+    ctx
+      .asFunction(() => {
+        const creditLimitService = lazyPort<CreditLimitService>(ctx, 'creditLimitService');
+        return new CreditTopupProvider(() => creditLimitService);
+      })
       .singleton(),
   );
 

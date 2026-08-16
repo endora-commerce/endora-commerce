@@ -31,6 +31,7 @@ import {
   type SalesRepAssignmentPort,
 } from './services/sales-rep-assignment-service.js';
 import { OrgRegistrationNotifier } from './services/org-registration-notifier.js';
+import { Organization } from './entities/organization.entity.js';
 import { ViesClient } from './integrations/vies-client.js';
 import { MinisterstwoFinansowClient } from './integrations/ministerstwo-finansow-client.js';
 import type { TemplateEmail } from '../transactional_emails/services/template-email.js';
@@ -109,6 +110,21 @@ import type { EmailDefaultsRegistry } from '../transactional_emails/services/ema
  */
 
 /** What `organizations` resolves from the container, and the names it owns. */
+/**
+ * The Organization facts a VAT rate depends on, as this module answers them.
+ *
+ * `country` is nullable because the caller's fallback is a business rule
+ * (`'PL'`, in the Quote Requests resolver) and belongs where that rule is
+ * written, not here — a port that invented a country would make an unregistered
+ * address indistinguishable from a Polish one.
+ */
+export interface OrganizationTaxProfilePort {
+  taxProfileOf(organizationId: string): Promise<{
+    vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
+    country: string | null;
+  } | null>;
+}
+
 export interface OrganizationsCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
@@ -388,6 +404,36 @@ export function registerModule(ctx: ModuleContext): void {
     'organizationTreeService',
     ctx
       .asFunction(({ emFactory }: OrganizationsCradle) => new OrganizationTreeService(emFactory))
+      .singleton(),
+  );
+
+  /**
+   * The two Organization facts a VAT rate depends on (T143c).
+   *
+   * Both roots spelled the same `em.findOne(Organization, …)` inside the Quote
+   * Requests tax closure — a root loading this module's entity, and doing it
+   * ungated, so the quote was priced from an Organization row with
+   * `organizations` switched off. Refusing is the right answer there: the
+   * closure deliberately carries no `catch` (issue #84), because quoting 0 % on
+   * an operator's behalf is worse than failing.
+   *
+   * Deliberately not a widening of the kernel's `OrganizationSnapshot`. That
+   * shape is the tenancy projection every module reads; a tax profile is one
+   * consumer's question, and D-55 settled the snapshot at what its callers
+   * actually use.
+   */
+  ctx.di.providePort(
+    'organizationTaxProfilePort',
+    ctx
+      .asFunction(
+        ({ emFactory }: OrganizationsCradle): OrganizationTaxProfilePort => ({
+          taxProfileOf: async (organizationId: string) => {
+            const org = await emFactory().findOne(Organization, { id: organizationId });
+            if (!org) return null;
+            return { vatStatus: org.vatStatus, country: org.registeredAddress?.country ?? null };
+          },
+        }),
+      )
       .singleton(),
   );
 
