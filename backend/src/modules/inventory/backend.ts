@@ -9,6 +9,8 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { inventoryModule, type InventoryModuleOptions } from './plugin.js';
+import type { AdjustedPayload } from './services/availability-worker.js';
+import type { SettingsValueChangedPayload } from './services/threshold-settings-mirror.js';
 import { StockLevelService } from './services/stock-level-service.js';
 import { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import { WarehouseChannelReconciler } from './services/warehouse-channel-reconciler.js';
@@ -160,8 +162,39 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  /**
+   * The three reactors this module owns (issue #107).
+   *
+   * All three were bare `eventBus.on` calls inside the plugin body, so a
+   * switched-off `inventory` still sent back-in-stock mail, still sent low-stock
+   * alerts and still wrote the mirrored threshold row — three writes on a module
+   * an operator believed was absent. `ctx.subscribe` puts each behind
+   * `subscribeForModule`, which reads the effective state per event.
+   *
+   * The threshold mirror re-reads the changed setting, and the kernel's settings
+   * cache invalidator subscribes in `composeSettingsKernel`, which runs before
+   * any module registers — so the invalidator is always ahead of this handler in
+   * the dispatch order and the mirror reads the value that was just written.
+   */
+  const handle = (): ReturnType<typeof inventoryModule>['handle'] =>
+    ctx.cradle<InventoryCradle>().inventory.handle;
+
+  ctx.subscribe('inventory.adjusted.v1', async (payload) => {
+    await handle().availabilityWorker.handleAdjusted(payload as AdjustedPayload);
+  });
+
+  ctx.subscribe('inventory.adjusted.v1', async (payload) => {
+    await handle().lowStockAlertService.handleAdjusted(payload as AdjustedPayload);
+  });
+
+  ctx.subscribe('settings.value_changed', async (payload) => {
+    await handle().thresholdSettingsMirror?.onSettingChanged(
+      payload as SettingsValueChangedPayload,
+    );
+  });
+
   ctx.routes(async (app) => {
-    await ctx.cradle<InventoryCradle>().inventory(app);
+    await ctx.cradle<InventoryCradle>().inventory.plugin(app);
   });
 
   /**

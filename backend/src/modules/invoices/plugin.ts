@@ -1,10 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { z } from 'zod';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import type { Order } from '../orders/entities/order.entity.js';
-import { Invoice } from './entities/invoice.entity.js';
 import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
@@ -13,14 +11,17 @@ import { InvoiceNumberGenerator, createSettingsPatternResolver } from './service
 import { SellerSettingsResolver, type SettingsReader } from './services/seller-settings.js';
 import { InvoiceEmailDispatcher } from './services/invoice-email-dispatch.js';
 import { InvoiceTemplateService } from './services/invoice-template-service.js';
+import { createAutoIssueReactor } from './services/auto-issue-reactor.js';
 import { registerInvoicesAdminRoutes } from './routes.admin.js';
 import { registerInvoicesCustomerRoutes } from './routes.customer.js';
-import { INVOICES_SETTING_CODES } from './manifest.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
-/** Minimal event-bus surface this module needs (auto-issue subscription + domain events). */
+/**
+ * Minimal event-bus surface this module needs. Emission only: the FR-002
+ * subscription moved to `backend.ts` and `ctx.subscribe` (issue #107), so this
+ * no longer carries `on`.
+ */
 export interface InvoicesEventBus {
-  on(eventName: string, handler: (payload: unknown) => void | Promise<void>): () => void;
   /** Present on the real EventBus — used to emit invoice.issued/corrected.v1 (feature 059). */
   emit?(eventName: string, payload: { eventId: string; occurredAt: string }): void;
 }
@@ -38,7 +39,7 @@ export interface InvoicesModuleOptions {
   resolveRecipientEmail?: (order: Order) => Promise<string | null>;
   /** US5 — channel default language (BCP-47). */
   resolveLanguage?: (salesChannelId: string | null) => Promise<string>;
-  /** FR-002 — auto-issue on order status change. */
+  /** Feature 059 — emits `invoice.issued.v1` / `invoice.corrected.v1`. */
   eventBus?: InvoicesEventBus;
   /** FR-035 — audit-log recorder for issuance / correction. */
   audit?: InvoiceAuditRecorder;
@@ -52,6 +53,8 @@ export interface InvoicesModuleOptions {
 }
 
 export interface InvoicesModuleHandle {
+  /** FR-002 reactor; `backend.ts` owns its subscription. */
+  autoIssueReactor: ReturnType<typeof createAutoIssueReactor>;
   invoiceService: InvoiceService;
   pdfRenderer: InvoicePdfRenderer;
   numberGenerator: InvoiceNumberGenerator;
@@ -97,43 +100,23 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     });
   }
 
+  // FR-002 — the auto-issue reactor. `backend.ts` registers it through
+  // `ctx.subscribe`, so a switched-off module issues nothing.
+  const autoIssueReactor = createAutoIssueReactor({
+    emFactory: options.emFactory,
+    invoiceService,
+    settingsService: options.settingsService,
+    emailDispatcher,
+  });
+
   const handle: InvoicesModuleHandle = {
+    autoIssueReactor,
     invoiceService,
     pdfRenderer,
     numberGenerator,
     templateService,
     ...(emailDispatcher ? { emailDispatcher } : {}),
   };
-
-  // FR-002 — auto-issue an invoice when an order reaches the configured status.
-  if (options.eventBus) {
-    options.eventBus.on('order.status_changed.v1', async (payload) => {
-      const p = payload as { orderId?: string; salesChannelId?: string; to?: string };
-      if (!p.orderId || !p.salesChannelId || !p.to) return;
-      let trigger = '';
-      try {
-        trigger = await options.settingsService.get(
-          INVOICES_SETTING_CODES.AUTO_ISSUE_TRIGGER_STATUS,
-          p.salesChannelId,
-          z.string(),
-        );
-      } catch {
-        trigger = '';
-      }
-      if (!trigger || trigger !== p.to) return;
-      const em = options.emFactory();
-      const existing = await em.findOne(Invoice, { orderId: p.orderId, kind: 'invoice' });
-      if (existing) return; // idempotent
-      try {
-        const detail = await invoiceService.issue(p.orderId, 'invoice', { issuedBy: 'system' });
-        if (emailDispatcher && (await emailDispatcher.sendOnIssueEnabled(detail.salesChannelId))) {
-          await emailDispatcher.dispatch(detail.id);
-        }
-      } catch {
-        // Best-effort auto-issue; manual issuance remains available.
-      }
-    });
-  }
 
   const plugin: ModulePlugin = async (app: FastifyInstance) => {
     // Seed the system generic template once (idempotent).

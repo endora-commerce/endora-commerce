@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { Queue } from 'bullmq';
-import type { EventBus, EventBase } from '../../../events/bus.js';
+import type { EventBase } from '../../../events/bus.js';
 import type { WebhookJobData } from './webhook-queue.js';
 
 /**
@@ -50,11 +50,8 @@ function extractOrganizationId(payload: unknown): string | null {
 }
 
 export interface EventBridgeOptions {
-  eventBus: EventBus;
   queue: Pick<Queue<WebhookJobData>, 'add'>;
   subscriptionLookup: SubscriptionLookup;
-  /** Events to bridge. Example: `['order.created.v1', 'order.updated.v1']`. */
-  bridgedEventTypes: string[];
 }
 
 export interface BridgedEventPayload extends EventBase {
@@ -75,7 +72,7 @@ export interface BridgedEventPayload extends EventBase {
  */
 export function bridgeEventHandler(
   eventType: string,
-  deps: Pick<EventBridgeOptions, 'queue' | 'subscriptionLookup'>,
+  deps: EventBridgeOptions,
 ): (payload: unknown) => Promise<void> {
   return async (payload) => {
     const subs = await deps.subscriptionLookup.findActiveByEventType(
@@ -96,9 +93,3 @@ export function bridgeEventHandler(
   };
 }
 
-export function wireEventBridge(opts: EventBridgeOptions): () => void {
-  const unsubs = opts.bridgedEventTypes.map((eventType) =>
-    opts.eventBus.on(eventType, bridgeEventHandler(eventType, opts)),
-  );
-  return () => unsubs.forEach((u) => u());
-}

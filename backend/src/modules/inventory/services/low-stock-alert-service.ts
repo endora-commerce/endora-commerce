@@ -1,6 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Mailer } from '../../email/services/mailer.js';
-import type { EventBus } from '../../../events/bus.js';
 import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { z } from 'zod';
 import { Product } from '../../catalog/entities/product.entity.js';
@@ -26,7 +25,7 @@ export interface LowStockSummaryRow {
   lowStockThreshold: number;
 }
 
-interface AdjustedPayload {
+export interface AdjustedPayload {
   productId: string;
   warehouseId: string;
   variantId: string | null;
@@ -57,13 +56,6 @@ export class LowStockAlertService {
     private readonly settingsChannelId?: string,
     private readonly templateEmail?: InventoryTemplateEmailPort,
   ) {}
-
-  attach(eventBus: EventBus): void {
-    eventBus.on('inventory.adjusted.v1', (payload) => {
-      const cast = payload as unknown as AdjustedPayload;
-      void this.handleAdjusted(cast);
-    });
-  }
 
   async listLowStock(): Promise<LowStockSummaryRow[]> {
     const em = this.emFactory();
@@ -102,7 +94,13 @@ export class LowStockAlertService {
     return result;
   }
 
-  private async handleAdjusted(payload: AdjustedPayload): Promise<void> {
+  /**
+   * `inventory.adjusted.v1` — one e-mail per crossing of the product's low-stock
+   * threshold. Registered in this module's `backend.ts` through `ctx.subscribe`,
+   * so the alert stops with the module (issue #107); it used to be a bare
+   * `eventBus.on` here, which kept mailing while `inventory` was switched off.
+   */
+  async handleAdjusted(payload: AdjustedPayload): Promise<void> {
     const em = this.emFactory();
     const product = await em.findOne(Product, { id: payload.productId });
     if (!product || !(product.manageStock ?? true)) return;

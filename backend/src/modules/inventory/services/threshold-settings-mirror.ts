@@ -1,11 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EventBus } from '../../../events/bus.js';
 import { z } from 'zod';
 import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { InventoryThreshold } from '../entities/inventory-threshold.entity.js';
 import { INVENTORY_SETTING_CODES } from '../manifest.js';
 
-interface SettingsValueChangedPayload {
+export interface SettingsValueChangedPayload {
   settingCode: string;
   salesChannelIds: string[];
   valueType: string;
@@ -49,16 +48,26 @@ export class ThresholdSettingsMirror {
     private readonly onError?: (err: unknown) => void,
   ) {}
 
-  attach(eventBus: EventBus): void {
-    eventBus.on('settings.value_changed', (payload) => {
-      const cast = payload as unknown as SettingsValueChangedPayload;
-      const field = KEY_TO_FIELD[cast.settingCode];
-      if (!field) return;
-      void this.mirror(cast.settingCode, field).catch((err) => {
-        const log = this.onError ?? ((e: unknown) => console.warn('threshold-mirror failed', e));
-        log(err);
-      });
-    });
+  /**
+   * `settings.value_changed` — mirror one of the three global threshold codes
+   * into the singleton `inventory_thresholds` row.
+   *
+   * The registration lives in this module's `backend.ts` and goes through
+   * `ctx.subscribe` (issue #107): as a bare `eventBus.on` this kept writing the
+   * mirror row while `inventory` was switched off. The read it performs comes
+   * after the kernel's settings-cache invalidator, which subscribes during
+   * `composeSettingsKernel` — before any module registers — so the value read
+   * here is the new one.
+   */
+  async onSettingChanged(payload: SettingsValueChangedPayload): Promise<void> {
+    const field = KEY_TO_FIELD[payload.settingCode];
+    if (!field) return;
+    try {
+      await this.mirror(payload.settingCode, field);
+    } catch (err) {
+      const log = this.onError ?? ((e: unknown) => console.warn('threshold-mirror failed', e));
+      log(err);
+    }
   }
 
   private async mirror(

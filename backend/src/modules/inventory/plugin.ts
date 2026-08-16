@@ -79,36 +79,63 @@ export interface InventoryModuleOptions {
   resolveOrganizationWarehouseAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
 }
 
-export function inventoryModule(options: InventoryModuleOptions) {
-  return async (app: FastifyInstance): Promise<void> => {
-    const mailer = options.mailer ?? new ConsoleMailer();
+/**
+ * The three event handlers this module owns, exposed so `backend.ts` can
+ * register them through `ctx.subscribe` (issue #107).
+ *
+ * They were attached here with a bare `eventBus.on`, which is why a switched-off
+ * `inventory` still mailed back-in-stock notices, still mailed low-stock alerts
+ * and still wrote the mirrored threshold row.
+ */
+export interface InventoryModuleHandle {
+  availabilityWorker: AvailabilityWorker;
+  lowStockAlertService: LowStockAlertService;
+  /** Absent when this composition wired no settings service. */
+  thresholdSettingsMirror: ThresholdSettingsMirror | undefined;
+}
+
+export interface InventoryModuleResult {
+  plugin: (app: FastifyInstance) => Promise<void>;
+  handle: InventoryModuleHandle;
+}
+
+export function inventoryModule(options: InventoryModuleOptions): InventoryModuleResult {
+  const mailer = options.mailer ?? new ConsoleMailer();
+  const availabilityWorker = new AvailabilityWorker(options.emFactory, mailer);
+  const lowStockAlertService = new LowStockAlertService(
+    options.emFactory,
+    mailer,
+    options.settingsService,
+    options.settingsChannelId,
+    options.templateEmail,
+  );
+
+  let thresholdSettingsMirror: ThresholdSettingsMirror | undefined;
+  if (options.settingsService) {
+    // D-48 — the last branch used to be `sysDefault?.id ?? null`, which
+    // mirrored the threshold settings platform-wide on a branch the platform
+    // guarantees against. `null` here now means only what it always should
+    // have: this composition wired no channel resolver at all.
+    const resolveChannelId =
+      options.resolveSystemDefaultChannelId ??
+      (async (): Promise<string | null> => {
+        if (options.settingsChannelId) return options.settingsChannelId;
+        if (!options.channelResolver) return null;
+        return (await options.channelResolver.getSystemDefault()).id;
+      });
+    thresholdSettingsMirror = new ThresholdSettingsMirror(
+      options.emFactory,
+      options.settingsService,
+      resolveChannelId,
+    );
+  }
+
+  const plugin = async (app: FastifyInstance): Promise<void> => {
     const availabilityService = new AvailabilityNotificationService(
       options.emFactory,
       mailer,
       options.templateEmail,
     );
-    const availabilityWorker = new AvailabilityWorker(options.emFactory, mailer);
-    if (options.eventBus) availabilityWorker.attach(options.eventBus);
-
-    if (options.eventBus && options.settingsService) {
-      // D-48 — the last branch used to be `sysDefault?.id ?? null`, which
-      // mirrored the threshold settings platform-wide on a branch the platform
-      // guarantees against. `null` here now means only what it always should
-      // have: this composition wired no channel resolver at all.
-      const resolveChannelId =
-        options.resolveSystemDefaultChannelId ??
-        (async (): Promise<string | null> => {
-          if (options.settingsChannelId) return options.settingsChannelId;
-          if (!options.channelResolver) return null;
-          return (await options.channelResolver.getSystemDefault()).id;
-        });
-      const mirror = new ThresholdSettingsMirror(
-        options.emFactory,
-        options.settingsService,
-        resolveChannelId,
-      );
-      mirror.attach(options.eventBus);
-    }
     const warehouseChannelService = new WarehouseChannelService(
       options.emFactory,
       options.auditLogService,
@@ -122,16 +149,6 @@ export function inventoryModule(options: InventoryModuleOptions) {
       options.emFactory,
       options.auditLogService,
     );
-    const lowStockAlertService = new LowStockAlertService(
-      options.emFactory,
-      mailer,
-      options.settingsService,
-      options.settingsChannelId,
-      options.templateEmail,
-    );
-    if (options.eventBus) {
-      lowStockAlertService.attach(options.eventBus);
-    }
     await registerInventoryRoutes(app, {
       emFactory: options.emFactory,
       availabilityService,
@@ -172,4 +189,6 @@ export function inventoryModule(options: InventoryModuleOptions) {
       });
     }
   };
+
+  return { plugin, handle: { availabilityWorker, lowStockAlertService, thresholdSettingsMirror } };
 }

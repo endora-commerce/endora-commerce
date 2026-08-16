@@ -1,11 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { createSuggestionPricingEnricher } from './services/suggestion-pricing-enricher.js';
 import type { SuggestionPriceResolverPort } from './services/suggestion-pricing-enricher.js';
 import { searchModule, type SearchModuleOptions, type SearchModuleResult } from './plugin.js';
+import type { SettingChangedPayload } from './services/search-event-subscriber.js';
 
 /**
  * `search` — six optional options that were never actually optional (feature
@@ -45,7 +45,6 @@ import { searchModule, type SearchModuleOptions, type SearchModuleResult } from 
 /** What `search` resolves from the container, and the names it owns. */
 export interface SearchCradle {
   readonly emFactory: () => EntityManager;
-  readonly eventBus: EventBus;
   readonly requireAdmin: RequireAdminFactory;
   readonly settingsReadPort: SearchModuleOptions['settingsService'];
   readonly settingsAdminService: SearchModuleOptions['settingsAdminService'];
@@ -76,10 +75,9 @@ export interface SearchCradle {
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     search: ctx
-      .asFunction(({ emFactory, eventBus, searchRunWorkers }: SearchCradle): SearchModuleResult =>
+      .asFunction(({ emFactory, searchRunWorkers }: SearchCradle): SearchModuleResult =>
         searchModule({
           emFactory,
-          eventBus,
           enableReindexScheduler: searchRunWorkers,
           catalogAttributeRead: lazyPort<SearchModuleOptions['catalogAttributeRead']>(
             ctx,
@@ -135,6 +133,58 @@ export function registerModule(ctx: ModuleContext): void {
       }))
       .singleton(),
   );
+
+  /**
+   * The seven index-maintenance subscriptions (issue #107).
+   *
+   * They were seven bare `eventBus.on` calls inside `SearchEventSubscriber`, so
+   * the Meilisearch documents kept being rewritten on every catalog write with
+   * `search` switched off — the module's routes refused, its indexer did not.
+   * `ctx.subscribe` wraps each in `subscribeForModule`, so the effective state
+   * decides whether the handler runs at all.
+   *
+   * The subscriber is reached through the cradle inside each closure rather than
+   * captured: registration resolves nothing, and reading the name per event is
+   * what lets a decoration or a rebuilt module reach the live instance.
+   */
+  const subscriber = (): SearchModuleResult['handle']['subscriber'] =>
+    ctx.cradle<SearchCradle>().search.handle.subscriber;
+
+  ctx.subscribe('product.created.v1', async (payload) => {
+    const { productId } = payload as { productId: string };
+    await subscriber().onProductUpserted(productId, 'product.created.v1');
+  });
+  ctx.subscribe('product.updated.v1', async (payload) => {
+    const { productId } = payload as { productId: string };
+    await subscriber().onProductUpserted(productId, 'product.updated.v1');
+  });
+  ctx.subscribe('product.archived.v1', async (payload) => {
+    const { productId } = payload as { productId: string };
+    await subscriber().onProductRemoved(productId, 'product.archived.v1');
+  });
+  ctx.subscribe('product.deleted.v1', async (payload) => {
+    const { productId } = payload as { productId: string };
+    await subscriber().onProductRemoved(productId, 'product.deleted.v1');
+  });
+  ctx.subscribe('category.updated.v1', async (payload) => {
+    const { categoryId } = payload as { categoryId: string };
+    await subscriber().onCategoryUpdated(categoryId);
+  });
+  ctx.subscribe('attribute.updated.v1', async () => {
+    await subscriber().onAttributeUpdated();
+  });
+
+  /**
+   * The LLM reactor (feature 006 / T027).
+   *
+   * The settings cache invalidator is attached by `composeSettingsKernel`, which
+   * runs before any module registers, so this handler is dispatched after the
+   * invalidator has already dropped the code — which is what it needs, since it
+   * re-reads `search.llm.enabled` through the settings service.
+   */
+  ctx.subscribe('settings.value_changed', async (payload) => {
+    await subscriber().onSettingChanged(payload as SettingChangedPayload);
+  });
 
   ctx.routes(async (app) => {
     await ctx.cradle<SearchCradle>().search.plugin(app);

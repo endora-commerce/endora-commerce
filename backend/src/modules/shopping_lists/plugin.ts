@@ -1,9 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EventBus } from '../../events/bus.js';
-import type { CartService } from '../carts/services/cart-service.js';
-import type { RfqService } from '../quote_requests/services/rfq-service.js';
-import { ShoppingListService } from './services/shopping-list-service.js';
+import type { ShoppingListService } from './services/shopping-list-service.js';
 import { registerShoppingListRoutes } from './routes.js';
 
 /**
@@ -23,18 +20,14 @@ import { registerShoppingListRoutes } from './routes.js';
 export interface ShoppingListsModuleOptions {
   emFactory: () => EntityManager;
   /**
-   * Feature 072 (T136) — the composed `CartService`, resolved as a port.
+   * The module's one service, built in `backend.ts` (issue #107).
    *
-   * This module used to build its own with `new CartService(options.emFactory)`
-   * — no pricing service, no approval service, no audit service, no recompute
-   * cache. Every line added through save-to-list, quick-order import or
-   * one-click buy therefore skipped the pending-approval re-arm, wrote no cart
-   * audit row, and left `b2b:cart:recompute:*` un-invalidated, so the *other*
-   * instance kept serving a stale recomputed cart for the cache TTL. A shipped
-   * defect, not a composition-shape smell.
+   * It used to be constructed here, inside the route registrar, which is why the
+   * `customer_account.created.v1` reaction had to be a bare `eventBus.on`: this
+   * was the only place holding the instance. It is a container registration now,
+   * so the subscription can live at the seam that gates it.
    */
-  cartService: CartService;
-  rfqService: RfqService;
+  shoppingListService: ShoppingListService;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;
@@ -53,36 +46,12 @@ export interface ShoppingListsModuleOptions {
   // `auditLog` + `organizationRestriction` + `resolveAdminContext` for the
   // preference routes, and `getOrderService` + `resolveOneClickEnabled` for
   // one-click buy. They moved with the module that reads them.
-  /**
-   * In-process event bus. When supplied, the module subscribes to
-   * `customer_account.created.v1` and eagerly provisions the new customer's
-   * default shopping list (otherwise the list is created lazily on first read).
-   */
-  eventBus?: EventBus;
 }
 
 export function shoppingListsModule(options: ShoppingListsModuleOptions) {
-  const cartService = options.cartService;
-
   return async (app: FastifyInstance): Promise<void> => {
-    const shoppingListService = new ShoppingListService(
-      options.emFactory,
-      cartService,
-      options.rfqService,
-    );
+    const shoppingListService = options.shoppingListService;
     if (options.exposeShoppingListService) options.exposeShoppingListService(shoppingListService);
-
-    // Eagerly provision a "Default" shopping list when an org-attached customer
-    // is created (registration / admin direct-create / invitation accept), so
-    // the list exists immediately instead of only on first storefront read.
-    // `ensureDefault` is idempotent, so a redundant event is harmless.
-    options.eventBus?.on('customer_account.created.v1', async (payload) => {
-      const { customerAccountId, organizationId } = payload as unknown as {
-        customerAccountId: string;
-        organizationId: string;
-      };
-      await shoppingListService.ensureDefault({ customerAccountId, organizationId });
-    });
 
     await registerShoppingListRoutes(app, {
       service: shoppingListService,

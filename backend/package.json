@@ -55,6 +55,7 @@
     "check:command-coverage": "tsx scripts/check-command-coverage.ts",
     "check:port-dependencies": "tsx scripts/check-port-dependencies.ts",
     "check:port-catches": "tsx scripts/check-port-catches.ts",
+    "check:subscribe-seam": "tsx scripts/check-subscribe-seam.ts",
     "check:error-translations": "tsx scripts/check-error-translations.ts"
   },
   "dependencies": {

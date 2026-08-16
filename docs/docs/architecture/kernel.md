@@ -461,17 +461,25 @@ handler against the pre-write value, and the two-pass era recorded the symptom
 the first time `meta_ads` and `linkedin_ads` were moved ahead of it. Compose the
 invalidators first and the question cannot be asked.
 
-**Eight modules subscribe to that event, and only five do it through the seam.**
-`blog`, `google_analytics`, `google_tag_manager`, `linkedin_ads` and `meta_ads`
-use `ctx.subscribe`. `inventory`, `search` and `product_feeds` attach a bare
-`eventBus.on` from a plugin body instead — which means the invalidator ordering
-above still protects them, but the module's effective state does not: a bare
-`eventBus.on` is not wrapped by `subscribeForModule`, so the handler goes on
-running with the module switched off. Across the tree that is **20 live
-subscriptions in 7 modules** (`search`, `product_feeds`, `inventory`, `pwa`,
-`quote_requests`, `invoices`, `pim_ergonode`) against 12 through `ctx.subscribe`.
-There is no static check for this seam, unlike routes and workers — use
-`ctx.subscribe`.
+Every module subscription in the tree goes through `ctx.subscribe`, and that is
+now enforced rather than asked for. Until issue #107 a module could subscribe
+with a bare `eventBus.on` from a plugin body: the invalidator ordering above
+still protected such a handler, but the module's effective state did not, because
+only `subscribeForModule` consults it. Routes and workers each had a seam check
+and subscriptions had none, so twenty-two of them accumulated across nine modules
+while each of those modules' conversion tasks read done — and a subscriber
+**writes**, which makes it the worse half of the gap: an invoice issued,
+numbered and e-mailed, a quote request flipped to Completed, a push message
+delivered to a customer's device, a shopping list created, all for a module the
+operator believed was off.
+
+`pnpm --filter backend run check:subscribe-seam` is the ratchet. It reads a
+module's own sources for a call on an event-bus-shaped receiver, and carries
+`BARE_SUBSCRIPTIONS_TO_DRAIN`, an **empty** two-way ledger: an unledgered bare
+subscription fails the build, and so does a ledger entry that no longer describes
+one. The kernel is deliberately out of scope — it composes before any module and
+has no effective state to gate on, so its two cache invalidators subscribe
+directly, which is the ordering fact the paragraph above depends on.
 
 ### Writing an ordering rationale that does not rot
 

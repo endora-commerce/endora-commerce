@@ -232,6 +232,22 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  /**
+   * US5 — an order created from a quote request completes it (issue #107).
+   *
+   * This was a bare `eventBus.on` in the plugin body: with `quote_requests`
+   * switched off it still flipped the RFQ to Completed, appended a `completed`
+   * event row and enqueued the customer notification — while every route that
+   * could show the customer that quote request refused. `ctx.subscribe` makes
+   * the module's effective state decide.
+   */
+  ctx.subscribe('order.created.v1', async (payload) => {
+    await ctx
+      .cradle<QuoteRequestsCradle>()
+      .quoteRequests.handle()
+      .orderCompletionReactor.onOrderCreated(payload);
+  });
+
   ctx.routes(async (app) => {
     await ctx.cradle<QuoteRequestsCradle>().quoteRequests.register(app);
   });

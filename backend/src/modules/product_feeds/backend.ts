@@ -8,6 +8,14 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { ConfigurationTypeRegistry } from '../credentials/services/configuration-type-registry.js';
 import { productFeedsModule, type ProductFeedsModuleOptions } from './plugin.js';
 import { feedDeliveryConfigurationType } from './services/delivery/delivery-credential.type.js';
+import {
+  FEED_CACHE_INVALIDATION_EVENTS,
+  invalidateFeedTokenCache,
+} from './services/feed-cache-invalidator.js';
+import {
+  syncFeedScheduleFromEvent,
+  syncTaxonomyScheduleFromEvent,
+} from './services/feed-schedule-reconciler.js';
 
 /**
  * `product_feeds` — four adapters a root builds, and three seams only a test
@@ -161,6 +169,40 @@ export function registerModule(ctx: ModuleContext): void {
         },
       )
       .singleton(),
+  });
+
+  /**
+   * The five subscriptions this module owns (issue #107).
+   *
+   * All five were bare `eventBus.on` calls inside the plugin body. Two of them
+   * write: the feed-changed handler re-asserts a BullMQ Job Scheduler and clears
+   * the row's `next_run_at`, and the taxonomy handler installs or removes the
+   * check scheduler — so a switched-off `product_feeds` went on generating feeds
+   * on a timer while every route that serves them refused. `ctx.subscribe` puts
+   * the effective state in front of each handler.
+   */
+  const handle = (): ReturnType<typeof productFeedsModule>['handle'] =>
+    ctx.cradle<ProductFeedsCradle>().productFeeds.handle;
+
+  for (const event of FEED_CACHE_INVALIDATION_EVENTS) {
+    ctx.subscribe(event, async (payload) => {
+      await invalidateFeedTokenCache(handle().tokenCache, payload);
+    });
+  }
+
+  // Postgres commits first, Redis is touched after (research §R5.4): the event
+  // is emitted by the Command Bus on commit, so the row is durable before the
+  // scheduler is touched and a Redis failure can never roll back a saved feed.
+  ctx.subscribe('product_feeds.feed_changed', async (payload) => {
+    await syncFeedScheduleFromEvent(handle().schedules, payload);
+  });
+
+  // The taxonomy master switch takes effect at the moment it is flipped. The
+  // reconcile re-reads the two settings, and the kernel's settings-cache
+  // invalidator subscribes in `composeSettingsKernel` — before any module
+  // registers — so it has already dropped them when this handler runs.
+  ctx.subscribe('settings.value_changed', async (payload) => {
+    await syncTaxonomyScheduleFromEvent(handle().schedules, payload);
   });
 
   ctx.routes(async (app) => {

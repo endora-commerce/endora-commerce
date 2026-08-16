@@ -1,7 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
-import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -73,7 +72,6 @@ export interface PwaCradle {
    * and a module should not have to know which of its callers is a test.
    */
   readonly pwaRunWorkers: boolean;
-  readonly eventBus: EventBus;
   readonly requireAdmin: RequireAdminFactory;
   readonly settingsReadPort: PwaModuleOptions['settings'];
   readonly settingsAdminService: PwaModuleOptions['settingsWrite'];
@@ -84,14 +82,13 @@ export interface PwaCradle {
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     pwa: ctx
-      .asFunction(({ emFactory, redis, eventBus, pwaRunWorkers }: PwaCradle): PwaModuleResult => {
+      .asFunction(({ emFactory, redis, pwaRunWorkers }: PwaCradle): PwaModuleResult => {
         const bridge = (): PwaBridge => ctx.cradle<PwaCradle>().pwaBridge;
         const b = bridge();
         return pwaModule({
           emFactory,
           redis,
           runWorkers: pwaRunWorkers,
-          eventBus,
           settings: lazyPort<PwaModuleOptions['settings']>(ctx, 'settingsReadPort'),
           settingsWrite: lazyPort<PwaModuleOptions['settingsWrite']>(ctx, 'settingsAdminService'),
           requireAdmin: (permission) => async (req, reply) =>
@@ -122,6 +119,26 @@ export function registerModule(ctx: ModuleContext): void {
         });
       })
       .singleton(),
+  });
+
+  /**
+   * The two FR-024 auto-triggers (issue #107).
+   *
+   * They were bare `eventBus.on` calls inside `pwaModule`, so an order reaching
+   * its status or a quote request being updated still wrote a `push_messages`
+   * row and still pushed to the customer's device with `pwa` switched off — the
+   * module's own admin and storefront surfaces refused at the same time, which
+   * is what made it invisible. `ctx.subscribe` gates both.
+   */
+  const handlers = (): PwaModuleResult['handle']['pushEventHandlers'] =>
+    ctx.cradle<PwaCradle>().pwa.handle.pushEventHandlers;
+
+  ctx.subscribe('order.status_changed.v1', async (payload) => {
+    await handlers().onOrderStatusChanged(payload);
+  });
+
+  ctx.subscribe('quote_request.updated.v1', async (payload) => {
+    await handlers().onQuoteRequestUpdated(payload);
   });
 
   ctx.routes(async (app) => {

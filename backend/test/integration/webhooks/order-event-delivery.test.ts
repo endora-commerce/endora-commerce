@@ -16,7 +16,8 @@ import {
   type WebhookJobData,
 } from '../../../src/modules/webhooks/services/webhook-queue.js';
 import { createDeliveryProcessor } from '../../../src/modules/webhooks/services/webhook-delivery-worker.js';
-import { wireEventBridge } from '../../../src/modules/webhooks/services/event-bridge.js';
+import { bridgeEventHandler } from '../../../src/modules/webhooks/services/event-bridge.js';
+import { BRIDGED_EVENT_TYPES } from '../../../src/modules/webhooks/backend.js';
 import { emitOrderStatusAfter } from '../../../src/modules/orders/events/order-status-events.js';
 
 /**
@@ -187,12 +188,16 @@ describe('webhook delivery — org-scoped order events (062/T028)', () => {
     });
     worker = createWebhookWorker(h.redis, processor, { prefix, concurrency: 2 });
 
-    unwire = wireEventBridge({
-      eventBus: h.eventBus,
-      queue,
-      subscriptionLookup: webhookServiceOf(h),
-      bridgedEventTypes: ['order.created.v1', 'order.status_changed.v1'],
-    });
+    // The module's own registrations live in `webhooks/backend.ts` and go
+    // through `ctx.subscribe`. This file drives the bridge against a queue of
+    // its own, so it attaches the same handler to the composed bus itself.
+    const offs = BRIDGED_EVENT_TYPES.map((eventType) =>
+      h.eventBus.on(
+        eventType,
+        bridgeEventHandler(eventType, { queue, subscriptionLookup: webhookServiceOf(h) }),
+      ),
+    );
+    unwire = () => offs.forEach((off) => off());
   }, 60_000);
 
   afterAll(async () => {
