@@ -12,8 +12,16 @@ import {
 } from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
+import {
+  ModuleDisabledError,
+  rethrowIfModuleDisabled,
+} from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { BusinessIdGenerator } from './business-id-generator.js';
+import {
+  orderEmailNotSent,
+  sendOrderTransactionalEmail,
+  type OrderEmailResult,
+} from './transactional-email-helper.js';
 
 /**
  * Feature 036 (US3) — narrow port over the promotion engine, consumed to
@@ -284,15 +292,24 @@ export class OrderService {
    * effort; a mail failure never rolls back a placed order). Resolves the
    * customer's address, the line items, and the adapter's e-mail renderer key,
    * then sends the templated confirmation.
+   *
+   * It answered `void` before (issue #78), and so did every way of not sending
+   * it: no mailer in the composition, no customer behind the order, an
+   * operator-deactivated template, a code with no definition, and a send that
+   * raised. The result names the primary recipient's outcome — the extra
+   * confirmation recipients are independent by design and report through the
+   * log — and every non-sent path reaches the log whether or not anyone reads
+   * the result.
    */
-  private async sendOrderConfirmation(order: Order): Promise<void> {
-    if (!this.mailer) return;
+  private async sendOrderConfirmation(order: Order): Promise<OrderEmailResult> {
+    const emailContext = { orderId: order.id, code: 'order_confirmation' };
+    if (!this.mailer) return orderEmailNotSent(undefined, emailContext, 'no_transport');
     const em = this.emFactory();
     const [customer, items] = await Promise.all([
       em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId }),
       em.find(OrderItem, { orderId: order.id }),
     ]);
-    if (!customer) return;
+    if (!customer) return orderEmailNotSent(undefined, emailContext, 'no_recipient');
 
     // Feature 047 — when the transactional_emails module is wired, send the
     // admin-editable template; otherwise fall through to the legacy builder.
@@ -335,19 +352,17 @@ export class OrderService {
       });
       const messageId = `order_confirmation:${order.id}`;
       const meta = { kind: 'order_confirmation', orderId: order.id };
-      try {
-        await sender.send({
-          code: 'order_confirmation',
-          salesChannelId: order.salesChannelId,
-          language,
-          to: customer.email,
-          messageId,
-          variables,
-          meta,
-        });
-      } catch {
-        // best-effort: a mail failure never rolls back a placed order
-      }
+      // The channel language is already resolved above for the variables, so it
+      // is handed to the helper rather than read a second time.
+      const result = await sendOrderTransactionalEmail(em, sender, order, {
+        orderId: order.id,
+        code: 'order_confirmation',
+        to: customer.email,
+        messageId,
+        variables,
+        meta,
+        language,
+      });
       if (this.confirmationRecipients) {
         let extra: string[] = [];
         try {
@@ -360,22 +375,21 @@ export class OrderService {
         }
         for (const recipient of extra) {
           if (recipient.toLowerCase() === customer.email.toLowerCase()) continue;
-          try {
-            await sender.send({
-              code: 'order_confirmation',
-              salesChannelId: order.salesChannelId,
-              language,
-              to: recipient,
-              messageId: `${messageId}:${recipient}`,
-              variables,
-              meta,
-            });
-          } catch {
-            // best-effort per recipient
-          }
+          // Each extra recipient is independent and best-effort: its own
+          // not-sent reason goes to the log, and none of them changes the
+          // answer about the customer's own copy.
+          await sendOrderTransactionalEmail(em, sender, order, {
+            orderId: order.id,
+            code: 'order_confirmation',
+            to: recipient,
+            messageId: `${messageId}:${recipient}`,
+            variables,
+            meta,
+            language,
+          });
         }
       }
-      return;
+      return result;
     }
     const rendererKey =
       this.paymentAdapters?.get(order.paymentMethodSnapshot.adapter ?? '')?.renderers?.email ??
@@ -414,7 +428,16 @@ export class OrderService {
         lineTotal: it.lineTotal,
       })),
     });
-    await this.mailer.send(message);
+    let result: OrderEmailResult;
+    try {
+      await this.mailer.send(message);
+      result = { sent: true };
+    } catch (error) {
+      // A mail failure never rolls back a placed order — but it is named now.
+      // A switched-off module is not a delivery failure, so it travels on.
+      rethrowIfModuleDisabled(error);
+      result = orderEmailNotSent(undefined, emailContext, 'failed', error);
+    }
 
     // Feature 038 (US4) — CC the per-organization + Settings-scoped recipients.
     // Each send is independent and best-effort: a bad recipient is recorded by
@@ -433,11 +456,14 @@ export class OrderService {
         if (recipient.toLowerCase() === customer.email.toLowerCase()) continue;
         try {
           await this.mailer.send({ ...message, to: recipient, messageId: `${message.messageId}:${recipient}` });
-        } catch {
-          // best-effort per recipient
+        } catch (error) {
+          // best-effort per recipient, and each one says so
+          rethrowIfModuleDisabled(error);
+          orderEmailNotSent(undefined, emailContext, 'failed', error);
         }
       }
     }
+    return result;
   }
 
   /**
@@ -1505,9 +1531,13 @@ export class OrderService {
     // mail failure must not undo a placed order.
     try {
       await this.sendOrderConfirmation(order);
-    } catch {
+    } catch (error) {
       // Swallowed: the order is already committed; mail delivery is retried by
-      // the transport, not by re-placing the order.
+      // the transport, not by re-placing the order. Re-throwing here would
+      // answer 503 to a placement that succeeded, which is why even the
+      // presence answer the send lets travel stops at this seam — so it is
+      // written down instead of vanishing (issue #78).
+      orderEmailNotSent(undefined, { orderId: order.id, code: 'order_confirmation' }, 'failed', error);
     }
     return order;
   }

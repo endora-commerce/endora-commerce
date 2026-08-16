@@ -10,7 +10,11 @@ import { OrderComment } from '../entities/order-comment.entity.js';
 import type { OrderService } from './order-service.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { buildAdminCreatedOrderEmail } from '../email-templates/admin-created-order.js';
-import { sendOrderTransactionalEmail } from './transactional-email-helper.js';
+import {
+  orderEmailNotSent,
+  sendOrderTransactionalEmail,
+} from './transactional-email-helper.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /** A new address typed on the create form (vs. an existing org address id). */
 export interface AdminCreateOrderInlineAddress {
@@ -172,24 +176,34 @@ export class OrderCreationAdminService {
     }
 
     // Notify the customer that an order was created for them (FR-011).
-    if (customer.email) {
+    // Best-effort, and reported: the order is committed, so a message that does
+    // not go out is named in the log rather than silently absorbed (issue #78).
+    const emailContext = { orderId: order.id, code: 'admin_created_order' };
+    if (!customer.email) {
+      orderEmailNotSent(undefined, emailContext, 'no_recipient');
+    } else {
       const sender = this.getTransactionalEmailSender?.();
-      try {
-        if (sender) {
-          await sendOrderTransactionalEmail(em, sender, order, {
-            code: 'admin_created_order',
-            to: customer.email,
-            messageId: `order_created_for_you:${order.id}`,
-            variables: { order: { businessId: order.businessId, id: order.id } },
-            meta: { orderId: order.id, kind: 'order_created_for_you' },
-          });
-        } else if (this.mailer) {
+      if (sender) {
+        await sendOrderTransactionalEmail(em, sender, order, {
+          orderId: order.id,
+          code: 'admin_created_order',
+          to: customer.email,
+          messageId: `order_created_for_you:${order.id}`,
+          variables: { order: { businessId: order.businessId, id: order.id } },
+          meta: { orderId: order.id, kind: 'order_created_for_you' },
+        });
+      } else if (!this.mailer) {
+        orderEmailNotSent(undefined, emailContext, 'no_transport');
+      } else {
+        try {
           await this.mailer.send(
             buildAdminCreatedOrderEmail({ to: customer.email, businessId: order.businessId, orderId: order.id }),
           );
+        } catch (error) {
+          // A switched-off module is not a delivery failure, so it travels on.
+          rethrowIfModuleDisabled(error);
+          orderEmailNotSent(undefined, emailContext, 'failed', error);
         }
-      } catch {
-        // best-effort
       }
     }
 
