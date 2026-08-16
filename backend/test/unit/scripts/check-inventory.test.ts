@@ -291,14 +291,13 @@ const CHECKS: readonly CheckEntry[] = [
       ).violations.length,
   },
   {
-    // Not in any CI job: the admin SPA carries 274 findings, so `--strict`
-    // would fail the build on standing debt rather than on a regression. It is
-    // a report until that debt is drained — and until this MR it was not even
-    // that, because the default root resolved against the wrong directory and
-    // it read zero files.
+    // Ran in no job until issue #116. The admin SPA carries 274 findings, so
+    // `--strict` would have failed the build on standing debt rather than on a
+    // regression; it runs against a per-file baseline instead, two-way like
+    // every other ledger here.
     script: 'backend/scripts/i18n-hardcoded-strings.ts',
     npmScript: 'i18n:hardcoded',
-    job: 'none',
+    job: 'quality',
     companionTest: 'backend/test/unit/scripts/i18n-hardcoded-strings.test.ts',
     vacuousGuard: 'exit-2',
     red: () =>
@@ -336,14 +335,13 @@ const CHECKS: readonly CheckEntry[] = [
       }),
   },
   {
-    // In no job: it measures an installed `node_modules`, which the
-    // toolchain-free `quality:static` image does not have and the `quality`
-    // job would have to install for. It is run by hand when a dependency bump
-    // touches the PDF engine — and until this MR both of its preconditions
-    // exited 0, so the run that measured nothing reported the budget met.
+    // In no job until issue #116, on the grounds that it measures an installed
+    // `node_modules` — which the `quality` job installs in `before_script` and
+    // always has. The reason held only for `quality:static`, whose image is
+    // deliberately toolchain-free, and it was written as if it held for both.
     script: 'scripts/check-pdfmake-footprint.sh',
-    npmScript: null,
-    job: 'none',
+    npmScript: 'check:pdfmake-footprint',
+    job: 'quality',
     companionTest: 'backend/test/unit/scripts/shell-checks.test.ts',
     vacuousGuard: 'exit-2',
     red: () =>

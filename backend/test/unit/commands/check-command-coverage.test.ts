@@ -245,6 +245,101 @@ describe('command coverage check (feature 054, FR-009 / FR-010) — method-level
 });
 
 /**
+ * The other direction (issue #116).
+ *
+ * 185 methods carry the escape hatch and nothing ever re-read one, so a marker
+ * written for a write that has since moved kept exempting a method that no
+ * longer needs exempting — and the next write added there inherited the
+ * exemption in silence. The sweep is what makes this a ratchet rather than an
+ * allow-list, and its failure mode is the opposite of the flagging half's: it
+ * must not call a marker dead because the write is expressed in a shape this
+ * check cannot read. So both are pinned here.
+ */
+describe('the escape hatch is swept for staleness', () => {
+  it('reports a marker on a method that writes nothing', () => {
+    const src = `
+      export class Svc {
+        constructor(private em: () => any, private payments: any) {}
+        async reflectRefund(id: string) {
+          // command-coverage-ignore: the durable write is the payments module's
+          const em = this.em();
+          const payment = await em.findOne('Payment', { id });
+          await this.payments.reflectRefund({ paymentId: payment.id });
+        }
+      }`;
+    const findings = analyzeSource(PATH, src);
+    expect(findings.map((f) => f.kind)).toEqual(['stale-ignore']);
+    expect(findings[0]?.method).toBe('reflectRefund');
+    // The marker's own line, not the method's — the finding has to point at the
+    // comment somebody has to delete.
+    expect(findings[0]?.line).toBe(5);
+  });
+
+  it('leaves a marker alone while its method still mutates', () => {
+    const src = `
+      export class Svc {
+        constructor(private em: () => any) {}
+        async bumpCounter(id: string) {
+          // command-coverage-ignore: bulk-operation progress bookkeeping
+          const em = this.em();
+          await em.nativeUpdate('BulkOperation', { id }, { processed: 1 });
+        }
+      }`;
+    expect(analyzeSource(PATH, src)).toEqual([]);
+  });
+
+  it('leaves a marker alone over a raw SQL write the flagging half cannot see', () => {
+    // `conn.execute` is not in MUTATION_METHODS, so this method is invisible to
+    // the flagging half — and a staleness sweep sharing that vocabulary would
+    // demand the deletion of a marker guarding a real, deliberate write.
+    const src = `
+      export class Svc {
+        constructor(private em: () => any) {}
+        async heartbeat(runId: string) {
+          // command-coverage-ignore: liveness signal written by the running job
+          const em = this.em();
+          await em.getConnection().execute(
+            'update "import_runs" set "heartbeat_at" = now() where "id" = ?',
+            [runId],
+          );
+        }
+      }`;
+    expect(analyzeSource(PATH, src)).toEqual([]);
+  });
+
+  it('leaves a marker alone when the write is one delegation away', () => {
+    // `reserve` documents the decision for the whole path and delegates the
+    // rows to a private helper. Reading only the marked method would report it.
+    const src = `
+      export class Svc {
+        constructor(private em: () => any) {}
+        async reserve(input: any) {
+          // command-coverage-ignore: runs inside the caller's order transaction
+          return this.applyReservation(input);
+        }
+        private async applyReservation(input: any) {
+          // command-coverage-ignore: the reservation path reserve() runs
+          const em = this.em();
+          em.persist(em.create('Reservation', input));
+        }
+      }`;
+    expect(analyzeSource(PATH, src)).toEqual([]);
+  });
+
+  it('terminates on a delegation cycle instead of recursing forever', () => {
+    const src = `
+      export class Svc {
+        async a() {
+          // command-coverage-ignore: nothing here
+          return this.b();
+        }
+        async b() { return this.a(); }
+      }`;
+    expect(analyzeSource(PATH, src).map((f) => f.kind)).toEqual(['stale-ignore']);
+  });
+});
+
+/**
  * The `--strict` assertion CI makes, inside the suite.
  *
  * The rollout is complete, so CI build-breaks on ANY finding in ANY module —

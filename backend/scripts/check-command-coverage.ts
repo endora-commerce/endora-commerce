@@ -26,6 +26,31 @@ import ts from 'typescript';
  * "build-breaking per module" honest without forcing audit onto non-domain writes,
  * mirroring the audited `withSystemScope` escape hatch for tenancy.
  *
+ * ## The escape hatch is a two-way ratchet (issue #116)
+ *
+ * 185 methods carry that comment, and until now nothing ever re-read one. An
+ * ignore written for a write that has since moved elsewhere — into a Command, or
+ * into another module's audited service — went on reading as a considered
+ * decision about a write that is no longer there, and the next person to add a
+ * write to that method inherited the exemption silently.
+ *
+ * So a marker on a method that **no longer writes at all** is reported as
+ * `stale-ignore`, in the idiom of `PORT_CATCHES_TO_DRAIN` and
+ * `BARE_SUBSCRIPTIONS_TO_DRAIN`: an unledgered violation fails the build, and an
+ * entry that no longer describes one fails it too. MR !532's marker in
+ * `orders/order-completion-reactor.ts` — added because a refactor made an
+ * *existing* write visible to this check — is exactly the entry that has to be
+ * re-verified rather than trusted, and now it is, on every run.
+ *
+ * **The staleness half looks for writes more widely than the flagging half**,
+ * and the asymmetry is deliberate: both errors then fall on the safe side. The
+ * flagging half only flags an ORM mutation call it is sure about; the staleness
+ * half additionally counts a raw SQL write statement (`conn.execute` with an
+ * `update`/`insert into`/`delete from`) and any write reached transitively
+ * through `this.<name>(…)` in the same file — so a marker guarding a real write
+ * this check cannot itself see is left alone, and only a marker guarding nothing
+ * is reported.
+ *
  * Scope & staging: build-breaks (exit 1) for **migrated modules**
  * (`MIGRATED_MODULES` below, or `--module`); any other module would be
  * report-only. The platform-wide rollout is COMPLETE — every module is migrated
@@ -102,11 +127,22 @@ const MUTATION_METHODS = new Set([
   'flush',
 ]);
 
+/**
+ * A SQL statement that writes, as it appears in a string or template literal
+ * handed to `conn.execute` / `em.execute`.
+ *
+ * Only the staleness half reads this. Matching prose in a literal
+ * (`'update the row'`) marks the unit as writing, which suppresses a staleness
+ * report — the safe direction, since the cost is a marker left standing rather
+ * than a marker deleted off a live write.
+ */
+const SQL_WRITE = /\b(insert\s+into|update\s+["`']?[a-z_]|delete\s+from|truncate\s+table)/i;
+
 const AUDIT_RECEIVER =
   /(auditLog|auditLogService|auditService|AuditLogService|cartAuditService|\.audit)$/;
 const SUPPRESS_TOKEN = 'command-coverage-ignore';
 
-export type FindingKind = 'unaudited-sensitive-write' | 'double-audit';
+export type FindingKind = 'unaudited-sensitive-write' | 'double-audit' | 'stale-ignore';
 
 export interface CoverageFinding {
   filePath: string;
@@ -125,6 +161,11 @@ interface UnitScan {
   definesCommand: boolean;
   /** Names of `this.<name>(...)` methods this unit calls (for runner delegation). */
   callsThis: Set<string>;
+  /**
+   * Writes anything at all, by the widest reading: an ORM mutation call OR a raw
+   * SQL write statement. Only the staleness sweep uses it — see the header.
+   */
+  writesAnything: boolean;
 }
 
 /** Whether an object literal is a Command definition (`action` + `run` props). */
@@ -146,10 +187,14 @@ function scanUnit(node: ts.Node, sf: ts.SourceFile): UnitScan {
     runsCommand: false,
     definesCommand: false,
     callsThis: new Set(),
+    writesAnything: false,
   };
   const visit = (n: ts.Node): void => {
     if (ts.isObjectLiteralExpression(n) && isCommandLiteral(n)) {
       scan.definesCommand = true;
+    }
+    if (ts.isStringLiteralLike(n) && SQL_WRITE.test(n.text)) {
+      scan.writesAnything = true;
     }
     // The sanctioned free-function audit primitive (commands/audit-from-context):
     // `recordAuditFromContext(auditLog, em, …)` writes a co-transactional entry.
@@ -166,6 +211,7 @@ function scanUnit(node: ts.Node, sf: ts.SourceFile): UnitScan {
       const receiverText = receiver.getText(sf);
       if (MUTATION_METHODS.has(method)) {
         scan.hasMutation = true;
+        scan.writesAnything = true;
         if (scan.mutationLine === null) {
           scan.mutationLine = sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
         }
@@ -192,6 +238,8 @@ interface Unit {
   name: string;
   node: ts.Node;
   suppressed: boolean;
+  /** Where the `command-coverage-ignore` comment sits, so a stale one is findable. */
+  suppressedLine: number | null;
 }
 
 function unitName(node: ts.Node): string {
@@ -240,7 +288,13 @@ function collectUnits(sf: ts.SourceFile): Unit[] {
     }
 
     if (root) {
-      units.push({ name: unitName(root), node: root, suppressed: nodeSuppressed(root, sf) });
+      const suppressedLine = suppressionLine(root, sf);
+      units.push({
+        name: unitName(root),
+        node: root,
+        suppressed: suppressedLine !== null,
+        suppressedLine,
+      });
       return; // do NOT recurse — inline callbacks belong to this unit
     }
     ts.forEachChild(node, walk);
@@ -249,10 +303,20 @@ function collectUnits(sf: ts.SourceFile): Unit[] {
   return units;
 }
 
-function nodeSuppressed(node: ts.Node, sf: ts.SourceFile): boolean {
-  if (node.getFullText(sf).includes(SUPPRESS_TOKEN)) return true;
-  const leading = ts.getLeadingCommentRanges(sf.getFullText(), node.getFullStart()) ?? [];
-  return leading.some((r) => sf.getFullText().slice(r.pos, r.end).includes(SUPPRESS_TOKEN));
+/** The 1-based line of this unit's `command-coverage-ignore`, or `null`. */
+function suppressionLine(node: ts.Node, sf: ts.SourceFile): number | null {
+  const full = sf.getFullText();
+  const start = node.getFullStart();
+  const offset = full.indexOf(SUPPRESS_TOKEN, start);
+  if (offset !== -1 && offset < node.getEnd()) {
+    return sf.getLineAndCharacterOfPosition(offset).line + 1;
+  }
+  const leading = ts.getLeadingCommentRanges(full, start) ?? [];
+  for (const r of leading) {
+    const at = full.indexOf(SUPPRESS_TOKEN, r.pos);
+    if (at !== -1 && at < r.end) return sf.getLineAndCharacterOfPosition(at).line + 1;
+  }
+  return null;
 }
 
 /** Static, dependency-free per-method analysis of a single source file. */
@@ -292,9 +356,37 @@ export function analyzeSource(filePath: string, source: string): CoverageFinding
     if (isDirectlyCovered(u)) for (const n of u.scan.callsThis) coveredCallees.add(n);
   }
 
+  // The staleness half. A unit still writes if it writes itself, or if anything
+  // it calls as `this.<name>(…)` in this file does — `reserve()` delegating to
+  // `#reserveFlat()`, a reaper delegating to `release()`. Memoised over the
+  // recursion so a cycle terminates.
+  const byName = new Map(units.map((u) => [u.name, u]));
+  const reachesWrite = (name: string, seen = new Set<string>()): boolean => {
+    if (seen.has(name)) return false;
+    seen.add(name);
+    const unit = byName.get(name);
+    if (!unit) return false;
+    if (unit.scan.writesAnything) return true;
+    return [...unit.scan.callsThis].some((callee) => reachesWrite(callee, seen));
+  };
+
   const findings: CoverageFinding[] = [];
   for (const u of units) {
-    if (u.suppressed) continue;
+    if (u.suppressed) {
+      if (!reachesWrite(u.name)) {
+        findings.push({
+          filePath,
+          line: u.suppressedLine,
+          method: u.name,
+          kind: 'stale-ignore',
+          message:
+            `${u.name}() carries a command-coverage-ignore but writes nothing — ` +
+            'the write it exempted has moved or gone. Delete the marker; keep the ' +
+            'sentence as an ordinary comment if it still explains something',
+        });
+      }
+      continue;
+    }
     const s = u.scan;
     const covered = isDirectlyCovered(u) || coveredCallees.has(u.name);
     if (s.hasMutation && !covered) {

@@ -113,6 +113,23 @@ registered command actions, ~120 documented escape hatches). CI runs the check w
 `--strict` in the `quality` stage, so **any** finding in **any** module — including a
 brand-new module — fails the build. Coverage cannot silently regress.
 
+### The escape hatch is swept for staleness
+
+185 methods carry the ignore comment, and until issue #116 nothing ever re-read one: an
+ignore written for a write that has since moved — into a Command, or into another
+module's audited service — went on exempting a method that no longer needed exempting,
+and the next write added there inherited the exemption in silence. A marker on a method
+that **no longer writes at all** is now reported as `stale-ignore` and fails the build,
+so the hatch is a two-way ratchet like every other ledger in the repository. Four were
+found on the first run, all four in payment-gateway services whose local mirroring had
+moved into `ReceivePaymentHandler`; their prose stayed as ordinary comments.
+
+The staleness half deliberately looks for writes **more widely** than the flagging half —
+it also counts a raw SQL write statement and any write reached through `this.<name>(…)`
+in the same file — so a marker guarding a real write the check cannot itself see is left
+alone. Both errors then fall on the safe side: at worst a marker outlives its write for
+one more refactor, never the reverse.
+
 ## Converting a write
 
 For a Command: extract the pure write onto the transactional `em` and run it through

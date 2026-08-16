@@ -692,11 +692,28 @@ budget met.
 
 **A ledger is two-way or it is an allow-list.** An unledgered violation fails,
 *and* an entry that no longer describes a violation fails. The second half is
-the one that rots: `PORT_CATCHES_TO_DRAIN`, `BARE_SUBSCRIPTIONS_TO_DRAIN` and
-`UNTRANSLATED_ERROR_CODES` all sweep for stale entries, and each entry carries a
-reason written as a statement about the thing it names — see "Writing an
-ordering rationale that does not rot" above for why "still hand-wired" is not
-one.
+the one that rots: `PORT_CATCHES_TO_DRAIN`, `BARE_SUBSCRIPTIONS_TO_DRAIN`,
+`UNTRANSLATED_ERROR_CODES` and `HARDCODED_STRINGS_BASELINE` all sweep for stale
+entries, and each entry carries a reason written as a statement about the thing
+it names — see "Writing an ordering rationale that does not rot" above for why
+"still hand-wired" is not one. **The escape hatch inside a check is a ledger
+too**: `command-coverage-ignore` had 185 entries and no sweep until issue #116,
+so an ignore written for a write that had since moved kept exempting a method
+that no longer needed exempting, and the next write added there inherited the
+exemption. When the standing debt is too large for a reason per entry — 274
+hard-coded strings across 47 admin screens — the entry becomes the **file** and
+the value becomes the count, which ratchets in both directions without asking
+anyone to write the same sentence 274 times.
+
+**A check in no CI job is worse than no check**, because its existence implies
+coverage. Two ran nowhere until issue #116, and one of them was cited in
+`AGENTS.md` as *the* gate on Principle VIII for user-facing strings — a claim the
+repository did not back. The reason a check is unwired is almost never "the
+property stopped mattering": it is standing debt (turn it into a ratchet) or an
+environment assumption that was never re-read (the pdfmake gate was said to need
+an installed `node_modules` the `quality` job would have to add, which that job
+has installed in `before_script` all along). The inventory's `job` field is where
+that decision is written down, and `none` has to be argued in the entry.
 
 The enforcement point is `backend/test/unit/scripts/check-inventory.test.ts`. It
 enumerates every `check-*` script, and for each one **runs the check's own
