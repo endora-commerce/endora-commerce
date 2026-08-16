@@ -35,15 +35,50 @@ The rule that follows is **the kernel must not import from `src/modules/` or
 lifecycle participant and a decoration is per-deployment code, so a kernel that
 reaches into either is a kernel that differs per deployment.
 
-**That rule is enforced.** `backend/scripts/check-kernel-boundary.ts` carries two
-rules over the one principle: the older one refuses an ORM relation from the
-kernel into a module, and the one D-37 added refuses an import specifier. It
-sees every shape a specifier takes — `import`, `import type`, `export … from`,
-dynamic `import()`, `require()`, and the inline `import('…').Type` annotation
-the repo's own ESLint config encourages. A type-only import is a violation like
-any other: it erases from the bundle but not from a `package.json`, and ESLint's
-`prefer: 'type-imports'` would otherwise launder violations past the rule
-automatically.
+### The kernel's peers obey the same rule (D-52)
+
+`src/http`, `src/events` and `src/tenancy` are **kernel-obeying platform peers**,
+and none of them may import `src/modules/` or `src/apps/` either. The
+measurement behind that is D-52 … D-57
+(`specs/072-module-kernel-di/kernel-peer-boundary.md`, issues #91/#92).
+
+| Peer | What it is | Why it obeys |
+| --- | --- | --- |
+| `src/events/` | One 81-line file: an `AsyncLocalStorage`-backed in-process bus, generic over its event map, importing only `node:async_hooks` | No domain noun anywhere in it |
+| `src/tenancy/` | The Principle XI guard: column names as strings, `where` fragments over an opaque field, a pure actor→`TenantContext` function | Five kernel entities take `@GlobalEntity()` from it — the kernel's persistence layer does not exist without it |
+| `src/http/` | Fastify bootstrap, the error envelope, OpenAPI registration, cursor encoding, the interceptor registry | Four kernel files take `HttpError` from it **as a value** |
+
+They are not optional to the kernel; it does not compile without them. A
+dependency the kernel cannot compile without, which is itself permitted to import
+a module, is a kernel that imports modules with one extra hop — in package terms
+the cycle `kernel → http → mod-i18n → kernel`, and F4's stated precondition is
+that packages are not cyclic.
+
+`src/db`, `src/overlay` and `src/commands` are **not** covered: `src/db` names
+every module by construction (F2 of the packaging roadmap replaces it with a
+generator), `src/overlay` is per-deployment resolution, and `src/commands` sits
+*above* the kernel — it already satisfies the rule, and D-57 leaves its package
+home to F4. Whether a peer becomes a directory *inside* the kernel package is
+F4's layout decision, deliberately not taken here (D-56).
+
+**That rule is enforced.** `backend/scripts/check-kernel-boundary.ts` carries
+three rules over the one principle. **Rule A** refuses an ORM relation from the
+kernel into a module. **Rule B** (D-37, widened by D-53) refuses an import
+specifier naming a module from any file under a **platform root** — `src/kernel`,
+`src/http`, `src/events`, `src/tenancy`. **Rule C** (D-53) refuses one anywhere in
+the kernel's transitive import closure, however many hops away.
+
+B and C are deliberately not redundant, and each covers the other's blind spot: B
+is a list, and issue #92 existed precisely because a peer was never put on a list;
+C has no list to forget, but is blind to the six peer files the kernel does not
+currently reach. B's message names a line, C's names a chain.
+
+Both see every shape a specifier takes — `import`, `import type`,
+`export … from`, dynamic `import()`, `require()`, and the inline
+`import('…').Type` annotation the repo's own ESLint config encourages. A
+type-only import is a violation like any other: it erases from the bundle but not
+from a `package.json`, and ESLint's `prefer: 'type-imports'` would otherwise
+launder violations past the rule automatically.
 
 Before D-37, four imports ran from `src/kernel/` into `src/modules/`:
 `module-context.ts` took the three gating wrappers, `ports/provide.ts` took
@@ -51,57 +86,49 @@ Before D-37, four imports ran from `src/kernel/` into `src/modules/`:
 type-imported the `Organization` entity class. D-37 A1 relocated the presence
 machinery — `plugin-helpers.ts`, `registry-cache.ts`, `effective-state.ts`,
 `activation-resolver.ts` and `module-registration.entity.ts` — into
-`src/kernel/lifecycle/`, which dissolved the first three.
+`src/kernel/lifecycle/`, which dissolved the first three. D-55 dissolved the
+fourth, and D-54 dissolved the one peer import (`src/http/error-envelope.ts`
+reaching `_i18n` for the error-translation map, now injected).
 
-The fourth is still there, in `KERNEL_MODULE_IMPORTS_TO_DRAIN`: a two-way ratchet
-where an unledgered import fails the build **and** a ledger entry that no longer
-describes an import fails it too. It is escalated rather than fixed — see the
-next paragraph.
+`KERNEL_MODULE_IMPORTS_TO_DRAIN` is therefore **empty**, and stays as a two-way
+ratchet: an unledgered import fails the build **and** a ledger entry that no
+longer describes an import fails it too. An entry is a debt with an owner, never
+a standing exemption.
 
-Two limits of the rule, both deliberate and both stated in the script's header.
-It looks at **direct specifiers only**: `src/http/error-envelope.ts` imports
-`ERROR_TRANSLATION_KEYS` from `src/modules/_i18n/`, and `src/http/` is a *peer*
-of the kernel, so the kernel still reaches `_i18n` transitively through it. A
-transitive rule would have failed on day one for a file D-37 does not touch.
-The second limit: a colocated `*.test.ts` under `src/kernel/` is not scanned,
-because a test may import a fixture and is not the artefact packaging cares
-about.
+One limit of the rule remains, deliberate and stated in the script's header: a
+colocated `*.test.ts` under a platform root is not scanned, because a test may
+import a fixture and is not the artefact packaging cares about.
 
-That first limit is **decided and not yet implemented**. D-52 … D-57
-(`specs/072-module-kernel-di/kernel-peer-boundary.md`, issues #91/#92) classify
-`src/events`, `src/http` and `src/tenancy` as **kernel-obeying platform peers**:
-platform infrastructure the kernel cannot compile without, and therefore bound by
-the same rule. D-53 widens the check from one hard-coded path test to a set of
-declared platform roots and adds a closure backstop; D-54 turns the one live
-violation — that `ERROR_TRANSLATION_KEYS` import — into an injection. Until those
-land, read the rule as covering `src/kernel/**` only. `src/db`, `src/overlay` and
-`src/commands` are outside that decision on purpose.
+Prose was tried first, and it did not hold. `kernel/index.ts`, `tenancy/index.ts`
+and `http/interceptors/registry.ts` all state this rule in a header comment; all
+three were true, all three were unenforced, and the one file that broke it broke
+it anyway. That is the argument for the check.
 
-`ports/organizations.ts` shows the split at its clearest — and also the one place
-it is not yet true. The kernel declares
+`ports/organizations.ts` shows the split at its clearest. The kernel declares
 `OrganizationReadPort` — `loadEffectiveOrganization`, `assertCanTransact`,
 `loadCartApprovalPolicy` — because almost every module needs to read an
 Organization (Principle XI). It does **not** implement it. `organizations`
 registers `OrganizationContextService` against that name, so the shape is
 platform-wide and the behaviour stays in the module that owns the table.
 
-The port does, however, **type** all three of its methods with the `Organization`
-entity class, imported from `organizations` — so the kernel borrows a shape it
-does not own, which is the surviving ledger entry.
+Since D-55 the port types its return values with a kernel-owned structural
+`OrganizationSnapshot` — `{ id, status }`, with `OrganizationStatus` taken from
+`@b2b/contracts` — rather than the module's `Organization` entity class. That is
+the whole surface the port's callers consume: `promotions` reads `status`, and
+`carts` and `orders` discard the return value entirely because what they want is
+the throw. TypeScript is structural, so `OrganizationContextService` satisfies
+the port returning its entity, with **no mapping layer and no implementation
+change**.
 
-**D-55 answered it: the kernel declares a structural `OrganizationSnapshot`
-(`{ id, status }`, with `OrganizationStatus` from `@b2b/contracts`) and the
-entity stays in `organizations`.** Because TypeScript is structural,
-`OrganizationContextService` satisfies the retyped port with no implementation
-change, so the mapping layer the ledger anticipated costs nothing and the blast
-radius is one file. Relocating the entity — the `SalesChannel` move's shape — was
-rejected on measurement rather than taste: `organizations` ships eight migrations
-and six of them also create module-owned tables, so it is a migration split, eight
-class renames and a coordinated `db:fresh` for every developer, where
-`sales_channels` shipped zero migrations and its table was already `core`.
-
-The decision has not shipped yet, so the check still reports the edge on every
-run.
+**The entity stays in `organizations`, permanently.** Relocating it as
+`SalesChannel` was relocated does not transfer: `sales_channels` ships zero
+migrations and its table was already `core`, while `organizations` ships eight
+migrations that all write the `organizations` table, six of which also create
+module-owned tables. The honest execution is splitting six migrations, renaming
+eight applied classes and a coordinated database rebuild — to serve a port that
+consumes two properties of a 24-property entity. `src/tenancy` is the precedent
+that makes the snapshot right rather than merely cheap: it enforces Principle XI
+knowing the Organization as a UUID in a column and never as a class.
 
 ## Registering: the three seams
 

@@ -135,6 +135,9 @@ import {
 } from './overlay/overlay-runtime.js';
 import type { PricingServiceContract } from './modules/price_lists/services/pricing-service.interface.js';
 import type { AdminI18nCradle } from './modules/_i18n/backend.js';
+// D-54 — the error envelope takes this map by injection: `src/http` is a
+// kernel-obeying platform peer and may not name a module (D-52). A root may.
+import { ERROR_TRANSLATION_KEYS } from './modules/_i18n/services/error-translation.js';
 import type { AdminActionsCradle } from './modules/admin_actions/backend.js';
 import type { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
@@ -2275,6 +2278,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     commandBus,
     apiInterceptors,
     errorEnvelope: {
+      errorTranslationTargets: ERROR_TRANSLATION_KEYS,
       resolvePreferredLanguage: async (request) => {
         if (request.actor.kind !== 'admin') return null;
         const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });

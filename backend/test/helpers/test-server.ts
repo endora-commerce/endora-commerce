@@ -71,6 +71,9 @@ import { randomUUID } from 'node:crypto';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
 import type { AdminI18nCradle } from '../../src/modules/_i18n/backend.js';
+// D-54 — injected into the error envelope, exactly as `composition.ts` does it:
+// `src/http` may not name a module (D-52), a composition root may.
+import { ERROR_TRANSLATION_KEYS } from '../../src/modules/_i18n/services/error-translation.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import type { OrganizationsCradle } from '../../src/modules/organizations/backend.js';
 import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
@@ -2236,6 +2239,7 @@ export async function setupBackendServer(
     modules,
     apiInterceptors,
     errorEnvelope: {
+      errorTranslationTargets: ERROR_TRANSLATION_KEYS,
       resolvePreferredLanguage: async (request) => {
         if (request.testActor?.kind !== 'admin') return null;
         const adminUser = await em().findOne(AdminUser, { id: request.testActor.adminUserId });

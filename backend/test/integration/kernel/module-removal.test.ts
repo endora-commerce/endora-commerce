@@ -104,16 +104,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/db/migrations-registry.ts',
   ],
   // `organizations` (wave 4, T138). The registries, and `composition.ts` for
-  // the deployment inputs and the login hook. The fourth is the interesting one
-  // and it is not a leftover: the **kernel** imports the `Organization` entity
-  // type to declare `OrganizationReadPort`. That is the D-32 shape — the kernel
-  // owns the port's shape, this module registers the implementation — so it is
-  // the one entry here that is meant to be permanent.
+  // the deployment inputs and the login hook. There used to be a fourth entry:
+  // the kernel type-imported the `Organization` entity to declare
+  // `OrganizationReadPort`, recorded here as "meant to be permanent". D-55
+  // dissolved it — the port now declares a structural `OrganizationSnapshot`
+  // over `@b2b/contracts`' status union, and the entity stays in this module.
+  // The kernel owning the shape never required it to own the class.
   organizations: [
     'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
-    'src/kernel/ports/organizations.ts',
   ],
   // `quick_order` (wave 4, T139). The registries only — it took its five route
   // files back from `shopping_lists` and needs nothing from a root.
@@ -268,14 +268,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // Both consumers are the root itself rather than a module, and the reconciler
   // one goes when `_lifecycle` converts.
   _i18n: [
+    // `composition.ts` imports the cradle type and, since D-54, the
+    // `ERROR_TRANSLATION_KEYS` map it injects into the error envelope. That map
+    // used to be imported by `src/http/error-envelope.ts` itself, which made a
+    // kernel-obeying platform peer name a module (D-52) and put the cycle
+    // `kernel → http → mod-i18n → kernel` in F4's package graph. A root naming a
+    // module is ordinary; a peer doing it is the defect.
     'src/composition.ts',
     'src/db/entities-registry.ts',
     'src/db/migrations-registry.ts',
-    // The HTTP error envelope imports this module's `ERROR_TRANSLATION_KEYS`
-    // map to decide which envelope fields are translatable. That is a genuine
-    // coupling of the platform's error surface to the i18n module rather than a
-    // conversion leftover, and `_i18n` is `nonDeactivatable`, so it stays.
-    'src/http/error-envelope.ts',
   ],
   // `cms` (wave 1, T093). The two registries only, since T143a: `megamenu`
   // cross-registers into this module's reference registry from its own boot

@@ -2,7 +2,6 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ADMIN_LANGUAGE_FALLBACK, ERROR_CODES, type ErrorCode, type ErrorEnvelope, type SupportedAdminLanguage } from '@b2b/contracts';
 import { ZodError, type core as zodCore } from 'zod';
 import { hasZodFastifySchemaValidationErrors } from '@fastify/type-provider-zod';
-import { ERROR_TRANSLATION_KEYS } from '../modules/_i18n/services/error-translation.js';
 
 /**
  * Fastify plugin that converts every error — Zod validation failures, MikroORM unique-constraint
@@ -51,7 +50,35 @@ export class HttpError extends Error {
   }
 }
 
+/** Which translation bundle owns an error code's message. Injected — see below. */
+export interface ErrorTranslationTargets {
+  readonly [code: string]: { readonly moduleId: string; readonly key: string } | undefined;
+}
+
 export interface ErrorEnvelopeOptions {
+  /**
+   * `ErrorCode → {moduleId, key}`, injected by the composition root (D-54).
+   *
+   * The map lives in `_i18n` and used to be imported here directly — the one
+   * thing in this plugin that was not injected, while the two functions below
+   * already were. `src/http` is a kernel-obeying platform peer (D-52): the
+   * kernel cannot compile without it, so a peer permitted to import a module is
+   * a kernel importing modules with one extra hop, and in package terms it is
+   * the cycle `kernel → http → mod-i18n → kernel`. Nothing was broken at
+   * runtime — `_i18n` is `nonDeactivatable` and the map is a static table — but
+   * F4's precondition is that packages are not cyclic.
+   *
+   * **It stays injected rather than moving into `@b2b/contracts`**, and not only
+   * for symmetry with the two functions below. Translation values are shipped as
+   * module JSON, reconciled into `translation_bundles` at boot, and re-read from
+   * disk on reload; no admin route edits one. So routing a code family to
+   * another module's bundle through this map is the only per-deployment override
+   * of an error message that exists, and freezing the table into a contracts
+   * release would remove it.
+   *
+   * Absent, no message is translated; the envelope keeps the original text.
+   */
+  errorTranslationTargets?: ErrorTranslationTargets;
   translateErrorMessage?: (args: {
     moduleId: string;
     key: string;
@@ -65,7 +92,7 @@ export interface ErrorEnvelopeOptions {
 export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelopeOptions = {}): void {
   app.addHook('preSerialization', async (request, _reply, payload) => {
     if (!options.translateErrorMessage || !isErrorEnvelope(payload)) return payload;
-    const target = ERROR_TRANSLATION_KEYS[payload.error.code];
+    const target = options.errorTranslationTargets?.[payload.error.code];
     if (!target) return payload;
     // VALIDATION_FAILED is overloaded: besides generic Zod failures it is the
     // code several services reuse while putting a specific, machine-readable
