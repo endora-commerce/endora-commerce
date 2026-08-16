@@ -30,10 +30,10 @@ import { registerModule } from '../../../src/modules/_i18n/backend.js';
  * that here would have broken the platform silently. `_i18n` walks the lifecycle
  * manifest registry to refresh every module's `translation_bundles` rows, and it
  * reaches that registry through a **lazy accessor** because `_lifecycle`'s
- * orchestrator is built near the bottom of `composition.ts`. Under the two-pass
- * shape the late pass's boot hooks ran ~700 lines above that line, so a
- * reconcile in `onBoot` would have found no registry — and the reconciler's
- * contract for that case is to return `{installed: 0, skipped: 0, failed: 0}`
+ * orchestrator is built late in a root, after the modules compose. Under the
+ * two-pass shape a root ran its boot hooks once per pass, both of them before
+ * that point, so a reconcile in `onBoot` would have found no registry — and the
+ * reconciler's contract for that case is to return `{installed: 0, skipped: 0, failed: 0}`
  * and carry on: every module's translation bundles quietly stop being refreshed
  * at boot, no exception is raised, no log line says anything is wrong, and the
  * first symptom is a screen rendering raw i18n keys after somebody edits a JSON
@@ -123,8 +123,9 @@ describe('_i18n — the reconcile runs on plugin attach, never on boot', () => {
     const h = build();
     registerModule(h.ctx);
     for (const hook of h.sink.bootHooks) await hook();
-    // A reconcile here would run at composition.ts:2122, ~1100 lines before
-    // `lifecycleRef` exists — finding nothing and reporting success.
+    // The module registers no boot hook at all — the reconcile lives in the
+    // `ctx.routes` callback — so draining `sink.bootHooks` reconciles nothing.
+    // That is the property this file pins; the header says why it stays.
     expect(h.reconciles()).toBe(0);
   });
 

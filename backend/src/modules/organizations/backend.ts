@@ -86,9 +86,11 @@ import type { EmailDefaultsRegistry } from '../transactional_emails/services/ema
  * string, including a code an operator had deactivated. Third instance of that
  * exact shape after `sales_channels` and `inventory`.
  *
- * This module is **non-deactivatable** and composes in the **early pass**:
- * `customer_accounts` and `credit_limits` are early and both declare it as a
- * dependency.
+ * This module is **non-deactivatable**, and `customer_accounts` and
+ * `credit_limits` both declare it as a dependency. Where it sits in the
+ * composer's emitted order buys nothing on top of that: since D-45 there is one
+ * registration pass and registration resolves nothing, so the manifest edge is
+ * what the lifecycle, the migration order and an operator's switch all read.
  *
  * **The sales-rep scope came home in T143a cluster 6, and the two roots did not
  * agree on it.** Production built `SalesRepAssignmentService` *with* the

@@ -84,8 +84,10 @@ export function registerModule(ctx: ModuleContext): void {
 
     // Contribution point, defaulted to the module's own constant (T143a). A
     // root that wants the shipped behaviour now writes nothing; the harness
-    // overrides it after the early pass that composes this module, which is the
-    // order a contribution point needs.
+    // overrides it in the root contribution slot — after `composeModules`,
+    // before `runBootHooks()` — which is the order a contribution point needs:
+    // earlier and this default overwrites the root, later and a boot hook has
+    // already read this default.
     priceListsPricingCacheTtlMs: ctx
       .asFunction((): number => DEFAULT_PRICING_CACHE_TTL_MS)
       .singleton(),
