@@ -273,10 +273,14 @@ pattern to copy.
    `check-port-catches.ts` knows the spelling, so a `catch` around one is refused like a `catch`
    around a port.
 
-   **A timer callback is the one place that must not throw.** It has nowhere to throw *to*, so it
-   asks `effectiveState.isPresent('<id>')` and returns — first, and outside the `try`, so a genuine
-   failure and a switched-off module do not share one silent no-op.
-   `backend/src/modules/ksef/plugin.ts:179-190` is the worked example.
+   **Where nothing can catch the throw, presence is *decided* before the work — not caught after
+   it.** A timer callback is the standing example: it has nowhere to throw *to*, so a
+   `ModuleDisabledError` raised inside it is either swallowed by a `catch` that was meant for
+   transient failures or it takes out the tick. So ask `effectiveState.isPresent('<id>')` and return
+   — **first, and outside the `try`**, so a genuine failure and a switched-off module do not share
+   one silent no-op. `backend/src/modules/ksef/plugin.ts:179-190` is the worked example and says so
+   in its own comment. The same rule holds for any entry point with no caller to answer: a boot hook,
+   a signal handler, a `process.on` sweep.
 4. **Manifest** — declare the module's activation control and its default, and, if the
    platform genuinely cannot run without the module, declare it non-deactivatable with a
    reason. The lifecycle orchestrator refuses to disable a module that declares it, with no
