@@ -186,7 +186,7 @@ export class ReturnSettlementService {
     }
 
     if (input.createCorrectiveInvoice ?? true) {
-      const inv = await this.deps.correctiveInvoice.createCorrection({
+      const outcome = await this.deps.correctiveInvoice.createCorrection({
         orderId: rc.orderId,
         lines: items.map((it) => ({
           // The order item is what ties this credit to the invoice line it
@@ -199,8 +199,23 @@ export class ReturnSettlementService {
         total,
         currency: rc.currency,
       });
-      refund.correctiveInvoiceId = inv.invoiceId;
-      result.correctiveInvoiceId = inv.invoiceId;
+      // An order that was never invoiced has nothing to correct (#135). The
+      // settlement still stands — the refund is recorded on the return case and
+      // on the payment record — and the result says which of the two happened,
+      // because this path runs after the money has already left the PSP and a
+      // silent absence would read as a lost document.
+      if (outcome.issued) {
+        refund.correctiveInvoiceId = outcome.invoiceId;
+        result.correctiveInvoiceId = outcome.invoiceId;
+        result.correctiveInvoice = {
+          issued: true,
+          invoiceId: outcome.invoiceId,
+          number: outcome.number,
+        };
+      } else {
+        result.correctiveInvoiceId = null;
+        result.correctiveInvoice = { issued: false, reason: outcome.reason };
+      }
     }
 
     em.persist(refund);
@@ -219,6 +234,14 @@ export class ReturnSettlementService {
             amount: total.toFixed(2),
             currency: rc.currency,
             settlementState: refund.settlementState,
+            // Says which of the three happened — issued, not due, or never
+            // asked for — so "no corrective invoice" is readable after the
+            // fact instead of being an absent field (#135).
+            correctiveInvoice: result.correctiveInvoice
+              ? result.correctiveInvoice.issued
+                ? 'issued'
+                : result.correctiveInvoice.reason
+              : 'not_requested',
           },
         });
       } catch {

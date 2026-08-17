@@ -16,5 +16,6 @@
   "errors.SELLER_SETTINGS_MISSING": "Configure the seller VAT/NIP and company data before issuing invoices.",
   "errors.INVOICE_ALREADY_EXISTS": "An invoice of this kind already exists for the order.",
   "errors.ORDER_NOT_FOUND": "Order not found.",
-  "errors.INVOICE_NOT_FOUND": "Invoice not found."
+  "errors.INVOICE_NOT_FOUND": "Invoice not found.",
+  "errors.CORRECTION_CURRENCY_MISMATCH": "A correction must be issued in the corrected invoice's currency ({originalCurrency}); {requestedCurrency} was requested. No conversion is applied."
 }

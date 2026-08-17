@@ -31,6 +31,11 @@ export async function seedInvoiceableOrder(
     organizationId?: string;
     placedByCustomerAccountId?: string;
     lineTaxRate?: number;
+    /**
+     * Packaging unit name for the first line, e.g. `opak.`. Left unset the item
+     * carries no packaging snapshot and issuance falls back to `szt.`.
+     */
+    packagingUnitName?: string;
   } = {},
 ): Promise<SeededInvoiceOrder> {
   const salesChannelId = opts.salesChannelId ?? randomUUID();
@@ -80,6 +85,9 @@ export async function seedInvoiceableOrder(
     unitPrice: '900.00',
     taxRate: lineTaxRate.toFixed(4),
     lineTotal: '900.00',
+    ...(opts.packagingUnitName
+      ? { packagingUnitSnapshot: { name: opts.packagingUnitName, baseQuantity: 1 } }
+      : {}),
   });
   const item2 = em.create(OrderItem, {
     orderId: order.id,

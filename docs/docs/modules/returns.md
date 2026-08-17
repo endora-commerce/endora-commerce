@@ -64,6 +64,10 @@ before/after events and is written to the audit log.
   quantity and may never exceed it. Resolutions: refund (money), credit (tops up
   the organization's `credit_limits` grant), replacement, or repair. A corrective
   invoice (`invoices` kind `correction`) is requested for money/credit settlements.
+  An order that was never invoiced has no VAT document to correct, so none is
+  issued: the settlement succeeds, the refund is recorded on the return case and
+  the payment record, and the result states `correctiveInvoice: { issued: false,
+  reason: "order_not_invoiced" }`.
 
 ## Cross-module interfaces (Principle I)
 
@@ -72,7 +76,8 @@ internal imports:
 
 - `OrderReturnContextPort` (orders) — paid-per-line amounts + completing-status time.
 - `PaymentRefundPort` (payments) — issue refund or `pending_manual`.
-- `CorrectiveInvoicePort` (invoices) — create a `correction` invoice.
+- `CorrectiveInvoicePort` (invoices) — create a `correction` invoice, or answer
+  that none is due because the order carries no invoice to correct.
 - `CreditTopupPort` (credit_limits) — credit the organization grant.
 - `ShipmentService` (shipments) — optional replacement outbound shipment.
 

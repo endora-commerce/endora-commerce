@@ -4,7 +4,6 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
-import { Order } from '../../orders/entities/order.entity.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { InvoiceAuditRecorder, InvoiceDomainEventEmitter } from './invoice-service.js';
 import type {
@@ -17,25 +16,29 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+/** What a corrected line inherits from the original line it credits. */
+interface MirroredLine {
+  /** The original line's VAT rate, as a fraction (0.23 for 23%). */
+  rate: number;
+  /** The original line's unit of measure, verbatim. */
+  unit: string;
+}
+
 /**
- * The VAT rate a corrective line carries: the rate of the original line it
- * corrects (product ruling 2026-08-16), never the rate in force on the
- * correction date and never a constant.
+ * What a corrective line inherits from the line it corrects (product ruling
+ * 2026-08-16, issue #131 and #136.1): the VAT rate and the unit of measure,
+ * never the rate in force on the correction date and never a constant.
  *
- * Without an original invoice there is no line to mirror. That is the
- * never-invoiced order the numbering fallback also recognises: the document is
- * not a correction of any VAT invoice, so it stays at zero. With an original,
- * a line naming an order item that original never invoiced is refused —
+ * A line naming an order item the original never invoiced is refused —
  * inventing a rate for an added position is worse than refusing it.
  */
-function rateFor(
-  original: Invoice | null,
-  rateByOrderItem: ReadonlyMap<string, number>,
+function mirrorFor(
+  original: Invoice,
+  byOrderItem: ReadonlyMap<string, MirroredLine>,
   orderItemId: string,
-): number {
-  if (!original) return 0;
-  const rate = rateByOrderItem.get(orderItemId);
-  if (rate === undefined) {
+): MirroredLine {
+  const mirrored = byOrderItem.get(orderItemId);
+  if (!mirrored) {
     throw new HttpError(
       422,
       ERROR_CODES.VALIDATION_FAILED,
@@ -43,7 +46,7 @@ function rateFor(
       { code: 'no_corrected_line', orderItemId, originalInvoiceId: original.id },
     );
   }
-  return rate;
+  return mirrored;
 }
 
 /**
@@ -53,8 +56,14 @@ function rateFor(
  *     number generator is wired (falls back to a UUID-stamped number otherwise);
  *   - references the order's original VAT invoice;
  *   - snapshots the corrected lines into `invoice_lines`, each carrying the VAT
- *     rate of the original line it corrects (issue #131);
+ *     rate and the unit of the original line it corrects (issues #131, #136.1);
  *   - caps the credited total at the original invoice gross (FR-020).
+ *
+ * **An order that was never invoiced gets no document** (product ruling
+ * 2026-08-17, issue #135): there is nothing to correct, so the port answers
+ * `{ issued: false, reason: 'order_not_invoiced' }` and the settlement records
+ * the refund without a VAT-shaped document standing in for one that never
+ * existed.
  */
 export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
   /**
@@ -73,26 +82,49 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
 
   async createCorrection(input: CorrectiveInvoiceInput): Promise<CorrectiveInvoiceResult> {
     const em = this.emFactory();
-    const order = await em.findOne(Order, { id: input.orderId });
-    const salesChannelId = order?.salesChannelId ?? null;
     const original = await em.findOne(Invoice, { orderId: input.orderId, kind: 'invoice' });
+    // No original, no correction (#135). The caller records the refund on the
+    // return case and the payment; only the VAT document is skipped, and the
+    // reason is stated so the caller reports it rather than reporting nothing.
+    if (!original) return { issued: false, reason: 'order_not_invoiced' };
+
+    // A correction is denominated in the corrected document's currency: the cap
+    // below compares the credited amount with the original gross, and two
+    // amounts in different currencies do not compare (#136.2). Nothing produces
+    // a cross-currency credit today — the return case inherits the order's
+    // currency — so refusing costs nothing and closes the seam. Conversion is
+    // deliberately not attempted here.
+    if (input.currency !== original.currency) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.VALIDATION_FAILED,
+        `A correction must be issued in the corrected invoice's currency (${original.currency}), not ${input.currency}.`,
+        {
+          code: 'correction_currency_mismatch',
+          requestedCurrency: input.currency,
+          originalCurrency: original.currency,
+          originalInvoiceId: original.id,
+        },
+      );
+    }
+
+    // The correction belongs to the corrected document's channel — that is the
+    // numbering series it continues.
+    const salesChannelId = original.salesChannelId ?? null;
 
     // Cap the credited total at the original invoice gross (never credit more
     // than was invoiced).
-    const originalGross = original ? Number(original.total) : Number.POSITIVE_INFINITY;
+    const originalGross = Number(original.total);
     const requested = round2(input.total);
     const credited = Math.min(requested, originalGross);
 
-    // A correction mirrors the VAT rate of the line it corrects, not the rate
-    // in force on the correction date (product ruling 2026-08-16). The link is
-    // `orderItemId`: issuance snapshots it on every product line of the
-    // original, and a return case item names the same order item.
-    const rateByOrderItem = new Map<string, number>();
-    if (original) {
-      const originalLines = await em.find(InvoiceLine, { invoiceId: original.id });
-      for (const l of originalLines) {
-        if (l.orderItemId) rateByOrderItem.set(l.orderItemId, Number(l.taxRate));
-      }
+    // A correction mirrors the line it corrects. The link is `orderItemId`:
+    // issuance snapshots it on every product line of the original, and a return
+    // case item names the same order item.
+    const mirrorByOrderItem = new Map<string, MirroredLine>();
+    const originalLines = await em.find(InvoiceLine, { invoiceId: original.id });
+    for (const l of originalLines) {
+      if (l.orderItemId) mirrorByOrderItem.set(l.orderItemId, { rate: Number(l.taxRate), unit: l.unit });
     }
     // Resolve every line before the transaction opens, so a line that cannot
     // be mirrored refuses without having drawn a correction number.
@@ -102,17 +134,18 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
     // other way round.
     let remaining = credited;
     const snapshots = input.lines.map((l, index) => {
-      const rate = rateFor(original, rateByOrderItem, l.orderItemId);
+      const mirrored = mirrorFor(original, mirrorByOrderItem, l.orderItemId);
       const gross = round2(Math.min(Math.max(l.amount, 0), remaining));
       remaining = round2(remaining - gross);
-      const net = round2(gross / (1 + rate));
+      const net = round2(gross / (1 + mirrored.rate));
       const qty = l.quantity || 1;
       return {
         ordinal: index + 1,
         orderItemId: l.orderItemId,
         name: l.productName,
         quantity: qty,
-        rate,
+        rate: mirrored.rate,
+        unit: mirrored.unit,
         net,
         gross,
         unitNetPrice: net / qty,
@@ -126,11 +159,10 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
 
     const issuedAt = new Date();
     const invoice = await em.transactional(async (tx) => {
-      // Draw from the correction counter only when there is an original invoice
-      // (a real numbering series to continue). Corrections for never-invoiced
-      // orders fall back to a unique UUID-stamped number.
+      // Draw from the correction counter (a real numbering series to continue)
+      // whenever a generator and a channel are known.
       let number: string;
-      if (this.numbers && salesChannelId && original) {
+      if (this.numbers && salesChannelId) {
         number = await this.numbers().next(tx, 'correction', salesChannelId, issuedAt);
       } else {
         number = `KOR-${randomUUID().slice(0, 8).toUpperCase()}`;
@@ -141,15 +173,20 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
         kind: 'correction',
         number,
         issuedAt,
-        saleDate: issuedAt.toISOString().slice(0, 10),
+        // The sale date is a fact about the sale, not about the correction
+        // (product ruling 2026-08-17, #136.4): a credit note reports the date
+        // the goods were delivered or the service performed, which is the
+        // original's sale date. `issuedAt` above is the correction's own issue
+        // date and keeps its meaning — do not collapse the two back together.
+        saleDate: original.saleDate ?? issuedAt.toISOString().slice(0, 10),
         currency: input.currency,
         netTotal: netTotal.toFixed(2),
         taxTotal: taxTotal.toFixed(2),
         total: credited.toFixed(2),
         paidTotal: '0',
-        originalInvoiceId: original?.id ?? null,
-        ...(original?.buyerSnapshot ? { buyerSnapshot: original.buyerSnapshot } : {}),
-        ...(original?.sellerSnapshot ? { sellerSnapshot: original.sellerSnapshot } : {}),
+        originalInvoiceId: original.id,
+        ...(original.buyerSnapshot ? { buyerSnapshot: original.buyerSnapshot } : {}),
+        ...(original.sellerSnapshot ? { sellerSnapshot: original.sellerSnapshot } : {}),
         issuedBy: 'system',
         status: 'ready',
       });
@@ -161,7 +198,9 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
           invoiceId: inv.id,
           ordinal: s.ordinal,
           name: s.name,
-          unit: 'szt.',
+          // The unit comes from the original line, so a position invoiced in
+          // `opak.` is credited in `opak.` and not in `szt.` (#136.1).
+          unit: s.unit,
           quantity: String(s.quantity),
           unitNetPrice: s.unitNetPrice.toFixed(4),
           taxRate: s.rate.toFixed(4),
@@ -183,7 +222,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
           stateAfter: {
             number: invoice.number,
             orderId: input.orderId,
-            originalInvoiceId: original?.id ?? null,
+            originalInvoiceId: original.id,
             credited,
           },
         })
@@ -195,11 +234,11 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),
       invoiceId: invoice.id,
-      originalInvoiceId: original?.id ?? null,
+      originalInvoiceId: original.id,
       orderId: input.orderId,
       salesChannelId,
     });
 
-    return { invoiceId: invoice.id, number: invoice.number, status: invoice.status };
+    return { issued: true, invoiceId: invoice.id, number: invoice.number, status: invoice.status };
   }
 }
