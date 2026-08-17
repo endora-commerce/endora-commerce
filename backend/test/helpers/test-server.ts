@@ -2393,7 +2393,9 @@ export async function setupBackendServer(
   // Same derivation the production composition uses, so the harness cannot
   // drift from it — it previously carried its own hand-maintained copy, which
   // is why tests saw KSeF/MFA settings that production never created.
-  await new ManifestReconciler(em()).apply(collectRegisteredSettingsManifests());
+  await new ManifestReconciler(em()).apply(
+    collectRegisteredSettingsManifests(REGISTERED_MANIFESTS),
+  );
 
   // The explicit boot phase (FR-021), run **once**, after every registration
   // and every contribution above and immediately before the app is built —

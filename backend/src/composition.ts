@@ -2214,8 +2214,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // /settings silently omitted it (see collectRegisteredSettingsManifests).
   // linkedin_ads / meta_ads / tpay / payu / cms need no entry here — registering
   // their manifests is enough.
+  // Feature 075, Phase C — the registry is passed in rather than imported by
+  // `settings`. Which modules a deployment ships is this root's input, which is
+  // why `resolvedModuleRegistry` is a platform-owned name; the reconciliation
+  // keeps reading the **core** registry, exactly as it did before the argument
+  // existed, so this is a cut and not a widening.
   const settingsManifests: ModuleSettingsManifest[] =
-    collectRegisteredSettingsManifests();
+    collectRegisteredSettingsManifests(REGISTERED_MANIFESTS);
   const reconcilerEm = em();
   const reconciler = new ManifestReconciler(reconcilerEm);
   const reconciliation = await enterSystemScope(
