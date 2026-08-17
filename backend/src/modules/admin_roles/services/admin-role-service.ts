@@ -1,11 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type AdminUserReadPort } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { AdminRole } from '../entities/admin-role.entity.js';
-import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
 import type { PermissionCatalogueService } from './permission-catalogue.service.js';
 
 /**
@@ -74,6 +73,8 @@ export class AdminRoleService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly permissionCatalogue: PermissionCatalogueService,
+    /** `adminUserReadPort` — who still holds a role (feature 075, Phase C). */
+    private readonly adminUsers: AdminUserReadPort,
     private readonly auditLog?: AuditLogService,
   ) {}
 
@@ -154,7 +155,13 @@ export class AdminRoleService {
         `Cannot delete the system-protected role "${role.code}". Modules' seeded roles are immutable.`,
       );
     }
-    const assignees = await em.count(AdminUser, { adminRoleId: role.id, deletedAt: null });
+    // Live assignees only. `listByRoleId` takes no soft-delete option, so the
+    // `deletedAt: null` half of the query this replaced is applied here, over
+    // the field the record publishes — dropping it would refuse an operator a
+    // role whose only assignee they had already removed.
+    const assignees = (await this.adminUsers.listByRoleId(role.id)).filter(
+      (admin) => admin.deletedAt === null,
+    ).length;
     if (assignees > 0) {
       throw new HttpError(
         409,

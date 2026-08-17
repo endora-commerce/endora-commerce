@@ -1,13 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { RegisteredManifestEntry } from '../_lifecycle/registered-manifests.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type {
   AdminRolePort,
+  AdminUserReadPort,
+  ModuleManifest,
   PermissionCataloguePort,
   PermissionReadPort,
   SystemRoleCodePort,
 } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import { AdminRoleService } from './services/admin-role-service.js';
 import { createAdminRolePort, createSystemRoleCodePort } from './services/admin-role-ports.js';
 import { PermissionCatalogueService } from './services/permission-catalogue.service.js';
@@ -40,8 +42,17 @@ import { PermissionService } from './services/permission-service.js';
 export interface AdminRolesCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditLogService;
-  /** Core manifests + this deployment's overlay modules (feature 057). */
-  readonly resolvedModuleRegistry: readonly RegisteredManifestEntry[];
+  /**
+   * Core manifests + this deployment's overlay modules (feature 057).
+   *
+   * Typed by what this module reads rather than by `_lifecycle`'s
+   * `RegisteredManifestEntry` (feature 075, Phase C). The entries the root
+   * contributes carry a `filePath` and the install hooks as well, and none of
+   * that is any of this module's business: the catalogue walks
+   * `manifest.permissions` and nothing else, and it already declared that
+   * shape for itself.
+   */
+  readonly resolvedModuleRegistry: ReadonlyArray<{ manifest: ModuleManifest }>;
   readonly permissionCatalogueService: PermissionCatalogueService;
   readonly adminRoleService: AdminRoleService;
   /** Feature 075, Phase P — the deletion-protection contribution seam. */
@@ -49,6 +60,16 @@ export interface AdminRolesCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  /**
+   * Who holds a role, and who an admin id belongs to (feature 075, Phase C).
+   *
+   * Both services used to run `em.findOne(AdminUser, …)` against a table
+   * `admin_users` owns. Held as a lazy proxy rather than resolved here: the
+   * resolution happens per call, so a singleton service never captures the
+   * registration.
+   */
+  const adminUsers = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
+
   ctx.di.register({
     permissionCatalogueService: ctx
       .asFunction(
@@ -60,7 +81,12 @@ export function registerModule(ctx: ModuleContext): void {
     adminRoleService: ctx
       .asFunction(
         ({ emFactory, permissionCatalogueService, auditLogService }: AdminRolesCradle) =>
-          new AdminRoleService(emFactory, permissionCatalogueService, auditLogService),
+          new AdminRoleService(
+            emFactory,
+            permissionCatalogueService,
+            adminUsers,
+            auditLogService,
+          ),
       )
       .singleton(),
   });
@@ -69,7 +95,9 @@ export function registerModule(ctx: ModuleContext): void {
   // cross-module question and answers on the effective state.
   ctx.di.providePort<PermissionReadPort>(
     'permissionService',
-    ctx.asFunction(({ emFactory }: AdminRolesCradle) => new PermissionService(emFactory)).singleton(),
+    ctx
+      .asFunction(({ emFactory }: AdminRolesCradle) => new PermissionService(emFactory, adminUsers))
+      .singleton(),
   );
 
   // ---------------------------------------------------------------------------
