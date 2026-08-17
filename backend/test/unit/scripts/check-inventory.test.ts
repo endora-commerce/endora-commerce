@@ -290,12 +290,15 @@ const PORT_CATCH_ALIAS_TREE = new Map([
     "export function registerModule(ctx) { ctx.di.providePort('promotionService', x); }",
   ],
   [
-    'modules/carts/backend.ts',
-    "const priceEngine = lazyPort<Promotions>(ctx, 'promotionService');",
-  ],
-  [
+    // One file, deliberately: a `const` alias is file-scoped, because a name a
+    // module uses for a port in one file may name something else entirely in
+    // another (`catalog` spells its bulk-operation service `queue` in one place
+    // and a BullMQ queue the same way in another). Splitting this fixture across
+    // two files would assert the pre-widening behaviour and pass for the wrong
+    // reason.
     'modules/carts/services/cart-pricing-service.ts',
-    'try { await priceEngine.applyToCart({}); } catch { return 0; }',
+    "const priceEngine = lazyPort<Promotions>(ctx, 'promotionService');\n" +
+      'try { await priceEngine.applyToCart({}); } catch { return 0; }',
   ],
 ]);
 
