@@ -1,13 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   quickOrderBuildRequestSchema,
   quickOrderImportRequestSchema,
   quickOrderSearchQuerySchema,
-  type CatalogAttributeReadPort,
-  type CatalogProductReadPort,
-  type CatalogProductRecord,
+  type CatalogQuickSearchPort,
 } from '@b2b/contracts';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import type { QuickOrderBuildService } from './services/quick-order-build-service.js';
 import { parseImportRequest } from './services/import-from-request.js';
@@ -16,7 +14,8 @@ import { parseImportRequest } from './services/import-from-request.js';
  * Quick-order routes (feature 039).
  *   - POST /quick-order/import  parses CSV / .xlsx → recognised + rejected rows
  *   - POST /quick-order/build   recognised rows → Cart or Quote Request
- *   - GET  /quick-order/search  type-ahead by SKU prefix or name (active rows)
+ *   - GET  /quick-order/search  type-ahead over the catalogue, in the channel
+ *     the request resolved
  *
  * Requires an authenticated customer session: SKU-to-product disclosure and
  * cart / RFQ mutation are gated to logged-in buyers.
@@ -25,7 +24,6 @@ import { parseImportRequest } from './services/import-from-request.js';
 export interface QuickOrderRoutesDeps {
   pipeline: QuickOrderImportPipeline;
   buildService: QuickOrderBuildService;
-  emFactory: () => EntityManager;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;
@@ -34,20 +32,20 @@ export interface QuickOrderRoutesDeps {
   /** Reads the `quick_order.import_max_rows` setting (falls back internally). */
   resolveImportMaxRows: () => Promise<number>;
   /**
-   * Feature 061 — the catalog's composed attribute read model. Replaces the
-   * former direct `ProductAttribute` entity find (Principle I): quick-search
-   * sources its `quick_searchable` keys through this injected port.
+   * `catalog`'s channel-scoped type-ahead (issue #174). It replaces three
+   * things at once: the `emFactory` this file used to open a knex query with,
+   * the attribute read it used to source `quickSearchable` keys from, and the
+   * product read it used to hydrate the ids that query returned. The predicate
+   * and the `matchedOn` labels belong to the module that owns the tables.
    */
-  catalogAttributeRead: CatalogAttributeReadPort;
-  /** `catalog`'s product read model — the rows the search ids resolve to. */
-  catalogProducts: CatalogProductReadPort;
+  catalogQuickSearch: CatalogQuickSearchPort;
 }
 
 export async function registerQuickOrderRoutes(
   app: FastifyInstance,
   deps: QuickOrderRoutesDeps,
 ): Promise<void> {
-  const { pipeline, buildService, emFactory, requireCustomer, resolveCustomerContext } = deps;
+  const { pipeline, buildService, requireCustomer, resolveCustomerContext } = deps;
 
   app.post(
     '/api/v1/quick-order/import',
@@ -84,83 +82,43 @@ export async function registerQuickOrderRoutes(
 
   app.get('/api/v1/quick-order/search', { preHandler: requireCustomer }, async (request) => {
     const query = quickOrderSearchQuerySchema.parse(request.query ?? {});
-    const em = emFactory();
-    const needle = `%${query.q}%`;
-    const ql = query.q.toLowerCase();
 
-    // Quick search matches SKU, name, and values of `quick_searchable`
-    // attributes only (FR-011 / FR-013). Name + attribute matching needs JSONB
-    // text operators, so the candidate ids are resolved with knex, then loaded.
-    const quickKeys = (await deps.catalogAttributeRead.listByFlag('quickSearchable')).map(
-      (a) => a.key,
-    );
-
-    // ---------------------------------------------------------------------
-    // A cross-module read `check:module-boundary` is structurally unable to
-    // see (feature 075, plan.md trap 6). `products` is `catalog`'s table, and
-    // this is a hand-written `select` against it — no import specifier, so no
-    // ledger entry can key it and the shard reads clean either way.
-    //
-    // It is left standing rather than "fixed" here, deliberately. Inlining is
-    // what trap 6 forbids and this predates the sweep; the remedy is a
-    // published quick-search port on `catalog`, because the predicate is a
-    // catalogue question — `status = 'active'`, `sku`/`slug`/`name` ILIKE and
-    // a lookup into `attribute_values` keyed by the `quickSearchable`
-    // attributes — and `CatalogProductReadPort` has no text search. Publishing
-    // one is a Phase-P change on `catalog`, not a consumer's cut.
-    //
-    // Two facts to carry into that MR. The query filters neither `visibility`
-    // nor `allowed_organization_ids` nor sales-channel membership, so a
-    // signed-in buyer's type-ahead sees every active product on the platform
-    // whatever channel they are shopping (Principle XII); and the JSONB reach
-    // into `attribute_values` is `catalog`'s storage layout, so a column
-    // rename in `catalog` breaks this file with nothing to warn either side.
-    // ---------------------------------------------------------------------
-    const knex = em.getKnex();
-    const idRows = (await knex('products as p')
-      .select('p.id')
-      .where('p.status', 'active')
-      .andWhere((b) => {
-        void b
-          .whereRaw('p.sku ILIKE ?', [needle])
-          .orWhereRaw('p.slug ILIKE ?', [needle])
-          .orWhereRaw('p.name::text ILIKE ?', [needle]);
-        for (const key of quickKeys) {
-          void b.orWhereRaw('p.attribute_values->>? ILIKE ?', [key, needle]);
-        }
-      })
-      .orderBy('p.sku', 'asc')
-      .limit(query.limit)) as Array<{ id: string }>;
-
-    const ids = idRows.map((r) => r.id);
-    if (ids.length === 0) return { data: [] };
-    const products = await deps.catalogProducts.findByIds(ids);
-    const byId = new Map(products.map((p) => [p.id, p]));
-
-    const matchedOnFor = (p: CatalogProductRecord): Array<'sku' | 'name' | 'attribute'> => {
-      const matched: Array<'sku' | 'name' | 'attribute'> = [];
-      if (p.sku.toLowerCase().includes(ql)) matched.push('sku');
-      if (Object.values(p.name).some((n) => String(n).toLowerCase().includes(ql))) {
-        matched.push('name');
-      }
-      if (quickKeys.some((k) => String(p.attributeValues[k] ?? '').toLowerCase().includes(ql))) {
-        matched.push('attribute');
-      }
-      return matched;
-    };
+    /**
+     * Issue #174 — the type-ahead asks `catalog`, and asks it *in a channel*.
+     *
+     * This used to be a hand-written knex `select` against `catalog`'s
+     * `products` table, reaching into its `attribute_values` JSONB and
+     * filtering on `status = 'active'` and nothing else. Two costs. The edge
+     * had no import specifier, so `check:module-boundary` could not see it and
+     * no ledger shard could key it — trap 6's "strictly worse than an import".
+     * And with no channel predicate, a signed-in buyer's type-ahead returned
+     * every active product on the platform, whichever channel they were
+     * shopping: Constitution XII, in the one place no static check was looking.
+     *
+     * `catalogQuickSearchPort` owns the predicate now, including which
+     * attributes are `quickSearchable` and which `matchedOn` labels a hit
+     * carries — both are facts about `catalog`'s own tables. What is left here
+     * is the buyer's language pick, which is this surface's business.
+     *
+     * The channel is the one the canonical resolver already put on the request
+     * scope (feature 053 / Constitution XII), never re-resolved from a header
+     * here.
+     */
+    const hits = await deps.catalogQuickSearch.quickSearch({
+      q: query.q,
+      limit: query.limit,
+      salesChannelId: getResolvedChannel(request).id,
+    });
 
     return {
-      data: ids
-        .map((id) => byId.get(id))
-        .filter((p): p is CatalogProductRecord => Boolean(p))
-        .map((p) => ({
-          productId: p.id,
-          sku: p.sku,
-          name: p.name['en-US'] ?? Object.values(p.name)[0] ?? p.sku,
-          slug: p.slug,
-          status: p.status,
-          matchedOn: matchedOnFor(p),
-        })),
+      data: hits.map((hit) => ({
+        productId: hit.productId,
+        sku: hit.sku,
+        name: hit.name['en-US'] ?? Object.values(hit.name)[0] ?? hit.sku,
+        slug: hit.slug,
+        status: hit.status,
+        matchedOn: hit.matchedOn,
+      })),
     };
   });
 }

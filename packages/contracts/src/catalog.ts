@@ -1943,6 +1943,60 @@ export interface CatalogAttributeOptionLabels {
   labelDefault: string;
 }
 
+/** Which of the three quick-search predicates a hit satisfied. */
+export type CatalogQuickSearchField = 'sku' | 'name' | 'attribute';
+
+export interface CatalogQuickSearchParams {
+  /** The raw needle. Matched case-insensitively, as a substring. */
+  q: string;
+  limit: number;
+  /**
+   * The channel the caller resolved for this request. Required, and there is
+   * no "all channels" spelling: a channel is always resolved (feature 053), so
+   * an optional parameter here could only mean "the caller forgot", and the
+   * answer to that must not be the cross-channel catalogue.
+   */
+  salesChannelId: string;
+}
+
+export interface CatalogQuickSearchHit {
+  productId: string;
+  sku: string;
+  slug: string;
+  /** Per-locale JSONB as stored — the caller picks its own language. */
+  name: Record<string, string>;
+  status: ProductStatus;
+  matchedOn: CatalogQuickSearchField[];
+}
+
+/**
+ * Container name: `catalogQuickSearchPort`. Owner: `catalog`.
+ *
+ * The buyer-facing type-ahead behind `quick_order`'s CSV-free entry path
+ * (feature 039 FR-011/FR-013), published here because the predicate is a
+ * catalogue question in every part: which products are active, which are
+ * visible on the channel being shopped, and which attribute values are
+ * searchable at all — the last decided by the `quickSearchable` flag this
+ * module owns, over the `attribute_values` JSONB layout this module owns.
+ *
+ * It exists because `quick_order` was answering it with a hand-written knex
+ * `select` against `products`, which filtered `status = 'active'` and nothing
+ * else (issue #174). No import specifier, so `check:module-boundary` read
+ * clean; and no channel predicate, so a signed-in buyer's type-ahead returned
+ * every active product on the platform whatever channel they were shopping —
+ * Constitution XII, in the one place no static check was looking.
+ *
+ * Scoping is the same `sales_channel_products` membership filter this module's
+ * own public listing applies, and it fails closed to the empty set.
+ *
+ * When `catalog` is off the call fails closed: `quick_order` declares `catalog`
+ * in `dependencies`, and a type-ahead that cannot ask the catalogue has nothing
+ * true to answer.
+ */
+export interface CatalogQuickSearchPort {
+  quickSearch(params: CatalogQuickSearchParams): Promise<CatalogQuickSearchHit[]>;
+}
+
 /**
  * Scope flags for the **system** product attributes — the ones that are not
  * rows in `product_attributes` and therefore carry no DB-stored scope flags.

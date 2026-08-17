@@ -4,8 +4,8 @@ import { z } from 'zod';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type {
   CartWritePort,
-  CatalogAttributeReadPort,
   CatalogProductReadPort,
+  CatalogQuickSearchPort,
   CustomerAccountReadPort,
   DefaultPreferencePort,
   OrderPlacementPort,
@@ -222,7 +222,6 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.routes(async (app) => {
     const {
-      emFactory,
       requireAdmin,
       quickOrderPipeline: pipeline,
       quickOrderBuildService: buildService,
@@ -278,12 +277,12 @@ export function registerModule(ctx: ModuleContext): void {
     await registerQuickOrderRoutes(app, {
       pipeline,
       buildService,
-      emFactory,
       requireCustomer,
       resolveCustomerContext,
       resolveImportMaxRows,
-      catalogAttributeRead: lazyPort<CatalogAttributeReadPort>(ctx, 'catalogAttributeReadPort'),
-      catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+      // Issue #174 — one port where three deps used to be, and the type-ahead
+      // is scoped to the request's sales channel because `catalog` scopes it.
+      catalogQuickSearch: lazyPort<CatalogQuickSearchPort>(ctx, 'catalogQuickSearchPort'),
     });
 
     await registerQuickOrderAdminRoutes(app, {

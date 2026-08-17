@@ -9,6 +9,7 @@ import {
   type QuickOrderImportResponse,
 } from '../../../lib/api/quick-order';
 import { getSessionCookie } from '../../../lib/session';
+import { getServerContext } from '../../../lib/server-context';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { FileDropzone } from '../../../components/FileDropzone';
 import { summarizeQuickOrderPreview } from '../../../lib/quick-order-preview';
@@ -56,8 +57,12 @@ export default async function QuickOrderPage({
 
   const preview = sp.preview ? decodePreview(sp.preview) : null;
   const searchQuery = sp.q?.trim() ?? '';
+  // Issue #174 — the type-ahead is channel-scoped on the backend now, so the
+  // page has to say which channel the buyer is shopping. Resolved the same way
+  // every other storefront page resolves it.
+  const { ctx } = await getServerContext();
   const searchResults = searchQuery
-    ? await searchProducts(session, searchQuery).catch(() => [])
+    ? await searchProducts(session, searchQuery, ctx).catch(() => [])
     : [];
 
   return (
