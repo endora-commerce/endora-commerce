@@ -14,8 +14,13 @@ export const manifest = defineModuleManifest({
   description:
     'Customer (B2B) account records, including organization membership and role.',
   version: '1.0.0',
-  // `auth` owns `sessionService`, which `CustomerAuthService` takes; the edge
-  // became real with the conversion (feature 072, T094).
+  // `auth` owns `authSessionPort`, which `CustomerAuthService` resolves to mint
+  // and destroy a customer session; the edge became real with the conversion
+  // (feature 072, T094) and stays binding — a platform that cannot mint a
+  // session must refuse the login rather than issue one nothing can validate.
+  // It is *only* that: feature 075's Phase C took password hashing and the TOTP
+  // primitives out of this edge, because a pure function has no owner to be
+  // switched off.
   // `customer_accounts.organization_id` and `customer_accounts.customer_group_id`
   // are real foreign keys, and feature 072 is what made them visible: the module
   // exports its entities now, so the ORM registry attributes the table to it and

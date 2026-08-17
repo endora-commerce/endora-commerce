@@ -2,11 +2,13 @@ import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type {
+  AuthSessionPort,
   CustomerAccountReadPort,
   CustomerAuthPort,
   CustomerPasswordResetPort,
   CustomerRolePort,
   CustomerTotpEnrolmentPort,
+  MfaLoginPort,
 } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { recordAuditFromContext } from '../../commands/index.js';
@@ -14,9 +16,8 @@ import { withSystemScope } from '../../tenancy/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
-import type { SessionService } from '../auth/services/session-service.js';
-import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
-import { hashPassword } from '../auth/services/password-hasher.js';
+// Feature 075, Phase C — a pure function, so the kernel rather than `auth`.
+import { hashPassword } from '../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from './entities/customer-account.entity.js';
 import {
   CustomerAccountReadService,
@@ -77,7 +78,6 @@ import { TotpEnrolmentService } from './services/totp-enrolment-service.js';
 export interface CustomerAccountsCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditLogService;
-  readonly sessionService: SessionService;
   /** Late-bound: `mfa` is composed after this module. */
   readonly mfaLoginPortGetter: (() => MfaLoginPort | undefined) | undefined;
   readonly settingsReadPort: SettingsService;
@@ -152,7 +152,11 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
           new CustomerAuthService(
             emFactory,
-            lazyPort<SessionService>(ctx, 'sessionService'),
+            // Feature 075, Phase C — `auth`'s **published** session surface,
+            // where this used to resolve the `sessionService` registration and
+            // type itself against `auth`'s class. The port hands back a plain
+            // cookie payload; the `Session` entity no longer crosses.
+            lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),
             // Read through the cradle at call time, not captured: `mfa` is
             // composed later, and a captured `undefined` is exactly the
             // divergence this conversion exists to remove.

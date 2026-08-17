@@ -2,7 +2,9 @@ import { createHash, randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { hashPassword } from '../../auth/services/password-hasher.js';
+// Feature 075, Phase C — a pure function over its argument, so it lives in the
+// kernel rather than behind a gate that would answer 503 to "hash this string".
+import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { PasswordResetToken } from '../entities/password-reset-token.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
