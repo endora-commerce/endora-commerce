@@ -14,6 +14,7 @@ import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { ReturnCaseComment } from '../entities/return-case-comment.entity.js';
 import { ReturnCaseAttachment } from '../entities/return-case-attachment.entity.js';
 import { ReturnReason } from '../entities/return-reason.entity.js';
+import { Refund } from '../entities/refund.entity.js';
 import { RETURN_STATUS_CANCELLED } from '../domain/return-status-graph.js';
 import { isWithinFreeWindow } from '../domain/free-return-window.js';
 import { defaultRefundForQuantity } from '../domain/refund-math.js';
@@ -275,10 +276,14 @@ export class ReturnCaseService {
     opts: { customerView: boolean },
   ): Promise<ReturnCaseDetail> {
     const rc = await em.findOneOrFail(ReturnCase, { id });
-    const [items, comments, graph] = await Promise.all([
+    const [items, comments, graph, refund] = await Promise.all([
       em.find(ReturnCaseItem, { returnCaseId: id }),
       em.find(ReturnCaseComment, { returnCaseId: id }, { orderBy: { createdAt: 'asc' } }),
       this.deps.graphService.loadGraph(),
+      // D-92 — the settled case's corrective-invoice answer, which used to live
+      // only in the settlement response and the audit entry. A reloaded screen
+      // reads it here.
+      em.findOne(Refund, { returnCaseId: id }),
     ]);
     const visibleComments = comments.filter((c) => !opts.customerView || c.isCustomerVisible);
     return {
@@ -311,6 +316,14 @@ export class ReturnCaseService {
         isCustomerVisible: c.isCustomerVisible,
         createdAt: c.createdAt.toISOString(),
       })),
+      // Null while the case has no refund row: never settled, or settled as a
+      // replacement or repair, which corrects no document at all.
+      correctiveInvoice: refund
+        ? {
+            outcome: refund.correctiveInvoiceOutcome,
+            invoiceId: refund.correctiveInvoiceId ?? null,
+          }
+        : null,
     };
   }
 }

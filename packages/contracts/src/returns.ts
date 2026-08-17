@@ -128,6 +128,37 @@ export const returnCaseSummarySchema = z.object({
 });
 export type ReturnCaseSummary = z.infer<typeof returnCaseSummarySchema>;
 
+/**
+ * What became of the corrective invoice for a settled case (D-92, issue #156).
+ *
+ * Three values, because `correctiveInvoiceId: null` is a two-way answer to a
+ * three-way question: it stands for "no correction was due", "none was asked
+ * for" and "one was asked for and we do not know" at once. `not_due` carries
+ * its own reason in the enum — `order_not_invoiced` is the only one there is,
+ * and a second reason becomes a fourth value rather than a free-text column.
+ *
+ * `issued` is exactly the case where the settlement holds an invoice id.
+ */
+export const correctiveInvoiceOutcomeSchema = z.enum(['issued', 'not_due', 'not_requested']);
+export type CorrectiveInvoiceOutcome = z.infer<typeof correctiveInvoiceOutcomeSchema>;
+
+/**
+ * The persisted corrective-invoice answer, as the case detail reports it.
+ *
+ * The settlement *response* (`settlementResultSchema` below) says the same
+ * thing with the document's number attached, and only at the moment of
+ * settling. This is the copy a reloaded screen reads, so it names what the
+ * `Refund` row holds and nothing else: resolving the number would mean reading
+ * `invoices` from `returns` on a screen that must keep answering while that
+ * module is off.
+ */
+export const returnCaseCorrectiveInvoiceSchema = z.object({
+  outcome: correctiveInvoiceOutcomeSchema,
+  /** The correction, when one was issued. Null in the other two outcomes. */
+  invoiceId: uuidSchema.nullable(),
+});
+export type ReturnCaseCorrectiveInvoice = z.infer<typeof returnCaseCorrectiveInvoiceSchema>;
+
 export const returnCaseDetailSchema = returnCaseSummarySchema.extend({
   salesChannelId: uuidSchema,
   customerAccountId: uuidSchema,
@@ -140,6 +171,12 @@ export const returnCaseDetailSchema = returnCaseSummarySchema.extend({
   rejectionReason: z.string().nullable(),
   items: z.array(returnCaseItemSchema),
   comments: z.array(returnCaseCommentSchema),
+  /**
+   * Null while the case has no `Refund` row — never settled, or settled as a
+   * replacement or repair, which corrects no document and is not an outcome of
+   * "not requested" (D-92).
+   */
+  correctiveInvoice: returnCaseCorrectiveInvoiceSchema.nullable(),
 });
 export type ReturnCaseDetail = z.infer<typeof returnCaseDetailSchema>;
 

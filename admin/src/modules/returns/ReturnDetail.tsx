@@ -313,41 +313,69 @@ export function ReturnDetail(): ReactNode {
       )}
 
       {/*
-        What became of the corrective invoice (issue #150).
+        What became of the corrective invoice (issue #150, then #156 / D-92).
 
         Three outcomes, all three legible. "Not due" is the one the product
         owner ruled on: a settled return on an order that was never invoiced
         deliberately produces no document, and a screen that says nothing makes
         that indistinguishable from a document that failed to appear.
 
-        This renders the settlement that was just performed, which is the moment
-        the operator can act on it; the durable copy of the same three-way answer
-        is the `return.settled` audit entry. The case detail does not carry it —
-        the refund row persists the invoice id but not the reason — so nothing
-        here can read it back after a reload.
+        Two sources, in this order. The settlement just performed is the richer
+        one — it carries the document's number — and it is the moment the
+        operator can act on the answer. After a reload there is no settlement in
+        this session, and the case detail carries the persisted three-way
+        outcome (D-92): the `Refund` row used to hold the invoice id alone, so
+        `null` meant "not due", "not requested" and "asked for, and we do not
+        know" at once. The number is deliberately not read back — resolving it
+        would mean reading `invoices` from this screen's endpoint, which must
+        keep answering while that module is off — so the persisted `issued` case
+        links by id.
       */}
-      {settlement && (
+      {(settlement || rc.correctiveInvoice) && (
         <Card>
           <CardHeader>
             <CardTitle>{t('returns.detail.correctiveInvoice.title')}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm">
-            {settlement.correctiveInvoice === undefined ? (
-              <p className="text-muted-foreground">
-                {t('returns.detail.correctiveInvoice.notRequested')}
-              </p>
-            ) : settlement.correctiveInvoice.issued ? (
+            {settlement ? (
+              settlement.correctiveInvoice === undefined ? (
+                <p className="text-muted-foreground">
+                  {t('returns.detail.correctiveInvoice.notRequested')}
+                </p>
+              ) : settlement.correctiveInvoice.issued ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">{t('returns.detail.correctiveInvoice.issued')}</Badge>
+                  <Button asChild variant="outline" size="sm">
+                    <Link to={`/invoices/${settlement.correctiveInvoice.invoiceId}`}>
+                      {settlement.correctiveInvoice.number}
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  {t(
+                    `returns.detail.correctiveInvoice.notDue.${settlement.correctiveInvoice.reason}`,
+                  )}
+                </p>
+              )
+            ) : rc.correctiveInvoice?.outcome === 'issued' ? (
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">{t('returns.detail.correctiveInvoice.issued')}</Badge>
-                <Button asChild variant="outline" size="sm">
-                  <Link to={`/invoices/${settlement.correctiveInvoice.invoiceId}`}>
-                    {settlement.correctiveInvoice.number}
-                  </Link>
-                </Button>
+                {rc.correctiveInvoice.invoiceId && (
+                  <Button asChild variant="outline" size="sm">
+                    <Link to={`/invoices/${rc.correctiveInvoice.invoiceId}`}>
+                      {t('returns.detail.correctiveInvoice.open')}
+                    </Link>
+                  </Button>
+                )}
               </div>
+            ) : rc.correctiveInvoice?.outcome === 'not_due' ? (
+              <p className="text-muted-foreground">
+                {t('returns.detail.correctiveInvoice.notDue.order_not_invoiced')}
+              </p>
             ) : (
               <p className="text-muted-foreground">
-                {t(`returns.detail.correctiveInvoice.notDue.${settlement.correctiveInvoice.reason}`)}
+                {t('returns.detail.correctiveInvoice.notRequested')}
               </p>
             )}
           </CardContent>
