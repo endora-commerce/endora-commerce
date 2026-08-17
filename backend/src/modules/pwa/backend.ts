@@ -1,6 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
+import type {
+  CustomerAccountReadPort,
+  CustomerGroupReadPort,
+  OrganizationDetailsPort,
+} from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -87,6 +92,13 @@ export function registerModule(ctx: ModuleContext): void {
           runWorkers: pwaRunWorkers,
           settings: lazyPort<PwaModuleOptions['settings']>(ctx, 'settingsReadPort'),
           settingsWrite: lazyPort<PwaModuleOptions['settingsWrite']>(ctx, 'settingsAdminService'),
+          // Feature 075, Phase C — the three rows this module used to query out
+          // of other modules' tables. `lazyPort` proxies resolve per call, so a
+          // switched-off owner answers 503 `MODULE_DISABLED` at the call rather
+          // than through a gate frozen at composition time.
+          customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+          organizationDetails: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+          customerGroups: lazyPort<CustomerGroupReadPort>(ctx, 'customerGroupReadPort'),
           requireAdmin: (permission) => async (req, reply) =>
             ctx.cradle<PwaCradle>().requireAdmin(permission)(req, reply),
           vapidSubject:
