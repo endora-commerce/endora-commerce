@@ -31,10 +31,25 @@ export const manifest = defineModuleManifest({
     'Customer-owned saved shopping lists.',
   version: '1.0.0',
   // Feature 072 (T133) — the edges were always there; the conversion is what
-  // made them declarations. `carts` is deliberately absent: the service handed
-  // back through `shoppingListServiceSink` points outward, and declaring the
-  // consumer would invert the direction.
-  dependencies: ['auth', 'catalog', 'orders', 'organizations', 'quote_requests', 'settings'],
+  // made them declarations.
+  //
+  // `carts` joins them in feature 075 Phase C. It was absent on the grounds
+  // that "the service handed back through `shoppingListServiceSink` points
+  // outward, and declaring the consumer would invert the direction" — true of
+  // the sink, and not of the other edge: `convertToCart` resolves `carts`'
+  // `cartWritePort` and calls it, which points inward. The check accepted it
+  // only through the transitive path `orders` -> `carts`, so the declaration
+  // was a property of a neighbour's manifest. No cycle: nothing in the tree
+  // depends on `shopping_lists`.
+  dependencies: [
+    'auth',
+    'carts',
+    'catalog',
+    'orders',
+    'organizations',
+    'quote_requests',
+    'settings',
+  ],
   settings: shoppingListsSettingsManifest,
   // Feature 073 (Constitution XVII) — the operator's activation control. It
   // covered the quick-order surfaces too while this module hosted them; T139

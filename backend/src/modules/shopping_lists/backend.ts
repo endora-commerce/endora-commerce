@@ -1,12 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
+import type { CartWritePort, CatalogProductReadPort, RfqCustomerPort } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { shoppingListsModule, type ShoppingListsModuleOptions } from './plugin.js';
 import { ShoppingListService } from './services/shopping-list-service.js';
-import type { CartService } from '../carts/services/cart-service.js';
-import type { RfqService } from '../quote_requests/services/rfq-service.js';
 
 /**
  * `shopping_lists` — six optional options that decided which routes exist
@@ -32,9 +31,17 @@ import type { RfqService } from '../quote_requests/services/rfq-service.js';
  * provides `shoppingListService` as an ordinary port, which is what the comment
  * here predicted would happen when `carts` converted.
  *
- * `cartService` is read as a port for the same reason — and deleting the
- * degraded copy this module used to build is the substantive half of that
+ * The cart write surface is read as a port for the same reason — and deleting
+ * the degraded copy this module used to build is the substantive half of that
  * change, not the tidy half.
+ *
+ * Feature 075 Phase C finished what those port names started. Both service
+ * resolutions were *typed* by importing `carts`' and `quote_requests`'
+ * classes, so the container name was decoupled and the type was not; they name
+ * `CartWritePort` and `RfqCustomerPort` now. The third edge was the real one:
+ * `ShoppingListService` queried `catalog`'s `products` table directly, which no
+ * gate can reach, so a list kept accepting and converting items out of a
+ * `catalog` an operator had switched off.
  */
 
 /** What `shopping_lists` resolves from the container, and the names it owns. */
@@ -43,13 +50,13 @@ export interface ShoppingListsCradle {
   readonly auditLogService: AuditLogService;
   readonly requireCustomer: ShoppingListsModuleOptions['requireCustomer'];
   readonly customerContextResolver: ShoppingListsModuleOptions['resolveCustomerContext'];
-  readonly rfqService: RfqService;
+  readonly rfqService: RfqCustomerPort;
   /**
-   * The composed cart service. Until T136 this module built its own, degraded
-   * copy — no pricing, no approval re-arm, no audit row and no recompute-cache
-   * invalidation on any line added through save-to-list.
+   * The composed cart write surface. Until T136 this module built its own,
+   * degraded copy — no pricing, no approval re-arm, no audit row and no
+   * recompute-cache invalidation on any line added through save-to-list.
    */
-  readonly cartService: CartService;
+  readonly cartWritePort: CartWritePort;
   /** This module's one service; the subscription below reads it per event. */
   readonly shoppingListService: ShoppingListService;
   /** Contribution outward: `carts` reads the service through this until it converts. */
@@ -68,10 +75,17 @@ export function registerModule(ctx: ModuleContext): void {
     shoppingListService: ctx
       .asFunction(
         ({ emFactory }: ShoppingListsCradle) =>
+          // Three published ports, never captured: the proxies resolve per
+          // call, so a switched-off owner answers 503 `MODULE_DISABLED` at the
+          // call rather than through a gate frozen at composition time.
+          // `cartWritePort` replaces `cartService`, which handed out the class;
+          // it carries the four operations a caller outside `carts` has any
+          // business making.
           new ShoppingListService(
             emFactory,
-            lazyPort<CartService>(ctx, 'cartService'),
-            lazyPort<RfqService>(ctx, 'rfqService'),
+            lazyPort<CartWritePort>(ctx, 'cartWritePort'),
+            lazyPort<RfqCustomerPort>(ctx, 'rfqService'),
+            lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
           ),
       )
       .singleton(),
