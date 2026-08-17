@@ -56,7 +56,8 @@ const bundle = passthroughBundle('core', [
   'platform.modules.state.notInstalled',
   'platform.modules.activation.on',
   'platform.modules.activation.off',
-  'platform.modules.activation.unmanaged',
+  'platform.modules.activation.alwaysOn',
+  'platform.modules.activation.alwaysOnReason',
   'platform.modules.activation.locked',
   'platform.modules.action.enable',
   'platform.modules.action.disable',
@@ -247,11 +248,18 @@ describe('ModulesPage — the activation control lives here now (D-36a)', () => 
     expect(await screen.findByText('The single unit of tenancy.')).toBeInTheDocument();
   });
 
-  it('offers no control for a module that has declared no activation setting', async () => {
-    listed = [moduleItem({ id: 'catalog', name: 'Catalog' })];
-    presence = [presenceItem({ id: 'catalog', deactivatable: false })];
+  it('offers no *actionable* control for a module that declares no activation setting', async () => {
+    // Feature 074 changed the rendering, not the guarantee. The cell used to be
+    // the "No switch yet" label with nothing in it; it is now the locked
+    // affordance with its own sentence, so the button exists and is disabled.
+    // What must not exist is anything that writes.
+    listed = [moduleItem({ id: 'health_checks', name: 'Health Checks' })];
+    presence = [presenceItem({ id: 'health_checks', deactivatable: false })];
     await renderPage();
 
-    expect(within(row('catalog')).queryByRole('button')).toBeNull();
+    const control = within(row('health_checks')).getByRole('button');
+    expect(control).toBeDisabled();
+    await userEvent.click(control);
+    expect(setModuleActivation).not.toHaveBeenCalled();
   });
 });

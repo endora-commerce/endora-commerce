@@ -33,17 +33,18 @@ export const manifest = defineModuleManifest({
       weight: 240,
     },
   ],
-  // Feature 073, Amendment A1 (Constitution XVII). Not one of the four the
-  // specification names as the criterion set. It holds the flag because
-  // `organizations` — which is in that set — declares `custom_fields` in its
-  // manifest `dependencies`, and dependencies fail closed: switching this off
-  // would take the tenancy root down with it, which is a state the orchestrator
-  // has promised an operator cannot reach.
+  // Feature 074 (Constitution XVII), test C3 — platform primitive. The flag
+  // used to rest on `organizations` declaring this module; ruling 2 withdraws
+  // a dependent's authority to impose the lock, so the ground is now this
+  // module's own. It is Principle XIV's extensibility mechanism: the answer
+  // the platform gives to "add a field" instead of a bespoke column. Switching
+  // it off does not remove a capability a client chose, it makes the values
+  // already stored against every host entity unreachable.
   activation: {
     nonDeactivatable: true,
     reason:
-      'The non-deactivatable `organizations` declares this module in its manifest ' +
-      'dependencies, and dependencies fail closed.',
+      'The platform\'s extensibility mechanism; the custom values already stored against ' +
+      'every host entity become unreachable without it.',
   },
 });
 

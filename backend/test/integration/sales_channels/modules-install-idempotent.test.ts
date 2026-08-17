@@ -74,15 +74,15 @@ describe('modules:install sales_channels — idempotency (T069)', () => {
       const all = await em.find(SettingGroup, { code: 'sales_channels' });
       expect(all.length).toBe(1);
 
-      // The sales_channels manifest ships exactly two settings — the
-      // storefront URL and, since T110, the operator's activation control —
-      // so confirm the pipeline persists those rows and synthesizes no
-      // phantom ones under owner_module='sales_channels'.
+      // The sales_channels manifest ships exactly one setting, the storefront
+      // URL, so confirm the pipeline persists that row and synthesizes no
+      // phantom ones under owner_module='sales_channels'. It shipped a second
+      // until feature 074: `sales_channels.enabled` was the operator's
+      // activation control, and the module is core now — channel scoping is
+      // structural, so there is no unscoped path to fall back to and the
+      // control went with the declaration.
       const owned = await em.find(Setting, { ownerModule: 'sales_channels' });
-      expect(owned.map((s) => s.code).sort()).toEqual([
-        'sales_channels.enabled',
-        'sales_channels.storefront_url',
-      ]);
+      expect(owned.map((s) => s.code).sort()).toEqual(['sales_channels.storefront_url']);
     } finally {
       await db.rollbackTx();
     }

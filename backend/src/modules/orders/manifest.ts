@@ -146,6 +146,15 @@ export const manifest = defineModuleManifest({
     },
   ],
   settings,
+  // Feature 074 (Constitution XVII), test C2 — functional base. This module had
+  // no activation declaration at all, which resolved as "always activated" and
+  // read as an omission rather than a decision. The order is the transaction
+  // the platform exists to record: without it there is nothing to price, ship,
+  // invoice or audit, so its absence is not a capability a client declines.
+  activation: {
+    nonDeactivatable: true,
+    reason: 'The order is the transaction this platform exists to record.',
+  },
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — transactional emails owned by this module. Default subject +
   // content are registered at runtime via the EmailDefaultsRegistry.

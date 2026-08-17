@@ -1,6 +1,8 @@
 import { expect } from 'vitest';
 import type { InjectOptions } from 'fastify';
+import { effectiveState } from '../../src/kernel/lifecycle/effective-state.js';
 import { registryCache } from '../../src/kernel/lifecycle/registry-cache.js';
+import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
 
 /**
  * Shared off-state harness — feature 073, FR-052 / Constitution XVII.
@@ -23,6 +25,17 @@ import { registryCache } from '../../src/kernel/lifecycle/registry-cache.js';
  *     deactivated* is the case an operator actually creates, and until this
  *     feature no seam could even see it. Asserting only the platform axis
  *     would pass on code that ignores activation entirely.
+ *
+ * Rule 2 has one exception since feature 074, and it is asserted rather than
+ * skipped. A module that declares itself `nonDeactivatable` has no operator
+ * axis to drive: `effectiveState` forces it activated whatever the activation
+ * map holds, so seeding a deactivation would leave the module **present** and
+ * every assertion under it would be measuring the module switched on. The
+ * harness therefore proves the door is shut — the module stays present under a
+ * seeded deactivation — and then drives the platform axis, which a deployment
+ * that never installs the module still reaches. A caller gets that behaviour
+ * from the manifest; there is no flag to pass and no way to ask for the wrong
+ * one.
  *
  * The caller declares the surfaces; the harness refuses to run against an
  * empty declaration, so an off-state test cannot pass vacuously.
@@ -72,6 +85,18 @@ interface ServerLike {
       json(): { error?: { code?: string } };
     }>;
   };
+}
+
+/**
+ * Whether the module's own manifest closes the operator axis (feature 074).
+ * Read from the manifest rather than taken as an argument: a caller who could
+ * assert the wrong axis would eventually assert the wrong axis.
+ */
+function isCore(moduleId: string): boolean {
+  const activation = REGISTERED_MANIFESTS.find(
+    (entry) => entry.manifest.id === moduleId,
+  )?.manifest.activation;
+  return activation !== undefined && 'nonDeactivatable' in activation;
 }
 
 function toInject(probe: string | OffStateProbe): InjectOptions {
@@ -217,9 +242,22 @@ export async function expectModuleAbsent(
     // Axis 1 — the operator switched it off; the platform still offers it.
     // This is the case Constitution XVII calls out by name.
     registryCache.__setEnabledForTesting(baseline, { deactivated: [moduleId] });
-    await expectRoutesRefused(server, moduleId, surfaces, 'deactivated');
-    await expectPresenceReports(server, moduleId, surfaces, false, 'deactivated');
-    await expectSettingWriteRefused(server, moduleId, surfaces, 'deactivated');
+    if (isCore(moduleId)) {
+      // …except that this module declares itself non-deactivatable, so the
+      // seeding above does nothing and the assertion worth making is that it
+      // does nothing. Anything else here would be a green measured with the
+      // module running.
+      expect(
+        effectiveState.isPresent(moduleId),
+        `[off-state:deactivated] "${moduleId}" declares itself non-deactivatable, so no ` +
+          `seeded activation value may make it absent`,
+      ).toBe(true);
+      await expectRoutesAnswering(server, moduleId, surfaces, 'deactivated');
+    } else {
+      await expectRoutesRefused(server, moduleId, surfaces, 'deactivated');
+      await expectPresenceReports(server, moduleId, surfaces, false, 'deactivated');
+      await expectSettingWriteRefused(server, moduleId, surfaces, 'deactivated');
+    }
 
     // Axis 2 — the deployment does not offer it at all.
     registryCache.__setEnabledForTesting(baseline.filter((id) => id !== moduleId));

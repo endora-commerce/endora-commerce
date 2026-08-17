@@ -105,6 +105,7 @@ import { Migration20260611T140419CoreSettingsEnumOptions } from './migrations/20
 import { Migration20260629T090100CoreSettingsHiddenFlag } from './migrations/20260629T090100_core_settings_hidden_flag.js';
 import { Migration20260717T134752CoreTenantScopeIndexes } from './migrations/20260717T134752_core_tenant_scope_indexes.js';
 import { Migration20260721T011510CoreSettingsCredentialRefValueType } from './migrations/20260721T011510_core_settings_credential_ref_value_type.js';
+import { Migration20260816T203339CoreRetireCoreActivationSettings } from './migrations/20260816T203339_core_retire_core_activation_settings.js';
 
 // ── credentials ─────────────────────────────────────────────────────────────
 import { Migration20260721T011509CredentialsInit } from '../modules/credentials/migrations/20260721T011509_credentials_init.js';
@@ -347,6 +348,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('core', Migration20260629T090100CoreSettingsHiddenFlag),
   migration('core', Migration20260717T134752CoreTenantScopeIndexes),
   migration('core', Migration20260721T011510CoreSettingsCredentialRefValueType),
+  migration('core', Migration20260816T203339CoreRetireCoreActivationSettings),
 
   // ── credentials ─────────────────────────────────────────────────────────────
   migration('credentials', Migration20260721T011509CredentialsInit),

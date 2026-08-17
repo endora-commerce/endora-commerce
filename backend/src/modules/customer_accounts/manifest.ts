@@ -23,23 +23,17 @@ export const manifest = defineModuleManifest({
   // conversion — they were simply unattributable while the table belonged to
   // nobody. `customer_groups` is owned by `price_lists`.
   dependencies: ['auth', 'organizations', 'price_lists'],
-  // Feature 073, Amendment A1 (Constitution XVII). Not one of the four the
-  // specification names as the criterion set: this module holds the flag because
-  // it is inside that set's *effective* closure, through the same mechanism as
-  // `addresses`.
-  //
-  // `organizations` — itself non-deactivatable — serves its public
-  // registration, login, password-reset and TOTP routes from four ports this
-  // module owns (`customerAuthService`, `passwordResetService`,
-  // `customerRoleService`, `totpEnrolmentService`). All four are deliberately
-  // absent from the `organizations` manifest, because this module declares
-  // `organizations` and declaring the mirror would close the cycle; they live in
-  // that manifest's `acknowledgedDependencies`, which the flip-time refusal and
-  // `check-port-dependencies.ts` both read.
+  // Feature 074 (Constitution XVII), test C1 — reachability. The flag used to
+  // rest on four port edges another module declares; ruling 2 withdraws that
+  // authority, so the ground is now this module's own and it is the stronger
+  // one anyway. This module owns the identity a buyer signs in as. Switch it
+  // off and no customer-side path exists at all — no registration, no login,
+  // no cart belonging to anyone, no order placed by anyone — which is the
+  // reachability test rather than a reduction in capability.
   activation: {
     nonDeactivatable: true,
     reason:
-      'The non-deactivatable `organizations` resolves four ports this module owns (customer ' +
-      'auth, password reset, roles, TOTP); the edges are acknowledged, not declared.',
+      'The identity a buyer signs in as; no customer-side path — registration, login, cart, ' +
+      'order or account — exists without it.',
   },
 });

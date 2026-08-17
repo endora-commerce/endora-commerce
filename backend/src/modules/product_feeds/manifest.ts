@@ -58,6 +58,18 @@ export const productFeedsSettingsManifest = defineModuleSettingsManifest({
   ],
   settings: [
     {
+      // Feature 074 — the operator's activation control. Platform-wide, and
+      // never channel-scoped: activation stops at `global_value` →
+      // `default_value` by construction.
+      code: PRODUCT_FEED_SETTING_CODES.ACTIVATION,
+      name: 'Product feeds enabled',
+      description:
+        'Switches the whole module on or off: the feed admin screens and their API, the public tokenised feed URLs, every scheduled generation and the taxonomy refresh. Nothing is dropped — feeds, templates, category mappings, run history and already-generated files stay in place and resume exactly as before when you switch it back on.',
+      groupCode: 'product_feeds',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: PRODUCT_FEED_SETTING_CODES.ARTEFACT_RETENTION_COUNT,
       name: 'Generated files kept per feed',
       description:
@@ -244,6 +256,12 @@ export const manifest = defineModuleManifest({
     'taxes',
   ],
   settings: productFeedsSettingsManifest,
+  // Feature 074 (Constitution XVII) — a control this module never had, so an
+  // operator could not decline it at all. Outbound feeds to marketplaces and ad
+  // platforms are an additional capability in ruling 1's sense: a deployment
+  // that sells only through its own storefront publishes none. Default `true`
+  // so that merging this changes no deployment's state (FR-012).
+  activation: { settingCode: PRODUCT_FEED_SETTING_CODES.ACTIVATION, default: true },
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     {

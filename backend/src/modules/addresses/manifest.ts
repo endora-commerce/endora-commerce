@@ -22,24 +22,19 @@ export const manifest = defineModuleManifest({
   // `AddressService` resolves `dictionaryValidator` to check country and region
   // codes, so the edge is real and was previously invisible to the lifecycle.
   dependencies: ['dictionaries', 'organizations'],
-  // Feature 073, Amendment A1 (Constitution XVII). This module is not one of
-  // the four the specification names as the criterion set; it holds the flag
-  // because it is inside that set's *effective* closure, and the mechanism is
-  // not the one the previous reason described.
-  //
-  // `organizations` — itself non-deactivatable — resolves this module's
-  // `addressService`, because its customer routes expose address CRUD. That edge
-  // is deliberately absent from the `organizations` manifest: declaring it back
-  // would close the cycle this module's own `organizations` dependency opens, so
-  // it is recorded in that manifest's `acknowledgedDependencies` instead — read
-  // by the flip-time refusal and by `check-port-dependencies.ts`. A closure
-  // computed from manifest `dependencies` alone therefore cannot see it, which
-  // is exactly why the reason has to name the port rather than a fan-out of
-  // consumers.
+  // Feature 074 (Constitution XVII), test C2 — functional base. The flag was
+  // previously carried by a port edge: `organizations` resolves this module's
+  // `addressService`, and that reached this manifest through the other one's
+  // declaration. Ruling 2 withdraws that authority — a module a criterion
+  // module happens to resolve is not thereby core — so the ground here is now
+  // this module's own. Every B2B document is addressed: an order ships
+  // somewhere, an invoice is billed somewhere, a shipment has a destination.
+  // A platform that cannot record where is not a smaller commerce platform,
+  // it is one that cannot complete a transaction.
   activation: {
     nonDeactivatable: true,
     reason:
-      'The non-deactivatable `organizations` resolves this module\'s `addressService`; the edge ' +
-      'is acknowledged rather than declared, because declaring it would close a cycle.',
+      'Every B2B document — order, invoice, shipment — is addressed; there is no transaction ' +
+      'without one.',
   },
 });

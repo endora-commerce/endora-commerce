@@ -7,6 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { InventoryThreshold } from '../../../src/modules/inventory/entities/inventory-threshold.entity.js';
 import { INVENTORY_SETTING_CODES } from '../../../src/modules/inventory/manifest.js';
 
@@ -35,6 +36,19 @@ import { INVENTORY_SETTING_CODES } from '../../../src/modules/inventory/manifest
  */
 
 const ALL_IDS = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id);
+
+/**
+ * The modules whose operator axis is closed by their own declaration (feature
+ * 074). Derived rather than listed: a second copy of the core set here would
+ * drift from the manifests, which is the defect the classification test exists
+ * to prevent.
+ */
+const CORE_IDS = new Set(
+  REGISTERED_MANIFESTS.filter(
+    (entry) =>
+      entry.manifest.activation !== undefined && 'nonDeactivatable' in entry.manifest.activation,
+  ).map((entry) => entry.manifest.id),
+);
 
 interface Probe {
   /** The module whose subscription is under test. */
@@ -215,17 +229,32 @@ describe('module subscriptions are gated by the module’s effective state [inte
         expect(await emit(probe)).toBeGreaterThan(0);
       });
 
-      it('does not run it while the operator has deactivated the module', async () => {
-        registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: [probe.moduleId] });
-        expect(await emit(probe)).toBe(0);
-      });
+      if (CORE_IDS.has(probe.moduleId)) {
+        // Feature 074 made this module core, so no operator can reach the state
+        // the sibling case below drives — and `effectiveState` forces a core
+        // module's operator axis to `true` whatever the activation map holds,
+        // so seeding a deactivation here would have asserted nothing while
+        // reading as though it asserted the gate. The seam is still exercised,
+        // by the axis that can still close it, and the closed door is asserted
+        // rather than assumed.
+        it('cannot have its operator axis closed at all', async () => {
+          registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: [probe.moduleId] });
+          expect(effectiveState.isPresent(probe.moduleId)).toBe(true);
+          expect(await emit(probe)).toBeGreaterThan(0);
+        });
+      } else {
+        it('does not run it while the operator has deactivated the module', async () => {
+          registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: [probe.moduleId] });
+          expect(await emit(probe)).toBe(0);
+        });
+      }
 
       it('does not run it while the platform axis has the module removed', async () => {
         registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== probe.moduleId));
         expect(await emit(probe)).toBe(0);
       });
 
-      it('runs it again once the module is switched back on', async () => {
+      it('runs it again once the module is present again', async () => {
         registryCache.__setEnabledForTesting(ALL_IDS);
         expect(await emit(probe)).toBeGreaterThan(0);
       });

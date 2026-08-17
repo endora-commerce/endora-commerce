@@ -827,8 +827,12 @@ resolving `addressService` is the worked example, since `addresses` declares
 `organizations` and the tenancy root must install first. It sits in the manifest
 rather than here because the lifecycle's flip-time dependency refusal reads the
 same declaration (feature 073, Amendment A1): while the edges lived only in this
-script, an operator could switch `price_lists` off underneath `catalog`'s
-`pricingService` resolution and nothing refused the flip.
+script, an operator could switch the owner of an acknowledged port off underneath
+a live resolution and nothing refused the flip. The example that found it was
+`catalog` resolving `price_lists:pricingService`; feature 074 has since made
+`price_lists` core, so that particular flip is closed by the owner's own
+declaration — but the mechanism is not about which modules happen to be core,
+and the edge is still declared where both readers can see it.
 
 ### Writing a check that can go red
 

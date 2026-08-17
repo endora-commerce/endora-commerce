@@ -19,19 +19,6 @@ const settings = defineModuleSettingsManifest({
   ],
   settings: [
     {
-      // Feature 073 — the operator's activation control. Platform-wide, and it
-      // covers the administration surface only: since T110 the kernel composes
-      // channel *resolution*, so switching this off freezes the channel
-      // configuration rather than un-resolving every storefront request.
-      code: 'sales_channels.enabled',
-      name: 'Sales channel administration enabled',
-      description:
-        'Switches the sales-channel administration screens on or off: creating, editing and retiring channels, and managing which entities belong to which channel. Existing channels keep resolving for storefront and admin requests, and every channel, membership and per-channel setting stays in the database.',
-      groupCode: 'sales_channels',
-      valueType: 'boolean',
-      defaultValue: true,
-    },
-    {
       code: 'sales_channels.storefront_url',
       name: 'Storefront URL',
       description:
@@ -73,7 +60,24 @@ export const manifest = defineModuleManifest({
   // migration, so X → sales_channels covers it and no new exception is needed.
   dependencies: ['dictionaries', 'settings'],
   settings,
-  activation: { settingCode: 'sales_channels.enabled', default: true },
+  // Feature 074 (Constitution XVII), test C2 — functional base, and named by
+  // ruling 1. Channel scoping is structural: Principle XII is non-negotiable,
+  // every scoped read resolves the request's channel through the sanctioned
+  // accessors, and there is no unscoped read path to fall back to. The control
+  // this replaces was one of the nineteen that never accepted a deactivation
+  // — nineteen dependents refused it — so the lock takes away a dead button
+  // and adds a stated reason.
+  //
+  // `sales_channels.enabled` goes with it. Left declared it would fall through
+  // to an ordinary editable boolean that changes nothing; the existing rows are
+  // removed by a core data migration (feature 074, FR-010a), because the
+  // settings reconciler reports orphans and never deletes them.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Channel scoping is structural: every scoped read resolves the request\'s channel and ' +
+      'there is no unscoped path to fall back to.',
+  },
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'sales_channels:read', label: 'View sales channels' },

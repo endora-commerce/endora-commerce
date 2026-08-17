@@ -786,12 +786,17 @@ export const CONTRIBUTION_POLICY_STATED: Readonly<Record<string, 'skip' | 'honou
  * deletes an entry nothing reads any more.
  */
 export const REGISTRY_POLICIES_UNSTATED: Readonly<Record<string, string>> = {
-  'email:emailMailer':
-    'Six modules send through the mailer registration `email` owns, and with `email` switched ' +
-    'off every one of them still sends. `email` is a transport rather than a business ' +
-    'capability, and feature 074 classifies it as core on exactly that ground — the entry ' +
-    'drains when that declaration lands, without anybody stating a policy for a name whose ' +
-    'owner can no longer be absent.',
+  // Empty, and by two different routes that landed together. Three entries —
+  // `payment_methods`/`delivery_methods` order-status references and
+  // `credentials:configurationTypeRegistry` — were answered by their owners
+  // stating a policy. The fourth, `email:emailMailer`, drained without anybody
+  // writing one: `email` declared itself non-deactivatable (074, C3 — a
+  // transport a business configures rather than switches off), so the flip the
+  // entry described cannot happen and the edge left the ledger.
+  //
+  // Two-way, like the others: a new ungated cross-module registry whose owner
+  // states nothing fails the build, and an entry here that no longer describes
+  // one fails too.
 };
 
 export interface PortViolation {

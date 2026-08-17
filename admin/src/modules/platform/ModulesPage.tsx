@@ -49,22 +49,35 @@ interface ModuleRow {
   presence: ModulePresence | undefined;
 }
 
-type ActivationKind = 'on' | 'off' | 'locked' | 'unmanaged';
+type ActivationKind = 'on' | 'off' | 'locked' | 'always-on' | 'unknown';
 
 /**
- * Four operator-axis renderings, and the difference between the last two is
- * the whole reason this is a function rather than a boolean.
+ * Five operator-axis renderings, and the difference between `locked` and
+ * `always-on` is the whole reason this is a function rather than a boolean.
  *
  * `deactivatable: false` **with** a reason is a module that declared itself
- * non-deactivatable; the same flag **without** one is simply a module that has
- * not declared an activation control yet. Reading the second as "locked" would
- * tell an operator that a deliberate platform invariant exists where there is
- * only an unconverted module.
+ * non-deactivatable — the platform's functional base, and the sentence is its
+ * own. The same flag **without** one is a module that declares no activation
+ * block at all, which since feature 074 means one thing only: it owns no seam
+ * either presence axis could close, so there is nothing for a control to do.
+ * Both are "you cannot switch this", and both render the locked affordance;
+ * the difference is carried by the sentence rather than by a third visual
+ * state.
+ *
+ * The selection is on the **absent declaration**, never on a module id. That is
+ * what keeps this from being the hard-coded exception list Constitution XVII
+ * prohibits — `health_checks` is the only module in the position today, and
+ * `test/unit/_lifecycle/non-deactivatable-set.test.ts` is where that is pinned,
+ * not here.
+ *
+ * `unknown` is the remaining case and is not a decision: the presence
+ * projection carried no row for this module, so this app knows nothing about
+ * its operator axis and says so with a dash.
  */
 export function activationKindOf(presence: ModulePresence | undefined): ActivationKind {
-  if (!presence) return 'unmanaged';
+  if (!presence) return 'unknown';
   if (!presence.deactivatable) {
-    return presence.nonDeactivatableReason ? 'locked' : 'unmanaged';
+    return presence.nonDeactivatableReason ? 'locked' : 'always-on';
   }
   return presence.activated ? 'on' : 'off';
 }
@@ -251,25 +264,37 @@ function ModuleTableRow({
             onError={onError}
           />
         )}
-        {available && kind === 'locked' && (
+        {available && (kind === 'locked' || kind === 'always-on') && (
           // T063: the control is present and visibly locked rather than absent,
-          // so the answer to "why can I not switch this off" is on screen. The
-          // wording is the module's own declared reason, carried by the
+          // so the answer to "why can I not switch this off" is on screen. For a
+          // core module the wording is its own declared reason, carried by the
           // projection from its manifest — this app holds no list of module ids
-          // that may not be switched off (SC-012).
+          // that may not be switched off (SC-012). For a module that declares no
+          // control the wording is the platform's, because there is no manifest
+          // sentence to carry: what it says is that the module's only surface is
+          // never gated, so neither axis has anything to close (feature 074,
+          // FR-016).
           <div className="flex flex-col items-end gap-1">
             <Button
               type="button"
               variant="outline"
               size="sm"
               disabled
-              title={presence?.nonDeactivatableReason ?? undefined}
+              title={
+                kind === 'locked'
+                  ? (presence?.nonDeactivatableReason ?? undefined)
+                  : t('platform.modules.activation.alwaysOnReason')
+              }
             >
               <Lock className="mr-1 size-3.5" aria-hidden="true" />
-              {t('platform.modules.activation.locked')}
+              {kind === 'locked'
+                ? t('platform.modules.activation.locked')
+                : t('platform.modules.activation.alwaysOn')}
             </Button>
             <p className="max-w-prose text-right text-xs text-muted-foreground">
-              {presence?.nonDeactivatableReason}
+              {kind === 'locked'
+                ? presence?.nonDeactivatableReason
+                : t('platform.modules.activation.alwaysOnReason')}
             </p>
           </div>
         )}
@@ -296,18 +321,17 @@ function ActivationCell({
   if (!available) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
-  if (kind === 'locked') {
-    // A non-deactivatable module is on and stays on — the effective state
-    // forces its operator axis true. So the state column says "on" like any
-    // other, and the *control* is where the lock and its reason live.
+  if (kind === 'locked' || kind === 'always-on') {
+    // Neither can be switched off, and both are on and stay on — the effective
+    // state forces the operator axis true for a core module, and a module with
+    // no declaration has no axis to resolve. So the state column says "on" like
+    // any other, and the *control* is where the lock and its sentence live.
     return <Badge variant="success">{t('platform.modules.activation.on')}</Badge>;
   }
-  if (kind === 'unmanaged') {
-    return (
-      <span className="text-xs text-muted-foreground">
-        {t('platform.modules.activation.unmanaged')}
-      </span>
-    );
+  if (kind === 'unknown') {
+    // No projection row for this module: nothing to report, and inventing "off"
+    // would be worse than a dash.
+    return <span className="text-xs text-muted-foreground">—</span>;
   }
   return (
     <Badge variant={kind === 'on' ? 'success' : 'secondary'}>

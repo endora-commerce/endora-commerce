@@ -39,6 +39,38 @@ const ADMIN = { b2b_session: 'stub-admin-session' };
 const ACTION = 'module.activation.set';
 const MODULE = 'pim_ergonode';
 
+/** Every module that declares the lock — the 23 the core set holds (feature 074). */
+const CORE_IDS = REGISTERED_MANIFESTS.filter(
+  (e) => e.manifest.activation !== undefined && 'nonDeactivatable' in e.manifest.activation,
+).map((e) => e.manifest.id);
+
+/**
+ * The five controls feature 074 added. Named here so the contract cases below
+ * read against the same list the manifest test pins, rather than a second copy
+ * of it.
+ */
+const NEW_CONTROLS = ['blog', 'credentials', 'mfa', 'product_feeds', 'prompt_actions'] as const;
+
+/** The four of those five that nothing present depends on, so a flip goes through. */
+const FREELY_FLIPPABLE = ['blog', 'mfa', 'product_feeds', 'prompt_actions'] as const;
+
+/** Every activation code this file writes to, reset between cases. */
+const WRITTEN_CODES = [
+  PIM_ERGONODE_SETTING_CODES.ACTIVATION,
+  'payments.enabled',
+  'credentials.enabled',
+  ...FREELY_FLIPPABLE.map((id) => activationCodeOf(id)),
+];
+
+function activationCodeOf(moduleId: string): string {
+  const activation = REGISTERED_MANIFESTS.find((e) => e.manifest.id === moduleId)?.manifest
+    .activation;
+  if (!activation || 'nonDeactivatable' in activation) {
+    throw new Error(`${moduleId} declares no operator activation control`);
+  }
+  return activation.settingCode;
+}
+
 describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
   let h: BackendServerHandle;
 
@@ -59,11 +91,7 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     // case. Reset every code this file writes, not just the subject's.
     await em.nativeUpdate(
       Setting,
-      {
-        code: {
-          $in: [PIM_ERGONODE_SETTING_CODES.ACTIVATION, 'price_lists.enabled', 'settings.enabled'],
-        },
-      },
+      { code: { $in: WRITTEN_CODES } },
       { globalValue: null },
     );
     registryCache.__setEnabledForTesting(ALL_IDS);
@@ -232,90 +260,125 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('refuses to switch `settings` off while `organizations` still needs it (T045)', async () => {
-    // The live defect. `organizations` is the tenancy root, is non-deactivatable
-    // and declares `settings`; the CLI has refused the identical operation since
-    // `assertDeactivatable` shipped, while this door let it through in silence.
+  it.each(CORE_IDS)(
+    'refuses to switch the core module %s off, with its own declared reason (074)',
+    async (moduleId) => {
+      // SC-009, the operator half. Feature 073 refused `settings` here with
+      // `MODULE_DEPENDENTS_PRESENT` — "not in this order", naming
+      // `organizations` — which was an accidental guard assembled out of what
+      // other modules had written about themselves. Ruling 2 withdraws that
+      // authority, so the refusal has to come from the module's own manifest or
+      // not at all, and this asserts it does for all twenty-three.
+      const declared = REGISTERED_MANIFESTS.find((e) => e.manifest.id === moduleId);
+      const reason = (declared?.manifest.activation as { reason?: string } | undefined)?.reason;
+      expect(reason, `${moduleId} declares no non-deactivatable reason`).toBeTruthy();
+
+      const res = await flip(moduleId, false);
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('MODULE_NOT_DEACTIVATABLE');
+      expect(res.json().error.message).toBe(reason);
+    },
+  );
+
+  it('refuses a hub on its own declaration, not on a dependent\'s (FR-047)', async () => {
+    // The sequencing property, at the door an operator actually reaches.
+    // `settings` is named by dozens of manifests for a capability the kernel has
+    // served since D-32, and those declarations were the only thing refusing
+    // this flip. Deleting them — Phase 3, a commit whose message says "hygiene"
+    // — must not turn `settings.enabled` into a live control, and the code
+    // returned here is what proves the refusal no longer depends on them.
     const res = await flip('settings', false);
     expect(res.statusCode).toBe(409);
-    expect(res.json().error.code).toBe('MODULE_DEPENDENTS_PRESENT');
-    expect(res.json().error.message).toContain('organizations');
-    expect(res.json().error.details.blockedBy).toContain('organizations');
-  });
-
-  it('refuses to switch `price_lists` off because `catalog` resolves its pricing port (T045)', async () => {
-    // The trap Amendment A1 names. `catalog` resolves `pricingService`, owned by
-    // `price_lists`, through an edge the manifests deliberately withhold from
-    // `dependencies` — declaring it closes a cycle. A refusal computed from the
-    // manifest graph alone still answers 409 here, because `carts` and friends
-    // declare `price_lists` — and would omit exactly the module whose absence
-    // nobody would have predicted from reading the manifests.
-    const res = await flip('price_lists', false);
-    expect(res.statusCode).toBe(409);
-    expect(res.json().error.code).toBe('MODULE_DEPENDENTS_PRESENT');
-    expect(res.json().error.details.blockedBy).toContain('catalog');
+    expect(res.json().error.code).toBe('MODULE_NOT_DEACTIVATABLE');
+    expect(res.json().error.code).not.toBe('MODULE_DEPENDENTS_PRESENT');
+    expect(res.json().error.details?.blockedBy).toBeUndefined();
   });
 
   it('switches a module off once nothing effectively present depends on it (T045)', async () => {
     // The refusal follows *effective presence*, not the graph: with every
     // dependent absent from this deployment the flip is ordinary again. This is
     // also the remedy the message describes — switch the dependents off first.
-    const dependents = ['carts', 'catalog', 'customer_accounts', 'pim_ergonode', 'product_feeds', 'search'];
+    //
+    // Re-pointed by feature 074 from `price_lists`, which is now core, onto the
+    // spec's own example: a client selling on 30-day credit terms who takes no
+    // online payment, with the four gateway modules that resolve `payments`.
+    const dependents = ['autopay', 'payu', 'stripe', 'tpay'];
     registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => !dependents.includes(id)));
 
-    const res = await flip('price_lists', false);
+    const res = await flip('payments', false);
     expect(res.statusCode).toBe(200);
     expect(res.json().module.activated).toBe(false);
   });
 
+  it('still refuses that flip while the dependents are present (T045)', async () => {
+    // The other side of the same pair, and the state User Story 1 of feature
+    // 074 replaces with an informed confirmation in Phase 2. Asserted now so
+    // that the change of code is visible in the diff when it happens.
+    const res = await flip('payments', false);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe('MODULE_DEPENDENTS_PRESENT');
+    expect(res.json().error.details.blockedBy).toEqual(
+      expect.arrayContaining(['autopay', 'payu', 'stripe', 'tpay']),
+    );
+  });
+
   it('refuses to switch a module on while a module it needs is switched off (T046)', async () => {
-    // The symmetric direction. `pim_ergonode` declares `price_lists`; switching
-    // it on while the pricing engine is off buys an operator a module that
-    // answers 503 from its first port call.
-    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['price_lists'] });
+    // The symmetric direction, unchanged in meaning and re-pointed by feature
+    // 074: `pim_ergonode` used to be paired with `price_lists`, which is now
+    // core and can no longer be seeded as deactivated at all. `credentials` is
+    // the honest replacement — the connector's API credentials live there, and
+    // it is one of the five modules 074 gives a control to, so the pairing also
+    // proves that control reaches the graph.
+    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['credentials'] });
 
     const res = await flip(MODULE, true);
     expect(res.statusCode).toBe(409);
     expect(res.json().error.code).toBe('MODULE_DEPENDENCIES_ABSENT');
-    expect(res.json().error.message).toContain('price_lists');
-    expect(res.json().error.details.missing).toContain('price_lists');
+    expect(res.json().error.message).toContain('credentials');
+    expect(res.json().error.details.missing).toContain('credentials');
   });
 
   it('refuses to switch a module on while a module it needs is not installed here (T046)', async () => {
     // Both axes, one answer: a dependency the deployment does not offer is as
     // absent as one the operator switched off, and effective presence is where
     // the two are combined.
-    registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'price_lists'));
+    registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'credentials'));
 
     const res = await flip(MODULE, true);
     expect(res.statusCode).toBe(409);
     expect(res.json().error.code).toBe('MODULE_DEPENDENCIES_ABSENT');
-    expect(res.json().error.details.missing).toContain('price_lists');
+    expect(res.json().error.details.missing).toContain('credentials');
   });
 
   it('does not refuse a switch-off for the module\'s own absent dependencies (T046)', async () => {
     // Only the *activating* direction reads dependencies. Refusing to switch a
     // module off because something it needs is already off would leave an
     // operator unable to tidy up after themselves.
-    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['price_lists'] });
+    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['credentials'] });
 
     const res = await flip(MODULE, false);
     expect(res.statusCode).toBe(200);
     expect(res.json().module.activated).toBe(false);
   });
 
-  it('stays reachable while the settings module is switched off (D-36)', async () => {
-    // The property the relocation buys, and the reason Constitution XVII's
-    // surface clause was amended. With the control on the Settings screen, this
-    // state was the circle: no activation control reachable, including the one
-    // that would switch Settings back on. The endpoint is kernel-resident, so
-    // it answers whether or not the module that used to host its UI is present.
-    // Written to the row rather than seeded into the cache: every activation
-    // write refreshes the operator axis from the database afterwards, so a
-    // seeded-only deactivation would quietly come back on at the first flip and
-    // this case would stop testing what it says it does.
-    await h.em().nativeUpdate(Setting, { code: 'settings.enabled' }, { globalValue: false });
-    await registryCache.__refreshActivationForTesting(() => h.em());
+  it('cannot be driven into the D-36 circle at all any more (074)', async () => {
+    // What this case used to assert: with `settings` switched off, the
+    // activation endpoint still answers, because D-36 moved it out of the
+    // module whose UI used to host it. The property is still true and still
+    // matters — it is why switching `settings` off was survivable — but feature
+    // 074 removes the premise. `settings` is core, so the state is unreachable
+    // from this door, and the honest assertion is that the flip is refused and
+    // the projection renders a lock rather than a dead toggle.
+    const reason = (
+      REGISTERED_MANIFESTS.find((e) => e.manifest.id === 'settings')?.manifest.activation as
+        | { reason?: string }
+        | undefined
+    )?.reason;
+
+    const refused = await flip('settings', false);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error.code).toBe('MODULE_NOT_DEACTIVATABLE');
+    expect(refused.json().error.message).toBe(reason);
 
     const presence = await h.app.inject({
       method: 'GET',
@@ -325,23 +388,56 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     expect(presence.statusCode).toBe(200);
     expect(
       presence.json().modules.find((m: { id: string }) => m.id === 'settings'),
-    ).toMatchObject({ present: false, activated: false });
+    ).toMatchObject({
+      present: true,
+      activated: true,
+      deactivatable: false,
+      nonDeactivatableReason: reason,
+    });
 
-    const res = await flip(MODULE, false);
-    expect(res.statusCode).toBe(200);
-    expect(res.json().module.activated).toBe(false);
-
-    // The way back goes through `settings` first: `pim_ergonode` declares it, so
-    // FR-008 refuses to switch a module on into a deployment that cannot serve
-    // it. Both flips are served by this endpoint, which is the property the
-    // relocation buys — the control that repairs the state is not inside the
-    // module that is switched off.
-    const blocked = await flip(MODULE, true);
-    expect(blocked.statusCode).toBe(409);
-    expect(blocked.json().error.code).toBe('MODULE_DEPENDENCIES_ABSENT');
-
-    expect((await flip('settings', true)).statusCode).toBe(200);
+    // And the endpoint keeps serving an unrelated module's flip while it does,
+    // which is the half of the old case that survives: this door is
+    // kernel-resident and depends on no module's presence.
+    expect((await flip(MODULE, false)).statusCode).toBe(200);
     expect((await flip(MODULE, true)).statusCode).toBe(200);
+  });
+
+  it.each(NEW_CONTROLS)('%s now reports an operator control it never had (FR-011)', async (id) => {
+    const presence = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/module-presence',
+      cookies: ADMIN,
+    });
+    expect(
+      presence.json().modules.find((m: { id: string }) => m.id === id),
+    ).toMatchObject({ deactivatable: true, nonDeactivatableReason: null, activated: true });
+  });
+
+  it.each(FREELY_FLIPPABLE)('%s can be switched off and back on (FR-011, FR-012)', async (id) => {
+    // `activated: true` before the first flip is the FR-012 claim measured at
+    // the endpoint: all five default to on, so merging the new control changes
+    // no deployment's state.
+    const off = await flip(id, false);
+    expect(off.statusCode).toBe(200);
+    expect(off.json().module).toMatchObject({ activated: false, present: false });
+
+    const on = await flip(id, true);
+    expect(on.statusCode).toBe(200);
+    expect(on.json().module).toMatchObject({ activated: true, present: true });
+  });
+
+  it('`credentials` gains a live control that its dependents still block (FR-011)', async () => {
+    // The fifth of the five, kept separate because five modules resolve it. The
+    // refusal is the pre-Phase-2 behaviour and is asserted rather than avoided:
+    // the point of the new declaration is that the control is *reached* at all,
+    // and until this module had one the flip answered "declares no activation
+    // control" instead.
+    const res = await flip('credentials', false);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe('MODULE_DEPENDENTS_PRESENT');
+    expect(res.json().error.details.blockedBy).toEqual(
+      expect.arrayContaining(['pim_ergonode', 'prompt_actions']),
+    );
   });
 
   it('refuses the ordinary settings write path against an activation code', async () => {

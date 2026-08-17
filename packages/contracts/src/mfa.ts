@@ -158,6 +158,13 @@ export type MfaResetBulkResult = z.infer<typeof mfaResetBulkResultSchema>;
 // ---------------------------------------------------------------------------
 
 export const MFA_SETTING_CODES = {
+  /**
+   * Feature 074 — the operator-activation control (Constitution XVII). It sits
+   * above the eight policy switches below rather than beside them: those decide
+   * *which* second factor a surface offers, this decides whether the module is
+   * present at all.
+   */
+  ACTIVATION: 'mfa.enabled',
   ADMIN_TOTP_ENABLED: 'mfa.admin.totp_enabled',
   ADMIN_TOTP_ENFORCED: 'mfa.admin.totp_enforced',
   STOREFRONT_TOTP_ENABLED: 'mfa.storefront.totp_enabled',

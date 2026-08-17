@@ -1419,6 +1419,13 @@ export type ProductFeedErrorCode =
 // ---------------------------------------------------------------------------
 
 export const PRODUCT_FEED_SETTING_CODES = {
+  /**
+   * Feature 074 — the operator-activation control (Constitution XVII), and the
+   * only one of these codes that decides whether the module exists. It is not
+   * the same switch as `TAXONOMY_FETCH_ENABLED` below, which governs one
+   * outbound refresh inside a module that is present.
+   */
+  ACTIVATION: 'product_feeds.enabled',
   ARTEFACT_RETENTION_COUNT: 'product_feeds.artefact_retention_count',
   MAX_CONCURRENT_RUNS: 'product_feeds.max_concurrent_runs',
   SKIP_SHARE_FAILURE_THRESHOLD: 'product_feeds.skip_share_failure_threshold',

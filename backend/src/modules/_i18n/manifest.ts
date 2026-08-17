@@ -25,16 +25,19 @@ export const manifest = defineModuleManifest({
   // Neither depends back on this module, so the graph stays acyclic.
   dependencies: ['_lifecycle', 'auth', 'admin_users'],
   i18n: { bundlesDir: 'i18n' },
-  // Feature 073, Amendment A1 (Constitution XVII). The ground is the
-  // `_`-prefix infrastructure rule, not the specification's criterion set: an
-  // `_`-prefixed id is platform-internal, and `assertActivationRules`
-  // (`packages/contracts/src/modules.ts`) refuses any other activation form for
-  // one. That is the rule this declaration follows; the merits — every admin
-  // screen reads these bundles — agree with it but are not what carries it.
+  // Feature 074 (Constitution XVII), test C1 — reachability. Two grounds hold
+  // and they are stated in that order because only the first is about this
+  // module's merits: every user-facing string on every surface resolves here,
+  // including the labels on `/platform/modules`, so switching it off would
+  // leave an operator unable to read the screen that switches it back on. The
+  // `_`-prefix rule is the structural second: an `_`-prefixed id is
+  // platform-internal and `assertActivationRules`
+  // (`packages/contracts/src/modules.ts`) refuses any other activation form
+  // for one.
   activation: {
     nonDeactivatable: true,
     reason:
-      'Platform-internal by the `_`-prefix rule the manifest schema enforces; it also serves ' +
-      'the translation bundles every Admin UI screen reads.',
+      'Every user-facing string on every surface is served from here, including the labels ' +
+      'on the platform screen that holds the module switches.',
   },
 });

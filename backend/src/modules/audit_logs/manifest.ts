@@ -30,18 +30,25 @@ export const manifest = defineModuleManifest({
   settings: {
     moduleCode: 'audit_logs',
     groups: [{ code: 'audit_logs', name: 'Audit log' }],
-    settings: [
-      {
-        // Feature 073 — the operator's activation control. Platform-wide.
-        code: 'audit_logs.enabled',
-        name: 'Audit log screens enabled',
-        description:
-          'Switches the audit log and recent-activity screens, and their API, on or off. Recording is unaffected: entries are written by the platform itself, not by this module, so the trail keeps accumulating while the screens are hidden and is all there when you switch them back on.',
-        groupCode: 'audit_logs',
-        valueType: 'boolean',
-        defaultValue: true,
-      },
-    ],
+    // The group is kept as a reservation while the module ships no settings of
+    // its own: `audit_logs.enabled` was the only one, and it went with the
+    // control it backed (feature 074). Dropping the group as well would only
+    // turn it into an orphan the boot reconciler warns about at every start.
+    settings: [],
   },
-  activation: { settingCode: 'audit_logs.enabled', default: true },
+  // Feature 074 (Constitution XVII), test C3 — platform primitive, and one of
+  // the escalation answers. D-32 moved the *writing* of the trail into the
+  // kernel, so what this module owns is the viewer — and sight of who did what
+  // is part of trusting the platform rather than a capability a business
+  // declines. Switching it off is a governance regression, not a business
+  // choice, so there is no independent decision underneath the control.
+  //
+  // `audit_logs.enabled` goes with it. The existing rows are removed by a core
+  // data migration (feature 074, FR-010a).
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Sight of the write trail. The writing is the platform\'s own, so this module owns the ' +
+      'viewer, and hiding who did what is a governance regression.',
+  },
 });
