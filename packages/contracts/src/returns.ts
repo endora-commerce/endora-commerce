@@ -256,6 +256,28 @@ export const settlementRequestSchema = z.object({
 });
 export type SettlementRequest = z.infer<typeof settlementRequestSchema>;
 
+/**
+ * What became of the corrective invoice a settlement asked for (#135).
+ *
+ * Both outcomes are stated. A settled return on an order that was never
+ * invoiced corrects no VAT document, and this says so with a reason instead of
+ * leaving the caller to read it out of a missing id — reading absence is how
+ * the never-invoiced path came to emit a document that corrected nothing.
+ */
+export const settlementCorrectiveInvoiceSchema = z.discriminatedUnion('issued', [
+  z.object({
+    issued: z.literal(true),
+    invoiceId: uuidSchema,
+    number: z.string(),
+  }),
+  z.object({
+    issued: z.literal(false),
+    /** `order_not_invoiced` — the order carries no VAT invoice to correct. */
+    reason: z.enum(['order_not_invoiced']),
+  }),
+]);
+export type SettlementCorrectiveInvoice = z.infer<typeof settlementCorrectiveInvoiceSchema>;
+
 export const settlementResultSchema = z.object({
   totalRefundAmount: z.number().finite(),
   refund: z
@@ -266,6 +288,8 @@ export const settlementResultSchema = z.object({
     })
     .optional(),
   correctiveInvoiceId: uuidSchema.nullable().optional(),
+  /** Present whenever a correction was asked for — issued or not (#135). */
+  correctiveInvoice: settlementCorrectiveInvoiceSchema.optional(),
   creditLimitTopupApplied: z.boolean().optional(),
 });
 export type SettlementResult = z.infer<typeof settlementResultSchema>;

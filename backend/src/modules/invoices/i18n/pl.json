@@ -16,5 +16,6 @@
   "errors.SELLER_SETTINGS_MISSING": "Skonfiguruj NIP/VAT oraz dane firmy sprzedawcy przed wystawianiem faktur.",
   "errors.INVOICE_ALREADY_EXISTS": "Faktura tego typu już istnieje dla tego zamówienia.",
   "errors.ORDER_NOT_FOUND": "Nie znaleziono zamówienia.",
-  "errors.INVOICE_NOT_FOUND": "Nie znaleziono faktury."
+  "errors.INVOICE_NOT_FOUND": "Nie znaleziono faktury.",
+  "errors.CORRECTION_CURRENCY_MISMATCH": "Korekta musi być wystawiona w walucie faktury korygowanej ({originalCurrency}), a zażądano {requestedCurrency}. Przeliczenie waluty nie jest wykonywane."
 }

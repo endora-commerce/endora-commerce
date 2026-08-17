@@ -60,6 +60,8 @@ describe('invoices — audit logging (FR-035)', () => {
       total: 100,
       currency: 'PLN',
     });
+    // The order was invoiced above, so a correction is due (#135).
+    if (!result.issued) throw new Error(`Expected a correction: ${result.reason}`);
     const row = await h.em().findOne(AuditLogEntry, { action: 'invoice.corrected', objectId: result.invoiceId });
     expect(row).not.toBeNull();
   });

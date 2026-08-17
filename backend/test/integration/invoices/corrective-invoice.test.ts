@@ -12,6 +12,10 @@ import {
 } from '../../../src/modules/invoices/services/invoice-number-generator.js';
 import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
 import { InvoiceLine } from '../../../src/modules/invoices/entities/invoice-line.entity.js';
+import type {
+  CorrectiveInvoiceInput,
+  CorrectiveInvoiceIssued,
+} from '../../../src/modules/returns/ports/corrective-invoice.port.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
 
 const CH = 'cccccccc-0000-4000-8000-000000000001';
@@ -38,12 +42,26 @@ describe('invoices — corrective invoice from a return (US3)', () => {
     await teardownBackendServer(h);
   });
 
+  /**
+   * Narrows the port result to the issued case. `not due` is a legitimate
+   * answer (an order that was never invoiced, #135), so the tests that expect a
+   * document say so here instead of asserting on a possibly-absent id.
+   */
+  async function issuedCorrection(
+    input: CorrectiveInvoiceInput,
+  ): Promise<CorrectiveInvoiceIssued> {
+    const result = await provider.createCorrection(input);
+    if (!result.issued) throw new Error(`Expected a correction, got no document: ${result.reason}`);
+    return result;
+  }
+
   async function issueBaseInvoice(
-    opts: { lineTaxRate?: number } = {},
+    opts: { lineTaxRate?: number; packagingUnitName?: string } = {},
   ): Promise<{ orderId: string; itemIds: [string, string] }> {
     const { orderId, itemIds } = await seedInvoiceableOrder(h.em(), {
       salesChannelId: CH,
       ...(opts.lineTaxRate != null ? { lineTaxRate: opts.lineTaxRate } : {}),
+      ...(opts.packagingUnitName ? { packagingUnitName: opts.packagingUnitName } : {}),
     });
     const res = await h.app.inject({
       method: 'POST',
@@ -57,7 +75,7 @@ describe('invoices — corrective invoice from a return (US3)', () => {
 
   it('creates a correction referencing the original, with a correction-sequence number', async () => {
     const { orderId, itemIds } = await issueBaseInvoice();
-    const result = await provider.createCorrection({
+    const result = await issuedCorrection({
       orderId,
       lines: [
         { orderItemId: itemIds[0], productName: 'Example Server', quantity: 1, amount: 1107 },
@@ -80,7 +98,7 @@ describe('invoices — corrective invoice from a return (US3)', () => {
 
   it('caps the credited total at the original invoice gross', async () => {
     const { orderId, itemIds } = await issueBaseInvoice();
-    const result = await provider.createCorrection({
+    const result = await issuedCorrection({
       orderId,
       lines: [{ orderItemId: itemIds[0], productName: 'Everything', quantity: 1, amount: 999999 }],
       total: 999999,
@@ -97,7 +115,7 @@ describe('invoices — corrective invoice from a return (US3)', () => {
    */
   it("carries the corrected line's non-zero VAT rate", async () => {
     const { orderId, itemIds } = await issueBaseInvoice();
-    const result = await provider.createCorrection({
+    const result = await issuedCorrection({
       orderId,
       lines: [
         { orderItemId: itemIds[0], productName: 'Example Server', quantity: 1, amount: 1107 },
@@ -128,7 +146,7 @@ describe('invoices — corrective invoice from a return (US3)', () => {
    */
   it('still corrects a genuinely zero-rated line at zero', async () => {
     const { orderId, itemIds } = await issueBaseInvoice({ lineTaxRate: 0 });
-    const result = await provider.createCorrection({
+    const result = await issuedCorrection({
       orderId,
       lines: [
         { orderItemId: itemIds[0], productName: 'Example Server', quantity: 1, amount: 900 },
@@ -161,12 +179,13 @@ describe('invoices — corrective invoice from a return (US3)', () => {
   });
 
   /**
-   * A settled return on a never-invoiced order still produces its credit note
-   * (the returns settlement path does not know whether an invoice exists).
-   * There is no original line, so there is no rate to mirror — pinned here so
-   * that changing it is a decision rather than a side effect.
+   * Issue #135 (product ruling 2026-08-17) — a never-invoiced order has no VAT
+   * document to correct, so no document is produced. What used to come out here
+   * was a UUID where a correction number belongs, an empty seller/buyer
+   * snapshot, `originalInvoiceId = null` and zero VAT: the shape of a
+   * correction with nothing corrected.
    */
-  it('credits a never-invoiced order at zero, with no original to mirror', async () => {
+  it('issues no document for an order that was never invoiced, and says why', async () => {
     const { orderId, itemIds } = await seedInvoiceableOrder(h.em(), { salesChannelId: CH });
     const result = await provider.createCorrection({
       orderId,
@@ -174,10 +193,87 @@ describe('invoices — corrective invoice from a return (US3)', () => {
       total: 1107,
       currency: 'PLN',
     });
+    expect(result).toEqual({ issued: false, reason: 'order_not_invoiced' });
+
+    // Nothing was written: no correction row for that order at all.
+    const corrections = await h.em().find(Invoice, { orderId, kind: 'correction' });
+    expect(corrections).toHaveLength(0);
+  });
+
+  /**
+   * Issue #136.1 — the corrected line keeps the unit it was invoiced in. The
+   * original copies `packagingUnitSnapshot.name`, so a position sold in
+   * `opak.` was being credited in `szt.` by a hard-coded default.
+   */
+  it("mirrors the corrected line's unit of measure", async () => {
+    const { orderId, itemIds } = await issueBaseInvoice({ packagingUnitName: 'opak.' });
+    const result = await issuedCorrection({
+      orderId,
+      lines: [
+        { orderItemId: itemIds[0], productName: 'Example Server', quantity: 1, amount: 1107 },
+      ],
+      total: 1107,
+      currency: 'PLN',
+    });
     const em = h.em();
-    const corr = await em.findOneOrFail(Invoice, { id: result.invoiceId });
-    expect(corr.originalInvoiceId).toBeFalsy();
-    const lines = await em.find(InvoiceLine, { invoiceId: corr.id });
-    expect(Number(lines[0]!.taxRate)).toBe(0);
+    const original = await em.findOneOrFail(Invoice, { orderId, kind: 'invoice' });
+    const originalLine = await em.findOneOrFail(InvoiceLine, {
+      invoiceId: original.id,
+      orderItemId: itemIds[0],
+    });
+    expect(originalLine.unit).toBe('opak.');
+
+    const lines = await em.find(InvoiceLine, { invoiceId: result.invoiceId });
+    expect(lines[0]!.unit).toBe('opak.');
+  });
+
+  /**
+   * Issue #136.4 — the correction reports the sale date of the sale it
+   * corrects, not the day the correction was drawn up. The issue date stays the
+   * correction's own.
+   */
+  it("inherits the original invoice's sale date, keeping its own issue date", async () => {
+    const { orderId, itemIds } = await issueBaseInvoice();
+    const em = h.em();
+    const original = await em.findOneOrFail(Invoice, { orderId, kind: 'invoice' });
+    // Back-date the sale so "inherited" and "today" cannot be the same value.
+    original.saleDate = '2026-01-15';
+    await em.flush();
+
+    const result = await issuedCorrection({
+      orderId,
+      lines: [
+        { orderItemId: itemIds[0], productName: 'Example Server', quantity: 1, amount: 1107 },
+      ],
+      total: 1107,
+      currency: 'PLN',
+    });
+    const corr = await h.em().findOneOrFail(Invoice, { id: result.invoiceId });
+    expect(corr.saleDate).toBe('2026-01-15');
+    expect(corr.issuedAt.toISOString().slice(0, 10)).toBe(new Date().toISOString().slice(0, 10));
+  });
+
+  /**
+   * Issue #136.2 — the credited total is capped against the original gross, and
+   * two amounts in different currencies do not compare. No path produces a
+   * cross-currency credit today; this is what keeps it that way.
+   */
+  it('refuses a correction in a currency other than the original invoice\'s', async () => {
+    const { orderId, itemIds } = await issueBaseInvoice();
+    await expect(
+      provider.createCorrection({
+        orderId,
+        lines: [{ orderItemId: itemIds[0], productName: 'Serwer', quantity: 1, amount: 250 }],
+        total: 250,
+        currency: 'EUR',
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 422,
+      details: { code: 'correction_currency_mismatch', originalCurrency: 'PLN', requestedCurrency: 'EUR' },
+    });
+
+    // The refusal is at the seam: no document, and no correction number drawn.
+    const corrections = await h.em().find(Invoice, { orderId, kind: 'correction' });
+    expect(corrections).toHaveLength(0);
   });
 });

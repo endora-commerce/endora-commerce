@@ -6,7 +6,11 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
+import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
+import { ReturnCase } from '../../../src/modules/returns/entities/return-case.entity.js';
+import { Refund } from '../../../src/modules/returns/entities/refund.entity.js';
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
+import { setSellerSettings } from '../invoices/helpers.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
@@ -20,13 +24,16 @@ describe('returns — settlement (US5)', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     await resetReturnGraph(h.em());
+    // Needed by the invoiced counterpart below: issuance refuses without the
+    // seller's own company data.
+    await setSellerSettings(h);
   });
   afterAll(async () => {
     await teardownBackendServer(h);
   });
 
   /** Create a case, authorize it, and move it to `received` so it can settle. */
-  async function receivedCase(): Promise<{ id: string; itemId: string }> {
+  async function receivedCase(): Promise<{ id: string; itemId: string; orderId: string }> {
     const { orderId, itemIds } = await seedReturnableOrder(h.em());
     const reasonId = await anyReasonId(h.em());
     const created = await h.app.inject({
@@ -43,10 +50,20 @@ describe('returns — settlement (US5)', () => {
       cookies: ADMIN_COOKIE,
       payload: { to: 'received' },
     });
-    return { id: detail.id, itemId: detail.items[0]!.id };
+    return { id: detail.id, itemId: detail.items[0]!.id, orderId };
   }
 
-  it('defaults the refund to the paid amount and issues a money refund + corrective invoice', async () => {
+  /**
+   * Issue #135 (product ruling 2026-08-17) — a settled return on an order that
+   * was never invoiced produces **no** corrective invoice. The refund is real
+   * and stays recorded on the return case and the payment record; only the
+   * VAT-shaped document goes away, because there is no VAT document to correct.
+   *
+   * The settlement itself must still succeed: this path runs after the PSP
+   * refund has already gone through, so a throw here would leave money moved
+   * and the case unsettled.
+   */
+  it('settles a refund on a never-invoiced order without a corrective invoice', async () => {
     const { id, itemId } = await receivedCase();
 
     const prefill = await h.app.inject({ method: 'GET', url: `/api/v1/admin/returns/${id}/settlement`, cookies: ADMIN_COOKIE });
@@ -65,13 +82,82 @@ describe('returns — settlement (US5)', () => {
       },
     });
     expect(res.statusCode).toBe(200);
-    const data = (res.json() as { data: { totalRefundAmount: number; refund: { settlementState: string }; correctiveInvoiceId: string } }).data;
+    const data = (
+      res.json() as {
+        data: {
+          totalRefundAmount: number;
+          refund: { settlementState: string };
+          correctiveInvoiceId: string | null;
+          correctiveInvoice: { issued: boolean; reason?: string };
+        };
+      }
+    ).data;
     expect(data.totalRefundAmount).toBe(100);
     expect(data.refund.settlementState).toBe('issued'); // bank_transfer order → recorded as issued
-    expect(data.correctiveInvoiceId).toBeTruthy();
+    // The absence is stated, not implied.
+    expect(data.correctiveInvoice).toEqual({ issued: false, reason: 'order_not_invoiced' });
+    expect(data.correctiveInvoiceId).toBeNull();
 
     const after = await h.app.inject({ method: 'GET', url: `/api/v1/admin/returns/${id}`, cookies: ADMIN_COOKIE });
     expect((after.json() as { data: { statusCode: string } }).data.statusCode).toBe('resolved');
+
+    // The refund is recorded on the case, and no document was written for it.
+    const settled = await withSystemScope('test: assert refund recorded', async () => {
+      const em = h.em().fork();
+      const rc = await em.findOneOrFail(ReturnCase, { id });
+      const refund = await em.findOneOrFail(Refund, { returnCaseId: id });
+      const corrections = await em.find(Invoice, { orderId: rc.orderId, kind: 'correction' });
+      return { amount: Number(refund.amount), correctiveInvoiceId: refund.correctiveInvoiceId, corrections };
+    });
+    expect(settled.amount).toBe(100);
+    expect(settled.correctiveInvoiceId).toBeFalsy();
+    expect(settled.corrections).toHaveLength(0);
+  });
+
+  /**
+   * The counterpart to the test above: an order that **was** invoiced still
+   * gets its correction. The two pin each other — neither "always issue" nor
+   * "never issue" passes both.
+   */
+  it('issues the corrective invoice when the order was invoiced', async () => {
+    const { id, itemId, orderId } = await receivedCase();
+    const issued = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/orders/${orderId}/invoices`,
+      cookies: ADMIN_COOKIE,
+      payload: { kind: 'invoice' },
+    });
+    expect(issued.statusCode).toBe(201);
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/returns/${id}/settlement`,
+      cookies: ADMIN_COOKIE,
+      payload: {
+        resolutionType: 'refund',
+        lines: [{ returnCaseItemId: itemId, approvedRefundAmount: 100 }],
+        refundPaymentMethodId: randomUUID(),
+        createCorrectiveInvoice: true,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const data = (
+      res.json() as {
+        data: {
+          correctiveInvoiceId: string | null;
+          correctiveInvoice: { issued: boolean; invoiceId?: string; number?: string };
+        };
+      }
+    ).data;
+    expect(data.correctiveInvoice.issued).toBe(true);
+    expect(data.correctiveInvoiceId).toBeTruthy();
+    expect(data.correctiveInvoice.invoiceId).toBe(data.correctiveInvoiceId);
+
+    const correction = await withSystemScope('test: assert correction', () =>
+      h.em().fork().findOneOrFail(Invoice, { orderId, kind: 'correction' }),
+    );
+    expect(correction.id).toBe(data.correctiveInvoiceId);
+    expect(correction.originalInvoiceId).toBeTruthy();
   });
 
   it('rejects a refund amount above the paid amount', async () => {
