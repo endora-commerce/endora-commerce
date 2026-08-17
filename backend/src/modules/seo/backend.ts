@@ -1,8 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type {
+  CatalogCategoryReadPort,
+  CatalogProductReadPort,
+  CmsPageReadPort,
+} from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { MetaTagResolverService } from './services/meta-tag-resolver.service.js';
 import {
   SitemapGeneratorService,
@@ -55,7 +61,16 @@ export function registerModule(ctx: ModuleContext): void {
     seoMetaResolver: ctx
       .asFunction(
         ({ emFactory, auditLogService }: SeoCradle) =>
-          new MetaTagResolverService(emFactory, auditLogService),
+          new MetaTagResolverService(
+            emFactory,
+            auditLogService,
+            // Feature 075, Phase C. Never captured: the proxies resolve per
+            // call, so a switched-off owner answers 503 `MODULE_DISABLED` at
+            // the call rather than through a gate frozen at composition time.
+            lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            lazyPort<CatalogCategoryReadPort>(ctx, 'catalogCategoryReadPort'),
+            lazyPort<CmsPageReadPort>(ctx, 'cmsPageReadPort'),
+          ),
       )
       .singleton(),
 
@@ -65,6 +80,10 @@ export function registerModule(ctx: ModuleContext): void {
           new SitemapGeneratorService(
             emFactory,
             lazyPort<SitemapSettingsPort>(ctx, 'settingsReadPort'),
+            lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
+            lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            lazyPort<CatalogCategoryReadPort>(ctx, 'catalogCategoryReadPort'),
+            lazyPort<CmsPageReadPort>(ctx, 'cmsPageReadPort'),
             sitemapOptions,
           ),
       )

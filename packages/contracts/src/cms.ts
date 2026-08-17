@@ -407,12 +407,33 @@ export interface CmsReferenceRegistryPort {
   owners(): readonly string[];
 }
 
-/** A CMS page as `seo` reads it — never the ORM entity (FR-011). */
+/**
+ * A CMS page as `seo` reads it — never the ORM entity (FR-011).
+ *
+ * **`path` and `title` are the entity's two `@deprecated` columns**, and the
+ * first version of this record carried only those. `slug`, `name` and `active`
+ * join them in Phase C, because they are what `seo` measurably reads: the
+ * sitemap stamps `${baseUrl}/${slug}` and excludes `active === false`, and the
+ * meta-tag rule falls back to `name` when a page has no localized `metaTitle`.
+ * Publishing the record without them would have made the cut change which URL
+ * a crawler is given and put deactivated pages back into the sitemap — a
+ * product change wearing a refactor.
+ *
+ * The deprecated pair stays: `cms` owns the decision to retire them, and
+ * removing a published field to fix a consumer is the wrong direction.
+ */
 export interface CmsPageRecord {
   id: string;
-  /** The storefront path, without a leading slash. */
+  /** @deprecated Use `slug`. The entity says so; the record repeats it. */
   path: string;
+  /** The storefront slug — what a URL is built from. */
+  slug: string;
   status: 'draft' | 'published' | 'archived';
+  /** Admin-facing page name, and the meta-title fallback. */
+  name: string;
+  /** An operator can deactivate a published page; a deactivated one has no URL. */
+  active: boolean;
+  /** @deprecated Use `name` + `metaTitle`. The entity says so; the record repeats it. */
   title: Record<string, string>;
   metaTitle: Record<string, string> | null;
   metaDescription: Record<string, string> | null;
@@ -435,6 +456,12 @@ export interface CmsPageRecord {
 export interface CmsPageReadPort {
   findById(id: string): Promise<CmsPageRecord | null>;
   findByPath(path: string): Promise<CmsPageRecord | null>;
-  /** Published pages only, ordered by path — the sitemap's read. */
+  /**
+   * These ids, in the order given. The sitemap's read: it already holds the
+   * channel's member ids, so `listPublished` would fetch every page on the
+   * platform to keep one channel's few.
+   */
+  findByIds(ids: readonly string[]): Promise<CmsPageRecord[]>;
+  /** Published pages only, ordered by path — the platform-wide enumeration. */
   listPublished(): Promise<CmsPageRecord[]>;
 }
