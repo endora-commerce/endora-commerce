@@ -3,7 +3,7 @@
  * (issue #128).
  *
  * Two checks ask that question and used to answer it separately.
- * `check-timer-presence.ts` reads the callback and knows a repeating timer is
+ * `check-entry-presence.ts` reads the callback and knows a repeating timer is
  * not only a `setInterval`: a `setTimeout` whose callback re-arms a timer is the
  * same entry point wearing a different constructor. `check-entry-scope.ts`
  * grepped for `setInterval(` — so `search`'s reindex loop, which is exactly that
@@ -18,7 +18,7 @@
  * lives here and both checks consume it; neither owns it.
  *
  * What this deliberately does **not** decide: what to do about a site it finds.
- * `check-timer-presence` asks whether the callback decides presence,
+ * `check-entry-presence` asks whether the callback decides presence,
  * `check-entry-scope` whether the file opens a scope. The shapes are shared, the
  * rules are not.
  *

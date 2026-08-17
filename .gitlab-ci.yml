@@ -88,7 +88,7 @@ quality:
     # reindex loop — a `setTimeout` its callback re-arms — was never in the
     # population and its unmet FR-020 sat behind a count that could not move. The
     # shape now comes from `scripts/lib/repeating-timers.ts`, shared with
-    # check:timer-presence below.
+    # check:entry-presence below.
     - pnpm --filter backend run check:entry-scope
     # Feature 072 (FR-032) — no module imports the container library. Modules see
     # only `ModuleContext`, so the container stays swappable behind that seam.
@@ -118,15 +118,21 @@ quality:
     # bare subscription fails, and so does a ledger entry that no longer
     # describes one.
     - pnpm --filter backend run check:subscribe-seam
-    # Issue #126 — an entry point nothing can catch a throw from decides presence
-    # before it works. Routes, workers and subscribers each have a seam; a timer
-    # a module starts in its own plugin body had none, and `price_lists` went on
-    # activating and expiring price lists five minutes at a time with the module
-    # switched off — it changed what customers were charged. Sees `setInterval`,
-    # a self-rescheduling `setTimeout` and `process.on`, not a one-shot deadline.
-    # `TIMERS_WITHOUT_PRESENCE` is two-way and is not expected to empty: an entry
-    # says why a timer must keep running while its module is off.
-    - pnpm --filter backend run check:timer-presence
+    # Issue #126 / #146 — an entry point nothing can catch a throw from decides
+    # presence before it works. Routes, workers and subscribers each have a seam;
+    # a timer a module starts in its own plugin body had none, and `price_lists`
+    # went on activating and expiring price lists five minutes at a time with the
+    # module switched off — it changed what customers were charged. Sees
+    # `setInterval`, a self-rescheduling `setTimeout`, `process.on` and — since
+    # D-68 — a `ctx.onBoot` hook that does work in a switchable module, which is
+    # how a switched-off `product_feeds` kept writing BullMQ scheduler keys at
+    # every deploy. A hook that only contributes a descriptor passes silently,
+    # and one that does both is reported as `mixed-boot-hook` with "split it
+    # first" rather than "probe the top", because probing a mixed hook stops the
+    # contribution too. `TIMERS_WITHOUT_PRESENCE` and `BOOT_HOOKS_WITHOUT_PRESENCE`
+    # are two-way and are not expected to empty: an entry says why a site is right
+    # to keep running while its module is off.
+    - pnpm --filter backend run check:entry-presence
     # Issue #111 — a test releases a harness-owned resource through
     # `teardownBackendServer`, never by closing it itself. Seventy-seven files had
     # copied the same three lines (`app.close`, `redis.disconnect`, `orm.close`)

@@ -246,8 +246,10 @@ export function registerModule(ctx: ModuleContext): void {
     // FR-031's schedule reconcile is the one that made this urgent. It
     // re-asserts every per-feed BullMQ Job Scheduler, so a switched-off module
     // was writing scheduler keys into Redis on every deploy — "behaves as if
-    // never installed" failing on a seam no ratchet watches: a Job Scheduler is
-    // not a `setInterval`, and `check:timer-presence` does not read boot hooks.
+    // never installed" failing on a seam no ratchet watched: a Job Scheduler is
+    // not a `setInterval`, and the timer check did not read boot hooks. It does
+    // now — `check:entry-presence`, D-68 — so removing this probe fails the
+    // build rather than waiting for the next deploy to notice.
     if (!effectiveState.isPresent('product_feeds')) return;
     const runWorkers = ctx.cradle<ProductFeedsCradle>().productFeedsRunWorkers;
     const handle = ctx.cradle<ProductFeedsCradle>().productFeeds.handle;

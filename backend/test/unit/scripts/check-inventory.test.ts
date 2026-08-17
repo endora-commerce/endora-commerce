@@ -64,9 +64,11 @@ import { buildDeactivationLedger } from '../../../src/modules/_lifecycle/service
 import { nonBindingPortEdgesFrom } from '../../../src/modules/_lifecycle/services/gating-graph.js';
 import { checkSubscribeSeam } from '../../../scripts/check-subscribe-seam.js';
 import {
-  checkTimerPresence,
-  type TimerConstruct,
-} from '../../../scripts/check-timer-presence.js';
+  checkEntryPresence,
+  keyOf as entryPresenceKeyOf,
+  type EntryConstruct,
+  type EntryFinding,
+} from '../../../scripts/check-entry-presence.js';
 import { analyzeSource as hardcodedAnalyze } from '../../../scripts/i18n-hardcoded-strings.js';
 import {
   lowEntryDrift,
@@ -795,11 +797,65 @@ function commandCoverageModuleSelection(): number {
 }
 
 /** Ungated uncatchable entry points of one construct, in one synthetic file. */
-function ungatedTimers(file: string, source: string, construct: TimerConstruct): number {
-  return checkTimerPresence({ sources: new Map([[file, source]]) }, {}).violations.filter(
+function ungatedTimers(file: string, source: string, construct: EntryConstruct): number {
+  return checkEntryPresence({ sources: new Map([[file, source]]) }, {}).violations.filter(
     (v) => v.construct === construct,
   ).length;
 }
+
+/**
+ * Ungated entry points of one **finding kind**, in one synthetic file.
+ *
+ * The kind is what the boot-hook proofs assert, not the count: `mixed-boot-hook`
+ * and `no-presence-decision` are two different repairs — "split it first" and
+ * "probe the top" — and a check that collapsed the first into the second would
+ * still report a finding while teaching the change that breaks the tree
+ * (D-68).
+ */
+function ungatedEntriesOfKind(file: string, source: string, finding: EntryFinding): number {
+  return checkEntryPresence({ sources: new Map([[file, source]]) }, {}).violations.filter(
+    (v) => v.finding === finding,
+  ).length;
+}
+
+/** A `blog` boot hook that does work and asks nothing — the plain D-68 shape. */
+const UNPROBED_WORK_BOOT_HOOK = `
+export function registerModule(ctx: ModuleContext): void {
+  ctx.onBoot(async () => {
+    await seedDefaultCategory(ctx.cradle<BlogCradle>().emFactory);
+  });
+}
+`;
+
+/** The same hook with the probe nested where a `catch` can swallow it. */
+const BOOT_HOOK_PROBED_INSIDE_TRY = `
+export function registerModule(ctx: ModuleContext): void {
+  ctx.onBoot(async () => {
+    try {
+      if (!effectiveState.isPresent('blog')) return;
+      await seedDefaultCategory(ctx.cradle<BlogCradle>().emFactory);
+    } catch (err) {
+      console.warn(err);
+    }
+  });
+}
+`;
+
+/**
+ * `blog`'s hook as it stood before D-68 split it: an asset-reference scanner
+ * registered beside two row-writing seeds. Probing this hook stops the scanner,
+ * after which an operator can delete an asset a switched-off `blog` still
+ * references — which is why the check has to report it as its own kind.
+ */
+const MIXED_BOOT_HOOK = `
+export function registerModule(ctx: ModuleContext): void {
+  ctx.onBoot(async () => {
+    const { assetReferenceRegistry, emFactory } = ctx.cradle<BlogCradle>();
+    registerBlogAssetReferences(assetReferenceRegistry, emFactory);
+    await seedDefaultCategory(emFactory);
+  });
+}
+`;
 
 /** Runs one shell check over a fixture that violates it; 1 when it goes red. */
 function shellRed(script: string, prepare: (f: ReturnType<typeof createShellCheckFixture>) => void): number {
@@ -1538,12 +1594,15 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
-    // The three constructs the header says it can see. The middle one is the
-    // shape issue #128 found hiding from the sibling check.
-    script: 'backend/scripts/check-timer-presence.ts',
-    npmScript: 'check:timer-presence',
+    // The four constructs the header says it can see. The second is the shape
+    // issue #128 found hiding from the sibling check; the fourth arrived with
+    // D-68 and brings three proofs of its own, because a boot hook fails this
+    // rule in three distinguishable ways and one of them has a *different
+    // repair* — a mixed hook is split, never probed.
+    script: 'backend/scripts/check-entry-presence.ts',
+    npmScript: 'check:entry-presence',
     job: 'quality',
-    companionTest: 'backend/test/unit/scripts/check-timer-presence.test.ts',
+    companionTest: 'backend/test/unit/scripts/check-entry-presence.test.ts',
     vacuousGuard: 'exit-2',
     red: {
       setInterval: top(() =>
@@ -1563,6 +1622,43 @@ const CHECKS: readonly CheckEntry[] = [
           'process.on',
         ),
       ),
+      'boot-hook-without-presence': top(() =>
+        ungatedEntriesOfKind(
+          'modules/blog/backend.ts',
+          UNPROBED_WORK_BOOT_HOOK,
+          'no-presence-decision',
+        ),
+      ),
+      'boot-hook-probed-inside-try': top(() =>
+        ungatedEntriesOfKind(
+          'modules/blog/backend.ts',
+          BOOT_HOOK_PROBED_INSIDE_TRY,
+          'presence-decided-inside-try',
+        ),
+      ),
+      'mixed-boot-hook': top(() =>
+        ungatedEntriesOfKind('modules/blog/backend.ts', MIXED_BOOT_HOOK, 'mixed-boot-hook'),
+      ),
+      'stale-boot-hook-ledger-entry': top(() => {
+        // The other direction of the two-way ratchet: an entry naming a site
+        // that no longer exists. It enters as source text like every other
+        // proof here — the ledger key is derived from the finding the analysis
+        // produces, never written down beside it.
+        const site = new Map([['modules/blog/backend.ts', UNPROBED_WORK_BOOT_HOOK]]);
+        const found = checkEntryPresence({ sources: site }, {}).violations[0];
+        if (found === undefined) return 0;
+        const repaired = new Map([
+          [
+            'modules/blog/backend.ts',
+            UNPROBED_WORK_BOOT_HOOK.replace(
+              'await seed',
+              "if (!effectiveState.isPresent('blog')) return;\n    await seed",
+            ),
+          ],
+        ]);
+        return checkEntryPresence({ sources: repaired }, { [entryPresenceKeyOf(found)]: 'stale' })
+          .stale.length;
+      }),
     },
   },
   {
@@ -1772,6 +1868,9 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-container-imports.ts': 5,
       'backend/scripts/check-doc-snippets.ts': 4,
       'backend/scripts/check-entity-tenant-classification.ts': 2,
+      // Three timer shapes plus D-68's four boot-hook ones. The count is the
+      // point: the check grew a construct, so its proof had to grow with it.
+      'backend/scripts/check-entry-presence.ts': 7,
       'backend/scripts/check-entry-scope.ts': 4,
       'backend/scripts/check-error-translations.ts': 2,
       'backend/scripts/check-harness-teardown.ts': 8,
@@ -1781,7 +1880,6 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-port-catches.ts': 5,
       'backend/scripts/check-port-dependencies.ts': 15,
       'backend/scripts/check-subscribe-seam.ts': 3,
-      'backend/scripts/check-timer-presence.ts': 3,
       'backend/scripts/i18n-hardcoded-strings.ts': 2,
       'scripts/check-naming.sh': 4,
       'scripts/check-language.sh': 2,

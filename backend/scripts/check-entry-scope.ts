@@ -30,7 +30,7 @@
  * so `search`'s reindex loop — a self-rescheduling `setTimeout` — was outside the
  * population this check reports on, and the count it printed never moved because
  * it could only move for one spelling. The shape is now recognised by
- * `lib/repeating-timers.ts`, shared with `check-timer-presence`, which reads the
+ * `lib/repeating-timers.ts`, shared with `check-entry-presence`, which reads the
  * callback rather than the call: a second detector for one shape is how the two
  * drift, and the drift is what hid the site.
  *

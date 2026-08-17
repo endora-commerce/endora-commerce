@@ -189,7 +189,7 @@ never add a "module options" object for something the module can read itself.
    not platform roots.
 11. **CI** — `pnpm --filter backend run check:port-dependencies`, `check:port-catches`,
    `check:kernel-boundary`, `check:module-boundary`, `check:container-imports`,
-   `check:subscribe-seam`, `check:timer-presence`, and
+   `check:subscribe-seam`, `check:entry-presence`, and
    `pnpm --filter backend exec vitest run test/contract/kernel/harness-parity.test.ts`
    (drift between the two composition roots, as an explicit draining ledger).
 
@@ -312,26 +312,32 @@ pattern to copy.
    in its own comment. The same rule holds for any entry point with no caller to answer: a boot hook,
    a signal handler, a `process.on` sweep.
 
-   `pnpm --filter backend run check:timer-presence` is the ratchet (issue #126), and it sees
-   **less than the rule says**: a `setInterval`, a `setTimeout` the callback re-arms, and a
-   `process.on` lifecycle handler, each in a module's own sources. It does not see a
-   one-shot deadline inside an operation that already has a caller. `TIMERS_WITHOUT_PRESENCE` is
-   two-way and, unlike the subscribe ledger, is not expected to empty: an entry says why a timer
-   is **right** to keep running while its module is off.
+   `pnpm --filter backend run check:entry-presence` is the ratchet (issues #126 and #146), and it
+   sees **less than the rule says**: a `setInterval`, a `setTimeout` the callback re-arms, a
+   `process.on` lifecycle handler and a `ctx.onBoot` hook, each in a module's own sources. It does
+   not see a one-shot deadline inside an operation that already has a caller, a synchronous write
+   reached through an imported helper, or a boot hook that awaits nothing.
+   `TIMERS_WITHOUT_PRESENCE` and `BOOT_HOOKS_WITHOUT_PRESENCE` are two-way and, unlike the subscribe
+   ledger, are not expected to empty: an entry says why a site is **right** to keep running while its
+   module is off.
 
-   **A boot hook is one of those entry points, and no check sees it yet** (issue #146, D-67/D-68).
-   This paragraph used to except boot hooks on the grounds that "`runBootHooks` catches, so that is
-   one kernel decision rather than a guard per module". It does not catch: it wraps the hook,
-   attributes the failure to the module and **re-throws** as `ModuleCompositionError`, which
+   **A boot hook is one of those entry points, and the obligation splits three ways** (issue #146,
+   D-67/D-68). This paragraph used to except boot hooks on the grounds that "`runBootHooks` catches,
+   so that is one kernel decision rather than a guard per module". It does not catch: it wraps the
+   hook, attributes the failure to the module and **re-throws** as `ModuleCompositionError`, which
    `index.ts` turns into `process.exit(1)` — and that is the ruled-correct behaviour, because a boot
    hook runs during composition, where a swallowed failure would mean serving requests on a platform
-   that is not what the code says it is. So the obligation is per hook, and it splits: a hook that
+   that is not what the code says it is. So the obligation is per hook: a hook that
    **does work** (a reconcile, a seed, a Redis or Postgres write) probes
    `effectiveState.isPresent('<own id>')` first and returns, exactly like a timer; a hook that
    **contributes** an inert descriptor to another module's registry must **not** probe, because the
    host filters by contributor at enumeration and a probe would make runtime activation require a
-   restart. A hook that does both is split in two — `product_feeds/backend.ts` already ships that
-   shape, a work hook and a contribution hook kept separate, with the reason in its own comment.
+   restart; and a hook that does **both is split in two before either answer applies** — probing a
+   mixed hook stops the contribution, which for `blog` and `cms` meant an operator could delete an
+   asset a switched-off module's rows still embed. `blog`, `cms` and `product_feeds` all ship the
+   split shape, a work hook and a contribution hook kept separate, each with the reason in its own
+   comment. A module that declares `activation.nonDeactivatable` is exempt: it has no absent state
+   for a hook to run in, and the check derives that from the manifest rather than a list.
 4. **Manifest** — declare the module's activation control and its default, and, if the
    platform genuinely cannot run without the module, declare it non-deactivatable with a
    reason. The lifecycle orchestrator refuses to disable **or uninstall** a module that
@@ -478,6 +484,7 @@ of this table: it enumerates every `check-*` script and fails on one it does not
 | `check:command-coverage` | `quality` | A sensitive write that neither runs a Command nor records an audit row (Principle XIII). `--strict` in CI, so a finding in any module fails. |
 | `check:container-imports` | `quality` | A module importing the container library — a module sees `ModuleContext` and nothing else (feature 072, FR-032). |
 | `check:doc-snippets` | `quality` | A code block marked `<!-- verbatim-from: <path> -->` that no longer appears verbatim in that file. The quickstarts are copied by every module conversion, so a stale snippet is a defect scheduled for mass production. |
+| `check:entry-presence` | `quality` | A module-owned `setInterval`, self-rescheduling `setTimeout`, `process.on` handler or **working `ctx.onBoot` hook** that does not decide presence before it works (issues #126, #146). A contribution hook passes silently; one that mixes work with a contribution is reported as `mixed-boot-hook`, and its remedy is "split it first", never "probe the top" — probing a mixed hook stops the contribution too. Non-deactivatable modules are out of the boot-hook population, derived from their manifests through `scripts/lib/switchable-modules.ts` (shared with `check:port-catches`). `TIMERS_WITHOUT_PRESENCE` and `BOOT_HOOKS_WITHOUT_PRESENCE` are two-way and are not expected to empty. |
 | `check:entry-scope` | `quality` | A non-HTTP entry point — CLI script, BullMQ consumer, repeating-timer sweep — that does not establish its scope explicitly (feature 072, FR-020). |
 | `check:error-translations` | `quality` | An operator-visible error code with no sentence in both shipped languages. The envelope replaces the message wholesale, so a missing key renders the raw code and nothing reports it. Ledger may only shrink. |
 | `check:harness-teardown` | `quality` | A test that releases a `setupBackendServer` resource itself instead of calling `teardownBackendServer` (issue #111). A hand-written teardown is a copy of the seam frozen when it was copied, so it cannot learn about the awilix container or the pub/sub Redis client, and both leak for the length of the single-fork run. `HAND_RELEASED_RESOURCES_TO_DRAIN` is an empty two-way ratchet. |
@@ -486,7 +493,6 @@ of this table: it enumerates every `check-*` script and fails on one it does not
 | `check:port-catches` | `quality` | A `catch` that swallows `ModuleDisabledError` — see composition checklist item 7. |
 | `check:port-dependencies` | `quality` | A cross-module port edge the resolver's manifest does not declare, and an edge with no deactivation-consequence classification — see checklist items 4 and 4a. |
 | `check:subscribe-seam` | `quality` | A bare `eventBus.on` in a module instead of `ctx.subscribe` (issue #107). Empty two-way ledger. |
-| `check:timer-presence` | `quality` | A module-owned `setInterval`, self-rescheduling `setTimeout` or `process.on` handler that does not decide presence before it works (issue #126). `TIMERS_WITHOUT_PRESENCE` is two-way and is not expected to empty. |
 | `i18n:hardcoded` | `quality` | A user-visible literal in the admin SPA — see the i18n checklist above. |
 | `overlay:check` | `quality` | A generated artefact that is stale, missing, or rendered empty: the composer, the manifest index, both `db/` registries, and every override manifest — bare core plus one per deployment under `backend/src/apps/` (issue #120). |
 | `pnpm run check:naming` | `quality:static` | Principle VI, above. |

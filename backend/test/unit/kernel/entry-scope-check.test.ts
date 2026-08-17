@@ -12,7 +12,7 @@ import {
   NO_SCOPE_NEEDED,
   type EntryPoint,
 } from '../../../scripts/check-entry-scope.js';
-import { findUngatedTimers } from '../../../scripts/check-timer-presence.js';
+import { findUngatedEntries } from '../../../scripts/check-entry-presence.js';
 
 /**
  * The entry-scope check (feature 072, T037). Its own test has to prove it can go
@@ -158,7 +158,7 @@ describe('one recognizer, two checks', () => {
     // Blank the presence decision out, so what the timer check reports is the
     // site rather than its compliance.
     const blanked = source.replaceAll("effectiveState.isPresent('search')", 'true');
-    const seen = findUngatedTimers({ sources: new Map([['modules/search/plugin.ts', blanked]]) });
+    const seen = findUngatedEntries({ sources: new Map([['modules/search/plugin.ts', blanked]]) });
     expect(seen.map((f) => f.construct)).toContain('setTimeout');
   });
 });

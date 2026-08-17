@@ -724,15 +724,13 @@ never share one silent no-op. Where the timer *is* the loop, as in `search`'s
 self-rescheduling reindex tick, the off branch re-arms and skips the work;
 returning without re-arming would stop the scheduler for the life of the process.
 
-`pnpm --filter backend run check:timer-presence` is the ratchet (issue #126), and
-what it sees is narrower than the rule: a `setInterval`, a `setTimeout` whose
-callback re-arms a timer or calls back into the function that armed it, and a
-`process.on` lifecycle handler — in a module's own sources. A one-shot deadline
-inside an operation that already has a caller is out of scope. `ctx.onBoot` is out
-of the check's population too, but **not** because the kernel decides presence for
-it: nothing in the kernel does (see *The boot phase re-throws* above), so a working
-boot hook carries the same obligation a timer callback does and no check enforces
-it yet — issue #146, and the ratchet it needs is D-68's.
+`pnpm --filter backend run check:entry-presence` is the ratchet (issues #126 and
+#146 — it was `check:timer-presence` until the population stopped being timers),
+and what it sees is narrower than the rule: a `setInterval`, a `setTimeout` whose
+callback re-arms a timer or calls back into the function that armed it, a
+`process.on` lifecycle handler, and a `ctx.onBoot` hook — in a module's own
+sources. A one-shot deadline inside an operation that already has a caller is out
+of scope.
 The first two shapes live in `backend/scripts/lib/repeating-timers.ts` and are
 read by `check-entry-scope.ts` as well (issue #128). That check classified its
 interval entry points by grepping for `setInterval(`, so `search`'s reindex loop
@@ -741,10 +739,50 @@ behind a number that never moved. Two detectors for one shape is how they drift;
 the rules stay separate — one asks whether the callback decides presence, the
 other whether the file opens a scope — but the recognizer is one.
 
-`TIMERS_WITHOUT_PRESENCE` is two-way like the ledgers above but, unlike them, is
-not expected to empty: an entry says why a timer is right to keep running while
-its module is off — the lifecycle lock's lease heartbeat belongs to the command
-that holds the lock, and `_lifecycle` is non-deactivatable.
+`TIMERS_WITHOUT_PRESENCE` and `BOOT_HOOKS_WITHOUT_PRESENCE` are two-way like the
+ledgers above but, unlike them, are not expected to empty: an entry says why a
+site is right to keep running while its module is off — the lifecycle lock's
+lease heartbeat belongs to the command that holds the lock, and `_lifecycle` is
+non-deactivatable.
+
+#### A boot hook is in that population, and one shape of it is not repaired by a probe
+
+Nothing in the kernel decides presence for a boot hook (see *The boot phase
+re-throws* above), so a hook that **does work** carries the same obligation a
+timer callback does: `if (!effectiveState.isPresent('<own id>')) return;`, first
+and outside any `try`. `product_feeds` was writing BullMQ scheduler keys into
+Redis at every deploy with the module switched off; `pim_ergonode` was doing the
+same for its import schedule, `inventory` was creating warehouse/channel
+assignment rows, `blog` was seeding a category and two roles, `cms` was
+reconciling its seeded Hooks.
+
+A hook that only **contributes** — pushes an inert descriptor into another
+module's registry — must **not** probe. The host filters those by contributor at
+enumeration, so an absent contributor already costs it nothing, and a probe would
+mean a module an operator switches back on at runtime contributes nothing until
+the next restart.
+
+A hook that does **both** is split before either answer applies, and the check
+reports it as its own kind (`mixed-boot-hook`) with "split it first" as the
+remedy. This is not stylistic. `blog` and `cms` each registered an
+asset-reference scanner beside their own work, and `assets_library` consults that
+registry before every soft-delete — the registry's enumeration policy is
+*honoured* while the contributor is absent precisely because a switched-off
+module's rows still embed assets. Probe the combined hook and a deployment that
+boots with `blog` off has no blog scanner: the Library then deletes an asset a
+blog post references, and the operator meets the damage as a broken image when
+they switch the module back on. Two of the five working hooks in the tree were
+mixed, which is why a check whose only advice was "add the probe at the top"
+would have taught the wrong repair on 40% of what it finds.
+`backend/test/integration/blog/asset-reference-while-off.test.ts` and its `cms`
+twin pin the consequence: they compose the module **while it is off** and assert
+the referenced asset still cannot be deleted.
+
+A module whose manifest declares `activation.nonDeactivatable` is out of the
+boot-hook population — there is no state in which its hooks run while it is
+absent. That derivation lives in `backend/scripts/lib/switchable-modules.ts` and
+is shared with `check-port-catches`' `OWNER LOCKED` (D-63), so an owner who
+withdraws a lock re-reds both checks on the same run, with no ledger to edit.
 
 ### Writing an ordering rationale that does not rot
 
@@ -854,7 +892,7 @@ is no container in the process running it.
 | `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a **gated port resolved from a `ctx.onBoot` hook or a `ctx.routes` body**; a root shadowing a module's port; a computed port name; **and an edge into a switchable module with no defined behaviour when that module is off** (the deactivation-consequence ledger above) |
 | `check-port-catches.ts` | a `catch` around a gated-port call that does not let `ModuleDisabledError` past — unconditional re-throw, `rethrowIfModuleDisabled`, naming the error, or a delegate that re-throws it. Follows the port through a holder and through a root contribution (issues #133/#113). Carries `PORT_CATCHES_TO_DRAIN`, a two-way ratchet, and derives `OWNER LOCKED` from the manifests for a site whose every gate has a `nonDeactivatable` owner (D-63) |
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
-| `check-entry-scope.ts` | a non-HTTP entry point — CLI script, BullMQ worker, repeating-timer sweep — that establishes no scope (T037). The timer class is the *shape*, not the constructor: it reads `lib/repeating-timers.ts`, shared with `check-timer-presence.ts`, so a `setTimeout` the callback re-arms counts (issue #128) |
+| `check-entry-scope.ts` | a non-HTTP entry point — CLI script, BullMQ worker, repeating-timer sweep — that establishes no scope (T037). The timer class is the *shape*, not the constructor: it reads `lib/repeating-timers.ts`, shared with `check-entry-presence.ts`, so a `setTimeout` the callback re-arms counts (issue #128) |
 | `check-channel-resolution.ts` | a raw `x-sales-channel` header read outside the resolver; a storefront surface re-resolving the request channel; a settings read whose channel argument can be a string that is not a channel uuid (D-42); a channel id invented by a default parameter or a `randomUUID()` fallback (D-48). Runs `--enforce` in CI |
 | `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger — including `ROOT_MODULE_VALUE_IMPORTS` (T143c): every **value** import a root takes out of `src/modules/**`, keyed by owner, with what has to happen for it to drain, and "no root constructs a module-owned service" against a named allow-list |
 
@@ -961,8 +999,8 @@ it.
 proof can enter at the top and still test one spelling of five, and then four
 fifths of the check can go blind behind the fifth's red. `check-subscribe-seam`
 names three signals and its fixture — `eventBus.on('inventory.adjusted.v1', …)`
-— satisfied two of them at once, so neither could fail alone; `check-timer-presence`
-names three constructs and proved `setInterval`; `check-channel-resolution`
+— satisfied two of them at once, so neither could fail alone; `check-entry-presence`
+named three constructs and proved `setInterval`; `check-channel-resolution`
 names four signals and proved one. Where a check's header enumerates a set, the
 inventory carries one proof per member, each fixture narrowed so it can only
 trip the signal it is named after, and each asserting the finding's **kind**

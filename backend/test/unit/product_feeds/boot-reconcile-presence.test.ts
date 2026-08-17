@@ -11,11 +11,13 @@ import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered
  * Issue #147 — the `product_feeds` boot reconcile decides presence before it works.
  *
  * `reconcileSchedules()` re-asserts every per-feed BullMQ Job Scheduler (FR-031).
- * A Job Scheduler is not a `setInterval`, and `check:timer-presence` deliberately
- * does not look at boot hooks, so nothing saw this: with the module switched off
- * an operator still got its repeatable jobs written back into Redis on every
- * deploy, plus a template install and a taxonomy revision install — a switched-off
- * module writing at boot, which is Constitution XVII failing.
+ * A Job Scheduler is not a `setInterval`, and the timer check did not look at boot
+ * hooks when this landed, so nothing saw it: with the module switched off an
+ * operator still got its repeatable jobs written back into Redis on every deploy,
+ * plus a template install and a taxonomy revision install — a switched-off module
+ * writing at boot, which is Constitution XVII failing. `check:entry-presence` reads
+ * boot hooks since D-68, so the hole this file was written for is now ratcheted as
+ * well as tested.
  *
  * The probe goes **first, and outside the `try`** (D-62). `runBootHooks`
  * re-throws — it wraps the hook in a `try` whose `catch` raises

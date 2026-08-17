@@ -135,6 +135,11 @@ import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { moduleOf, providedPortNames } from './check-port-dependencies.js';
+import {
+  loadManifestActivations,
+  lockedOwners,
+  type ManifestActivationInput,
+} from './lib/switchable-modules.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -262,18 +267,16 @@ export function keyOf(found: PortCatch): string {
  * fixture can supply the two fields the derivation looks at and nothing else —
  * and so the derivation itself stays inside the analysis, where a red proof can
  * reach it.
+ *
+ * Both the shape and `lockedOwners` come from `lib/switchable-modules.ts`, which
+ * `check-entry-presence` reads as well (D-68): the same lock decides whether a
+ * `catch` is `OWNER LOCKED` and whether a module's boot hooks are in that
+ * check's population, so an owner who withdraws one re-reds both on the same
+ * run. Re-exported here because this check's own tests and its inventory entry
+ * name it.
  */
-export interface ManifestActivationInput {
-  readonly id: string;
-  readonly activation?:
-    | {
-        readonly settingCode?: string;
-        readonly default?: boolean;
-        readonly nonDeactivatable?: boolean;
-        readonly reason?: string;
-      }
-    | undefined;
-}
+export type { ManifestActivationInput };
+export { lockedOwners };
 
 export interface PortCatchInput {
   /** Every source under `src/`, keyed by path relative to `src/`. */
@@ -284,17 +287,6 @@ export interface PortCatchInput {
    * default — a site is only ever retired by a lock somebody declared.
    */
   readonly manifests?: readonly ManifestActivationInput[];
-}
-
-/** The modules the orchestrator refuses to switch off, on either axis. */
-export function lockedOwners(
-  manifests: readonly ManifestActivationInput[],
-): ReadonlySet<string> {
-  return new Set(
-    manifests
-      .filter((manifest) => manifest.activation?.nonDeactivatable === true)
-      .map((manifest) => manifest.id),
-  );
 }
 
 interface Analysis {
@@ -941,23 +933,21 @@ async function main(): Promise<void> {
     sources.set(relative(SRC_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
   }
 
-  // The locks, read from the manifests rather than listed here (D-63). The same
-  // index `check-port-dependencies.ts` derives `neverAbsentOwners` from, so the
-  // two checks cannot disagree about which modules are locked.
-  const { DISCOVERED_MANIFESTS } = (await import(
-    pathToFileURL(join(SRC_ROOT, 'modules/_lifecycle/manifest-index.generated.ts')).href
-  )) as { DISCOVERED_MANIFESTS: ReadonlyArray<{ id: string; manifest: ManifestActivationInput }> };
-  if (DISCOVERED_MANIFESTS.length === 0) {
+  // The locks, read from the manifests rather than listed here (D-63), through
+  // the helper `check-entry-presence` reads too (D-68). The same index
+  // `check-port-dependencies.ts` derives `neverAbsentOwners` from, so no two of
+  // the three can disagree about which modules are locked.
+  let manifests: readonly ManifestActivationInput[];
+  try {
+    manifests = await loadManifestActivations(SRC_ROOT);
+  } catch (err: unknown) {
     console.error(
-      '[port-catches] the manifest index is empty — every site would read as unlocked, ' +
-        'refusing to report a classification nothing was read for',
+      `[port-catches] the manifest index could not be read (${String(err)}) — every site ` +
+        'would read as unlocked, refusing to report a classification nothing was read for',
     );
     process.exit(2);
+    return;
   }
-  const manifests = DISCOVERED_MANIFESTS.map((entry) => ({
-    id: entry.id,
-    activation: entry.manifest.activation,
-  }));
 
   const result = checkPortCatches({ sources, manifests });
 
