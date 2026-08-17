@@ -73,17 +73,10 @@ describe('PromotionService — attribute criterion resolution (T056)', () => {
         return products.findByIds(ids, options);
       },
     } as CatalogProductReadPort;
-    svc = new PromotionService(
-      h.em,
-      undefined,
-      catalog,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      recordingProducts,
-    );
+    // Issue #164 — the two catalog ports are the second and third arguments and
+    // no longer optional, so this suite's recording pair is passed where every
+    // composition passes one.
+    svc = new PromotionService(h.em, catalog, recordingProducts);
     // Mark `material` as promo-eligible for the duration of the suite.
     const em = h.em();
     const material = await findAttributeExtensionByKey(em, 'material');

@@ -11,7 +11,7 @@ import { OrderService, type OrderEventBus } from '../../../src/modules/orders/se
 import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
-import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 
 /**
@@ -27,7 +27,7 @@ describe('placeOrder — coupon discount stamped on the order (feature 036)', ()
     await seedCartForStubCustomer(h.em());
 
     // Arrange a 10%-off coupon and apply it to the stub customer's cart.
-    const promotionService = new PromotionService(h.em);
+    const promotionService = promotionServiceFor(h);
     await promotionService.upsert({
       code: 'CHECKOUT10',
       name: 'Checkout 10% off',
@@ -59,7 +59,7 @@ describe('placeOrder — coupon discount stamped on the order (feature 036)', ()
         resolveTaxRate: async () => 0.23,
         paymentAdapters: registry,
         orderStatusRegistry: new EnumOrderStatusRegistry(),
-        promotion: new PromotionService(h.em),
+        promotion: promotionServiceFor(h),
       },
     );
 

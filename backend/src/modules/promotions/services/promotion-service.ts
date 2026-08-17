@@ -76,14 +76,40 @@ export interface PromotionAuditLogger {
 export class PromotionService {
   constructor(
     private readonly emFactory: () => EntityManager,
+    /**
+     * Feature 012 / US8 — `catalogPromoAttributePort`, owned by `catalog`: the
+     * attribute metadata a rule criterion is validated and evaluated against.
+     *
+     * **Required** (issue #164). It used to be optional "so legacy tests /
+     * composition setups that don't wire this stay green", and production
+     * always passed it — an optional dependency nobody omits is a lie in the
+     * type: it tells every reader that absence is supported, and it makes the
+     * absent branch untested by construction. Both consequences were real.
+     * `validateCriteria` opened by returning early, so a composition without
+     * the port **accepted a promotion naming an attribute that does not
+     * exist**; and no test covered that, because the ten call sites that
+     * omitted the port were the ones that never exercised attributes.
+     *
+     * There is no degrade left to express. Absence is not a state the platform
+     * can be in: the container resolves this port for every composition, and
+     * `catalog` being switched off makes the call **throw**
+     * `ModuleDisabledError` at the resolution seam — which is the explicit
+     * answer, and it is the owner's to give. What remains is
+     * `getAttributeWithOptions` answering `null`, already explicit in its
+     * return type and meaning what it says: no such attribute.
+     */
+    private readonly catalogPort: PromotionRuleCatalogPort,
+    /**
+     * Feature 075 Phase C — `catalogProductReadPort`, owned by `catalog`. It
+     * replaced an `em.find(Product, …)` this module wrote against `catalog`'s
+     * table to hydrate a cart line's attribute values, and it is required for
+     * the reason above: a composition that could not read products evaluated
+     * every attribute criterion against a line with no attribute values, which
+     * is not a degrade an operator would recognise as one.
+     */
+    private readonly productReadPort: CatalogProductReadPort,
     /** Feature 005 / T027b — auto-bind newly-created Promotions to the system default. */
     private readonly salesChannelMembership?: SalesChannelMembershipService,
-    /**
-     * Feature 012 / US8 — cross-module read port (CatalogQueryService).
-     * When omitted, attribute-criteria short-circuit to `false` so legacy
-     * tests / composition setups that don't wire this stay green.
-     */
-    private readonly catalogPort?: PromotionRuleCatalogPort,
     private readonly dictionaryValidator?: DictionaryValidator,
     /** Feature 012 / US8 — audit sink for FR-039 skip-on-toggle events. */
     private readonly auditLogger: PromotionAuditLogger = {
@@ -99,19 +125,6 @@ export class PromotionService {
     private readonly actionRegistry: PromotionActionRegistry = createPromotionActionRegistry(),
     /** Feature 054 — co-transactional audit sink (audit_log_entries). */
     private readonly auditLog?: AuditLogService,
-    /**
-     * Feature 075 Phase C — `catalogProductReadPort`, owned by `catalog`. It
-     * replaces an `em.find(Product, …)` this module wrote against `catalog`'s
-     * table to hydrate a cart line's attribute values.
-     *
-     * Optional for the same reason `catalogPort` above is, and with the same
-     * consequence: a composition that wires no catalog read cannot evaluate an
-     * attribute criterion, so the line keeps no attribute values and the rule
-     * is skipped and audited, exactly as it already is when the attribute
-     * metadata is unavailable. `backend.ts` always wires it, so the degrade is
-     * a test-construction shape, not a production one.
-     */
-    private readonly productReadPort?: CatalogProductReadPort,
   ) {
     this.usageService = new PromotionUsageService(emFactory);
   }
@@ -509,11 +522,6 @@ export class PromotionService {
    * `invalid_option_value`).
    */
   private async validateCriteria(criteria: PromotionCriterion[]): Promise<void> {
-    if (!this.catalogPort) {
-      // Without the port we can only structurally validate (already done
-      // by the Zod schema); skip the semantic per-valueType checks.
-      return;
-    }
     for (const c of criteria) {
       if (c.type !== 'attribute') continue;
       const meta = await this.catalogPort.getAttributeWithOptions(c.attributeKey);
@@ -567,7 +575,7 @@ export class PromotionService {
         options: Array<{ value: string }>;
       }
     >();
-    if (!this.catalogPort || keys.length === 0) {
+    if (keys.length === 0) {
       return { get: (k) => map.get(k) ?? null };
     }
     for (const key of keys) {
@@ -596,7 +604,7 @@ export class PromotionService {
           .map((l) => l.productId),
       ),
     ];
-    if (productIds.length === 0 || !this.productReadPort) return snapshot;
+    if (productIds.length === 0) return snapshot;
 
     const products = await this.productReadPort.findByIds(productIds);
     const valuesByProductId = new Map<string, Record<string, unknown>>();

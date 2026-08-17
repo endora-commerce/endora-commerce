@@ -11,7 +11,7 @@ import { OrderService, type OrderEventBus } from '../../../src/modules/orders/se
 import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
-import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { OrderAppliedPromotion } from '../../../src/modules/orders/entities/order-applied-promotion.entity.js';
 
 /**
@@ -26,7 +26,7 @@ describe('placeOrder — automatic promotion carried to order (feature 045)', ()
   beforeAll(async () => {
     h = await setupBackendServer();
     await seedCartForStubCustomer(h.em());
-    const promotionService = new PromotionService(h.em);
+    const promotionService = promotionServiceFor(h);
     const promo = await promotionService.upsert({
       name: 'Auto 10% off',
       action: { type: 'percentage_off_cart', percent: 10 },
@@ -49,7 +49,7 @@ describe('placeOrder — automatic promotion carried to order (feature 045)', ()
       resolveTaxRate: async () => 0.23,
       paymentAdapters: registry,
       orderStatusRegistry: new EnumOrderStatusRegistry(),
-      promotion: new PromotionService(h.em),
+      promotion: promotionServiceFor(h),
     });
 
     const order = await service.placeOrder(
