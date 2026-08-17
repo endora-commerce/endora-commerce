@@ -32,6 +32,7 @@ import { OrderApiIntakeService } from './services/order-api-intake-service.js';
 import { registerOrdersExternalRoutes } from './routes.external.js';
 import type { OrganizationConfirmationEmailsPort } from './ports/organization-confirmation-emails.port.js';
 import type {
+  AddressReadPort,
   AddressServicePort,
   AssetReadPort,
   CartWritePort,
@@ -123,6 +124,8 @@ export interface OrdersModuleOptions {
    * validation stay on that side of it, where they already are.
    */
   addressService: AddressServicePort;
+  /** `addresses`' read surface — placement snapshots the two chosen addresses. */
+  addressRead: AddressReadPort;
   /**
    * `carts`' published write surface. **`cartWritePort`, not `cartService`**:
    * `carts/backend.ts` registers both, and the second hands out the class,
@@ -361,6 +364,14 @@ export function commerceModule(options: OrdersModuleOptions) {
         // discount onto the Order.
         ...(options.promotionService ? { promotion: options.promotionService } : {}),
         resolveTaxRate: options.resolveTaxRate,
+        neighbours: {
+          organizationDetails: options.organizationDetails,
+          customerAccountRead: options.customerAccountRead,
+          addressRead: options.addressRead,
+          catalogProductRead: options.catalogProductRead,
+          paymentMethodRead: options.paymentMethodRead,
+          deliveryMethodRead: options.deliveryMethodRead,
+        },
         ...(options.mailer ? { mailer: options.mailer } : {}),
         ...(options.confirmationRenderers
           ? { confirmationRenderers: options.confirmationRenderers }

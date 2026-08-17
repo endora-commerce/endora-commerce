@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import { z } from 'zod';
 import type {
+  AddressReadPort,
   AddressServicePort,
   AssetReadPort,
   CartWritePort,
@@ -287,6 +288,7 @@ export function registerModule(ctx: ModuleContext): void {
                 ? lazyPort<InvoicePdfPort>(ctx, 'invoicePdfPort')
                 : null,
             addressService: lazyPort<AddressServicePort>(ctx, 'addressService'),
+            addressRead: lazyPort<AddressReadPort>(ctx, 'addressReadPort'),
             customFieldValues: lazyPort<OrdersCradle['customFieldValueService']>(
               ctx,
               'customFieldValueService',

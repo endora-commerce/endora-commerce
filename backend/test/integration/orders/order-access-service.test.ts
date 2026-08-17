@@ -6,6 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { OrderAccessService } from '../../../src/modules/orders/services/order-access-service.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { ordersNeighbourPorts } from '../../helpers/orders-neighbour-ports.js';
 
 /**
  * T145 — OrderAccessService scopes Orders by Role:
@@ -24,7 +25,7 @@ describe('OrderAccessService.scopedWhere', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    svc = new OrderAccessService(h.em);
+    svc = new OrderAccessService(ordersNeighbourPorts(h.em).customerAccountRead);
   });
 
   afterAll(async () => {

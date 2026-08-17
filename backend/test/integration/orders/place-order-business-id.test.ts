@@ -13,6 +13,7 @@ import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/se
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
 import { createBusinessIdGenerator } from '../../../src/modules/orders/services/business-id-generator.js';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
+import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 /**
  * Feature 036 (US1) — placeOrder generates a customer-facing business Order ID
@@ -41,6 +42,7 @@ describe('placeOrder — business Order ID + nextAction (feature 036)', () => {
       undefined,
       undefined,
       {
+      neighbours: orderServiceNeighbours(h.em),
         // Issue #124 — a rig states its own tax authority. `OrderService` has no
         // fallback rate, so an order it cannot price is refused rather than taxed
         // at a figure nobody configured.

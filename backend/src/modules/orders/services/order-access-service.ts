@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import type { CustomerAccountReadPort } from '@b2b/contracts';
 
 /**
  * OrderAccessService (T145).
@@ -25,14 +25,13 @@ export interface OrderScopeContext {
 }
 
 export class OrderAccessService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(private readonly customerAccountRead: CustomerAccountReadPort) {}
 
   async scopedWhere(
     ctx: OrderScopeContext,
     extra: Record<string, unknown> = {},
   ): Promise<Record<string, unknown>> {
-    const em = this.emFactory();
-    const isAdmin = await this.isOrganizationAdmin(em, ctx.customerAccountId);
+    const isAdmin = await this.isOrganizationAdmin(ctx.customerAccountId);
     if (isAdmin) {
       // Feature 056 (T032) — an Organization Admin sees "their org(s)". The org
       // predicate is enforced by the always-on tenant filter (feature 050): it
@@ -50,16 +49,21 @@ export class OrderAccessService {
   }
 
   /**
-   * Convenience for the OrderService inline path that already has an EM
-   * fork — saves a second fork and a redundant CustomerAccount lookup
-   * when invoked inside an existing transaction.
+   * The variant `OrderService` calls from inside its own transaction.
+   *
+   * The `EntityManager` is no longer read (feature 075): the role lives in
+   * `customer_accounts`' table and is asked for through
+   * `customerAccountReadPort`, which runs on the owner's manager. The parameter
+   * stays so the two call shapes keep their names — deleting it would touch
+   * every caller for no behaviour — and the read it saved was of a row this
+   * transaction never writes, so nothing depended on sharing the fork.
    */
   async scopedWhereWithEm(
-    em: EntityManager,
+    _em: EntityManager,
     ctx: OrderScopeContext,
     extra: Record<string, unknown> = {},
   ): Promise<Record<string, unknown>> {
-    const isAdmin = await this.isOrganizationAdmin(em, ctx.customerAccountId);
+    const isAdmin = await this.isOrganizationAdmin(ctx.customerAccountId);
     if (isAdmin) {
       // Feature 056 (T032) — an Organization Admin sees "their org(s)". The org
       // predicate is enforced by the always-on tenant filter (feature 050): it
@@ -76,11 +80,8 @@ export class OrderAccessService {
     };
   }
 
-  private async isOrganizationAdmin(
-    em: EntityManager,
-    customerAccountId: string,
-  ): Promise<boolean> {
-    const customer = await em.findOne(CustomerAccount, { id: customerAccountId });
+  private async isOrganizationAdmin(customerAccountId: string): Promise<boolean> {
+    const customer = await this.customerAccountRead.findById(customerAccountId);
     return customer?.role === 'organization_admin';
   }
 }

@@ -11,6 +11,7 @@ import { EventBus } from '../../../src/events/bus.js';
 import { OrderService, type OrderEventBus } from '../../../src/modules/orders/services/order-service.js';
 import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
+import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 /**
  * T042 (US4/FR-015) — the selected payment method's adapter validator is
@@ -50,6 +51,7 @@ describe('placeOrder — payment-method submit re-validation', () => {
       undefined,
       undefined,
       {
+      neighbours: orderServiceNeighbours(h.em),
         // Issue #124 — a rig states its own tax authority. `OrderService` has no
         // fallback rate, so an order it cannot price is refused rather than taxed
         // at a figure nobody configured.

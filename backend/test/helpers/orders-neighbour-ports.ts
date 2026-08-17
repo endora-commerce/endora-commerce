@@ -1,13 +1,20 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  AddressReadPort,
   CartWritePort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
+  DeliveryMethodReadPort,
   OrganizationDetailsPort,
+  PaymentMethodReadPort,
 } from '@b2b/contracts';
 import { CustomerAccountReadService } from '../../src/modules/customer_accounts/services/customer-account-ports.js';
 import { OrganizationDetailsService } from '../../src/modules/organizations/services/organization-details-port.js';
 import { CatalogProductReadService } from '../../src/modules/catalog/services/catalog-product-read.service.js';
+import { AddressReadService } from '../../src/modules/addresses/services/address-ports.js';
+import { DeliveryMethodReadService } from '../../src/modules/delivery_methods/services/delivery-method-read-port.js';
+import { PaymentMethodReadService } from '../../src/modules/payment_methods/services/payment-method-read-port.js';
+import type { OrderServiceNeighbourPorts } from '../../src/modules/orders/services/order-service.js';
 import type { BackendServerHandle } from './test-server.js';
 
 /**
@@ -44,4 +51,29 @@ export function ordersNeighbourPorts(emFactory: () => EntityManager): {
  */
 export function cartWritePortOf(h: BackendServerHandle): CartWritePort {
   return (h.container.cradle as unknown as { cartWritePort: CartWritePort }).cartWritePort;
+}
+
+/**
+ * The whole group `OrderService` requires (feature 075).
+ *
+ * The two method catalogues are accessors on the port side because their
+ * owners are deactivatable; a rig that is not testing an off state hands back
+ * a live one, and a rig that *is* flips module state against the shared
+ * harness, which makes the accessor answer for itself.
+ */
+export function orderServiceNeighbours(
+  emFactory: () => EntityManager,
+): OrderServiceNeighbourPorts {
+  const base = ordersNeighbourPorts(emFactory);
+  const deliveryMethodRead: DeliveryMethodReadPort = new DeliveryMethodReadService(emFactory);
+  const paymentMethodRead: PaymentMethodReadPort = new PaymentMethodReadService(emFactory);
+  const addressRead: AddressReadPort = new AddressReadService(emFactory);
+  return {
+    organizationDetails: base.organizationDetails,
+    customerAccountRead: base.customerAccountRead,
+    catalogProductRead: base.catalogProductRead,
+    addressRead,
+    deliveryMethodRead: () => deliveryMethodRead,
+    paymentMethodRead: () => paymentMethodRead,
+  };
 }
