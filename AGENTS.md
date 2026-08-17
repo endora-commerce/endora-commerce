@@ -305,8 +305,9 @@ pattern to copy.
    is **right** to keep running while its module is off.
 4. **Manifest** — declare the module's activation control and its default, and, if the
    platform genuinely cannot run without the module, declare it non-deactivatable with a
-   reason. The lifecycle orchestrator refuses to disable a module that declares it, with no
-   `--force`, so the declaration bites on both axes. Never hard-code an exception list in the
+   reason. The lifecycle orchestrator refuses to disable **or uninstall** a module that
+   declares it — soft and hard alike, with no `--force` (D-69) — so the declaration bites on
+   both axes and on every withdrawal. Never hard-code an exception list in the
    admin app, and never declare it because a screen happens to live in the module — the
    activation controls render on `/platform/modules`, which belongs to no module (D-36).
 5. **Admin and Storefront** — a module that is off contributes no sidebar entry, palette

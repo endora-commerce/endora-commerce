@@ -576,8 +576,11 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
    * authenticate the operator who would undo it, which is not a trade-off
    * anyone can weigh at the prompt. `--force` guards *data loss* on
    * `uninstall --hard`, where the operator can.
+   *
+   * D-69 (issue #145) extended the same declaration to `uninstall`, soft and
+   * hard alike — see the nested describe below.
    */
-  describe('disable — nonDeactivatable is enforced on the platform axis', () => {
+  describe('nonDeactivatable is enforced on the platform axis', () => {
     const LOCKED: ModuleActivation = {
       nonDeactivatable: true,
       reason: 'Nobody could sign in to switch it back on.',
@@ -680,6 +683,140 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
         expect(em.rows[0]?.state).toBe('installed');
       },
     );
+
+    /**
+     * D-69 (issue #145) — the declaration binds `uninstall` as well.
+     *
+     * `uninstall` is `disable` **plus** the settings sweep and, on `--hard`, the
+     * migration revert: every consequence the lock refuses, and two more. So the
+     * refusal is the same one, on both paths, with no `--force`.
+     *
+     * The asymmetry the repository defends elsewhere in this file — a pause
+     * preserves the operator's activation choice, a soft uninstall resets it to
+     * the manifest default — is a statement about that *choice*, and a
+     * `nonDeactivatable` module declares no activation control at all. Those two
+     * cases exercise `blog`, which has one, and keep passing unchanged.
+     */
+    describe('uninstall — the same declaration binds it, soft and hard alike', () => {
+      /** The activation-adjacent settings row, as the sweep sees it. */
+      const ownedSetting = (moduleId: string): FakeRow =>
+        ({ moduleId: `${moduleId}.some_setting`, ownerModule: moduleId } as unknown as FakeRow);
+
+      it('refuses a soft uninstall, echoing the declared reason, and sweeps nothing', async () => {
+        const reg = buildRegistry([{ id: 'auth', activation: LOCKED }]);
+        const em = new FakeEm([...seedInstalled('auth'), ownedSetting('auth')]);
+        const { orchestrator, auditLog } = buildOrchestrator({ registry: reg, em });
+
+        await expect(orchestrator.uninstall('auth', { hard: false })).rejects.toMatchObject({
+          kind: 'non-deactivatable',
+        });
+        try {
+          await orchestrator.uninstall('auth', { hard: false });
+        } catch (err) {
+          expect((err as LifecycleError).message).toContain(LOCKED.reason);
+        }
+
+        // Soft is the path that deletes every Setting the module owns — the one
+        // thing `disable` is guaranteed never to do. Nothing moved.
+        expect(em.rows.find((r) => r.moduleId === 'auth')?.state).toBe('installed');
+        expect(
+          em.rows.some((r) => (r as unknown as Record<string, unknown>)['ownerModule'] === 'auth'),
+          'a refused uninstall must not sweep the module-owned settings',
+        ).toBe(true);
+        expect(auditLog.records.some((r) => r['action'] === 'module.uninstalled')).toBe(false);
+      });
+
+      it('refuses a hard uninstall too, reverting no migration and deleting no row', async () => {
+        const reg = buildRegistry([{ id: 'auth', activation: LOCKED }]);
+        const em = new FakeEm(seedInstalled('auth'));
+        const { orchestrator, migrator, auditLog } = buildOrchestrator({ registry: reg, em });
+
+        await expect(orchestrator.uninstall('auth', { hard: true })).rejects.toMatchObject({
+          kind: 'non-deactivatable',
+        });
+
+        expect(migrator.reverted).toEqual([]);
+        expect(em.rows.find((r) => r.moduleId === 'auth')?.state).toBe('installed');
+        expect(auditLog.records.some((r) => r['action'] === 'module.uninstalled')).toBe(false);
+      });
+
+      it('refuses before the dependents check and before the uninstall hook', async () => {
+        // The dependents block covers the shipped set by accident today — every
+        // locked module happens to have an installed dependent. A locked module
+        // with none must still be refused, and refused before anything runs.
+        let hookCalls = 0;
+        const reg = buildRegistry([
+          {
+            id: 'auth',
+            activation: LOCKED,
+            uninstallHook: async () => {
+              hookCalls++;
+            },
+          },
+        ]);
+        const { orchestrator } = buildOrchestrator({
+          registry: reg,
+          em: new FakeEm(seedInstalled('auth')),
+        });
+
+        await expect(orchestrator.uninstall('auth', { hard: false })).rejects.toMatchObject({
+          kind: 'non-deactivatable',
+        });
+        expect(hookCalls).toBe(0);
+      });
+
+      it.each(
+        REGISTERED_MANIFESTS.filter(
+          (e) =>
+            e.manifest.activation !== undefined && 'nonDeactivatable' in e.manifest.activation,
+        ).map((e) => e.manifest.id),
+      )('refuses `module:uninstall %s` on the shipped manifest', async (moduleId) => {
+        const entries = REGISTERED_MANIFESTS.map((e) => ({
+          manifest: e.manifest,
+          filePath: e.filePath,
+        }));
+        const registry: LoadedManifestRegistry = {
+          modules: new Map(entries.map((e) => [e.manifest.id, e])) as never,
+          graph: new ModuleDepGraph(entries.map((e) => e.manifest)),
+        };
+        const { orchestrator, em } = buildOrchestrator({
+          registry,
+          em: new FakeEm(seedInstalled(moduleId)),
+        });
+
+        await expect(orchestrator.uninstall(moduleId, { hard: false })).rejects.toMatchObject({
+          kind: 'non-deactivatable',
+        });
+        expect(em.rows[0]?.state).toBe('installed');
+      });
+
+      it('leaves an orphan registry row uninstallable — the one job uninstall exists for', async () => {
+        // The guard reads the manifest, and an orphan has none, so it is inert
+        // here. That is by design and previously undefended: a refactor that
+        // resolved the declaration from the registry row instead of the manifest
+        // would take the only cleanup path away, and nothing would have said so.
+        const reg = buildRegistry([{ id: 'auth', activation: LOCKED }]);
+        const em = new FakeEm(seedInstalled('old_module'));
+        const { orchestrator } = buildOrchestrator({ registry: reg, em });
+
+        const result = await orchestrator.uninstall('old_module', { hard: false });
+
+        expect(result.state).toBe('uninstalled');
+        expect(em.rows.find((r) => r.moduleId === 'old_module')?.state).toBe('uninstalled');
+      });
+
+      it('keeps `already-uninstalled` a success no-op for a locked module', async () => {
+        // Refusing here would break idempotent tooling for nothing: there is no
+        // registration left to protect.
+        const reg = buildRegistry([{ id: 'auth', activation: LOCKED }]);
+        const row = seedInstalled('auth')[0]!;
+        row.state = 'uninstalled';
+        const { orchestrator } = buildOrchestrator({ registry: reg, em: new FakeEm([row]) });
+
+        const result = await orchestrator.uninstall('auth', { hard: false });
+        expect(result.state).toBe('already-uninstalled');
+      });
+    });
 
     it('leaves an ordinary module with an activation control disable-able', async () => {
       // The two axes stay independent: declaring an operator control says

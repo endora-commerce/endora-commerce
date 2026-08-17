@@ -405,6 +405,16 @@ export class ModuleLifecycleOrchestrator {
         );
       }
 
+      // D-69 (issue #145) — the declaration that refuses `disable` refuses this
+      // too, soft and hard alike. Uninstall is disable *plus* the settings sweep
+      // below and, on `--hard`, the migration revert, so a lock that forbids the
+      // smaller operation cannot coherently permit the larger one. Raised after
+      // the `already-uninstalled` no-op (nothing left to protect) and before the
+      // dependents check, the uninstall hook and the sweep — the dependents block
+      // covers the locked set only by accident today, since nothing stops an
+      // operator uninstalling the dependents first.
+      this.assertDeactivatable(moduleId);
+
       // Block on dependents (any state except uninstalled).
       const dependents = await this.installedDependentsOf(moduleId);
       if (dependents.length > 0) {
@@ -721,11 +731,22 @@ export class ModuleLifecycleOrchestrator {
    * `module:disable auth` proceeded and the declaration was a comment that
    * looked like a guard.
    *
+   * It guards **every platform-axis withdrawal**: `disable` (the target and
+   * every member of a cascade) and, since D-69 / issue #145, `uninstall` on the
+   * soft and hard path alike. Uninstall is disable plus the settings sweep plus
+   * the schema revert, so the same declaration has to reach it.
+   *
    * There is deliberately **no `--force`**. `uninstall --hard --force` guards
    * data loss, a consequence an operator can weigh at the prompt; this guards
    * a deployment that can no longer authenticate the operator who would undo
-   * it, which they cannot. The operator axis already refuses the same flip
-   * (`activation.commands.ts`), so both axes now agree.
+   * it, which they cannot. If the declaration is wrong for a module, the fix is
+   * the manifest, which is reviewed. The operator axis already refuses the same
+   * flip (`activation.commands.ts`), so both axes agree.
+   *
+   * It reads the **manifest**, so a registry row with no manifest — an orphan —
+   * is not covered, deliberately: cleaning those up is the one job `uninstall`
+   * has that nothing else does. `test/unit/_lifecycle/orchestrator.test.ts`
+   * pins that carve-out.
    */
   private assertDeactivatable(moduleId: string): void {
     const activation = this.deps.registry.modules.get(moduleId)?.manifest.activation;
