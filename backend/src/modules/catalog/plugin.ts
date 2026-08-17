@@ -6,7 +6,7 @@ import type {
   CustomFieldValueService,
   DefinitionSource,
 } from '../custom_fields/services/custom-field-value.service.js';
-import { BULK_OPERATION_TYPES } from '@b2b/contracts';
+import { BULK_OPERATION_TYPES, type SearchQueryPort } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
@@ -45,7 +45,6 @@ import { ProductEditorPreferencesService } from './services/product-editor-prefe
 import { ProductOverridesService } from './services/product-overrides.service.js';
 import { ProductScopeContextService } from './services/product-scope-context.service.js';
 import { ProductValueResolverService } from './services/product-value-resolver.service.js';
-import { SearchQueryService } from '../search/services/search-query.service.js';
 import type { LanguageService } from '../languages/services/language-service.js';
 import type { Mailer } from '../email/services/mailer.js';
 import { registerCatalogPublicRoutes } from './routes.public.js';
@@ -199,6 +198,20 @@ export interface CatalogModuleOptions {
    * `customFieldDefinitions` is present, the plugin constructs its own.
    */
   attributeReadService?: CatalogAttributeReadService;
+  /**
+   * Issue #153 — `search`'s storefront listing backend, resolved as a port.
+   *
+   * This module used to `new SearchQueryService(...)` here out of `search`'s
+   * class, so a composition held two Meilisearch clients and two attribute-read
+   * wirings, and no gate stood between the public product list and an index
+   * whose maintenance subscribers had stopped with a switched-off `search`.
+   * `backend.ts` resolves `searchQueryPort` instead.
+   *
+   * Whether the listing *uses* it is still decided before the call, by
+   * `effectiveState.isPresent('search')` in `routes.public.ts` (MR !573) — a
+   * degrade to Postgres by decision, not by exception.
+   */
+  searchQueryService?: SearchQueryPort;
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
@@ -232,18 +245,6 @@ export function catalogModule(options: CatalogModuleOptions) {
       attributeReadService,
       options.customFieldsPort,
     );
-    // SearchQueryService is wired even when the env var picks Postgres so that
-    // an operator can flip CATALOG_SEARCH_BACKEND=meilisearch at runtime
-    // without restarting (R-08 reserved-fallback still applies). Lifecycle
-    // for the indexer + event subscriber lives in `searchModule` (feature
-    // 006 / R-3); catalog only owns the read-side adapter here.
-    const searchQueryService = new SearchQueryService(
-      options.emFactory,
-      attributeReadService,
-      {},
-      options.pricingService,
-    );
-
     const bulkUpdateService = new CatalogBulkUpdateService(
       options.emFactory,
       adminService,
@@ -296,7 +297,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     const bundleServicePublic = new BundleService(options.emFactory, options.commandBus);
     await registerCatalogPublicRoutes(app, {
       queryService,
-      searchQueryService,
+      ...(options.searchQueryService ? { searchQueryService: options.searchQueryService } : {}),
       productLinkService: productLinkServiceForRead,
       bundleService: bundleServicePublic,
       ...(options.resolveProductImagePlaceholderUrl

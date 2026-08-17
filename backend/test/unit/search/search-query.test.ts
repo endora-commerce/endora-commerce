@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { CatalogProductReadPort } from '@b2b/contracts';
 import {
   buildFilterExpression,
   buildSort,
@@ -61,18 +62,18 @@ describe('buildSort', () => {
 
 describe('SearchQueryService — reserved-fallback contract', () => {
   it('throws SearchBackendUnavailable when Meilisearch is unreachable', async () => {
-    // Stub em returns no attribute rows; the service uses the resolved channel
-    // from the context (no channel query) and proceeds to the Meilisearch call
-    // which fails fast against a port nothing is listening on.
-    const fakeEm = {
-      find: async (): Promise<unknown[]> => [],
-      findOne: async (): Promise<null> => null,
-    };
-    const service = new SearchQueryService(
-      () => fakeEm as never,
-      undefined,
-      { meilisearchHost: 'http://127.0.0.1:1', meilisearchApiKey: '' },
-    );
+    // The hydration never runs: the service uses the resolved channel from the
+    // context (no channel query) and proceeds to the Meilisearch call, which
+    // fails fast against a port nothing is listening on. Issue #153 replaced
+    // the stub `EntityManager` this used to take with `catalog`'s product read
+    // port; it stays unexercised for the same reason.
+    const productsPort = {
+      findByIds: async (): Promise<never[]> => [],
+    } as unknown as CatalogProductReadPort;
+    const service = new SearchQueryService(productsPort, undefined, {
+      meilisearchHost: 'http://127.0.0.1:1',
+      meilisearchApiKey: '',
+    });
     await expect(
       service.listProducts(
         { limit: 10 },

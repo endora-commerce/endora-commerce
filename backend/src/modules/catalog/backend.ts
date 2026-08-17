@@ -19,6 +19,7 @@ import type {
   CatalogProductWritePort,
   CatalogPromoAttributePort,
   CatalogQuickSearchPort,
+  SearchQueryPort,
 } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
@@ -288,6 +289,13 @@ export function registerModule(ctx: ModuleContext): void {
               lazyPort<BulkNotificationPort>(ctx, 'adminNotificationService'),
             ),
             mailer: lazyPort<CatalogCradle['emailMailer']>(ctx, 'emailMailer'),
+            // Issue #153 — `search`'s listing backend, resolved rather than
+            // constructed. `plugin.ts` used to `new SearchQueryService(...)`
+            // out of `search`'s class, so a composition held two Meilisearch
+            // clients and the public product list reached the index through no
+            // gate at all. Whether the listing uses it is still decided before
+            // the call by `effectiveState.isPresent('search')`.
+            searchQueryService: lazyPort<SearchQueryPort>(ctx, 'searchQueryPort'),
             requireAdmin: (permission) => async (req, reply) =>
               cradle().requireAdmin(permission)(req, reply),
             requireApiKey: requireApiKeyGate,

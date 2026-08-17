@@ -167,7 +167,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
     ...(options.credentials !== undefined ? { credentials: options.credentials } : {}),
   });
   const searchQueryService = new SearchQueryService(
-    options.emFactory,
+    options.catalogProducts,
     options.catalogAttributeRead,
     {},
     options.listingPrices,

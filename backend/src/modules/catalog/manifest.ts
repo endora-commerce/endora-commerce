@@ -84,6 +84,23 @@ export const manifest = defineModuleManifest({
         'resolution, and the `catch` is gone.',
     },
     {
+      moduleId: 'search',
+      name: 'searchQueryPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'the storefront product listing is served from PostgreSQL instead of the search index',
+      reason:
+        'Issue #153. This module used to build its own `SearchQueryService` out of `search`\'s ' +
+        'class, so a composition held two Meilisearch clients and the public product list ' +
+        'reached the index through no gate at all: a switched-off `search` went on serving that ' +
+        'listing out of an index whose maintenance subscribers had stopped with it. It resolves ' +
+        'the port now, and the degrade stays what it was — PostgreSQL is this route\'s default ' +
+        'backend, and 503-ing a public catalogue because an optional search module is off would ' +
+        'take the storefront down for a capability it never required. Declared rather than ' +
+        'caught: presence is decided in front of the query, and an unreachable index is an arm ' +
+        'of the port\'s return type.',
+    },
+    {
       moduleId: 'prompt_actions',
       name: 'promptActionToolRegistry',
       kind: 'contributes-to',

@@ -55,10 +55,6 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/plugin.ts:price_lists/services/pricing-service.interface':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/plugin.ts:search/services/search-query.service':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/routes.public.ts:search/services/search-query.service':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/asset-references.ts:assets_library/services/reference-registry':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/attachment.service.ts:assets_library/entities/asset.entity':
