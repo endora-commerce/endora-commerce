@@ -1,12 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { EmailDeliveryRecorder, EmailMailerPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 
 import { resolveSmtpUrlFromEnv } from './resolve-smtp-url.js';
-import { ConsoleMailer, type Mailer } from './services/mailer.js';
-import {
-  PersistentEmailDeliveryRecorder,
-  type EmailDeliveryRecorder,
-} from './services/email-delivery-recorder.js';
+import { ConsoleMailer } from './services/mailer.js';
+import { PersistentEmailDeliveryRecorder } from './services/email-delivery-recorder.js';
 import { RecordingMailer } from './services/recording-mailer.js';
 import { SmtpMailer } from './services/smtp-mailer.js';
 
@@ -41,11 +39,20 @@ export interface EmailCradle {
    * unforgettable: a module resolves `emailMailer` and gets the recording one,
    * with no way to reach the bare transport by accident.
    */
-  readonly emailTransport: Mailer;
+  readonly emailTransport: EmailMailerPort;
   /** Where every delivery decision is written (D-59). */
   readonly emailDeliveryRecorder: EmailDeliveryRecorder;
-  /** The platform's transactional mailer. Consumed by every sending module. */
-  readonly emailMailer: Mailer;
+  /**
+   * The platform's transactional mailer. Consumed by every sending module,
+   * against the `EmailMailerPort` contract since feature 075's Phase P.
+   *
+   * Still `ctx.di.register` rather than `providePort`: this module's manifest
+   * declares it non-deactivatable, so a gate on its effective state could never
+   * close, and a port advertising a 503 the platform cannot produce is worse
+   * than no port. The contract type says the same thing where a consumer reads
+   * it — which is the whole of what Phase P changes here.
+   */
+  readonly emailMailer: EmailMailerPort;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -58,7 +65,7 @@ export function registerModule(ctx: ModuleContext): void {
     // per-resolution instances.
     emailTransport: ctx
       .asFunction(
-        ({ emailSmtpUrl }: EmailCradle): Mailer =>
+        ({ emailSmtpUrl }: EmailCradle): EmailMailerPort =>
           emailSmtpUrl ? new SmtpMailer(emailSmtpUrl) : new ConsoleMailer(),
       )
       .singleton(),
@@ -76,7 +83,7 @@ export function registerModule(ctx: ModuleContext): void {
 
     emailMailer: ctx
       .asFunction(
-        ({ emailTransport, emailDeliveryRecorder }: EmailCradle): Mailer =>
+        ({ emailTransport, emailDeliveryRecorder }: EmailCradle): EmailMailerPort =>
           new RecordingMailer(emailTransport, emailDeliveryRecorder),
       )
       .singleton(),

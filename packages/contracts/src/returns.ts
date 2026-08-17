@@ -449,3 +449,50 @@ export const returnSavedViewUpdateSchema = z.object({
   sort: returnSavedViewSortSchema.optional(),
   visibleColumns: z.array(z.string()).nullable().optional(),
 });
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The refund seam, published early (feature 075, Phase P).
+//
+// `returns` declares this shape and `payments` — through the four gateway
+// modules — implements it. That direction is deliberate (R-03) and publishing
+// it keeps it: the consumer states what it needs and the gateways satisfy it.
+//
+// It lands in the first Phase-P wave rather than the third, where the rest of
+// `returns`' ports sit, because `payments` is a first-wave provider and its
+// `GatewayRefundHandler` is written against these two shapes. Publishing the
+// handler without them would leave the contract naming a file in a module.
+// ---------------------------------------------------------------------------
+
+export interface PaymentRefundInput {
+  orderId: string;
+  amount: number;
+  currency: string;
+  paymentMethodId?: string;
+  /** Idempotency key (the return case id) so retries do not double-refund. */
+  idempotencyKey: string;
+}
+
+export interface PaymentRefundResult {
+  state: 'issued' | 'pending_manual' | 'failed';
+  externalReference?: string | null;
+  providerDetails?: Record<string, unknown>;
+  failureReason?: string;
+}
+
+/**
+ * Container name: `paymentRefundPort`. Owner: `payments`.
+ *
+ * The interface through which `returns` asks the payments domain to return
+ * funds. The implementation resolves the order's payment and, where the method
+ * supports an automatic refund, issues it; otherwise it reports
+ * `pending_manual` so an operator settles it out of band (feature 046 FR-035).
+ *
+ * `pending_manual` is the degrade, and it is in the return type rather than in
+ * a caller's `catch` — which is what makes an absent or switched-off gateway
+ * leave the obligation on the platform's books, named, instead of dropping it.
+ */
+export interface PaymentRefundPort {
+  refund(input: PaymentRefundInput): Promise<PaymentRefundResult>;
+}

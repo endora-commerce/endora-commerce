@@ -42,6 +42,14 @@ import type {
  *    names no adapter. Honouring an absent owner would route exactly those
  *    refunds — the ones with the least information behind them — into a
  *    switched-off gateway.
+ *
+ * Feature 075's Phase P published a structurally identical `GatewayRefundHandler`
+ * in `@b2b/contracts`, and this declaration deliberately stays where it is
+ * until Phase C: it is written against the two shapes `returns` declares, and
+ * pointing it at the package would remove a cross-module import — which is a
+ * cut, and a P-MR that cuts is no longer additive
+ * (contracts/port-publication.md §1.6). The gateways satisfy both structurally,
+ * so nothing waits on it.
  */
 export interface GatewayRefundHandler {
   /** The payment adapter key this handler serves (e.g. `stripe`). */

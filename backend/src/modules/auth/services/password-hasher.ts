@@ -1,33 +1,12 @@
-import argon2 from 'argon2';
-
 /**
- * Thin wrapper around argon2id with OWASP-recommended parameters.
- * See research.md R-11.
+ * The password hasher has moved to `src/kernel/crypto/password-hasher.ts`
+ * (feature 075, Phase P, R-09): it is a pure function over its argument, so
+ * gating it behind `auth`'s effective state would make `hashPassword` answer
+ * 503 `MODULE_DISABLED` — a bug, not a degrade.
  *
- * - memoryCost: 19 MiB (19456 KiB) — OWASP 2024 recommendation.
- * - timeCost: 2.
- * - parallelism: 1.
- * - argon2id type.
+ * This file stays as a re-export for the length of Phase P, because Phase P
+ * publishes and cuts nothing: the eleven consumers still name this path, and
+ * each is rewired to the kernel by its own Phase-C merge request. Delete it
+ * when the last of them has been.
  */
-
-const HASH_OPTIONS: argon2.Options = {
-  type: argon2.argon2id,
-  memoryCost: 19_456,
-  timeCost: 2,
-  parallelism: 1,
-};
-
-export async function hashPassword(password: string): Promise<string> {
-  if (password.length < 12) {
-    throw new Error('Password must be at least 12 characters long.');
-  }
-  return argon2.hash(password, HASH_OPTIONS);
-}
-
-export async function verifyPassword(hash: string, password: string): Promise<boolean> {
-  try {
-    return await argon2.verify(hash, password);
-  } catch {
-    return false;
-  }
-}
+export { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';

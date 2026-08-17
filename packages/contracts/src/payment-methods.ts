@@ -206,3 +206,123 @@ export interface PaymentAdapter {
   /** Optional renderer keys; absent ⇒ the default fallback renderer is used. */
   readonly renderers?: { storefront?: string; admin?: string; email?: string };
 }
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The rest of the in-process surface `payment_methods` publishes (feature 075,
+// Phase P). `PaymentAdapter` above is the first of them and pre-dates this
+// section — it is the precedent every other port contract in the sweep follows.
+// ---------------------------------------------------------------------------
+
+/**
+ * A payment method as it crosses a module boundary — a plain shape, never the
+ * ORM entity (FR-011).
+ *
+ * `additionalPrice` stays a string: it is `decimal(14,2)` and lands in an
+ * order's `paymentMethodSnapshot`, where the figure has to survive verbatim.
+ *
+ * The three `statusOn…` fields name **order statuses**, which are
+ * admin-configurable, so they are `string` rather than a union — see
+ * `OrderStatusRegistry` below for what validates them.
+ */
+export interface PaymentMethodRecord {
+  id: string;
+  code: string;
+  name: Record<string, string>;
+  kind: PaymentMethodKind;
+  /** The adapter registry key this method settles through. */
+  adapter: string;
+  status: 'active' | 'inactive';
+  additionalPrice: string;
+  statusOnPending: string;
+  statusOnSuccess: string;
+  statusOnFailure: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Container name: `paymentMethodReadPort`. Owner: `payment_methods`.
+ *
+ * Nineteen of this module's 33 inbound sites are `em.findOne(PaymentMethod, …)`
+ * — four gateways resolving the method behind a payment, `orders` resolving it
+ * at placement, `quick_order` resolving a buyer's default, and `payments`
+ * mapping an outcome onto an order status.
+ *
+ * `listActive` exists because two of those callers filter on
+ * `status: 'active'` and two do not, and which of the two is right depends on
+ * whether the read is a catalogue (active only) or a settlement of an order
+ * placed earlier (any, or a paid order stops being explicable the day an
+ * operator retires a method).
+ */
+export interface PaymentMethodReadPort {
+  findById(id: string): Promise<PaymentMethodRecord | null>;
+  findByIds(ids: readonly string[]): Promise<PaymentMethodRecord[]>;
+  findByCode(code: string): Promise<PaymentMethodRecord | null>;
+  /** Every method, ordered by code — the admin catalogue and the export adapter. */
+  listAll(): Promise<PaymentMethodRecord[]>;
+  /** Only `status === 'active'`, ordered by code — the buyer-facing catalogue. */
+  listActive(): Promise<PaymentMethodRecord[]>;
+}
+
+/**
+ * Container name: `paymentAdapterRegistryPort`. Owner: `payment_methods`.
+ *
+ * A **contribution seam**: the four gateway modules push their adapter in from
+ * their boot hook and this module's catalogue reads the table. Every edge into
+ * it classifies as `contributes`, and publishing the shape must not change
+ * that.
+ *
+ * `register` names its contributor, and `isAvailable` / `get` / `resolve` /
+ * `list` filter on that name's effective state, while `entry`, `ownerOf` and
+ * `listAll` deliberately do not — an admin screen has to keep showing a method
+ * *and* the reason it is unavailable.
+ */
+export interface PaymentAdapterRegistryPort {
+  register(adapter: PaymentAdapter, module: string): void;
+  unregister(adapterKey: string): void;
+  /** Registered at all, presence-blind. */
+  isRegistered(adapterKey: string): boolean;
+  /** Registered **and** its owning module effectively present. */
+  isAvailable(adapterKey: string): boolean;
+  /** The adapter, or `undefined` when unregistered or its owner is absent. */
+  get(adapterKey: string): PaymentAdapter | undefined;
+  /** Like {@link get}, but throws rather than answering `undefined`. */
+  resolve(adapterKey: string): PaymentAdapter;
+  /** Adapter keys whose owner is present, in registration order. */
+  list(): string[];
+  /** Every registered adapter key, presence-blind. */
+  listAll(): string[];
+  /** Which module contributed the key, or `null` when nobody did. */
+  ownerOf(adapterKey: string): string | null;
+}
+
+/**
+ * Container name: `paymentOrderStatusRegistry`. Owner: `payment_methods`.
+ *
+ * `statusOnPending` / `statusOnSuccess` / `statusOnFailure` on a payment method
+ * reference *order statuses*. This port answers which codes are nameable, and
+ * consumers depend only on it — so the eventual admin-configurable registry
+ * drops in with no change here.
+ *
+ * It deliberately does not touch the order: applying a status is done by the
+ * caller, which already owns it (Principle I).
+ *
+ * **The absent-owner policy is honour, and the reason is that there is nothing
+ * to skip** (issue #129). The option set is fixed at compile time, so the
+ * registry holds no per-contributor state an operator's flip could invalidate.
+ * The reads are guards, not surfaces: `payments` asks `has` before moving an
+ * order into the status a settled payment names, so a skip would silently
+ * leave a paid order in its old status and a throw would make a PSP webhook
+ * retry forever. A status a live order is in has to stay nameable while the
+ * module holding the table is off.
+ */
+export interface OrderStatusRegistry {
+  /** The selectable order-status options (code + human label). */
+  list(): OrderStatusOption[];
+  /** True when `code` is a known order status. */
+  has(code: string): boolean;
+  /** Throws when `code` is not a known order status. */
+  assertValid(code: string): void;
+}

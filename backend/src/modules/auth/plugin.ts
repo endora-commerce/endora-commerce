@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
+import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '@b2b/contracts';
 import type { SessionService } from './services/session-service.js';
 import type { Session } from './entities/session.entity.js';
 
@@ -82,9 +83,13 @@ export interface AuthPluginOptions {
  * cookie names lets a customer stay signed in on the storefront while an admin is
  * signed in on the Admin UI in the same browser — on a shared host (e.g. all
  * `localhost` ports) a single cookie name would clobber the other on every login.
+ *
+ * The two spellings moved to `@b2b/contracts` in feature 075's Phase P: they are
+ * constants, not behaviour, and five modules set or clear the cookie. They are
+ * re-exported from here so the consumers Phase C has not reached yet keep
+ * resolving them at this path.
  */
-export const SESSION_COOKIE_NAME = 'b2b_session';
-export const ADMIN_SESSION_COOKIE_NAME = 'b2b_admin_session';
+export { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME };
 
 /**
  * If the request carries a valid admin session (resolved into `request.adminActor`

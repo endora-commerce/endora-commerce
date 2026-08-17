@@ -1,11 +1,21 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
+import type {
+  CustomerGroupReadPort,
+  PriceListAdminPort,
+  PriceListReadPort,
+} from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { priceListsModule, type PriceListsModuleOptions } from './plugin.js';
 import { DEFAULT_PRICING_CACHE_TTL_MS } from './services/pricing-cache.js';
+import {
+  CustomerGroupReadService,
+  PriceListReadService,
+  toPriceListRecord,
+} from './services/price-list-read-port.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
 
 /**
@@ -141,6 +151,52 @@ export function registerModule(ctx: ModuleContext): void {
     'priceListService',
     ctx
       .asFunction(({ priceLists }: PriceListsCradle) => priceLists.handle.priceListService)
+      .singleton(),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // The three ports above hand out services built inside the plugin, and the
+  // two heaviest consumers do not want a service at all: `organizations` and
+  // `product_feeds` read a price-list *row*, `customers` and `pwa` read a
+  // customer-group row. Those four reach the entity classes today; these two
+  // read ports are what they rewire to.
+  //
+  // `priceListAdminPort` narrows `PriceListService` to the five methods
+  // `pim_ergonode` measurably calls during an import run. `PricingServiceContract`
+  // stays in `services/pricing-service.interface.ts` — it is the feature-057
+  // decoration's contract gate, and moving it would move the gate.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<PriceListReadPort>(
+    'priceListReadPort',
+    ctx.asFunction(({ emFactory }: PriceListsCradle) => new PriceListReadService(emFactory)).singleton(),
+  );
+
+  ctx.di.providePort<CustomerGroupReadPort>(
+    'customerGroupReadPort',
+    ctx
+      .asFunction(({ emFactory }: PriceListsCradle) => new CustomerGroupReadService(emFactory))
+      .singleton(),
+  );
+
+  ctx.di.providePort<PriceListAdminPort>(
+    'priceListAdminPort',
+    ctx
+      .asFunction((): PriceListAdminPort => {
+        const service = (): PriceListsCradle['priceListService'] =>
+          ctx.cradle<PriceListsCradle>().priceLists.handle.priceListService;
+        return {
+          getById: async (id) => toPriceListRecord(await service().getById(id)),
+          listProducts: (priceListId) => service().listProducts(priceListId),
+          addProduct: (priceListId, productId) => service().addProduct(priceListId, productId),
+          replaceBrackets: (priceListId, productId, bracketsByCurrency) =>
+            service().replaceBrackets(priceListId, productId, bracketsByCurrency),
+          summarizeBracketsForProduct: (productId) =>
+            service().summarizeBracketsForProduct(productId),
+        };
+      })
       .singleton(),
   );
 

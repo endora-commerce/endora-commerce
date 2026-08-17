@@ -5,7 +5,10 @@ import {
   multilingualStringSchema,
   productVisibilitySchema,
   uuidSchema,
+  type ProductVisibility,
 } from './common.js';
+import type { FulfilmentStrategy } from './inventory.js';
+import type { AttributeScope } from './product-value-resolver.js';
 
 /**
  * Catalog module contracts — Source of truth per Principle V.
@@ -1562,3 +1565,596 @@ export const productLinkSummarySchema = z.object({
   }),
 });
 export type ProductLinkSummary = z.infer<typeof productLinkSummarySchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `catalog` publishes to the fourteen modules that read
+// it (feature 075, Phase P). It is the heaviest provider in the tree — 107
+// inbound import sites, 60 of them on the `Product` and `Category` entity
+// classes — so this section is correspondingly the largest, and every entry in
+// it is a shape somebody measurably asks for rather than a projection of the
+// two classes.
+//
+// **One demand is deliberately unmet.** `product_feeds` compiles its own
+// selection DSL into a MikroORM `where` object and hands it to
+// `em.find(Product, where as never)`. A port cannot take that argument — a
+// query object is the ORM, not a contract — and inverting it means either
+// publishing the DSL or teaching `catalog` about feeds. That is a design
+// question rather than a naming one, so it is escalated and left for the
+// `product_feeds` cut to resolve, not guessed at here.
+// ---------------------------------------------------------------------------
+
+/**
+ * A product as it crosses a module boundary — a plain shape, never the ORM
+ * entity (FR-011). Twenty modules read this row; between them they touch
+ * nearly every column, which is why the record mirrors the table rather than
+ * narrowing it. What it is not is the *class*: a consumer cannot call a method
+ * on it, cannot persist it, and cannot pull a relation off it.
+ */
+export interface CatalogProductRecord {
+  id: string;
+  sku: string;
+  slug: string;
+  type: ProductType;
+  status: ProductStatus;
+  /** Per-locale JSONB. Resolve with the caller's language chain. */
+  name: Record<string, string>;
+  description: Record<string, string>;
+  /** Per-product override of the global stock mode; `null` ⇒ inherit. */
+  stockMode: StockMode | null;
+  visibility: ProductVisibility;
+  /** JSONB `{ attributeKey: value }`, validated against the attribute set. */
+  attributeValues: Record<string, unknown>;
+  allowedOrganizationIds: string[];
+  attributeSetId: string;
+  downloadAssetId: string | null;
+  downloadUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt: Date | null;
+  deletedAt: Date | null;
+  manageStock: boolean;
+  backorderEnabled: boolean;
+  lowStockThreshold: number | null;
+  lowStockThresholdMode: 'cumulative' | 'per_warehouse';
+  fulfilmentStrategy: FulfilmentStrategy | null;
+  fulfilmentStrategyWarehouseOrder: string[] | null;
+}
+
+/** A category row, as the eight modules that read one see it. */
+export interface CatalogCategoryRecord {
+  id: string;
+  parentCategoryId: string | null;
+  name: Record<string, string>;
+  slug: string;
+  sortOrder: number;
+  metaTitleOverride: Record<string, string> | null;
+  metaDescriptionOverride: Record<string, string> | null;
+  customFieldValues: Record<string, unknown>;
+  isActive: boolean;
+  inventoryThresholdHigh: number | null;
+  inventoryThresholdMedium: number | null;
+  inventoryThresholdLow: number | null;
+  mainImageAssetId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+/** A configurable product's variant row. */
+export interface CatalogProductVariantRecord {
+  id: string;
+  parentProductId: string;
+  sku: string;
+  variantAttributeValues: Record<string, unknown>;
+  /** Decimal string, or `null` when the variant inherits the parent's price. */
+  priceOverride: string | null;
+  stockLevel: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** A packaging unit — "box of 12" — a cart line may be placed in. */
+export interface CatalogPackagingUnitRecord {
+  id: string;
+  productId: string;
+  name: string;
+  baseQuantity: number;
+  position: number;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** A directed product↔product relation (cross-sell, up-sell, related). */
+export interface CatalogProductLinkRow {
+  id: string;
+  sourceProductId: string;
+  targetProductId: string;
+  kind: ProductLinkKind;
+  position: number;
+}
+
+/** A per-channel / per-language override of one attribute value (feature 022). */
+export interface CatalogProductValueOverrideRecord {
+  id: string;
+  productId: string;
+  attributeKey: string;
+  channelId: string;
+  languageCode: string | null;
+  /** The stored value, wrapped so `null` and "absent" stay distinguishable. */
+  value: { v: unknown };
+}
+
+/**
+ * Which products a lookup should consider.
+ *
+ * `liveOnly` excludes soft-deleted rows and `activeOnly` narrows further to
+ * `status === 'active'`. Both default to `false`, which is the wider read —
+ * and the correct default, because an inactive or soft-deleted product still
+ * has to resolve from a historical order, invoice, RFQ or shopping list.
+ */
+export interface CatalogProductLookupOptions {
+  liveOnly?: boolean;
+  activeOnly?: boolean;
+}
+
+/**
+ * Container name: `catalogProductReadPort`. Owner: `catalog`.
+ *
+ * Forty-six of `catalog`'s inbound sites are a read of the `Product` entity,
+ * and they reduce to four questions: by id, by ids, by sku, by skus. The rest
+ * of this port is the three neighbouring tables the same callers reach for in
+ * the same breath — variants, packaging units and links — plus the value
+ * overrides the search indexer reads.
+ *
+ * When `catalog` is off every method fails closed, and that is the answer a
+ * cart or an order line should get: pricing a line for a product the platform
+ * will not read is worse than refusing the line.
+ */
+export interface CatalogProductReadPort {
+  findById(
+    id: string,
+    options?: CatalogProductLookupOptions,
+  ): Promise<CatalogProductRecord | null>;
+  findByIds(
+    ids: readonly string[],
+    options?: CatalogProductLookupOptions,
+  ): Promise<CatalogProductRecord[]>;
+  findBySku(
+    sku: string,
+    options?: CatalogProductLookupOptions,
+  ): Promise<CatalogProductRecord | null>;
+  findBySkus(
+    skus: readonly string[],
+    options?: CatalogProductLookupOptions,
+  ): Promise<CatalogProductRecord[]>;
+  /** `count === ids.length` existence check, without loading the rows. */
+  countByIds(ids: readonly string[]): Promise<number>;
+  /** Every product, ordered by sku — the bulk export and the price-list backfill. */
+  listAll(options?: CatalogProductLookupOptions): Promise<CatalogProductRecord[]>;
+
+  /** Variants of the given parent products, ordered by sku. */
+  listVariantsByProductIds(productIds: readonly string[]): Promise<CatalogProductVariantRecord[]>;
+  findVariantsBySkus(skus: readonly string[]): Promise<CatalogProductVariantRecord[]>;
+  /** A variant, but only if it belongs to that parent. */
+  findVariantInProduct(
+    parentProductId: string,
+    variantId: string,
+  ): Promise<CatalogProductVariantRecord | null>;
+
+  /** A packaging unit, but only if it belongs to that product. */
+  findPackagingUnitInProduct(
+    productId: string,
+    packagingUnitId: string,
+  ): Promise<CatalogPackagingUnitRecord | null>;
+
+  /** Links out of the given products, optionally narrowed to one kind. */
+  listLinksBySourceIds(
+    sourceProductIds: readonly string[],
+    kind?: ProductLinkKind,
+  ): Promise<CatalogProductLinkRow[]>;
+
+  /** Attribute-value overrides for the given products. */
+  listValueOverridesByProductIds(
+    productIds: readonly string[],
+  ): Promise<CatalogProductValueOverrideRecord[]>;
+}
+
+/**
+ * Container name: `catalogCategoryReadPort`. Owner: `catalog`.
+ *
+ * Fourteen inbound sites read the `Category` entity: the inventory threshold
+ * resolver walks it, `price_lists` walks the ancestor chain to resolve a
+ * category rule, `product_feeds` maps the whole tree onto an external
+ * taxonomy, `seo` renders a category page's meta tags.
+ *
+ * `ancestorsOf` is here rather than in `price_lists` because that module walks
+ * the chain with a `findOne` per level today — a loop over the parent pointer
+ * whose depth is data, in a module that does not own the table.
+ */
+export interface CatalogCategoryReadPort {
+  findById(id: string, options?: { liveOnly?: boolean }): Promise<CatalogCategoryRecord | null>;
+  findByIds(
+    ids: readonly string[],
+    options?: { liveOnly?: boolean },
+  ): Promise<CatalogCategoryRecord[]>;
+  findBySlug(slug: string): Promise<CatalogCategoryRecord | null>;
+  /** `count === ids.length` existence check. */
+  countByIds(ids: readonly string[]): Promise<number>;
+  /** The whole tree, ordered by sort order then slug. */
+  listAll(options?: { liveOnly?: boolean }): Promise<CatalogCategoryRecord[]>;
+  /** Categories carrying at least one inventory threshold override. */
+  listWithInventoryThresholds(): Promise<CatalogCategoryRecord[]>;
+  /**
+   * The category and its ancestors, nearest-first. Empty when the id does not
+   * resolve. A cycle is impossible — the write path enforces it — but the walk
+   * is bounded anyway, because a corrupt `parent_id` should not hang a request.
+   */
+  ancestorsOf(categoryId: string): Promise<CatalogCategoryRecord[]>;
+}
+
+// --- the attribute read model ------------------------------------------------
+
+export interface CatalogAttributeOptionView {
+  /** `custom_field_options` id. */
+  id: string;
+  value: string;
+  label: Record<string, string>;
+  labelDefault: string;
+  isDefault: boolean;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * The composed attribute view (feature 061,
+ * `contracts/catalog-attribute-view.md`): the `custom_fields` definition and
+ * the `product_attributes` extension row, joined, shaped like the pre-061
+ * `ProductAttribute` so consumer rewires stay mechanical.
+ */
+export interface CatalogAttributeView {
+  /** Extension row id — the id the admin API has always exposed. */
+  id: string;
+  /** Backing `custom_field_definitions` id (host `product`). */
+  customFieldDefinitionId: string;
+
+  key: string;
+  label: Record<string, string>;
+  labelDefault: string;
+  /** Legacy 8-value form, derived bijectively (feature 061 research §R7). */
+  valueType: AttributeValueType;
+  isRequired: boolean;
+  options: CatalogAttributeOptionView[];
+
+  isSearchable: boolean;
+  isFilterable: boolean;
+  isVariantAxis: boolean;
+  displayAsSlider: boolean;
+  isComparable: boolean;
+  quickSearchable: boolean;
+  isPromoRule: boolean;
+  filterPosition: number;
+  isVisibleOnProductPage: boolean;
+  channelScoped: boolean;
+  languageScoped: boolean;
+  massEditable: boolean;
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type CatalogAttributeFlag =
+  | 'isSearchable'
+  | 'isFilterable'
+  | 'isVariantAxis'
+  | 'isComparable'
+  | 'quickSearchable'
+  | 'isPromoRule'
+  | 'massEditable'
+  | 'isVisibleOnProductPage';
+
+/**
+ * Container name: `catalogAttributeReadPort`. Owner: `catalog`.
+ *
+ * The **only** sanctioned way any module — including `catalog`'s own route
+ * serializers — reads product-attribute definitions (Principle I). `search`,
+ * `comparisons`, `quick_order` and `pim_ergonode` all read it today by
+ * importing the class.
+ *
+ * Freshness: the definitions half rides the custom-fields cache (invalidated
+ * by every committed attribute Command, 5 s TTL fallback); the extension half
+ * is a live query, so flag reads are always fresh.
+ */
+export interface CatalogAttributeReadPort {
+  listAll(): Promise<CatalogAttributeView[]>;
+  getByIdOrKey(idOrKey: string): Promise<CatalogAttributeView | null>;
+  listByFlag(flag: CatalogAttributeFlag): Promise<CatalogAttributeView[]>;
+  /** `attributeKey → optionValue → labels`, for label resolution on read. */
+  optionLabelIndex(): Promise<Map<string, Map<string, CatalogAttributeOptionLabels>>>;
+}
+
+/** The two label forms an option carries: per-locale, and the fallback. */
+export interface CatalogAttributeOptionLabels {
+  label: Record<string, string>;
+  labelDefault: string;
+}
+
+/**
+ * Scope flags for the **system** product attributes — the ones that are not
+ * rows in `product_attributes` and therefore carry no DB-stored scope flags.
+ *
+ * Published as a **constant, not a port** (FR-013): `name` and `description`
+ * are channel- and language-scoped because the product table stores them as
+ * per-locale JSONB, which is a fact about the schema rather than about whether
+ * a module is switched on. `search`'s indexer reads it to decide which
+ * overrides to resolve.
+ *
+ * Adding another system attribute is a one-line change here plus a resolver
+ * consumer. The reserved keys MUST NOT collide with `product_attributes.key`
+ * — enforced at write time by the override-service validator.
+ */
+export const SYSTEM_ATTRIBUTE_SCOPES: Readonly<Record<string, AttributeScope>> = {
+  name: { channelScoped: true, languageScoped: true },
+  description: { channelScoped: true, languageScoped: true },
+};
+
+export type SystemAttributeKey = keyof typeof SYSTEM_ATTRIBUTE_SCOPES;
+
+export function isSystemAttributeKey(key: string): key is SystemAttributeKey {
+  return Object.prototype.hasOwnProperty.call(SYSTEM_ATTRIBUTE_SCOPES, key);
+}
+
+/**
+ * Resolve the effective scope of an attribute given its key and (for
+ * user-defined attributes) its scope flags. Returns the system-pinned scope
+ * when the key is reserved; falls back to the row's flags otherwise; returns
+ * `{ false, false }` when neither applies (the caller should treat that as
+ * global-only).
+ */
+export function getAttributeScope(
+  attributeKey: string,
+  productAttributeRow?: { channelScoped: boolean; languageScoped: boolean } | null,
+): AttributeScope {
+  if (isSystemAttributeKey(attributeKey)) {
+    // Keyed by `SystemAttributeKey`, so the lookup is non-undefined here; TS'
+    // index signature still widens under `noUncheckedIndexedAccess`.
+    return SYSTEM_ATTRIBUTE_SCOPES[attributeKey]!;
+  }
+  if (productAttributeRow) {
+    return {
+      channelScoped: productAttributeRow.channelScoped,
+      languageScoped: productAttributeRow.languageScoped,
+    };
+  }
+  return { channelScoped: false, languageScoped: false };
+}
+
+// --- the write surface -------------------------------------------------------
+
+/** Optional metadata attaching an audit entry to an admin mutation. */
+export interface CatalogAdminAuditContext {
+  actorAdminUserId: string;
+  impersonatedCustomerAccountId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  requestId?: string | null;
+}
+
+/**
+ * An attribute option as the write path returns it.
+ *
+ * Distinct from `AttributeOption`, the API DTO above, on one axis: the two
+ * timestamps are `Date`, not an ISO string. That is what an in-process call
+ * hands back, and serialising them here would mean every consumer parsing them
+ * again.
+ */
+export interface CatalogAttributeOptionResult {
+  id: string;
+  attributeId: string;
+  value: string;
+  label: Record<string, string>;
+  labelDefault: string;
+  isDefault: boolean;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** The eight flags `listAttributesByFlag` accepts — a superset of the read model's. */
+export type CatalogAdminAttributeFlag =
+  | 'isSearchable'
+  | 'isFilterable'
+  | 'isComparable'
+  | 'isVariantAxis'
+  | 'isPromoRule'
+  | 'isVisibleOnProductPage'
+  | 'isRequired'
+  | 'isMassEditable';
+
+/**
+ * Container name: `catalogProductWritePort`. Owner: `catalog`.
+ *
+ * `pim_ergonode` is the only consumer, and it is the whole reason this port is
+ * narrow: an import run creates and updates products, attributes and variants,
+ * and touches nothing else on `CatalogAdminService`'s considerable surface.
+ *
+ * `createProduct` and the two variant writes return **records**, where the
+ * service returns entities. That substitution is the point of the port.
+ */
+export interface CatalogProductWritePort {
+  createProduct(
+    req: CreateProductRequest,
+    auditCtx?: CatalogAdminAuditContext,
+  ): Promise<CatalogProductRecord>;
+  updateProduct(id: string, req: UpdateProductRequest): Promise<CatalogProductRecord>;
+
+  listAttributes(): Promise<CatalogAttributeView[]>;
+  listAttributesByFlag(flag: CatalogAdminAttributeFlag): Promise<CatalogAttributeView[]>;
+  createAttribute(req: CreateAttributeRequest): Promise<CatalogAttributeView>;
+  updateAttributeByIdOrKey(
+    idOrKey: string,
+    req: UpdateAttributeRequest,
+    auditCtx?: CatalogAdminAuditContext,
+  ): Promise<CatalogAttributeView>;
+  addAttributeOption(
+    attributeIdOrKey: string,
+    input: {
+      value: string;
+      label?: Record<string, string>;
+      labelDefault: string;
+      isDefault?: boolean;
+      sortOrder?: number;
+    },
+  ): Promise<CatalogAttributeOptionResult>;
+
+  createVariant(
+    parentProductId: string,
+    req: CreateVariantRequest,
+  ): Promise<CatalogProductVariantRecord>;
+  updateVariant(
+    parentProductId: string,
+    variantId: string,
+    req: UpdateVariantRequest,
+  ): Promise<CatalogProductVariantRecord>;
+  deleteVariant(parentProductId: string, variantId: string): Promise<void>;
+}
+
+/** The patch `updateCategory` accepts. Absent keys are left alone. */
+export interface UpdateCategoryInput {
+  parentCategoryId?: string | null;
+  name?: Record<string, string>;
+  slug?: string;
+  sortOrder?: number;
+  /** Feature 013 / US5 — library asset rendered as the storefront main image. */
+  mainImageAssetId?: string | null;
+  /** Feature 055 — validated and merged against the definitions on write. */
+  customFieldValues?: Record<string, unknown>;
+  /**
+   * Feature 068 — activation switch. `false` hides the category from every
+   * customer-facing read while the admin tree keeps listing it.
+   */
+  isActive?: boolean;
+}
+
+/**
+ * Container name: `catalogCategoryWritePort`. Owner: `catalog`.
+ *
+ * `pim_ergonode` again, and again narrow: an import run lists the tree,
+ * creates the categories it is missing and updates the ones that moved.
+ */
+export interface CatalogCategoryWritePort {
+  listAll(): Promise<CatalogCategoryRecord[]>;
+  create(input: CreateCategoryRequest): Promise<CatalogCategoryRecord>;
+  update(id: string, input: UpdateCategoryInput): Promise<CatalogCategoryRecord>;
+}
+
+/**
+ * Container name: `attributeSetService`. Owner: `catalog`.
+ *
+ * Already returns contract DTOs, so the port is the four methods
+ * `pim_ergonode` calls and nothing else.
+ */
+export interface CatalogAttributeSetPort {
+  listSets(): Promise<AttributeSet[]>;
+  getSetDetail(id: string): Promise<AttributeSetDetail>;
+  createSet(input: CreateAttributeSetRequest): Promise<AttributeSetDetail>;
+  assignAttributes(id: string, input: AssignAttributesRequest): Promise<AttributeSetDetail>;
+}
+
+/** Container name: `attachmentService`. Owner: `catalog`. */
+export interface CatalogAttachmentPort {
+  listTypes(): Promise<AttachmentType[]>;
+  createType(req: CreateAttachmentTypeRequest): Promise<AttachmentType>;
+  listAttachments(productId: string): Promise<ProductAttachment[]>;
+  createAttachment(productId: string, req: CreateAttachmentRequest): Promise<ProductAttachment>;
+  updateAttachment(
+    productId: string,
+    attachmentId: string,
+    req: UpdateAttachmentRequest,
+  ): Promise<ProductAttachment>;
+  deleteAttachment(productId: string, attachmentId: string): Promise<void>;
+}
+
+/** Whether a gallery write may silently move a conflicting label off another item. */
+export interface CatalogGalleryWriteOptions {
+  replaceConflictingLabels: boolean;
+}
+
+/** Container name: `galleryService`. Owner: `catalog`. */
+export interface CatalogGalleryPort {
+  list(productId: string): Promise<GalleryItem[]>;
+  create(
+    productId: string,
+    req: CreateGalleryItemRequest,
+    options: CatalogGalleryWriteOptions,
+  ): Promise<GalleryItem>;
+  delete(productId: string, itemId: string): Promise<void>;
+  reorder(productId: string, orderedIds: string[]): Promise<void>;
+}
+
+/** One child line of a grouped product. */
+export interface CatalogGroupedItemRow {
+  id: string;
+  parentProductId: string;
+  childProductId: string;
+  quantity: number;
+  position: number;
+}
+
+/** Container name: `groupedService`. Owner: `catalog`. */
+export interface CatalogGroupedPort {
+  list(parentProductId: string): Promise<CatalogGroupedItemRow[]>;
+  addItem(
+    parentProductId: string,
+    input: { childProductId: string; quantity: number; position?: number | undefined },
+  ): Promise<CatalogGroupedItemRow>;
+  updateItem(
+    parentProductId: string,
+    itemId: string,
+    input: { quantity?: number | undefined; position?: number | undefined },
+  ): Promise<CatalogGroupedItemRow>;
+  removeItem(parentProductId: string, itemId: string): Promise<void>;
+}
+
+/** A link to create, as the bulk writer takes it. */
+export interface CatalogCreateProductLinkInput {
+  targetProductId: string;
+  kind: ProductLinkKind;
+  position?: number | undefined;
+}
+
+/** Container name: `productLinkService`. Owner: `catalog`. */
+export interface CatalogProductLinkPort {
+  listForAdmin(sourceProductId: string, kind?: ProductLinkKind): Promise<CatalogProductLinkRow[]>;
+  bulkCreate(
+    sourceProductId: string,
+    inputs: CatalogCreateProductLinkInput[],
+  ): Promise<CatalogProductLinkRow[]>;
+  removeLink(sourceProductId: string, linkId: string): Promise<void>;
+}
+
+/** One attribute with its options, as the promotion rule builder renders it. */
+export interface CatalogAttributeWithOptions {
+  id: string;
+  key: string;
+  label: Record<string, string>;
+  labelDefault: string;
+  valueType: AttributeValueType;
+  isPromoRule: boolean;
+  options: Array<{ value: string; label: Record<string, string>; labelDefault: string }>;
+}
+
+/**
+ * Container name: `catalogPromoAttributePort`. Owner: `catalog`.
+ *
+ * `promotions` builds its rule editor from these two answers, and reaches
+ * `CatalogQueryService` — the storefront query service, 1400 lines — for them.
+ * The port is the two questions.
+ */
+export interface CatalogPromoAttributePort {
+  promoRuleAttributeKeys(): Promise<string[]>;
+  getAttributeWithOptions(key: string): Promise<CatalogAttributeWithOptions | null>;
+}

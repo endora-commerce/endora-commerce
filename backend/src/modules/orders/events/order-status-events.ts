@@ -16,16 +16,17 @@
  */
 
 import { randomUUID } from 'crypto';
+import type { OrderStatusActor } from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 
 export type OrderStatusEventKind = 'fromToBefore' | 'fromBefore' | 'fromToAfter' | 'toAfter';
 
-export interface OrderStatusActor {
-  kind: 'admin' | 'customer' | 'system';
-  adminUserId?: string;
-  customerAccountId?: string;
-  source?: 'payment' | 'shipment' | 'reorder' | 'checkout';
-}
+/**
+ * `OrderStatusActor` moved to `@b2b/contracts` in feature 075's Phase P — it
+ * is half of what `payments` and `shipments` pass when they announce a
+ * committed transition. Re-exported here for the length of Phase P.
+ */
+export type { OrderStatusActor };
 
 export interface OrderStatusEvent extends EventBase {
   orderId: string;

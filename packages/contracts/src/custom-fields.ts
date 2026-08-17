@@ -120,3 +120,101 @@ export const customFieldValidationErrorSchema = z.object({
   message: z.string(),
 });
 export type CustomFieldValidationError = z.infer<typeof customFieldValidationErrorSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `custom_fields` publishes to the seven modules that
+// read it (feature 075, Phase P). Plain TypeScript, not Zod: these describe
+// in-process calls, not an API boundary.
+//
+// **One seam is deliberately not published here.** `CustomFieldDefinitionApplyApi`
+// — the six co-transactional `apply*` methods `catalog`'s attribute Commands
+// call — takes the caller's MikroORM `EntityManager` and returns the two ORM
+// entities. Neither can appear in a `@b2b/contracts` signature (FR-034), and
+// laundering the `EntityManager` behind a type parameter would publish the
+// coupling rather than remove it. It is the one shape in the first Phase-P
+// wave that needs a design conversation rather than a contract, so it is
+// escalated instead of guessed at; `catalog`'s Phase-C merge request is where
+// it comes due.
+// ---------------------------------------------------------------------------
+
+/** One custom-field definition, as a module outside `custom_fields` sees it. */
+export interface CustomFieldDefinitionRecord {
+  id: string;
+  entityType: SupportedEntityType;
+  key: string;
+  label: Record<string, string>;
+  labelDefault: string;
+  valueType: CustomFieldValueType;
+  required: boolean;
+  sortOrder: number;
+  config: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** One selectable option of a `select` / `multiselect` definition. */
+export interface CustomFieldOptionRecord {
+  id: string;
+  definitionId: string;
+  value: string;
+  label: Record<string, string>;
+  labelDefault: string;
+  isDefault: boolean;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** A definition with its options — the unit the per-entity cache holds. */
+export interface CustomFieldDefinitionWithOptions {
+  readonly definition: CustomFieldDefinitionRecord;
+  readonly options: CustomFieldOptionRecord[];
+}
+
+/**
+ * Container name: `customFieldDefinitionReadPort`. Owner: `custom_fields`.
+ *
+ * `catalog`'s composed attribute read model is the heaviest consumer: since
+ * feature 061 the definition half of a product attribute *is* a custom-field
+ * definition, and it reads them through this one question. `product_feeds`
+ * asks the same thing of its own host.
+ *
+ * Reads ride the per-entity in-process cache (invalidated by every committed
+ * definition Command, with a 5 s TTL fallback), so this is cheap enough to
+ * call on a hot path — which is what the existing `DefinitionSource` interface
+ * was extracted for.
+ */
+export interface CustomFieldDefinitionReadPort {
+  listForEntity(entityType: SupportedEntityType): Promise<CustomFieldDefinitionWithOptions[]>;
+}
+
+/**
+ * Container name: `customFieldValueService`. Owner: `custom_fields`.
+ *
+ * Five host modules — `orders`, `organizations`, `customers`, `quote_requests`
+ * and `catalog` — validate their own custom-field bag through this before
+ * persisting it.
+ *
+ * It performs **no** database write and **no** audit: the host persists its own
+ * record and audits its own write (Principle XIII). This port only validates
+ * the incoming values and returns the merged bag, which is what keeps the
+ * module boundary intact (Principle I) and avoids a double audit.
+ *
+ * `validateAndMerge` throws `CustomFieldValidationError` — serialised as HTTP
+ * 422 — with the per-field errors (feature 055 FR-004). Unknown patch keys are
+ * ignored; dormant keys already in the bag are retained (FR-010).
+ */
+export interface CustomFieldValuePort {
+  validateAndMerge(
+    entityType: SupportedEntityType,
+    currentBag: Record<string, unknown>,
+    patch: Record<string, unknown> | undefined,
+  ): Promise<Record<string, unknown>>;
+  /** The bag as a caller should render it: dormant keys stripped. */
+  project(
+    entityType: SupportedEntityType,
+    bag: Record<string, unknown>,
+  ): Promise<Record<string, unknown>>;
+}

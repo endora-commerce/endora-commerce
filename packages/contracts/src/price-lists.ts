@@ -322,3 +322,301 @@ export const PRICING_SETTING_CODES = {
   DEFAULT_DISPLAY_MODE: 'pricing.default_display_mode',
   UNAUTHENTICATED_DISPLAY_MODE: 'pricing.unauthenticated_display_mode',
 } as const;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `price_lists` publishes to the eight modules that read
+// it (feature 075, Phase P).
+//
+// `PricingServiceContract` is **not** here, and that is deliberate: it lives in
+// `price_lists/services/pricing-service.interface.ts` because it is the target
+// of the feature-057 overlay decoration, which is written against that file and
+// whose assignability to it is the contract gate. Moving it would move the gate.
+// ---------------------------------------------------------------------------
+
+/** A price list as a module outside `price_lists` sees it. */
+export interface PriceListRecord {
+  id: string;
+  code: string;
+  name: string;
+  currency: string;
+  isDefault: boolean;
+  priority: number;
+  type: 'base' | 'sale';
+  status: 'draft' | 'active' | 'scheduled' | 'expired';
+  startsAt: Date | null;
+  endsAt: Date | null;
+  applicationRule: ApplicationRule;
+  isSystem: boolean;
+  modifiedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** A pricing bucket. `customers` and `pwa` render the picker from it. */
+export interface CustomerGroupRecord {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Container name: `priceListReadPort`. Owner: `price_lists`.
+ *
+ * `organizations` resolves which lists apply to an org, `product_feeds` reads
+ * the list a feed prices from. Both read the row; neither should own the
+ * question of what "active" means, which is why `listActive` is here rather
+ * than a status filter in each caller.
+ */
+export interface PriceListReadPort {
+  findById(id: string): Promise<PriceListRecord | null>;
+  findByIds(ids: readonly string[]): Promise<PriceListRecord[]>;
+  findByCode(code: string): Promise<PriceListRecord | null>;
+  /** Every list, ordered by priority then code. */
+  listAll(): Promise<PriceListRecord[]>;
+  /** Only `status === 'active'`, ordered by priority then code. */
+  listActive(): Promise<PriceListRecord[]>;
+}
+
+/**
+ * Container name: `customerGroupReadPort`. Owner: `price_lists`.
+ *
+ * The groups themselves are a pricing concept, which is why the table lives
+ * here rather than in `customers`; two admin pickers and the customer detail
+ * screen read them.
+ */
+export interface CustomerGroupReadPort {
+  findById(id: string): Promise<CustomerGroupRecord | null>;
+  findByIds(ids: readonly string[]): Promise<CustomerGroupRecord[]>;
+  /** Every group, ordered by code. */
+  listAll(): Promise<CustomerGroupRecord[]>;
+}
+
+/**
+ * One quantity bracket of a product's price on a list.
+ *
+ * `amount` is a decimal **string** — the storage shape on
+ * `price_list_price_brackets`. A `number` cannot round-trip a price, and this
+ * value comes in from a PIM import and goes out to a checkout.
+ */
+export interface PriceBracketInput {
+  minQuantity: number;
+  maxQuantity: number | null;
+  amount: string;
+}
+
+/** One list's brackets for a product, as the admin summary renders them. */
+export interface PriceListBracketSummary {
+  list: {
+    id: string;
+    name: string;
+    type: 'base' | 'sale';
+    status: 'draft' | 'active' | 'scheduled' | 'expired';
+    modifiedAt: Date;
+  };
+  summary: Array<{ currencyCode: string; summary: string }>;
+  deepLinkPath: string;
+}
+
+/**
+ * Container name: `priceListAdminPort`. Owner: `price_lists`.
+ *
+ * `pim_ergonode` writes prices as part of an import run: it resolves the list,
+ * adds the product to it if it is not there, replaces the brackets, and reads
+ * back the summary its field-protection rules compare against. That is the
+ * whole of what it needs, and publishing more would be publishing the class.
+ */
+export interface PriceListAdminPort {
+  getById(id: string): Promise<PriceListRecord>;
+  listProducts(
+    priceListId: string,
+  ): Promise<Array<{ productId: string; bracketsByCurrency: Record<string, PriceBracketInput[]> }>>;
+  addProduct(priceListId: string, productId: string): Promise<void>;
+  replaceBrackets(
+    priceListId: string,
+    productId: string,
+    bracketsByCurrency: Record<string, readonly PriceBracketInput[]>,
+  ): Promise<Record<string, PriceBracketInput[]>>;
+  summarizeBracketsForProduct(productId: string): Promise<PriceListBracketSummary[]>;
+}
+
+// --- the application-rule evaluator -----------------------------------------
+//
+// Relocated here from `price_lists/services/application-rule-evaluator.ts`
+// (feature 075, Phase P, FR-013). It is a **pure function** over an
+// `ApplicationRule` — which this file already declares — and a context of
+// plain ids: switching `price_lists` off does not change whether a rule
+// matches, so a gated port answering 503 would be a bug rather than a degrade.
+//
+// `organizations` evaluates the same rules to work out an organisation's
+// effective price lists, and it has to reach the *same* answer as the resolver
+// does: two copies that drifted would show an operator one set of lists on the
+// organisation screen and price from another at checkout.
+
+/** What a rule is evaluated against. */
+export interface PriceListResolutionContext {
+  organizationId: string | null;
+  /**
+   * Feature 056 — the acting org's inheritance chain, nearest-first
+   * (`[orgId, ...ancestorIds]`). When present, the `organization` criterion
+   * matches ANY org in the chain, and the resolver ranks by nearness so a list
+   * naming a nearer org outranks one naming a farther ancestor (R5). When
+   * absent, it defaults to `[organizationId]` (flat behaviour, byte-for-byte).
+   */
+  organizationChain?: readonly string[];
+  customerGroupId: string | null;
+  salesChannelId: string;
+  currencyCode: string;
+  productCategoryIds: ReadonlySet<string>;
+}
+
+export interface PriceListRuleEvaluation {
+  matched: boolean;
+  explicitOn: ReadonlySet<RuleCriterionType>;
+  /**
+   * Feature 056 — index of the NEAREST org (in the resolution chain) that this
+   * rule explicitly names, or `undefined` when the rule names no org in the
+   * chain. Lower = nearer = higher price-list priority within the
+   * `organization` level (R5). A direct-org match (flat) is rank 0.
+   */
+  organizationRank?: number;
+}
+
+const NO_EXPLICIT: ReadonlySet<RuleCriterionType> = new Set();
+
+/**
+ * Pure rule evaluator (feature 011 / FR-022, FR-023, FR-026, FR-029).
+ *
+ * Walks the discriminated-union AST and returns:
+ *   - `matched`: the overall AST truth value against the resolution context.
+ *   - `explicitOn`: the criterion types that contributed to the match AND had
+ *     non-empty value lists. The resolver's priority chain consults this to
+ *     award the per-step boost (FR-026 steps 1..4).
+ *
+ * Notes:
+ *   - The `category` criterion is product-driven (FR-029): it matches when the
+ *     product belongs to any category named in the rule's value list.
+ *   - The `currency` criterion never appears in the priority chain even when
+ *     explicit; it is purely a matching criterion.
+ *   - `{ kind: 'all' }` and any criterion with `values: []` are treated as
+ *     always-true and contribute nothing to `explicitOn` (FR-022).
+ */
+export function evaluateApplicationRule(
+  rule: ApplicationRule,
+  ctx: PriceListResolutionContext,
+): PriceListRuleEvaluation {
+  if (rule.kind === 'all') {
+    return { matched: true, explicitOn: NO_EXPLICIT };
+  }
+
+  if (rule.kind === 'criterion') {
+    if (rule.values.length === 0) {
+      return { matched: true, explicitOn: NO_EXPLICIT };
+    }
+    if (rule.type === 'organization') {
+      const rank = organizationMatchRank(rule.values, ctx);
+      if (rank === undefined) return { matched: false, explicitOn: NO_EXPLICIT };
+      return { matched: true, explicitOn: new Set(['organization']), organizationRank: rank };
+    }
+    const matched = matchesCriterion(rule.type, rule.values, ctx);
+    return {
+      matched,
+      explicitOn: matched ? new Set([rule.type]) : NO_EXPLICIT,
+    };
+  }
+
+  // group node
+  if (rule.children.length === 0) {
+    // defensive — schema disallows, but evaluate as always-true (empty AND/OR)
+    return { matched: true, explicitOn: NO_EXPLICIT };
+  }
+  const childEvaluations = rule.children.map((c) => evaluateApplicationRule(c, ctx));
+
+  if (rule.op === 'AND') {
+    const allMatch = childEvaluations.every((e) => e.matched);
+    if (!allMatch) return { matched: false, explicitOn: NO_EXPLICIT };
+    return {
+      matched: true,
+      explicitOn: unionExplicit(childEvaluations),
+      ...withRank(minRank(childEvaluations)),
+    };
+  }
+
+  // OR
+  const matchingChildren = childEvaluations.filter((e) => e.matched);
+  if (matchingChildren.length === 0) return { matched: false, explicitOn: NO_EXPLICIT };
+  // Only matching children contribute to the explicit set + nearness rank.
+  return {
+    matched: true,
+    explicitOn: unionExplicit(matchingChildren),
+    ...withRank(minRank(matchingChildren)),
+  };
+}
+
+/**
+ * The nearness rank of the nearest org (in `ctx.organizationChain`, else
+ * `[organizationId]`) named by `values`, or `undefined` when none match.
+ */
+function organizationMatchRank(
+  values: readonly string[],
+  ctx: PriceListResolutionContext,
+): number | undefined {
+  const chain =
+    ctx.organizationChain && ctx.organizationChain.length > 0
+      ? ctx.organizationChain
+      : ctx.organizationId !== null
+        ? [ctx.organizationId]
+        : [];
+  const valueSet = new Set(values);
+  for (let i = 0; i < chain.length; i += 1) {
+    if (valueSet.has(chain[i]!)) return i; // nearest-first → first hit is the nearest
+  }
+  return undefined;
+}
+
+function minRank(evaluations: readonly PriceListRuleEvaluation[]): number | undefined {
+  let min: number | undefined;
+  for (const e of evaluations) {
+    if (e.organizationRank !== undefined && (min === undefined || e.organizationRank < min)) {
+      min = e.organizationRank;
+    }
+  }
+  return min;
+}
+
+function withRank(rank: number | undefined): { organizationRank?: number } {
+  return rank === undefined ? {} : { organizationRank: rank };
+}
+
+function matchesCriterion(
+  type: RuleCriterionType,
+  values: readonly string[],
+  ctx: PriceListResolutionContext,
+): boolean {
+  switch (type) {
+    case 'salesChannel':
+      return values.includes(ctx.salesChannelId);
+    case 'organization':
+      return organizationMatchRank(values, ctx) !== undefined;
+    case 'customerGroup':
+      return ctx.customerGroupId !== null && values.includes(ctx.customerGroupId);
+    case 'category':
+      return values.some((c) => ctx.productCategoryIds.has(c));
+    case 'currency':
+      return values.includes(ctx.currencyCode);
+  }
+}
+
+function unionExplicit(
+  evaluations: readonly PriceListRuleEvaluation[],
+): ReadonlySet<RuleCriterionType> {
+  const out = new Set<RuleCriterionType>();
+  for (const e of evaluations) {
+    for (const t of e.explicitOn) out.add(t);
+  }
+  return out;
+}

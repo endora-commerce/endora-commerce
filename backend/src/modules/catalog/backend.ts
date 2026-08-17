@@ -2,6 +2,19 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import { ERROR_CODES, type ListingPricePort } from '@b2b/contracts';
+import type {
+  CatalogAttachmentPort,
+  CatalogAttributeReadPort,
+  CatalogAttributeSetPort,
+  CatalogCategoryReadPort,
+  CatalogCategoryWritePort,
+  CatalogGalleryPort,
+  CatalogGroupedPort,
+  CatalogProductLinkPort,
+  CatalogProductReadPort,
+  CatalogProductWritePort,
+  CatalogPromoAttributePort,
+} from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
@@ -21,7 +34,14 @@ import { AttachmentService } from './services/attachment.service.js';
 import { ProductLinkService } from './services/product-link.service.js';
 import { GroupedService } from './services/grouped.service.js';
 import { CatalogAttributeReadService } from './services/catalog-attribute-read.service.js';
+import { CatalogCategoryReadService } from './services/catalog-category-read.service.js';
+import { CatalogProductReadService } from './services/catalog-product-read.service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
+import {
+  createCatalogCategoryWritePort,
+  createCatalogProductWritePort,
+  createCatalogPromoAttributePort,
+} from './services/catalog-write-ports.js';
 import type { CatalogEventBus } from './services/catalog-admin.service.js';
 import { registerCatalogAssetReferences } from './services/asset-references.js';
 import {
@@ -267,10 +287,77 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // `catalog` is the heaviest provider in the tree: 107 inbound import sites
+  // across fourteen modules, sixty of them on the `Product` and `Category`
+  // entity classes. The nine ports below this block hand out *services*, which
+  // is what the sweep's consumers type themselves against; these five are what
+  // they rewire to, and none of them lets an entity across the boundary.
+  //
+  // The two read ports replace the sixty entity reads. The three adapters
+  // narrow three large admin services to the methods `pim_ergonode` and
+  // `promotions` measurably call — ten of `CatalogAdminService`'s hundred, two
+  // of `CatalogQueryService`'s.
+  //
+  // `product_feeds`' predicate-driven product scan is deliberately unmet: it
+  // compiles its own selection DSL into a MikroORM `where` and hands it to
+  // `em.find(Product, where as never)`. A port cannot take a query object, and
+  // inverting it means publishing the DSL or teaching this module about feeds.
+  // That is escalated to the `product_feeds` cut rather than guessed at here.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<CatalogProductReadPort>(
+    'catalogProductReadPort',
+    ctx
+      .asFunction(({ emFactory }: CatalogCradle) => new CatalogProductReadService(emFactory))
+      .singleton(),
+  );
+
+  ctx.di.providePort<CatalogCategoryReadPort>(
+    'catalogCategoryReadPort',
+    ctx
+      .asFunction(({ emFactory }: CatalogCradle) => new CatalogCategoryReadService(emFactory))
+      .singleton(),
+  );
+
+  ctx.di.providePort<CatalogProductWritePort>(
+    'catalogProductWritePort',
+    ctx
+      .asFunction(() =>
+        createCatalogProductWritePort(() => ctx.cradle<CatalogCradle>().catalogAdminService),
+      )
+      .singleton(),
+  );
+
+  ctx.di.providePort<CatalogCategoryWritePort>(
+    'catalogCategoryWritePort',
+    ctx
+      .asFunction(() =>
+        createCatalogCategoryWritePort(() => ctx.cradle<CatalogCradle>().categoryAdminService),
+      )
+      .singleton(),
+  );
+
+  ctx.di.providePort<CatalogPromoAttributePort>(
+    'catalogPromoAttributePort',
+    ctx
+      .asFunction(() =>
+        createCatalogPromoAttributePort(() => ctx.cradle<CatalogCradle>().catalogQueryPort),
+      )
+      .singleton(),
+  );
+
   // The nine ports. Seven of them were a second instance each root built for
   // `pim_ergonode`; the last two are the `CatalogQueryService` and attribute
   // read model that issue #44 recorded.
-  ctx.di.providePort(
+  //
+  // Six of them gain a Phase-P contract type as their `providePort` parameter,
+  // which is the compile-time proof that the class still satisfies what was
+  // published. All six already returned contract DTOs, so none needed an
+  // adapter — the two that returned entities did, and are above.
+  ctx.di.providePort<CatalogAttributeReadPort>(
     'catalogAttributeReadPort',
     ctx
       .asFunction(
@@ -342,7 +429,7 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  ctx.di.providePort(
+  ctx.di.providePort<CatalogAttributeSetPort>(
     'attributeSetService',
     ctx
       .asFunction(
@@ -356,7 +443,7 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  ctx.di.providePort(
+  ctx.di.providePort<CatalogGalleryPort>(
     'galleryService',
     ctx
       .asFunction(
@@ -365,7 +452,7 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  ctx.di.providePort(
+  ctx.di.providePort<CatalogAttachmentPort>(
     'attachmentService',
     ctx
       .asFunction(
@@ -374,7 +461,7 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  ctx.di.providePort(
+  ctx.di.providePort<CatalogProductLinkPort>(
     'productLinkService',
     ctx
       .asFunction(
@@ -388,7 +475,7 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  ctx.di.providePort(
+  ctx.di.providePort<CatalogGroupedPort>(
     'groupedService',
     ctx
       .asFunction(

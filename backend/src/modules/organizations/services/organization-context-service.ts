@@ -1,5 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Organization, type OrganizationStatus } from '../entities/organization.entity.js';
+import {
+  OrganizationCannotTransactError,
+  OrganizationNotFoundError,
+} from '@b2b/contracts';
+import { Organization } from '../entities/organization.entity.js';
 
 /**
  * Lightweight read-side service that exposes "what's the effective state of
@@ -58,19 +62,13 @@ export class OrganizationContextService {
   }
 }
 
-export class OrganizationNotFoundError extends Error {
-  constructor(public readonly organizationId: string) {
-    super(`Organization ${organizationId} not found.`);
-    this.name = 'OrganizationNotFoundError';
-  }
-}
-
-export class OrganizationCannotTransactError extends Error {
-  constructor(
-    public readonly organizationId: string,
-    public readonly status: Exclude<OrganizationStatus, 'active'>,
-  ) {
-    super(`Organization ${organizationId} cannot transact in status '${status}'.`);
-    this.name = 'OrganizationCannotTransactError';
-  }
-}
+/**
+ * Both error classes moved to `@b2b/contracts` in feature 075's Phase P. An
+ * error is a shape, not behaviour — four modules catch `instanceof` on the
+ * second one to turn it into a 409 envelope, and the kernel's
+ * `OrganizationReadPort` has documented both as `assertCanTransact`'s failure
+ * modes since D-32 while the classes themselves lived in this file.
+ *
+ * Re-exported here for the length of Phase P, which cuts no consumer.
+ */
+export { OrganizationNotFoundError, OrganizationCannotTransactError };

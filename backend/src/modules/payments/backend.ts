@@ -1,4 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type {
+  GatewayRefundRegistryPort,
+  PaymentEmailRendererPort,
+  PaymentReadPort,
+  PaymentRefundPort,
+  ReceivePaymentPort,
+} from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -8,8 +15,11 @@ import type { PaymentAdapterRegistry } from '../payment_methods/services/payment
 import { builtInPaymentAdapters } from './adapters/built-in-adapters.js';
 import { ReceivePaymentHandler, type PaymentEventBus } from './services/receive-payment-handler.js';
 import { PaymentService } from './services/payment-service.js';
+import { PaymentReadService } from './services/payment-read-port.js';
 import { PaymentRefundProvider } from './services/payment-refund.js';
+import { gatewayRefundRegistry } from './services/registry-singleton.js';
 import { PaymentEmailNotifier } from './services/payment-email-notifier.js';
+import { resolvePaymentEmailRenderer } from './services/payment-email-renderer.js';
 import type { PaymentEmailNotifierDeps } from './services/payment-email-notifier.js';
 import { registerPaymentsRoutes } from './routes.js';
 import { PAYMENT_STATUS_CHANGED_DEFAULT } from './email-templates/transactional-defaults.js';
@@ -98,10 +108,61 @@ export function registerModule(ctx: ModuleContext): void {
    * refunded through a switched-off `payments`. The bridge `returns` receives
    * forwards to this name per settlement, which is where the gate belongs.
    */
-  ctx.di.providePort(
+  ctx.di.providePort<PaymentRefundPort>(
     'paymentRefundPort',
     ctx
       .asFunction(({ emFactory }: PaymentsCradle) => new PaymentRefundProvider(emFactory))
+      .singleton(),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // `paymentReadPort` replaces sixteen hand-written `em.findOne(Payment, …)`
+  // calls in the four gateways; `receivePaymentPort` is the ingress they already
+  // share, now expressed without the `Payment` entity in its result type; and
+  // `gatewayRefundRegistryPort` is the contribution seam the gateways push into,
+  // which they reach today by importing the process singleton directly.
+  //
+  // The registry stays a **contribution** seam and its edges stay classified
+  // `contributes` — the port is the same instance, not a gated copy of it. Its
+  // absent-owner policy is inside the registry, where it belongs: a handler
+  // whose module is off is skipped at enumeration and the obligation lands on
+  // `pending_manual`. A gate over the registry itself would drop the
+  // obligation instead of recording it.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<PaymentReadPort>(
+    'paymentReadPort',
+    ctx.asFunction(({ emFactory }: PaymentsCradle) => new PaymentReadService(emFactory)).singleton(),
+  );
+
+  ctx.di.providePort<GatewayRefundRegistryPort>(
+    'gatewayRefundRegistryPort',
+    ctx.asFunction(() => gatewayRefundRegistry).singleton(),
+  );
+
+  ctx.di.providePort<PaymentEmailRendererPort>(
+    'paymentEmailRendererPort',
+    ctx
+      .asFunction((): PaymentEmailRendererPort => ({
+        render: (rendererKey, emailContext) =>
+          resolvePaymentEmailRenderer(rendererKey)(emailContext),
+      }))
+      .singleton(),
+  );
+
+  ctx.di.providePort<ReceivePaymentPort>(
+    'receivePaymentPort',
+    ctx
+      .asFunction((): ReceivePaymentPort => {
+        const handler = (): ReceivePaymentHandler =>
+          ctx.cradle<PaymentsCradle>().receivePaymentHandler;
+        return {
+          receive: (input) => handler().receive(input),
+          reflectRefund: (input) => handler().reflectRefund(input),
+        };
+      })
       .singleton(),
   );
 

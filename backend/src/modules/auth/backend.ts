@@ -1,10 +1,12 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
+import type { AuthSessionPort, AuthSessionReadPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { AdminPermissionChecker } from '../../kernel/ports/require-admin.js';
 import { authPlugin } from './plugin.js';
 import { createRequireAdmin, createRequireAdminAny } from './require-admin.js';
+import { AuthSessionReadService, createAuthSessionPort } from './services/session-port.js';
 import { SessionService } from './services/session-service.js';
 
 /**
@@ -84,6 +86,27 @@ export function registerModule(ctx: ModuleContext): void {
     hasPermission: (adminUserId, permission) =>
       ctx.cradle<AuthCradle>().permissionService.hasPermission(adminUserId, permission),
   });
+
+  // Feature 075 Phase P — the published session surface. `sessionService` keeps
+  // its registration for the four modules Phase C has not rewired yet; these two
+  // are what they rewire *to*, and the difference is that neither hands a
+  // `Session` entity across the boundary.
+  //
+  // `providePort` rather than `register`, even though `auth` is
+  // non-deactivatable and the gate can therefore never close: this module made
+  // that call already for `requireAdmin` (see the note above), and a second
+  // answer inside one module would be worse than either answer.
+  ctx.di.providePort<AuthSessionPort>(
+    'authSessionPort',
+    ctx
+      .asFunction(({ sessionService }: AuthCradle) => createAuthSessionPort(sessionService))
+      .singleton(),
+  );
+
+  ctx.di.providePort<AuthSessionReadPort>(
+    'authSessionReadPort',
+    ctx.asFunction(({ emFactory }: AuthCradle) => new AuthSessionReadService(emFactory)).singleton(),
+  );
 
   ctx.di.providePort(
     'requireAdmin',

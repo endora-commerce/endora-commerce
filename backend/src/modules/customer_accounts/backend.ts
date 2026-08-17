@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
+import type {
+  CustomerAccountReadPort,
+  CustomerAuthPort,
+  CustomerPasswordResetPort,
+  CustomerRolePort,
+  CustomerTotpEnrolmentPort,
+} from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { recordAuditFromContext } from '../../commands/index.js';
 import { withSystemScope } from '../../tenancy/index.js';
@@ -11,6 +18,11 @@ import type { SessionService } from '../auth/services/session-service.js';
 import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
 import { hashPassword } from '../auth/services/password-hasher.js';
 import { CustomerAccount } from './entities/customer-account.entity.js';
+import {
+  CustomerAccountReadService,
+  createCustomerAuthPort,
+  createCustomerRolePort,
+} from './services/customer-account-ports.js';
 import { CustomerAuthService } from './services/customer-auth-service.js';
 import { PasswordResetService } from './services/password-reset-service.js';
 import { RoleService } from './services/role-service.js';
@@ -91,6 +103,48 @@ export interface CustomerAccountsCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // The four ports below this block already existed; what they lacked was a
+  // contract a consumer could name without naming a file in this directory.
+  // Two of them (`passwordResetService`, `totpEnrolmentService`) already return
+  // plain shapes, so they gain nothing but a type parameter, which is now the
+  // compile-time proof that they still satisfy what was published.
+  //
+  // The other two return the `CustomerAccount` **entity**, and an entity
+  // crossing a boundary is the problem this feature exists to remove — so they
+  // get record-returning siblings rather than a rename. `customerAuthService`
+  // and `customerRoleService` stay registered for the consumers Phase C has
+  // not reached; `customerAuthPort` and `customerRolePort` are what those
+  // consumers rewire to.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<CustomerAccountReadPort>(
+    'customerAccountReadPort',
+    ctx
+      .asFunction(({ emFactory }: CustomerAccountsCradle) => new CustomerAccountReadService(emFactory))
+      .singleton(),
+  );
+
+  ctx.di.providePort<CustomerAuthPort>(
+    'customerAuthPort',
+    ctx
+      .asFunction(() =>
+        createCustomerAuthPort(() => ctx.cradle<CustomerAccountsCradle>().customerAuthService),
+      )
+      .singleton(),
+  );
+
+  ctx.di.providePort<CustomerRolePort>(
+    'customerRolePort',
+    ctx
+      .asFunction(() =>
+        createCustomerRolePort(() => ctx.cradle<CustomerAccountsCradle>().customerRoleService),
+      )
+      .singleton(),
+  );
+
   ctx.di.providePort(
     'customerAuthService',
     ctx
@@ -109,7 +163,10 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  ctx.di.providePort(
+  // The type parameter is the compile-time proof that this service still
+  // satisfies what feature 075 published; it returns plain shapes already, so
+  // it needed no adapter.
+  ctx.di.providePort<CustomerPasswordResetPort>(
     'passwordResetService',
     ctx
       .asFunction(
@@ -129,7 +186,7 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  ctx.di.providePort(
+  ctx.di.providePort<CustomerTotpEnrolmentPort>(
     'totpEnrolmentService',
     ctx
       .asFunction(

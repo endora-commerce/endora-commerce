@@ -130,3 +130,8 @@ export * from './ksef.js';
 export * from './product-feeds.js';
 export * from './pim-ergonode.js';
 export * from './kernel.js';
+// Port contracts published by feature 075's Phase P for providers that had no
+// contracts file of their own.
+export * from './auth.js';
+export * from './customer-accounts.js';
+export * from './email.js';

@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
-import { ERROR_CODES, type CreateCategoryRequest } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type CreateCategoryRequest,
+  type UpdateCategoryInput,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import type { CommandBus, CommandEvent } from '../../../commands/index.js';
@@ -64,21 +68,13 @@ function categoryUpdatedEvent(
  * historical reference; the public catalog filters them out.
  */
 
-export interface UpdateCategoryInput {
-  parentCategoryId?: string | null;
-  name?: Record<string, string>;
-  slug?: string;
-  sortOrder?: number;
-  /** Feature 013 / US5 — Library Asset rendered as the storefront category main image. */
-  mainImageAssetId?: string | null;
-  /** Feature 055 — custom-field values (validated + merged against definitions on write). */
-  customFieldValues?: Record<string, unknown>;
-  /**
-   * Feature 068 — activation switch. `false` hides the category from every
-   * customer-facing read while the admin tree keeps listing it.
-   */
-  isActive?: boolean;
-}
+/**
+ * The patch this service's `update` accepts.
+ *
+ * Published in `@b2b/contracts` in feature 075's Phase P — the category write
+ * port takes it — and aliased back here so the two cannot drift.
+ */
+export type { UpdateCategoryInput };
 
 export class CategoryAdminService {
   constructor(

@@ -48,6 +48,31 @@ export class PersonalOrganizationService {
   }
 
   /**
+   * The published form of {@link ensureFor} (feature 075, Phase P).
+   *
+   * Two things the entity-taking overload carries do not cross a module
+   * boundary: the `CustomerAccount` **entity**, which is what this feature
+   * exists to stop, and the caller's `EntityManager`, which cannot appear in a
+   * `@b2b/contracts` signature and should not — the one caller flushes the
+   * account before calling, so sharing an identity map bought nothing.
+   *
+   * The lookup lands in this file deliberately: the entity import it needs is
+   * the one already standing here, so the boundary ledger gains no key.
+   */
+  async ensureForCustomerAccountId(customerAccountId: string): Promise<Organization> {
+    const em = this.emFactory();
+    const account = await em.findOne(CustomerAccount, { id: customerAccountId });
+    if (!account) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.NOT_FOUND,
+        `Customer account ${customerAccountId} not found.`,
+      );
+    }
+    return this.ensureFor(account, em);
+  }
+
+  /**
    * Guard: a personal organization is single-member and MUST never gain a second
    * customer. Call before attaching a customer to an organization.
    */
