@@ -4,7 +4,8 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
-import type { DictionaryValidator } from '@b2b/contracts';
+import type {
+  TaxServicePort, DictionaryValidator } from '@b2b/contracts';
 import { TaxService } from './services/tax-service.js';
 import { registerTaxRoutes } from './routes.js';
 
@@ -37,7 +38,7 @@ export interface TaxesCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
-  ctx.di.providePort(
+  ctx.di.providePort<TaxServicePort>(
     'taxService',
     ctx
       .asFunction(

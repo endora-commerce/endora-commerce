@@ -1,5 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DictionaryValidator } from '@b2b/contracts';
+import type {
+  PromotionApplyPort,
+  PromotionCodePort,
+  DictionaryValidator,
+} from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -8,6 +12,7 @@ import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
 import { PromotionService } from './services/promotion-service.js';
+import { PromotionCodeService } from './services/promotion-code-port.js';
 import { CouponService } from './services/coupon-service.js';
 import { PromotionRuleStore } from './services/promotion-rule-store.js';
 import { PromotionStatsService } from './services/promotion-stats-service.js';
@@ -96,7 +101,23 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
-  ctx.di.providePort(
+  /**
+   * Feature 075, Phase P — the coupon-resolution port.
+   *
+   * `carts` reaches both promotion entities for one question: is this code
+   * live, and which promotion is it? The three-step lookup behind it — the
+   * legacy inline code, then the coupon table, then the promotion behind the
+   * coupon, each filtered on `isActive` — is this module's, and reproducing it
+   * in `carts` meant reproducing it correctly.
+   */
+  ctx.di.providePort<PromotionCodePort>(
+    'promotionCodePort',
+    ctx
+      .asFunction(({ emFactory }: PromotionsCradle) => new PromotionCodeService(emFactory))
+      .singleton(),
+  );
+
+  ctx.di.providePort<PromotionApplyPort>(
     'promotionService',
     ctx
       .asFunction(

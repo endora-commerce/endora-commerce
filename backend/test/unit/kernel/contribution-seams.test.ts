@@ -58,6 +58,28 @@ function flat(source: string): string {
   return source.replace(/\s+/g, '');
 }
 
+/**
+ * Does this module's `backend.ts` provide `name` as a gated port?
+ *
+ * Matched with a regex rather than a substring because feature 075's Phase P
+ * gave several ports an explicit type argument —
+ * `providePort<TemplateEmailPort>('templateEmailPort', …)` — as the
+ * compile-time proof that the registration still satisfies what was published.
+ *
+ * The **negative** direction is why this is a helper rather than a second
+ * substring. A `SEAMS` assertion written as
+ * `not.toContain("providePort('emailDefaultsPort'")` would go quietly green the
+ * day somebody gated that seam *with* a type argument, which is precisely the
+ * regression these tests exist to catch: the gate would be back, the boot would
+ * break for an operator who switched the module off, and the check would say
+ * nothing. One matcher, used both ways.
+ */
+function providesPort(moduleId: string, name: string): boolean {
+  return new RegExp(String.raw`providePort(<[^>]*>)?\('${name}'`).test(
+    flat(backendSource(moduleId)),
+  );
+}
+
 /** Never called: every assertion below reads registry bookkeeping, not the database. */
 const noEm = (): EntityManager => {
   throw new Error('this test must not reach the database');
@@ -91,11 +113,11 @@ describe('D-39 — a contribution registry is registered, not provided as a port
     // these names is resolved from a `ctx.onBoot` hook — which runs whatever the
     // module's effective state is. Gating one turns an operator's supported
     // off-switch into a backend that will not start.
-    expect(flat(backendSource(owner))).not.toContain(flat(`providePort('${name}'`));
+    expect(providesPort(owner, name)).toBe(false);
   });
 
   it.each(STILL_PORTS)('$owner still provides $name as a gated port', ({ owner, name }) => {
-    expect(flat(backendSource(owner))).toContain(flat(`providePort('${name}'`));
+    expect(providesPort(owner, name)).toBe(true);
   });
 });
 

@@ -370,3 +370,32 @@ export class DictionaryReferenceError extends Error {
     this.entryCode = args.entryCode;
   }
 }
+
+/**
+ * Decide which write mode a dictionary-referencing field is being validated
+ * under: `create-or-change` when the field is new or its value moved,
+ * `unchanged` when it did not.
+ *
+ * Relocated here from `dictionaries/services/dispatch-validator-mode.ts`
+ * (feature 075, Phase P) and published as a **function, not a port** — which
+ * contradicts `contracts/port-publication.md` §1.5, and the code is why. That
+ * section cites this file as the worked example of "yes, it reads state the
+ * module owns, so make it a port"; it reads nothing. It is three comparisons
+ * over its two arguments, and switching `dictionaries` off cannot change the
+ * answer, so a gated port would answer 503 to a question about two strings the
+ * caller already holds (FR-013).
+ *
+ * Five modules call it — `addresses`, `inventory`, `promotions`,
+ * `sales_channels` and `taxes` — immediately before calling the validator
+ * port, which *is* gated and *does* read state. Splitting the pure decision
+ * from the stateful validation is what lets the second fail closed without the
+ * first inventing a mode.
+ */
+export function dispatchValidatorMode(
+  currentValue: string | null | undefined,
+  incomingValue: string | null | undefined,
+): DictionaryWriteMode {
+  if (!currentValue) return 'create-or-change';
+  if (!incomingValue) return 'unchanged';
+  return currentValue === incomingValue ? 'unchanged' : 'create-or-change';
+}

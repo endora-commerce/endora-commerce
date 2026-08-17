@@ -280,3 +280,54 @@ export const BulkSetOrderStatusParamsSchema = z.object({
   reason: z.string().max(500).optional().describe('Optional note recorded with each status change.'),
 });
 export type BulkSetOrderStatusParams = z.infer<typeof BulkSetOrderStatusParamsSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// What of `prompt_actions`' contribution surface can be published (feature
+// 075, Phase P) — and, stated here rather than discovered later, what cannot.
+//
+// **Two seams are escalated to the Phase-C merge request for their consumers,
+// not published.** `PromptActionTool.execute(params, ctx)` takes a
+// `ToolContext` carrying the caller's MikroORM `EntityManager`, and
+// `BulkProgressResolver(row, em)` takes both an `EntityManager` and the
+// `PromptActionRequest` entity. Neither can appear in a signature here
+// (FR-034), and hiding the `EntityManager` behind a type parameter would
+// publish the coupling rather than remove it — the same judgement, and the
+// same reason, as `custom_fields`' `CustomFieldDefinitionApplyApi` in wave 1.
+//
+// A tool runs *inside* the confirm-time transaction the request row is being
+// written in, which is precisely why it holds the caller's manager; inverting
+// that is a design question about where the transaction boundary belongs, and
+// it is worth a conversation rather than a contract invented here. The three
+// shapes below are the ones that carry no manager.
+// ---------------------------------------------------------------------------
+
+/** Who is running a tool, for the audit entry the mutation writes. */
+export interface ToolAuditContext {
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  requestId?: string | null;
+}
+
+/** The tool as the LLM is told about it. Derived from the tool's `paramsSchema`. */
+export interface LlmToolDefinition {
+  name: string;
+  description: string;
+  /** JSON Schema for the tool arguments. */
+  inputSchema: Record<string, unknown>;
+}
+
+/**
+ * What decides whether a tool is offered at all: the caller's permissions and
+ * the module's presence.
+ *
+ * Both questions, not one. A tool whose module is switched off must not be
+ * advertised even to an admin who holds its permission — Constitution XVII
+ * rule 5 — and a tool whose module is present must not be advertised to
+ * somebody who would get a 403 running it.
+ */
+export interface ToolVisibilityContext {
+  hasPermission(permission: string): Promise<boolean>;
+  isModuleInstalled(moduleId: string): Promise<boolean>;
+}

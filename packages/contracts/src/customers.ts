@@ -226,3 +226,55 @@ export const onlineCustomerSchema = z.object({
   lastSeenAt: isoDateTimeSchema,
 });
 export type OnlineCustomer = z.infer<typeof onlineCustomerSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `customers` publishes (feature 075, Phase P). One
+// cross-module consumer: `quick_order` resolves a buyer's saved personal
+// address when it fills in their one-click defaults.
+// ---------------------------------------------------------------------------
+
+/**
+ * A customer's own saved address — never the ORM entity (FR-011).
+ *
+ * Distinct from `AddressRecord` in `addresses.ts`, and the difference is the
+ * key: this one hangs off a **customer account**, that one off an
+ * **organisation**. Both tables exist because a B2C buyer keeps addresses that
+ * are theirs rather than their personal organisation's, and merging the two
+ * shapes here would hide which of the two a caller is holding.
+ */
+export interface CustomerAddressRecord {
+  id: string;
+  customerAccountId: string;
+  kind: 'delivery' | 'billing';
+  recipientName: string;
+  street: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  phone: string | null;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+/**
+ * Container name: `customerAddressReadPort`. Owner: `customers`.
+ *
+ * `findById` is scoped by customer account for the reason its organisation
+ * twin gives: every caller already knows whose address it is asking for, and
+ * one query is what stops the ownership check being forgotten.
+ */
+export interface CustomerAddressReadPort {
+  findById(
+    customerAccountId: string,
+    addressId: string,
+    options?: { liveOnly?: boolean },
+  ): Promise<CustomerAddressRecord | null>;
+  listForCustomer(
+    customerAccountId: string,
+    kind?: 'delivery' | 'billing',
+  ): Promise<CustomerAddressRecord[]>;
+}

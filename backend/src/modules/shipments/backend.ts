@@ -1,11 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
+import type { ShippingEmailRendererPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { ShippingAdapterRegistry } from '../delivery_methods/services/shipping-adapter-registry.js';
 import type { OrderStatusRegistry } from '../delivery_methods/services/order-status-registry.port.js';
 import { ShipmentService } from './services/shipment-service.js';
+import { resolveShippingEmailRenderer } from './services/shipping-email-renderer.js';
 import { ReceiveShipmentHandler } from './services/receive-shipment-handler.js';
 import type { ShippingEventBus } from './services/events.js';
 import { registerShipmentsRoutes } from './routes.js';
@@ -92,6 +94,26 @@ export function registerModule(ctx: ModuleContext): void {
             eventBus as ShippingEventBus,
           ),
       )
+      .singleton(),
+  );
+
+  /**
+   * Feature 075, Phase P — the shipping line of the order-confirmation e-mail.
+   *
+   * The delivery-side twin of `payments`' `paymentEmailRendererPort`, and the
+   * same collapse: `orders` reaches this module's resolver and then calls the
+   * function it gets back. Doing both behind one call is what keeps the
+   * default text on this side — a consumer that resolved a renderer and got
+   * `undefined` would have to hold a copy of it, and two copies of a default
+   * are how a default stops being one.
+   */
+  ctx.di.providePort<ShippingEmailRendererPort>(
+    'shippingEmailRendererPort',
+    ctx
+      .asFunction((): ShippingEmailRendererPort => ({
+        render: (rendererKey, emailContext) =>
+          resolveShippingEmailRenderer(rendererKey)(emailContext),
+      }))
       .singleton(),
   );
 

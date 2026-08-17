@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { DefaultPreferencePort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -107,6 +108,31 @@ function warnOnce(condition: string, message: string): void {
 
 export function registerModule(ctx: ModuleContext): void {
   const cradle = (): QuickOrderCradle => ctx.cradle<QuickOrderCradle>();
+
+  /**
+   * Feature 075, Phase P — the buyer's one-click defaults.
+   *
+   * `customers` renders and edits them from its own customer-detail screen, so
+   * the surface and the table sit in different modules by design.
+   * `resolveForCustomer` answers with the defaults **already resolved** —
+   * through the buyer's saved addresses and the platform's methods — rather
+   * than the stored row, because the fallback chain is this module's and a
+   * caller reproducing it would reproduce it differently.
+   */
+  ctx.di.providePort<DefaultPreferencePort>(
+    'defaultPreferencePort',
+    ctx
+      .asFunction(() => ({
+        resolveForCustomer: (customerAccountId: string) =>
+          cradle().quickOrderPreferenceService.resolveForCustomer(customerAccountId),
+        upsert: (
+          actor: Parameters<DefaultPreferencePort['upsert']>[0],
+          input: Parameters<DefaultPreferencePort['upsert']>[1],
+          audit: Parameters<DefaultPreferencePort['upsert']>[2],
+        ) => cradle().quickOrderPreferenceService.upsert(actor, input, audit),
+      }))
+      .singleton(),
+  );
 
   ctx.di.register({
     quickOrderPipeline: ctx

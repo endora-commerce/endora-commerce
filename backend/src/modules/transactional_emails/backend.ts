@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { ModuleManifest, TransactionalEmailSender } from '@b2b/contracts';
+import type { TemplateEmailPort, ModuleManifest, TransactionalEmailSender } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
@@ -163,7 +163,11 @@ export function registerModule(ctx: ModuleContext): void {
   // One template-email adapter for every module that sends unscoped,
   // template-routed mail. `organizations` and `inventory` each used to get their
   // own, built by a root from a helper the first of them owned.
-  ctx.di.providePort(
+  // Feature 075, Phase P — the type parameter is the compile-time proof that
+  // this adapter still satisfies `TemplateEmailPort`, the shape `organizations`
+  // reaches. It is still a gated port and must stay one: `trySend` renders and
+  // sends, which is what the gate is for.
+  ctx.di.providePort<TemplateEmailPort>(
     'templateEmailPort',
     ctx
       .asFunction((): TemplateEmail =>

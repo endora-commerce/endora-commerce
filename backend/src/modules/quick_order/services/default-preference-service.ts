@@ -15,6 +15,7 @@ import { CustomerAddress } from '../../customers/entities/customer-address.entit
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { OrganizationRestrictionService } from '../../organizations/services/organization-restriction-service.js';
 import { QuickOrderDefaultPreference } from '../entities/quick-order-default-preference.entity.js';
+import type { PreferenceAuditContext } from '@b2b/contracts';
 import { canManagePreference, type PreferenceActor } from './default-preference-authz.js';
 import {
   resolvePreferenceFields,
@@ -22,13 +23,12 @@ import {
   type ResolvedField,
 } from './default-preference-resolver.js';
 
-export interface PreferenceAuditContext {
-  actorAdminUserId?: string | null;
-  customerAccountId?: string | null;
-  ipAddress?: string | null;
-  userAgent?: string | null;
-  requestId?: string | null;
-}
+/**
+ * Moved to `@b2b/contracts` in feature 075's Phase P — `customers` passes it
+ * when it writes a buyer's defaults. Re-exported here for the length of
+ * Phase P, which cuts no consumer.
+ */
+export type { PreferenceAuditContext };
 
 const FIELDS = [
   'defaultPaymentMethodId',

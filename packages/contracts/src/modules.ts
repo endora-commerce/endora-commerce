@@ -604,3 +604,49 @@ export const apiInterceptorListSchema = z.object({
   items: z.array(apiInterceptorEntrySchema),
 });
 export type ApiInterceptorList = z.infer<typeof apiInterceptorListSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `_lifecycle` publishes to the four modules that read
+// its registry (feature 075, Phase P) — `_i18n`, `admin_actions`,
+// `admin_roles` and `settings`.
+//
+// **What is published is the manifests, not the registry.** `_lifecycle`'s own
+// `LoadedManifestRegistry` carries a `ModuleDepGraph` and a map of entries
+// holding `installHook` / `uninstallHook`, whose context takes an
+// `EntityManager` — none of which can appear in a signature here (FR-034), and
+// none of which any consumer reads. All four want the same thing: the
+// manifests, by module id. `_i18n` reconciles i18n bundles from them,
+// `admin_actions` builds the palette, `admin_roles` collects permission codes,
+// `settings` derives the settings catalogue.
+//
+// The graph and the hooks stay internal, which is where they belong: they are
+// how the lifecycle installs and orders modules, and a module reading either
+// would be a module reasoning about its own installation.
+// ---------------------------------------------------------------------------
+
+/** One registered module's manifest, with the id it is registered under. */
+export interface RegisteredModuleManifest {
+  moduleId: string;
+  manifest: ModuleManifest;
+}
+
+/**
+ * Container name: `moduleManifestReadPort`. Owner: `_lifecycle`.
+ *
+ * Reads the **resolved** registry — core manifests plus the active
+ * deployment's overlay modules — so an overlay module's permissions, palette
+ * actions, settings and i18n bundles are seen exactly as a core module's are.
+ *
+ * Deliberately **not** filtered by effective state. Every consumer here is
+ * building a catalogue that must list a switched-off module in order to
+ * describe it: `/platform/modules` renders the activation control of a module
+ * that is off, and `/admin-roles` must keep granting a permission whose module
+ * an operator may switch back on. Filtering here would make a deactivation
+ * look like an uninstall, which Constitution XVII says it is not.
+ */
+export interface ModuleManifestReadPort {
+  list(): readonly RegisteredModuleManifest[];
+  get(moduleId: string): ModuleManifest | undefined;
+}
