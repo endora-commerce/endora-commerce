@@ -49,12 +49,14 @@ import {
   type BulkNotificationPort,
 } from './services/bulk-operation.service.js';
 import {
+  catalogBulkProgressResolver,
   catalogPromptMutationTools,
   catalogPromptResolverTools,
   type CatalogPromptToolsDeps,
 } from './prompt-tools.js';
 import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
 import type { PromptActionToolRegistry } from '../prompt_actions/services/tool-registry.js';
+import type { PromptActionBulkProgressRegistry } from '../prompt_actions/services/bulk-progress-registry.js';
 
 /**
  * `catalog` — seven services each composition built **twice** (feature 072,
@@ -145,6 +147,16 @@ export interface CatalogCradle {
    * `contributes-to` edge rather than a dependency (D-44).
    */
   readonly promptActionToolRegistry: PromptActionToolRegistry;
+  /**
+   * Owned by `prompt_actions`: where a delegated bulk request reads its live
+   * progress from. The same shape as the tool catalogue above, and new for the
+   * same reason (D-72 point 4) — until it existed, `promptActionsBulkProgressResolver`
+   * was a single name `prompt_actions` defaulted and a composition root
+   * overwrote with this module's resolver, which is the one thing a module may
+   * not do. A table it can push into, so the contribution moves here with the
+   * other five.
+   */
+  readonly promptActionBulkProgressRegistry: PromptActionBulkProgressRegistry;
   readonly catalogAttributeReadPort: CatalogAttributeReadService;
   readonly catalogQueryPort: CatalogQueryService;
   readonly catalogAdminService: CatalogAdminService;
@@ -506,7 +518,8 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   /**
-   * The assistant tools this module contributes (D-44).
+   * The assistant tools this module contributes, and the bulk-progress reader
+   * that goes with them (D-44; D-72 point 4 for the second half).
    *
    * Both roots built these from `catalog`'s own services and pushed them into
    * `prompt_actions`' registry, because pushing from here would have made
@@ -515,11 +528,19 @@ export function registerModule(ctx: ModuleContext): void {
    * present. `nonBindingDependencies` is the declaration without that claim, so
    * the contribution moves to the module whose services it is built from.
    *
-   * A push, not a pull: nothing is read back out of the registry here. The
-   * registry is a plain `ctx.di.register`, so the resolution cannot ask a gate,
-   * and `PromptActionToolRegistry` drops every tool whose recorded owner is not
-   * effectively present — so a switched-off `catalog` contributes tools nobody
-   * can see, and a switched-off `prompt_actions` holds a table nobody walks.
+   * The progress reader was the one of the five D-44 could not move, and not
+   * for a presence reason: `promptActionsBulkProgressResolver` was a single
+   * name `prompt_actions` defaulted, and a module may not write a name another
+   * module owns. Now that the host keeps a table instead, it pushes from here
+   * like everything else, and neither composition root names
+   * `catalog/prompt-tools.js`.
+   *
+   * A push, not a pull: nothing is read back out of either registry here. Both
+   * are plain `ctx.di.register`, so the resolution cannot ask a gate, and both
+   * drop an entry whose recorded owner is not effectively present — so a
+   * switched-off `catalog` contributes tools nobody can see and progress
+   * nobody folds in, and a switched-off `prompt_actions` holds two tables
+   * nobody walks.
    */
   ctx.onBoot(() => {
     // `redis`, not `moduleQueueRedis`: this is the connection both roots handed
@@ -541,6 +562,7 @@ export function registerModule(ctx: ModuleContext): void {
     ]) {
       registry.register(tool);
     }
+    cradle().promptActionBulkProgressRegistry.register('catalog', catalogBulkProgressResolver(deps));
   });
 
   /**

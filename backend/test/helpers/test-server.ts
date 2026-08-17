@@ -155,7 +155,6 @@ import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef
 import type { PwaBridge, PwaCradle } from '../../src/modules/pwa/backend.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
-import { catalogBulkProgressResolver } from '../../src/modules/catalog/prompt-tools.js';
 import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js';
 import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { z } from 'zod';
@@ -1785,14 +1784,10 @@ export async function setupBackendServer(
   // The tools themselves are no longer here: since D-44 each contributing module
   // pushes its own from its own boot hook, which is also how the `orders` tools
   // — production-only until then — came to be composed in this harness at all.
+  // Nor is the bulk-progress reader, since D-72 point 4 turned the single name
+  // it was written over into a registry keyed by contributing module. What is
+  // left is three test seams, which are this harness's own.
   composedModules.contribute({
-    promptActionsBulkProgressResolver: catalogBulkProgressResolver({
-      emFactory: em,
-      events: eventBus,
-      auditLogService,
-      salesChannelMembership: salesChannels.membershipService,
-      redis,
-    }),
     ...(options.promptActionsLlmFetch === undefined
       ? {}
       : { promptActionsLlmFetch: options.promptActionsLlmFetch }),

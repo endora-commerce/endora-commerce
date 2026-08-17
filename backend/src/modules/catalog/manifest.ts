@@ -96,6 +96,21 @@ export const manifest = defineModuleManifest({
         'the catalogue is present, which is a claim this contribution does not support.',
     },
     {
+      moduleId: 'prompt_actions',
+      name: 'promptActionBulkProgressRegistry',
+      kind: 'contributes-to',
+      reason:
+        'The twin of the tool push above, and the last member of the D-44 family to leave a ' +
+        'composition root (D-72 point 4). It folds live `catalog_bulk_operations` progress ' +
+        'into a delegated request and finalizes it when the run ends, so it is built from ' +
+        'this module’s own bulk services and belongs here — it stayed in the roots only ' +
+        'because the host defaulted a single name for it and a module may not write a name ' +
+        'another module owns. Reads nothing back: the registry is a plain registration that ' +
+        'skips every resolver whose owner is not effectively present, and the absent ' +
+        'behaviour was already the documented one — the request reports no progress, keeps ' +
+        'its row and its audit trail, and expires on the assistant’s own TTL.',
+    },
+    {
       moduleId: 'api_keys',
       name: 'requireApiKey',
       kind: 'degrades-without',
