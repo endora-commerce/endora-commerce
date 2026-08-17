@@ -1,11 +1,13 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
+import type {
+  DeliveryMethodReadPort,
+  OrderReadPort,
+  ShippingAdapterRegistryPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Shipment } from '../entities/shipment.entity.js';
-import { Order } from '../../orders/entities/order.entity.js';
-import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.entity.js';
-import type { ShippingAdapterRegistry } from '../../delivery_methods/services/shipping-adapter-registry.js';
 import type { ShippingEventBus } from './events.js';
 
 /**
@@ -15,11 +17,21 @@ import type { ShippingEventBus } from './events.js';
  * against the Order, invokes the method adapter's `onShipmentCreated`, and
  * emits `shipment.created.v1`. `openRetry` opens an additional attempt after a
  * failure (leaving prior rows intact). `listForOrder` powers the admin view.
+ *
+ * Feature 075 Phase C — the order and the delivery method are read over their
+ * owners' ports. Only the `Shipment` rows are this module's to write, and only
+ * those stay inside the transaction: the two reads are of rows nothing in this
+ * operation modifies, so moving them onto the owner's `EntityManager` costs no
+ * consistency. Both fail closed when their owner is off, which is right — a
+ * shipment opened against an order the platform will not read is a parcel with
+ * no addressee.
  */
 export class ShipmentService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly registry: ShippingAdapterRegistry,
+    private readonly registry: ShippingAdapterRegistryPort,
+    private readonly orderRead: OrderReadPort,
+    private readonly deliveryMethodRead: DeliveryMethodReadPort,
     private readonly events?: ShippingEventBus,
   ) {}
 
@@ -30,7 +42,7 @@ export class ShipmentService {
     const run = async (): Promise<{ shipment: Shipment; adapterKey: string }> => {
       const em = this.emFactory();
       return em.transactional(async (tx) => {
-        const order = await tx.findOne(Order, { id: orderId });
+        const order = await this.orderRead.findById(orderId);
         if (!order) {
           throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
         }
@@ -47,7 +59,7 @@ export class ShipmentService {
           );
         }
 
-        const method = await tx.findOne(DeliveryMethod, { id: order.deliveryMethodId });
+        const method = await this.deliveryMethodRead.findById(order.deliveryMethodId);
         const adapterKey = method?.adapter ?? order.deliveryMethodId;
 
         const shipment = tx.create(Shipment, {

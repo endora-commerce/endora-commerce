@@ -1,12 +1,18 @@
 import { randomUUID } from 'crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type {
+  DeliveryMethodReadPort,
+  OrderReadPort,
+  OrderStatusAnnouncePort,
+} from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ReceiveShipmentHandler } from '../../../src/modules/shipments/services/receive-shipment-handler.js';
+import type { ShippingEventBus } from '../../../src/modules/shipments/services/events.js';
 import { ShipmentService } from '../../../src/modules/shipments/services/shipment-service.js';
 import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
 import { builtInShippingAdapters } from '../../../src/modules/delivery_methods/adapters/built-in-adapters.js';
@@ -64,6 +70,35 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
   const registry = new ShippingAdapterRegistry();
   for (const a of builtInShippingAdapters()) registry.register(a, 'delivery_methods');
 
+  /**
+   * Feature 075 Phase C — the two services take their cross-module reads as
+   * ports now, so this suite hands them the **real** ones out of the composed
+   * container rather than an entity class. Resolved per call, never captured: a
+   * captured gate keeps answering after its owner is switched off.
+   */
+  const ports = (): {
+    orderReadPort: OrderReadPort;
+    deliveryMethodReadPort: DeliveryMethodReadPort;
+    orderStatusAnnouncePort: OrderStatusAnnouncePort;
+  } =>
+    h.container.cradle as unknown as {
+      orderReadPort: OrderReadPort;
+      deliveryMethodReadPort: DeliveryMethodReadPort;
+      orderStatusAnnouncePort: OrderStatusAnnouncePort;
+    };
+
+  const shipmentService = (): ShipmentService =>
+    new ShipmentService(h.em, registry, ports().orderReadPort, ports().deliveryMethodReadPort);
+
+  const receiveHandler = (events?: ShippingEventBus): ReceiveShipmentHandler =>
+    new ReceiveShipmentHandler(
+      h.em,
+      statusRegistry,
+      ports().deliveryMethodReadPort,
+      ports().orderStatusAnnouncePort,
+      events,
+    );
+
   beforeAll(async () => {
     h = await setupBackendServer();
   });
@@ -73,7 +108,7 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
 
   it('createShipment opens a pending Shipment (shipment_created)', async () => {
     const { order } = await seedOrder(h.em());
-    const service = new ShipmentService(h.em, registry);
+    const service = shipmentService();
     const shipment = await service.createShipment(order.id);
     expect(shipment.status).toBe('pending');
     expect(shipment.attemptNo).toBe(1);
@@ -81,8 +116,8 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
 
   it('receive_shipment success → Shipment success + order statusOnSuccess', async () => {
     const { order } = await seedOrder(h.em());
-    const service = new ShipmentService(h.em, registry);
-    const handler = new ReceiveShipmentHandler(h.em, statusRegistry);
+    const service = shipmentService();
+    const handler = receiveHandler();
     const shipment = await service.createShipment(order.id);
 
     const res = await handler.receive({
@@ -105,8 +140,8 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
 
   it('receive_shipment failure → Shipment failure + order statusOnFailure', async () => {
     const { order } = await seedOrder(h.em());
-    const service = new ShipmentService(h.em, registry);
-    const handler = new ReceiveShipmentHandler(h.em, statusRegistry);
+    const service = shipmentService();
+    const handler = receiveHandler();
     const shipment = await service.createShipment(order.id);
 
     const res = await handler.receive({
@@ -126,8 +161,8 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
 
   it('is idempotent on repeated success and rejects failure after success', async () => {
     const { order } = await seedOrder(h.em());
-    const service = new ShipmentService(h.em, registry);
-    const handler = new ReceiveShipmentHandler(h.em, statusRegistry);
+    const service = shipmentService();
+    const handler = receiveHandler();
     const shipment = await service.createShipment(order.id);
 
     await handler.receive({ shipmentId: shipment.id, outcome: 'success' });
@@ -141,8 +176,8 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
 
   it('retry opens a new Shipment after a failure, preserving prior attempts', async () => {
     const { order } = await seedOrder(h.em());
-    const service = new ShipmentService(h.em, registry);
-    const handler = new ReceiveShipmentHandler(h.em, statusRegistry);
+    const service = shipmentService();
+    const handler = receiveHandler();
     const first = await service.createShipment(order.id);
 
     await handler.receive({ shipmentId: first.id, outcome: 'failure', failureReason: 'x' });
@@ -155,30 +190,56 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
     expect(all.map((s) => s.attemptNo)).toEqual([1, 2]);
   });
 
-  it('emits the templated order status .after events on the auto-transition (T026)', async () => {
-    const { EventBus } = await import('../../../src/events/bus.js');
-    const bus = new EventBus();
+  /**
+   * The four templated names are `orders`' vocabulary, and since feature 075
+   * Phase C this module no longer builds them: it hands the committed change to
+   * `orderStatusAnnouncePort`, and the naming scheme stays on the owner's side
+   * — which matters because the status set is admin-configurable, so the names
+   * are not known at compile time.
+   *
+   * The subscriptions therefore go on the container's own bus, which is what
+   * the port emits onto. That is a stronger assertion than the local bus this
+   * test used to hand the handler: it proves the announcement reaches the
+   * platform's bus through `orders`, not merely that the handler called a
+   * builder it had imported.
+   */
+  it('announces the templated order status .after events on the auto-transition (T026)', async () => {
     const fired: string[] = [];
-    bus.on('order.status.to_shipment_sent.after', () => void fired.push('to'));
-    bus.on('order.status.from_paid_to_shipment_sent.after', () => void fired.push('fromTo'));
-    bus.on('order.status_changed.v1', () => void fired.push('coarse'));
+    const unsubscribe = [
+      h.eventBus.on('order.status.to_shipment_sent.after', () => void fired.push('to')),
+      h.eventBus.on('order.status.from_paid_to_shipment_sent.after', () =>
+        void fired.push('fromTo'),
+      ),
+      h.eventBus.on('order.status_changed.v1', () => void fired.push('coarse')),
+    ];
 
-    const { order } = await seedOrder(h.em()); // seeded in 'paid'; statusOnSuccess = 'shipment_sent'
-    const service = new ShipmentService(h.em, registry);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic bus accepts any string event at runtime
-    const handler = new ReceiveShipmentHandler(h.em, statusRegistry, bus as any);
-    const shipment = await service.createShipment(order.id);
-    await handler.receive({ shipmentId: shipment.id, outcome: 'success' });
+    try {
+      const { order } = await seedOrder(h.em()); // seeded in 'paid'; statusOnSuccess = 'shipment_sent'
+      const service = shipmentService();
+      // The events bus is what production passes, and the announcement rides
+      // the same `emit` guard as the `shipment.*` events do.
+      const handler = receiveHandler(h.eventBus as unknown as ShippingEventBus);
+      const shipment = await service.createShipment(order.id);
+      await handler.receive({ shipmentId: shipment.id, outcome: 'success' });
 
-    expect(fired).toContain('to');
-    expect(fired).toContain('fromTo');
-    expect(fired).toContain('coarse');
+      // `emit` is fire-and-forget and `dispatch` awaits each handler in turn,
+      // so the coarse event — which the composed platform already subscribes to
+      // — settles a tick or two after the two templated ones this test is alone
+      // on. The local bus this test used to build hid that; the real one cannot.
+      await vi.waitFor(() => {
+        expect(fired).toContain('to');
+        expect(fired).toContain('fromTo');
+        expect(fired).toContain('coarse');
+      });
+    } finally {
+      for (const stop of unsubscribe) stop();
+    }
   });
 
   it('reconciles a late receive even when the adapter is de-registered', async () => {
     const { order } = await seedOrder(h.em(), { adapter: 'removed_carrier' });
-    const service = new ShipmentService(h.em, registry);
-    const handler = new ReceiveShipmentHandler(h.em, statusRegistry);
+    const service = shipmentService();
+    const handler = receiveHandler();
     // createShipment works even with an unregistered adapter (no adapter hook runs).
     const shipment = await service.createShipment(order.id);
     const res = await handler.receive({ shipmentId: shipment.id, outcome: 'success' });

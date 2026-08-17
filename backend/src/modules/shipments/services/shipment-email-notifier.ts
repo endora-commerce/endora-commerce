@@ -3,10 +3,12 @@
 // customer. Best-effort; event-bus dispatch isolates handler errors.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type {
+  CustomerAccountReadPort,
+  OrderReadPort,
+  TransactionalEmailSender,
+} from '@b2b/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
-import { Order } from '../../orders/entities/order.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 
 /**
@@ -45,6 +47,16 @@ export type ShipmentEmailLog = (message: string, context: Record<string, unknown
 
 export interface ShipmentEmailNotifierDeps {
   emFactory: () => EntityManager;
+  /**
+   * Feature 075 Phase C — the order and its buyer come from the ports their
+   * owners publish, not from `Order` and `CustomerAccount`. Both fail closed
+   * when their owner is off, and that is the right answer for a notification:
+   * an e-mail addressed from data the platform will not read is worse than no
+   * e-mail. `notify`'s `catch` re-throws `ModuleDisabledError` first, so the
+   * refusal reaches the subscriber rather than being logged as `failed`.
+   */
+  orderRead: OrderReadPort;
+  customerAccountRead: CustomerAccountReadPort;
   getTransactionalEmailSender: () => TransactionalEmailSender | undefined;
   log?: ShipmentEmailLog;
 }
@@ -72,9 +84,11 @@ export class ShipmentEmailNotifier {
     if (!sender) return this.notSent(orderId, shipmentId, 'no_sender');
     try {
       const em = this.deps.emFactory();
-      const order = await em.findOne(Order, { id: orderId });
+      const order = await this.deps.orderRead.findById(orderId);
       if (!order) return this.notSent(orderId, shipmentId, 'order_not_found');
-      const customer = await em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId });
+      const customer = await this.deps.customerAccountRead.findById(
+        order.placedByCustomerAccountId,
+      );
       if (!customer?.email) return this.notSent(orderId, shipmentId, 'no_recipient');
       const channel = await em.findOne(SalesChannel, { id: order.salesChannelId });
       const outcome = await sender.send({

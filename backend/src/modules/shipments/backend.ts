@@ -1,11 +1,18 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
-import type { ShippingEmailRendererPort } from '@b2b/contracts';
+import type {
+  CustomerAccountReadPort,
+  DeliveryMethodReadPort,
+  EmailDefaultsRegistryPort,
+  OrderReadPort,
+  OrderStatusAnnouncePort,
+  OrderStatusRegistry,
+  ShippingAdapterRegistryPort,
+  ShippingEmailRendererPort,
+} from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { ShippingAdapterRegistry } from '../delivery_methods/services/shipping-adapter-registry.js';
-import type { OrderStatusRegistry } from '../delivery_methods/services/order-status-registry.port.js';
 import { ShipmentService } from './services/shipment-service.js';
 import { resolveShippingEmailRenderer } from './services/shipping-email-renderer.js';
 import { ReceiveShipmentHandler } from './services/receive-shipment-handler.js';
@@ -14,7 +21,6 @@ import { registerShipmentsRoutes } from './routes.js';
 import { ShipmentEmailNotifier } from './services/shipment-email-notifier.js';
 import type { ShipmentEmailNotifierDeps } from './services/shipment-email-notifier.js';
 import { SHIPMENT_CREATED_DEFAULT } from './email-templates/transactional-defaults.js';
-import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 
 /**
  * `shipments` — a module that owned everything except its own registration
@@ -52,7 +58,7 @@ export interface ShipmentsCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
   readonly requireAdmin: RequireAdminFactory;
-  readonly shippingAdapterRegistry: ShippingAdapterRegistry;
+  readonly shippingAdapterRegistry: ShippingAdapterRegistryPort;
   readonly shippingOrderStatusRegistry: OrderStatusRegistry;
   readonly shipmentService: ShipmentService;
   readonly receiveShipmentHandler: ReceiveShipmentHandler;
@@ -74,6 +80,11 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory }: ShipmentsCradle) =>
           new ShipmentEmailNotifier({
             emFactory,
+            orderRead: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            customerAccountRead: lazyPort<CustomerAccountReadPort>(
+              ctx,
+              'customerAccountReadPort',
+            ),
             // Read per call: a root contributes the sender after
             // `transactional_emails` announces it, which is later than this.
             getTransactionalEmailSender: () =>
@@ -90,7 +101,9 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory, eventBus }: ShipmentsCradle) =>
           new ShipmentService(
             emFactory,
-            lazyPort<ShippingAdapterRegistry>(ctx, 'shippingAdapterRegistry'),
+            lazyPort<ShippingAdapterRegistryPort>(ctx, 'shippingAdapterRegistry'),
+            lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            lazyPort<DeliveryMethodReadPort>(ctx, 'deliveryMethodReadPort'),
             eventBus as ShippingEventBus,
           ),
       )
@@ -125,6 +138,8 @@ export function registerModule(ctx: ModuleContext): void {
           new ReceiveShipmentHandler(
             emFactory,
             lazyPort<OrderStatusRegistry>(ctx, 'shippingOrderStatusRegistry'),
+            lazyPort<DeliveryMethodReadPort>(ctx, 'deliveryMethodReadPort'),
+            lazyPort<OrderStatusAnnouncePort>(ctx, 'orderStatusAnnouncePort'),
             eventBus as ShippingEventBus,
           ),
       )
@@ -167,7 +182,7 @@ export function registerModule(ctx: ModuleContext): void {
    * built, so this always lands first — by construction, not by ordering luck.
    */
   ctx.onBoot(async () => {
-    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    const defaults = lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort');
     defaults.register('shipment_created', SHIPMENT_CREATED_DEFAULT, 'shipments');
   });
 
