@@ -26,6 +26,7 @@ export class Invoice {
     | 'salesChannelId'
     | 'paidTotal'
     | 'originalInvoiceId'
+    | 'correctionIdempotencyKey'
     | 'templateId'
     | 'sellerSnapshot'
     | 'buyerSnapshot'
@@ -81,6 +82,16 @@ export class Invoice {
 
   @Property({ type: 'uuid', nullable: true })
   originalInvoiceId?: string | null;
+
+  /**
+   * The caller's key for a correction, unique among the rows that carry one
+   * (D-91). A return settlement passes its return case id, so a retried
+   * settlement is answered with the document the first attempt issued instead
+   * of a second one. Null on every invoice issued without a key — every
+   * `proforma`, every `invoice`, and every correction issued by hand.
+   */
+  @Property({ type: 'string', length: 64, nullable: true })
+  correctionIdempotencyKey?: string | null;
 
   @Property({ type: 'uuid', nullable: true })
   templateId?: string | null;

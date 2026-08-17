@@ -10,6 +10,14 @@ import type { CreditLimitService } from './credit-limit-service.js';
  * organization's credit-limit grant by the refund amount; the credit_limits
  * checkout credit-check already provides redemption. Returns `applied: false`
  * when the organization has no grant.
+ *
+ * **The rule is one credit per return case (D-91).** This adapter used to read
+ * the grant and adjust it to `granted + amount`, ignoring the `returnCaseId`
+ * the input has always carried, so a settlement retried after a later step
+ * refused credited the organization a second time. The rule now lives in
+ * `CreditLimitService.creditFromReturn`, where the credit and the record of it
+ * are written by one Command in one transaction; this class is back to being
+ * the shape adapter it reads as.
  */
 export class CreditTopupProvider implements CreditTopupPort {
   /**
@@ -22,20 +30,17 @@ export class CreditTopupProvider implements CreditTopupPort {
   constructor(private readonly creditLimitService: () => CreditLimitService) {}
 
   async creditFromReturn(input: CreditTopupInput): Promise<CreditTopupResult> {
-    const creditLimits = this.creditLimitService();
-    const current = await creditLimits.getForOrganization(input.organizationId);
-    if (!current) return { applied: false };
-    const newAmount = round2(Number(current.grantedAmount) + input.amount);
-    const res = await creditLimits.adjust({
+    const outcome = await this.creditLimitService().creditFromReturn({
       organizationId: input.organizationId,
-      grantedAmount: newAmount,
-      allowOverAllocation: true,
+      amount: input.amount,
+      currency: input.currency,
+      returnCaseId: input.returnCaseId,
     });
-    if (!res.ok) return { applied: false };
-    return { applied: true, availableAmountAfter: newAmount };
+    return {
+      applied: outcome.applied,
+      ...(outcome.availableAmountAfter !== undefined
+        ? { availableAmountAfter: outcome.availableAmountAfter }
+        : {}),
+    };
   }
-}
-
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
 }

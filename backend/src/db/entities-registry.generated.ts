@@ -85,6 +85,7 @@ import { ComparisonProduct } from '../modules/comparisons/entities/comparison-pr
 import { Comparison } from '../modules/comparisons/entities/comparison.entity.js';
 import { CredentialConfiguration } from '../modules/credentials/entities/credential-configuration.entity.js';
 import { CreditLimitReservation } from '../modules/credit_limits/entities/credit-limit-reservation.entity.js';
+import { CreditLimitReturnTopup } from '../modules/credit_limits/entities/credit-limit-return-topup.entity.js';
 import { CreditLimit } from '../modules/credit_limits/entities/credit-limit.entity.js';
 import { Currency } from '../modules/currencies/entities/currency.entity.js';
 import { CustomFieldDefinition } from '../modules/custom_fields/entities/custom-field-definition.entity.js';
@@ -307,6 +308,7 @@ export const ALL_ENTITIES = [
   Comparison,
   CredentialConfiguration,
   CreditLimitReservation,
+  CreditLimitReturnTopup,
   CreditLimit,
   Currency,
   CustomFieldDefinition,
