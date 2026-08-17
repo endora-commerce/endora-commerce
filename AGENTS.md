@@ -435,6 +435,40 @@ column default, an external vendor's wire format) is marked with `naming:allow-s
 plus a reason in a comment directly above the field — see `cmsContentEnvelopeSchema` in
 `packages/contracts/src/cms.ts`. Do not use it to skip a genuine API-shape fix.
 
+### The full inventory
+
+Every check that runs in CI, so a rule cited nowhere here stops being a rule nobody knew about
+(issue #137 — `check:harness-teardown` had run in every pipeline since issue #111 while this
+file had never heard of it). Run with `pnpm --filter backend run <name>` unless the row says
+otherwise. `backend/test/unit/scripts/check-inventory.test.ts` is the machine-checked version
+of this table: it enumerates every `check-*` script and fails on one it does not name.
+
+| Script | Job | What it refuses |
+| --- | --- | --- |
+| `check:command-coverage` | `quality` | A sensitive write that neither runs a Command nor records an audit row (Principle XIII). `--strict` in CI, so a finding in any module fails. |
+| `check:container-imports` | `quality` | A module importing the container library — a module sees `ModuleContext` and nothing else (feature 072, FR-032). |
+| `check:doc-snippets` | `quality` | A code block marked `<!-- verbatim-from: <path> -->` that no longer appears verbatim in that file. The quickstarts are copied by every module conversion, so a stale snippet is a defect scheduled for mass production. |
+| `check:entry-scope` | `quality` | A non-HTTP entry point — CLI script, BullMQ consumer, repeating-timer sweep — that does not establish its scope explicitly (feature 072, FR-020). |
+| `check:error-translations` | `quality` | An operator-visible error code with no sentence in both shipped languages. The envelope replaces the message wholesale, so a missing key renders the raw code and nothing reports it. Ledger may only shrink. |
+| `check:harness-teardown` | `quality` | A test that releases a `setupBackendServer` resource itself instead of calling `teardownBackendServer` (issue #111). A hand-written teardown is a copy of the seam frozen when it was copied, so it cannot learn about the awilix container or the pub/sub Redis client, and both leak for the length of the single-fork run. `HAND_RELEASED_RESOURCES_TO_DRAIN` is an empty two-way ratchet. |
+| `check:kernel-boundary` | `quality` | An ORM relation from a module into another module; a module may relate into the kernel, the kernel into neither (feature 072, D-32). |
+| `check:port-catches` | `quality` | A `catch` that swallows `ModuleDisabledError` — see composition checklist item 7. |
+| `check:port-dependencies` | `quality` | A cross-module port edge the resolver's manifest does not declare, and an edge with no deactivation-consequence classification — see checklist items 4 and 4a. |
+| `check:subscribe-seam` | `quality` | A bare `eventBus.on` in a module instead of `ctx.subscribe` (issue #107). Empty two-way ledger. |
+| `check:timer-presence` | `quality` | A module-owned `setInterval`, self-rescheduling `setTimeout` or `process.on` handler that does not decide presence before it works (issue #126). `TIMERS_WITHOUT_PRESENCE` is two-way and is not expected to empty. |
+| `i18n:hardcoded` | `quality` | A user-visible literal in the admin SPA — see the i18n checklist above. |
+| `overlay:check` | `quality` | A generated artefact that is stale, missing, or rendered empty: the composer, the manifest index, both `db/` registries, and every override manifest — bare core plus one per deployment under `backend/src/apps/` (issue #120). |
+| `pnpm run check:naming` | `quality:static` | Principle VI, above. |
+| `pnpm run check:language` | `quality:static` | Principle VIII, above. |
+| `pnpm run check:pdfmake-footprint` | `quality` | A pdfmake font bundle over the single-VPS disk budget (Constitution IV). |
+
+Two more run in the same job with no npm script of their own, through
+`pnpm --filter backend exec tsx scripts/<name>.ts`: `check-entity-tenant-classification`
+(every persisted entity carries exactly one tenant-scope decorator, feature 050) and
+`check-channel-resolution --enforce` (no re-resolution of the sales channel outside the
+canonical resolver, and no settings read naming its channel with a string literal — feature
+053 FR-011, feature 072 D-42).
+
 ## Overlay modules (per-deployment customization, feature 057)
 
 A **client-only overlay module** lives under `backend/src/apps/<deployment>/modules/<id>/` and

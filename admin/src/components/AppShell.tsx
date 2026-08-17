@@ -1301,7 +1301,16 @@ export function AppShell(): ReactNode {
             >
               <Search size={16} />
             </button>
-            <NotificationBell />
+            {/*
+              Issue #112 — the bell is a surface like any other: it renders only
+              where the operator holds the code its feed is gated on and the
+              owning module is present. It used to render for every
+              authenticated admin and poll every 30 s, so a restricted role got a
+              permanent 403 and a deactivated `admin_notifications` a 503.
+            */}
+            {isModulePresent('admin_notifications') && hasPermission('admin:read') ? (
+              <NotificationBell />
+            ) : null}
             <button
               type="button"
               className="b2b-topbar__icon-btn b2b-topbar__hide-mobile"

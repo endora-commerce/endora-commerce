@@ -3,6 +3,7 @@ import {
   selectedDeployment,
   overlayModulesRootFor,
   activeOverlayModulesRoot,
+  deploymentsOnDisk,
 } from '../../src/overlay/overlay-roots.js';
 
 describe('overlay-roots — deployment selection (T005)', () => {
@@ -30,5 +31,28 @@ describe('overlay-roots — deployment selection (T005)', () => {
 
   it('resolves to null with no DEPLOYMENT set', () => {
     expect(activeOverlayModulesRoot({})).toBeNull();
+  });
+});
+
+describe('overlay-roots — the deployments shipped in this checkout (#120)', () => {
+  /**
+   * The determinism gate reads this to decide which committed override
+   * manifests to compare, so it must not depend on `DEPLOYMENT`: the whole
+   * point is that one run covers every deployment's artefact rather than the
+   * one the environment happens to select.
+   */
+  it('lists the reference deployment, sorted and env-independent', () => {
+    const before = process.env['DEPLOYMENT'];
+    try {
+      delete process.env['DEPLOYMENT'];
+      const bare = deploymentsOnDisk();
+      process.env['DEPLOYMENT'] = 'no-such-deployment-xyz';
+      expect(deploymentsOnDisk()).toEqual(bare);
+      expect(bare).toContain('example');
+      expect([...bare]).toEqual([...bare].sort());
+    } finally {
+      if (before === undefined) delete process.env['DEPLOYMENT'];
+      else process.env['DEPLOYMENT'] = before;
+    }
   });
 });

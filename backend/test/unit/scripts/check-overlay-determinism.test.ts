@@ -6,6 +6,7 @@ import {
   compareArtifact,
   coveredArtifactPaths,
 } from '../../../scripts/check-overlay-determinism.js';
+import { deploymentsOnDisk } from '../../../src/overlay/overlay-roots.js';
 
 /**
  * The determinism gate's own test (issue #113).
@@ -73,10 +74,31 @@ describe('coveredArtifactPaths', () => {
   it('covers every committed generated artifact, and names nothing else', () => {
     // The two-way ratchet the check itself cannot have: a generator that starts
     // emitting a fifth file, or a check that quietly stops comparing one, is a
-    // committed artifact drifting from the tree with nothing watching. Run in
-    // the bare-core shape, which is what the repository commits — a
-    // per-deployment build renders a sixth artifact that is deliberately not
-    // committed (issue #120).
+    // committed artifact drifting from the tree with nothing watching.
+    //
+    // Env-independent on both sides since issue #120. A deployment's override
+    // manifest is a committed audit record at its own path, so the gate renders
+    // every deployment's rather than only the one `DEPLOYMENT` selects; before
+    // that, `example`'s was uncommitted and its line read `missing` on every run
+    // that set the variable and did not exist on every run that did not.
     expect(generatedFilesUnder(srcRoot).sort()).toEqual([...coveredArtifactPaths()].sort());
+  });
+
+  it('names one override manifest per deployment on disk, plus bare core', () => {
+    // The half the sweep above cannot show on its own: it compares two lists
+    // that would agree just as well if both had lost the same deployment.
+    const manifests = [...coveredArtifactPaths()].filter((p) =>
+      p.includes('override-manifest'),
+    );
+    expect(manifests.some((p) => p.endsWith('overlay/override-manifest.core.generated.ts'))).toBe(
+      true,
+    );
+    for (const deployment of deploymentsOnDisk()) {
+      expect(
+        manifests.some((p) => p.endsWith(join('apps', deployment, 'override-manifest.generated.ts'))),
+        `no override manifest covered for deployment '${deployment}'`,
+      ).toBe(true);
+    }
+    expect(manifests).toHaveLength(deploymentsOnDisk().length + 1);
   });
 });
