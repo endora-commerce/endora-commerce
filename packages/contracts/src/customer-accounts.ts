@@ -131,6 +131,17 @@ export interface CustomerAccountReadPort {
     },
   ): Promise<number>;
 
+  /**
+   * Substring search over the e-mail address, ordered by e-mail, capped at
+   * `limit`. An empty `query` returns the first `limit` accounts.
+   *
+   * Published after Phase P because `pwa`'s push Rule Builder is the one
+   * measured consumer that asks this question, and `listAll` is not the same
+   * answer: a picker that loads every account to keep 200 of them is a
+   * full-table read wearing a port.
+   */
+  searchByEmail(query: string, limit: number): Promise<CustomerAccountRecord[]>;
+
   /** Every account, for the bulk export adapter. Ordered by email. */
   listAll(): Promise<CustomerAccountRecord[]>;
 }

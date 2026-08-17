@@ -3,6 +3,11 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { Queue } from 'bullmq';
 import { z } from 'zod';
+import type {
+  CustomerAccountReadPort,
+  CustomerGroupReadPort,
+  OrganizationDetailsPort,
+} from '@b2b/contracts';
 import { PwaConfigResolver, type SettingsReadPort } from './services/pwa-config-resolver.js';
 import { PwaIconService, type AssetUploadPort } from './services/pwa-icon-service.js';
 import { PushSubscriptionService } from './services/push-subscription-service.js';
@@ -36,6 +41,14 @@ export interface PwaModuleOptions {
   settings: SettingsReadPort & { get<T>(code: string, channelId: string, schema: z.ZodType<T>): Promise<T> };
   settingsWrite: SettingsWritePort;
   requireAdmin: RequireAdminFactory;
+  /**
+   * The three rows this module reads out of other modules (feature 075,
+   * Phase C). Resolved as gated ports in `backend.ts`, never captured, so a
+   * switched-off owner refuses at the call and not at composition time.
+   */
+  customerAccounts: CustomerAccountReadPort;
+  organizationDetails: OrganizationDetailsPort;
+  customerGroups: CustomerGroupReadPort;
   /** assets_library upload facade. */
   assetUpload: AssetUploadPort;
   resolveAssetUrl: (assetId: string) => Promise<string | null>;
@@ -89,7 +102,12 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
   providerRegistry.register(new WebPushProvider(options.settings, options.vapidSubject));
 
   const deliveryQueue = createPushDeliveryQueue(options.redis);
-  const messageService = new PushMessageService(options.emFactory, deliveryQueue);
+  const messageService = new PushMessageService(
+    options.emFactory,
+    deliveryQueue,
+    options.customerAccounts,
+    options.organizationDetails,
+  );
 
   // Auto-triggered push (FR-024) — producer only; enqueues, never sends inline.
   // `backend.ts` registers these two through `ctx.subscribe`, so they stop with
@@ -146,6 +164,9 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
       subscriptionService,
       messageService,
       settingsWrite: options.settingsWrite,
+      customerAccounts: options.customerAccounts,
+      organizationDetails: options.organizationDetails,
+      customerGroups: options.customerGroups,
       settingsRead: options.settings,
       resolveScopeChannelId: async (salesChannelId) =>
         salesChannelId ?? (await options.defaultChannelId()),

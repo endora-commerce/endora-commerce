@@ -8,9 +8,11 @@ import {
   CreatePushMessageRequestSchema,
   UpdatePwaConfigRequestSchema,
 } from '@b2b/contracts';
-import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
-import { CustomerGroup } from '../price_lists/entities/customer-group.entity.js';
-import { Organization } from '../organizations/entities/organization.entity.js';
+import type {
+  CustomerAccountReadPort,
+  CustomerGroupReadPort,
+  OrganizationDetailsPort,
+} from '@b2b/contracts';
 import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import type { PwaConfigResolver } from './services/pwa-config-resolver.js';
 import { PwaIconInvalid, type PwaIconService } from './services/pwa-icon-service.js';
@@ -56,6 +58,15 @@ export interface PwaAdminRoutesDeps {
   subscriptionService: PushSubscriptionService;
   messageService: PushMessageService;
   settingsWrite: SettingsWritePort;
+  /**
+   * The three Rule Builder pickers' rows, asked of the modules that own them
+   * (feature 075, Phase C). Each is gated at its owner's registration seam, so
+   * a picker over a switched-off module answers 503 `MODULE_DISABLED` instead
+   * of listing targets the operator can no longer reach.
+   */
+  customerAccounts: CustomerAccountReadPort;
+  organizationDetails: OrganizationDetailsPort;
+  customerGroups: CustomerGroupReadPort;
   settingsRead: {
     get<T>(code: string, channelId: string | null, schema: z.ZodType<T>): Promise<T>;
   };
@@ -276,8 +287,7 @@ export async function registerPwaAdminRoutes(
   });
 
   app.get('/api/v1/admin/pwa/rule-targets/customer-groups', { preHandler: readGate }, async () => {
-    const em = deps.emFactory();
-    const rows = await em.find(CustomerGroup, {}, { orderBy: { code: 'asc' } });
+    const rows = await deps.customerGroups.listAll();
     return { data: { items: rows.map((r) => ({ id: r.id, code: r.code, name: r.name })) } };
   });
 
@@ -285,12 +295,12 @@ export async function registerPwaAdminRoutes(
     '/api/v1/admin/pwa/rule-targets/organizations',
     { preHandler: readGate },
     async (request) => {
-      const em = deps.emFactory();
       const limit = Math.min(200, Math.max(1, Number(request.query.limit ?? '100')));
       const search = (request.query.search ?? '').trim();
-      const where: Record<string, unknown> = {};
-      if (search) where['name'] = { $ilike: `%${search}%` };
-      const rows = await em.find(Organization, where, { orderBy: { name: 'asc' }, limit });
+      // `searchByName` matches the diacritic-folded `name_search` column the
+      // owner maintains, so "lodz" now finds "Łódź" — the local `$ilike` on
+      // `name` never did.
+      const rows = await deps.organizationDetails.searchByName(search, limit);
       return { data: { items: rows.map((r) => ({ id: r.id, name: r.name, taxId: r.taxId })) } };
     },
   );
@@ -299,12 +309,9 @@ export async function registerPwaAdminRoutes(
     '/api/v1/admin/pwa/rule-targets/customers',
     { preHandler: readGate },
     async (request) => {
-      const em = deps.emFactory();
       const limit = Math.min(200, Math.max(1, Number(request.query.limit ?? '100')));
       const search = (request.query.search ?? '').trim();
-      const where: Record<string, unknown> = {};
-      if (search) where['email'] = { $ilike: `%${search}%` };
-      const rows = await em.find(CustomerAccount, where, { orderBy: { email: 'asc' }, limit });
+      const rows = await deps.customerAccounts.searchByEmail(search, limit);
       return {
         data: {
           items: rows.map((r) => ({

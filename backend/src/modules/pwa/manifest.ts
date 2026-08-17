@@ -146,7 +146,24 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port the admin routes are gated by; feature
   // 072 made it a container resolution rather than a constructor argument.
-  dependencies: ['_i18n', '_lifecycle', 'assets_library', 'sales_channels', 'settings', 'auth'],
+  //
+  // `customer_accounts`, `organizations` and `price_lists` arrived with feature
+  // 075 Phase C: the push Rule Builder's three target pickers and the
+  // rule-audience expansion read rows those modules own, and they used to read
+  // them off the tables directly. All three are **binding**: a picker that
+  // silently lists nothing and an audience that silently resolves to nobody
+  // both read as legitimate answers, so the seam fails closed.
+  dependencies: [
+    '_i18n',
+    '_lifecycle',
+    'assets_library',
+    'sales_channels',
+    'settings',
+    'auth',
+    'customer_accounts',
+    'organizations',
+    'price_lists',
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

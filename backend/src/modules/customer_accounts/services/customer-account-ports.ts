@@ -140,6 +140,16 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
     });
   }
 
+  async searchByEmail(query: string, limit: number): Promise<CustomerAccountRecord[]> {
+    const trimmed = query.trim();
+    const accounts = await this.emFactory().find(
+      CustomerAccount,
+      trimmed ? { email: { $ilike: `%${trimmed}%` } } : {},
+      { orderBy: { email: 'asc' }, limit },
+    );
+    return accounts.map(toCustomerAccountRecord);
+  }
+
   async listAll(): Promise<CustomerAccountRecord[]> {
     const accounts = await this.emFactory().find(
       CustomerAccount,
