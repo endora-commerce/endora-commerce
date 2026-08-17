@@ -134,6 +134,10 @@ export class InvoiceEmailDispatcher {
         messageId: opts.messageId ?? `invoice_issued:${detail.id}`,
         variables,
         ...(attachments ? { attachments } : {}),
+        // D-59 — the delivery record has to be findable by the document, not
+        // only by the recipient: "was invoice FV 1/2026 delivered" is the
+        // support question this whole record exists to answer.
+        document: { type: 'invoice', id: detail.id },
         meta: { kind: 'invoice_issued', invoiceId: detail.id, orderId: detail.orderId },
       });
       if (outcome.status !== 'sent') return this.notSent(invoiceId, outcome.status);

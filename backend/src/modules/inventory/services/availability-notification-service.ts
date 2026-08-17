@@ -258,13 +258,22 @@ export class AvailabilityNotificationService {
         });
       }
       if (!sentViaTemplate && this.mailer) {
-        await this.mailer.send({
+        const outcome = await this.mailer.send({
           messageId,
           to,
           subject: `Back in stock: ${productName}`,
           text: `Good news — "${productName}" is available again.`,
+          kind: 'availability_back_in_stock',
           meta,
         });
+        if (outcome.status !== 'sent') {
+          // Still marked notified below: the transport's one suppression is an
+          // already-accepted `messageId`, so this subscriber has the message.
+          console.warn('[inventory] the back-in-stock e-mail was not sent', {
+            notificationId: row.id,
+            reason: outcome.reason,
+          });
+        }
       }
       row.status = 'notified';
       row.notifiedAt = now;

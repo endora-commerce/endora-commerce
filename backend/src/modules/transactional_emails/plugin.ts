@@ -6,6 +6,7 @@ import type { SettingsAdminService } from '../settings/services/settings-admin.s
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { Mailer } from '../email/services/mailer.js';
+import type { EmailDeliveryRecorder } from '@b2b/contracts';
 import { ContentResolver } from './services/content-resolver.js';
 import { BrandingService, type AssetUrlResolver } from './services/branding.service.js';
 import { EmbedResolver } from './services/embed-resolver.js';
@@ -34,6 +35,11 @@ export interface TransactionalEmailsModuleOptions {
   /** Audits the per-email activation flip (issue #89, Principle XIII). */
   commandBus: CommandBus;
   mailer?: Mailer;
+  /**
+   * Where a message this module suppresses — or cannot render — is recorded
+   * (D-59). The transport records the ones it is handed; these never reach it.
+   */
+  deliveryRecorder?: EmailDeliveryRecorder;
   auditLog?: AuditLogService;
   resolveAssetUrl?: AssetUrlResolver;
   /** Settings admin service used to persist branding values (US2). */
@@ -68,6 +74,7 @@ export function transactionalEmailsModule(
       embeds,
       defaults: options.defaultsRegistry,
       ...(options.mailer ? { mailer: options.mailer } : {}),
+      ...(options.deliveryRecorder ? { deliveryRecorder: options.deliveryRecorder } : {}),
       ...(options.auditLog ? { auditLog: options.auditLog } : {}),
     });
 

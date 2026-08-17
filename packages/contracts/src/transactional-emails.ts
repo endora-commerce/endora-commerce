@@ -311,6 +311,13 @@ export interface TransactionalEmailSendInput {
    * browser-safe for the api-client; a backend `Buffer` satisfies it.
    */
   attachments?: Array<{ filename: string; content: Uint8Array; contentType?: string }>;
+  /**
+   * The business document this message delivers, when it delivers one (D-59).
+   * Forwarded to the transport so the delivery record is findable by the
+   * document an operator is asked about — an invoice, in the case the ruling
+   * was written for — rather than only by a recipient and a message id.
+   */
+  document?: { type: string; id: string };
   meta?: Record<string, unknown>;
 }
 

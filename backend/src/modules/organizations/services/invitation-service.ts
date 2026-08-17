@@ -163,7 +163,18 @@ export class InvitationService {
         },
         meta: message.meta,
       });
-      if (!sentViaTemplate && this.mailer) await this.mailer.send(message);
+      if (!sentViaTemplate && this.mailer) {
+        const outcome = await this.mailer.send(message);
+        if (outcome.status !== 'sent') {
+          // This method answers the invitation, not the message, so the
+          // non-send is named rather than returned — and since D-59 the same
+          // fact is a row an operator can read after the log has rotated.
+          console.warn('[organizations] the invitation e-mail was not sent', {
+            invitationId: invitation.id,
+            reason: outcome.reason,
+          });
+        }
+      }
     }
 
     return { invitation, rawToken };

@@ -53,6 +53,7 @@ export interface TransactionalEmailsCradle {
   readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string | null };
   readonly resolvedModuleRegistry: ReadonlyArray<{ manifest: ModuleManifest }>;
   readonly emailMailer: NonNullable<TransactionalEmailsModuleOptions['mailer']>;
+  readonly emailDeliveryRecorder: NonNullable<TransactionalEmailsModuleOptions['deliveryRecorder']>;
   readonly settingsAdminService: NonNullable<TransactionalEmailsModuleOptions['settingsAdmin']>;
   /**
    * Contributed: how an asset id becomes a public URL in an email. It reaches
@@ -120,6 +121,13 @@ export function registerModule(ctx: ModuleContext): void {
               'settingsAdminService',
             ),
             mailer: lazyPort<TransactionalEmailsCradle['emailMailer']>(ctx, 'emailMailer'),
+            // D-59 — the three outcomes this module decides before the
+            // transport is reached leave no row unless it writes one, and one
+            // of them is the operator's own "off".
+            deliveryRecorder: lazyPort<TransactionalEmailsCradle['emailDeliveryRecorder']>(
+              ctx,
+              'emailDeliveryRecorder',
+            ),
             resolveAssetUrl: (assetId: string) => cradle().transactionalEmailAssetUrl(assetId),
             requireAdmin: (permission?: string) => async (req, reply) =>
               cradle().requireAdmin(permission ?? '')(req, reply),

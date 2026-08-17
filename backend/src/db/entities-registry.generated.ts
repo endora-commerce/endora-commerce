@@ -96,6 +96,7 @@ import { DeliveryMethod } from '../modules/delivery_methods/entities/delivery-me
 import { Country } from '../modules/dictionaries/entities/country.entity.js';
 import { DictionaryTranslation } from '../modules/dictionaries/entities/dictionary-translation.entity.js';
 import { LanguageCountry } from '../modules/dictionaries/entities/language-country.entity.js';
+import { EmailDelivery } from '../modules/email/entities/email-delivery.entity.js';
 import { GaCustomEvent } from '../modules/google_analytics/entities/ga-custom-event.entity.js';
 import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
 import { InventoryThreshold } from '../modules/inventory/entities/inventory-threshold.entity.js';
@@ -317,6 +318,7 @@ export const ALL_ENTITIES = [
   Country,
   DictionaryTranslation,
   LanguageCountry,
+  EmailDelivery,
   GaCustomEvent,
   AvailabilityNotification,
   InventoryThreshold,

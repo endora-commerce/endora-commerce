@@ -473,13 +473,22 @@ export class BulkOperationService {
 
     if (this.deps.mailer && admin?.email) {
       try {
-        await this.deps.mailer.send({
+        const outcome = await this.deps.mailer.send({
           messageId: `bulk-op-${op.id}-${status}`,
           to: admin.email,
           subject: title,
           text: `${body}\n\nView the bulk actions page in the admin panel for details.`,
+          kind: `catalog.bulk_operation.${status}`,
           meta: { bulkOperationId: op.id, status },
         });
+        if (outcome.status !== 'sent') {
+          // The products are already written; this only tells the operator it
+          // finished. Named rather than silent, and durable in D-59's record.
+          console.warn('[catalog] the bulk-operation e-mail was not sent', {
+            bulkOperationId: op.id,
+            reason: outcome.reason,
+          });
+        }
       } catch {
         /* email is best-effort */
       }

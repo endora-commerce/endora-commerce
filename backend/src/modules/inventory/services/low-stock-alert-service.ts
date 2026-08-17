@@ -147,13 +147,22 @@ export class LowStockAlertService {
       });
       if (sent) return;
     }
-    await this.mailer.send({
+    const outcome = await this.mailer.send({
       messageId,
       to: recipient,
       subject: `Low stock: ${productName}`,
       text: `Cumulative on-hand for "${productName}" (SKU ${product.sku}) has crossed the low-stock threshold.\n\n  Current cumulative on-hand: ${cumulative}\n  Threshold: ${threshold}\n`,
+      kind: 'low_stock_alert',
       meta,
     });
+    if (outcome.status !== 'sent') {
+      // This fires from a crossing detector with no caller to answer, so the
+      // non-send is named here and durable in D-59's record.
+      console.warn('[inventory] the low-stock alert was not sent', {
+        productId: product.id,
+        reason: outcome.reason,
+      });
+    }
   }
 
   private async resolveRecipient(): Promise<string | null> {

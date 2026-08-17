@@ -26,6 +26,12 @@ export type OrderEmailNotSentReason =
   | 'deactivated'
   /** No template exists for this code yet. */
   | 'no_definition'
+  /**
+   * The transport itself declined to send (D-59). Today the one reason is an
+   * already-accepted `messageId`, so this call delivered nothing and an earlier
+   * one delivered the message — which is why it is not `failed`.
+   */
+  | 'suppressed'
   /** The send raised, and the order operation stays committed. */
   | 'failed';
 

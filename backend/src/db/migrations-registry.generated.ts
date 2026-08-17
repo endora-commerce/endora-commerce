@@ -133,6 +133,9 @@ import { Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter } from 
 // ── dictionaries ────────────────────────────────────────────────────────────
 import { Migration20260506T112634DictionariesDictionaryInit } from '../modules/dictionaries/migrations/20260506T112634_dictionaries_dictionary_init.js';
 
+// ── email ───────────────────────────────────────────────────────────────────
+import { Migration20260817T070014EmailDeliveryRecord } from '../modules/email/migrations/20260817T070014_email_delivery_record.js';
+
 // ── google_analytics ────────────────────────────────────────────────────────
 import { Migration20260715T171116GoogleAnalyticsInit } from '../modules/google_analytics/migrations/20260715T171116_google_analytics_init.js';
 
@@ -376,6 +379,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── dictionaries ────────────────────────────────────────────────────────────
   migration('dictionaries', Migration20260506T112634DictionariesDictionaryInit),
+
+  // ── email ───────────────────────────────────────────────────────────────────
+  migration('email', Migration20260817T070014EmailDeliveryRecord),
 
   // ── google_analytics ────────────────────────────────────────────────────────
   migration('google_analytics', Migration20260715T171116GoogleAnalyticsInit),

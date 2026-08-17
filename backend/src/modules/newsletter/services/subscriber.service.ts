@@ -227,12 +227,22 @@ export class NewsletterSubscriberService {
     if (!this.deps.mailer) return;
     const token = await this.deps.optIn.mintConfirmToken(subscriberId, salesChannelId);
     const url = this.deps.links.confirm(token);
-    await this.deps.mailer.send({
+    const outcome = await this.deps.mailer.send({
       messageId: `newsletter-confirm-${token}`,
       to: email,
       subject: 'Confirm your newsletter subscription',
       text: `Please confirm your subscription by opening this link:\n${url}\n`,
       html: `<p>Please confirm your subscription:</p><p><a href="${url}">Confirm subscription</a></p>`,
+      kind: 'newsletter_confirmation',
     });
+    if (outcome.status !== 'sent') {
+      // The subscriber row exists in `pending` either way; without the message
+      // the double opt-in never completes, so it is named — and D-59's record
+      // is what an operator reads when the subscriber says it never arrived.
+      console.warn('[newsletter] the confirmation e-mail was not sent', {
+        subscriberId,
+        reason: outcome.reason,
+      });
+    }
   }
 }

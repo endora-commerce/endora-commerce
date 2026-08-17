@@ -450,8 +450,11 @@ export class OrderService {
     });
     let result: OrderEmailResult;
     try {
-      await this.mailer.send(message);
-      result = { sent: true };
+      const outcome = await this.mailer.send(message);
+      result =
+        outcome.status === 'sent'
+          ? { sent: true }
+          : orderEmailNotSent(undefined, emailContext, 'suppressed');
     } catch (error) {
       // A mail failure never rolls back a placed order — but it is named now.
       // A switched-off module is not a delivery failure, so it travels on.
@@ -475,7 +478,16 @@ export class OrderService {
       for (const recipient of extra) {
         if (recipient.toLowerCase() === customer.email.toLowerCase()) continue;
         try {
-          await this.mailer.send({ ...message, to: recipient, messageId: `${message.messageId}:${recipient}` });
+          const outcome = await this.mailer.send({
+            ...message,
+            to: recipient,
+            messageId: `${message.messageId}:${recipient}`,
+          });
+          // Each CC is independent, so a suppressed one is named on its own
+          // rather than folded into the buyer's result above.
+          if (outcome.status !== 'sent') {
+            orderEmailNotSent(undefined, emailContext, 'suppressed');
+          }
         } catch (error) {
           // best-effort per recipient, and each one says so
           rethrowIfModuleDisabled(error);
