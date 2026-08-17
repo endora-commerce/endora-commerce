@@ -4,7 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import type { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { PromotionStatsService } from '../../../src/modules/promotions/services/promotion-stats-service.js';
 
 /**
@@ -18,7 +19,7 @@ describe('promotion statistics', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    svc = new PromotionService(h.em);
+    svc = promotionServiceFor(h);
     stats = new PromotionStatsService(h.em);
   });
   afterAll(async () => {

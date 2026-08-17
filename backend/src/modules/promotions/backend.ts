@@ -126,8 +126,11 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory, auditLogService }: PromotionsCradle) =>
           new PromotionService(
             emFactory,
-            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+            // The two required ones first (issue #164): both are resolved for
+            // every composition, so the type no longer says otherwise.
             lazyPort<CatalogPromoAttributePort>(ctx, 'catalogPromoAttributePort'),
+            lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
             undefined, // auditLogger — default console
             async (orgId: string) =>
@@ -138,7 +141,6 @@ export function registerModule(ctx: ModuleContext): void {
               )?.status ?? null,
             undefined, // actionRegistry — default built-ins
             auditLogService,
-            lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
           ),
       )
       .singleton(),

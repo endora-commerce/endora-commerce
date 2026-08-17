@@ -6,6 +6,7 @@ import type { DictionaryValidator } from '../../../src/modules/dictionaries/serv
 import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 import { Currency } from '../../../src/modules/currencies/entities/currency.entity.js';
 import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import { unreachableCatalogPorts } from '../../helpers/promotion-service.js';
 
 describe('Promotions dictionary boundary', () => {
   let db: TestDb;
@@ -25,7 +26,18 @@ describe('Promotions dictionary boundary', () => {
   beforeEach(async () => {
     em = await db.beginTx();
     validator = dictionaryValidatorFor(() => em);
-    service = new PromotionService(() => em, undefined, undefined, validator);
+    // Issue #164 — the catalog ports are required. This suite composes no
+    // container and its promotions carry no attribute criteria, so it passes
+    // ports that refuse rather than ones that answer emptily: the second is the
+    // shape the optional parameters used to produce.
+    const catalog = unreachableCatalogPorts('the dictionary boundary suite composes no container');
+    service = new PromotionService(
+      () => em,
+      catalog.attributes,
+      catalog.products,
+      undefined,
+      validator,
+    );
   });
 
   afterEach(async () => {

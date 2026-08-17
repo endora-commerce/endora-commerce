@@ -4,7 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import type { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 
 /**
@@ -25,7 +26,7 @@ describe('promotion usage limits', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    svc = new PromotionService(h.em);
+    svc = promotionServiceFor(h);
     channelId = (await h.salesChannels.resolver.getSystemDefault()).id;
   });
   afterAll(async () => {
