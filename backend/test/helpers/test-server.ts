@@ -67,6 +67,8 @@ import type { PermissionCatalogueService } from '../../src/modules/admin_roles/s
 import type { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
 import type { AuthCradle } from '../../src/modules/auth/backend.js';
 import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
+import { buildStaticRegistry } from '../../src/modules/_lifecycle/services/static-registry.js';
+import type { LoadedManifestRegistry } from '../../src/modules/_lifecycle/services/manifest-loader.js';
 import { ERROR_CODES, type ProductAvailability } from '@b2b/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
@@ -580,6 +582,110 @@ const SEEDED_TABLES = [
   'search_phrase_records',
 ];
 
+/**
+ * The manifest registry `_i18n` walks to reconcile every module's
+ * `translation_bundles` rows (issue #158).
+ *
+ * The harness used to contribute `() => undefined` here, on the grounds that it
+ * composes no `_lifecycle` and therefore has no registry to hand over. The
+ * registry is not `_lifecycle`'s to begin with: it is the manifest set the
+ * deployment resolved, which this root already registers as
+ * `resolvedModuleRegistry`. Handing `_i18n` the same list is what production
+ * does, one object later.
+ *
+ * The consequence of the absence was not that bundles were stale — it was that
+ * `translation_bundles` was **empty** in every test, so the error envelope's
+ * whole translation path (`preSerialization` → `translate` → the module's
+ * bundle) ran in a composition where every lookup missed and fell back to the
+ * original message. Issue #65 shipped through that gap: an envelope replacing a
+ * written refusal with the generic family sentence on four transacting
+ * surfaces, with a green suite.
+ *
+ * Built once per process, not once per composition. `translation_bundles` is
+ * configuration rather than transactional state — it is not in `SEEDED_TABLES`
+ * — and the registry is a pure function of the committed manifest index, so a
+ * second build would produce an identical object. The *reconcile* still runs
+ * per composition (`_i18n` runs it at plugin attach), which is what keeps a
+ * file that edits a bundle from leaking into the next one.
+ */
+let cachedManifestRegistry: LoadedManifestRegistry | undefined;
+function harnessManifestRegistry(): LoadedManifestRegistry {
+  cachedManifestRegistry ??= buildStaticRegistry(
+    REGISTERED_MANIFESTS.map((entry) => ({
+      manifest: entry.manifest,
+      filePath: entry.filePath,
+    })),
+  );
+  return cachedManifestRegistry;
+}
+
+/**
+ * The error code this harness proves the translation path with, and why it is a
+ * constant rather than "any key that happens to be there".
+ *
+ * `CART_EMPTY` routes to `core` in `ERROR_TRANSLATION_KEYS` and `_i18n` ships a
+ * sentence for it in both languages, so resolving it walks the whole path the
+ * envelope walks on a real refusal: the merged bundle for the language, the
+ * `_i18n` → `core` namespace rename, and the `errors.<CODE>` key inside it.
+ */
+const TRANSLATION_PROOF = { moduleId: 'core', key: 'errors.CART_EMPTY' } as const;
+
+/**
+ * Refuse to hand back a server whose error messages cannot be translated
+ * (issue #158).
+ *
+ * This is the `withModuleOff` move, applied to a different substitution. That
+ * helper asserts the flip actually took before the test body observes anything,
+ * because a test that silently observed an un-flipped module would assert
+ * nothing. The same hazard lived here in a quieter form: with
+ * `translation_bundles` empty, `translateErrorMessage` missed on every key and
+ * the composition root's translator answered with the **original message** — so
+ * every error assertion in the suite passed while the translation path had never
+ * run. Issue #65 shipped through that gap: an envelope replacing four transact
+ * gates' written refusal with the generic `FORBIDDEN` sentence, green suite.
+ *
+ * A failure here is not a flaky test, it is the harness reporting that it stopped
+ * being a platform. So it throws with the cause named rather than warning.
+ */
+async function assertErrorTranslationsInstalled(i18n: {
+  translate(moduleId: string, key: string, language: 'en'): Promise<string>;
+}): Promise<void> {
+  const { moduleId, key } = TRANSLATION_PROOF;
+  const resolved = await i18n.translate(moduleId, key, 'en');
+  // `translate` answers a miss with `<moduleId>.<key>` — the placeholder that
+  // makes the envelope keep the original message.
+  if (resolved === `${moduleId}.${key}`) {
+    throw new Error(
+      `[test-server] "${moduleId}.${key}" did not resolve, so translation_bundles is ` +
+        `empty or stale and no error message in this composition is translated. ` +
+        `The harness contributes the manifest registry to \`lifecycleManifestRegistry\` ` +
+        `precisely so \`_i18n\` reconciles the bundles from disk at plugin attach; ` +
+        `check that contribution before treating this as a data problem.`,
+    );
+  }
+}
+
+/**
+ * The Redis namespaces that key by a **stable business key** (a channel code, a
+ * setting code) while storing the row's id.
+ *
+ * Every `setupBackendServer` truncates and reseeds with fresh random ids, so an
+ * entry surviving that swap points at a row that no longer exists. CI gets an
+ * ephemeral Redis per run; a developer's local Redis persists across runs, which
+ * is why this is not merely a within-run concern.
+ *
+ * (`cms` / `megamenu` / `blog` / `dictionaries` clear their own caches further
+ * down through their module handle's `invalidateAll()`, which also drops the
+ * per-process LRU the composition holds.)
+ */
+async function dropStaleCaches(redis: Redis): Promise<void> {
+  // `sales-channels:*` covers every cache version (feature 053 bumped it to v2).
+  for (const pattern of ['session:*', 'sales-channels:*', 'settings:v1:*']) {
+    const keys = await redis.keys(pattern);
+    if (keys.length > 0) await redis.del(keys);
+  }
+}
+
 export async function setupBackendServer(
   options: BackendServerOptions = {},
 ): Promise<BackendServerHandle> {
@@ -631,10 +737,16 @@ export async function setupBackendServer(
   // here. (cms/megamenu/blog/dictionaries clear their own caches further down
   // via their module handle's `invalidateAll()`, which also drops the LRU.)
   // `sales-channels:*` covers every cache version (feature 053 bumped it to v2).
-  for (const pattern of ['session:*', 'sales-channels:*', 'settings:v1:*']) {
-    const keys = await redis.keys(pattern);
-    if (keys.length > 0) await redis.del(keys);
-  }
+  //
+  // Done **twice**, here and again after the reseed (`dropStaleCaches` below).
+  // This call is the one the seeding needs: it stops a seed insert from reading
+  // a dead id through the cache and failing on the foreign key. But a drop that
+  // happens *before* the rows it protects against are deleted leaves a window —
+  // every statement from the `truncate` to the last seed — in which a read
+  // re-pins a pre-truncate id under a code that survives the reseed. You drop a
+  // cache after invalidating its source, not before, and the second call is that
+  // drop.
+  await dropStaleCaches(redis);
 
   const auditLogService = new AuditLogService(em);
 
@@ -688,6 +800,21 @@ export async function setupBackendServer(
   await seedTestOrganizations(em());
   await seedUs2Commerce(em());
   await seedTestAdmins(em());
+
+  // The second drop — the one the composition below needs. Every row the caches
+  // key by now exists with the id it will have for the rest of this file, so
+  // nothing read from here on can be a pre-truncate id wearing a code that
+  // survived the reseed.
+  //
+  // That is the shape issue #154 reported: `public-ignores-bearer.test.ts`
+  // failed once in a 67-file run with the anonymous body `data: []` and the
+  // bearer body carrying three products. The two requests resolve their channel
+  // differently — anonymous by **code** through this cache, a bound api key by
+  // **id** from its binding — so a cached `pl_retail` pointing at a dead id
+  // produces exactly that asymmetry, 200 and all. It has not been reproduced,
+  // so this is not filed as the fix; the drop order was wrong on its own terms
+  // and is worth correcting whether or not it was the cause.
+  await dropStaleCaches(redis);
 
   const eventBus = new EventBus();
 
@@ -1301,11 +1428,13 @@ export async function setupBackendServer(
 
   modules.push(salesChannels.plugin);
 
-  // Feature 019 — Admin UI i18n. Test wiring uses no lifecycle registry
-  // (the boot-time bundle reconciler is skipped), so route-level tests
-  // exercise only the HTTP surface and the in-process resolver. Tests
-  // that need bundle rows seed the table directly via `h.em()`.
-  // Feature 072 (T089) — `_i18n` owns its service, reconciler and routes now.
+  // Feature 019 — Admin UI i18n. Feature 072 (T089) — `_i18n` owns its service,
+  // reconciler and routes now. Issue #158 — and it is handed the resolved
+  // manifest registry (`harnessManifestRegistry`), so the boot-time reconciler
+  // runs here exactly as it does in production and every module's bundles are
+  // installed. This block used to say the opposite, and the emptiness it
+  // described was the reason no test in the tree exercised a translated error
+  // message.
   const adminI18nCradle = container.cradle as unknown as AdminI18nCradle;
 
   // Feature 020 — Admin Command Palette actions registry. Mounts the
@@ -1595,12 +1724,7 @@ export async function setupBackendServer(
     // overwrite the root — which is exactly what happened, and the sitemap
     // silently fell through to `http://localhost:3000`.
     sitemapOptions: { staleAfterMs: 0, baseUrl: 'http://test.local' },
-    // Feature 072 (T089) — the harness composes no `_lifecycle`, so there is no
-    // manifest registry to walk and `_i18n`'s reconcile is a no-op here. That
-    // was already true before the conversion (the old call site passed no
-    // `registry` option at all); making the absence an explicit registration is
-    // what lets the module resolve one name in both compositions.
-    lifecycleManifestRegistry: () => undefined,
+    lifecycleManifestRegistry: () => harnessManifestRegistry(),
     // Feature 072 (T121) — the gate is the port's own now: `adminUserService`
     // is provided by `admin_users` and raises `ModuleDisabledError` when that
     // module is off, so no root hard-codes `isPresent('admin_users')` here.
@@ -2339,6 +2463,10 @@ export async function setupBackendServer(
     });
   }
   await app.ready();
+  // `_i18n` reconciles from its `ctx.routes` callback, so the bundles are on
+  // disk-truth by the line above. Prove it before any test observes anything —
+  // see the note on `assertErrorTranslationsInstalled`.
+  await assertErrorTranslationsInstalled(adminI18nCradle.adminI18nService);
 
   return {
     app,

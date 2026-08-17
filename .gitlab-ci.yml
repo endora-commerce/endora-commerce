@@ -144,6 +144,17 @@ quality:
     # accumulates for the whole run. `HAND_RELEASED_RESOURCES_TO_DRAIN` is an
     # empty two-way ratchet.
     - pnpm --filter backend run check:harness-teardown
+    # Issue #159 — a test does not turn "the row is not there" into a value that
+    # looks like data. Six files carried
+    # `(await em.findOne(SalesChannel, { systemDefault: true }))?.id ?? ''`, and
+    # every one was green only because another file's `setupBackendServer` had
+    # created the channel first; against a fresh database
+    # `cart-abandonment-worker.integration.test.ts` failed all six of its tests
+    # with `invalid input syntax for type uuid: ""`. `null`/`undefined` fallbacks
+    # and `expect(x ?? null)` normalisation are out of the population on purpose:
+    # they keep the absence in the type. `DEFAULTED_FIXTURE_READS` is two-way and
+    # is not expected to empty — an entry says why the fallback is right.
+    - pnpm --filter backend run check:fixture-substitution
     # Documentation code blocks are quotations, not paraphrases. The quickstarts
     # are copied by every module conversion, so a stale snippet is a defect
     # scheduled for mass production — six were found across three batches before

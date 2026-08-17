@@ -29,6 +29,7 @@ import {
   type EntryKind,
 } from '../../../scripts/check-entry-scope.js';
 import { findUntranslatedErrorCodes } from '../../../scripts/check-error-translations.js';
+import { checkFixtureSubstitution } from '../../../scripts/check-fixture-substitution.js';
 import { checkHarnessTeardown } from '../../../scripts/check-harness-teardown.js';
 import {
   analyzeClosure,
@@ -789,6 +790,14 @@ function discoveredCitingDocuments(): number {
  * first, since a handle is spelled three ways and only one of them mentions
  * `setupBackendServer`.
  */
+/**
+ * `check-fixture-substitution`'s analysis, entered where a real run enters it:
+ * one test file's source text, an empty ledger, violations out.
+ */
+function defaultedReads(file: string, source: string): number {
+  return checkFixtureSubstitution({ sources: new Map([[file, source]]) }, {}).violations.length;
+}
+
 function handReleases(file: string, source: string, resource: string): number {
   return checkHarnessTeardown({ sources: new Map([[file, source]]) }, {}).violations.filter(
     (v) => v.resource === resource,
@@ -1159,6 +1168,82 @@ const CHECKS: readonly CheckEntry[] = [
             readBundle: (_moduleId, language) =>
               language === 'en' ? { 'errors.BLOG_POST_NOT_FOUND': 'Post not found.' } : {},
           }).length,
+      ),
+    },
+  },
+  {
+    // Two axes, and a proof for each value of each: the shape the read reaches
+    // the fallback through (two-step, inline, plain assignment) and the
+    // fabrication the fallback performs (string, `||` string, `randomUUID()`,
+    // number). Both matter and neither implies the other — a check that saw only
+    // `?? ''` after a `const` would have reported zero over the `randomUUID()`
+    // site this MR fixed, and zero reads exactly like a clean tree.
+    //
+    // The negatives are the companion test's, not this file's: an inventory
+    // entry proves a check can still go red, and a proof that a check stays
+    // green over honest source cannot do that.
+    script: 'backend/scripts/check-fixture-substitution.ts',
+    npmScript: 'check:fixture-substitution',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-fixture-substitution.test.ts',
+    vacuousGuard: 'exit-2',
+    red: {
+      // The block six files carried, letter for letter (issue #159).
+      'two-step-string': top(() =>
+        defaultedReads(
+          'integration/carts/cart-abandonment-worker.integration.test.ts',
+          [
+            'const ch = await tmpEm.findOne(SalesChannel, { systemDefault: true });',
+            "systemDefaultChannelId = ch?.id ?? '';",
+          ].join('\n'),
+        ),
+      ),
+      'inline-string': top(() =>
+        defaultedReads(
+          'integration/x.test.ts',
+          "const id = (await em.findOne(SalesChannel, { systemDefault: true }))?.id ?? '';",
+        ),
+      ),
+      // A read bound by assignment rather than declaration — the shape a
+      // `let` + `beforeAll` file writes, which is most of `test/`.
+      'assigned-read': top(() =>
+        defaultedReads(
+          'integration/x.test.ts',
+          [
+            'let rows;',
+            "rows = await em.execute('select id from sales_channels');",
+            "const id = rows[0]?.id ?? '';",
+          ].join('\n'),
+        ),
+      ),
+      'logical-or': top(() =>
+        defaultedReads(
+          'integration/x.test.ts',
+          [
+            'const ch = await em.findOne(SalesChannel, {});',
+            "const id = ch?.id || 'default';",
+          ].join('\n'),
+        ),
+      ),
+      // An id that satisfies the column type and matches no row: the test does
+      // not fail, it stops measuring.
+      'random-uuid': top(() =>
+        defaultedReads(
+          'integration/audit_logs/detached-from-admin-users.test.ts',
+          [
+            "const admins = await em.execute('select id from admin_users limit 1');",
+            'const actorId = admins[0]?.id ?? randomUUID();',
+          ].join('\n'),
+        ),
+      ),
+      'numeric-fabrication': top(() =>
+        defaultedReads(
+          'contract/orders/external-intake.test.ts',
+          [
+            'const stockBefore = await em.findOne(StockLevel, { productId });',
+            'const reservedBefore = stockBefore?.reserved ?? 0;',
+          ].join('\n'),
+        ),
       ),
     },
   },
@@ -2015,6 +2100,10 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-entry-presence.ts': 7,
       'backend/scripts/check-entry-scope.ts': 4,
       'backend/scripts/check-error-translations.ts': 2,
+      // Three shapes the read reaches the fallback through, four fabrications
+      // the fallback performs; the two axes are independent, so the count is
+      // their union rather than their product.
+      'backend/scripts/check-fixture-substitution.ts': 6,
       'backend/scripts/check-harness-teardown.ts': 8,
       'backend/scripts/check-kernel-boundary.ts': 3,
       'backend/scripts/check-module-boundary.ts': 13,

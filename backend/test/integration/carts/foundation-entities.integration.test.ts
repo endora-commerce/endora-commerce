@@ -3,7 +3,6 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
 import { CartAuditEntry } from '../../../src/modules/carts/entities/cart-audit-entry.entity.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * T018 (feature 027) — Foundational entity round-trip + CHECK constraint
@@ -24,12 +23,7 @@ describe('carts foundation — entity round-trip & CHECK constraints', () => {
 
   beforeAll(async () => {
     db = await setupTestDb();
-    const tmpEm = db.orm.em.fork();
-    const ch = await tmpEm.findOne(SalesChannel, { systemDefault: true });
-    if (!ch) {
-      throw new Error('System-default sales channel missing; migration 025 not applied?');
-    }
-    systemDefaultChannelId = ch.id;
+    systemDefaultChannelId = db.systemDefaultChannelId;
   }, 60_000);
 
   beforeEach(async () => {

@@ -54,11 +54,15 @@ import { registerModule } from '../../../src/modules/_i18n/backend.js';
  * calls `buildServer` too, precisely to register module plugins — so anyone
  * arguing for the move has to find the case that is.
  *
- * The harness cannot catch this: `test-server.ts` passes no registry at all, so
- * `reconcileBundles` has always been a no-op under `setupBackendServer`. Hence
- * a unit test over a hand-built context, asserting the *timing* directly —
- * nothing during registration, nothing during boot, exactly one pass when the
- * plugins are attached.
+ * The harness cannot catch this, and the reason changed with issue #158 without
+ * the conclusion changing. It used to pass no registry at all, so
+ * `reconcileBundles` was a no-op under `setupBackendServer` and this file was
+ * the only place the reconcile ran anywhere. It passes the resolved manifest
+ * registry now — but a composed server can only ever observe that the reconcile
+ * *happened*, never that it happened at plugin attach rather than during
+ * registration or boot. Hence a unit test over a hand-built context, asserting
+ * the *timing* directly — nothing during registration, nothing during boot,
+ * exactly one pass when the plugins are attached.
  */
 
 const MODULE_ID = '_i18n';

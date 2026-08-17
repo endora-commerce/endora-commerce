@@ -438,6 +438,20 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
       'The orchestrator this deployment boots. Same D-37 A2 relocation as `loadModulePresence`; ' +
       'the harness boots no orchestrator, which is the asymmetry T073 records.',
   },
+  '_lifecycle:buildStaticRegistry': {
+    owner: '_lifecycle',
+    roots: ['harness'],
+    ownerLocked: true,
+    reason:
+      'Issue #158 — the manifest registry `_i18n` walks to reconcile every module’s translation ' +
+      'bundles. The harness contributed `() => undefined` here, so `translation_bundles` was ' +
+      'empty in every test and the error envelope’s whole translation path went unexercised; ' +
+      'issue #65 shipped through that gap. Production reaches the same function one hop away, ' +
+      'through `lifecycleModuleFromStaticEntries` directly above, so importing it **reduces** ' +
+      'the divergence this file measures: the alternative is a registry hand-rolled in the ' +
+      'harness, which is the shape T143c exists to refuse. It drains with the same D-37 A2 ' +
+      'relocation as the three entries above, and no sooner.',
+  },
   'settings:collectRegisteredSettingsManifests': {
     owner: 'settings',
     roots: ['production', 'harness'],
@@ -606,7 +620,24 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
  */
 const ROOT_MODULE_IMPORT_CEILING: Readonly<Record<RootName, number>> = {
   production: 14,
-  harness: 9,
+  // 9 → 10 (issue #158), and this is the one direction this number is not
+  // supposed to move, so the argument is here rather than in a merge-request
+  // description nobody will find again.
+  //
+  // The declaration added is `_lifecycle/services/static-registry.js`, for
+  // `buildStaticRegistry`. It is the function production already reaches
+  // through `lifecycleModuleFromStaticEntries`, so the harness now builds the
+  // manifest registry the way the deployment does instead of contributing
+  // `() => undefined` — which is what left `translation_bundles` empty in every
+  // test and the error envelope's translation path unexercised. The number this
+  // file counts went up; the divergence it exists to measure went down, and
+  // where those two disagree the divergence is the one that matters.
+  //
+  // Both raises available were worse. A registry hand-rolled in the harness is
+  // precisely the "the harness does it its own way" shape T143c refuses, and a
+  // `as LoadedManifestRegistry` cast over a partial object hides the same
+  // divergence from the type system instead of from this ledger.
+  harness: 10,
 };
 
 /** What the restated SC-001 / SC-006 ask for, kept beside what is true. */

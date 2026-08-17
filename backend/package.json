@@ -59,7 +59,8 @@
     "check:subscribe-seam": "tsx scripts/check-subscribe-seam.ts",
     "check:entry-presence": "tsx scripts/check-entry-presence.ts",
     "check:error-translations": "tsx scripts/check-error-translations.ts",
-    "check:harness-teardown": "tsx scripts/check-harness-teardown.ts"
+    "check:harness-teardown": "tsx scripts/check-harness-teardown.ts",
+    "check:fixture-substitution": "tsx scripts/check-fixture-substitution.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",

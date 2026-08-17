@@ -3,7 +3,6 @@ import type { Knex } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { CartAuditService } from '../../../src/modules/carts/services/cart-audit-service.js';
 import {
@@ -95,9 +94,7 @@ describe.skipIf(!shouldRun)('cart abandonment sweep — perf', () => {
 
   beforeAll(async () => {
     db = await setupTestDb();
-    const tmpEm = db.orm.em.fork();
-    const ch = await tmpEm.findOne(SalesChannel, { systemDefault: true });
-    systemDefaultChannelId = ch?.id ?? '';
+    systemDefaultChannelId = db.systemDefaultChannelId;
 
     await db.beginTx();
     const em = db.em();
