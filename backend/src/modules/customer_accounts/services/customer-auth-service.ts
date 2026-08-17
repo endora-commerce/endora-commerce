@@ -1,9 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type AuthSessionPort, type MfaLoginPort } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { hashPassword, verifyPassword } from '../../auth/services/password-hasher.js';
-import type { SessionService } from '../../auth/services/session-service.js';
-import type { MfaLoginPort } from '../../auth/services/mfa-login-port.js';
+import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
@@ -20,6 +18,15 @@ import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js
  * - logout: destroy session.
  * - changePassword: argon2 verify of `currentPassword`; reject with
  *   401 CURRENT_PASSWORD_INVALID otherwise; rehash + persist.
+ *
+ * Feature 075, Phase C — the three things this service needed from `auth` are
+ * now named where they belong rather than in `auth`'s directory. Sessions come
+ * over {@link AuthSessionPort}, so a session is minted or destroyed through the
+ * surface `auth` publishes and never through its `Session` entity. The MFA seam
+ * is `auth`'s *shape* implemented by `mfa`, published in `@b2b/contracts` so
+ * this service depends on neither module for it. And the password hash is a
+ * pure function that moved to `src/kernel/crypto/`: an operator switching a
+ * module off must not make "hash this string" answer 503.
  */
 export interface LoginResult {
   customerAccount: CustomerAccount;
@@ -37,7 +44,7 @@ export type CustomerLoginOutcome =
 export class CustomerAuthService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly sessionService: SessionService,
+    private readonly sessionService: AuthSessionPort,
     /** Lazily resolved so composition can late-bind the MFA module. */
     private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
     private readonly auditLog?: AuditLogService,
