@@ -1425,13 +1425,28 @@ describe('importedContributionSeams — the wiring the container does not see', 
     expect(importedContributionSeams(source, STRIPE)).toEqual([]);
   });
 
-  it('finds the pushes the tree actually ships', () => {
+  it('finds both pushes of the shape the four gateways shipped', () => {
     // The reach half: this shape is invisible to every other rule in the file,
     // because it is not a container resolution at all.
-    const source = readFileSync(
-      new URL('../../../src/modules/stripe/backend.ts', import.meta.url),
-      'utf8',
-    );
+    //
+    // This used to read `stripe/backend.ts` off disk, because the four payment
+    // gateways were the tree's live instances of the shape — two imported
+    // singletons each, pushed from one boot hook. Feature 075's Phase C cut all
+    // eight: both registries are container names now, so the seams resolve like
+    // any other. The fixture is the shape they shipped, verbatim, and it stays
+    // because the rule stays: nothing stops the next module from importing a
+    // registry singleton, and this is the only thing that would see it.
+    const source = [
+      "import { gatewayRefundRegistry } from '../payments/services/registry-singleton.js';",
+      "import { paymentAdapterRegistry } from '../payment_methods/services/registry-singleton.js';",
+      'export function registerModule(ctx) {',
+      '  ctx.onBoot(() => {',
+      '    const { adapter, refundHandler } = ctx.cradle().stripeServices;',
+      "    paymentAdapterRegistry.register(adapter, 'stripe');",
+      "    gatewayRefundRegistry.register(refundHandler, 'stripe');",
+      '  });',
+      '}',
+    ].join('\n');
     const seams = importedContributionSeams(source, STRIPE);
     expect(seams.map((seam) => `${seam.dependsOn}:${seam.name}`).sort()).toEqual([
       'payment_methods:paymentAdapterRegistry',
