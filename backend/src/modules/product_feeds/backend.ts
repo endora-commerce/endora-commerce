@@ -4,6 +4,7 @@ import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { ConfigurationTypeRegistry } from '../credentials/services/configuration-type-registry.js';
 import { productFeedsModule, type ProductFeedsModuleOptions } from './plugin.js';
@@ -225,6 +226,20 @@ export function registerModule(ctx: ModuleContext): void {
   //    regenerating. Worker role only — an API-only process must not own
   //    schedules.
   ctx.onBoot(async () => {
+    // Presence is decided here — first, and outside every `try` below (issue
+    // #147, D-62). A boot hook has no caller to answer: `runBootHooks` wraps it
+    // in a `catch` that re-throws as `ModuleCompositionError`, so a
+    // `ModuleDisabledError` raised from inside would either be swallowed by the
+    // `reconcile` helper — whose tolerance exists for a transient API failure —
+    // or take the boot out. Asked here it is neither, and one question covers
+    // all three reconciles: with the module off, none of them should run.
+    //
+    // FR-031's schedule reconcile is the one that made this urgent. It
+    // re-asserts every per-feed BullMQ Job Scheduler, so a switched-off module
+    // was writing scheduler keys into Redis on every deploy — "behaves as if
+    // never installed" failing on a seam no ratchet watches: a Job Scheduler is
+    // not a `setInterval`, and `check:timer-presence` does not read boot hooks.
+    if (!effectiveState.isPresent('product_feeds')) return;
     const runWorkers = ctx.cradle<ProductFeedsCradle>().productFeedsRunWorkers;
     const handle = ctx.cradle<ProductFeedsCradle>().productFeeds.handle;
     const reconcile = async (what: string, run: () => Promise<unknown>): Promise<void> => {
@@ -258,6 +273,13 @@ export function registerModule(ctx: ModuleContext): void {
    * nothing to do with each other: that one is the worker-role reconcile and
    * returns early on an API process, this one has to run in every process that
    * serves the credentials admin surface.
+   *
+   * It deliberately does **not** carry the presence probe the reconcile hook
+   * above does (D-62). This pushes an inert descriptor into an ungated registry
+   * the host filters by owner presence — the third of the four sanctioned
+   * answers in the deactivation-consequence ledger — so an absent contributor
+   * costs `credentials` nothing. Probing it would mean a module an operator
+   * switches back on at runtime contributes nothing until the next restart.
    */
   ctx.onBoot(() => {
     lazyPort<ConfigurationTypeRegistry>(ctx, 'configurationTypeRegistry').register(

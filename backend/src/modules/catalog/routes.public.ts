@@ -11,6 +11,7 @@ import {
   SearchBackendUnavailable,
   type SearchQueryService,
 } from '../search/services/search-query.service.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 
 /**
@@ -19,7 +20,8 @@ import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-re
  *
  * Read-backend selection (T067/T068):
  *   - When `CATALOG_SEARCH_BACKEND=meilisearch` AND a SearchQueryService was
- *     injected, list-products is served from Meilisearch.
+ *     injected AND `search` is effectively present, list-products is served
+ *     from Meilisearch.
  *   - On any Meilisearch failure (`SearchBackendUnavailable`), the route
  *     transparently degrades to the Postgres path (R-08 reserved-fallback,
  *     so search is never fully broken).
@@ -88,9 +90,28 @@ export async function registerCatalogPublicRoutes(
       parseListQuery(request);
     const ctx = readContext(request);
 
+    // Issue #144 — the presence answer is *decided* here, beside the test that
+    // already asks whether a read backend is wired at all, and never caught
+    // below.
+    //
+    // `catalog` builds this adapter itself out of `search`'s class rather than
+    // resolving a port (see `plugin.ts`), so no gate stands between this route
+    // and Meilisearch: without the probe a switched-off `search` went on serving
+    // the public product list out of an index whose maintenance subscribers had
+    // stopped with it. Constitution XVII — a module that is off behaves as if
+    // never installed, and with `search` never installed this listing is the
+    // Postgres query below.
+    //
+    // A degrade rather than a refusal, deliberately: `catalog` is
+    // non-deactivatable, Postgres is this route's default backend, and 503-ing a
+    // public catalogue because an optional search module is off would take the
+    // storefront down for a capability it never required. It is the same
+    // fallback `SearchBackendUnavailable` already takes, chosen before the query
+    // instead of after the exception.
     const useMeili =
       process.env['CATALOG_SEARCH_BACKEND'] === 'meilisearch' &&
       searchQueryService !== undefined &&
+      effectiveState.isPresent('search') &&
       changedSince === undefined;
     if (useMeili) {
       try {
