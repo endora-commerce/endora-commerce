@@ -1,10 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ListingPricePort } from '@b2b/contracts';
+import type {
+  CatalogAttributeReadPort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  ListingPricePort,
+} from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
-import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
 import { ComparisonService } from './services/comparison-service.js';
 import { ComparisonAdminService } from './services/comparison-admin.service.js';
 import { ComparableAttributeProjection } from './services/comparable-attribute-projection.js';
@@ -49,8 +53,6 @@ export interface ComparisonsCradle {
   readonly emFactory: () => EntityManager;
   readonly requireAdmin: RequireAdminFactory;
   readonly settingsReadPort: SettingsService;
-  /** Owned by `catalog`; a root registers it until that module converts. */
-  readonly catalogAttributeReadPort: CatalogAttributeReadService;
   readonly comparisonService: ComparisonService;
   readonly comparisonAdminService: ComparisonAdminService;
   readonly comparisonShareTokens: ShareTokenGenerator;
@@ -66,13 +68,16 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             new ComparableAttributeProjection(),
             ctx.cradle<ComparisonsCradle>().comparisonShareTokens,
+            // Feature 075, Phase C — the products a comparison holds are
+            // `catalog`'s rows. They used to be read with `em.find(Product, …)`
+            // from inside this module, which no gate can see; over the port the
+            // same read answers 503 when `catalog` is off, which is the
+            // binding dependency this manifest declares.
+            lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
             lazyPort<SettingsService>(ctx, 'settingsReadPort'),
-            // Resolved per call: `catalog` is hand-wired and a root registers
-            // this after the pass this module composes in.
-            {
-              listByFlag: (flag: Parameters<CatalogAttributeReadService['listByFlag']>[0]) =>
-                ctx.cradle<ComparisonsCradle>().catalogAttributeReadPort.listByFlag(flag),
-            } as CatalogAttributeReadService,
+            // The attribute read model, now `catalog`'s published port rather
+            // than a hand-made adapter over a name a root registered.
+            lazyPort<CatalogAttributeReadPort>(ctx, 'catalogAttributeReadPort'),
             // Issue #132 — a comparison column is a listing and prices through
             // the engine, not off the catalogue's legacy attribute.
             lazyPort<ListingPricePort>(ctx, 'pricingService'),
@@ -103,6 +108,10 @@ export function registerModule(ctx: ModuleContext): void {
                 ...args: Parameters<ComparisonService['buildOwnerView']>
               ) => ctx.cradle<ComparisonsCradle>().comparisonService.buildOwnerView(...args),
             } as ComparisonService,
+            // Feature 075, Phase C — the owner column's e-mail address is
+            // `customer_accounts`' row, read over its port instead of out of
+            // its table.
+            lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
           ),
       )
       .singleton(),
