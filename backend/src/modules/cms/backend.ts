@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { cmsColorPaletteSchema, type CmsColorPalette } from '@b2b/contracts';
 import { CMS_PAGE_BUILDER_SETTING_CODES } from './manifest.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { cmsModule } from './plugin.js';
@@ -208,16 +209,38 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.onBoot(async () => {
+    // Presence is decided here — first, and outside anything that could catch it
+    // (issue #146, D-68). The reconcile writes rows, and a switched-off module
+    // writing at every boot is "behaves as if never installed" failing. A boot
+    // hook has no caller to answer, so the question is asked rather than thrown:
+    // `runBootHooks` re-throws as `ModuleCompositionError` and `index.ts` turns
+    // that into `process.exit(1)`, so an operator's flip would have taken the
+    // next start down.
+    if (!effectiveState.isPresent('cms')) return;
     // Idempotent seeded-Hook reconciliation. Unlike `_i18n`'s, this one reads
     // nothing but its own tables, so it is safe in a boot hook wherever the
     // pass places it.
     await ctx.cradle<CmsCradle>().cms.handle.reconcile();
+  });
 
-    // R12 — the edge that blocks deleting an asset embedded in a page, a block
-    // or a template (T143a). Both roots used to push this descriptor into
-    // `assets_library`' registry: the scan belongs to whoever owns the columns
-    // it reads, and a root's registration survives this module being switched
-    // off, which is the Constitution XVII hole the cluster closes.
+  /**
+   * R12 — the edge that blocks deleting an asset embedded in a page, a block or
+   * a template (T143a). Both roots used to push this descriptor into
+   * `assets_library`' registry: the scan belongs to whoever owns the columns it
+   * reads, and a root's registration survives this module being switched off,
+   * which is the Constitution XVII hole the cluster closes.
+   *
+   * A second hook, and deliberately **unprobed** (D-68). It used to share the
+   * reconcile's hook, so probing that one would have stopped the scanner too —
+   * and a deactivated page still embeds its assets. The Library asks this
+   * registry before every soft-delete; with the scanner gone an operator could
+   * delete an asset the switched-off CMS still references, and the loss would
+   * only surface as a broken page at reactivation. The registry's enumeration
+   * policy says the same thing from the other side: contributions here are
+   * `honoured` while their owner is absent, because a scanner is integrity
+   * rather than a surface.
+   */
+  ctx.onBoot(() => {
     const { assetReferenceRegistry, emFactory } = ctx.cradle<CmsCradle>();
     registerCmsAssetReferences(assetReferenceRegistry, emFactory);
   });

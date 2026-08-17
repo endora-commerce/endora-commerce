@@ -5,6 +5,7 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
@@ -217,6 +218,21 @@ export function registerModule(ctx: ModuleContext): void {
    * hook it does neither.
    */
   ctx.onBoot(async () => {
+    // Presence is decided here — first, and outside anything that could catch it
+    // (issue #146, D-68). The reconciler creates a
+    // `warehouse_channel_assignments` row per sales channel, so with the module
+    // switched off it wrote this module's tables at every boot. A boot hook has
+    // no caller to answer, so the question is asked rather than thrown:
+    // `runBootHooks` re-throws as `ModuleCompositionError`, which `index.ts`
+    // turns into `process.exit(1)`.
+    //
+    // The consequence of returning: a sales channel created while `inventory` is
+    // off gets its default warehouse assignment at the **next boot** rather than
+    // at reactivation. That is acceptable because the reconcile is idempotent
+    // and every read of those rows is gated anyway. If it stops being
+    // acceptable, the repair is to drive the reconcile from the activation
+    // event — not to un-probe this hook.
+    if (!effectiveState.isPresent('inventory')) return;
     await new WarehouseChannelReconciler(ctx.cradle<InventoryCradle>().emFactory()).run();
   });
 

@@ -3,6 +3,7 @@ import type Redis from 'ioredis';
 import type { DictionaryValidator } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
 
@@ -156,13 +157,41 @@ export function registerModule(ctx: ModuleContext): void {
     await ctx.cradle<BlogCradle>().blogCacheService?.invalidateAll();
   });
 
-  ctx.onBoot(async () => {
+  /**
+   * The two asset-reference edges, contributed **unprobed** (D-68).
+   *
+   * Registered before any blog write can happen, so the Library's soft-delete
+   * path sees them from the first request on — and it keeps seeing them while
+   * `blog` is switched off, deliberately. `assets_library` consults the registry
+   * to refuse deleting an asset something still points at, and a deactivated
+   * module's posts and categories still embed assets: probing here would let an
+   * operator delete an asset a deactivated post references, and the damage would
+   * only surface as a broken image when `blog` comes back on. Off is meant to be
+   * non-destructive and reversible (Constitution XVII), which is why the
+   * registry's own enumeration policy is `honoured` rather than `skip` for these
+   * descriptors — a scanner is integrity, not a surface.
+   *
+   * A second hook rather than a line in the one below, because the two answer
+   * different questions: this one must run whatever the module's state, that one
+   * must not run while it is off. `product_feeds/backend.ts` is the shipped
+   * example of the same pair.
+   */
+  ctx.onBoot(() => {
     const { assetReferenceRegistry, emFactory } = ctx.cradle<BlogCradle>();
-    // Registered before any blog write can happen, so the Library's soft-delete
-    // path sees the two blog reference edges from the first request on.
     registerBlogAssetReferences(assetReferenceRegistry, emFactory);
-    // Idempotent boot reconcilers (R11 / R8): on a rerun they preserve every
-    // admin edit and only fill in what is missing.
+  });
+
+  // Idempotent boot reconcilers (R11 / R8): on a rerun they preserve every
+  // admin edit and only fill in what is missing.
+  ctx.onBoot(async () => {
+    // Presence is decided here — first, and outside anything that could catch it
+    // (issue #146, D-68). These two seeds write rows: a category and two roles.
+    // A switched-off module writing at every boot is "behaves as if never
+    // installed" failing, and a boot hook has no caller to answer, so the
+    // question is asked rather than thrown. `runBootHooks` re-throws as
+    // `ModuleCompositionError`, which `index.ts` turns into `process.exit(1)`.
+    if (!effectiveState.isPresent('blog')) return;
+    const { emFactory } = ctx.cradle<BlogCradle>();
     await seedDefaultCategory(emFactory);
     await seedBlogRoles(emFactory);
   });
