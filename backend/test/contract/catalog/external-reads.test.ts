@@ -13,6 +13,7 @@ import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 062 / T013 — external catalog reads (contracts/catalog-api-key-reads.md).
@@ -128,7 +129,7 @@ describe('External catalog reads (062 / T013)', () => {
     );
 
     // Org-targeted price list with a two-step bracket ladder for EXT-PRICED-001.
-    const priceLists = new PriceListService(() => h.em());
+    const priceLists = new PriceListService(() => h.em(), undefined, undefined, undefined, neighbourReadPorts(() => h.em()));
     const list = await priceLists.create({
       name: 'Org A external base',
       type: 'base',

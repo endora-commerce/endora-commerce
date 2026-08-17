@@ -35,6 +35,7 @@ import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.
 import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
 import { Tax } from '../../taxes/entities/tax.entity.js';
 import { DefaultPriceListMigrator } from '../../price_lists/services/default-price-list-migration.js';
+import { CatalogProductReadService } from '../services/catalog-product-read.service.js';
 import { hashPassword } from '../../auth/services/password-hasher.js';
 import { Warehouse, DEFAULT_WAREHOUSE_ID } from '../../inventory/entities/warehouse.entity.js';
 import { WarehouseChannelAssignment } from '../../inventory/entities/warehouse-channel-assignment.entity.js';
@@ -843,7 +844,11 @@ async function main(): Promise<void> {
   // Re-running the migrator here picks up any product that the dev seed
   // just created so the storefront resolver always finds a Base bracket.
   // The migrator is idempotent — subsequent runs are no-ops.
-  await new DefaultPriceListMigrator(() => em).run();
+  // Feature 075 Phase C — the backfill asks `catalog` for its products over the
+  // published read port rather than importing the `Product` entity. This seed is
+  // a `catalog` file, so it constructs the port's own implementation directly;
+  // the whole call goes away with `catalog`'s own cut (FR-016).
+  await new DefaultPriceListMigrator(() => em).run(new CatalogProductReadService(() => em));
 
   // --- Feature 010 — multi-warehouse demo data (T085) ----------------
   // Add a second warehouse `Magazyn Kraków` and spread stock between it

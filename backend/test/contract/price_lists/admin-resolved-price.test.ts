@@ -11,6 +11,7 @@ import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Admin resolver endpoint for customer-specific pricing.
@@ -39,7 +40,7 @@ describe('Admin resolved-price endpoint', () => {
         `truncate table "price_list_price_brackets", "price_list_products", "price_lists" cascade`,
       );
     await new DefaultPriceListMigrator(h.em).seedDefault();
-    const svc = new PriceListService(h.em);
+    const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID);
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
       PLN: [{ minQuantity: 1, maxQuantity: null, amount: '199.0000' }],

@@ -18,9 +18,22 @@ import { CustomerGroup } from './entities/customer-group.entity.js';
 import type { PriceList } from './entities/price-list.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
-import { Category } from '../catalog/entities/category.entity.js';
-import { Organization } from '../organizations/entities/organization.entity.js';
-import { Product } from '../catalog/entities/product.entity.js';
+import type {
+  CatalogCategoryReadPort,
+  CatalogProductReadPort,
+  OrganizationDetailsPort,
+} from '@b2b/contracts';
+// The one cross-module import feature 075 could not retire in `price_lists`,
+// and the obstruction is the schema rather than the type: `customer_accounts`
+// holds a foreign key into this module's `customer_groups`, so it declares
+// `price_lists`, and the reverse declaration `customerAccountReadPort` would
+// require is a cycle `src/db/migration-order.ts` refuses. Nor may it be
+// non-binding: the read must fail closed — pricing for a customer the platform
+// will not identify is worse than refusing the probe — and a `degrades-without`
+// entry would have to be bought with a `catch` around the port call, which is
+// fail-open with punctuation on. Ledgered in
+// `scripts/ledgers/cross-module-imports/price_lists.ts` with the question that
+// retires it.
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
@@ -30,6 +43,17 @@ export interface PricingRoutesDeps {
   pricingService: PricingServiceContract;
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  /**
+   * Feature 075 Phase C — the neighbour reads these admin screens make. The
+   * rule-target pickers list organisations and categories; the product pricing
+   * panel and the resolved-price probe resolve a product. All three used to be
+   * `em.find` against tables this module does not own; each fails closed at the
+   * seam now, which is the right answer for an admin screen that would
+   * otherwise offer targets the platform cannot serve.
+   */
+  catalogProductRead: CatalogProductReadPort;
+  catalogCategoryRead: CatalogCategoryReadPort;
+  organizationDetails: OrganizationDetailsPort;
   /** Feature 024 — resolves admin actor identity for audit entries. */
   resolveAdminAuditContext?: (req: FastifyRequest) => {
     actorAdminUserId: string;
@@ -84,6 +108,9 @@ export async function registerPricingRoutes(
     pricingService,
     emFactory,
     requireAdmin,
+    catalogProductRead,
+    catalogCategoryRead,
+    organizationDetails,
   } = deps;
 
   // ---- Customer groups ------------------------------------------------
@@ -403,15 +430,12 @@ export async function registerPricingRoutes(
     '/api/v1/admin/pricing/rule-targets/organizations',
     { preHandler: requireAdmin('catalog:write') },
     async (request) => {
-      const em = emFactory();
       const limit = Math.min(200, Math.max(1, Number(request.query.limit ?? '50')));
       const search = (request.query.search ?? '').trim();
-      const where: Record<string, unknown> = {};
-      if (search) where['name'] = { $ilike: `%${search}%` };
-      const rows = await em.find(Organization, where, {
-        orderBy: { name: 'asc' },
-        limit,
-      });
+      // `searchByName` matches the diacritic-folded `nameSearch` column, where
+      // this picker used to `$ilike` on `name` — so a search for "lodz" now
+      // finds "Łódź" here as it already did on the order list.
+      const rows = await organizationDetails.searchByName(search, limit);
       return {
         data: {
           items: rows.map((r) => ({ id: r.id, name: r.name, taxId: r.taxId })),
@@ -425,8 +449,8 @@ export async function registerPricingRoutes(
     '/api/v1/admin/pricing/rule-targets/categories',
     { preHandler: requireAdmin('catalog:write') },
     async () => {
-      const em = emFactory();
-      const rows = await em.find(Category, {}, { orderBy: { sortOrder: 'asc', slug: 'asc' } });
+      // The port's `listAll` is already ordered by sort order then slug.
+      const rows = await catalogCategoryRead.listAll();
       return {
         data: {
           items: rows.map((r) => ({
@@ -470,8 +494,7 @@ export async function registerPricingRoutes(
     '/api/v1/admin/products/:productId/price-lists',
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
-      const em = emFactory();
-      const product = await em.findOne(Product, { id: request.params.productId });
+      const product = await catalogProductRead.findById(request.params.productId);
       if (!product) {
         reply.status(404);
         return { error: { code: 'NOT_FOUND', message: 'Product not found.' } };
@@ -618,7 +641,7 @@ export async function registerPricingRoutes(
     { preHandler: requireAdmin('rfqs:handle') },
     async (request, reply) => {
       const em = emFactory();
-      const product = await em.findOne(Product, { id: request.params.id });
+      const product = await catalogProductRead.findById(request.params.id);
       if (!product) {
         return reply
           .status(404)
@@ -630,7 +653,7 @@ export async function registerPricingRoutes(
         : null;
       const organizationId = request.query.organizationId ?? customer?.organizationId ?? null;
       const organization = organizationId
-        ? await em.findOne(Organization, { id: organizationId })
+        ? await organizationDetails.findById(organizationId)
         : null;
 
       const salesChannel = await em.findOne(SalesChannel, { systemDefault: true });

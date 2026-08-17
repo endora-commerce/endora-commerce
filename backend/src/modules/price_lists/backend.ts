@@ -1,13 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type {
+  CatalogCategoryReadPort,
+  CatalogProductReadPort,
   CustomerGroupReadPort,
+  OrganizationDetailsPort,
   PriceListAdminPort,
   PriceListReadPort,
 } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { priceListsModule, type PriceListsModuleOptions } from './plugin.js';
 import { DEFAULT_PRICING_CACHE_TTL_MS } from './services/pricing-cache.js';
@@ -65,6 +69,14 @@ export interface PriceListsCradle {
   readonly organizationInheritancePort: {
     priceListOrgChain: (orgId: string) => Promise<readonly string[]>;
   };
+  /**
+   * Feature 075 Phase C — the neighbour reads this module made by importing
+   * `catalog`'s and `organizations`' entities. Each is resolved lazily, so a
+   * switched-off owner refuses at the call rather than at composition.
+   */
+  readonly catalogProductReadPort: CatalogProductReadPort;
+  readonly catalogCategoryReadPort: CatalogCategoryReadPort;
+  readonly organizationDetailsPort: OrganizationDetailsPort;
   /** Composition-specific: a wall-clock sweeper is wrong in a test harness. */
   readonly priceListsEnableStatusSweeper: boolean;
   /**
@@ -123,6 +135,20 @@ export function registerModule(ctx: ModuleContext): void {
               ctx.cradle<PriceListsCradle>().priceListsAdminAuditContext(req),
             resolveOrgChain: (orgId) =>
               ctx.cradle<PriceListsCradle>().organizationInheritancePort.priceListOrgChain(orgId),
+            // Feature 075 Phase C. `lazyPort` rather than a cradle read: these
+            // are handed to services this factory builds as a singleton, and a
+            // captured gate keeps answering after its owner is switched off.
+            targetReads: {
+              catalogProductRead: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+              catalogCategoryRead: lazyPort<CatalogCategoryReadPort>(
+                ctx,
+                'catalogCategoryReadPort',
+              ),
+              organizationDetails: lazyPort<OrganizationDetailsPort>(
+                ctx,
+                'organizationDetailsPort',
+              ),
+            },
             // Read at construction, and it has to be: the decoration decides
             // which object every consumer then holds, so it cannot be deferred
             // past the moment the engine is built.

@@ -11,6 +11,7 @@ import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Issue #132 — a catalogue listing asks `price_lists`.
@@ -73,7 +74,7 @@ describe('catalogue listing price source (#132)', () => {
 
   async function seedDefaultListWithBracket(amount: string): Promise<void> {
     await new DefaultPriceListMigrator(h.em).seedDefault();
-    const svc = new PriceListService(h.em);
+    const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID);
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
       PLN: [{ minQuantity: 1, maxQuantity: null, amount }],

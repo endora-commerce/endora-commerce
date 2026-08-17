@@ -16,6 +16,7 @@ import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 011 / US5 — Resolver priority chain + tie-break + bracket-gap
@@ -65,10 +66,11 @@ describe('Feature 011 / US5 — resolver priority + tie-break (T059)', () => {
     const em = h.em();
     product = await em.findOneOrFail(Product, { id: SEED_PRODUCT_101_ID });
     // SEED_PRODUCT_101 is attached to a category — read the first attachment.
-    const rows = await em.getConnection().execute<Array<{ category_id: string }>>(
-      `select category_id from product_categories where product_id = ?`,
-      [SEED_PRODUCT_101_ID],
-    );
+    const rows = await em
+      .getConnection()
+      .execute<
+        Array<{ category_id: string }>
+      >(`select category_id from product_categories where product_id = ?`, [SEED_PRODUCT_101_ID]);
     if (rows.length === 0) {
       throw new Error('Test fixture invariant: SEED_PRODUCT_101 must have at least one category.');
     }
@@ -124,8 +126,14 @@ describe('Feature 011 / US5 — resolver priority + tie-break (T059)', () => {
   // -- tests -------------------------------------------------------------
 
   it('Default is the terminal fallback when no other rule matches', async () => {
-    const svc = new PriceListService(h.em);
-    const pricing = new PricingService(h.em);
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
 
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, product.id, {
@@ -137,13 +145,19 @@ describe('Feature 011 / US5 — resolver priority + tie-break (T059)', () => {
       context: { quantity: 1, organization: null, salesChannel },
     });
     expect(out.base.listId).toBe(DEFAULT_PRICE_LIST_ID);
-    expect(Number(out.base.bracket!.amount)).toBe(100.0000);
+    expect(Number(out.base.bracket!.amount)).toBe(100.0);
     expect(out.sale).toBeNull();
   });
 
   it('FR-026 step 1: Organization-explicit list beats Customer Group, Category, Sales Channel, and Default', async () => {
-    const svc = new PriceListService(h.em);
-    const pricing = new PricingService(h.em);
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
 
     // Default → 100.
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
@@ -185,8 +199,14 @@ describe('Feature 011 / US5 — resolver priority + tie-break (T059)', () => {
   });
 
   it('FR-026 step 2: falls through to Customer Group when no Org list matches', async () => {
-    const svc = new PriceListService(h.em);
-    const pricing = new PricingService(h.em);
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
 
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, product.id, {
@@ -211,9 +231,15 @@ describe('Feature 011 / US5 — resolver priority + tie-break (T059)', () => {
     expect(out.base.listName).toBe('CG List');
   });
 
-  it('FR-026 step 3 + FR-029: Category matches via the product\'s own categories', async () => {
-    const svc = new PriceListService(h.em);
-    const pricing = new PricingService(h.em);
+  it("FR-026 step 3 + FR-029: Category matches via the product's own categories", async () => {
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
 
     await makeListWithBracket(
       svc,
@@ -232,8 +258,14 @@ describe('Feature 011 / US5 — resolver priority + tie-break (T059)', () => {
   });
 
   it('FR-027: tie-break by most recent modifiedAt at every step', async () => {
-    const svc = new PriceListService(h.em);
-    const pricing = new PricingService(h.em);
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
 
     const olderId = await makeListWithBracket(
       svc,
@@ -245,10 +277,9 @@ describe('Feature 011 / US5 — resolver priority + tie-break (T059)', () => {
     await h
       .em()
       .getConnection()
-      .execute(
-        `update price_lists set modified_at = now() - interval '1 day' where id = ?`,
-        [olderId],
-      );
+      .execute(`update price_lists set modified_at = now() - interval '1 day' where id = ?`, [
+        olderId,
+      ]);
 
     await makeListWithBracket(
       svc,
@@ -267,8 +298,14 @@ describe('Feature 011 / US5 — resolver priority + tie-break (T059)', () => {
   });
 
   it('FR-028: Base + Sale partitions resolve independently', async () => {
-    const svc = new PriceListService(h.em);
-    const pricing = new PricingService(h.em);
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
 
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, product.id, {
@@ -292,8 +329,14 @@ describe('Feature 011 / US5 — resolver priority + tie-break (T059)', () => {
   });
 
   it('FR-031: bracket-gap fall-through advances to the next-priority list', async () => {
-    const svc = new PriceListService(h.em);
-    const pricing = new PricingService(h.em);
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
 
     // Default covers everything at 100.
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
@@ -340,8 +383,14 @@ describe('Feature 011 / US5 — resolver priority + tie-break (T059)', () => {
   });
 
   it('FR-032: lists in draft state are excluded by the resolver', async () => {
-    const svc = new PriceListService(h.em);
-    const pricing = new PricingService(h.em);
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
 
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, product.id, {
@@ -374,7 +423,7 @@ describe('Feature 011 / US5 — resolver priority + tie-break (T059)', () => {
       sku: { $ne: 'EXAMPLE-SIMPLE-001' },
     });
 
-    const pricing = new PricingService(h.em);
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
     const out = await pricing.resolveEngine({
       product: otherProduct,
       context: { quantity: 1, organization: null, salesChannel },

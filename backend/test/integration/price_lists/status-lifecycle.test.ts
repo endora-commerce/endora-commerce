@@ -9,6 +9,7 @@ import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 011 / US2 — Admin CRUD + status lifecycle (T034).
@@ -46,7 +47,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
 
   it('FR-007/008: create yields a draft list with the engine columns set', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       const created = await svc.create({
         name: 'Q3 Wholesale',
         type: 'base',
@@ -64,7 +65,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
 
   it('FR-010: refuses save when endsAt <= startsAt', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       await expect(
         svc.create({
           name: 'Bad Dates',
@@ -80,7 +81,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
 
   it('FR-010: refuses save when endsAt is in the past at creation', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       await expect(
         svc.create({
           name: 'Already Done',
@@ -95,7 +96,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
 
   it('FR-009 row 1: activate coerces to scheduled when startsAt is in the future', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       const created = await svc.create({
         name: 'Wiosna 2026',
         type: 'sale',
@@ -112,7 +113,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
 
   it('FR-009 row 1: activate of a list with startsAt in the past goes straight to active', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       const created = await svc.create({
         name: 'Already Started',
         type: 'sale',
@@ -128,7 +129,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
 
   it('FR-009 row 3: status worker promotes scheduled→active when startsAt has passed', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       const worker = new PriceListStatusWorker(() => db.em());
 
       const created = await svc.create({
@@ -154,7 +155,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
 
   it('FR-009 row 4: status worker expires active→expired when endsAt has passed', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       const worker = new PriceListStatusWorker(() => db.em());
 
       const created = await svc.create({
@@ -180,7 +181,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
 
   it('FR-012: patch bumps modifiedAt and persists the change', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       const created = await svc.create({ name: 'Edit Me', type: 'base' });
       const t0 = created.modifiedAt.getTime();
       await new Promise((r) => setTimeout(r, 5));
@@ -195,7 +196,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
   it('FR-013: duplicate copies rule + products + brackets, resets status to draft, suffixes name', async () => {
     try {
       const em = db.em();
-      const svc = new PriceListService(() => em);
+      const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
 
       const product = em.create(Product, {
         sku: 'us2-dup-1',
@@ -248,7 +249,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
 
   it('FR-013: a second duplicate of the same source uses a numbered suffix', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       const original = await svc.create({ name: 'Source', type: 'base' });
 
       const a = await svc.duplicate(original.id);
@@ -263,7 +264,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
 
   it('FR-005/006: Default refuses delete, rule attach, and out-of-active status moves', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       await expect(svc.remove(DEFAULT_PRICE_LIST_ID)).rejects.toMatchObject({ statusCode: 403 });
       await expect(
         svc.patch(DEFAULT_PRICE_LIST_ID, {
@@ -278,7 +279,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
 
   it('FR-009 row 5 (loose): expired list can be moved back to draft', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       const worker = new PriceListStatusWorker(() => db.em());
       const created = await svc.create({
         name: 'Restage',

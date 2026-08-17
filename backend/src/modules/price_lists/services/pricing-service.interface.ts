@@ -8,17 +8,52 @@
 // stops being assignable and the build fails (contract drift = build error).
 
 import type { DisplayMode, ListingPrice } from '@b2b/contracts';
-import type { Product } from '../../catalog/entities/product.entity.js';
-import type { Organization } from '../../organizations/entities/organization.entity.js';
 import type { PriceBracketRow } from './price-bracket-resolver.js';
+
+/**
+ * The product a price is resolved for, as this engine reads it (feature 075
+ * Phase C).
+ *
+ * It used to be `catalog`'s `Product` **entity**, and that was two problems in
+ * one specifier: this module could not compile without `catalog`, and the
+ * contract an overlay decoration is written against named a class the overlay
+ * had no business seeing. The engine reads exactly two fields — the id it keys
+ * every bracket lookup on, and the legacy price attribute the listing chain
+ * falls back to — so those two are what it asks for.
+ *
+ * Narrowing is what makes this a cut rather than a rename: a `Product` entity
+ * and a `CatalogProductRecord` are both assignable here, and nothing wider is
+ * reachable from inside the engine.
+ */
+export interface PricedProductRef {
+  id: string;
+  /** JSONB `{ attributeKey: value }` — the legacy `defaultPrice` / `price`. */
+  attributeValues: Record<string, unknown>;
+}
+
+/**
+ * The buying organisation, as this engine reads it. Two fields: the id (a rule
+ * dimension and part of the cache key) and the group it belongs to, which a
+ * customer's own group overrides when set.
+ */
+export interface PricingOrganizationRef {
+  id: string;
+  /**
+   * Optional, and it has to be: `organizations` declares the column
+   * `customerGroupId?: string | null` and the published `OrganizationRecord`
+   * declares it `string | null`, so the narrow shape has to admit both. Every
+   * read of it here is `?? null`.
+   */
+  customerGroupId?: string | null;
+}
 
 /** The resolution context shared by both pricing entry points. */
 export interface PricingResolutionInput {
-  product: Product;
+  product: PricedProductRef;
   variantId?: string | null;
   context: {
     quantity: number;
-    organization?: Organization | null;
+    organization?: PricingOrganizationRef | null;
     /** Feature 040 — customer's direct group overrides the org's (R6). */
     customerGroupId?: string | null;
     /** The request's resolved sales channel (only `id` + `defaultCurrency` read). */
@@ -49,9 +84,9 @@ export interface PricingLineResult {
  * the unit price — so it is not part of the input.
  */
 export interface ListingPricesInput {
-  products: readonly Product[];
+  products: readonly PricedProductRef[];
   context: {
-    organization?: Organization | null;
+    organization?: PricingOrganizationRef | null;
     /** Feature 040 — customer's direct group overrides the org's (R6). */
     customerGroupId?: string | null;
     salesChannel: { id: string; defaultCurrency: string };

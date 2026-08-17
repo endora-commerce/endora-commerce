@@ -18,6 +18,7 @@ import { CustomerAccount } from '../../../src/modules/customer_accounts/entities
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 062 / T015 — bulk pricing parity (SC-001).
@@ -214,7 +215,7 @@ describe('External bulk pricing parity with cart pricing (062 / T015, SC-001)', 
     );
 
     // Two org-targeted price lists with DIFFERENT bracket ladders.
-    const priceLists = new PriceListService(() => h.em());
+    const priceLists = new PriceListService(() => h.em(), undefined, undefined, undefined, neighbourReadPorts(() => h.em()));
     const listA = await priceLists.create({
       name: 'Parity list org A',
       type: 'base',

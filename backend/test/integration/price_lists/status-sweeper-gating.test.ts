@@ -4,8 +4,33 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
-import { priceListsModule } from '../../../src/modules/price_lists/plugin.js';
+import {
+  priceListsModule,
+  type PriceListsModuleOptions,
+} from '../../../src/modules/price_lists/plugin.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+
+/**
+ * Feature 075 Phase C — `price_lists` reads its neighbours over ports now, and
+ * these cases exercise a path that touches none of them. The stubs therefore
+ * **throw**: a permissive stub would let a future edit reach `catalog` from
+ * here and read as though the neighbour had answered.
+ */
+function unreachedPort(name: string): never {
+  throw new Error(`this test must not reach ${name}`);
+}
+
+function refusingPort<T extends object>(name: string): T {
+  return new Proxy({} as T, { get: () => () => unreachedPort(name) });
+}
+
+const NEIGHBOUR_READS: Pick<PriceListsModuleOptions, 'targetReads'> = {
+  targetReads: {
+    catalogProductRead: refusingPort('catalogProductReadPort'),
+    catalogCategoryRead: refusingPort('catalogCategoryReadPort'),
+    organizationDetails: refusingPort('organizationDetailsPort'),
+  },
+};
 
 /**
  * Issue #126 — the status sweeper is an entry point, so it decides presence.
@@ -125,6 +150,7 @@ async function mountSweeper(emFactory: () => ReturnType<TestDb['em']>): Promise<
       requireAdmin: () => async () => undefined,
       enableStatusSweeper: true,
       pricingCacheTtlMs: 0,
+      ...NEIGHBOUR_READS,
     });
     await plugin(Fastify());
   } finally {

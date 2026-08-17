@@ -11,6 +11,7 @@ import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Issue #132 — what the listing pays now that it asks `price_lists`.
@@ -74,7 +75,7 @@ describe.skipIf(!shouldRun)('priced catalogue listing — p95 latency', () => {
     }
 
     await new DefaultPriceListMigrator(h.em).seedDefault();
-    const lists = new PriceListService(h.em);
+    const lists = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
     for (const product of products) {
       await lists.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
       await lists.replaceBrackets(DEFAULT_PRICE_LIST_ID, product.id, {

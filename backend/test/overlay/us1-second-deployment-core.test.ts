@@ -1,8 +1,34 @@
 import { describe, it, expect } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { loadOverlayDecorations } from '../../src/overlay/overlay-runtime.js';
-import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
+import {
+  priceListsModule,
+  type PriceListsModuleOptions,
+} from '../../src/modules/price_lists/plugin.js';
 import { PricingService as CorePricingService } from '../../src/modules/price_lists/services/pricing-service.js';
+
+/**
+ * Feature 075 Phase C — `price_lists` reads its neighbours over ports now, and
+ * these cases exercise a path that touches none of them. The stubs therefore
+ * **throw**: a permissive stub would let a future edit reach `catalog` from
+ * here and read as though the neighbour had answered.
+ */
+function unreachedPort(name: string): never {
+  throw new Error(`this test must not reach ${name}`);
+}
+
+function refusingPort<T extends object>(name: string): T {
+  return new Proxy({} as T, { get: () => () => unreachedPort(name) });
+}
+
+const NEIGHBOUR_READS: Pick<PriceListsModuleOptions, 'targetReads'> = {
+  targetReads: {
+    catalogProductRead: refusingPort('catalogProductReadPort'),
+    catalogCategoryRead: refusingPort('catalogCategoryReadPort'),
+    organizationDetails: refusingPort('organizationDetailsPort'),
+  },
+};
+
 
 const stubEmFactory = (): EntityManager => ({}) as unknown as EntityManager;
 const stubRequireAdmin = () => async (): Promise<void> => {};
@@ -21,6 +47,7 @@ describe('US1 — a deployment without the overlay uses core (T021)', () => {
       requireAdmin: stubRequireAdmin,
       enableStatusSweeper: false,
       pricingCacheTtlMs: 0,
+      ...NEIGHBOUR_READS,
     });
     expect(mod.handle.pricingService).toBeInstanceOf(CorePricingService);
     expect(mod.handle.pricingService.resolveLinePrice).toBe(

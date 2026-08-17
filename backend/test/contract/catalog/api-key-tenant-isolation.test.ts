@@ -14,6 +14,7 @@ import { Organization } from '../../../src/modules/organizations/entities/organi
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 062 / T016 — tenant + channel isolation on the external catalog
@@ -152,7 +153,7 @@ describe('External catalog tenant/channel isolation (062 / T016, SC-002)', () =>
     );
 
     // Different org price lists for the shared SKU.
-    const priceLists = new PriceListService(() => h.em());
+    const priceLists = new PriceListService(() => h.em(), undefined, undefined, undefined, neighbourReadPorts(() => h.em()));
     const seedList = async (name: string, orgId: string, amount: string): Promise<void> => {
       const list = await priceLists.create({
         name,

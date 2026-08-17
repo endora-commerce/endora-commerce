@@ -3,6 +3,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
 import { PriceListStatusWorker } from '../../../src/modules/price_lists/services/price-list-status-worker.js';
 import { DefaultPriceListMigrator } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * PriceListStatusWorker — unit-level integration tests (T039).
@@ -44,7 +45,7 @@ describe('PriceListStatusWorker (T039)', () => {
 
   it('idempotent: a second sweep on the same clock yields zero work', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       const worker = new PriceListStatusWorker(() => db.em());
 
       const created = await svc.create({
@@ -69,7 +70,7 @@ describe('PriceListStatusWorker (T039)', () => {
 
   it('bumps modifiedAt only on actual transitions', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       const worker = new PriceListStatusWorker(() => db.em());
 
       const draft = await svc.create({ name: 'Stable Draft', type: 'base' });
@@ -86,7 +87,7 @@ describe('PriceListStatusWorker (T039)', () => {
 
   it('processes both scheduled→active and active→expired in a single sweep', async () => {
     try {
-      const svc = new PriceListService(() => db.em());
+      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
       const worker = new PriceListStatusWorker(() => db.em());
 
       // Scheduled list (startsAt in the future relative to now).
