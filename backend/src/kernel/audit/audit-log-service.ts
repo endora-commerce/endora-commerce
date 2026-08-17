@@ -39,7 +39,13 @@ export class AuditLogService {
    * Persists the entry on the CALLER's transactional `em` with NO fork and NO
    * flush — the caller's `em.transactional(...)` commits it atomically with the
    * domain write, so the audit row and the write live or die together (FR-003).
-   * Used exclusively by the {@link CommandBus}; regular services keep `record()`.
+   *
+   * The {@link CommandBus} is its main caller. `CartAuditService` is the other
+   * one (issue #152): a sweep lands a batch of audit rows beside the batch of
+   * domain rows it is auditing, and one flush over one EntityManager is what
+   * makes "the flip and its audit row commit together" true rather than
+   * documented. `record()` is still what a service reaches for when it has one
+   * row and no unit of work of its own to join.
    */
   recordWithin(em: EntityManager, input: RecordAuditInput): AuditLogEntry {
     const entry = this.build(em, input);
