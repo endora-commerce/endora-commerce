@@ -83,11 +83,6 @@ export const NO_SCOPE_NEEDED: ReadonlyMap<string, string> = new Map([
     'src/modules/settings/scripts/modules-uninstall.ts',
     'Deprecation shim: spawns `module:uninstall` and forwards argv.',
   ],
-  [
-    'src/modules/settings/scripts/module-manifest-loader.ts',
-    'Not a script: a manifest lookup table that happens to live under scripts/. ' +
-      'It has no entry point and executes nothing on import.',
-  ],
 ]);
 
 function walk(dir: string, out: string[] = []): string[] {
