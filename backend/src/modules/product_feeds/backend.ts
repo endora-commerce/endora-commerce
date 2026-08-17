@@ -8,6 +8,7 @@ import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type {
   CatalogCategoryReadPort,
+  CatalogProductFilterPort,
   CatalogProductReadPort,
   ConfigurationTypeRegistryPort,
   PriceListReadPort,
@@ -174,6 +175,16 @@ export function registerModule(ctx: ModuleContext): void {
             catalogCategories: lazyPort<CatalogCategoryReadPort>(
               ctx,
               'catalogCategoryReadPort',
+            ),
+            // The last of the seventeen, and the one Phase P escalated rather
+            // than guessed at: the criteria scan. The rule compiles to
+            // `CatalogProductFilter` — `catalog`'s published grammar — and the
+            // owner runs it, with FR-026's eligibility floor and the keyset
+            // cursor on its side of the boundary rather than in a conjunction
+            // this module builds.
+            catalogProductFilter: lazyPort<CatalogProductFilterPort>(
+              ctx,
+              'catalogProductFilterPort',
             ),
             priceLists: lazyPort<PriceListReadPort>(ctx, 'priceListReadPort'),
             // D-60 — the bell's absence is decided here, in front of the gate,

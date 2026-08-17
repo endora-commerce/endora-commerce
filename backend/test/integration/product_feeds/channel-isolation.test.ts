@@ -452,17 +452,17 @@ describe('product feed channel isolation [integration]', () => {
      * a statement someone can rely on when it is finally switched on.
      */
     const ALLOWED_UNSCOPED: ReadonlyArray<{ file: string; entity: string; why: string }> = [
-      // Feature 075, Phase C removed the other three, and the exactness half
-      // below is what said so: the `PriceList` existence check and both
-      // `Category` reads now go through `priceListReadPort` and
-      // `catalogCategoryReadPort`, so this module no longer names those entities
-      // at all and an allow-list entry over them would be a scoping decision
-      // nobody is making.
-      {
-        file: 'services/product-selection.service.ts',
-        entity: 'Product',
-        why: 'sampleProducts re-reads ids that iterateProductIds already scoped to the channel; the whole file is the one edge the cut escalated, because the selection rule compiles to a MikroORM filter no port may take',
-      },
+      // **Empty, and that is the finished state.** Feature 075, Phase C removed
+      // the first three — the `PriceList` existence check and both `Category`
+      // reads went to `priceListReadPort` and `catalogCategoryReadPort` — and
+      // the exactness half below is what forced the fourth off this list too:
+      // the selection scan compiles to `CatalogProductFilter` and runs inside
+      // `catalogProductFilterPort` now, so `product-selection.service.ts` names
+      // no catalog entity at all and there is nothing left to scope by hand.
+      //
+      // The list stays rather than the assertion collapsing to `toEqual([])`,
+      // because the exactness half is what makes an entry added later have to
+      // correspond to a real read.
     ];
 
     it('is clean under no-unscoped-channel-query, bar the documented reads', async () => {

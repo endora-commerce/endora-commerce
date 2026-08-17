@@ -1,4 +1,7 @@
 import type {
+  CatalogProductFilter,
+  CatalogProductFilterField,
+  CatalogProductFilterOperator,
   ProductSelectionOp,
   ProductSelectionRule,
   ProductSelectionValue,
@@ -13,25 +16,36 @@ import type {
  *
  * ## The two-stage contract
  *
- * Most criteria compile straight to a MikroORM filter object (never string
- * SQL). Two do not: **stock availability** and **price** live behind other
- * modules' services, not behind a column this module may read (Principle I).
- * Those leaves compile to `true` in the SQL stage — a deliberate **superset** —
- * and the compiler then returns a non-null `evaluate` that decides the rule
- * exactly, in memory, against the values those ports supplied.
+ * Most criteria compile straight to a {@link CatalogProductFilter} — `catalog`'s
+ * published grammar, never a MikroORM object and never string SQL. Two do not:
+ * **stock availability** and **price** live behind other modules' services, not
+ * behind a column this module may read (Principle I). Those leaves compile to
+ * `all` in the query stage — a deliberate **superset** — and the compiler then
+ * returns a non-null `evaluate` that decides the rule exactly, in memory,
+ * against the values those ports supplied.
  *
  * The superset is therefore never the answer on its own, and the type says so:
  * `evaluate` is non-null exactly when `needsStock || needsPrice`. A caller that
  * ignores it narrows nothing, which is why `ProductSelectionService` asserts on
  * it rather than trusting itself.
  *
+ * ## Why the output is a published filter rather than a query object
+ *
+ * Feature 075. Until the cut this file emitted a MikroORM `where` that
+ * `product-selection.service.ts` handed to `em.find(Product, where as never)` —
+ * a query against another module's table, and the one demand Phase P declined
+ * to guess at. `catalog` publishes `CatalogProductFilter` now: six columns, the
+ * attribute bag, twelve operators, two combinators. Everything this compiler
+ * emitted is expressible in it, and nothing it could emit is a join, a relation
+ * or a raw fragment.
+ *
  * ## Fail-closed rules (FR-029)
  *
  * - An attribute or custom field that no longer exists **throws**
  *   `UnknownSelectionFieldError`, naming the key. The run records a
  *   configuration error; it never quietly matches everything.
- * - A field/operator pair the compiler cannot express compiles to `{ id: null }`
- *   — *unsatisfiable* — never to `{}`.
+ * - A field/operator pair the compiler cannot express compiles to `none` —
+ *   *unsatisfiable* — never to `all`.
  * - A condition with no values is unsatisfiable for the same reason: an
  *   operator who half-filled a criterion gets an empty feed they can see, not a
  *   full one they cannot.
@@ -44,24 +58,20 @@ export class UnknownSelectionFieldError extends Error {
   }
 }
 
-/** A predicate that can never be satisfied. The compiler's only fallback. */
-const UNSATISFIABLE: Record<string, unknown> = { id: null };
-
-/** A predicate that constrains nothing. Emitted for `all` and for refinement leaves. */
-const UNCONSTRAINED: Record<string, unknown> = {};
+/** A filter that can never be satisfied. The compiler's only fallback. */
+const UNSATISFIABLE: CatalogProductFilter = { kind: 'none' };
 
 /**
- * An explicit tautology, for the one place emptiness is not neutral: a branch
- * of `$or`. An empty object inside `$or` is not "match everything" to the query
- * builder — it collapses the branch, which would make the SQL stage *narrower*
- * than the rule rather than a superset, and quietly drop matching products.
- * `id` is the primary key, so `id IS NOT NULL` is true for every row.
+ * A filter that constrains nothing. Emitted for `all` and for the refinement
+ * leaves, whose narrowing happens in memory.
+ *
+ * Naming it — rather than letting an empty predicate stand for it — is what
+ * makes it safe inside an `or` branch: an empty object collapses the branch to
+ * the query builder, which would make the query stage *narrower* than the rule
+ * rather than a superset and quietly drop matching products. `catalog`'s
+ * translator turns this node into an explicit tautology for exactly that case.
  */
-const ALWAYS_TRUE: Record<string, unknown> = { id: { $ne: null } };
-
-function isEmptyPredicate(predicate: Record<string, unknown>): boolean {
-  return Object.keys(predicate).length === 0;
-}
+const UNCONSTRAINED: CatalogProductFilter = { kind: 'all' };
 
 /** The product attribute conventionally holding the manufacturer, as in the item resolver. */
 const BRAND_ATTRIBUTE_KEY = 'brand';
@@ -95,9 +105,9 @@ export interface SelectionCandidate {
 }
 
 export interface CompiledSelection {
-  /** MikroORM filter object. A superset when `evaluate` is non-null. */
-  predicate: Record<string, unknown>;
-  /** Non-null exactly when the SQL stage is a superset. */
+  /** `catalog`'s published filter grammar. A superset when `evaluate` is non-null. */
+  filter: CatalogProductFilter;
+  /** Non-null exactly when the query stage is a superset. */
   evaluate: ((candidate: SelectionCandidate) => boolean) | null;
   needsStock: boolean;
   needsPrice: boolean;
@@ -125,10 +135,10 @@ export function compileSelectionRule(
   context: SelectionCompileContext,
 ): CompiledSelection {
   const needs = { stock: false, price: false };
-  const predicate = toPredicate(rule, context, needs);
+  const filter = toFilter(rule, context, needs);
   const refined = needs.stock || needs.price;
   return {
-    predicate,
+    filter,
     evaluate: refined ? (candidate): boolean => matches(rule, context, candidate) : null,
     needsStock: needs.stock,
     needsPrice: needs.price,
@@ -136,47 +146,48 @@ export function compileSelectionRule(
 }
 
 // ---------------------------------------------------------------------------
-// Stage 1 — the SQL predicate
+// Stage 1 — the published filter
 // ---------------------------------------------------------------------------
 
-function toPredicate(
+function toFilter(
   rule: ProductSelectionRule,
   context: SelectionCompileContext,
   needs: { stock: boolean; price: boolean },
-): Record<string, unknown> {
+): CatalogProductFilter {
   if (rule.kind === 'all') return UNCONSTRAINED;
 
   if (rule.kind === 'group') {
-    // A refinement leaf contributes nothing to the SQL stage, so it becomes an
-    // explicit tautology here: under AND that is harmless, and under OR it is
-    // the only way the branch stays the superset the evaluator then narrows.
-    const children = rule.children.map((child) => {
-      const predicate = toPredicate(child, context, needs);
-      return isEmptyPredicate(predicate) ? ALWAYS_TRUE : predicate;
-    });
-    const operator = rule.op === 'OR' ? '$or' : '$and';
-    return { [operator]: children };
+    // The schema requires at least one child, so this is unreachable through
+    // the API — and it is still spelled out, because the empty reading of `or`
+    // is "no branch matched" and defaulting it to `all` would be the one shape
+    // this file exists to refuse.
+    if (rule.children.length === 0) return rule.op === 'OR' ? UNSATISFIABLE : UNCONSTRAINED;
+    return {
+      kind: 'group',
+      op: rule.op === 'OR' ? 'or' : 'and',
+      children: rule.children.map((child) => toFilter(child, context, needs)),
+    };
   }
 
   const field = rule.field;
   if (field.kind !== 'builtin') {
     const key = field.kind === 'attribute' ? field.attributeKey : field.fieldKey;
     if (!context.knownFieldKeys.has(key)) throw new UnknownSelectionFieldError(key);
-    return jsonPredicate(key, rule.op, rule.values);
+    return attributeFilter(key, rule.op, rule.values);
   }
 
   switch (field.key) {
     case 'status':
-      return columnPredicate('status', rule.op, rule.values, 'string');
+      return columnFilter('status', rule.op, rule.values, 'string');
     case 'productType':
-      return columnPredicate('type', rule.op, rule.values, 'string');
+      return columnFilter('type', rule.op, rule.values, 'string');
     case 'createdAt':
     case 'updatedAt':
-      return columnPredicate(field.key, rule.op, rule.values, 'date');
+      return columnFilter(field.key, rule.op, rule.values, 'date');
     case 'brand':
-      return jsonPredicate(BRAND_ATTRIBUTE_KEY, rule.op, rule.values);
+      return attributeFilter(BRAND_ATTRIBUTE_KEY, rule.op, rule.values);
     case 'category':
-      return categoryPredicate(context, rule.op, rule.values);
+      return categoryFilter(context, rule.op, rule.values);
     case 'stockState':
       needs.stock = true;
       return UNCONSTRAINED;
@@ -191,11 +202,20 @@ function toPredicate(
   }
 }
 
-function categoryPredicate(
+/** One leaf, addressed at a column or at a key of the attribute bag. */
+function condition(
+  field: CatalogProductFilterField,
+  op: CatalogProductFilterOperator,
+  values: ReadonlyArray<ProductSelectionValue | Date>,
+): CatalogProductFilter {
+  return { kind: 'condition', field, op, values: [...values] };
+}
+
+function categoryFilter(
   context: SelectionCompileContext,
   op: ProductSelectionOp,
   values: ReadonlyArray<ProductSelectionValue>,
-): Record<string, unknown> {
+): CatalogProductFilter {
   if (values.length === 0) return UNSATISFIABLE;
   const ids = new Set<string>();
   for (const value of values) {
@@ -204,108 +224,110 @@ function categoryPredicate(
     }
   }
   const list = [...ids];
+  const field: CatalogProductFilterField = { kind: 'column', column: 'id' };
   switch (op) {
     case 'eq':
     case 'in':
-      return { id: { $in: list } };
+      // An empty membership set is `in []`, which selects nothing — the right
+      // answer for "in a category that holds no products".
+      return list.length === 0 ? UNSATISFIABLE : condition(field, 'in', list);
     case 'neq':
     case 'notIn':
       // An empty membership set means "exclude nothing", which is correct here:
       // the criterion is a subtraction, so it cannot widen past the floor.
-      return { id: { $nin: list } };
+      return list.length === 0 ? UNCONSTRAINED : condition(field, 'nin', list);
     default:
       return UNSATISFIABLE;
   }
 }
 
-function columnPredicate(
-  column: string,
+function columnFilter(
+  column: 'status' | 'type' | 'createdAt' | 'updatedAt',
   op: ProductSelectionOp,
   rawValues: ReadonlyArray<ProductSelectionValue>,
   kind: 'string' | 'date',
-): Record<string, unknown> {
+): CatalogProductFilter {
   if (op !== 'isSet' && op !== 'isNotSet' && rawValues.length === 0) return UNSATISFIABLE;
-  const values = kind === 'date' ? rawValues.map(toDate) : [...rawValues];
-  if (values.some((value) => value === null)) return UNSATISFIABLE;
-  const first = values[0];
+  // A date the operator typed that no `Date` can be made of is unsatisfiable,
+  // never "ignore that value" — the criterion is broken and the feed is empty
+  // rather than wrong.
+  const values: Array<ProductSelectionValue | Date> = [];
+  for (const raw of rawValues) {
+    const value = kind === 'date' ? toDate(raw) : raw;
+    if (value === null) return UNSATISFIABLE;
+    values.push(value);
+  }
+  const field: CatalogProductFilterField = { kind: 'column', column };
 
   if (kind === 'date') {
     switch (op) {
       case 'eq':
-        return { [column]: first };
       case 'neq':
-        return { [column]: { $ne: first } };
       case 'gt':
-        return { [column]: { $gt: first } };
       case 'gte':
-        return { [column]: { $gte: first } };
       case 'lt':
-        return { [column]: { $lt: first } };
       case 'lte':
-        return { [column]: { $lte: first } };
+        return condition(field, COMPARISON_OPS[op], values);
       case 'between':
+        // A range is two conditions under an `and`, because the published
+        // grammar has one operator per condition — which is also what stops it
+        // growing a second value slot nothing else would use.
         return values.length >= 2
-          ? { [column]: { $gte: first, $lte: values[1] } }
+          ? {
+              kind: 'group',
+              op: 'and',
+              children: [
+                condition(field, 'gte', [values[0]!]),
+                condition(field, 'lte', [values[1]!]),
+              ],
+            }
           : UNSATISFIABLE;
       default:
         return UNSATISFIABLE;
     }
   }
 
-  switch (op) {
-    case 'eq':
-      return { [column]: first };
-    case 'neq':
-      return { [column]: { $ne: first } };
-    case 'in':
-      return { [column]: { $in: values } };
-    case 'notIn':
-      return { [column]: { $nin: values } };
-    case 'contains':
-      return { [column]: { $ilike: `%${String(first)}%` } };
-    case 'startsWith':
-      return { [column]: { $ilike: `${String(first)}%` } };
-    case 'isSet':
-      return { [column]: { $ne: null } };
-    case 'isNotSet':
-      return { [column]: null };
-    default:
-      return UNSATISFIABLE;
-  }
+  const translated = STRING_OPS[op];
+  return translated === undefined ? UNSATISFIABLE : condition(field, translated, values);
 }
 
 /**
  * A condition on the product's JSONB value bag (`products.attribute_values`),
  * which since feature 061 holds attributes and custom fields alike.
  */
-function jsonPredicate(
+function attributeFilter(
   key: string,
   op: ProductSelectionOp,
   values: ReadonlyArray<ProductSelectionValue>,
-): Record<string, unknown> {
+): CatalogProductFilter {
   if (op !== 'isSet' && op !== 'isNotSet' && values.length === 0) return UNSATISFIABLE;
-  const first = values[0];
-  switch (op) {
-    case 'eq':
-      return { attributeValues: { [key]: first } };
-    case 'neq':
-      return { attributeValues: { [key]: { $ne: first } } };
-    case 'in':
-      return { attributeValues: { [key]: { $in: [...values] } } };
-    case 'notIn':
-      return { attributeValues: { [key]: { $nin: [...values] } } };
-    case 'contains':
-      return { attributeValues: { [key]: { $ilike: `%${String(first)}%` } } };
-    case 'startsWith':
-      return { attributeValues: { [key]: { $ilike: `${String(first)}%` } } };
-    case 'isSet':
-      return { attributeValues: { [key]: { $ne: null } } };
-    case 'isNotSet':
-      return { attributeValues: { [key]: null } };
-    default:
-      return UNSATISFIABLE;
-  }
+  const translated = STRING_OPS[op];
+  if (translated === undefined) return UNSATISFIABLE;
+  return condition({ kind: 'attribute', key }, translated, values);
 }
+
+/** The six ordered comparisons, which mean the same thing on both sides. */
+const COMPARISON_OPS: Record<
+  'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte',
+  CatalogProductFilterOperator
+> = { eq: 'eq', neq: 'ne', gt: 'gt', gte: 'gte', lt: 'lt', lte: 'lte' };
+
+/**
+ * The operators a string column or an attribute value accepts. An operator
+ * missing from this table is one the published grammar cannot express against
+ * a text value — an ordered comparison, or a range — and the caller gets
+ * `none` rather than a filter that quietly means something else.
+ */
+const STRING_OPS: Partial<Record<ProductSelectionOp, CatalogProductFilterOperator>> = {
+  eq: 'eq',
+  neq: 'ne',
+  in: 'in',
+  notIn: 'nin',
+  contains: 'contains',
+  startsWith: 'startsWith',
+  isSet: 'isNotNull',
+  isNotSet: 'isNull',
+};
 
 function toDate(value: ProductSelectionValue): Date | null {
   const date = new Date(typeof value === 'number' ? value : String(value));
