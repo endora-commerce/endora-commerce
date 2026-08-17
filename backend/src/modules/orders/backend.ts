@@ -7,6 +7,7 @@ import type {
   OrderPlacementPort,
   OrderReadPort,
   OrderStatusAnnouncePort,
+  PromptActionToolRegistryPort,
   ResolvedTax,
   TransactionalEmailSender,
 } from '@b2b/contracts';
@@ -31,7 +32,6 @@ import type { OrderTransitionService } from './services/order-transition-service
 import { ORDER_CONFIRMATION_DEFAULT } from './email-templates/order-confirmation.default.js';
 import { ADMIN_CREATED_ORDER_DEFAULT, ORDER_COMMENT_DEFAULT, REORDER_CREATED_DEFAULT } from './email-templates/secondary-defaults.js';
 import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
-import type { PromptActionToolRegistry } from '../prompt_actions/services/tool-registry.js';
 import { ordersPromptTools } from './prompt-tools.js';
 
 /**
@@ -150,7 +150,7 @@ export interface OrdersCradle {
    * registration this module pushes into once, from a boot hook — declared as a
    * `contributes-to` edge rather than a dependency (D-44).
    */
-  readonly promptActionToolRegistry: PromptActionToolRegistry;
+  readonly promptActionToolRegistry: PromptActionToolRegistryPort;
 }
 
 type TaxRateInput = {

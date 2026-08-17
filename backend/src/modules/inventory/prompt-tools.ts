@@ -1,8 +1,10 @@
 import {
   SearchWarehousesParamsSchema,
   SetStockLevelParamsSchema,
+  type PromptActionTool,
   type SearchWarehousesParams,
   type SetStockLevelParams,
+  type ToolContext,
 } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
@@ -13,10 +15,6 @@ import { StockLevel } from './entities/stock-level.entity.js';
 import { Warehouse } from './entities/warehouse.entity.js';
 import { StockLevelService } from './services/stock-level-service.js';
 import { WarehouseService } from './services/warehouse-service.js';
-import type {
-  PromptActionTool,
-  ToolContext,
-} from '../prompt_actions/services/tool-registry.js';
 
 /**
  * Inventory's contribution to the prompt-assistant tool catalogue
@@ -76,8 +74,11 @@ export function inventoryPromptTools(deps: InventoryPromptToolsDeps): PromptActi
       'Set the ABSOLUTE on-hand stock quantity of a product in a warehouse. Resolve the product via catalog.search_products and the warehouse via inventory.search_warehouses first. This is captured into a plan the operator must confirm; it is not executed immediately.',
     requiredPermission: 'catalog:write',
     paramsSchema: SetStockLevelParamsSchema,
-    preview: async (params, ctx: ToolContext) => {
-      const em = ctx.em;
+    preview: async (params) => {
+      // D-75 — this module's own fork, not the caller's manager. A preview
+      // reads committed rows only, so a fresh fork sees exactly what the
+      // request's manager saw.
+      const em = deps.emFactory();
       const product = await em.findOne(Product, { id: params.productId });
       if (!product) throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'Product not found.');
       const warehouse = await em.findOne(Warehouse, { id: params.warehouseId });

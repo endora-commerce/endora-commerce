@@ -5,13 +5,11 @@ import {
   type PromptActionPlan,
   type PromptActionsProvider,
   type PlanOperation,
+  type PromptActionTool,
+  type ToolContext,
+  type ToolVisibilityContext,
 } from '@b2b/contracts';
-import type {
-  PromptActionToolRegistry,
-  PromptActionTool,
-  ToolContext,
-  ToolVisibilityContext,
-} from './tool-registry.js';
+import type { PromptActionToolRegistry } from './tool-registry.js';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { LlmProviderFactory, ResolvedAssistant } from './llm/provider-factory.js';
 import {

@@ -182,10 +182,12 @@ export function registerModule(ctx: ModuleContext): void {
           // a contributor's boot hook runs after this factory may first be
           // resolved, and — more to the point — an operator switching a
           // contributor off has to change the answer without a restart.
-          const bulkProgressResolver: NonNullable<
-            ConstructorParameters<typeof PromptRequestService>[0]['bulkProgressResolver']
-          > = (row, em) =>
-            ctx.cradle<PromptActionsCradle>().promptActionBulkProgressRegistry.apply(row, em);
+          const bulkProgressReader: NonNullable<
+            ConstructorParameters<typeof PromptRequestService>[0]['bulkProgressReader']
+          > = (bulkOperationId) =>
+            ctx
+              .cradle<PromptActionsCradle>()
+              .promptActionBulkProgressRegistry.apply(bulkOperationId);
 
           return new PromptRequestService({
             emFactory,
@@ -193,7 +195,7 @@ export function registerModule(ctx: ModuleContext): void {
             executor: new PlanExecutorService(promptActionToolRegistry),
             visibilityFor,
             auditLogService,
-            bulkProgressResolver,
+            bulkProgressReader,
             ...(promptActionsNow === undefined ? {} : { now: promptActionsNow }),
             ...(promptActionsTtlMinutes === undefined
               ? {}

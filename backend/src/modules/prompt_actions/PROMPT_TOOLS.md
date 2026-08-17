@@ -24,7 +24,16 @@ Principle I — mirrors the payment/shipping adapter registries).
 
 ## The `PromptActionTool` contract
 
-(`prompt_actions/services/tool-registry.ts`)
+Published in `@b2b/contracts` since feature 075 (D-75) — a contributor names
+`PromptActionTool`, `ToolContext` and `PromptActionToolRegistryPort` from there
+and never reaches into this module. The class that enforces the rules below
+stays here (`prompt_actions/services/tool-registry.ts`).
+
+`ToolContext` carries `{ adminUserId, requestId, auditCtx }` and **no unit of
+work**. A `preview()` reads committed rows through the contributing module's own
+`emFactory`; an `execute()` goes through that module's own audited service,
+which opens its own transaction. It used to carry the request path's
+`EntityManager`, which no contributor wrote through and no transaction wrapped.
 
 | Field | Rule |
 | --- | --- |

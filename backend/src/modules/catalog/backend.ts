@@ -7,6 +7,8 @@ import type {
   CatalogAttributeReadPort,
   CatalogAttributeSetPort,
   CatalogBulkImportPort,
+  PromptActionBulkProgressRegistryPort,
+  PromptActionToolRegistryPort,
   CatalogCategoryReadPort,
   CatalogCategoryWritePort,
   CatalogGalleryPort,
@@ -51,14 +53,12 @@ import {
   type BulkNotificationPort,
 } from './services/bulk-operation.service.js';
 import {
-  catalogBulkProgressResolver,
+  catalogBulkProgressReader,
   catalogPromptMutationTools,
   catalogPromptResolverTools,
   type CatalogPromptToolsDeps,
 } from './prompt-tools.js';
 import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
-import type { PromptActionToolRegistry } from '../prompt_actions/services/tool-registry.js';
-import type { PromptActionBulkProgressRegistry } from '../prompt_actions/services/bulk-progress-registry.js';
 
 /**
  * `catalog` — seven services each composition built **twice** (feature 072,
@@ -148,7 +148,7 @@ export interface CatalogCradle {
    * registration this module pushes into once, from a boot hook — declared as a
    * `contributes-to` edge rather than a dependency (D-44).
    */
-  readonly promptActionToolRegistry: PromptActionToolRegistry;
+  readonly promptActionToolRegistry: PromptActionToolRegistryPort;
   /**
    * Owned by `prompt_actions`: where a delegated bulk request reads its live
    * progress from. The same shape as the tool catalogue above, and new for the
@@ -158,7 +158,7 @@ export interface CatalogCradle {
    * not do. A table it can push into, so the contribution moves here with the
    * other five.
    */
-  readonly promptActionBulkProgressRegistry: PromptActionBulkProgressRegistry;
+  readonly promptActionBulkProgressRegistry: PromptActionBulkProgressRegistryPort;
   readonly catalogAttributeReadPort: CatalogAttributeReadService;
   readonly catalogQueryPort: CatalogQueryService;
   readonly catalogAdminService: CatalogAdminService;
@@ -583,7 +583,7 @@ export function registerModule(ctx: ModuleContext): void {
     ]) {
       registry.register(tool);
     }
-    cradle().promptActionBulkProgressRegistry.register('catalog', catalogBulkProgressResolver(deps));
+    cradle().promptActionBulkProgressRegistry.register('catalog', catalogBulkProgressReader(deps));
   });
 
   /**

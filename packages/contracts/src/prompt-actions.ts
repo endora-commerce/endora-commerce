@@ -287,20 +287,26 @@ export type BulkSetOrderStatusParams = z.infer<typeof BulkSetOrderStatusParamsSc
 // What of `prompt_actions`' contribution surface can be published (feature
 // 075, Phase P) — and, stated here rather than discovered later, what cannot.
 //
-// **Two seams are escalated to the Phase-C merge request for their consumers,
-// not published.** `PromptActionTool.execute(params, ctx)` takes a
-// `ToolContext` carrying the caller's MikroORM `EntityManager`, and
-// `BulkProgressResolver(row, em)` takes both an `EntityManager` and the
-// `PromptActionRequest` entity. Neither can appear in a signature here
-// (FR-034), and hiding the `EntityManager` behind a type parameter would
-// publish the coupling rather than remove it — the same judgement, and the
-// same reason, as `custom_fields`' `CustomFieldDefinitionApplyApi` in wave 1.
+// Phase P published the three manager-free shapes and escalated the two that
+// carried a MikroORM `EntityManager`. **D-75 and D-76 settled both, and neither
+// needed a way to carry a manager across a boundary.**
 //
-// A tool runs *inside* the confirm-time transaction the request row is being
-// written in, which is precisely why it holds the caller's manager; inverting
-// that is a design question about where the transaction boundary belongs, and
-// it is worth a conversation rather than a contract invented here. The three
-// shapes below are the ones that carry no manager.
+// The escalation's premise was that "a tool runs inside the confirm-time
+// transaction the request row is being written in". It does not: `confirm()`
+// forks an `EntityManager` and flushes, with no `em.transactional` anywhere in
+// the file, so every flush is its own implicit transaction and a tool that
+// "joins" it joins nothing. Measured against the tree, all three contributing
+// modules used `ctx.em` **only in `preview()`**, only for reads, only of their
+// own tables — every write already went through the owner's own audited
+// service, which opens its own unit of work. It was a read handle wearing a
+// transaction's name, so it is deleted (D-75) and each preview forks its own.
+//
+// `BulkProgressResolver(row, em)` was worse than co-transactional: its `em` was
+// **dead** at its only implementation, and the parameter that was not dead —
+// `row` — handed `prompt_actions`' own entity, and its state machine, to a
+// contributor that then decided whether the request was `completed`, `failed`
+// or `completed_with_errors`. The reader returns a snapshot now and the host
+// rules on its own row (D-76).
 // ---------------------------------------------------------------------------
 
 /** Who is running a tool, for the audit entry the mutation writes. */
@@ -330,4 +336,101 @@ export interface LlmToolDefinition {
 export interface ToolVisibilityContext {
   hasPermission(permission: string): Promise<boolean>;
   isModuleInstalled(moduleId: string): Promise<boolean>;
+}
+
+/**
+ * What a tool is told about the operator running it (D-75).
+ *
+ * Three fields, and no unit of work: a preview reads committed rows through the
+ * contributing module's own `emFactory`, and an execution goes through that
+ * module's own audited service. `requestId` is the prompt request's id, which a
+ * tool uses for correlation and never to load the row.
+ */
+export interface ToolContext {
+  adminUserId: string;
+  requestId: string;
+  auditCtx: ToolAuditContext;
+}
+
+/**
+ * A tool a module contributes to the assistant's catalogue.
+ *
+ * `paramsSchema` is a Zod schema and stays one: `zod` is this package's only
+ * dependency, and the schema is the single source both for validating what the
+ * model proposed and for the provider-facing JSON Schema.
+ *
+ * Registration rules, enforced by the host at `register`: `id` is
+ * `<moduleId>.<snake_case_name>` and unique, `requiredPermission` mirrors the
+ * permission guarding the equivalent manual admin route, and a mutation MUST
+ * implement `preview()` — a confirmable plan renders server-computed facts
+ * only.
+ */
+export interface PromptActionTool<P = unknown> {
+  /** `<moduleId>.<snake_case_name>` */
+  id: string;
+  moduleId: string;
+  kind: 'resolver' | 'mutation';
+  /** English, action-oriented — this is the LLM's only documentation. */
+  description: string;
+  requiredPermission: string;
+  paramsSchema: z.ZodType<P>;
+  /** Resolvers run during interpretation; mutations only at confirm time. */
+  execute(params: P, ctx: ToolContext): Promise<unknown>;
+  /** Mutations only: server-computed preview shown in the confirmable plan. */
+  preview?(params: P, ctx: ToolContext): Promise<OperationPreview>;
+}
+
+/**
+ * Container name: `promptActionToolRegistry`. Owner: `prompt_actions`.
+ *
+ * The **contribution** shape, in the idiom `GatewayRefundRegistryPort` and
+ * `PaymentAdapterRegistryPort` already use: the host keeps the class, a
+ * contributor names the interface. That is what lets `catalog`, `inventory` and
+ * `orders` type their cradle entry without importing `prompt_actions`.
+ *
+ * Deliberately **not** a gated port. A contributor pushes from its own boot
+ * hook, and gating the push would turn an operator's deactivation into an entry
+ * missing until the next restart; the presence question is answered by the host
+ * at enumeration, keyed on the module recorded with each tool.
+ */
+export interface PromptActionToolRegistryPort {
+  register<P>(tool: PromptActionTool<P>): void;
+}
+
+/**
+ * What a long-running bulk operation has done so far, as its owner reports it
+ * (D-76).
+ *
+ * Data out, and nothing else. The previous shape handed the contributor
+ * `prompt_actions`' request entity and let it write `row.status`, `row.error`
+ * and `row.result`: whether a prompt request is `completed`, `failed` or
+ * `completed_with_errors` is the host's state machine, and what a bulk
+ * operation did is the contributor's fact. This is the fact.
+ */
+export interface BulkProgressSnapshot {
+  total: number;
+  succeeded: number;
+  failed: number;
+  failures: Array<{ id: string; reason: string }>;
+  /** `null` while the run is still going. */
+  terminal: 'completed' | 'failed' | null;
+  error?: string | null;
+}
+
+/** Reads live progress for one bulk operation, or `null` when it knows none. */
+export type BulkProgressReader = (
+  bulkOperationId: string,
+) => Promise<BulkProgressSnapshot | null>;
+
+/**
+ * Container name: `promptActionBulkProgressRegistry`. Owner: `prompt_actions`.
+ *
+ * The same contribution idiom as {@link PromptActionToolRegistryPort}, and
+ * ungated for the same reason. The host states its absent-owner policy at the
+ * class: an absent contributor's reader is skipped, so the request reports no
+ * progress — which is exactly what a deployment shipping no contributor has
+ * always seen.
+ */
+export interface PromptActionBulkProgressRegistryPort {
+  register(moduleId: string, read: BulkProgressReader): void;
 }
