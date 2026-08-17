@@ -1680,12 +1680,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         });
       }
       // Comparisons' anonymous→authenticated adoption (R-2 / FR-005). Resolved
-      // per login exactly as the cart merge above is, so an operator switching
-      // `comparisons` off gets the gate's `MODULE_DISABLED` at the call rather
-      // than a captured service that keeps adopting — and the login route's
-      // documented best-effort contract (037 FR-007/FR-008) means that answer
-      // is logged, not fatal to the login.
-      if (loginCtx.anonymousCompareToken) {
+      // per login rather than captured, so a switched-off `comparisons` cannot
+      // go on adopting through an instance this root is holding.
+      //
+      // D-70 — and the presence question is **decided** here, before the
+      // resolution, in the shape D-61 already shipped for
+      // `catalogExternalAvailability` above. A closed gate throws rather than
+      // resolving to `undefined`, so the probe has to come first. What it buys
+      // is not the login's survival — the route's `catch` covers that and stays
+      // — but that the one condition an operator creates on purpose stops
+      // arriving as a caught error: a skipped adoption is a decision, a caught
+      // one is indistinguishable from a database failure. The route then
+      // absorbs exactly what feature 037 FR-007/FR-008 say it must, and nothing
+      // else.
+      if (loginCtx.anonymousCompareToken && effectiveState.isPresent('comparisons')) {
         await (
           container.cradle as unknown as ComparisonsCradle
         ).comparisonService.adoptAnonymousComparison(

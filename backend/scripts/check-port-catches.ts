@@ -177,14 +177,26 @@ const EVERYWHERE = '*';
  */
 export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
   'modules/organizations/routes.public.ts:onLogin':
-    'AFTER THE FACT. The cart-merge hook runs once the session cookie is on the ' +
-    'response: the customer is logged in, and feature 037 FR-007/FR-008 say in so ' +
-    'many words that a merge failure must not break the login. Re-throwing would ' +
-    'take down a completed authentication. Retiring it means asking presence before ' +
-    'the hook rather than catching it after, which needs the merge to be a decision ' +
-    'the route makes rather than a callback it invokes — D-60 rules that the ' +
-    'decision moves into the root contribution that resolves `comparisonService`. ' +
-    'The `carts` half is already unreachable: that module is locked.',
+    'LEDGER-PERMANENT (D-70), and the tolerance here is the requirement rather than ' +
+    'a swallow somebody forgot to narrow. Feature 037 FR-007/FR-008 and SC-004 say ' +
+    'in so many words that a merge failure must not break the login, and the `catch` ' +
+    'covers four failure modes of which a presence answer is one: a transient ' +
+    'database error, a concurrent merge, a malformed cookie token. Narrowing it with ' +
+    '`rethrowIfModuleDisabled` would be worse than deleting it, not a compromise — ' +
+    '`setSessionCookie` has already written the session cookie onto the response at ' +
+    'routes.public.ts:160, so the 503 would reach a buyer who is authenticated, ' +
+    'which is the same argument the `webhooks` entry makes about a delivery already ' +
+    'attempted. What makes the site safe is not the shape of the `catch`: `carts` is ' +
+    'locked, and the comparison adoption is now **decided** in the root contribution ' +
+    '(`composition.ts`, `effectiveState.isPresent("comparisons")`) rather than ' +
+    'attempted, so no presence answer reaches this `catch` at all. Two tests hold ' +
+    'both halves, and deleting either half fails one of them: ' +
+    '`test/contract/auth/customer-login-cart-merge.contract.test.ts:203` goes red if ' +
+    'the `catch` goes, and ' +
+    '`test/contract/organizations/login-comparisons-off.contract.test.ts` goes red if ' +
+    'the probe goes — its third assertion, that no `cart_merge_on_login_failed` line ' +
+    'is logged, is what tells a decided adoption from a caught one, because the ' +
+    'first two assertions pass with no probe at all. Nothing is: do not drain this.',
   'modules/webhooks/services/webhook-delivery-worker.ts:recordDelivery':
     'LEDGER-PERMANENT, and not because nobody has looked (D-60). This is a ' +
     '**self-edge**: `webhooks` resolves its own gated port per call, deliberately, ' +

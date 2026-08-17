@@ -293,21 +293,31 @@ function portViolations(
 /**
  * The two composition roots, as source text — the top of `findRootIssues`.
  *
- * Its three shapes are all *differences between the roots*, so the proofs feed
- * it what a real run does: each root's file read through `rootRegisteredNames`,
- * the module's own ports through `providedPortNames`, and the names something
- * resolves through `resolvedNames`. Handing it two ready-made sets would prove
- * the comparison and leave the two scanners under it unproven, which is the
- * shape of issue #130.
+ * Its seven shapes are all *differences between what registers a name and what
+ * reads it*, so the proofs feed it what a real run does: each root's file read
+ * through `rootRegisteredNames`, the kernel's file read the same way, the
+ * module's own ports through `providedPortNames`, its own registrations
+ * through `registeredNames`, and the names something resolves through
+ * `resolvedNames`. Handing it ready-made sets would prove the comparison and
+ * leave every scanner under it unproven, which is the shape of issue #130 — and
+ * for the four `PLATFORM_OWNED_NAMES` shapes it is not a hypothetical: the
+ * classification turns entirely on which of those five scanners saw the name.
  */
 const PRODUCTION_ROOT_FILE = '/repo/backend/src/composition.ts';
 const HARNESS_ROOT_FILE = '/repo/backend/test/helpers/test-server.ts';
+const KERNEL_CONTAINER_FILE = '/repo/backend/src/kernel/container.ts';
 
 function rootIssues(input: {
   readonly roots: Readonly<Record<string, string>>;
   readonly moduleSource: string;
   readonly hostRegistered: Readonly<Record<string, string>>;
   readonly consumerSource: string;
+  /** The hand-written platform list under test. Empty means "do not sweep it". */
+  readonly platformNames?: readonly string[];
+  /** A file under `src/kernel/**`, as source text — the third supply source (D-73). */
+  readonly kernelSource?: string;
+  /** A module's `backend.ts`, for the names it registers or provides as its own. */
+  readonly ownerSource?: string;
 }): RootRegistrationIssue[] {
   const rootNames = new Map<string, ReadonlySet<string>>(
     Object.entries(input.roots).map(([label, source]) => [
@@ -320,6 +330,7 @@ function rootIssues(input: {
       ),
     ]),
   );
+  const kernelSource = input.kernelSource ?? '';
   return findRootIssues({
     moduleRegistered: new Map(
       providedPortNames(input.moduleSource, PAYMENTS_FILE).map((name) => [
@@ -330,6 +341,17 @@ function rootIssues(input: {
     rootNames,
     hostRegistered: input.hostRegistered,
     resolvedNames: new Set(ordersResolutions(input.consumerSource).map((r) => r.name)),
+    platformNames: new Set(input.platformNames ?? []),
+    kernelNames: new Set([
+      ...rootRegisteredNames(kernelSource, KERNEL_CONTAINER_FILE),
+      ...registeredNames(kernelSource, KERNEL_CONTAINER_FILE),
+    ]),
+    moduleOwnedNames: new Map(
+      registeredNames(input.ownerSource ?? '', PAYMENTS_FILE).map((name) => [
+        name,
+        'payment_methods',
+      ]),
+    ),
   });
 }
 
@@ -351,6 +373,61 @@ const ORDERS_RESOLVES_THE_BRIDGE = [
   '  });',
   '}',
 ].join('\n');
+
+/* -------------------------------------------------------------------------- *
+ * `PLATFORM_OWNED_NAMES`, as the four things being on it can be wrong about
+ * (issue #49, D-73).
+ *
+ * Each fixture below is source text, and the name under test appears in exactly
+ * one of the five scanners the classification reads — which is what makes the
+ * four proofs independent rather than four spellings of one. A fixture handing
+ * `findRootIssues` a finished name set would classify whatever the fixture
+ * author believed, not whatever the walk can see.
+ * -------------------------------------------------------------------------- */
+
+/** The name the production defect (#49, F45) was about, used by all four. */
+const PLATFORM_NAME = 'salesChannelResolutionPort';
+
+/** A module resolving the platform name at call time — the "somebody reads it" half. */
+const ORDERS_RESOLVES_THE_PLATFORM_NAME = [
+  'export function registerModule(ctx: ModuleContext): void {',
+  '  ctx.di.register({',
+  '    orderService: ctx.asFunction(() => ({',
+  '      channel: () => ctx.cradle<Deps>().salesChannelResolutionPort.resolve(),',
+  '    })).singleton(),',
+  '  });',
+  '}',
+].join('\n');
+
+/** One root registering it and the other not — the divergence half. */
+const ROOT_SUPPLIES_THE_PLATFORM_NAME =
+  'composedModules.contribute({ salesChannelResolutionPort: resolverForThisDeployment });';
+
+/**
+ * A module's own `backend.ts` claiming the name as a contribution-point default
+ * — the shape `priceListsPricingCacheTtlMs` was in, and the reason the
+ * ownership scan reads `registeredNames` rather than `providedPortNames`: a
+ * `ctx.di.register` default is module-owned just as firmly as a port is.
+ */
+const MODULE_OWNS_THE_PLATFORM_NAME = [
+  'export function registerModule(ctx: ModuleContext): void {',
+  '  ctx.di.register({',
+  '    salesChannelResolutionPort: ctx.asFunction(() => defaultResolver).singleton(),',
+  '  });',
+  '}',
+].join('\n');
+
+/**
+ * The kernel supplying it, in the `container.register({ … })` spelling
+ * `registerOrm` uses — the third supply source (F47).
+ *
+ * Not a red proof of its own: what it proves is a finding *not* raised, so it
+ * belongs beside the assertions in `test/unit/kernel/port-dependency-check.ts`.
+ * It is here because the four fixtures above have to say "and the kernel does
+ * not register it either", and the honest way to say that is to hand the same
+ * scanner a kernel file that registers something else.
+ */
+const KERNEL_REGISTERS_SOMETHING_ELSE = 'container.register({ orm: asValue(orm) });';
 
 /**
  * A contribution host and the module that pushes into it, as source text — the
@@ -1398,6 +1475,71 @@ const CHECKS: readonly CheckEntry[] = [
             consumerSource: ORDERS_RESOLVES_THE_BRIDGE,
           }).filter((issue) => issue.kind === 'root-divergence').length,
       ),
+      // The same function over `PLATFORM_OWNED_NAMES` (issue #49, D-73). Four
+      // shapes, four fixtures, and each names only its own: the unsupplied one
+      // is registered nowhere, the divergent one by a single root, the
+      // module-owned one by a module's `backend.ts`, and the stale one by
+      // nothing at all with nothing resolving it either. One proof each,
+      // because a list whose consequences were asserted and never verified is
+      // what this ruling is about, and three signals going blind behind a
+      // fourth's red would reproduce it one level down.
+      'platform-name-unsupplied': top(
+        () =>
+          rootIssues({
+            roots: { production: ROOT_REGISTERS_NOTHING, harness: ROOT_REGISTERS_NOTHING },
+            moduleSource: '',
+            hostRegistered: {},
+            consumerSource: ORDERS_RESOLVES_THE_PLATFORM_NAME,
+            platformNames: [PLATFORM_NAME],
+            kernelSource: KERNEL_REGISTERS_SOMETHING_ELSE,
+          }).filter((issue) => issue.kind === 'platform-name-unsupplied').length,
+      ),
+      'platform-name-divergence': top(
+        () =>
+          rootIssues({
+            roots: {
+              production: ROOT_REGISTERS_NOTHING,
+              harness: ROOT_SUPPLIES_THE_PLATFORM_NAME,
+            },
+            moduleSource: '',
+            hostRegistered: {},
+            consumerSource: ORDERS_RESOLVES_THE_PLATFORM_NAME,
+            platformNames: [PLATFORM_NAME],
+            kernelSource: KERNEL_REGISTERS_SOMETHING_ELSE,
+          }).filter((issue) => issue.kind === 'platform-name-divergence').length,
+      ),
+      'platform-name-owned-by-module': top(
+        () =>
+          rootIssues({
+            roots: {
+              production: ROOT_SUPPLIES_THE_PLATFORM_NAME,
+              harness: ROOT_SUPPLIES_THE_PLATFORM_NAME,
+            },
+            moduleSource: '',
+            hostRegistered: {},
+            consumerSource: ORDERS_RESOLVES_THE_PLATFORM_NAME,
+            platformNames: [PLATFORM_NAME],
+            kernelSource: KERNEL_REGISTERS_SOMETHING_ELSE,
+            // Both roots register it and something resolves it, so neither of
+            // the two shapes above applies: only the ownership scan can find
+            // this one, which is what makes it its own proof.
+            ownerSource: MODULE_OWNS_THE_PLATFORM_NAME,
+          }).filter((issue) => issue.kind === 'platform-name-owned-by-module').length,
+      ),
+      'platform-name-stale': top(
+        () =>
+          rootIssues({
+            roots: { production: ROOT_REGISTERS_NOTHING, harness: ROOT_REGISTERS_NOTHING },
+            moduleSource: '',
+            hostRegistered: {},
+            // Nothing resolves the platform name — which is the whole
+            // difference between `stale` and `unsupplied`, and the reason the
+            // consumer fixture here reads a different name.
+            consumerSource: ORDERS_RESOLVES_THE_BRIDGE,
+            platformNames: [PLATFORM_NAME],
+            kernelSource: KERNEL_REGISTERS_SOMETHING_ELSE,
+          }).filter((issue) => issue.kind === 'platform-name-stale').length,
+      ),
       // `findNonBindingIssues` — D-44's five. The first two hold every kind of
       // entry to the tree; the last three are the guard-rails `contributes-to`
       // rests on, so each of those fixtures satisfies the other two guard-rails
@@ -1779,7 +1921,7 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-module-boundary.ts': 13,
       'backend/scripts/check-overlay-determinism.ts': 3,
       'backend/scripts/check-port-catches.ts': 5,
-      'backend/scripts/check-port-dependencies.ts': 15,
+      'backend/scripts/check-port-dependencies.ts': 19,
       'backend/scripts/check-subscribe-seam.ts': 3,
       'backend/scripts/check-timer-presence.ts': 3,
       'backend/scripts/i18n-hardcoded-strings.ts': 2,
