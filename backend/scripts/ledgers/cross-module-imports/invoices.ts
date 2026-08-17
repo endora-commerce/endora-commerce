@@ -25,8 +25,6 @@ export const entries: Readonly<Record<string, string>> = {
     'F3 Phase C — invoices. Retired by the invoices cut merge request.',
   'modules/invoices/routes.customer.ts:orders/entities/order.entity':
     'F3 Phase C — invoices. Retired by the invoices cut merge request.',
-  'modules/invoices/services/corrective-invoice.ts:orders/entities/order.entity':
-    'F3 Phase C — invoices. Retired by the invoices cut merge request.',
   'modules/invoices/services/corrective-invoice.ts:returns/ports/corrective-invoice.port':
     'F3 Phase C — invoices. Retired by the invoices cut merge request.',
   'modules/invoices/services/invoice-email-dispatch.ts:orders/entities/order.entity':
