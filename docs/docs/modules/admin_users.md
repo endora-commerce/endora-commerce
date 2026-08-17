@@ -21,7 +21,7 @@ User + role CRUD is gated by the `admin_users:manage` permission.
 | `DELETE /api/v1/admin/admin-users/:id` | Soft delete (sets `deletedAt` + `status='inactive'`) |
 | `GET /api/v1/admin/admin-roles` | List roles with their permission arrays |
 | `PUT /api/v1/admin/admin-roles/:code` | Upsert role by code; unknown permissions return 400 `VALIDATION_FAILED` |
-| `DELETE /api/v1/admin/admin-roles/:id` | Delete; refuses with 409 `ADMIN_ROLE_IN_USE` if any user is still assigned |
+| `DELETE /api/v1/admin/admin-roles/:id` | Delete; refuses with 409 `ADMIN_ROLE_IN_USE` if any user is still assigned — **including a soft-deleted one**, whose assignment comes back when the account is restored. The refusal names which population holds the role (`details.code` is `assigned` or `assigned_to_deleted`) and how many there are |
 | `GET /api/v1/admin/permissions` | Canonical permission catalogue (module / code / label) used by the matrix UI |
 | `POST /api/v1/admin/organizations/:id/impersonate` | Begin impersonation; writes `impersonation.start` audit row before issuing the cookie |
 | `POST /api/v1/admin/impersonation/end` | Restore the original admin session |
