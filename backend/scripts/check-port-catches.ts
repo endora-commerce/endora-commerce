@@ -209,31 +209,41 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'return type, or a `nonBindingDependencies` entry on `catalog` declaring the ' +
     'degrade, rather than a `catch` deciding it.',
   'modules/product_feeds/backend.ts:run':
-    'BOOT HOOK. The `reconcile` helper logs and continues so an unbootable API ' +
-    'never costs more than a drifted schedule the next boot repairs. This entry used ' +
-    'to add "`runBootHooks` catches too, which is the kernel making that decision ' +
-    'once"; it does not catch — it re-throws as `ModuleCompositionError` and ' +
-    '`index.ts` exits (issue #146, D-67), so this `catch` is the only thing standing ' +
-    'between a drifted schedule and a dead boot. Narrowing ' +
-    'this `catch` to re-throw was tried and reverted: it changed what the harness ' +
-    'boots with, and three `product_feeds` taxonomy contract tests went red. Boot ' +
-    'is where a presence answer has no caller to give itself to, so the rule ' +
-    '`check:timer-presence` follows applies here — decide presence before the ' +
-    'work. Retiring it means the hook asking `effectiveState.isPresent` for each ' +
-    'reconcile target instead of running it and catching.',
+    'BOOT HOOK, and now a genuine tolerance rather than a swallowed presence ' +
+    'answer (issue #147, D-62). The hook asks ' +
+    "`effectiveState.isPresent('product_feeds')` first, and outside every `try` — " +
+    'outside, because `runBootHooks` does not catch: it re-throws as ' +
+    '`ModuleCompositionError` and `index.ts` exits (issue #146, D-67), so a ' +
+    '`ModuleDisabledError` raised inside the `try` would either take out the boot ' +
+    'or share one silent no-op with a transient failure. With the presence question ' +
+    'answered before the work, the only thing left for the `reconcile` helper to ' +
+    'absorb is an ordinary failure of the reconcile itself — an unbootable API ' +
+    'costing no more than a drifted schedule the next boot repairs. Narrowing it to ' +
+    're-throw was tried and reverted: it changed what the harness boots with, and ' +
+    'three `product_feeds` taxonomy contract tests went red. Permanent, therefore, ' +
+    'with the reason stated: the presence question this entry used to hold has been ' +
+    'moved out of the `catch` and is pinned by ' +
+    '`test/unit/product_feeds/boot-reconcile-presence.test.ts`.',
   'modules/pim_ergonode/backend.ts:handle':
     'BOOT HOOK. The import twin of the `product_feeds` reconcile above — same ' +
     'log-and-continue, same absent kernel-level catch behind it, same retiring ' +
     'question. They drain together, and re-throwing was measured to be the wrong ' +
     'fix for both.',
   'modules/catalog/routes.public.ts:searchQueryService':
-    'DEGRADE THE OWNER SHOULD ANSWER. The Meilisearch path already falls back to ' +
-    'Postgres when the backend is unavailable, and the same fallback is the right ' +
-    'answer when `search` is off — the catalogue keeps serving its own listing, ' +
-    'which is what "behaves as if never installed" means here. Retiring it means ' +
-    'the fallback being chosen on presence before the query rather than on an ' +
-    'exception after it, next to the `useMeili` test that already asks whether the ' +
-    'service is wired at all.',
+    'DEGRADE THE OWNER SHOULD ANSWER — and the gate is `pricingService`, not ' +
+    '`search` (issue #144, D-61). `search` owns no registration this alias reaches: ' +
+    '`catalog` constructs the read adapter itself (`plugin.ts`, ' +
+    '`new SearchQueryService(emFactory, attributeReadService, {}, pricingService)`), ' +
+    "so what this `catch` can swallow is `price_lists`' gate arriving through the " +
+    "fourth argument, plus `custom_fields`' through the third. Both owners are " +
+    'non-deactivatable, so the gate has no state in which it closes and there is ' +
+    'nothing here to drain until one of them un-locks. The `search`-is-off hazard ' +
+    'the entry used to describe was real and is fixed at the seam it belonged to: ' +
+    '`useMeili` asks `effectiveState.isPresent(\'search\')` before the query, so the ' +
+    'listing degrades to Postgres by decision rather than by exception ' +
+    '(`test/unit/catalog/public-search-backend-presence.test.ts`). The `catch` ' +
+    'itself stays for the reason it was written — `SearchBackendUnavailable` is the ' +
+    'R-08 reserved fallback — and re-throws everything else.',
 };
 
 function walk(dir: string, out: string[] = []): string[] {
