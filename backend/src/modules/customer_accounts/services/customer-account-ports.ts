@@ -159,6 +159,24 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
     return accounts.map(toCustomerAccountRecord);
   }
 
+  async searchIdsByName(query: string): Promise<string[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    const like = `%${trimmed}%`;
+    const accounts = await this.emFactory().find(
+      CustomerAccount,
+      {
+        $or: [
+          { email: { $ilike: like } },
+          { firstName: { $ilike: like } },
+          { lastName: { $ilike: like } },
+        ],
+      },
+      { fields: ['id'] },
+    );
+    return accounts.map((account) => account.id);
+  }
+
   async listAll(): Promise<CustomerAccountRecord[]> {
     const accounts = await this.emFactory().find(
       CustomerAccount,

@@ -35,6 +35,17 @@ export class OrderReadService implements OrderReadPort {
     return orders.map(toOrderRecord);
   }
 
+  async findIdsByBusinessIdLike(fragment: string, limit: number): Promise<string[]> {
+    const trimmed = fragment.trim();
+    if (!trimmed) return [];
+    const orders = await this.emFactory().find(
+      Order,
+      { businessId: { $ilike: `%${trimmed}%` } },
+      { fields: ['id'], orderBy: { placedAt: 'desc' }, limit },
+    );
+    return orders.map((order) => order.id);
+  }
+
   async listItems(orderId: string): Promise<OrderItemRecord[]> {
     const items = await this.emFactory().find(
       OrderItem,
