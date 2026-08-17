@@ -8,6 +8,7 @@ import {
   customFieldValuesSchema,
   validateCustomerVatRequestSchema,
   ERROR_CODES,
+  type VatValidator,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { Command, CommandBus } from '../../commands/index.js';
@@ -33,7 +34,6 @@ import type { ImpersonationService } from '../admin_users/services/impersonation
 import type { CartQueryService } from '../carts/services/cart-query-service.js';
 import type { OrderListService } from '../orders/services/order-list-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
-import type { VatValidator } from '../organizations/services/vat-validator-port.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 

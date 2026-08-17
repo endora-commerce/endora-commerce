@@ -15,8 +15,6 @@
  * says so.
  */
 export const entries: Readonly<Record<string, string>> = {
-  'modules/customers/backend.ts:organizations/integrations/vies-client':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:admin_users/services/impersonation-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:auth/services/session-service':
@@ -37,8 +35,6 @@ export const entries: Readonly<Record<string, string>> = {
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:organizations/services/personal-organization-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/plugin.ts:organizations/services/vat-validator-port':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:quick_order/services/default-preference-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:quote_requests/services/rfq-service':
@@ -58,8 +54,6 @@ export const entries: Readonly<Record<string, string>> = {
   'modules/customers/routes.admin.ts:email/services/mailer':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/routes.admin.ts:orders/services/order-list-service':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/routes.admin.ts:organizations/services/vat-validator-port':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/routes.admin.ts:quote_requests/services/rfq-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',

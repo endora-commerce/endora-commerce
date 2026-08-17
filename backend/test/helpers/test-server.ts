@@ -2075,12 +2075,15 @@ export async function setupBackendServer(
   });
 
   // Feature 040 — Customers module (mirrors composition.ts wiring).
-  // Feature 072 (T140) — mirrors `composition.ts`: three names stay this
-  // composition's, and the fake VAT validator is contributed rather than passed
-  // as an argument, so it is the same instance `organizations` gets by
-  // construction rather than by a comment asking for it.
+  // Feature 072 (T140) — mirrors `composition.ts`: two names stay this
+  // composition's, both actor-shaped.
+  //
+  // Feature 076 (D-86) — `customersVatValidator` left this contribution. The
+  // fake above, contributed once over `organizationsTaxIdClients`, now reaches
+  // `customers` through `vatValidatorPort`, so there is no second name for the
+  // two roots to keep in step and no way for the two consumers to disagree
+  // about the same tax id.
   composedModules.contribute({
-    customersVatValidator: new FakeVatValidator('vies'),
     customerActorResolver: (request: FastifyRequest) => {
       if (request.testActor?.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');

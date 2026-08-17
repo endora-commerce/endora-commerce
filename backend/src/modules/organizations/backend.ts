@@ -20,6 +20,7 @@ import type {
   PriceListReadPort,
   TemplateEmailPort,
   TransactionalEmailSender,
+  VatValidator,
 } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
@@ -204,10 +205,17 @@ export interface OrganizationsCradle {
    * this module talks to VIES and Ministerstwo Finansów; the harness scripts
    * both, because no test may open that socket.
    */
-  readonly organizationsTaxIdClients: Pick<
-    ConstructorParameters<typeof OrganizationTaxIdValidationService>[0],
-    'vies' | 'mfPl'
-  >;
+  /**
+   * The two tax-ID adapters. **Both required**, unlike the service's own
+   * optional constructor fields: this module always registers a default pair
+   * and every composition that overrides them overrides both, so an optional
+   * type here would only be a way for `vatValidatorPort` to hand out
+   * `undefined` for a state no composition can produce (feature 076, D-86).
+   */
+  readonly organizationsTaxIdClients: {
+    readonly vies: VatValidator;
+    readonly mfPl: VatValidator;
+  };
   readonly organizationReadPort: OrganizationReadPort;
   readonly organizationRestrictionPort: OrganizationRestrictionService;
   readonly organizationTreeService: OrganizationTreeService;
@@ -258,6 +266,34 @@ export function registerModule(ctx: ModuleContext): void {
       return fallback;
     }
   };
+
+  /**
+   * The VAT-ID validator, published — feature 076, D-86.
+   *
+   * `customers` used to build its own `new ViesClient()` from an import of this
+   * module's `integrations/` directory, over a contribution point of its own.
+   * Its comment claimed the harness got "the same fake the organizations wiring
+   * gets… that coupling is now structural rather than a note" while the
+   * mechanism was two roots constructing two objects. Resolving one port makes
+   * it structural for real, and it is one contribution point fewer for a root
+   * to keep in step.
+   *
+   * It hands out whatever `organizationsTaxIdClients.vies` is, which is the
+   * contribution point the harness already overrides — so the fake reaches both
+   * consumers by construction rather than by two roots agreeing to pass it.
+   *
+   * The gate is unreachable, and that is fine: this module is
+   * `nonDeactivatable`, so the port reads `OWNER LOCKED`. The ruling fixes the
+   * ownership statement; the gate is not what was wrong.
+   */
+  ctx.di.providePort<VatValidator>(
+    'vatValidatorPort',
+    ctx
+      .asFunction(
+        ({ organizationsTaxIdClients }: OrganizationsCradle) => organizationsTaxIdClients.vies,
+      )
+      .singleton(),
+  );
 
   ctx.di.register({
     // Production contributes nothing and reaches the real registries.

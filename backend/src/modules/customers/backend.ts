@@ -7,6 +7,7 @@ import type {
   AuthSessionPort,
   CustomerAccountReadPort,
   CustomerAddressReadPort,
+  VatValidator,
 } from '@b2b/contracts';
 import { CustomerAddressReadService } from './services/customer-address-read-port.js';
 import type { ModuleContext } from '../../kernel/index.js';
@@ -16,7 +17,6 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { CUSTOMERS_SETTING_CODES } from './manifest.js';
-import { ViesClient } from '../organizations/integrations/vies-client.js';
 import { customersModule, type CustomersModuleOptions } from './plugin.js';
 
 /**
@@ -40,12 +40,15 @@ import { customersModule, type CustomersModuleOptions } from './plugin.js';
  * All three are read here now, through the settings port, against the resolved
  * system-default channel. Both compositions run the same code.
  *
- * **`vatValidator` is the `organizations` seam again**, and deliberately the
- * same shape: production defaults to the real `ViesClient`, the harness
- * contributes `FakeVatValidator`. The harness comment on the old call site said
- * it passes "the same fake the organizations wiring gets, rather than a second
- * one that answered differently for the same tax id" — that coupling is now
- * structural rather than a note.
+ * **The VAT validator is `organizations`' to supply** (feature 076, D-86).
+ * This module used to construct `new ViesClient()` from an import of that
+ * module's `integrations/` directory, over a contribution point of its own —
+ * a statement that `customers` knows how the platform talks to VIES. It does
+ * not. `organizations` publishes `vatValidatorPort` over the same object its
+ * own tax-ID service uses, so the fake a harness contributes reaches both
+ * consumers by construction rather than by two roots agreeing to pass it —
+ * which is what the note this paragraph replaces claimed and the mechanism did
+ * not deliver.
  *
  * Two names stay a composition's, both actor-shaped and both owned by `auth` in
  * principle: who the calling customer is, and who the moderating admin is. They
@@ -89,11 +92,6 @@ export interface CustomersCradle {
   readonly orderListServiceAccessor: () => ReturnType<
     CustomersModuleOptions['getOrderListService']
   > | null;
-  /**
-   * Contribution point: production talks to VIES, the harness scripts it —
-   * the same validator `organizations` gets, by construction.
-   */
-  readonly customersVatValidator: CustomersModuleOptions['vatValidator'];
   readonly customers: ReturnType<typeof customersModule>;
 }
 
@@ -152,11 +150,6 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   ctx.di.register({
-    // Production contributes nothing and reaches the real registry.
-    customersVatValidator: ctx
-      .asFunction((): CustomersCradle['customersVatValidator'] => new ViesClient())
-      .singleton(),
-
     customers: ctx
       .asFunction(
         ({ emFactory, commandBus, auditLogService }: CustomersCradle) =>
@@ -200,7 +193,10 @@ export function registerModule(ctx: ModuleContext): void {
               'organizationSalesRepScopePort',
             ),
             mailer: lazyPort<CustomersCradle['emailMailer']>(ctx, 'emailMailer'),
-            vatValidator: cradle().customersVatValidator,
+            // Feature 076 (D-86) — `organizations`' port, resolved lazily: the
+            // factory below is a singleton and stores what it is handed, and a
+            // captured gate keeps answering after its owner is switched off.
+            vatValidator: lazyPort<VatValidator>(ctx, 'vatValidatorPort'),
             storefrontBaseUrl: cradle().storefrontBaseUrl,
             requireAdmin: (permission) => async (req, reply) =>
               cradle().requireAdmin(permission)(req, reply),

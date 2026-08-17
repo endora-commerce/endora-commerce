@@ -26,9 +26,8 @@ import { CustomerPresenceService } from './services/customer-presence-service.js
 import { CartQueryService } from '../carts/services/cart-query-service.js';
 import { AnonymizationSweepWorker } from './workers/anonymization-sweep-worker.js';
 import type { PasswordResetService as PasswordResetServiceType } from '../customer_accounts/services/password-reset-service.js';
-import type { VatValidator } from '../organizations/services/vat-validator-port.js';
 import type { Mailer } from '../email/services/mailer.js';
-import type { AuthSessionPort, CustomerAccountReadPort } from '@b2b/contracts';
+import type { AuthSessionPort, CustomerAccountReadPort, VatValidator } from '@b2b/contracts';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
 import {
   registerCustomersSelfRoutes,
