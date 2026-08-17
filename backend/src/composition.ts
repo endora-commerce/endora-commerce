@@ -348,16 +348,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     };
   } => container.cradle as never;
 
-  // Feature 072 (T110) — the sales-channel cache invalidator subscribes to the
-  // EventBus, and `EventBus.dispatch` awaits its handlers in registration
-  // order, so composing it **before** the modules is the one ordering this root
-  // still has to get right (D-45).
+  // Where this call sits no longer decides whether a cache is fresh, and that
+  // is the point of D-93. It used to: the sales-channel cache invalidator
+  // subscribed to the EventBus, `EventBus.dispatch` awaits its handlers in
+  // registration order, and composing it before the modules was the one
+  // ordering this root still had to get right (D-45).
   //
-  // The settings cache used to be the second half of that sentence and is not
-  // any more (issue #45): its drop happens at the write seam inside
-  // `SettingsAdminService` and is awaited, so no registration order — and no
-  // buffered `EventBus.run` scope — can defer it past a read. The channel cache
-  // is the remaining one; draining it the same way is its own change.
+  // The settings cache stopped depending on it under issue #45 and the channel
+  // cache under D-93: both drops happen at the write seam, awaited after the
+  // flush and before the emit, so no registration order — and no buffered
+  // `EventBus.run` scope, which is what `CommandBus.run` opens around
+  // `sales_channel.set_default` — can defer one past a read.
   //
   // Channel *resolution* is kernel infrastructure for the reason T110 gave:
   // every channel-scoped read depends on it (Principle XII), so it must keep

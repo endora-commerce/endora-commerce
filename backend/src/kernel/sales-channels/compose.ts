@@ -3,13 +3,13 @@ import type { FastifyInstance } from 'fastify';
 import type Redis from 'ioredis';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit/audit-log-service.js';
-import { SalesChannelsCache } from './sales-channels-cache.js';
+import { inProcessCaches } from '../cache/in-process-cache-registry.js';
+import {
+  SALES_CHANNELS_CACHE_NAMESPACE,
+  SalesChannelsCache,
+} from './sales-channels-cache.js';
 import { SalesChannelResolverService } from './sales-channel-resolver.service.js';
 import { SalesChannelMembershipService } from './sales-channel-membership.service.js';
-import {
-  attachSalesChannelsCacheInvalidator,
-  type SalesChannelsCacheInvalidatorHandle,
-} from './sales-channels-cache-invalidator.js';
 import { registerSalesChannelResolverMiddleware } from './sales-channel-resolver.middleware.js';
 
 /**
@@ -44,8 +44,11 @@ export interface SalesChannelsKernel {
   readonly cache: SalesChannelsCache;
   readonly resolver: SalesChannelResolverService;
   readonly membershipService: SalesChannelMembershipService;
-  /** Released for tests; in production it lives until process exit. */
-  readonly cacheInvalidator: SalesChannelsCacheInvalidatorHandle;
+  /**
+   * Withdraws this process's cache from the operator-facing clear. Released
+   * for tests; in production it lives until process exit.
+   */
+  readonly cacheRegistration: { readonly dispose: () => void };
   /** The resolver middleware, mounted by the root and never module-gated. */
   readonly plugin: (app: FastifyInstance) => Promise<void>;
 }
@@ -60,13 +63,25 @@ export function composeSalesChannelsKernel(
     options.eventBus,
     options.auditLogService,
   );
-  const cacheInvalidator = attachSalesChannelsCacheInvalidator(options.eventBus, cache);
+  /**
+   * The one thing composing the cache still has to *do*: announce it to the
+   * operator-facing "clear cache" action (issue #33). The clear runs in this
+   * process and has to reach the object that owns both layers, or it drops the
+   * Redis keys while every warm process keeps serving — and re-pinning — the
+   * channel it had already resolved.
+   *
+   * It used to ride on `attachSalesChannelsCacheInvalidator`, which also
+   * subscribed to `sales_channels.identity_changed` and
+   * `sales_channels.lifecycle_changed`. Those subscriptions are gone (D-93);
+   * the registration is not, because it never had anything to do with the bus.
+   */
+  const unregister = inProcessCaches.register(SALES_CHANNELS_CACHE_NAMESPACE, cache);
 
   return {
     cache,
     resolver,
     membershipService,
-    cacheInvalidator,
+    cacheRegistration: { dispose: unregister },
     plugin: async (app) => {
       await registerSalesChannelResolverMiddleware(app, {
         resolver,

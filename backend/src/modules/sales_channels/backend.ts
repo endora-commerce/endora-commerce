@@ -7,7 +7,10 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelsCache } from '../../kernel/sales-channels/sales-channels-cache.js';
+import type {
+  SalesChannelsCache,
+  SalesChannelsCacheInvalidation,
+} from '../../kernel/sales-channels/sales-channels-cache.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import { SalesChannelsService } from './services/sales-channels.service.js';
 import type { AdminAuditContext } from './services/sales-channels.service.js';
@@ -63,7 +66,10 @@ export function registerModule(ctx: ModuleContext): void {
             auditLogService,
             // Both are resolved per call rather than captured: the cache is
             // composed by a root, and the validator is another module's port.
-            lazyPort<SalesChannelsCache>(ctx, 'salesChannelsCache'),
+            // Narrowed to the invalidating half (D-93): this service drops the
+            // cache at its write seam and must not be able to seed it, which is
+            // the resolver's job.
+            lazyPort<SalesChannelsCacheInvalidation>(ctx, 'salesChannelsCache'),
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
             // A deployment input, like `emFactory` and `eventBus` — not a port,
             // so it is captured with them.

@@ -14,7 +14,7 @@ import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js
 import type { CommandBus } from '../../../commands/command-bus.js';
 import type { EventBus } from '../../../events/bus.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { SalesChannelsCache } from '../../../kernel/sales-channels/sales-channels-cache.js';
+import type { SalesChannelsCacheInvalidation } from '../../../kernel/sales-channels/sales-channels-cache.js';
 import {
   makeSetSystemDefaultChannelCommand,
   type SetSystemDefaultChannelResult,
@@ -36,8 +36,18 @@ import {
  *
  * Every successful identity / lifecycle change writes one audit row
  * (`sales_channel.identity.changed` / `sales_channel.lifecycle.changed`)
- * synchronously and emits one EventBus event so the cache invalidator
- * (T012) drops stale entries.
+ * synchronously, **drops the channel cache**, and then emits one EventBus
+ * event.
+ *
+ * That order is the whole of D-93 (issue #160). The drop used to be a
+ * subscriber — `attachSalesChannelsCacheInvalidator` listened for those two
+ * events — which made cache freshness a property of the dispatch order rather
+ * than of the write: `dictionaries` subscribes to the same two names and its
+ * Redis SCAN has already been measured pushing the invalidator past a tick
+ * (#101), and an emission inside an `EventBus.run` scope is buffered until the
+ * scope ends, so a write and a read-back in one Command could not be helped by
+ * any registration order at all. The events stay — other modules want them —
+ * and they stop being how this cache learns about this service's own write.
  *
  * `setDefault` is the exception and the newer pattern: it is a Command
  * (feature 072 / D-51), so the Command Bus writes its audit row and buffers its
@@ -64,7 +74,12 @@ export class SalesChannelsService {
     private readonly emFactory: () => EntityManager,
     private readonly eventBus: EventBus,
     private readonly auditLogService?: AuditLogService,
-    private readonly cache?: SalesChannelsCache,
+    /**
+     * The invalidating half of the channel cache, narrowed to what a writer
+     * needs (D-93). A service that can only invalidate cannot seed the cache
+     * from the write path, which is the reader's job.
+     */
+    private readonly cache?: SalesChannelsCacheInvalidation,
     private readonly dictionaryValidator?: DictionaryValidator,
     /**
      * Used by `setDefault` only, which is a Command (Principle XIII) rather than
@@ -159,7 +174,7 @@ export class SalesChannelsService {
       action: 'created',
       after: this.snapshot(channel),
     });
-    this.emitIdentityChanged(channel.code);
+    await this.emitIdentityChanged(channel.code);
     return channel;
   }
 
@@ -299,7 +314,7 @@ export class SalesChannelsService {
       before,
       after: this.snapshot(channel),
     });
-    this.emitIdentityChanged(channel.code);
+    await this.emitIdentityChanged(channel.code);
     return channel;
   }
 
@@ -327,7 +342,7 @@ export class SalesChannelsService {
       action: 'deactivated',
       channelCode: channel.code,
     });
-    this.emitLifecycleChanged(channel.code);
+    await this.emitLifecycleChanged(channel.code);
     return channel;
   }
 
@@ -344,7 +359,7 @@ export class SalesChannelsService {
       action: 'activated',
       channelCode: channel.code,
     });
-    this.emitLifecycleChanged(channel.code);
+    await this.emitLifecycleChanged(channel.code);
     return channel;
   }
 
@@ -373,12 +388,21 @@ export class SalesChannelsService {
 
     const result = await this.commandBus.run(makeSetSystemDefaultChannelCommand(channel.id));
 
-    // The Command emits `lifecycle_changed{invalidateAll}` on commit, which is
-    // what a running platform invalidates through. This second drop is the same
-    // belt-and-braces the delete path applies for the same reason: two rows
-    // changed, the cached value carries `systemDefault` inside it, and a stale
-    // entry here is a storefront resolving against the wrong default.
-    if (result.changed && this.cache) await this.cache.invalidateAll();
+    // D-93 — this is the flag move's drop, not a second one: the Command's
+    // `lifecycle_changed{invalidateAll}` event is now an announcement to other
+    // modules and invalidates nothing. Two rows changed and the cached value
+    // carries `systemDefault` inside it, so the demoted channel's entry is
+    // stale too; `invalidateAll` is the cheapest correct answer.
+    //
+    // It sits **here**, after `CommandBus.run` has returned, rather than inside
+    // the Command's `run` where it would precede the buffered event. The
+    // ordering the other writers get — drop, then announce — is worth less than
+    // the one this position buys: the drop happens after the transaction has
+    // committed, so a concurrent read cannot resolve the pre-commit row from
+    // Postgres and re-pin it into a cache that has just been emptied. That is
+    // the same "after the flush" rule `SettingsAdminService` states at its own
+    // write seam, and nothing reads this cache inside the Command.
+    if (result.changed) await this.cache?.invalidateAllAfterWrite();
     return result;
   }
 
@@ -444,8 +468,7 @@ export class SalesChannelsService {
       channelCode: channel.code,
       rebindCount: orphans.length,
     });
-    this.emitLifecycleChanged(channel.code, /*invalidateAll=*/ true);
-    if (this.cache) await this.cache.invalidateAll();
+    await this.emitLifecycleChanged(channel.code, /*invalidateAll=*/ true);
   }
 
   // -------------------------------------------------------------------------
@@ -705,7 +728,19 @@ export class SalesChannelsService {
     });
   }
 
-  private emitIdentityChanged(channelCode: string): void {
+  /**
+   * Drop the cache, then announce (D-93).
+   *
+   * The drop runs **after the flush**, so a concurrent read cannot re-pin the
+   * pre-commit row, and **before the emit**, so every subscriber re-reads
+   * post-invalidation state. The count is deliberately unread:
+   * `invalidateAfterWrite` answers `null` for an unreachable shared layer, and
+   * the row is written and audited by the time we are here, so there is nothing
+   * this method could truthfully do with it. Reads stay correct meanwhile — the
+   * cache bypasses the marked prefix until a later drop succeeds.
+   */
+  private async emitIdentityChanged(channelCode: string): Promise<void> {
+    await this.cache?.invalidateAfterWrite(channelCode);
     this.eventBus.emit('sales_channels.identity_changed', {
       eventId: `sales_channels.identity_changed:${channelCode}:${Date.now()}`,
       occurredAt: new Date().toISOString(),
@@ -713,7 +748,14 @@ export class SalesChannelsService {
     } as never);
   }
 
-  private emitLifecycleChanged(channelCode: string, invalidateAll = false): void {
+  /** Same seam as {@link emitIdentityChanged}; see its comment for the ordering. */
+  private async emitLifecycleChanged(channelCode: string, invalidateAll = false): Promise<void> {
+    // `invalidateAll` is the caller saying more than one channel's cached state
+    // moved — a delete that rebinds orphans, or a flag move — and the cached
+    // value carries `systemDefault` inside it, so the other channel's entry is
+    // stale too.
+    if (invalidateAll) await this.cache?.invalidateAllAfterWrite();
+    else await this.cache?.invalidateAfterWrite(channelCode);
     this.eventBus.emit('sales_channels.lifecycle_changed', {
       eventId: `sales_channels.lifecycle_changed:${channelCode}:${Date.now()}`,
       occurredAt: new Date().toISOString(),
