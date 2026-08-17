@@ -1,10 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import { MFA_SETTING_CODES } from '@b2b/contracts';
-import type {
-  MfaLoginContext,
-  MfaSubjectRef,
-} from '../../auth/services/mfa-login-port.js';
+import type { MfaLoginContext, MfaSubjectRef } from '@b2b/contracts';
 import { MfaOrganizationPolicy } from '../entities/mfa-organization-policy.entity.js';
 
 /**

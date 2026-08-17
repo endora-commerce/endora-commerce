@@ -4,8 +4,8 @@ import {
   mfaDisableRequestSchema,
   mfaRegenerateRequestSchema,
 } from '@b2b/contracts';
+import type { MfaSubjectRef } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import type { MfaSubjectRef } from '../auth/services/mfa-login-port.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';

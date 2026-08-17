@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { randomBytes } from 'crypto';
-import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
-import type { SessionService } from '../auth/services/session-service.js';
+import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '@b2b/contracts';
+import type { AuthSessionPort } from '@b2b/contracts';
 import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { ChallengeStore } from './services/challenge-store.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
@@ -23,7 +23,7 @@ export interface MfaOAuthDeps {
   challengeStore: ChallengeStore;
   policyResolver: MfaPolicyResolver;
   socialIdentityService: SocialIdentityService;
-  sessionService: SessionService;
+  sessionService: AuthSessionPort;
   /** Public base URL of the backend (for the provider redirect_uri). */
   backendBaseUrl: string;
   storefrontBaseUrl: string;
