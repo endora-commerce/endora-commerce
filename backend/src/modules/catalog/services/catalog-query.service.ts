@@ -11,16 +11,18 @@ import { GalleryItem } from '../entities/gallery-item.entity.js';
 import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';
 import { ProductAttachment } from '../entities/product-attachment.entity.js';
 import { AttachmentType } from '../entities/attachment-type.entity.js';
-import { Asset } from '../../assets_library/entities/asset.entity.js';
 import type { ProductLinkService } from './product-link.service.js';
 import type { DefinitionSource } from '../../custom_fields/services/custom-field-value.service.js';
 import { GroupedItem } from '../entities/grouped-item.entity.js';
 import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.js';
 import { BundleSlot } from '../entities/bundle-slot.entity.js';
 import { BundleSlotOption } from '../entities/bundle-slot-option.entity.js';
+import { resolvePrimaryAssetUrls } from './primary-asset-url.js';
 import {
   ERROR_CODES,
   listingPriceMoney,
+  type AssetReadPort,
+  type AssetRecord,
   type CategoryNode,
   type FilterDefinition,
   type ListingPrice,
@@ -136,7 +138,27 @@ export class CatalogQueryService {
      * own "nothing applies" answer and is rendered as an absence.
      */
     private readonly listingPrices?: ListingPricePort,
+    /**
+     * Feature 075 — `assets_library`'s read port, where six raw
+     * `join assets a on a.id = …` clauses and an `em.find(Asset, …)` used to
+     * be. The bridge rows are still this module's; only the asset row is asked
+     * of its owner.
+     *
+     * Optional only in the signature, for the same reason the two above are:
+     * a fixture that renders no image never reaches it. A PDP that does and
+     * finds it unwired fails loudly rather than silently dropping every image.
+     */
+    private readonly assets?: AssetReadPort,
   ) {}
+
+  #requireAssets(): AssetReadPort {
+    if (!this.assets) {
+      throw new Error(
+        'CatalogQueryService: the asset read port is not wired — product images are unavailable.',
+      );
+    }
+    return this.assets;
+  }
 
   #requireAttributeRead(): CatalogAttributeReadService {
     if (!this.attributeRead) {
@@ -366,7 +388,7 @@ export class CatalogQueryService {
       [product.id],
     );
     const assetIds = assetRows.map((r) => r.asset_id);
-    const assets = await em.find(Asset, { id: { $in: assetIds } });
+    const assets = await this.#requireAssets().findByIds(assetIds);
 
     // Variants
     const variants = product.type === 'configurable' ? await em.find(ProductVariant, { parentProductId: product.id }) : [];
@@ -387,9 +409,9 @@ export class CatalogQueryService {
       { orderBy: { position: 'asc', id: 'asc' } },
     );
     const galleryAssetIds = galleryItems.map((g) => g.assetId);
-    const galleryAssetsById = new Map<string, Asset>();
+    const galleryAssetsById = new Map<string, AssetRecord>();
     if (galleryAssetIds.length > 0) {
-      const galleryAssets = await em.find(Asset, { id: { $in: galleryAssetIds } });
+      const galleryAssets = await this.#requireAssets().findByIds(galleryAssetIds);
       for (const a of galleryAssets) galleryAssetsById.set(a.id, a);
     }
     const galleryLabels = galleryItems.length > 0
@@ -415,9 +437,9 @@ export class CatalogQueryService {
       for (const t of types) attachmentTypesById.set(t.id, t);
     }
     const attachmentAssetIds = [...new Set(attachmentRows.map((a) => a.assetId))];
-    const attachmentAssetsById = new Map<string, Asset>();
+    const attachmentAssetsById = new Map<string, AssetRecord>();
     if (attachmentAssetIds.length > 0) {
-      const aAssets = await em.find(Asset, { id: { $in: attachmentAssetIds } });
+      const aAssets = await this.#requireAssets().findByIds(attachmentAssetIds);
       for (const a of aAssets) attachmentAssetsById.set(a.id, a);
     }
 
@@ -707,59 +729,10 @@ export class CatalogQueryService {
     if (ids.length === 0) return result;
     const products = await em.find(Product, { id: { $in: ids } });
 
-    // Primary asset url via gallery thumb chain → base_image → first item
-    // → legacy product_assets first row (mirrors toSummary).
-    const galleryRows = await em.getConnection().execute<{
-      product_id: string;
-      storage_url: string;
-      label: string | null;
-      position: number;
-    }[]>(
-      `select gi.product_id, a.storage_url, gil.label, gi.position
-         from gallery_items gi
-         join assets a on a.id = gi.asset_id
-         left join gallery_item_labels gil on gil.gallery_item_id = gi.id
-         where gi.product_id in (${ids.map(() => '?').join(',')})
-         order by gi.product_id, gi.position asc, gi.id asc`,
-      ids,
-    );
-    const galleryByProduct = new Map<string, typeof galleryRows>();
-    for (const row of galleryRows) {
-      const list = galleryByProduct.get(row.product_id) ?? [];
-      list.push(row);
-      galleryByProduct.set(row.product_id, list);
-    }
-    const assetUrlByProduct = new Map<string, string | null>();
-    for (const id of ids) {
-      const gallery = galleryByProduct.get(id) ?? [];
-      const findByLabel = (label: string): string | null =>
-        gallery.find((r) => r.label === label)?.storage_url ?? null;
-      const url =
-        findByLabel('thumbnail') ??
-        findByLabel('base_image') ??
-        gallery[0]?.storage_url ??
-        null;
-      assetUrlByProduct.set(id, url);
-    }
-    const missing = ids.filter((id) => !assetUrlByProduct.get(id));
-    if (missing.length > 0) {
-      const legacy = await em.getConnection().execute<{
-        product_id: string;
-        storage_url: string;
-      }[]>(
-        `select pa.product_id, a.storage_url
-           from product_assets pa join assets a on a.id = pa.asset_id
-           where pa.product_id in (${missing.map(() => '?').join(',')})
-           order by pa.product_id, pa.position asc`,
-        missing,
-      );
-      const seen = new Set<string>();
-      for (const row of legacy) {
-        if (seen.has(row.product_id)) continue;
-        seen.add(row.product_id);
-        assetUrlByProduct.set(row.product_id, row.storage_url);
-      }
-    }
+    // Primary asset url via gallery thumb chain -> base_image -> first item
+    // -> legacy product_assets first row. One helper, shared with `toSummary`
+    // and `ProductLinkService`, so the chain and the port call have one home.
+    const assetUrlByProduct = await resolvePrimaryAssetUrls(em, this.#requireAssets(), ids);
 
     const resolvedPrices = await this.#listingPricesFor(products, channel);
     for (const p of products) {
@@ -1356,34 +1329,9 @@ export class CatalogQueryService {
     // Primary asset — for listings prefer the gallery's Thumbnail (US3),
     // then Base Image, then any first gallery item, finally the legacy
     // product_assets row. Resolution chain pinned by T096.
-    const galleryRows = await em.getConnection().execute<{
-      storage_url: string;
-      label: string | null;
-      position: number;
-    }[]>(
-      `select a.storage_url, gil.label, gi.position
-         from gallery_items gi
-         join assets a on a.id = gi.asset_id
-         left join gallery_item_labels gil on gil.gallery_item_id = gi.id
-         where gi.product_id = ?
-         order by gi.position asc, gi.id asc`,
-      [product.id],
-    );
-    let primaryAssetUrl: string | null = null;
-    const findByLabel = (label: string): string | null =>
-      galleryRows.find((r) => r.label === label)?.storage_url ?? null;
-    primaryAssetUrl =
-      findByLabel('thumbnail') ??
-      findByLabel('base_image') ??
-      galleryRows[0]?.storage_url ??
+    const primaryAssetUrl =
+      (await resolvePrimaryAssetUrls(em, this.#requireAssets(), [product.id])).get(product.id) ??
       null;
-    if (!primaryAssetUrl) {
-      const primary = await em.getConnection().execute<{ storage_url: string }[]>(
-        `select a.storage_url from product_assets pa join assets a on a.id = pa.asset_id where pa.product_id = ? order by pa.position asc limit 1`,
-        [product.id],
-      );
-      primaryAssetUrl = primary[0]?.storage_url ?? null;
-    }
 
     // Category slugs
     const catRows = await em.getConnection().execute<{ slug: string }[]>(

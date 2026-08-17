@@ -16,6 +16,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 
 import {
   ERROR_CODES,
+  type AssetReadPort,
   type GalleryItem as GalleryItemDto,
   type GalleryLabel,
   type CreateGalleryItemRequest,
@@ -24,7 +25,6 @@ import {
 
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CommandBus } from '../../../commands/index.js';
-import { Asset } from '../../assets_library/entities/asset.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { GalleryItem } from '../entities/gallery-item.entity.js';
 import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';
@@ -46,7 +46,23 @@ export class GalleryService {
     private readonly emFactory: () => EntityManager,
     /** Feature 054 — audits gallery-item writes co-transactionally when provided. */
     private readonly commandBus?: CommandBus,
+    /**
+     * Feature 075 — `assets_library`'s read port, where `em.findOne(Asset, …)`
+     * used to be. It backs the kind check below, so with `assets_library` off
+     * the port fails closed and a gallery item pointing at an unverifiable
+     * asset is refused rather than stored.
+     */
+    private readonly assets?: AssetReadPort,
   ) {}
+
+  #requireAssets(): AssetReadPort {
+    if (!this.assets) {
+      throw new Error(
+        'GalleryService: the asset read port is not wired — a gallery item cannot be verified.',
+      );
+    }
+    return this.assets;
+  }
 
   /**
    * Feature 054 — run a gallery-item write through the Command Bus. The item +
@@ -85,7 +101,7 @@ export class GalleryService {
     const em0 = this.emFactory();
     await this.#assertProductExists(em0, productId);
 
-    const asset = await em0.findOne(Asset, { id: req.assetId });
+    const asset = await this.#requireAssets().findById(req.assetId);
     if (!asset) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Asset ${req.assetId} not found.`);
     }

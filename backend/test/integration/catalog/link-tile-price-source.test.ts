@@ -33,7 +33,7 @@ describe('product link tile price source (#132)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    svc = new ProductLinkService(() => h.em(), undefined, h.pricingService);
+    svc = new ProductLinkService(() => h.em(), undefined, h.pricingService, h.assetRead);
     const def = await h.salesChannels.resolver.getSystemDefault();
     channelId = def.id;
     channelCode = def.code;

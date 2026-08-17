@@ -6,7 +6,11 @@ import type {
   CustomFieldValueService,
   DefinitionSource,
 } from '../custom_fields/services/custom-field-value.service.js';
-import { BULK_OPERATION_TYPES, type SearchQueryPort } from '@b2b/contracts';
+import {
+  BULK_OPERATION_TYPES,
+  type AssetReadPort,
+  type SearchQueryPort,
+} from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
@@ -212,6 +216,15 @@ export interface CatalogModuleOptions {
    * degrade to Postgres by decision, not by exception.
    */
   searchQueryService?: SearchQueryPort;
+
+  /**
+   * Feature 075 — `assets_library`'s read port. Every service below that shows
+   * or verifies an image takes it: the gallery and attachment writers check the
+   * asset's `kind` before storing a reference to it, and the storefront reads
+   * resolve the primary image URL through it. It replaces four
+   * `em.findOne/find(Asset, …)` calls and six raw `join assets` clauses.
+   */
+  assets?: AssetReadPort;
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
@@ -220,6 +233,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.emFactory,
       options.commandBus,
       options.pricingService,
+      options.assets,
     );
     // Feature 061 — the composed attribute read model (definitions from the
     // custom_fields cache + catalog extension rows). Constructed once and
@@ -235,6 +249,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.customFieldDefinitions,
       attributeReadService,
       options.pricingService,
+      options.assets,
     );
     const adminService = new CatalogAdminService(
       options.emFactory,
@@ -323,13 +338,22 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.commandBus,
       attributeReadService,
     );
-    const galleryService = new GalleryService(options.emFactory, options.commandBus);
-    const attachmentService = new AttachmentService(options.emFactory, options.commandBus);
+    const galleryService = new GalleryService(
+      options.emFactory,
+      options.commandBus,
+      options.assets,
+    );
+    const attachmentService = new AttachmentService(
+      options.emFactory,
+      options.commandBus,
+      options.assets,
+    );
     const packagingUnitService = new PackagingUnitService(options.emFactory, options.commandBus);
     const productLinkService = new ProductLinkService(
       options.emFactory,
       options.commandBus,
       options.pricingService,
+      options.assets,
     );
     const groupedService = new GroupedService(options.emFactory, options.commandBus);
     const bundleService = new BundleService(options.emFactory, options.commandBus);

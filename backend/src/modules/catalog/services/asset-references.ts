@@ -7,14 +7,14 @@
 // "in use by" dialog.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AssetReference } from '@b2b/contracts';
 import type {
+  AssetReference,
   AssetReferenceDescriptor,
-  AssetReferenceRegistry,
-} from '../../assets_library/services/reference-registry.js';
+  AssetReferenceRegistryPort,
+} from '@b2b/contracts';
 
 export function registerCatalogAssetReferences(
-  registry: AssetReferenceRegistry,
+  registry: AssetReferenceRegistryPort,
   emFactory: () => EntityManager,
 ): void {
   const descriptors: AssetReferenceDescriptor[] = [

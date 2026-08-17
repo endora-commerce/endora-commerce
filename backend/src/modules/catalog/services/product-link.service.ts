@@ -1,11 +1,16 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 
-import { ERROR_CODES, listingPriceMoney, type ListingPricePort } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  listingPriceMoney,
+  type AssetReadPort,
+  type ListingPricePort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CommandBus } from '../../../commands/index.js';
-import { Asset } from '../../assets_library/entities/asset.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink, type ProductLinkKind } from '../entities/product-link.entity.js';
+import { resolvePrimaryAssetUrls } from './primary-asset-url.js';
 interface StorefrontContext {
   /**
    * The request's resolved sales channel (feature 053 / FR-002). Always
@@ -89,7 +94,23 @@ export class ProductLinkService {
      * catalogue grid, not off the catalogue's legacy default-price attribute.
      */
     private readonly listingPrices?: ListingPricePort,
+    /**
+     * Feature 075 — `assets_library`'s read port. The two `join assets` clauses
+     * this service used to write are gone; the tile's image is resolved by the
+     * shared `resolvePrimaryAssetUrls` helper, which asks the owner for the
+     * asset row and keeps the bridge query on this module's own tables.
+     */
+    private readonly assets?: AssetReadPort,
   ) {}
+
+  #requireAssets(): AssetReadPort {
+    if (!this.assets) {
+      throw new Error(
+        'ProductLinkService: the asset read port is not wired — link tiles cannot show an image.',
+      );
+    }
+    return this.assets;
+  }
 
   #requireListingPrices(): ListingPricePort {
     if (!this.listingPrices) {
@@ -297,63 +318,14 @@ export class ProductLinkService {
       visibleIds = new Set<string>();
     }
 
-    // Primary asset urls (gallery thumb chain reused via product_assets fallback)
-    const assetUrlByProductId = new Map<string, string | null>();
-    for (const id of targetIds) assetUrlByProductId.set(id, null);
-    if (targetIds.length > 0) {
-      const galleryRows = await em.getConnection().execute<{
-        product_id: string;
-        storage_url: string;
-        label: string | null;
-        position: number;
-      }[]>(
-        `select gi.product_id, a.storage_url, gil.label, gi.position
-           from gallery_items gi
-           join assets a on a.id = gi.asset_id
-           left join gallery_item_labels gil on gil.gallery_item_id = gi.id
-           where gi.product_id in (${targetIds.map(() => '?').join(',')})
-           order by gi.product_id, gi.position asc, gi.id asc`,
-        targetIds,
-      );
-      const byProduct = new Map<string, typeof galleryRows>();
-      for (const row of galleryRows) {
-        const list = byProduct.get(row.product_id) ?? [];
-        list.push(row);
-        byProduct.set(row.product_id, list);
-      }
-      for (const [pid, gallery] of byProduct.entries()) {
-        const findByLabel = (label: string): string | null =>
-          gallery.find((r) => r.label === label)?.storage_url ?? null;
-        const url =
-          findByLabel('thumbnail') ??
-          findByLabel('base_image') ??
-          gallery[0]?.storage_url ??
-          null;
-        assetUrlByProductId.set(pid, url);
-      }
-      // Legacy product_assets fallback for any product without gallery rows.
-      const missing = targetIds.filter((id) => !byProduct.has(id));
-      if (missing.length > 0) {
-        const legacy = await em.getConnection().execute<{
-          product_id: string;
-          storage_url: string;
-        }[]>(
-          `select pa.product_id, a.storage_url
-             from product_assets pa join assets a on a.id = pa.asset_id
-             where pa.product_id in (${missing.map(() => '?').join(',')})
-             order by pa.product_id, pa.position asc`,
-          missing,
-        );
-        const seen = new Set<string>();
-        for (const row of legacy) {
-          if (seen.has(row.product_id)) continue;
-          seen.add(row.product_id);
-          assetUrlByProductId.set(row.product_id, row.storage_url);
-        }
-      }
-    }
-
-    void Asset; // imported for side-effect parity with other catalog services
+    // Primary asset urls: the gallery thumb chain, with the legacy
+    // `product_assets` fallback. Shared with `CatalogQueryService` so the chain
+    // and the `assets_library` port call have one home.
+    const assetUrlByProductId = await resolvePrimaryAssetUrls(
+      em,
+      this.#requireAssets(),
+      targetIds,
+    );
 
     // Sales-channel public flag controls price visibility (R-18), read off the
     // resolved channel handed in by the route. A channel that withholds prices

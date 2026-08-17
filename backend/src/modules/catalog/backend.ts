@@ -3,6 +3,8 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import { ERROR_CODES, type ListingPricePort } from '@b2b/contracts';
 import type {
+  AssetReadPort,
+  AssetReferenceRegistryPort,
   CatalogAttachmentPort,
   CatalogAttributeReadPort,
   CatalogAttributeSetPort,
@@ -63,7 +65,6 @@ import {
   catalogPromptResolverTools,
   type CatalogPromptToolsDeps,
 } from './prompt-tools.js';
-import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
 
 /**
  * `catalog` — seven services each composition built **twice** (feature 072,
@@ -146,8 +147,13 @@ export interface CatalogCradle {
   /**
    * Owned by `assets_library`: the registry that refuses to delete an asset a
    * product gallery, attachment, virtual download or category image points at.
+   *
+   * Typed as the published contract since feature 075 — an ungated
+   * `ctx.di.register` on the owner's side (D-39), so this stays a plain cradle
+   * read rather than a `lazyPort`, and the shape crossing the boundary is a
+   * `@b2b/contracts` interface rather than `assets_library`'s class.
    */
-  readonly assetReferenceRegistry: AssetReferenceRegistry;
+  readonly assetReferenceRegistry: AssetReferenceRegistryPort;
   /**
    * Owned by `prompt_actions`: the assistant's tool catalogue. An ungated
    * registration this module pushes into once, from a boot hook — declared as a
@@ -296,6 +302,13 @@ export function registerModule(ctx: ModuleContext): void {
             // gate at all. Whether the listing uses it is still decided before
             // the call by `effectiveState.isPresent('search')`.
             searchQueryService: lazyPort<SearchQueryPort>(ctx, 'searchQueryPort'),
+            // Feature 075 — `assets_library`'s read port. It fails closed, which
+            // is right for both of its uses: an attach that cannot verify the
+            // asset would store a dangling id, and a listing that cannot read
+            // the asset row has no image URL to render. The module declares
+            // `assets_library` in `dependencies`, so an operator cannot switch
+            // it off underneath this.
+            assets: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
             requireAdmin: (permission) => async (req, reply) =>
               cradle().requireAdmin(permission)(req, reply),
             requireApiKey: requireApiKeyGate,
@@ -470,6 +483,7 @@ export function registerModule(ctx: ModuleContext): void {
             undefined,
             lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort'),
             lazyPort<ListingPricePort>(ctx, 'pricingService'),
+            lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
           ),
       )
       .singleton(),
@@ -533,7 +547,12 @@ export function registerModule(ctx: ModuleContext): void {
     'galleryService',
     ctx
       .asFunction(
-        ({ emFactory, commandBus }: CatalogCradle) => new GalleryService(emFactory, commandBus),
+        ({ emFactory, commandBus }: CatalogCradle) =>
+          new GalleryService(
+            emFactory,
+            commandBus,
+            lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+          ),
       )
       .singleton(),
   );
@@ -542,7 +561,12 @@ export function registerModule(ctx: ModuleContext): void {
     'attachmentService',
     ctx
       .asFunction(
-        ({ emFactory, commandBus }: CatalogCradle) => new AttachmentService(emFactory, commandBus),
+        ({ emFactory, commandBus }: CatalogCradle) =>
+          new AttachmentService(
+            emFactory,
+            commandBus,
+            lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+          ),
       )
       .singleton(),
   );
@@ -556,6 +580,7 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             commandBus,
             lazyPort<ListingPricePort>(ctx, 'pricingService'),
+            lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
           ),
       )
       .singleton(),

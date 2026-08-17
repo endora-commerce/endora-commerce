@@ -17,8 +17,6 @@
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/catalog/backend.ts:assets_library/services/reference-registry':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/commands/attribute-commands.ts:custom_fields/services/custom-field-definition.service':
     {
       permanent: true,
@@ -55,10 +53,6 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/plugin.ts:price_lists/services/pricing-service.interface':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/services/asset-references.ts:assets_library/services/reference-registry':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/services/attachment.service.ts:assets_library/entities/asset.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/bulk-operation.service.ts:admin_users/entities/admin-user.entity':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/bulk-operation.service.ts:email/services/mailer':
@@ -73,15 +67,9 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/catalog-org-price-decorator.ts:price_lists/services/pricing-service.interface':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/services/catalog-query.service.ts:assets_library/entities/asset.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/catalog-query.service.ts:custom_fields/services/custom-field-value.service':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/category-admin.service.ts:custom_fields/services/custom-field-value.service':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/services/gallery.service.ts:assets_library/entities/asset.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/services/product-link.service.ts:assets_library/entities/asset.entity':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/product-scope-context.service.ts:languages/services/language-service':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',

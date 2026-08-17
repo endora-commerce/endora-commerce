@@ -161,6 +161,7 @@ import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js
 import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { z } from 'zod';
 import type { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
+import type { AssetReadPort } from '@b2b/contracts';
 import type { PricingServiceContract } from '../../src/modules/price_lists/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
@@ -369,6 +370,13 @@ export interface BackendServerHandle {
    * same engine the composed modules do.
    */
   pricingService: PricingServiceContract;
+  /**
+   * `assets_library`'s read port, for fixtures that construct a catalogue
+   * listing or link service by hand (feature 075). Read off the container for
+   * the same reason `pricingService` is: a fixture resolves the instance the
+   * composed module resolves, not a second one built beside it.
+   */
+  assetRead: AssetReadPort;
   /** Feature 026 — moderation lifecycle, admin notifications, org context. */
   organizations: {
     moderationService: OrganizationModerationService;
@@ -2564,6 +2572,12 @@ export async function setupBackendServer(
     get pricingService(): PricingServiceContract {
       return (container.cradle as never as { pricingService: PricingServiceContract })
         .pricingService;
+    },
+    // Feature 075 — the asset read port the catalogue's image resolution goes
+    // through. A getter, not a captured value: the registration is gated, so
+    // holding it would be holding a gate that keeps answering.
+    get assetRead(): AssetReadPort {
+      return (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
     },
     // Feature 072 (T138) — read off the container rather than off a handle the
     // module block used to fill in. The `?? null as unknown as …` fallbacks are

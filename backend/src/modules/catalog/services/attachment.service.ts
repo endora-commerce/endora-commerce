@@ -15,6 +15,7 @@ import { UniqueConstraintViolationException } from '@mikro-orm/core';
 
 import {
   ERROR_CODES,
+  type AssetReadPort,
   type AttachmentType as AttachmentTypeDto,
   type CreateAttachmentTypeRequest,
   type UpdateAttachmentTypeRequest,
@@ -25,7 +26,6 @@ import {
 
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CommandBus } from '../../../commands/index.js';
-import { Asset } from '../../assets_library/entities/asset.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { AttachmentType } from '../entities/attachment-type.entity.js';
 import { ProductAttachment } from '../entities/product-attachment.entity.js';
@@ -37,7 +37,23 @@ export class AttachmentService {
     private readonly emFactory: () => EntityManager,
     /** Feature 054 — audits attachment writes co-transactionally when provided. */
     private readonly commandBus?: CommandBus,
+    /**
+     * Feature 075 — `assets_library`'s read port, where `em.findOne(Asset, …)`
+     * used to be. The check below is the reason this read exists: an attach
+     * that cannot verify the asset would store a dangling id, so with
+     * `assets_library` off the port fails closed and the attach is refused.
+     */
+    private readonly assets?: AssetReadPort,
   ) {}
+
+  #requireAssets(): AssetReadPort {
+    if (!this.assets) {
+      throw new Error(
+        'AttachmentService: the asset read port is not wired — an attachment cannot be verified.',
+      );
+    }
+    return this.assets;
+  }
 
   /** Feature 054 — run an attachment write through the Command Bus. */
   async #audited<T>(
@@ -211,7 +227,7 @@ export class AttachmentService {
     const em = this.emFactory();
     await this.#assertProductExists(em, productId);
 
-    const asset = await em.findOne(Asset, { id: req.assetId });
+    const asset = await this.#requireAssets().findById(req.assetId);
     if (!asset) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Asset ${req.assetId} not found.`);
     }
