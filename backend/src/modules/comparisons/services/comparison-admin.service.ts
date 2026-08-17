@@ -3,8 +3,9 @@ import type {
   ComparisonAdminDetail,
   ComparisonAdminListItem,
   ComparisonAdminListQuery,
+  CustomerAccountReadPort,
+  CustomerAccountRecord,
 } from '@b2b/contracts';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Comparison } from '../entities/comparison.entity.js';
 import {
@@ -20,11 +21,18 @@ import {
  *
  * No mutation methods (spec FR-022). When operational tooling demands
  * a force-delete in the future, that is a separate spec.
+ *
+ * The owner column shows a customer's e-mail address, which is
+ * `customer_accounts`' row and not this module's. Feature 075 (Phase C)
+ * replaced the `em.find(CustomerAccount, …)` that used to fetch it with that
+ * module's read port, so an admin screen cannot report identities out of a
+ * module the operator has switched off.
  */
 export class ComparisonAdminService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly comparisonService: ComparisonService,
+    private readonly customerAccounts: CustomerAccountReadPort,
   ) {}
 
   // ------------------------------------------------------------------
@@ -92,7 +100,7 @@ export class ComparisonAdminService {
         ? em.find(SalesChannel, { id: { $in: channelIds } })
         : Promise.resolve([]),
       customerIds.length > 0
-        ? em.find(CustomerAccount, { id: { $in: customerIds } })
+        ? this.customerAccounts.findByIds(customerIds)
         : Promise.resolve([]),
     ]);
     const channelById = new Map(channels.map((c) => [c.id, c]));
@@ -153,9 +161,9 @@ export class ComparisonAdminService {
 
     const channel = await em.findOne(SalesChannel, { id: comparison.salesChannelId });
     const customer = comparison.customerAccountId
-      ? await em.findOne(CustomerAccount, { id: comparison.customerAccountId })
+      ? await this.customerAccounts.findById(comparison.customerAccountId)
       : null;
-    const customerById = new Map<string, CustomerAccount>(
+    const customerById = new Map<string, CustomerAccountRecord>(
       customer ? [[customer.id, customer]] : [],
     );
 
@@ -186,7 +194,7 @@ function unique<T>(arr: T[]): T[] {
 
 function ownerMetadata(
   c: Comparison,
-  customerById: Map<string, CustomerAccount>,
+  customerById: Map<string, CustomerAccountRecord>,
 ): { kind: 'customer' | 'anonymous'; customerAccountId: string | null; email: string | null; anonymousToken: string | null } {
   if (c.customerAccountId) {
     const customer = customerById.get(c.customerAccountId);

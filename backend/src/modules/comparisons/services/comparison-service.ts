@@ -2,14 +2,14 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import {
   listingPriceMoney,
+  type CatalogAttributeReadPort,
+  type CatalogProductReadPort,
   type ComparisonOwnerView,
   type ComparisonDisplayMode,
   type ListingPrice,
   type ListingPricePort,
 } from '@b2b/contracts';
-import { Product } from '../../catalog/entities/product.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
 import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { Comparison } from '../entities/comparison.entity.js';
 import { ComparisonProduct } from '../entities/comparison-product.entity.js';
@@ -23,10 +23,13 @@ import {
 /**
  * ComparisonService — feature 007 / T023 + T024.
  *
- * Stateful service owning the Comparison resource. Cross-module reads go
- * through the documented service port {@link CatalogAttributeReadService} and
- * {@link SettingsService}; no entity imports from another module's
- * internals (Constitution I).
+ * Stateful service owning the Comparison resource. Every cross-module read
+ * goes through a published port — {@link CatalogProductReadPort},
+ * {@link CatalogAttributeReadPort}, {@link ListingPricePort} and
+ * {@link SettingsService}. The products a comparison holds are `catalog`'s
+ * rows, not this module's: reading them with `em.find(Product, …)` was a query
+ * nothing could gate, so a comparison kept resolving names and availability
+ * out of a module an operator had switched off (feature 075, Phase C).
  *
  * Behaviour summary (per `data-model.md`, `research.md`, and
  * `contracts/public-comparisons-crud.md`):
@@ -56,6 +59,13 @@ export class ComparisonService {
     private readonly projection: ComparableAttributeProjection,
     private readonly tokens: ShareTokenGenerator,
     /**
+     * `catalog`'s product read model. Not optional: a comparison is a list of
+     * products, so a service that cannot read one has nothing to answer with —
+     * where the settings and pricing arguments below have a defined fallback,
+     * this has none.
+     */
+    private readonly catalogProducts: CatalogProductReadPort,
+    /**
      * Optional settings service. When undefined, `compare.max_products`
      * defaults to {@link DEFAULT_COMPARE_MAX_PRODUCTS} on every call —
      * useful for foundation tests that pre-date Settings wiring.
@@ -65,7 +75,7 @@ export class ComparisonService {
      * Feature 061 — the catalog's composed attribute read model (Principle I:
      * replaces the former direct `ProductAttribute` entity find).
      */
-    private readonly catalogAttributes?: CatalogAttributeReadService,
+    private readonly catalogAttributes?: CatalogAttributeReadPort,
     /**
      * Issue #132 — the pricing engine, through the `pricingService` port. A
      * comparison exists so a buyer can put prices side by side, so the figures
@@ -159,7 +169,7 @@ export class ComparisonService {
     // self-service convenience data, not an audited domain-state mutation.
     const em = this.emFactory();
 
-    const product = await em.findOne(Product, { id: productId });
+    const product = await this.catalogProducts.findById(productId);
     if (!product) throw new ProductNotFoundError(productId);
 
     let comparison = await em.findOne(Comparison, ownerWhere(owner));
@@ -262,9 +272,7 @@ export class ComparisonService {
 
     const productIds = bridgeRows.map((r) => r.productId);
     const products =
-      productIds.length > 0
-        ? await em.find(Product, { id: { $in: productIds } })
-        : [];
+      productIds.length > 0 ? await this.catalogProducts.findByIds(productIds) : [];
     const productById = new Map(products.map((p) => [p.id, p]));
 
     const channel = await em.findOne(SalesChannel, { id: viewerSalesChannelId });
