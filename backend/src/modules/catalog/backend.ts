@@ -17,6 +17,7 @@ import type {
   CatalogProductReadPort,
   CatalogProductWritePort,
   CatalogPromoAttributePort,
+  CatalogQuickSearchPort,
 } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
@@ -41,6 +42,7 @@ import { CatalogAttributeReadService } from './services/catalog-attribute-read.s
 import { CatalogCategoryReadService } from './services/catalog-category-read.service.js';
 import { CatalogProductReadService } from './services/catalog-product-read.service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
+import { CatalogQuickSearchService } from './services/catalog-quick-search.service.js';
 import {
   createCatalogCategoryWritePort,
   createCatalogProductWritePort,
@@ -368,6 +370,32 @@ export function registerModule(ctx: ModuleContext): void {
           new CatalogBulkImportService(
             commandBus,
             lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+          ),
+      )
+      .singleton(),
+  );
+
+  /**
+   * Issue #174 — the buyer's type-ahead, which `quick_order` was answering
+   * with its own knex `select` against `products`.
+   *
+   * There was no import specifier, so `check:module-boundary` read clean over
+   * it and no ledger shard could key it; and the query filtered
+   * `status = 'active'` and nothing else, so a signed-in buyer saw every active
+   * product on the platform whatever channel they were shopping. The predicate
+   * is a catalogue question in every part — which rows are active, which are on
+   * the channel, and which attribute values are searchable — so it is published
+   * from here, scoped by `sales_channel_products` like every other
+   * customer-facing read in this module.
+   */
+  ctx.di.providePort<CatalogQuickSearchPort>(
+    'catalogQuickSearchPort',
+    ctx
+      .asFunction(
+        ({ emFactory }: CatalogCradle) =>
+          new CatalogQuickSearchService(
+            emFactory,
+            lazyPort<CatalogAttributeReadPort>(ctx, 'catalogAttributeReadPort'),
           ),
       )
       .singleton(),
