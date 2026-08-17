@@ -1,24 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import { z } from 'zod';
 import type Redis from 'ioredis';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
-import {
-  SettingNotRegistered,
-  SettingOutOfScopeForChannel,
-} from '../../kernel/settings/settings.service.js';
 import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
-import {
-  CARTS_SETTING_CODES,
-  DEFAULT_ABANDONMENT_INACTIVITY_MINUTES,
-  DEFAULT_ABANDONMENT_NOTIFICATION_RECIPIENT,
-} from './manifest.js';
+import { abandonmentSettingsReaders } from './services/cart-abandonment-settings.js';
 import { CartService } from './services/cart-service.js';
 import { CartUpsellService } from './services/cart-upsell-service.js';
 import { CartCouponService } from './services/cart-coupon-service.js';
@@ -119,51 +110,6 @@ export interface CartsCradle {
   readonly cartAbandonmentWorker: CartAbandonmentWorker;
 }
 
-/**
- * Conditions this module has already reported. Module scope and never reset, so
- * the guard is per **process**: an out-of-scope setting is a deployment fact
- * that holds for every subsequent read, and the sweep runs on a timer. One line
- * per condition is what makes it findable; one line per read is what makes it
- * invisible. Same shape as `quote_requests/backend.ts`.
- */
-const warnedConditions = new Set<string>();
-
-function warnOnce(condition: string, message: string): void {
-  if (warnedConditions.has(condition)) return;
-  warnedConditions.add(condition);
-  console.warn(message);
-}
-
-/**
- * One platform-wide read of one of this module's own settings, degrading to the
- * manifest default under exactly the two conditions D-43 allows: an
- * unregistered code (quiet — the normal state before the manifest reconciler's
- * first run) and a setting the operator scoped to specific channels (warned
- * once, because that scoping cannot be intentional for a platform-wide value).
- */
-async function readPlatformSetting<T>(
-  ctx: ModuleContext,
-  code: string,
-  schema: z.ZodType<T>,
-  fallback: T,
-): Promise<T> {
-  try {
-    return await ctx.cradle<CartsCradle>().settingsReadPort.get(code, null, schema);
-  } catch (error) {
-    if (error instanceof SettingNotRegistered) return fallback;
-    if (error instanceof SettingOutOfScopeForChannel) {
-      warnOnce(
-        `out-of-scope:${code}`,
-        `[carts] setting "${code}" is scoped to specific sales channels, so it has ` +
-          `no platform-wide value — falling back to the manifest default ` +
-          `(logged once per process).`,
-      );
-      return fallback;
-    }
-    throw error;
-  }
-}
-
 /** Refuses in the shape Constitution XVII item 3 requires: an explicit 503. */
 function refuseShoppingList(): CartShoppingListBridge {
   const refuse = async (): Promise<never> => {
@@ -217,43 +163,18 @@ export function registerModule(ctx: ModuleContext): void {
             cartAuditService,
             /**
              * This module's own settings, read through the port it holds — the
-             * identical try/catch-to-default stood in both roots before T136.
+             * identical try/catch-to-default stood in both roots before T136,
+             * and in the ops CLI until issue #54. It lives in one file now
+             * (`services/cart-abandonment-settings.ts`), which also carries the
+             * D-41/D-43 history of what these two reads used to get wrong.
              *
-             * Two things changed in the settings-channel pass (D-41/D-43).
-             *
-             * The channel: both reads passed the literal `'default'`, which is
-             * a channel **code**, while `setting_values.sales_channel_id` is
-             * `uuid`. PostgreSQL rejected the comparison
-             * (`invalid input syntax for type uuid: "default"`), the bare
-             * `catch` below read that as "not configured yet", and the sweep
-             * ran with the fallback on every deployment. Neither setting is
-             * per-storefront — an abandonment threshold is a property of the
-             * platform, not of a channel — so the honest argument is `null`, a
-             * platform-wide read.
-             *
-             * The fallback: it was `0`, and the worker treats `<= 0` as "sweep
-             * nothing", so the divergence from the manifest's 10080 did not
-             * merely lose the configured value, it switched the feature off.
-             * The fallback is now the manifest's own binding.
-             *
-             * What may be absorbed is enumerated, because a bare `catch` around
-             * a port call turns fail-closed into fail-open: a shape mismatch, a
-             * driver error or a `ModuleDisabledError` propagates.
+             * The thunk is what keeps the port read lazy: a gate captured into
+             * this singleton would keep answering after `settings` is switched
+             * off.
              */
-            resolveInactivityMinutes: async () =>
-              readPlatformSetting(
-                ctx,
-                CARTS_SETTING_CODES.ABANDONMENT_INACTIVITY_MINUTES,
-                z.number().int().nonnegative(),
-                DEFAULT_ABANDONMENT_INACTIVITY_MINUTES,
-              ),
-            resolveNotificationRecipient: async () =>
-              readPlatformSetting(
-                ctx,
-                CARTS_SETTING_CODES.ABANDONMENT_NOTIFICATION_RECIPIENT,
-                z.string(),
-                DEFAULT_ABANDONMENT_NOTIFICATION_RECIPIENT,
-              ),
+            ...abandonmentSettingsReaders(
+              () => ctx.cradle<CartsCradle>().settingsReadPort,
+            ),
             dispatchNotification: async (input): Promise<void> => {
               await ctx.cradle<CartsCradle>().cartAbandonmentNotifier?.(input);
             },

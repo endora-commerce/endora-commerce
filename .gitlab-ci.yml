@@ -386,19 +386,14 @@ perf:backend:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
   script:
-    # `test/perf/carts/abandonment-sweep.bench.ts` is excluded from BOTH
-    # schedules, and that exclusion is a blocker, not a tuning choice.
-    # `CartAbandonmentWorker.sweep()` does one `em.find(CartItem)` and one
-    # `CartAuditService.record()` — which flushes — per eligible cart, over an
-    # identity map that keeps every cart and every audit row it has touched. So
-    # the cost per cart grows with the sweep: 9.9 s for 500 carts (19.8 ms
-    # each), 130.8 s for 2000 (65.4 ms each) — 4× the carts, 13× the time. At
-    # the 50 000 the spec target is stated over it does not fail its 5 s
-    # budget; it exceeds the 10-minute vitest timeout before it can report one,
-    # which is how `test:perf` came to be red on master without anybody having
-    # a p95 to look at. Wiring that into a blocking schedule would wire in a
-    # known red. Remove the exclusion with the N+1 — see the issue tracking it;
-    # the budget itself is fine and D-65 does not re-base it.
+    # `test/perf/carts/abandonment-sweep.bench.ts` runs on both schedules again
+    # (issue #152). It was excluded because it could not finish: the sweep did
+    # one `em.find(CartItem)` and one flushing `CartAuditService.record()` per
+    # eligible cart over an identity map that kept everything it had touched, so
+    # 4× the carts cost 16× the time and the default corpus hit the 10-minute
+    # vitest timeout before it could report a number. That is fixed; the sweep
+    # batches, and 10 000 carts take ~5.3 s against a re-based 17 s budget. The
+    # file's own header carries the before/after readings and the derivation.
     #
     # The two multi-minute files (100k feed generation, Ergonode import) run on
     # the weekly schedule only — a 10-minute budget has no place in a nightly.
@@ -408,10 +403,9 @@ perf:backend:
     # indented line, so a `--exclude` wrapped under its `pnpm` would have
     # reached bash as its own command. GitLab concatenates these lines into one
     # script, so the assignments carry.
-    - SKIP_SWEEP="--exclude test/perf/carts/abandonment-sweep.bench.ts"
     - SKIP_HEAVY="--exclude test/perf/product_feeds/generation-100k.test.ts --exclude test/perf/pim_ergonode/import-throughput.test.ts"
     - if [ "$CI_SCHEDULE_KIND" = "weekly-heavy" ]; then SKIP_HEAVY=""; fi
-    - pnpm --filter backend exec vitest run test/perf $SKIP_SWEEP $SKIP_HEAVY
+    - pnpm --filter backend exec vitest run test/perf $SKIP_HEAVY
   cache:
     key:
       files:
