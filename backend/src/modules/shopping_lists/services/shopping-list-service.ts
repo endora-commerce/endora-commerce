@@ -1,21 +1,26 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
+import type { CartWritePort, CatalogProductReadPort, RfqCustomerPort } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ShoppingList } from '../entities/shopping-list.entity.js';
 import { ShoppingListItem } from '../entities/shopping-list-item.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import type { CartService } from '../../carts/services/cart-service.js';
-import type { RfqService } from '../../quote_requests/services/rfq-service.js';
 
 /**
  * ShoppingListService (T201). CRUD + the two terminal converters.
  *
  * Conversions skip archived products and report them in a structured
  * `skipped` array so the UI can surface a friendly message without
- * blocking the rest of the conversion. The converters reuse the
- * existing CartService / RfqService surfaces — keeping the actual cart
+ * blocking the rest of the conversion. The converters reuse the published
+ * `cartWritePort` / `rfqCustomerPort` surfaces — keeping the actual cart
  * + RFQ semantics (line aggregation, draft version bumps, etc.) in one
  * place.
+ *
+ * Products arrive over `catalogProductReadPort` (feature 075, Phase C) rather
+ * than out of `catalog`'s table. Both reads keep the *wider* lookup — no
+ * `activeOnly`, no `liveOnly` — because the archived/not-found distinction is
+ * this module's to make: `#partitionByProductStatus` has to tell
+ * `product_archived` from `product_not_found`, and a filtered read collapses
+ * the two into one.
  */
 
 export interface CustomerContext {
@@ -45,8 +50,15 @@ export interface ConvertToRfqResult {
 export class ShoppingListService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly cartService: CartService,
-    private readonly rfqService: RfqService,
+    private readonly cartService: CartWritePort,
+    private readonly rfqService: RfqCustomerPort,
+    /**
+     * The product rows `addItem` and the two converters decide on. Gated: with
+     * `catalog` switched off a save-to-list and a conversion both refuse rather
+     * than reporting every line as `product_not_found`, which reads as a
+     * legitimate answer and is not one.
+     */
+    private readonly catalogProducts: CatalogProductReadPort,
   ) {}
 
   async list(ctx: CustomerContext): Promise<ShoppingList[]> {
@@ -202,7 +214,7 @@ export class ShoppingListService {
     // convenience data; conversions delegate to the audited cart/RFQ paths.
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
-    const product = await em.findOne(Product, { id: input.productId });
+    const product = await this.catalogProducts.findById(input.productId);
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
@@ -279,7 +291,7 @@ export class ShoppingListService {
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
     const items = await this.#selectItems(em, list.id, itemIds);
-    const { skipped, kept } = await this.#partitionByProductStatus(em, items);
+    const { skipped, kept } = await this.#partitionByProductStatus(items);
 
     let added = 0;
     for (const item of kept) {
@@ -310,7 +322,7 @@ export class ShoppingListService {
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
     const items = await this.#selectItems(em, list.id, itemIds);
-    const { skipped, kept } = await this.#partitionByProductStatus(em, items);
+    const { skipped, kept } = await this.#partitionByProductStatus(items);
 
     let rfqId: string | null = null;
     let added = 0;
@@ -357,12 +369,11 @@ export class ShoppingListService {
   }
 
   async #partitionByProductStatus(
-    em: EntityManager,
     items: ShoppingListItem[],
   ): Promise<{ kept: ShoppingListItem[]; skipped: ConversionSkip[] }> {
     if (items.length === 0) return { kept: [], skipped: [] };
     const productIds = Array.from(new Set(items.map((i) => i.productId)));
-    const products = await em.find(Product, { id: { $in: productIds } });
+    const products = await this.catalogProducts.findByIds(productIds);
     const byId = new Map(products.map((p) => [p.id, p]));
     const skipped: ConversionSkip[] = [];
     const kept: ShoppingListItem[] = [];
