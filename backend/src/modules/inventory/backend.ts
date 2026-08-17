@@ -2,8 +2,13 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { DictionaryValidator } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
-import type { InventoryStockReadPort } from '@b2b/contracts';
+import type {
+  CatalogProductReadPort,
+  InventoryStockImportPort,
+  InventoryStockReadPort,
+} from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
@@ -15,6 +20,7 @@ import type { AdjustedPayload } from './services/availability-worker.js';
 import type { SettingsValueChangedPayload } from './services/threshold-settings-mirror.js';
 import { StockLevelService } from './services/stock-level-service.js';
 import { InventoryStockReadService } from './services/inventory-read-port.js';
+import { InventoryStockImportService } from './services/stock-import.service.js';
 import { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import { WarehouseChannelReconciler } from './services/warehouse-channel-reconciler.js';
 import { AVAILABILITY_BACK_IN_STOCK_DEFAULT, LOW_STOCK_ALERT_DEFAULT } from './email-templates/transactional-defaults.js';
@@ -55,6 +61,8 @@ export interface InventoryCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
   readonly auditLogService: AuditLogService;
+  /** D-74 — the bulk stock import is one Command and one audit row per run. */
+  readonly commandBus: CommandBus;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: InventoryModuleOptions['requireCustomer'];
   readonly customerContextResolver: InventoryModuleOptions['resolveCustomerContext'];
@@ -166,6 +174,27 @@ export function registerModule(ctx: ModuleContext): void {
     'inventoryStockReadPort',
     ctx
       .asFunction(({ emFactory }: InventoryCradle) => new InventoryStockReadService(emFactory))
+      .singleton(),
+  );
+
+  /**
+   * D-74 — the bulk stock import. `import_export` wrote `stock_levels` from its
+   * own transaction, with no Command, no audit row and the seeded warehouse id
+   * pasted in as a literal; all three come back here, where the rows live.
+   *
+   * `catalogProductReadPort` is resolved lazily and per call: a spreadsheet
+   * addresses a product by SKU, and this module already declares `catalog`.
+   */
+  ctx.di.providePort<InventoryStockImportPort>(
+    'inventoryStockImportPort',
+    ctx
+      .asFunction(
+        ({ commandBus }: InventoryCradle) =>
+          new InventoryStockImportService(
+            commandBus,
+            lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+          ),
+      )
       .singleton(),
   );
 

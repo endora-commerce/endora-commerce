@@ -8,6 +8,7 @@ import {
   type ProductVisibility,
 } from './common.js';
 import type { FulfilmentStrategy } from './inventory.js';
+import type { BulkImportReport } from './import-export.js';
 import type { AttributeScope } from './product-value-resolver.js';
 
 /**
@@ -1793,6 +1794,66 @@ export interface CatalogCategoryReadPort {
    * is bounded anyway, because a corrupt `parent_id` should not hang a request.
    */
   ancestorsOf(categoryId: string): Promise<CatalogCategoryRecord[]>;
+}
+
+// --- the bulk import surface -------------------------------------------------
+//
+// D-74. `import_export` used to apply a spreadsheet by holding this module's
+// entity classes and writing them inside its own transaction — no Command, no
+// audit row, and a within-run parent lookup that worked only because MikroORM
+// flushes before a query its pending insert would change.
+//
+// The transaction never had to cross the boundary; it had to be on the other
+// side of it. One POST is one entity and one owner, so the owner takes the
+// whole operation — validation, within-run resolution, the transaction and the
+// audit row — and the caller passes rows.
+
+/**
+ * One row of a categories import.
+ *
+ * Absent fields are left unchanged on an existing row; `parentSlug: null` means
+ * root. `slug` addresses the row: a slug that exists is updated, one that does
+ * not is created, and a slug introduced earlier in the same call resolves as a
+ * parent for a later one.
+ */
+export interface CategoryImportRow {
+  slug: string;
+  parentSlug?: string | null;
+  sortOrder?: number;
+  /** Per-locale, merged into the stored JSONB rather than replacing it. */
+  name?: Record<string, string>;
+  isActive?: boolean;
+}
+
+/**
+ * One row of a products import.
+ *
+ * `sku` addresses an existing product; the import creates none, because a
+ * product needs an attribute set, a type and a slug that a flat sheet does not
+ * carry.
+ */
+export interface ProductImportRow {
+  sku: string;
+  status?: ProductStatus;
+  visibility?: ProductVisibility;
+  /** Per-locale, merged into the stored JSONB rather than replacing it. */
+  name?: Record<string, string>;
+  description?: Record<string, string>;
+}
+
+/**
+ * Container name: `catalogBulkImportPort`. Owner: `catalog`.
+ *
+ * All-or-nothing per call: one transaction, one audit row, no partial commits.
+ * A rejected row leaves the whole call applying nothing, which is what makes a
+ * corrected re-upload safe — see {@link BulkImportReport}.
+ *
+ * With `catalog` off the call answers 503 `MODULE_DISABLED`; the caller is
+ * expected to decide presence before offering the surface at all.
+ */
+export interface CatalogBulkImportPort {
+  importCategories(rows: readonly CategoryImportRow[]): Promise<BulkImportReport>;
+  importProducts(rows: readonly ProductImportRow[]): Promise<BulkImportReport>;
 }
 
 // --- the attribute read model ------------------------------------------------

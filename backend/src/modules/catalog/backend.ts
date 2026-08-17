@@ -6,6 +6,7 @@ import type {
   CatalogAttachmentPort,
   CatalogAttributeReadPort,
   CatalogAttributeSetPort,
+  CatalogBulkImportPort,
   CatalogCategoryReadPort,
   CatalogCategoryWritePort,
   CatalogGalleryPort,
@@ -27,6 +28,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import { catalogModule, type CatalogModuleOptions } from './plugin.js';
 import { CatalogAdminService } from './services/catalog-admin.service.js';
+import { CatalogBulkImportService } from './services/catalog-bulk-import.service.js';
 import { CategoryAdminService } from './services/category-admin.service.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
 import { GalleryService } from './services/gallery.service.js';
@@ -348,6 +350,25 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(() =>
         createCatalogCategoryWritePort(() => ctx.cradle<CatalogCradle>().categoryAdminService),
+      )
+      .singleton(),
+  );
+
+  /**
+   * D-74 — the bulk import surface. `import_export` parses the spreadsheet;
+   * this module owns the validation, the within-run slug index, the transaction
+   * and the audit row, because every row a catalogue import writes lands in this
+   * module's tables and in nobody else's.
+   */
+  ctx.di.providePort<CatalogBulkImportPort>(
+    'catalogBulkImportPort',
+    ctx
+      .asFunction(
+        ({ commandBus }: CatalogCradle) =>
+          new CatalogBulkImportService(
+            commandBus,
+            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+          ),
       )
       .singleton(),
   );
