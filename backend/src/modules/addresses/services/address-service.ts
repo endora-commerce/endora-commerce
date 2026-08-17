@@ -2,12 +2,12 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   DictionaryReferenceError,
   ERROR_CODES,
+  dispatchValidatorMode,
   type DictionaryValidator,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import { Address } from '../entities/address.entity.js';
 
 /**
