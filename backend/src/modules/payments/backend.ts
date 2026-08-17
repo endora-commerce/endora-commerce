@@ -3,6 +3,7 @@ import type {
   GatewayRefundRegistryPort,
   PaymentEmailRendererPort,
   PaymentReadPort,
+  PaymentReferencePort,
   PaymentRefundPort,
   ReceivePaymentPort,
 } from '@b2b/contracts';
@@ -16,6 +17,7 @@ import { builtInPaymentAdapters } from './adapters/built-in-adapters.js';
 import { ReceivePaymentHandler, type PaymentEventBus } from './services/receive-payment-handler.js';
 import { PaymentService } from './services/payment-service.js';
 import { PaymentReadService } from './services/payment-read-port.js';
+import { PaymentReferenceService } from './services/payment-reference-port.js';
 import { PaymentRefundProvider } from './services/payment-refund.js';
 import { gatewayRefundRegistry } from './services/registry-singleton.js';
 import { PaymentEmailNotifier } from './services/payment-email-notifier.js';
@@ -68,12 +70,38 @@ export interface PaymentsCradle {
   /** Contribution point: absent means a payment-status e-mail is not sent. */
   readonly paymentEmailSender: PaymentEmailNotifierDeps['getTransactionalEmailSender'];
   readonly paymentEmailNotifier: PaymentEmailNotifier;
+  /**
+   * This module's own refund-handler table, as the container's value — the
+   * push seam the four gateways contribute to, ungated on purpose (see the
+   * registration).
+   */
+  readonly gatewayRefundRegistry: GatewayRefundRegistryPort;
   readonly paymentService: PaymentService;
   readonly receivePaymentHandler: ReceivePaymentHandler;
 }
 
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
+    /**
+     * The refund-handler table, as the container's value — the delivery-side
+     * twin of `payment_methods`' `paymentAdapterRegistry`, and registered the
+     * same way and for the same reason (feature 075, Phase P).
+     *
+     * **Ungated, unlike `gatewayRefundRegistryPort` above it.** The two names
+     * are the two directions of one seam and they need opposite treatment. A
+     * *pull* — "which handler settles this refund" — is a question about this
+     * module and answers 503 while it is off, which is the port. A *push* is
+     * not: the four gateways contribute their handler from a boot hook, and a
+     * gate there would refuse the contribution rather than defer it, so a
+     * gateway would silently stay unregistered until the next restart after an
+     * operator switched `payments` back on. The absent-owner policy sits inside
+     * the registry, where the whole design puts it: a handler whose module is
+     * off is skipped at enumeration and the obligation lands on
+     * `pending_manual` (D-71), which a gate over the push would drop instead of
+     * record.
+     */
+    gatewayRefundRegistry: ctx.asFunction(() => gatewayRefundRegistry).singleton(),
+
     // Contribution point, defaulted to no sender: a deployment without a
     // transactional-email surface sends nothing rather than failing to settle.
     paymentEmailSender: ctx
@@ -140,6 +168,23 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<GatewayRefundRegistryPort>(
     'gatewayRefundRegistryPort',
     ctx.asFunction(() => gatewayRefundRegistry).singleton(),
+  );
+
+  /**
+   * The write side of `findByExternalReference`, published for the four
+   * gateways that were doing it with this module's entity and their own
+   * `EntityManager`.
+   *
+   * A port, not a registration: unlike the registry above, this is a pull with
+   * a failure mode. A gateway that has just opened a PaymentIntent and cannot
+   * record its identifier has to hear so — the provider object is live, and an
+   * event it sends would arrive with nothing on this side able to resolve it.
+   */
+  ctx.di.providePort<PaymentReferencePort>(
+    'paymentReferencePort',
+    ctx
+      .asFunction(({ emFactory }: PaymentsCradle) => new PaymentReferenceService(emFactory))
+      .singleton(),
   );
 
   ctx.di.providePort<PaymentEmailRendererPort>(
