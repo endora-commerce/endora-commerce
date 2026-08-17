@@ -6,12 +6,12 @@ import {
   I18nCoverageResponseSchema,
   PatchPreferredLanguageBodySchema,
   SupportedAdminLanguageSchema,
+  type AdminUserPreferencePort,
   type GetBundlesResponse,
   type I18nCoverageResponse,
   type SupportedAdminLanguage,
 } from '@b2b/contracts';
 import type { I18nService } from './services/i18n-service.js';
-import type { AdminUserService } from '../admin_users/services/admin-user-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
@@ -27,7 +27,14 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface I18nAdminDeps {
   i18nService: I18nService;
-  adminUserService: AdminUserService;
+  /**
+   * Owned by `admin_users` (feature 075, Phase C). One method, because the
+   * language override is the whole of what this surface writes to an admin
+   * row; the service class this used to name carried creation, roles, deletion
+   * and impersonation with it. When `admin_users` is off the PATCH answers 503
+   * `MODULE_DISABLED`, which is right: there is no admin to hold a preference.
+   */
+  adminUserPreference: AdminUserPreferencePort;
   requireAdmin: RequireAdminFactory;
   /** Resolves the calling admin's id; reads `request.actor` in production. */
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
@@ -96,15 +103,14 @@ export async function registerI18nAdminRoutes(
     ): Promise<{ data: { preferredLanguage: SupportedAdminLanguage | null } }> => {
       const ctx = deps.resolveAdminContext(request);
       const body = PatchPreferredLanguageBodySchema.parse(request.body);
-      const updated = await deps.adminUserService.setPreferredLanguage(
+      const updated = await deps.adminUserPreference.setPreferredLanguage(
         ctx.adminUserId,
         body.preferredLanguage,
       );
       return {
         data: {
           preferredLanguage:
-            (updated.preferredLanguage as SupportedAdminLanguage | null | undefined) ??
-            null,
+            (updated.preferredLanguage as SupportedAdminLanguage | null) ?? null,
         },
       };
     },
