@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type { InvoiceEmailNotSentReason, TransactionalEmailSender } from '@b2b/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import {
   SettingNotRegistered,
@@ -21,22 +21,11 @@ import { INVOICES_SETTING_CODES } from '../manifest.js';
  * recipient, the operator switched the e-mail off, no template for the code, no
  * transport, and an error the FR-029 `catch` absorbed. An invoice was issued and
  * nothing anywhere said that no message had been sent.
+ *
+ * The seven reasons live in `@b2b/contracts` since issue #149, because the admin
+ * issue route answers with one and an API shape belongs there.
  */
-export type InvoiceEmailNotSentReason =
-  /** No transactional sender is wired in this composition. */
-  | 'no_sender'
-  /** The invoice, or the order behind it, could not be loaded. */
-  | 'invoice_not_found'
-  /** No recipient address could be resolved for the order. */
-  | 'no_recipient'
-  /** The operator switched the `invoice_issued` e-mail off. */
-  | 'deactivated'
-  /** No mailer is wired behind the sender. */
-  | 'no_transport'
-  /** No `invoice_issued` template exists yet. */
-  | 'no_definition'
-  /** The send raised, and issuance was kept (FR-029). */
-  | 'failed';
+export type { InvoiceEmailNotSentReason };
 
 export type InvoiceEmailDispatchResult =
   | { sent: true }

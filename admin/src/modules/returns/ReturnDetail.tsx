@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { PageHeader } from '@/components/ui/page-header';
@@ -20,7 +21,12 @@ import {
 } from '@/components/ui/table';
 import { formatDateTime } from '@/lib/format';
 import { useTranslation } from '@/i18n/useTranslation';
-import type { ReturnCaseDetail, ReturnTransitionDto, SettlementPrefill } from '@b2b/contracts';
+import type {
+  ReturnCaseDetail,
+  ReturnTransitionDto,
+  SettlementPrefill,
+  SettlementResult,
+} from '@b2b/contracts';
 
 /** Returns / RMA case detail (feature 046, US2/US4/US5/US6). */
 export function ReturnDetail(): ReactNode {
@@ -40,6 +46,11 @@ export function ReturnDetail(): ReactNode {
   const [resolution, setResolution] = useState('refund');
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [approved, setApproved] = useState<Record<string, number>>({});
+  // Issue #150 — a correction is asked for by default, as the screen always
+  // did; the control exists because "not requested" is one of the three
+  // outcomes below and an operator has to be able to reach it deliberately.
+  const [createCorrectiveInvoice, setCreateCorrectiveInvoice] = useState(true);
+  const [settlement, setSettlement] = useState<SettlementResult | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -194,22 +205,22 @@ export function ReturnDetail(): ReactNode {
       {prefill && (
         <Card>
           <CardHeader>
-            <CardTitle>Settlement</CardTitle>
+            <CardTitle>{t('returns.detail.settlement.title')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap items-end gap-3">
               <div className="space-y-1">
-                <Label htmlFor="resolution">Resolution</Label>
+                <Label htmlFor="resolution">{t('returns.detail.settlement.resolution')}</Label>
                 <Select id="resolution" value={resolution} onChange={(e) => setResolution(e.target.value)}>
-                  <option value="refund">Refund money</option>
-                  <option value="credit">Credit toward future orders</option>
-                  <option value="replacement">Replacement</option>
-                  <option value="repair">Repair</option>
+                  <option value="refund">{t('returns.detail.resolution.refund')}</option>
+                  <option value="credit">{t('returns.detail.resolution.credit')}</option>
+                  <option value="replacement">{t('returns.detail.resolution.replacement')}</option>
+                  <option value="repair">{t('returns.detail.resolution.repair')}</option>
                 </Select>
               </div>
               {resolution === 'refund' && (
                 <div className="space-y-1">
-                  <Label htmlFor="pm">Refund payment method id</Label>
+                  <Label htmlFor="pm">{t('returns.detail.settlement.paymentMethodId')}</Label>
                   <input
                     id="pm"
                     className="h-9 rounded-md border border-input bg-background px-3 text-sm"
@@ -222,9 +233,9 @@ export function ReturnDetail(): ReactNode {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Max (paid)</TableHead>
-                  <TableHead>Approved</TableHead>
+                  <TableHead>{t('returns.detail.col.product')}</TableHead>
+                  <TableHead>{t('returns.detail.settlement.maxPaid')}</TableHead>
+                  <TableHead>{t('returns.detail.col.approved')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -247,6 +258,14 @@ export function ReturnDetail(): ReactNode {
                 ))}
               </TableBody>
             </Table>
+            <label className="flex items-center gap-2 text-sm" htmlFor="createCorrectiveInvoice">
+              <Checkbox
+                id="createCorrectiveInvoice"
+                checked={createCorrectiveInvoice}
+                onChange={(e) => setCreateCorrectiveInvoice(e.target.checked)}
+              />
+              {t('returns.detail.settlement.createCorrectiveInvoice')}
+            </label>
             <Button
               size="sm"
               onClick={() =>
@@ -263,28 +282,74 @@ export function ReturnDetail(): ReactNode {
                       ...(resolution === 'refund' && paymentMethodId
                         ? { refundPaymentMethodId: paymentMethodId }
                         : {}),
-                      createCorrectiveInvoice: true,
+                      createCorrectiveInvoice,
                     });
+                    // Issue #150 — kept whatever the gateway said, because the
+                    // corrective invoice is a separate answer: a settlement can
+                    // succeed and still, correctly, produce no document.
+                    setSettlement(settled);
                     if (settled.refund?.settlementState === 'failed') {
                       setError(
-                        settled.refund.failureReason ?? 'Payment gateway rejected the refund.',
+                        settled.refund.failureReason ?? t('returns.detail.settlement.gatewayRejected'),
                       );
                     } else {
-                      setInfo('Settled.');
+                      setInfo(t('returns.detail.settlement.done'));
                     }
                     await refresh();
                   } catch (err) {
                     setError(
                       err instanceof ApiError
                         ? err.envelope.error.message
-                        : 'Action failed.',
+                        : t('returns.detail.actionFailed'),
                     );
                   }
                 })()
               }
             >
-              Settle case
+              {t('returns.detail.settlement.settle')}
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/*
+        What became of the corrective invoice (issue #150).
+
+        Three outcomes, all three legible. "Not due" is the one the product
+        owner ruled on: a settled return on an order that was never invoiced
+        deliberately produces no document, and a screen that says nothing makes
+        that indistinguishable from a document that failed to appear.
+
+        This renders the settlement that was just performed, which is the moment
+        the operator can act on it; the durable copy of the same three-way answer
+        is the `return.settled` audit entry. The case detail does not carry it —
+        the refund row persists the invoice id but not the reason — so nothing
+        here can read it back after a reload.
+      */}
+      {settlement && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('returns.detail.correctiveInvoice.title')}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm">
+            {settlement.correctiveInvoice === undefined ? (
+              <p className="text-muted-foreground">
+                {t('returns.detail.correctiveInvoice.notRequested')}
+              </p>
+            ) : settlement.correctiveInvoice.issued ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">{t('returns.detail.correctiveInvoice.issued')}</Badge>
+                <Button asChild variant="outline" size="sm">
+                  <Link to={`/invoices/${settlement.correctiveInvoice.invoiceId}`}>
+                    {settlement.correctiveInvoice.number}
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">
+                {t(`returns.detail.correctiveInvoice.notDue.${settlement.correctiveInvoice.reason}`)}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
