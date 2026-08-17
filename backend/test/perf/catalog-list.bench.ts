@@ -32,18 +32,31 @@ import { Product } from '../../src/modules/catalog/entities/product.entity.js';
  * change that silently empties the page fails here instead of reporting a
  * record-breaking latency.
  *
+ * ## The budget (issue #143, D-65)
+ *
+ * Measured 2026-08-17 over four runs on a 16-core / 64 GB Linux dev box,
+ * load average 1.7-3.6, Postgres 16 on localhost: p95 13.8 / 15.1 / 14.9 /
+ * 14.6 ms. Budget = worst observed × 3, rounded up: **50 ms**, down from the
+ * 250 ms it carried, which was 17× the measured value and would have passed a
+ * 15× regression in silence.
+ *
+ * The multiplier is ×3, not D-65's ×2: ×2 is the regression headroom, and the
+ * extra ×1.5 covers the gap between this box and the 4 vCPU / 8 GB docker
+ * runner the scheduled `perf:backend` job measures on, which no local run can
+ * observe. Re-base from the first three scheduled runs — that is the machine
+ * that enforces it.
+ *
  * Tuning knobs (env):
  *   PERF_CORPUS_SIZE   — extra products to seed beyond the test fixtures (default 1000)
  *   PERF_ITERATIONS    — request count (default 200)
- *   PERF_P95_BUDGET_MS — assertion budget (default 250 — slacker than the spec
- *                         target because Postgres path + small corpus)
+ *   PERF_CATALOG_LIST_P95_MS — assertion budget (default 50, see above)
  *   PERF_RUN           — set to 'true' to actually run; otherwise the suite
  *                         skips so PR runs aren't blocked by perf flake.
  */
 
 const corpusSize = Number(process.env['PERF_CORPUS_SIZE'] ?? '1000');
 const iterations = Number(process.env['PERF_ITERATIONS'] ?? '200');
-const p95Budget = Number(process.env['PERF_P95_BUDGET_MS'] ?? '250');
+const p95Budget = Number(process.env['PERF_CATALOG_LIST_P95_MS'] ?? '50');
 const shouldRun = process.env['PERF_RUN'] === 'true';
 
 /** Page size requested on every timed read — also the expected summary count. */

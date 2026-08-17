@@ -33,23 +33,43 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
  * returning `[]`. So every scenario counts what came back and asserts that
  * count before it asserts the latency.
  *
+ * ## The budgets (issue #143, D-65)
+ *
+ * The three numbers in the spec-target list above are the product promise.
+ * The three the assertions use are a *regression detector*, which is a
+ * different instrument: it is set from what the code costs today, not from
+ * what the buyer was promised, so that a 3× slowdown fails here long before
+ * anybody notices it against the promise. D-65 recorded no post-#140
+ * measurement for this file, so it had budgets before it had numbers.
+ *
+ * Measured 2026-08-17 over four runs on a 16-core / 64 GB Linux dev box, load
+ * average 1.7-3.6, Postgres 16 on localhost:
+ *
+ *   full    p95  8.9 / 11.2 /  9.9 /  9.8 ms → × 3 → 35 ms  (was 200)
+ *   mini    p95  6.5 /  6.1 /  8.3 /  8.1 ms → × 3 → 25 ms  (was  80)
+ *   upsells p95  8.8 /  8.3 / 12.3 / 11.8 ms → × 3 → 40 ms  (was 150)
+ *
+ * The multiplier is ×3 rather than D-65's ×2 for the reason stated in
+ * `test/perf/catalog-list.bench.ts`. Re-base from the first three scheduled
+ * `perf:backend` runs.
+ *
  * Env knobs:
  *   PERF_CART_LINES           — lines seeded on the test cart (default 50)
  *   PERF_UPSELL_TARGETS       — up-sell link targets seeded (default 12, the
  *                                route's default strip size)
  *   PERF_ITERATIONS           — request count per scenario (default 100)
- *   PERF_FULL_P95_BUDGET_MS   — GET /api/v1/cart budget (default 200)
- *   PERF_MINI_P95_BUDGET_MS   — GET /api/v1/cart?view=mini budget (default 80)
- *   PERF_UPSELL_P95_BUDGET_MS — GET /api/v1/cart/upsells budget (default 150)
+ *   PERF_FULL_P95_BUDGET_MS   — GET /api/v1/cart budget (default 35)
+ *   PERF_MINI_P95_BUDGET_MS   — GET /api/v1/cart?view=mini budget (default 25)
+ *   PERF_UPSELL_P95_BUDGET_MS — GET /api/v1/cart/upsells budget (default 40)
  *   PERF_RUN                  — 'true' to enable
  */
 
 const cartLines = Number(process.env['PERF_CART_LINES'] ?? '50');
 const upsellTargets = Number(process.env['PERF_UPSELL_TARGETS'] ?? '12');
 const iterations = Number(process.env['PERF_ITERATIONS'] ?? '100');
-const fullBudget = Number(process.env['PERF_FULL_P95_BUDGET_MS'] ?? '200');
-const miniBudget = Number(process.env['PERF_MINI_P95_BUDGET_MS'] ?? '80');
-const upsellBudget = Number(process.env['PERF_UPSELL_P95_BUDGET_MS'] ?? '150');
+const fullBudget = Number(process.env['PERF_FULL_P95_BUDGET_MS'] ?? '35');
+const miniBudget = Number(process.env['PERF_MINI_P95_BUDGET_MS'] ?? '25');
+const upsellBudget = Number(process.env['PERF_UPSELL_P95_BUDGET_MS'] ?? '40');
 const shouldRun = process.env['PERF_RUN'] === 'true';
 
 function percentile(samples: number[], p: number): number {

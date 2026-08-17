@@ -17,6 +17,23 @@ import { CartAbandonmentWorker } from '../../../src/modules/carts/services/cart-
  * Opt-in: set `PERF_RUN=true` to actually run. By default the suite
  * skips so regular PR runs aren't blocked.
  *
+ * ## This bench does not currently finish (issue #143)
+ *
+ * It is excluded from the scheduled `perf:backend` job, and the exclusion is a
+ * blocker rather than a tuning choice. `CartAbandonmentWorker.sweep()` runs
+ * one `em.find(CartItem)` and one `CartAuditService.record()` — which flushes
+ * — per eligible cart, over an identity map that keeps every cart and every
+ * audit row it has already touched, so the per-cart cost grows with the sweep
+ * rather than staying flat:
+ *
+ *   PERF_SWEEP_CART_COUNT=500   →   9 924 ms  (19.8 ms/cart)
+ *   PERF_SWEEP_CART_COUNT=2000  → 130 787 ms  (65.4 ms/cart)
+ *
+ * At the default 50 000 the test does not fail its 5 s budget — it never
+ * reaches the assertion, timing out after the 10 minutes below. That is why
+ * `test:perf` was red on master, and the budget is not what is wrong: the
+ * sweep is. Restore the bench to the schedule together with the fix.
+ *
  * Env knobs:
  *   PERF_SWEEP_CART_COUNT  — eligible-cart seed count (default 50_000)
  *   PERF_SWEEP_BUDGET_MS   — one-tick assertion budget (default 5000)

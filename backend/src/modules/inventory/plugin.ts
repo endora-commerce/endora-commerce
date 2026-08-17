@@ -175,7 +175,6 @@ export function inventoryModule(options: InventoryModuleOptions): InventoryModul
       );
       await registerInventoryAdminRoutes(app, {
         emFactory: options.emFactory,
-        ...(options.auditLogService ? { auditLogService: options.auditLogService } : {}),
         warehouseService,
         stockLevelService,
         warehouseChannelService,

@@ -34,11 +34,21 @@ import { createAttributeFixture } from '../../helpers/seed-catalog.js';
  * The run asserts the projection it built before it asserts how long that
  * took: every timed read carries a value for every seeded attribute.
  *
+ * ## The budget (issue #143, D-65)
+ *
+ * Measured 2026-08-17 over four runs on a 16-core / 64 GB Linux dev box, load
+ * average 1.7-3.6, Postgres 16 on localhost: p95 12.45 / 14.06 / 13.23 /
+ * 12.30 ms. Budget = worst observed × 3, rounded up: **45 ms**, down from 80.
+ * The multiplier is ×3 rather than D-65's ×2 for the reason stated in
+ * `test/perf/catalog-list.bench.ts`: ×2 is regression headroom, the extra
+ * ×1.5 covers this box against the 4 vCPU / 8 GB docker runner that enforces
+ * the number. Re-base from the first three scheduled `perf:backend` runs.
+ *
  * Tuning knobs (env):
  *   PERF_ATTR_COUNT    — number of attributes (default 50)
  *   PERF_PRODUCT_COUNT — products per iteration (default 10)
  *   PERF_ITERATIONS    — iteration count (default 100)
- *   PERF_P95_BUDGET_MS — assertion budget (default 80)
+ *   PERF_VISIBLE_ATTRS_P95_MS — assertion budget (default 45, see above)
  *   PERF_RUN           — set to 'true' to actually run; otherwise the
  *                        suite skips so PR runs aren't blocked by
  *                        perf flake.
@@ -47,7 +57,7 @@ import { createAttributeFixture } from '../../helpers/seed-catalog.js';
 const attrCount = Number(process.env['PERF_ATTR_COUNT'] ?? '50');
 const productCount = Number(process.env['PERF_PRODUCT_COUNT'] ?? '10');
 const iterations = Number(process.env['PERF_ITERATIONS'] ?? '100');
-const p95Budget = Number(process.env['PERF_P95_BUDGET_MS'] ?? '80');
+const p95Budget = Number(process.env['PERF_VISIBLE_ATTRS_P95_MS'] ?? '45');
 const shouldRun = process.env['PERF_RUN'] === 'true';
 
 const DEFAULT_SET_ID = 'defa0017-0000-4000-8000-000000000000';

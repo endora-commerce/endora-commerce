@@ -323,6 +323,97 @@ test:frontend:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 # ---------------------------------------------------------------------------
+# Performance benchmarks (issue #143, ruling D-64). Deliberately NOT on a
+# merge request.
+#
+# These assert p95 wall-clock. The shared runner is a 4 vCPU / 8 GB box with
+# concurrent=2, and `test:backend` already fills it with 5 sharded jobs and
+# their service containers (see the notes above that job). A p95 measured
+# beside two live shards measures contention, so a per-MR gate here would be a
+# coin toss that blocks merges — worse than not measuring at all.
+#
+# So: a scheduled pipeline, alone on the runner, blocking THAT pipeline. A red
+# nightly is visible and costs nobody a merge. `when: manual` on an MR is for
+# someone deliberately measuring a change they suspect.
+#
+# CI_SCHEDULE_KIND is set on the schedule itself (nightly / weekly-heavy).
+# Two schedules are needed for this job to mean anything:
+#   nightly       CI_SCHEDULE_KIND=nightly       — the nine fast benchmarks
+#   weekly-heavy  CI_SCHEDULE_KIND=weekly-heavy  — plus the two multi-minute
+#                                                  files
+#
+# The first three runs are RECORDING runs (D-65): every benchmark prints
+# `p95=… (budget …)`, and each budget in `test/perf/**` is re-based from what
+# those three runs measure on this runner. The defaults committed today come
+# from four local runs × 3 and carry that derivation in a comment beside them;
+# they are a starting point, not the enforced number.
+perf:backend:
+  stage: test
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    NODE_OPTIONS: --max-old-space-size=2048
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    TEST_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    PERF_RUN: 'true'
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    # `test/perf/carts/abandonment-sweep.bench.ts` is excluded from BOTH
+    # schedules, and that exclusion is a blocker, not a tuning choice.
+    # `CartAbandonmentWorker.sweep()` does one `em.find(CartItem)` and one
+    # `CartAuditService.record()` — which flushes — per eligible cart, over an
+    # identity map that keeps every cart and every audit row it has touched. So
+    # the cost per cart grows with the sweep: 9.9 s for 500 carts (19.8 ms
+    # each), 130.8 s for 2000 (65.4 ms each) — 4× the carts, 13× the time. At
+    # the 50 000 the spec target is stated over it does not fail its 5 s
+    # budget; it exceeds the 10-minute vitest timeout before it can report one,
+    # which is how `test:perf` came to be red on master without anybody having
+    # a p95 to look at. Wiring that into a blocking schedule would wire in a
+    # known red. Remove the exclusion with the N+1 — see the issue tracking it;
+    # the budget itself is fine and D-65 does not re-base it.
+    #
+    # The two multi-minute files (100k feed generation, Ergonode import) run on
+    # the weekly schedule only — a 10-minute budget has no place in a nightly.
+    #
+    # Written as shell variables rather than the folded `- >` block the ruling
+    # sketched: inside a folded scalar YAML keeps the newline before a MORE
+    # indented line, so a `--exclude` wrapped under its `pnpm` would have
+    # reached bash as its own command. GitLab concatenates these lines into one
+    # script, so the assignments carry.
+    - SKIP_SWEEP="--exclude test/perf/carts/abandonment-sweep.bench.ts"
+    - SKIP_HEAVY="--exclude test/perf/product_feeds/generation-100k.test.ts --exclude test/perf/pim_ergonode/import-throughput.test.ts"
+    - if [ "$CI_SCHEDULE_KIND" = "weekly-heavy" ]; then SKIP_HEAVY=""; fi
+    - pnpm --filter backend exec vitest run test/perf $SKIP_SWEEP $SKIP_HEAVY
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      allow_failure: false
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
+
+# ---------------------------------------------------------------------------
 # Build — Docker images → GitLab Container Registry
 # ---------------------------------------------------------------------------
 .build-base:

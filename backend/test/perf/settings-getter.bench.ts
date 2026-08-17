@@ -32,19 +32,32 @@ import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.enti
  * Both scenarios also assert the value the read produced, so a setting that
  * stopped resolving cannot be reported as a fast one.
  *
+ * ## The cold budget (issue #143, D-65)
+ *
+ * Measured 2026-08-17 over four runs on a 16-core / 64 GB Linux dev box, load
+ * average 1.7-3.6, Postgres 16 + Redis 7 on localhost: cold p95 2.60 / 3.17 /
+ * 3.01 / 3.22 ms. Budget = worst observed × 3, rounded up: **10 ms**, down
+ * from 50, which was 15× the measured value. The multiplier is ×3 rather than
+ * D-65's ×2 for the reason stated in `test/perf/catalog-list.bench.ts`.
+ * Re-base from the first three scheduled `perf:backend` runs.
+ *
+ * The cached budget is left at 5 ms. Its measured p95 is 0.03 ms, so it is
+ * looser still in ratio — but that path is an in-process LRU hit, where a
+ * ×3 budget of 0.1 ms would be a GC-pause detector rather than a regression
+ * detector. D-65 does not list it; re-basing it needs a floor argued from
+ * scheduler jitter, not from a multiplier.
+ *
  * Tuning knobs (env):
  *   PERF_RUN              — set to 'true' to run; otherwise skipped.
  *   PERF_ITERATIONS       — total reads per scenario (default 1000)
  *   PERF_P95_CACHED_MS    — cached-path budget (default 5)
- *   PERF_P95_COLD_MS      — cold-path budget (default 50 — slacker than the
- *                            5-ms-cached / 30-ms-cold targets to absorb
- *                            shared-CI variance; tighten on dedicated infra).
+ *   PERF_SETTINGS_COLD_P95_MS — cold-path budget (default 10, see above)
  */
 
 const shouldRun = process.env['PERF_RUN'] === 'true';
 const iterations = Number(process.env['PERF_ITERATIONS'] ?? '1000');
 const p95CachedBudget = Number(process.env['PERF_P95_CACHED_MS'] ?? '5');
-const p95ColdBudget = Number(process.env['PERF_P95_COLD_MS'] ?? '50');
+const p95ColdBudget = Number(process.env['PERF_SETTINGS_COLD_P95_MS'] ?? '10');
 
 const CODE = 'perf_settings.url';
 const SEEDED_VALUE = 'https://default.example';
