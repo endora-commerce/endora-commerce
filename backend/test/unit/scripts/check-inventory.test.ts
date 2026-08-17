@@ -1359,12 +1359,16 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
-    // Eight specifier shapes, both nesting depths, the overlay tree and the two
-    // halves of the ledger — thirteen, and the last five are not padding. The
-    // shape count is the reach of the rule: a walker that stops seeing
-    // `import type` loses 43% of the tree's 674 sites, and a normaliser that
-    // sees one nesting depth loses more than half of what is left, silently, in
-    // both cases reporting a smaller number rather than an error.
+    // Eight specifier shapes, both nesting depths, the overlay tree, the two
+    // halves of the ledger and the three ways a permanence claim goes wrong —
+    // sixteen, and the last eight are not padding. The shape count is the reach
+    // of the rule: a walker that stops seeing `import type` loses 43% of the
+    // tree's 674 sites, and a normaliser that sees one nesting depth loses more
+    // than half of what is left, silently, in both cases reporting a smaller
+    // number rather than an error. The permanence proofs are the same property
+    // one level up (D-77): the flag removes an entry from `ledger-size`, so a
+    // check that stopped refusing an unjustified one would let the residue be
+    // lowered by declaration.
     script: 'backend/scripts/check-module-boundary.ts',
     npmScript: 'check:module-boundary',
     job: 'quality',
@@ -1469,6 +1473,53 @@ const CHECKS: readonly CheckEntry[] = [
           checkModuleBoundary({ sources: moduleBoundaryTree(ORDERS_READS_NOTHING) }, [
             { moduleId: 'orders', entries: { [CROSS_MODULE_KEY]: 'cut long ago' } },
           ]).stale.length,
+      ),
+      // D-77's sixth failure mode. A permanent entry claims the edge is not
+      // debt, which buys it out of `ledger-size`; the price is that it has to
+      // name what *would* retire it, and the sweep is not an answer — an entry
+      // claiming both permanence and "retired by the cut merge request" is
+      // claiming nothing, and that is the shape misuse takes.
+      'permanent-without-retiring-condition-fails': top(
+        () =>
+          checkModuleBoundary({ sources: moduleBoundaryTree(ORDERS_READS_A_PRODUCT) }, [
+            {
+              moduleId: 'orders',
+              entries: {
+                [CROSS_MODULE_KEY]: {
+                  permanent: true,
+                  reason: 'A foreign key makes the seam co-transactional.',
+                  retiredBy: '',
+                },
+              },
+            },
+          ]).permanentIssues.length,
+      ),
+      'permanent-naming-the-sweep-fails': top(
+        () =>
+          checkModuleBoundary({ sources: moduleBoundaryTree(ORDERS_READS_A_PRODUCT) }, [
+            {
+              moduleId: 'orders',
+              entries: {
+                [CROSS_MODULE_KEY]: {
+                  permanent: true,
+                  reason: 'A foreign key makes the seam co-transactional.',
+                  retiredBy: 'The orders cut merge request.',
+                },
+              },
+            },
+          ]).permanentIssues.length,
+      ),
+      // A shard is loaded through a dynamic import, so `tsc` never sees it: a
+      // mistyped flag would otherwise read as an object with no reason and be
+      // accepted as ordinary debt.
+      'malformed-shard-value-fails': top(
+        () =>
+          checkModuleBoundary({ sources: moduleBoundaryTree(ORDERS_READS_A_PRODUCT) }, [
+            {
+              moduleId: 'orders',
+              entries: { [CROSS_MODULE_KEY]: { permanently: true } as never },
+            },
+          ]).permanentIssues.length,
       ),
     },
   },
@@ -2106,7 +2157,10 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-fixture-substitution.ts': 6,
       'backend/scripts/check-harness-teardown.ts': 8,
       'backend/scripts/check-kernel-boundary.ts': 3,
-      'backend/scripts/check-module-boundary.ts': 13,
+      // Thirteen, plus D-77's three permanence shapes: the flag removes an
+      // entry from `ledger-size`, so a check that stopped refusing an
+      // unjustified one would let the residue be lowered by declaration.
+      'backend/scripts/check-module-boundary.ts': 16,
       'backend/scripts/check-overlay-determinism.ts': 3,
       'backend/scripts/check-port-catches.ts': 5,
       'backend/scripts/check-port-dependencies.ts': 19,

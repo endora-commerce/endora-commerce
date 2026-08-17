@@ -7,11 +7,14 @@ import {
   checkModuleBoundary,
   collectModuleFiles,
   generatedExemptionIssues,
+  isPermanent,
   keyOf,
   ledgerDirectory,
   loadLedgerShards,
+  permanentEntryIssue,
   sourcesOf,
   vacuousReason,
+  type LedgerEntry,
   type LedgerShard,
 } from '../../../scripts/check-module-boundary.js';
 
@@ -42,7 +45,7 @@ function tree(source: string, file: string = ORDER_SERVICE): Map<string, string>
   ]);
 }
 
-function shard(moduleId: string, entries: Record<string, string>): LedgerShard {
+function shard(moduleId: string, entries: Record<string, LedgerEntry>): LedgerShard {
   return { moduleId, entries };
 }
 
@@ -237,7 +240,7 @@ describe('analyzeSource — what it must not flag', () => {
   });
 });
 
-describe('checkModuleBoundary — the five ways the ledger fails', () => {
+describe('checkModuleBoundary — the six ways the ledger fails', () => {
   const CROSS = "import { Product } from '../../catalog/entities/product.entity.js';";
   const key = `${ORDER_SERVICE}:${PRODUCT}`;
 
@@ -296,6 +299,79 @@ describe('checkModuleBoundary — the five ways the ledger fails', () => {
     expect(result.misfiledEntries).toEqual([
       'orders: modules/orders/services/order-service.ts',
     ]);
+  });
+
+  // --- permanent entries (D-77) --------------------------------------------
+  //
+  // The flag says "this edge is not debt": it rests on something in the tree,
+  // and no cut merge request will remove it. Both halves of that claim are
+  // checked — it leaves `ledger-size`, and it has to name what would retire it,
+  // because an entry nobody can argue with later is exactly what the flag must
+  // not be allowed to create.
+
+  const PERMANENT = {
+    permanent: true,
+    reason:
+      'The coupling is `fk_product_attributes_custom_field_definition`, `on delete restrict`: ' +
+      'a child insert must see its parent inside one transaction.',
+    retiredBy:
+      'F4 gives `custom_fields` a package entry point that exports this seam, or the foreign key is dropped.',
+  } as const;
+
+  it('accepts a permanent entry and keeps it out of ledger-size', () => {
+    const result = checkModuleBoundary({ sources: tree(CROSS) }, [
+      shard('orders', { [key]: PERMANENT }),
+    ]);
+    expect(result.violations).toEqual([]);
+    expect(result.ledgered.map(keyOf)).toEqual([key]);
+    expect(result.permanentKeys).toEqual([key]);
+    expect(result.permanentIssues).toEqual([]);
+  });
+
+  it('fails a permanent entry that names no retiring condition', () => {
+    const result = checkModuleBoundary({ sources: tree(CROSS) }, [
+      shard('orders', { [key]: { ...PERMANENT, retiredBy: '  ' } }),
+    ]);
+    expect(result.permanentIssues).toEqual([`${key} is permanent but names no retiring condition`]);
+  });
+
+  it('fails a permanent entry whose retiring condition is the sweep itself', () => {
+    // "Retired by the cut merge request" is the reason every drainable entry
+    // carries. An entry claiming both permanence and that exit is claiming
+    // nothing, and it is the most likely way the flag gets misused.
+    const result = checkModuleBoundary({ sources: tree(CROSS) }, [
+      shard('orders', { [key]: { ...PERMANENT, retiredBy: 'The import_export cut merge request.' } }),
+    ]);
+    expect(result.permanentIssues).toHaveLength(1);
+    expect(result.permanentIssues[0]).toContain('names the sweep as its retiring condition');
+  });
+
+  it('fails a permanent entry that states no reason', () => {
+    const result = checkModuleBoundary({ sources: tree(CROSS) }, [
+      shard('orders', { [key]: { ...PERMANENT, reason: '' } }),
+    ]);
+    expect(result.permanentIssues).toEqual([`${key} is permanent but states no reason`]);
+  });
+
+  it('goes stale on a permanent entry exactly as on a draining one', () => {
+    // Permanence is a claim about *why* the edge stands, not a licence to
+    // describe an import that is gone.
+    const clean = 'export class OrderService {}';
+    const result = checkModuleBoundary({ sources: tree(clean) }, [
+      shard('orders', { [key]: PERMANENT }),
+    ]);
+    expect(result.stale).toEqual([key]);
+  });
+
+  it('refuses a shard value that is neither a reason nor a permanent entry', () => {
+    // A shard is loaded through a dynamic import, so `tsc` never sees it: a
+    // typo in the flag would otherwise be read as an object with no reason and
+    // silently accepted as debt.
+    const result = checkModuleBoundary({ sources: tree(CROSS) }, [
+      shard('orders', { [key]: { permanently: true, reason: 'typo' } as never }),
+    ]);
+    expect(result.permanentIssues).toHaveLength(1);
+    expect(result.permanentIssues[0]).toContain('neither a reason nor a permanent entry');
   });
 
   it('keys the edge by file and target, so moving the import inside the file keeps it', () => {
@@ -391,8 +467,16 @@ describe('the ledger shards on disk', () => {
     const shards = await loadLedgerShards(ledgerDirectory());
     expect(shards.length).toBeGreaterThan(0);
     for (const loaded of shards) {
-      for (const [key, reason] of Object.entries(loaded.entries)) {
-        expect(reason.length, `${loaded.moduleId}: ${key}`).toBeGreaterThan(20);
+      for (const [key, entry] of Object.entries(loaded.entries)) {
+        const where = `${loaded.moduleId}: ${key}`;
+        if (isPermanent(entry)) {
+          // A permanent entry is held to the opposite rule from a draining one
+          // (D-77): it is not waiting for a merge request, so it has to name
+          // what *would* retire it, and the sweep is not an answer.
+          expect(permanentEntryIssue(key, entry), where).toBeNull();
+          continue;
+        }
+        expect(entry.length, where).toBeGreaterThan(20);
       }
     }
   });
