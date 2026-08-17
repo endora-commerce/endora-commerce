@@ -109,6 +109,106 @@ describe('resolvedNames — what a module reads back', () => {
     expect(resolvedNames(source, BLOG).map((r) => r.name)).toEqual(['blogPostService']);
   });
 
+  it('reads a destructuring off a cradle accessor alias', () => {
+    // The two halves above, written together: an accessor alias *called* and
+    // then destructured. The check saw `cradle().x` and
+    // `const { x } = ctx.cradle<C>()` and not `const { x } = cradle()`, so
+    // `catalog`'s asset-reference boot hook resolved two names unseen
+    // (issue #127).
+    const source = [
+      'const cradle = (): BlogCradle => ctx.cradle<BlogCradle>();',
+      'ctx.onBoot(() => {',
+      '  const { blogPostService, emFactory } = cradle();',
+      '  registerBlogReferences(blogPostService, emFactory);',
+      '});',
+    ].join('\n');
+    expect(resolvedNames(source, BLOG).map((r) => r.name)).toEqual([
+      'blogPostService',
+      'emFactory',
+    ]);
+  });
+
+  it('sites a destructuring off an accessor alias where it is written', () => {
+    // The destructuring *is* the resolution — the cradle is a proxy, so the
+    // names come out of the container at that line and nowhere else. A boot
+    // hook is therefore a `boot` read, which is what makes it reachable by the
+    // gated-port rule.
+    const source = [
+      'const cradle = (): BlogCradle => ctx.cradle<BlogCradle>();',
+      'ctx.onBoot(() => {',
+      '  const { blogPostService } = cradle();',
+      '  blogPostService.warm();',
+      '});',
+    ].join('\n');
+    expect(resolvedNames(source, BLOG)).toContainEqual(
+      expect.objectContaining({ name: 'blogPostService', kind: 'deferred', site: 'boot' }),
+    );
+  });
+
+  it('reads a destructuring off a cradle object alias', () => {
+    // The object half of the same widening: the alias holds the cradle itself,
+    // so destructuring it resolves each name exactly as `cradle.x` does.
+    const source = [
+      'const cradle = ctx.cradle<BlogCradle>();',
+      'const { blogPostService } = cradle;',
+    ].join('\n');
+    expect(resolvedNames(source, BLOG).map((r) => r.name)).toEqual(['blogPostService']);
+  });
+
+  it('captures a destructuring off a factory cradle parameter', () => {
+    // A named factory parameter *is* the cradle, so destructuring it inside the
+    // factory body resolves at construction — the capture the rule refuses.
+    const source = [
+      'ctx.di.register({',
+      '  eligibility: ctx',
+      '    .asFunction((cradle: BlogCradle) => {',
+      '      const { blogPostService } = cradle;',
+      '      return new S(blogPostService);',
+      '    })',
+      '    .singleton(),',
+      '});',
+    ].join('\n');
+    expect(resolvedNames(source, BLOG)).toContainEqual(
+      expect.objectContaining({ name: 'blogPostService', kind: 'captured' }),
+    );
+  });
+
+  it('does not carry cradle-ness through a field read off a resolved name', () => {
+    // The precision rule MR !556 arrived at: what comes back from a resolution
+    // is an ordinary value. `cradle().blogPostService` is the resolution;
+    // destructuring *its* fields resolves nothing further, and reading them as
+    // container names would invent edges that do not exist.
+    const source = [
+      'const cradle = (): BlogCradle => ctx.cradle<BlogCradle>();',
+      'const { listPosts, ghostService } = cradle().blogPostService;',
+    ].join('\n');
+    expect(resolvedNames(source, BLOG).map((r) => r.name)).toEqual(['blogPostService']);
+  });
+
+  it('does not read a destructuring off an unrelated zero-argument call', () => {
+    // The widening keys on the alias table, not on the shape: `const { x } = f()`
+    // is the commonest line in the tree and almost none of it is a container read.
+    const source = [
+      'const { rows, total } = await listSomething();',
+      'const { a, b } = buildOptions();',
+    ].join('\n');
+    expect(resolvedNames(source, BLOG)).toEqual([]);
+  });
+
+  it('does not read a destructuring off an alias outside the scope that declared it', () => {
+    const source = [
+      'function one(): void {',
+      '  const cradle = (): BlogCradle => ctx.cradle<BlogCradle>();',
+      '  const { blogPostService } = cradle();',
+      '}',
+      'function two(): void {',
+      '  const cradle = somethingElse;',
+      '  const { ghostService } = cradle();',
+      '}',
+    ].join('\n');
+    expect(resolvedNames(source, BLOG).map((r) => r.name)).toEqual(['blogPostService']);
+  });
+
   it('reads a factory cradle parameter that is not destructured', () => {
     // Awilix hands the cradle to a factory as its first argument, so a named
     // parameter is the same read as a destructured one — and a capture.
