@@ -9,38 +9,32 @@
  * describes one fails it too. Delete this file when the last entry goes; an
  * empty shard is refused, because a done signal that says nothing is not one.
  *
- * "Retired by the cut merge request" is a reason only while the sweep runs.
- * After 2026-12-31 it stops being an acceptable one: an entry still carrying it
- * is a boundary the repository has decided to keep, and it needs a reason that
- * says so.
+ * Eleven of this module's fourteen entries were retired by the Phase C cut. The
+ * three left are all in `receive-payment-handler.ts`, and none of them carries
+ * the sweep's default reason: one is **permanent** under D-78 point 2, and two
+ * wait on a named merge request rather than on a date.
  */
 export const entries: Readonly<Record<string, string>> = {
-  'modules/payments/backend.ts:delivery_methods/services/order-status-registry.port':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
-  'modules/payments/backend.ts:payment_methods/services/payment-adapter-registry':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
-  'modules/payments/backend.ts:transactional_emails/services/email-defaults-registry':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
-  'modules/payments/services/gateway-refund-registry.ts:returns/ports/payment-refund.port':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
-  'modules/payments/services/payment-email-notifier.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
-  'modules/payments/services/payment-email-notifier.ts:orders/entities/order.entity':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
-  'modules/payments/services/payment-refund.ts:orders/entities/order.entity':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
-  'modules/payments/services/payment-refund.ts:payment_methods/entities/payment-method.entity':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
-  'modules/payments/services/payment-refund.ts:returns/ports/payment-refund.port':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
-  'modules/payments/services/receive-payment-handler.ts:orders/domain/order-status-graph':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
   'modules/payments/services/receive-payment-handler.ts:orders/entities/order.entity':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
-  'modules/payments/services/receive-payment-handler.ts:orders/events/order-status-events':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
+    'PERMANENT (D-78 point 2). `payments.order_id` carries a declared foreign key into ' +
+    '`orders.id` — `payments_order_fk`, `on delete restrict` — and a gateway callback moves ' +
+    'the payment row and the order’s `status` / `paymentStatus` inside one `em.transactional`, ' +
+    'so either both land or neither does. `emFactory` forks per call, so a read port executes ' +
+    'on the owner’s EntityManager, in a different transaction; routing this write through one ' +
+    'would trade the atomicity for a boundary without saying so. D-78 rules such a seam kept, ' +
+    'on the caller’s EntityManager, and **declared**: `orders` is in this module’s manifest ' +
+    '`dependencies`, this entry names the constraint, and the import site carries a comment ' +
+    'saying which transaction the write runs in. Retired by: nothing. It is the answer.',
   'modules/payments/services/receive-payment-handler.ts:payment_methods/entities/payment-method.entity':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
-  'modules/payments/services/receive-payment-handler.ts:payment_methods/services/order-status-registry.port':
-    'F3 Phase C — payments. Retired by the payments cut merge request.',
+    'F3 Phase C — a pure read with a port ready for it (`paymentMethodReadPort`), blocked on ' +
+    'the constructor rather than on the read. `stripe`, `payu`, `tpay` and `autopay` each ' +
+    'construct this handler themselves, and none of them can build a `payment_methods` port ' +
+    'without importing that module. Retired by the four gateway cuts (C-W3), which resolve ' +
+    'the `receivePaymentPort` Phase P published for exactly that instead of calling ' +
+    '`new ReceivePaymentHandler(…)`; the constructor may then take the port.',
+  'modules/payments/services/receive-payment-handler.ts:orders/events/order-status-events':
+    'F3 Phase C — the templated status announcement, blocked the same way and by the same ' +
+    'four constructions. `orderStatusAnnouncePort` is published and this module already ' +
+    'declares `orders`; what is missing is a constructor the gateways can call. Retired by ' +
+    'the four gateway cuts (C-W3), together with the entry above it.',
 };

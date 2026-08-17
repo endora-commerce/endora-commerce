@@ -30,8 +30,15 @@ export const manifest = defineModuleManifest({
   description:
     'Payment driver abstraction and PSP integrations.',
   version: '1.0.0',
+  // Feature 075 Phase C — `customer_accounts` joins the five that were already
+  // here: the payment-status e-mail resolves its recipient over
+  // `customerAccountReadPort` instead of reading the `CustomerAccount` entity.
+  // `orders` was already declared, which D-78 point 2 requires of the one
+  // co-transactional seam kept in `receive-payment-handler.ts` — the FK
+  // `payments_order_fk` had required it anyway.
   dependencies: [
     'auth',
+    'customer_accounts',
     'delivery_methods',
     'orders',
     'payment_methods',

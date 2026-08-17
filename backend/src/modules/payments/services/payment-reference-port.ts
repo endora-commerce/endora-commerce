@@ -43,6 +43,12 @@ export class PaymentReferenceService implements PaymentReferencePort {
     externalReference: string,
     onlyIfAbsent: boolean,
   ): Promise<boolean> {
+    // command-coverage-ignore: the mutation both public entry points delegate
+    // to, and it carries the marker for the same reason they do — recording the
+    // provider's own identifier for an attempt is integration bookkeeping, not
+    // an operator decision. It is repeated here rather than inherited because
+    // the check reads the function that writes, and marking only the callers
+    // left `--strict` blocking on the line below (feature 075, Phase P).
     const em = this.emFactory();
     const payment = await em.findOne(Payment, { id: paymentId });
     if (!payment) return false;

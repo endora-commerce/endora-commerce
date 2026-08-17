@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
+import type { OrderReadPort, OrderRecord, PaymentMethodReadPort } from '@b2b/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { PaymentRefundProvider } from '../../../src/modules/payments/services/payment-refund.js';
 import { gatewayRefundRegistry } from '../../../src/modules/payments/services/registry-singleton.js';
@@ -30,17 +30,36 @@ import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered
 
 const ALL_IDS = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id);
 
-/** An order paid through a gateway, with `adapter` naming the PSP. */
-const emFor = (adapter: string | null): (() => EntityManager) => {
-  const em = {
-    findOne: async (_entity: unknown, where: { id: string }) => ({
-      id: where.id,
-      paymentMethodSnapshot: { kind: 'gateway', adapter },
-      paymentMethodId: null,
-    }),
-  };
-  return () => em as unknown as EntityManager;
-};
+/**
+ * An order paid through a gateway, with `adapter` naming the PSP — over
+ * `orders`' published read port since feature 075's Phase C, where this used to
+ * be an `EntityManager` stub answering `findOne(Order, …)`.
+ *
+ * The refusing `paymentMethodRead` is the assertion's other half: every case
+ * here names an adapter in the order snapshot, so the provider must resolve the
+ * PSP from that and never fall through to `payment_methods`. A permissive stub
+ * would let that fall-through reappear unnoticed.
+ */
+const orderReadFor = (adapter: string | null): OrderReadPort =>
+  ({
+    findById: async (id: string) =>
+      ({
+        id,
+        paymentMethodSnapshot: { kind: 'gateway', adapter },
+        paymentMethodId: null,
+      }) as unknown as OrderRecord,
+  }) as unknown as OrderReadPort;
+
+const refusingPaymentMethodRead: PaymentMethodReadPort = new Proxy({} as PaymentMethodReadPort, {
+  get: () => () => {
+    throw new Error(
+      'the order snapshot names the adapter, so this test must not reach paymentMethodReadPort',
+    );
+  },
+});
+
+const providerFor = (adapter: string | null): PaymentRefundProvider =>
+  new PaymentRefundProvider(orderReadFor(adapter), refusingPaymentMethodRead);
 
 const input = {
   orderId: 'order-1',
@@ -59,7 +78,7 @@ describe('PaymentRefundProvider — a gateway whose module is switched off', () 
     expect(effectiveState.isPresent('stripe')).toBe(false);
 
     try {
-      const thrown = await new PaymentRefundProvider(emFor('stripe'))
+      const thrown = await providerFor('stripe')
         .refund(input)
         .then(
           (result) => result as unknown,
@@ -80,7 +99,7 @@ describe('PaymentRefundProvider — a gateway whose module is switched off', () 
   });
 
   it('keeps the older sentence when no module ever registered a handler', async () => {
-    const result = await new PaymentRefundProvider(emFor('bank_transfer_psp')).refund(input);
+    const result = await providerFor('bank_transfer_psp').refund(input);
 
     expect(result.state).toBe('pending_manual');
     expect(result.failureReason).toBe('Gateway refunds require a PSP refund integration.');
@@ -94,7 +113,7 @@ describe('PaymentRefundProvider — a gateway whose module is switched off', () 
     registryCache.__setEnabledForTesting(ALL_IDS);
 
     try {
-      const result = await new PaymentRefundProvider(emFor('stripe')).refund(input);
+      const result = await providerFor('stripe').refund(input);
       expect(result).toEqual({ state: 'issued', externalReference: 're_1' });
     } finally {
       gatewayRefundRegistry.unregister('stripe');

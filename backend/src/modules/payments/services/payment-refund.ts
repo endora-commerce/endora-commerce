@@ -1,12 +1,12 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
-import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
-import { Order } from '../../orders/entities/order.entity.js';
 import type {
+  OrderReadPort,
+  OrderRecord,
+  PaymentMethodReadPort,
   PaymentRefundInput,
   PaymentRefundPort,
   PaymentRefundResult,
-} from '../../returns/ports/payment-refund.port.js';
-import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
+} from '@b2b/contracts';
+import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { gatewayRefundRegistry } from './registry-singleton.js';
 
 /**
@@ -43,14 +43,24 @@ import { gatewayRefundRegistry } from './registry-singleton.js';
  * person to settle.
  */
 export class PaymentRefundProvider implements PaymentRefundPort {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  /**
+   * Feature 075 Phase C — both reads are somebody else's, both are reads, and
+   * neither is inside a transaction this class opens: the order comes from
+   * `orderReadPort` and the payment method from `paymentMethodReadPort`. They
+   * fail closed, which is the same answer D-71 already reaches for a
+   * switched-off gateway and for the same reason — resolving a refund against
+   * data the platform will not read is worse than refusing it.
+   */
+  constructor(
+    private readonly orderRead: OrderReadPort,
+    private readonly paymentMethodRead: PaymentMethodReadPort,
+  ) {}
 
   async refund(input: PaymentRefundInput): Promise<PaymentRefundResult> {
-    const em = this.emFactory();
-    const order = await em.findOne(Order, { id: input.orderId });
+    const order = await this.orderRead.findById(input.orderId);
     const kind = order?.paymentMethodSnapshot?.kind;
     if (kind === 'gateway') {
-      const adapterKey = await this.resolveOrderAdapterKey(em, order, input.paymentMethodId);
+      const adapterKey = await this.resolveOrderAdapterKey(order, input.paymentMethodId);
       const handler = gatewayRefundRegistry.resolve(adapterKey);
       if (handler) {
         return handler.refund(input);
@@ -80,21 +90,20 @@ export class PaymentRefundProvider implements PaymentRefundPort {
    * resolution when the order snapshot already names an adapter.
    */
   private async resolveOrderAdapterKey(
-    em: EntityManager,
-    order: Order | null,
+    order: OrderRecord | null,
     settlementPaymentMethodId: string | undefined,
   ): Promise<string | null> {
     const fromSnapshot = order?.paymentMethodSnapshot?.adapter?.trim();
     if (fromSnapshot) return fromSnapshot;
 
     if (order?.paymentMethodId) {
-      const method = await em.findOne(PaymentMethod, { id: order.paymentMethodId });
+      const method = await this.paymentMethodRead.findById(order.paymentMethodId);
       if (method?.adapter) return method.adapter;
     }
 
     // Last resort: settlement form method (legacy callers / missing snapshot).
     if (settlementPaymentMethodId) {
-      const method = await em.findOne(PaymentMethod, { id: settlementPaymentMethodId });
+      const method = await this.paymentMethodRead.findById(settlementPaymentMethodId);
       return method?.adapter ?? null;
     }
     return null;

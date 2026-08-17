@@ -1,14 +1,34 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type ReceivePayment } from '@b2b/contracts';
+import { ERROR_CODES, ORDER_STATUS_ON_HOLD, type ReceivePayment } from '@b2b/contracts';
+import type { OrderStatusRegistry } from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Payment } from '../entities/payment.entity.js';
+/**
+ * `Order` is the one cross-module import feature 075 keeps here **permanently**
+ * (D-78 point 2).
+ *
+ * `payments.order_id` carries a declared foreign key into `orders.id`
+ * (`payments_order_fk`, `on delete restrict`), so this is a genuinely
+ * co-transactional seam: a gateway callback moves the payment row and the
+ * order's `status` / `paymentStatus` in one `em.transactional`, and either both
+ * land or neither does. D-78 rules that such a seam keeps the caller's
+ * `EntityManager` and is *declared* — `orders` is in this module's manifest
+ * `dependencies` (the FK already required it), the ledger entry names the
+ * constraint, and this comment says which transaction the write runs in.
+ *
+ * The other two below are **pending**, not permanent, and they wait on somebody
+ * else: `stripe`, `payu`, `tpay` and `autopay` each construct this handler
+ * themselves, so its constructor cannot take a port none of them can build.
+ * Phase P published `receivePaymentPort` for exactly that — when the four
+ * gateway cuts resolve it instead of `new ReceivePaymentHandler(…)`, the
+ * payment-method read becomes `paymentMethodReadPort` and the announcement
+ * becomes `orderStatusAnnouncePort`, and both imports go.
+ */
 import { Order } from '../../orders/entities/order.entity.js';
 import { emitOrderStatusAfter } from '../../orders/events/order-status-events.js';
-import { ORDER_STATUS_ON_HOLD } from '../../orders/domain/order-status-graph.js';
 import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
-import type { OrderStatusRegistry } from '../../payment_methods/services/order-status-registry.port.js';
 
 export interface PaymentEvents extends Record<string, EventBase> {
   'payment.received.v1': EventBase & {

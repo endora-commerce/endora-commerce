@@ -10,6 +10,10 @@
 
 import { describe, expect, it } from 'vitest';
 import type {
+  CustomerAccountReadPort,
+  CustomerAccountRecord,
+  OrderReadPort,
+  OrderRecord,
   TransactionalEmailSendInput,
   TransactionalEmailSender,
   TransactionalSendOutcome,
@@ -38,41 +42,76 @@ class CapturingSender implements TransactionalEmailSender {
 }
 
 /**
- * The three reads `notify` makes, keyed by entity so one fake serves all of
- * them. `null` for a key is that read finding nothing.
+ * Feature 075 Phase C — the notifier's `EntityManager` refuses every entity but
+ * `SalesChannel`.
+ *
+ * The order and the buyer used to come out of `em.findOne(Order, …)` and
+ * `em.findOne(CustomerAccount, …)`: two of somebody else's tables, queried on
+ * this module's connection, answering rows whatever state their owner was in.
+ * They come from `orderReadPort` and `customerAccountReadPort` now, so the only
+ * entity left is the kernel's `SalesChannel`.
+ *
+ * The refusal is the assertion. A stub that quietly returned `null` for a
+ * foreign entity would let the read creep back and be read as "no such order".
  */
-function fakeEmFactory(rows: {
-  order?: unknown;
-  customer?: unknown;
-  channel?: unknown;
-}): PaymentEmailNotifierDeps['emFactory'] {
+function fakeEmFactory(channel: unknown): PaymentEmailNotifierDeps['emFactory'] {
   return () =>
     ({
       async findOne(entity: { name: string }) {
-        if (entity.name === 'Order') return rows.order ?? null;
-        if (entity.name === 'CustomerAccount') return rows.customer ?? null;
-        return rows.channel ?? null;
+        if (entity.name !== 'SalesChannel') {
+          throw new Error(
+            `payments queried '${entity.name}' directly — it belongs to another module, ` +
+              'and its owner publishes a port for it (feature 075, FR-012).',
+          );
+        }
+        return channel;
       },
     }) as unknown as ReturnType<PaymentEmailNotifierDeps['emFactory']>;
+}
+
+function orderReadPort(order: OrderRecord | null): OrderReadPort {
+  return {
+    findById: async () => order,
+    findByIds: async () => (order ? [order] : []),
+    listAll: async () => (order ? [order] : []),
+    listItems: async () => [],
+  };
+}
+
+function customerAccountReadPort(customer: CustomerAccountRecord | null): CustomerAccountReadPort {
+  return {
+    findById: async () => customer,
+    findByIds: async () => (customer ? [customer] : []),
+  } as unknown as CustomerAccountReadPort;
 }
 
 function notifier(
   sender: TransactionalEmailSender | undefined,
   logged: Logged[],
-  rows: { order?: unknown; customer?: unknown; channel?: unknown } = {},
+  rows: {
+    order?: OrderRecord | null;
+    customer?: CustomerAccountRecord | null;
+    channel?: unknown;
+  } = {},
 ): PaymentEmailNotifier {
+  const order = {
+    id: ORDER_ID,
+    businessId: 'ORD-1',
+    salesChannelId: CHANNEL_ID,
+    placedByCustomerAccountId: 'customer-1',
+  } as unknown as OrderRecord;
+  const customer = {
+    id: 'customer-1',
+    email: 'buyer@example.com',
+  } as unknown as CustomerAccountRecord;
   return new PaymentEmailNotifier({
-    emFactory: fakeEmFactory({
-      order: {
-        id: ORDER_ID,
-        businessId: 'ORD-1',
-        salesChannelId: CHANNEL_ID,
-        placedByCustomerAccountId: 'customer-1',
-      },
-      customer: { id: 'customer-1', email: 'buyer@example.com' },
-      channel: { id: CHANNEL_ID, defaultLanguage: 'en-US' },
-      ...rows,
-    }),
+    emFactory: fakeEmFactory(
+      'channel' in rows ? rows.channel : { id: CHANNEL_ID, defaultLanguage: 'en-US' },
+    ),
+    orderRead: orderReadPort('order' in rows ? (rows.order ?? null) : order),
+    customerAccountRead: customerAccountReadPort(
+      'customer' in rows ? (rows.customer ?? null) : customer,
+    ),
     getTransactionalEmailSender: () => sender,
     log: (message, context) => logged.push({ message, context }),
   });
@@ -129,7 +168,9 @@ describe('payments — the payment-status notifier reports what happened (#78)',
     const logged: Logged[] = [];
 
     await expect(
-      notifier(new CapturingSender(), logged, { customer: { id: 'customer-1', email: null } }).notify(
+      notifier(new CapturingSender(), logged, {
+        customer: { id: 'customer-1', email: null } as unknown as CustomerAccountRecord,
+      }).notify(
         ORDER_ID,
         'paid',
         null,
