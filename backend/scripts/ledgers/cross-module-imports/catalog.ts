@@ -59,42 +59,6 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/routes.public.ts:search/services/search-query.service':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/attribute-fixtures.ts:custom_fields/entities/custom-field-definition.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/attribute-fixtures.ts:custom_fields/entities/custom-field-option.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:admin_roles/entities/admin-role.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:admin_users/entities/admin-user.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:auth/services/password-hasher':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:delivery_methods/entities/delivery-method.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:inventory/entities/stock-level.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:inventory/entities/warehouse-channel-assignment.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:inventory/entities/warehouse.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:inventory/services/warehouse-channel-reconciler':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:megamenu/entities/megamenu-binding.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:megamenu/entities/megamenu-item.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:megamenu/entities/megamenu.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:organizations/entities/organization.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:payment_methods/entities/payment-method.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:price_lists/services/default-price-list-migration':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/seeds/dev-catalog-seed.ts:taxes/entities/tax.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/asset-references.ts:assets_library/services/reference-registry':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/attachment.service.ts:assets_library/entities/asset.entity':

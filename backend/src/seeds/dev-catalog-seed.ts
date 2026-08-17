@@ -16,31 +16,56 @@
  * NOT for production. Drops business-data tables — refuses to run unless
  * NODE_ENV !== 'production' and the DATABASE_URL points at a localhost or
  * docker-compose host.
+ *
+ * ## Why this lives in `src/seeds/` and not in `catalog` (feature 075)
+ *
+ * It used to sit in `src/modules/catalog/seeds/`, where it accounted for
+ * sixteen of `catalog`'s forty-three cross-module imports — more than a third
+ * of the module's whole boundary debt, in one file. Look at what it seeds:
+ * megamenus, organisations, customer accounts, admin users and roles, delivery
+ * methods, payment methods, taxes, a default price list, warehouses and stock.
+ * Two of the twelve modules it names are `catalog`. It is a **composition of
+ * the whole platform's demo data**, which is a composition root's job and not a
+ * module's, and it was only ever in `catalog` because products are the biggest
+ * thing it writes.
+ *
+ * So it is here, beside `composition.ts`, for the reason
+ * `specs/075-cross-module-decoupling-sweep/contracts/module-boundary-check.md`
+ * gives that file: a root naming modules is a root doing its job, and it is out
+ * of the boundary check's scope by construction rather than by exemption.
+ *
+ * It is **not** deleted under FR-016. FR-016's "a dev script naming modules by
+ * hand" is about a script duplicating something the platform already answers —
+ * `settings/scripts/module-manifest-loader.ts` is the cited case. This one
+ * duplicates nothing: it is `pnpm --filter backend run seed:dev`, the developer
+ * bootstrap quickstart §3 documents, `docs/docs/modules/search.md` tells you to
+ * run before a reindex, and two audit tests read as a source of truth. Deleting
+ * it would be a product change wearing a refactor's clothes.
  */
 
-import { initOrm, closeOrm } from '../../../db/index.js';
-import { Product } from '../entities/product.entity.js';
-import { Category } from '../entities/category.entity.js';
-import { AttributeSetAttribute } from '../entities/attribute-set-attribute.entity.js';
+import { initOrm, closeOrm } from '../db/index.js';
+import { Product } from '../modules/catalog/entities/product.entity.js';
+import { Category } from '../modules/catalog/entities/category.entity.js';
+import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
 import { createAttributeFixture } from './attribute-fixtures.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import { Megamenu } from '../../megamenu/entities/megamenu.entity.js';
-import { MegamenuItem } from '../../megamenu/entities/megamenu-item.entity.js';
-import { MegamenuBinding } from '../../megamenu/entities/megamenu-binding.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
-import { AdminRole } from '../../admin_roles/entities/admin-role.entity.js';
-import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.entity.js';
-import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
-import { Tax } from '../../taxes/entities/tax.entity.js';
-import { DefaultPriceListMigrator } from '../../price_lists/services/default-price-list-migration.js';
-import { CatalogProductReadService } from '../services/catalog-product-read.service.js';
-import { hashPassword } from '../../auth/services/password-hasher.js';
-import { Warehouse, DEFAULT_WAREHOUSE_ID } from '../../inventory/entities/warehouse.entity.js';
-import { WarehouseChannelAssignment } from '../../inventory/entities/warehouse-channel-assignment.entity.js';
-import { StockLevel } from '../../inventory/entities/stock-level.entity.js';
-import { WarehouseChannelReconciler } from '../../inventory/services/warehouse-channel-reconciler.js';
+import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
+import { Megamenu } from '../modules/megamenu/entities/megamenu.entity.js';
+import { MegamenuItem } from '../modules/megamenu/entities/megamenu-item.entity.js';
+import { MegamenuBinding } from '../modules/megamenu/entities/megamenu-binding.entity.js';
+import { Organization } from '../modules/organizations/entities/organization.entity.js';
+import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
+import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js';
+import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js';
+import { DeliveryMethod } from '../modules/delivery_methods/entities/delivery-method.entity.js';
+import { PaymentMethod } from '../modules/payment_methods/entities/payment-method.entity.js';
+import { Tax } from '../modules/taxes/entities/tax.entity.js';
+import { DefaultPriceListMigrator } from '../modules/price_lists/services/default-price-list-migration.js';
+import { CatalogProductReadService } from '../modules/catalog/services/catalog-product-read.service.js';
+import { hashPassword } from '../kernel/crypto/password-hasher.js';
+import { Warehouse, DEFAULT_WAREHOUSE_ID } from '../modules/inventory/entities/warehouse.entity.js';
+import { WarehouseChannelAssignment } from '../modules/inventory/entities/warehouse-channel-assignment.entity.js';
+import { StockLevel } from '../modules/inventory/entities/stock-level.entity.js';
+import { WarehouseChannelReconciler } from '../modules/inventory/services/warehouse-channel-reconciler.js';
 
 const DEMO_ADMIN_EMAIL = 'admin@demo.local';
 const DEMO_ADMIN_PASSWORD = 'ChangeMe!123';

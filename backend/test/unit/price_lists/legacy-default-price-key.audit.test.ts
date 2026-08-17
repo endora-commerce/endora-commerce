@@ -45,7 +45,7 @@ const ALLOW = new Set<string>([
 
   // Dev seed comment only — the seed itself now invokes the engine
   // migrator (T011) and writes no legacy rows.
-  'backend/src/modules/catalog/seeds/dev-catalog-seed.ts',
+  'backend/src/seeds/dev-catalog-seed.ts',
 
   // Admin Product editor still reads/writes the legacy default price
   // input. The contract migration will retire it.
