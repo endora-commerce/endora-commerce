@@ -72,14 +72,27 @@
  * because a single table makes all 45 cut merge requests edit one file, and that
  * is the serialisation point this design exists to remove.
  *
- * It fails **five** ways, not two: an unledgered import fails, a stale entry
+ * It fails **six** ways, not two: an unledgered import fails, a stale entry
  * fails, an empty shard fails (delete the file instead), an orphan shard fails,
- * and a **misfiled** entry fails — without the last, an engineer blocked on
+ * a **misfiled** entry fails — without that one, an engineer blocked on
  * `catalog` could park an `orders` finding in `catalog.ts` and both merge
- * requests would read green.
+ * requests would read green — and a **permanent entry with no retiring
+ * condition** fails.
  *
  * There is **no global count** anyone can raise to make the build pass (FR-028):
  * `ledger-size` is derived from the walk and printed, never written down.
+ *
+ * ## Permanent entries (D-77)
+ *
+ * Most entries are debt: a sentence saying why an edge still stands and what
+ * retires it, drained by the cut that removes the import. A few are not, and the
+ * ledger has to be able to say so — the worked example is `catalog` reaching
+ * `custom_fields`' apply seam, which a foreign key with `on delete restrict`
+ * makes co-transactional, so no port can carry it and no merge request will
+ * remove it. Such an entry is `{ permanent: true, reason, retiredBy }`:
+ * **excluded from `ledger-size`**, printed separately, and held to the opposite
+ * rule from a draining one — it must name what would retire it, and naming the
+ * sweep fails the build. See {@link PermanentLedgerEntry}.
  *
  * `ledger-size` is **keys**, `cross-module imports` is **sites**, and at MR-0
  * they read 670 and 674. The four are one file reaching one target path twice —
@@ -162,12 +175,88 @@ export function keyOf(found: CrossModuleImport): string {
     : `${found.file}:${found.target}/${found.targetPath}`;
 }
 
+/**
+ * An entry the repository has decided to **keep** (feature 075, D-77).
+ *
+ * The ordinary entry is a sentence saying why an edge still stands and what
+ * retires it; the sweep drains them, and `ledger-size` counts them so the
+ * draining is visible. A permanent entry is the opposite claim — this edge is
+ * not waiting for a merge request, it rests on something in the tree — and it is
+ * held to a different rule in both directions:
+ *
+ *  - it is **excluded from `ledger-size`** and printed separately, so a residue
+ *    that has stopped shrinking because the last few entries are permanent does
+ *    not read as a stalled sweep (the idiom D-72 gave the parity ledger);
+ *  - it **must name what would retire it**, and "the cut merge request" is not
+ *    an acceptable answer for one. An entry with no retiring condition is a
+ *    boundary nobody can argue with later, which is exactly what a permanent
+ *    flag must not be allowed to create.
+ *
+ * The worked example is `catalog` → `custom_fields`' apply seam: a child insert
+ * must see its parent inside one transaction because of
+ * `fk_product_attributes_custom_field_definition`, so no port can carry it, and
+ * what retires it is F4's package entry points — not a cut.
+ */
+export interface PermanentLedgerEntry {
+  readonly permanent: true;
+  /** Why the edge stands. Names the constraint, not the inconvenience. */
+  readonly reason: string;
+  /** What would retire it. A merge request is not a retiring condition. */
+  readonly retiredBy: string;
+}
+
+/** What a shard maps a key to: a draining reason, or a permanent entry. */
+export type LedgerEntry = string | PermanentLedgerEntry;
+
 /** One ledger shard: the module it belongs to, and its entries. */
 export interface LedgerShard {
   /** The consumer module the shard is named for — the filename's stem. */
   readonly moduleId: string;
   /** Key → the reason it still stands and the question that retires it. */
-  readonly entries: Readonly<Record<string, string>>;
+  readonly entries: Readonly<Record<string, LedgerEntry>>;
+}
+
+/**
+ * Whether a shard value claims permanence.
+ *
+ * Structural rather than trusting the declared type, because a shard is loaded
+ * at runtime through a dynamic `import` and `tsc` never sees it. A value that is
+ * neither a string nor a permanence claim is reported as a malformed entry
+ * rather than silently read as a reason.
+ */
+export function isPermanent(entry: unknown): entry is PermanentLedgerEntry {
+  return (
+    typeof entry === 'object' &&
+    entry !== null &&
+    (entry as { permanent?: unknown }).permanent === true
+  );
+}
+
+/** A merge request is not a retiring condition — see {@link PermanentLedgerEntry}. */
+const SWEEP_RETIRING_CONDITION = /merge request|the cut\b|not yet cut|phase c/i;
+
+/**
+ * Why a permanent entry is not acceptable as written, or `null` when it is.
+ *
+ * Separate from the shard walk so the rule can be proven on one entry rather
+ * than on a tree, and so the message names the key the reader has to fix.
+ */
+export function permanentEntryIssue(key: string, entry: PermanentLedgerEntry): string | null {
+  const reason = typeof entry.reason === 'string' ? entry.reason.trim() : '';
+  if (reason === '') {
+    return `${key} is permanent but states no reason`;
+  }
+  const retiredBy = typeof entry.retiredBy === 'string' ? entry.retiredBy.trim() : '';
+  if (retiredBy === '') {
+    return `${key} is permanent but names no retiring condition`;
+  }
+  if (SWEEP_RETIRING_CONDITION.test(retiredBy)) {
+    return (
+      `${key} is permanent but names the sweep as its retiring condition ` +
+      `("${retiredBy}") — an entry a merge request retires is not permanent`
+    );
+  }
+  return null;
 }
 
 export interface ModuleBoundaryInput {
@@ -188,6 +277,10 @@ export interface CheckResult {
   readonly orphanShards: readonly string[];
   /** `<shard>: <key>` for a key whose file is not this shard's module. */
   readonly misfiledEntries: readonly string[];
+  /** Keys the repository has decided to keep — excluded from `ledger-size`. */
+  readonly permanentKeys: readonly string[];
+  /** A permanent entry that states no reason or no retiring condition. */
+  readonly permanentIssues: readonly string[];
 }
 
 /** Where a module lives and what it is called: `{ id: 'orders', dir: 'modules/orders' }`. */
@@ -315,10 +408,12 @@ export function checkModuleBoundary(
     if (owner !== null) modules.add(owner.id);
   }
 
-  const ledger = new Map<string, string>();
+  const ledger = new Map<string, LedgerEntry>();
   const misfiledEntries: string[] = [];
   const emptyShards: string[] = [];
   const orphanShards: string[] = [];
+  const permanentKeys: string[] = [];
+  const permanentIssues: string[] = [];
 
   for (const shard of shards) {
     const keys = Object.keys(shard.entries);
@@ -333,7 +428,18 @@ export function checkModuleBoundary(
         misfiledEntries.push(`${shard.moduleId}: ${key}`);
         continue;
       }
-      ledger.set(key, shard.entries[key] ?? '');
+      const entry = shard.entries[key] ?? '';
+      ledger.set(key, entry);
+      if (isPermanent(entry)) {
+        permanentKeys.push(key);
+        const issue = permanentEntryIssue(key, entry);
+        if (issue !== null) permanentIssues.push(issue);
+      } else if (typeof entry !== 'string') {
+        permanentIssues.push(
+          `${key} is neither a reason nor a permanent entry — a shard value is a string or ` +
+            '`{ permanent: true, reason, retiredBy }`',
+        );
+      }
     }
   }
 
@@ -341,10 +447,14 @@ export function checkModuleBoundary(
     total: all.length,
     violations: all.filter((entry) => !ledger.has(keyOf(entry))),
     ledgered: all.filter((entry) => ledger.has(keyOf(entry))),
+    // A permanent entry goes stale exactly like a draining one: it describes an
+    // import, and an import that is gone is an entry that lies.
     stale: [...ledger.keys()].filter((key) => !present.has(key)).sort(),
     emptyShards: emptyShards.sort(),
     orphanShards: orphanShards.sort(),
     misfiledEntries: misfiledEntries.sort(),
+    permanentKeys: permanentKeys.sort(),
+    permanentIssues: permanentIssues.sort(),
   };
 }
 
@@ -587,12 +697,26 @@ async function main(): Promise<void> {
     console.log('');
   }
 
-  const ledgerSize = shards.reduce((sum, shard) => sum + Object.keys(shard.entries).length, 0);
+  // `ledger-size` is what is left to drain, so the entries the repository has
+  // decided to keep are excluded from it and printed on their own line. A
+  // residue that stops shrinking because the last few entries are permanent
+  // would otherwise read as a stalled sweep (D-77; the idiom D-72 gave the
+  // parity ledger).
+  const ledgerSize =
+    shards.reduce((sum, shard) => sum + Object.keys(shard.entries).length, 0) -
+    result.permanentKeys.length;
   console.log(
     `[module-boundary] module files=${files.length} cross-module imports=${result.total} ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
-      `ledger-size=${ledgerSize} shards=${shards.length} stale=${result.stale.length}`,
+      `ledger-size=${ledgerSize} shards=${shards.length} stale=${result.stale.length} ` +
+      `permanent=${result.permanentKeys.length}`,
   );
+  if (result.permanentKeys.length > 0) {
+    console.log(
+      '[module-boundary] permanent entries (kept, not draining — excluded from ledger-size):',
+    );
+    for (const key of result.permanentKeys) console.log(`  - ${key}`);
+  }
 
   if (testMode) {
     console.log(
@@ -647,12 +771,22 @@ async function main(): Promise<void> {
     for (const entry of result.misfiledEntries) console.error(`  - ${entry}`);
   }
 
+  if (result.permanentIssues.length > 0) {
+    console.error(
+      '\nA permanent ledger entry has to say what would retire it, and a merge request\n' +
+        'is not a retiring condition. An entry nobody can argue with later is exactly what\n' +
+        'the flag must not create:',
+    );
+    for (const issue of result.permanentIssues) console.error(`  - ${issue}`);
+  }
+
   const failed =
     result.violations.length > 0 ||
     result.stale.length > 0 ||
     result.emptyShards.length > 0 ||
     result.orphanShards.length > 0 ||
     result.misfiledEntries.length > 0 ||
+    result.permanentIssues.length > 0 ||
     exemptionIssues.length > 0;
   process.exit(failed ? 1 : 0);
 }
