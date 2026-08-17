@@ -138,7 +138,7 @@ function orderItem(over: Partial<OrderItemRecord> = {}): OrderItemRecord {
   };
 }
 
-/** Only the four methods `OrderReadPort` publishes — never `orders`' entities. */
+/** Only the methods `OrderReadPort` publishes — never `orders`' entities. */
 function readPort(
   order: OrderRecord | null,
   items: OrderItemRecord[] = [],
@@ -157,6 +157,10 @@ function readPort(
     listItems: async (orderId) => {
       calls.push(`listItems:${orderId}`);
       return items;
+    },
+    findIdsByBusinessIdLike: async (fragment, limit) => {
+      calls.push(`findIdsByBusinessIdLike:${fragment}:${limit}`);
+      return order ? [order.id] : [];
     },
   };
   return { port, calls: () => calls };
