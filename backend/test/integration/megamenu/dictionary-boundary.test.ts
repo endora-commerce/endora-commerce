@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
-import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 import { Language } from '../../../src/modules/languages/entities/language.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { MegamenuService } from '../../../src/modules/megamenu/services/megamenu-service.js';
@@ -25,7 +26,7 @@ describe('Megamenu dictionary boundary', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    validator = new DictionaryValidator(() => em);
+    validator = dictionaryValidatorFor(() => em);
     service = new MegamenuService(() => em, undefined, validator);
     const channel = em.create(SalesChannel, {
       code: `menu-${crypto.randomUUID().slice(0, 8)}`,

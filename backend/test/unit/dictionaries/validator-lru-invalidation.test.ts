@@ -3,7 +3,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
 import { CountryService } from '../../../src/modules/dictionaries/services/country-service.js';
-import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 
 describe('DictionaryValidator LRU invalidation', () => {
   let db: TestDb;
@@ -22,7 +23,7 @@ describe('DictionaryValidator LRU invalidation', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    validator = new DictionaryValidator(() => em);
+    validator = dictionaryValidatorFor(() => em);
     countryService = new CountryService(() => em, async () => {
       validator.invalidate();
     });

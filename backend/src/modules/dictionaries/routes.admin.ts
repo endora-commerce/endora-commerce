@@ -11,6 +11,16 @@ import {
   updateDictionaryLanguageRequestSchema,
   upsertTranslationRequestSchema,
   upsertLanguageCountryRequestSchema,
+  type CreateCurrencyInput,
+  type CreateLanguageInput,
+  type CurrencyAdminPort,
+  type CurrencyReadPort,
+  type CurrencyRecord,
+  type LanguageAdminPort,
+  type LanguageReadPort,
+  type LanguageRecord,
+  type UpdateCurrencyInput,
+  type UpdateLanguageInput,
 } from '@b2b/contracts';
 import { DICTIONARY_PERMISSIONS } from './manifest.js';
 import type {
@@ -24,17 +34,24 @@ import type { Country } from './entities/country.entity.js';
 import type { DictionaryTranslation } from './entities/dictionary-translation.entity.js';
 import type { LanguageCountry } from './entities/language-country.entity.js';
 import type { TranslationService } from './services/translation-service.js';
-import type { LanguageService } from '../languages/services/language-service.js';
-import type { CurrencyService } from '../currencies/services/currency-service.js';
-import type { Language } from '../languages/entities/language.entity.js';
-import type { Currency } from '../currencies/entities/currency.entity.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
+/**
+ * Feature 075, Phase C — this module hosts the admin screen for two tables it
+ * does not own, which is why the write side crosses a boundary by design
+ * (`languages.ts` and `currencies.ts` both say so). It used to cross by holding
+ * the owners' service classes and serialising their entities; it now holds the
+ * four published ports and serialises the records they return, so the screen
+ * refuses while an owner is switched off instead of editing rows nobody is
+ * serving.
+ */
 export interface DictionaryAdminRoutesDeps {
   emFactory: () => EntityManager;
   countryService: CountryService;
-  currencyService: CurrencyService;
-  languageService: LanguageService;
+  currencyRead: CurrencyReadPort;
+  currencyAdmin: CurrencyAdminPort;
+  languageRead: LanguageReadPort;
+  languageAdmin: LanguageAdminPort;
   languageCountryService: LanguageCountryService;
   translationService: TranslationService;
   invalidateDictionaryState: () => Promise<void>;
@@ -125,7 +142,7 @@ export async function registerDictionaryAdminRoutes(
   app.get('/api/v1/admin/dictionary/currencies', { preHandler: gate }, async (request) => {
     const query = pageQuerySchema.parse(request.query);
     return pageAndFilter(
-      (await deps.currencyService.list()).map(serializeCurrency),
+      (await deps.currencyRead.list()).map(serializeCurrency),
       query,
       ['code', 'label'],
     );
@@ -136,9 +153,7 @@ export async function registerDictionaryAdminRoutes(
     { preHandler: gate, schema: { body: createDictionaryCurrencyRequestSchema } },
     async (request, reply) => {
       const body = createDictionaryCurrencyRequestSchema.parse(request.body);
-      const row = await deps.currencyService.create(
-        compact(body) as Parameters<CurrencyService['create']>[0],
-      );
+      const row = await deps.currencyAdmin.create(compact(body) as CreateCurrencyInput);
       reply.status(201);
       return { data: serializeCurrency(row) };
     },
@@ -149,10 +164,7 @@ export async function registerDictionaryAdminRoutes(
     { preHandler: gate, schema: { body: updateDictionaryCurrencyRequestSchema } },
     async (request) => {
       const body = updateDictionaryCurrencyRequestSchema.parse(request.body);
-      const row = await deps.currencyService.update(
-        request.params.code,
-        compact(body) as Parameters<CurrencyService['update']>[1],
-      );
+      const row = await deps.currencyAdmin.update(request.params.code, compact(body) as UpdateCurrencyInput);
       return { data: serializeCurrency(row) };
     },
   );
@@ -161,7 +173,7 @@ export async function registerDictionaryAdminRoutes(
     '/api/v1/admin/dictionary/currencies/:code/default',
     { preHandler: gate },
     async (request) => {
-      const row = await deps.currencyService.setDefault(request.params.code);
+      const row = await deps.currencyAdmin.setDefault(request.params.code);
       return { data: serializeCurrency(row) };
     },
   );
@@ -170,7 +182,7 @@ export async function registerDictionaryAdminRoutes(
     '/api/v1/admin/dictionary/currencies/:code',
     { preHandler: gate },
     async (request, reply) => {
-      await deps.currencyService.remove(request.params.code);
+      await deps.currencyAdmin.remove(request.params.code);
       return reply.status(204).send();
     },
   );
@@ -178,7 +190,7 @@ export async function registerDictionaryAdminRoutes(
   app.get('/api/v1/admin/dictionary/languages', { preHandler: gate }, async (request) => {
     const query = pageQuerySchema.parse(request.query);
     const rows = await withLanguageCountries(
-      deps.languageService,
+      deps.languageRead,
       deps.languageCountryService,
     );
     return pageAndFilter(rows, query, ['code', 'label', 'nativeLabel']);
@@ -189,9 +201,7 @@ export async function registerDictionaryAdminRoutes(
     { preHandler: gate, schema: { body: createDictionaryLanguageRequestSchema } },
     async (request, reply) => {
       const body = createDictionaryLanguageRequestSchema.parse(request.body);
-      const row = await deps.languageService.create(
-        compact(body) as Parameters<LanguageService['create']>[0],
-      );
+      const row = await deps.languageAdmin.create(compact(body) as CreateLanguageInput);
       reply.status(201);
       return {
         data: serializeLanguage(row, []),
@@ -204,10 +214,7 @@ export async function registerDictionaryAdminRoutes(
     { preHandler: gate, schema: { body: updateDictionaryLanguageRequestSchema } },
     async (request) => {
       const body = updateDictionaryLanguageRequestSchema.parse(request.body);
-      const row = await deps.languageService.update(
-        request.params.code,
-        compact(body) as Parameters<LanguageService['update']>[1],
-      );
+      const row = await deps.languageAdmin.update(request.params.code, compact(body) as UpdateLanguageInput);
       const countries = (await deps.languageCountryService.listForLanguage(row.code)).map(
         (lc) => lc.countryCode,
       );
@@ -219,7 +226,7 @@ export async function registerDictionaryAdminRoutes(
     '/api/v1/admin/dictionary/languages/:code/default',
     { preHandler: gate },
     async (request) => {
-      const row = await deps.languageService.setDefault(request.params.code);
+      const row = await deps.languageAdmin.setDefault(request.params.code);
       const countries = (await deps.languageCountryService.listForLanguage(row.code)).map(
         (lc) => lc.countryCode,
       );
@@ -231,7 +238,7 @@ export async function registerDictionaryAdminRoutes(
     '/api/v1/admin/dictionary/languages/:code',
     { preHandler: gate },
     async (request, reply) => {
-      await deps.languageService.remove(request.params.code);
+      await deps.languageAdmin.remove(request.params.code);
       return reply.status(204).send();
     },
   );
@@ -454,7 +461,7 @@ function compareBySort(a: Record<string, unknown>, b: Record<string, unknown>, s
 }
 
 async function withLanguageCountries(
-  languageService: LanguageService,
+  languageService: LanguageReadPort,
   languageCountryService: LanguageCountryService,
 ): Promise<Array<ReturnType<typeof serializeLanguage>>> {
   const languages = await languageService.list();
@@ -487,7 +494,7 @@ function serializeCountry(row: Country): Record<string, unknown> {
   };
 }
 
-function serializeCurrency(row: Currency): Record<string, unknown> {
+function serializeCurrency(row: CurrencyRecord): Record<string, unknown> {
   return {
     code: row.code,
     label: row.label,
@@ -502,7 +509,7 @@ function serializeCurrency(row: Currency): Record<string, unknown> {
   };
 }
 
-function serializeLanguage(row: Language, countries: string[]): Record<string, unknown> {
+function serializeLanguage(row: LanguageRecord, countries: string[]): Record<string, unknown> {
   return {
     code: row.code,
     label: row.label,

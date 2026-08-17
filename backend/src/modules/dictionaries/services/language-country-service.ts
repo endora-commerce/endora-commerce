@@ -9,17 +9,22 @@
 // index mid-flight.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type LanguageReadPort } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { LanguageCountry } from '../entities/language-country.entity.js';
-import { Language } from '../../languages/entities/language.entity.js';
 import { Country } from '../entities/country.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 export class LanguageCountryService {
+  /**
+   * Feature 075, Phase C — the link row is this module's, the country is this
+   * module's, the language is `languages`'. Only the last one crosses a
+   * boundary and it does so through the published read port.
+   */
   constructor(
     private readonly emFactory: () => EntityManager,
+    private readonly languages: LanguageReadPort,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
     private readonly auditLog?: AuditLogService,
   ) {}
@@ -60,7 +65,7 @@ export class LanguageCountryService {
     // Validate parent rows exist — the FK enforces this too, but a clear
     // error message at the service layer is more operator-friendly.
     const [lang, country] = await Promise.all([
-      em.findOne(Language, { code: input.languageCode }),
+      this.languages.findByCode(input.languageCode),
       em.findOne(Country, { code: input.countryCode }),
     ]);
     if (!lang) {

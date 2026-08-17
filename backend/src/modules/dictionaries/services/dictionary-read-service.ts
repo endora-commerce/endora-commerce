@@ -1,13 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  type CurrencyReadPort,
   type DictionaryByCodeResponse,
   type DictionaryEntryType,
   type DictionaryRegistryResponse,
+  type LanguageReadPort,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { Currency } from '../../currencies/entities/currency.entity.js';
-import { Language } from '../../languages/entities/language.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Country } from '../entities/country.entity.js';
 import { LanguageCountry } from '../entities/language-country.entity.js';
@@ -26,10 +26,26 @@ export interface DictionaryByCodeArgs {
 }
 
 export class DictionaryReadService {
+  /**
+   * Feature 075, Phase C — the registry is assembled from three tables, and
+   * only `countries` is this module's. The currency and language rows come
+   * from their owners' read ports instead of `em.find(Currency, …)` /
+   * `em.find(Language, …)`, which kept answering out of modules an operator had
+   * switched off, because deactivation drops no tables.
+   *
+   * Each port call is one statement, exactly like the query it replaces, so the
+   * cold-build ceiling issue #142 pinned at seven is unchanged.
+   */
   constructor(
     private readonly emFactory: () => EntityManager,
+    private readonly currencies: CurrencyReadPort,
+    private readonly languages: LanguageReadPort,
     private readonly cache?: DictionaryCache,
-    private readonly labelResolver = new LabelResolver(emFactory),
+    private readonly labelResolver: LabelResolver = new LabelResolver(
+      emFactory,
+      currencies,
+      languages,
+    ),
   ) {}
 
   async getRegistry(args: DictionaryRegistryArgs = {}): Promise<DictionaryRegistryResponse> {
@@ -41,8 +57,8 @@ export class DictionaryReadService {
     const em = this.emFactory();
     const [countries, currencies, languages, links] = await Promise.all([
       em.find(Country, { isActive: true }, { orderBy: { sortOrder: 'asc', label: 'asc' } }),
-      em.find(Currency, { isActive: true }, { orderBy: { sortOrder: 'asc', code: 'asc' } }),
-      em.find(Language, { isActive: true }, { orderBy: { sortOrder: 'asc', code: 'asc' } }),
+      this.currencies.listActive(),
+      this.languages.listActive(),
       em.find(LanguageCountry, {}),
     ]);
 
@@ -145,7 +161,7 @@ export class DictionaryReadService {
     }
 
     if (args.entryType === 'currency') {
-      const row = await em.findOne(Currency, { code: args.entryCode });
+      const row = await this.currencies.findByCode(args.entryCode);
       if (!row) throw notFound('currency', args.entryCode);
       const payload: DictionaryByCodeResponse = {
         data: {
@@ -169,7 +185,7 @@ export class DictionaryReadService {
       return payload;
     }
 
-    const row = await em.findOne(Language, { code: args.entryCode });
+    const row = await this.languages.findByCode(args.entryCode);
     if (!row) throw notFound('language', args.entryCode);
     const links = await em.find(LanguageCountry, { languageCode: row.code });
     const payload: DictionaryByCodeResponse = {
@@ -227,7 +243,7 @@ export class DictionaryReadService {
   }
 
   private async resolveDefaultLocale(): Promise<string> {
-    const language = await this.emFactory().findOne(Language, { isDefault: true });
+    const language = await this.languages.getDefault();
     return language?.code ?? 'en-US';
   }
 }

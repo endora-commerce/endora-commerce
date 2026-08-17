@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
-import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
 import { TaxService } from '../../../src/modules/taxes/services/tax-service.js';
 
@@ -23,7 +24,7 @@ describe('Taxes dictionary boundary', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    validator = new DictionaryValidator(() => em);
+    validator = dictionaryValidatorFor(() => em);
     service = new TaxService(() => em, undefined, validator);
   });
 

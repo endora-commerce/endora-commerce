@@ -8,6 +8,7 @@ import {
 import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
 import { DictionaryTranslation } from '../../../src/modules/dictionaries/entities/dictionary-translation.entity.js';
 import { DictionaryReadService } from '../../../src/modules/dictionaries/services/dictionary-read-service.js';
+import { dictionaryReadPortsFor } from '../../helpers/dictionary-services.js';
 
 /**
  * Issue #142 — the cold registry build is a constant number of round trips.
@@ -39,7 +40,13 @@ describe('dictionary registry — cold build round trips (issue #142)', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     // No cache: every read is a cold build, which is the path under test.
-    service = new DictionaryReadService(() => h.em(), undefined);
+    //
+    // Feature 075, Phase C — the currency and language rows come from their
+    // owners' read ports now. Both run on the same connection this test counts
+    // statements on, and each port call is one statement, so the ceiling below
+    // still measures the whole build.
+    const ports = dictionaryReadPortsFor(() => h.em());
+    service = new DictionaryReadService(() => h.em(), ports.currencies, ports.languages, undefined);
   }, 60_000);
 
   afterAll(async () => {

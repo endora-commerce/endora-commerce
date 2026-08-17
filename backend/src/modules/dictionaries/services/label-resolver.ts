@@ -1,8 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type DictionaryEntryType } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type CurrencyReadPort,
+  type DictionaryEntryType,
+  type LanguageReadPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { Currency } from '../../currencies/entities/currency.entity.js';
-import { Language } from '../../languages/entities/language.entity.js';
 import { Country } from '../entities/country.entity.js';
 import { DictionaryTranslation } from '../entities/dictionary-translation.entity.js';
 
@@ -28,7 +31,18 @@ export function labelKey(entryType: DictionaryEntryType, entryCode: string): str
 }
 
 export class LabelResolver {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  /**
+   * Feature 075, Phase C — the fallback chain is walked in `languages`' table
+   * and a canonical currency or language label is read from its owner's, so
+   * both go through the published read ports. Issue #142's property is
+   * unchanged: `list()` is one statement, exactly as the `em.find(Language,
+   * {})` it replaces was, so the cold registry build stays at seven.
+   */
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly currencies: CurrencyReadPort,
+    private readonly languages: LanguageReadPort,
+  ) {}
 
   /**
    * Labels for a whole batch, in a **constant** number of statements: one for
@@ -56,7 +70,7 @@ export class LabelResolver {
     if (!locale || entries.length === 0) return labels;
 
     const em = this.emFactory();
-    const chain = buildFallbackChain(locale, await em.find(Language, {}));
+    const chain = buildFallbackChain(locale, await this.languages.list());
     const rows = await em.find(DictionaryTranslation, {
       languageCode: { $in: chain },
       entryType: { $in: [...new Set(entries.map((entry) => entry.entryType))] },
@@ -82,8 +96,7 @@ export class LabelResolver {
   }
 
   async resolveLabel(args: ResolveLabelArgs): Promise<string> {
-    const em = this.emFactory();
-    const canonical = await getCanonicalLabel(em, args.entryType, args.entryCode);
+    const canonical = await this.canonicalLabel(args.entryType, args.entryCode);
     if (!canonical) throw notFound(args.entryType, args.entryCode);
     if (!args.locale) return canonical;
 
@@ -92,6 +105,20 @@ export class LabelResolver {
       args.locale,
     );
     return labels.get(labelKey(args.entryType, args.entryCode)) ?? canonical;
+  }
+
+  /** The label the entry's own row carries, from whichever module owns it. */
+  private async canonicalLabel(
+    entryType: DictionaryEntryType,
+    entryCode: string,
+  ): Promise<string | null> {
+    if (entryType === 'country') {
+      return (await this.emFactory().findOne(Country, { code: entryCode }))?.label ?? null;
+    }
+    if (entryType === 'currency') {
+      return (await this.currencies.findByCode(entryCode))?.label ?? null;
+    }
+    return (await this.languages.findByCode(entryCode))?.label ?? null;
   }
 }
 
@@ -102,7 +129,7 @@ export class LabelResolver {
  */
 export function buildFallbackChain(
   locale: string,
-  languages: readonly Pick<Language, 'code' | 'fallbackCode'>[],
+  languages: readonly { code: string; fallbackCode?: string | null }[],
 ): string[] {
   const fallbackByCode = new Map(languages.map((row) => [row.code, row.fallbackCode ?? null]));
   const chain: string[] = [];
@@ -114,20 +141,6 @@ export function buildFallbackChain(
     current = fallbackByCode.get(current) ?? null;
   }
   return chain;
-}
-
-async function getCanonicalLabel(
-  em: EntityManager,
-  entryType: DictionaryEntryType,
-  entryCode: string,
-): Promise<string | null> {
-  if (entryType === 'country') {
-    return (await em.findOne(Country, { code: entryCode }))?.label ?? null;
-  }
-  if (entryType === 'currency') {
-    return (await em.findOne(Currency, { code: entryCode }))?.label ?? null;
-  }
-  return (await em.findOne(Language, { code: entryCode }))?.label ?? null;
 }
 
 function notFound(entryType: DictionaryEntryType, entryCode: string): HttpError {

@@ -3,7 +3,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { EventBus } from '../../../src/events/bus.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
-import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 import { Currency } from '../../../src/modules/currencies/entities/currency.entity.js';
 import { Language } from '../../../src/modules/languages/entities/language.entity.js';
 import { SalesChannelsService } from '../../../src/modules/sales_channels/services/sales-channels.service.js';
@@ -25,7 +26,7 @@ describe('Sales channels dictionary boundary', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    validator = new DictionaryValidator(() => em);
+    validator = dictionaryValidatorFor(() => em);
     service = new SalesChannelsService(() => em, new EventBus(), undefined, undefined, validator);
   });
 

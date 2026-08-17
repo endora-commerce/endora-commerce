@@ -1,14 +1,18 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
-import type { DictionaryValidator as DictionaryValidatorPort } from '@b2b/contracts';
+import {
+  CURRENCY_CHANGED_EVENT,
+  LANGUAGE_CHANGED_EVENT,
+  type CurrencyAdminPort,
+  type CurrencyReadPort,
+  type DictionaryValidator as DictionaryValidatorPort,
+  type LanguageAdminPort,
+  type LanguageReadPort,
+} from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { CurrencyService } from '../currencies/services/currency-service.js';
-import type { LanguageService } from '../languages/services/language-service.js';
-import { CURRENCY_CHANGED_EVENT } from '../currencies/backend.js';
-import { LANGUAGE_CHANGED_EVENT } from '../languages/backend.js';
 import { DictionaryCache } from './services/dictionary-cache.js';
 import { DictionaryValidator as DictionaryValidatorService } from './services/dictionary-validator.js';
 import { DictionaryReadService } from './services/dictionary-read-service.js';
@@ -53,6 +57,17 @@ import { registerDictionaryStorefrontRoutes } from './routes.storefront.js';
  * validate country, region, currency and language codes on write, and a
  * composition with dictionaries off should refuse those writes rather than
  * accept unvalidated ones.
+ *
+ * **Feature 075, Phase C.** Seventeen imports of `currencies`' and `languages`'
+ * files are gone. Ten of them read those modules' *entities* — this module owns
+ * the admin screen and the storefront registry for two tables it does not own,
+ * so it queried them directly, and deactivation drops no tables: the registry
+ * kept listing currencies and the validator kept accepting codes out of modules
+ * an operator had switched off. Both are now the four published ports, each
+ * resolved with `lazyPort` and handed to the service that needs it, never
+ * captured. The two event names are constants in `@b2b/contracts` now, which is
+ * where a string belongs; the direction is untouched — `currencies` and
+ * `languages` announce, this module subscribes, and neither learns who listens.
  */
 
 export interface DictionariesCradle {
@@ -61,9 +76,11 @@ export interface DictionariesCradle {
   readonly redis: Redis | undefined;
   readonly requireAdmin: RequireAdminFactory;
   /** Owned by `currencies`; this module's admin surface serves both. */
-  readonly currencyService: CurrencyService;
-  /** Owned by `languages`; there used to be a second one built here. */
-  readonly languageService: LanguageService;
+  readonly currencyReadPort: CurrencyReadPort;
+  readonly currencyAdminPort: CurrencyAdminPort;
+  /** Owned by `languages`; there used to be a second service built here. */
+  readonly languageReadPort: LanguageReadPort;
+  readonly languageAdminPort: LanguageAdminPort;
   readonly dictionaryCache: DictionaryCache | undefined;
   readonly dictionaryValidator: DictionaryValidatorPort;
   readonly dictionaryInvalidator: () => Promise<void>;
@@ -95,7 +112,12 @@ export function registerModule(ctx: ModuleContext): void {
     'dictionaryValidator',
     ctx
       .asFunction(
-        ({ emFactory }: DictionariesCradle) => new DictionaryValidatorService(emFactory),
+        ({ emFactory }: DictionariesCradle) =>
+          new DictionaryValidatorService(
+            emFactory,
+            lazyPort<CurrencyReadPort>(ctx, 'currencyReadPort'),
+            lazyPort<LanguageReadPort>(ctx, 'languageReadPort'),
+          ),
       )
       .singleton(),
   );
@@ -136,18 +158,28 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.routes(async (app) => {
     const { emFactory, auditLogService, requireAdmin, dictionaryCache, dictionaryInvalidator } =
       ctx.cradle<DictionariesCradle>();
+    // Resolved once per route registration and handed down, never captured into
+    // a singleton: `lazyPort` returns a proxy that resolves the gate per call,
+    // so a switched-off owner is answered at the call and not at composition.
+    const currencyRead = lazyPort<CurrencyReadPort>(ctx, 'currencyReadPort');
+    const languageRead = lazyPort<LanguageReadPort>(ctx, 'languageReadPort');
     await registerDictionaryAdminRoutes(app, {
       emFactory,
       countryService: new CountryService(emFactory, dictionaryInvalidator, auditLogService),
-      currencyService: lazyPort<CurrencyService>(ctx, 'currencyService'),
-      languageService: lazyPort<LanguageService>(ctx, 'languageService'),
+      currencyRead,
+      currencyAdmin: lazyPort<CurrencyAdminPort>(ctx, 'currencyAdminPort'),
+      languageRead,
+      languageAdmin: lazyPort<LanguageAdminPort>(ctx, 'languageAdminPort'),
       languageCountryService: new LanguageCountryService(
         emFactory,
+        languageRead,
         dictionaryInvalidator,
         auditLogService,
       ),
       translationService: new TranslationService(
         emFactory,
+        currencyRead,
+        languageRead,
         dictionaryInvalidator,
         auditLogService,
       ),
@@ -157,8 +189,10 @@ export function registerModule(ctx: ModuleContext): void {
     await registerDictionaryStorefrontRoutes(app, {
       readService: new DictionaryReadService(
         emFactory,
+        currencyRead,
+        languageRead,
         dictionaryCache,
-        new LabelResolver(emFactory),
+        new LabelResolver(emFactory, currencyRead, languageRead),
       ),
     });
   });
