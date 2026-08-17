@@ -38,6 +38,20 @@ Exit-code contract (per `contracts/cli-commands.md`):
 | 66 | Conflict: missing dependencies on install / dependents block uninstall / disable. |
 | 70 | Internal error during install (migration / settings / hook failure). |
 | 75 | Lock unavailable, or stale `installing` row. |
+| 77 | Refused: the module declares itself `nonDeactivatable`, on `disable` and on `uninstall` alike. |
+
+### A `nonDeactivatable` module cannot be withdrawn on this axis at all
+
+A manifest that declares `activation: { nonDeactivatable: true, reason }` refuses **both**
+`module:disable` and `module:uninstall` — soft and hard — with exit 77 and no override flag.
+Uninstall is disable plus the settings sweep plus, on `--hard`, the migration revert, so a
+declaration that forbids the smaller operation cannot permit the larger one. The refusal is
+raised after the `already-uninstalled` no-op and before the dependents check, so nothing runs
+and nothing is written. If the declaration is wrong for a module, the fix is the manifest.
+
+An **orphan** registry row — a row whose module has no manifest on disk — is unaffected: the
+guard reads the manifest, and cleaning orphans up is the one job uninstall has that nothing
+else does.
 
 Legacy `pnpm modules:install` / `pnpm modules:uninstall` (plural) print a deprecation notice and forward to the singular form. They will be removed in the next minor release.
 
@@ -117,7 +131,7 @@ Manifest fields:
                 an explicit re-install attempt ─────────┘
 ```
 
-Soft-uninstall preserves data: settings rows are removed, the registry row keeps `state = 'uninstalled'`, schema and data tables are untouched. Re-installing the same module reuses already-applied migrations and finishes in seconds.
+Soft-uninstall preserves data: settings rows are removed, the registry row keeps `state = 'uninstalled'`, schema and data tables are untouched. Re-installing the same module reuses already-applied migrations and finishes in seconds — but it does **not** bring the configuration back: the settings the sweep deleted are recreated from the manifest defaults, the module's activation choice included. Pausing a module without losing its configuration is what `module:disable` is for.
 
 Hard-uninstall (`--hard`) additionally reverts the module's migrations and deletes the registry row. The migrations to revert are resolved from `MIGRATION_REGISTRY` (`backend/src/db/migrations-registry.generated.ts`) by their declared `moduleId`, sorted ascending, and reverted in reverse order — see [Database Migrations](../architecture/migrations.md#module-uninstall-migration-revert). A module that owns no registered migration logs a warning and reverts nothing; hard-uninstall then relies on its `uninstallHook`.
 
