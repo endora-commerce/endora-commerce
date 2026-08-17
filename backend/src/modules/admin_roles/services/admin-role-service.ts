@@ -17,7 +17,9 @@ import type { PermissionCatalogueService } from './permission-catalogue.service.
  *   - the bootstrap `platform_admin` role is locked to `['*']`: it always has
  *     full access and its permission set cannot be downgraded from the UI.
  *   - a Role with assigned AdminUsers cannot be deleted (409); reassign or
- *     deactivate the users first.
+ *     deactivate the users first. A **soft-deleted** admin still counts
+ *     (issue #168): restoring the account restores its role, so the assignment
+ *     survives the deletion and the role is still in use.
  */
 
 /** Wildcard permission — grants access to every gated admin route. */
@@ -67,6 +69,41 @@ export function listSystemRoleCodes(): readonly string[] {
 /** Test helper — clears the protected-codes registry between suites. */
 export function _resetSystemRoleCodesForTests(): void {
   SYSTEM_ROLE_CODES.clear();
+}
+
+/**
+ * The refusal a role deletion earns from its assignees, or `null` when it has
+ * none (issue #168).
+ *
+ * Exported and pure so the sentence's `{placeholders}` can be checked against
+ * the `details` a real refusal carries — the agreement issue #161 found nothing
+ * was checking, one code family over. `check:error-translations` sees that a
+ * code *has* a sentence; only a test that renders one can see that the sentence
+ * has anything to fill it.
+ *
+ * The token in `details.code` chooses the sentence, and the count fills it.
+ * Both populations refuse, and they are separated because the remedy differs:
+ * reassign a live admin; restore-and-reassign or purge a deleted one.
+ */
+export function roleInUseRefusal(live: number, deleted: number): HttpError | null {
+  if (live > 0) {
+    return new HttpError(
+      409,
+      ERROR_CODES.ADMIN_ROLE_IN_USE,
+      `Cannot delete role: ${live} admin user(s) still assigned.`,
+      { code: 'assigned', assigned: live },
+    );
+  }
+  if (deleted > 0) {
+    return new HttpError(
+      409,
+      ERROR_CODES.ADMIN_ROLE_IN_USE,
+      `Cannot delete role: ${deleted} deleted admin account(s) still hold it, ` +
+        `and restoring one restores the assignment.`,
+      { code: 'assigned_to_deleted', deleted },
+    );
+  }
+  return null;
 }
 
 export class AdminRoleService {
@@ -155,20 +192,23 @@ export class AdminRoleService {
         `Cannot delete the system-protected role "${role.code}". Modules' seeded roles are immutable.`,
       );
     }
-    // Live assignees only. `listByRoleId` takes no soft-delete option, so the
-    // `deletedAt: null` half of the query this replaced is applied here, over
-    // the field the record publishes — dropping it would refuse an operator a
-    // role whose only assignee they had already removed.
-    const assignees = (await this.adminUsers.listByRoleId(role.id)).filter(
-      (admin) => admin.deletedAt === null,
-    ).length;
-    if (assignees > 0) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.ADMIN_ROLE_IN_USE,
-        `Cannot delete role: ${assignees} admin user(s) still assigned.`,
-      );
-    }
+    // Every assignee a restore returns, live or binned (issue #168).
+    //
+    // A soft delete does not release the assignment: the row keeps its
+    // `admin_role_id`, and restoring the account restores the role with it. So
+    // counting live assignees only made the guard pass on a role that was still
+    // held — and the delete it let through hit `admin_users_admin_role_fk`
+    // (`on delete restrict`) and answered 500. The operator was told the role
+    // was unused, confirmed, and got a server error.
+    //
+    // The two populations are still counted apart, because the remedy differs:
+    // reassign a live admin, purge or restore-and-reassign a deleted one. Each
+    // refusal carries its token in `details.code` — that is what keys the
+    // sentence — and its count, which the sentence interpolates.
+    const assignees = await this.adminUsers.listByRoleId(role.id);
+    const live = assignees.filter((admin) => admin.deletedAt === null).length;
+    const refusal = roleInUseRefusal(live, assignees.length - live);
+    if (refusal) throw refusal;
     this.#audit(em, 'admin_role.delete', role.id, { code: role.code }, null);
     await em.removeAndFlush(role);
   }
