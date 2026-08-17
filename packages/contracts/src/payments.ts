@@ -151,11 +151,25 @@ export interface PaymentReadPort {
  * created a provider object must hear that: swallowing it would leave a live
  * PaymentIntent at the provider with nothing on this side able to resolve the
  * event it will send.
+ *
+ * `mergeProviderDetails` is the same surface seen through the other column
+ * `payments` keeps for a provider: `providerDetails` is what the provider
+ * recorded about an attempt, and `PaymentReadPort.findById` is where a gateway
+ * reads it back. TPay is the one consumer — a BLIK payment that asked for
+ * one-click registration has to carry that request from the pay call to the
+ * settlement notification, which is a different process lifetime — and it is a
+ * merge rather than a set because the settlement path writes the same column.
  */
 export interface PaymentReferencePort {
   stampExternalReference(paymentId: string, externalReference: string): Promise<boolean>;
   /** Stamp only when the attempt carries no reference yet. */
   stampExternalReferenceIfAbsent(paymentId: string, externalReference: string): Promise<boolean>;
+  /**
+   * Shallow-merge `patch` into the attempt's `providerDetails`. Returns whether
+   * a row was found; a `null` value in `patch` is stored as `null`, not
+   * treated as a deletion.
+   */
+  mergeProviderDetails(paymentId: string, patch: Record<string, unknown>): Promise<boolean>;
 }
 
 export interface ReceivePaymentResult {

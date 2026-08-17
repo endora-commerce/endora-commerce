@@ -38,6 +38,21 @@ export class PaymentReferenceService implements PaymentReferencePort {
     return this.stamp(paymentId, externalReference, true);
   }
 
+  async mergeProviderDetails(
+    paymentId: string,
+    patch: Record<string, unknown>,
+  ): Promise<boolean> {
+    // command-coverage-ignore: records what the provider said about an attempt
+    // so a later provider event can act on it; provider-integration
+    // bookkeeping, exactly as the reference stamp above.
+    const em = this.emFactory();
+    const payment = await em.findOne(Payment, { id: paymentId });
+    if (!payment) return false;
+    payment.providerDetails = { ...(payment.providerDetails ?? {}), ...patch };
+    await em.flush();
+    return true;
+  }
+
   private async stamp(
     paymentId: string,
     externalReference: string,
