@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
+import type { AdminUserReadPort } from '@b2b/contracts';
 import { AdminRole } from '../entities/admin-role.entity.js';
 
 /**
@@ -8,24 +8,32 @@ import { AdminRole } from '../entities/admin-role.entity.js';
  *
  * The wildcard `*` in a Role's permissions grants every permission — used for
  * the bootstrap "platform admin" Role.
+ *
+ * The admin identity comes from `adminUserReadPort` (feature 075, Phase C)
+ * rather than from `em.findOne(AdminUser, …)`: the role assignment is a column
+ * on a table `admin_users` owns, and this module owns only what the role says.
+ * `activeOnly` is the `deletedAt: null` half of the query it replaced; the
+ * `status` test below is the other half and stays here, because "may this admin
+ * act" is this module's question.
  */
 export class PermissionService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly adminUsers: AdminUserReadPort,
+  ) {}
 
   async hasPermission(adminUserId: string, permission: string): Promise<boolean> {
-    const em = this.emFactory();
-    const admin = await em.findOne(AdminUser, { id: adminUserId, deletedAt: null });
+    const admin = await this.adminUsers.findById(adminUserId, { activeOnly: true });
     if (!admin || admin.status !== 'active' || !admin.adminRoleId) return false;
-    const role = await em.findOne(AdminRole, { id: admin.adminRoleId });
+    const role = await this.emFactory().findOne(AdminRole, { id: admin.adminRoleId });
     if (!role) return false;
     return role.permissions.includes('*') || role.permissions.includes(permission);
   }
 
   async listPermissions(adminUserId: string): Promise<string[]> {
-    const em = this.emFactory();
-    const admin = await em.findOne(AdminUser, { id: adminUserId, deletedAt: null });
+    const admin = await this.adminUsers.findById(adminUserId, { activeOnly: true });
     if (!admin?.adminRoleId) return [];
-    const role = await em.findOne(AdminRole, { id: admin.adminRoleId });
+    const role = await this.emFactory().findOne(AdminRole, { id: admin.adminRoleId });
     return role?.permissions ?? [];
   }
 }
