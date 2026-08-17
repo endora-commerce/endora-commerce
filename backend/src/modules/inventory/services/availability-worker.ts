@@ -1,8 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type {
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  EmailMailerPort,
+} from '@b2b/contracts';
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { Mailer } from '../../email/services/mailer.js';
 import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 
 export interface AdjustedPayload {
@@ -34,7 +36,11 @@ export interface AdjustedPayload {
 export class AvailabilityWorker {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly mailer: Mailer,
+    private readonly mailer: EmailMailerPort,
+    /** `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C). */
+    private readonly catalogProducts: CatalogProductReadPort,
+    /** `customerAccountReadPort`, owned by `customer_accounts` (feature 075). */
+    private readonly customerAccounts: CustomerAccountReadPort,
   ) {}
 
   async dispatchForStockIncrease(input: {
@@ -47,7 +53,7 @@ export class AvailabilityWorker {
     // scope the AvailabilityNotification reads under a system context.
     return withSystemScope('availability stock-increase', async () => {
     const em = this.emFactory();
-    const product = await em.findOne(Product, { id: input.productId });
+    const product = await this.catalogProducts.findById(input.productId);
     if (!product) return { notified: 0 };
 
     const where: Record<string, unknown> = {
@@ -70,9 +76,7 @@ export class AvailabilityWorker {
       ),
     );
     const customers =
-      customerIds.length > 0
-        ? await em.find(CustomerAccount, { id: { $in: customerIds } })
-        : [];
+      customerIds.length > 0 ? await this.customerAccounts.findByIds(customerIds) : [];
     const emailById = new Map(customers.map((c) => [c.id, c.email]));
 
     const productName = product.name['en-US'] ?? Object.values(product.name)[0] ?? product.sku;

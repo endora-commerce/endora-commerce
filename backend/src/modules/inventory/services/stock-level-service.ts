@@ -1,4 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type {
+  CatalogCategoryReadPort,
+  CatalogCategoryRecord,
+  CatalogProductReadPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { randomUUID } from 'crypto';
 import type { EventBus } from '../../../events/bus.js';
@@ -17,8 +22,6 @@ export interface InventoryAdjustedEvent {
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { Warehouse, DEFAULT_WAREHOUSE_ID } from '../entities/warehouse.entity.js';
 import { InventoryThreshold } from '../entities/inventory-threshold.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { Category } from '../../catalog/entities/category.entity.js';
 import {
   resolveThresholds,
   type ResolveThresholdsInput,
@@ -90,6 +93,15 @@ export interface SetOnHandResult {
 export class StockLevelService {
   constructor(
     private readonly emFactory: () => EntityManager,
+    /**
+     * `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C).
+     * Every roster row, every KPI and every band this service computes joins a
+     * product it does not own; it used to load the entity, so an operator who
+     * switched `catalog` off still got a full stock roster out of it.
+     */
+    private readonly catalogProducts: CatalogProductReadPort,
+    /** `catalogCategoryReadPort`, owned by `catalog` — the threshold chain. */
+    private readonly catalogCategories: CatalogCategoryReadPort,
     private readonly eventBus?: EventBus,
     private readonly auditLog?: AuditLogService,
   ) {}
@@ -117,10 +129,8 @@ export class StockLevelService {
       .sum({ on_hand: 'on_hand' })
       .groupBy('product_id')) as Array<{ product_id: string; on_hand: string | null }>;
 
-    const products = await em.find(
-      Product,
-      { id: { $in: productsByOnHand.map((r) => r.product_id) } },
-      { fields: ['id', 'manageStock', 'lowStockThreshold'] },
+    const products = await this.catalogProducts.findByIds(
+      productsByOnHand.map((r) => r.product_id),
     );
     const productById = new Map(products.map((p) => [p.id, p]));
     let outOfStock = 0;
@@ -131,7 +141,7 @@ export class StockLevelService {
       if (!p.manageStock) continue;
       const onHand = Number(row.on_hand ?? 0);
       if (onHand <= 0) outOfStock += 1;
-      else if (p.lowStockThreshold !== null && p.lowStockThreshold !== undefined && onHand <= p.lowStockThreshold) {
+      else if (p.lowStockThreshold !== null && onHand <= p.lowStockThreshold) {
         lowStock += 1;
       }
     }
@@ -235,7 +245,7 @@ export class StockLevelService {
         'reserved',
       );
 
-    const products = await em.find(Product, { id: { $in: productIds } });
+    const products = await this.catalogProducts.findByIds(productIds);
     const productById = new Map(products.map((p) => [p.id, p]));
 
     const warehouses = await em.find(Warehouse, {});
@@ -251,9 +261,7 @@ export class StockLevelService {
       categoryIdsByProduct.set(row.product_id, list);
     }
     const categoryIds = Array.from(new Set(productCategoryRows.map((r) => r.category_id)));
-    const categories = categoryIds.length
-      ? await em.find(Category, { id: { $in: categoryIds } })
-      : [];
+    const categories = await this.catalogCategories.findByIds(categoryIds);
     const categoryById = new Map(categories.map((c) => [c.id, c]));
 
     const globalThresholds = await this.loadGlobalThresholds(em);
@@ -291,11 +299,11 @@ export class StockLevelService {
       const productCategoryIds = categoryIdsByProduct.get(product.id) ?? [];
       const categoryThresholds = productCategoryIds
         .map((cid) => categoryById.get(cid))
-        .filter((c): c is Category => Boolean(c))
+        .filter((c): c is CatalogCategoryRecord => Boolean(c))
         .map((c) => ({
-          high: c.inventoryThresholdHigh ?? null,
-          medium: c.inventoryThresholdMedium ?? null,
-          low: c.inventoryThresholdLow ?? null,
+          high: c.inventoryThresholdHigh,
+          medium: c.inventoryThresholdMedium,
+          low: c.inventoryThresholdLow,
         }));
 
       const productThresholds = (await this.loadProductThresholds(em, product.id)) ?? null;
@@ -307,7 +315,7 @@ export class StockLevelService {
       } satisfies ResolveThresholdsInput);
 
       const displayBand = resolveDisplayBand({
-        manageStock: product.manageStock ?? true,
+        manageStock: product.manageStock,
         cumulativeOnHand,
         thresholds,
       });
@@ -317,7 +325,7 @@ export class StockLevelService {
           ? Object.values(product.name)[0]
           : product.sku) ?? product.sku;
 
-      const mode = product.lowStockThresholdMode ?? 'cumulative';
+      const mode = product.lowStockThresholdMode;
 
       // Resolve the effective low-stock threshold per warehouse:
       //   1. explicit row in `product_warehouse_low_stock_thresholds`
@@ -384,15 +392,15 @@ export class StockLevelService {
         productId,
         productSku: product.sku,
         productName: String(productName),
-        manageStock: product.manageStock ?? true,
-        backorderEnabled: product.backorderEnabled ?? false,
+        manageStock: product.manageStock,
+        backorderEnabled: product.backorderEnabled,
         lowStockThreshold: topLevelThreshold,
         lowStockThresholdMode: mode,
         perWarehouse: perWarehouseWithThreshold,
         cumulativeOnHand,
         displayBand,
-        isLowStock: (product.manageStock ?? true) && isLowStock,
-        isOutOfStock: (product.manageStock ?? true) && cumulativeOnHand <= 0,
+        isLowStock: product.manageStock && isLowStock,
+        isOutOfStock: product.manageStock && cumulativeOnHand <= 0,
       });
     }
 
@@ -411,7 +419,7 @@ export class StockLevelService {
     entries: Array<{ warehouseId: string; threshold: number | null }>;
   }): Promise<void> {
     const em = this.emFactory();
-    const product = await em.findOne(Product, { id: input.productId });
+    const product = await this.catalogProducts.findById(input.productId);
     if (!product) {
       throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'Product not found');
     }
@@ -467,7 +475,7 @@ export class StockLevelService {
     auditCtx?: InventoryAuditContext,
   ): Promise<SetOnHandResult> {
     const em = this.emFactory();
-    const product = await em.findOne(Product, { id: input.productId });
+    const product = await this.catalogProducts.findById(input.productId);
     if (!product) throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'Product not found');
 
     const warehouse = await em.findOne(Warehouse, { id: input.warehouseId });
@@ -558,11 +566,7 @@ export class StockLevelService {
     const em = this.emFactory();
     const knex = em.getKnex();
 
-    const products = await em.find(
-      Product,
-      { id: { $in: productIds } },
-      { fields: ['id', 'manageStock'] },
-    );
+    const products = await this.catalogProducts.findByIds(productIds);
 
     const sumRows = (await knex('stock_levels')
       .whereIn('product_id', productIds)
@@ -599,9 +603,7 @@ export class StockLevelService {
       category_id: string;
     }>;
     const categoryIds = Array.from(new Set(productCategoryRows.map((r) => r.category_id)));
-    const categories = categoryIds.length
-      ? await em.find(Category, { id: { $in: categoryIds } })
-      : [];
+    const categories = await this.catalogCategories.findByIds(categoryIds);
     const categoryById = new Map(categories.map((c) => [c.id, c]));
 
     for (const product of products) {
@@ -609,18 +611,18 @@ export class StockLevelService {
       const categoryThresholds = productCategoryRows
         .filter((r) => r.product_id === product.id)
         .map((r) => categoryById.get(r.category_id))
-        .filter((c): c is Category => Boolean(c))
+        .filter((c): c is CatalogCategoryRecord => Boolean(c))
         .map((c) => ({
-          high: c.inventoryThresholdHigh ?? null,
-          medium: c.inventoryThresholdMedium ?? null,
-          low: c.inventoryThresholdLow ?? null,
+          high: c.inventoryThresholdHigh,
+          medium: c.inventoryThresholdMedium,
+          low: c.inventoryThresholdLow,
         }));
       const thresholds = resolveThresholds({
         productThresholds: productThresholdByProduct.get(product.id) ?? null,
         categoryThresholds,
         globalThresholds,
       });
-      const manageStock = product.manageStock ?? true;
+      const manageStock = product.manageStock;
       const band = resolveDisplayBand({ manageStock, cumulativeOnHand, thresholds });
       out.set(product.id, {
         band,

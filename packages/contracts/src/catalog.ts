@@ -2101,15 +2101,40 @@ export interface UpdateCategoryInput {
 }
 
 /**
+ * The three display-band thresholds a category may override. Absent keys are
+ * left alone; an explicit `null` clears the override.
+ */
+export interface CategoryInventoryThresholdPatch {
+  high?: number | null;
+  medium?: number | null;
+  low?: number | null;
+}
+
+/**
  * Container name: `catalogCategoryWritePort`. Owner: `catalog`.
  *
  * `pim_ergonode` again, and again narrow: an import run lists the tree,
  * creates the categories it is missing and updates the ones that moved.
+ *
+ * `setInventoryThresholds` is the fourth method and belongs to a different
+ * consumer: `inventory` stores the per-category half of its display-band
+ * thresholds in three columns on this module's `categories` table, and wrote
+ * them by holding the entity. It is deliberately **not** a key on
+ * {@link UpdateCategoryInput}: `update` runs the `category.update` Command,
+ * emits the search-reindex event and writes an audit row, none of which a
+ * threshold patch did or should — `inventory` records one
+ * `low_stock_threshold.update` summary row for the whole patch, and an
+ * operator reading a category's history should not find a rename-shaped entry
+ * for it. The columns' owner is still the question underneath, and the answer
+ * that retires this method is moving them into `inventory_thresholds` with
+ * `scopeKind = 'category'`, which is a data migration and not a cut.
  */
 export interface CatalogCategoryWritePort {
   listAll(): Promise<CatalogCategoryRecord[]>;
   create(input: CreateCategoryRequest): Promise<CatalogCategoryRecord>;
   update(id: string, input: UpdateCategoryInput): Promise<CatalogCategoryRecord>;
+  /** Rejects an unknown or soft-deleted category with 404 `NOT_FOUND`. */
+  setInventoryThresholds(id: string, patch: CategoryInventoryThresholdPatch): Promise<void>;
 }
 
 /**

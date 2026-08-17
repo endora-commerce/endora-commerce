@@ -3,6 +3,9 @@ import { z } from 'zod';
 import {
   availabilityNotificationRequestSchema,
   inventoryDisplayModeSchema,
+  type CatalogCategoryReadPort,
+  type CatalogProductReadPort,
+  type CustomerAccountReadPort,
   type InventoryDisplayMode,
   type StorefrontProductStock,
 } from '@b2b/contracts';
@@ -12,18 +15,21 @@ import type { WarehouseChannelService } from './services/warehouse-channel-servi
 import type { StockLevelService } from './services/stock-level-service.js';
 import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
-import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
-import { Product } from '../catalog/entities/product.entity.js';
 import { StockLevel } from './entities/stock-level.entity.js';
 import { resolveDisplayBand } from './services/display-band-resolver.js';
 import { resolveThresholds } from './services/threshold-resolver.js';
 import { InventoryThreshold } from './entities/inventory-threshold.entity.js';
-import { Category } from '../catalog/entities/category.entity.js';
 import { INVENTORY_SETTING_CODES } from './manifest.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 
 export interface InventoryRoutesDeps {
   emFactory: () => EntityManager;
+  /** `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C). */
+  catalogProducts: CatalogProductReadPort;
+  /** `catalogCategoryReadPort`, owned by `catalog` — the threshold chain. */
+  catalogCategories: CatalogCategoryReadPort;
+  /** `customerAccountReadPort`, owned by `customer_accounts` (feature 075). */
+  customerAccounts: CustomerAccountReadPort;
   availabilityService: AvailabilityNotificationService;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => {
@@ -53,6 +59,9 @@ export async function registerInventoryRoutes(
 ): Promise<void> {
   const {
     emFactory,
+    catalogProducts,
+    catalogCategories,
+    customerAccounts,
     availabilityService,
     requireCustomer,
     resolveCustomerContext,
@@ -77,8 +86,7 @@ export async function registerInventoryRoutes(
     async (request, reply) => {
       const ctx = resolveCustomerContext(request);
       const body = availabilityNotificationRequestSchema.parse(request.body ?? {});
-      const em = emFactory();
-      const customerAccount = await em.findOne(CustomerAccount, { id: ctx.customerAccountId });
+      const customerAccount = await customerAccounts.findById(ctx.customerAccountId);
       if (!customerAccount) {
         reply.status(403);
         return {
@@ -164,7 +172,7 @@ export async function registerInventoryRoutes(
     async (request, reply) => {
       const productId = request.params.id;
       const em = emFactory();
-      const product = await em.findOne(Product, { id: productId });
+      const product = await catalogProducts.findById(productId);
       if (!product) {
         reply.status(404);
         return {
@@ -220,13 +228,11 @@ export async function registerInventoryRoutes(
         .where('product_id', productId)
         .select<Array<{ category_id: string }>>('category_id');
       const categoryIds = productCategoryRows.map((r) => r.category_id);
-      const categories = categoryIds.length
-        ? await em.find(Category, { id: { $in: categoryIds } })
-        : [];
+      const categories = await catalogCategories.findByIds(categoryIds);
       const categoryThresholds = categories.map((c) => ({
-        high: c.inventoryThresholdHigh ?? null,
-        medium: c.inventoryThresholdMedium ?? null,
-        low: c.inventoryThresholdLow ?? null,
+        high: c.inventoryThresholdHigh,
+        medium: c.inventoryThresholdMedium,
+        low: c.inventoryThresholdLow,
       }));
 
       const thresholds = resolveThresholds({
@@ -236,7 +242,7 @@ export async function registerInventoryRoutes(
       });
 
       const displayBand = resolveDisplayBand({
-        manageStock: product.manageStock ?? true,
+        manageStock: product.manageStock,
         cumulativeOnHand,
         thresholds,
       });
@@ -245,17 +251,17 @@ export async function registerInventoryRoutes(
       // gate; this is what order placement enforces, so the storefront must
       // not advertise backorder when the global gate is off.
       const allowNegativeStock = await readAllowNegativeStock(channelId, settingsService);
-      const effectiveBackorderEnabled = (product.backorderEnabled ?? false) && allowNegativeStock;
+      const effectiveBackorderEnabled = product.backorderEnabled && allowNegativeStock;
 
-      const isOutOfStock = (product.manageStock ?? true) && cumulativeOnHand <= 0;
+      const isOutOfStock = product.manageStock && cumulativeOnHand <= 0;
       const showNotifyButton =
-        (product.manageStock ?? true) &&
+        product.manageStock &&
         !effectiveBackorderEnabled &&
         cumulativeOnHand <= 0;
 
       const payload: StorefrontProductStock = {
         productId,
-        manageStock: product.manageStock ?? true,
+        manageStock: product.manageStock,
         backorderEnabled: effectiveBackorderEnabled,
         displayMode,
         displayBand,

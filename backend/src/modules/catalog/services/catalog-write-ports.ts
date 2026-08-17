@@ -69,6 +69,7 @@ export function createCatalogCategoryWritePort(
     async update(id, input) {
       return toCatalogCategoryRecord(await getService().update(id, input));
     },
+    setInventoryThresholds: (id, patch) => getService().setInventoryThresholds(id, patch),
   };
 }
 

@@ -1,8 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { Mailer } from '../../email/services/mailer.js';
+import type {
+  CatalogProductReadPort,
+  CatalogProductRecord,
+  EmailMailerPort,
+} from '@b2b/contracts';
 import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { z } from 'zod';
-import { Product } from '../../catalog/entities/product.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { INVENTORY_SETTING_CODES } from '../manifest.js';
 
@@ -49,7 +52,15 @@ export interface AdjustedPayload {
 export class LowStockAlertService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly mailer: Mailer,
+    private readonly mailer: EmailMailerPort,
+    /**
+     * `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C). The
+     * crossing detector and the admin panel both need the product's SKU, name
+     * and threshold, and both used to load the entity out of a table that is
+     * still there when `catalog` is off — so a switched-off catalogue still
+     * produced low-stock alerts about it.
+     */
+    private readonly catalogProducts: CatalogProductReadPort,
     private readonly settingsService?: SettingsService,
     /** Channel id used to read inventory settings — typically the
      *  system default. */
@@ -67,19 +78,15 @@ export class LowStockAlertService {
     if (rows.length === 0) return [];
 
     const productIds = rows.map((r) => r.product_id);
-    const products = await em.find(
-      Product,
-      { id: { $in: productIds } },
-      { fields: ['id', 'sku', 'name', 'manageStock', 'lowStockThreshold'] },
-    );
+    const products = await this.catalogProducts.findByIds(productIds);
     const productById = new Map(products.map((p) => [p.id, p]));
     const result: LowStockSummaryRow[] = [];
     for (const row of rows) {
       const p = productById.get(row.product_id);
       if (!p) continue;
-      if (!(p.manageStock ?? true)) continue;
+      if (!p.manageStock) continue;
       const threshold = p.lowStockThreshold;
-      if (threshold === null || threshold === undefined) continue;
+      if (threshold === null) continue;
       const cumulative = Number(row.on_hand ?? 0);
       if (cumulative > threshold) continue;
       const productName = p.name['en-US'] ?? Object.values(p.name)[0] ?? p.sku;
@@ -102,10 +109,10 @@ export class LowStockAlertService {
    */
   async handleAdjusted(payload: AdjustedPayload): Promise<void> {
     const em = this.emFactory();
-    const product = await em.findOne(Product, { id: payload.productId });
-    if (!product || !(product.manageStock ?? true)) return;
+    const product = await this.catalogProducts.findById(payload.productId);
+    if (!product || !product.manageStock) return;
     const threshold = product.lowStockThreshold;
-    if (threshold === null || threshold === undefined) return;
+    if (threshold === null) return;
 
     // Recompute cumulative across all warehouses (the event payload only
     // carries one warehouse's delta). before/after for the cumulative
@@ -124,7 +131,7 @@ export class LowStockAlertService {
   }
 
   private async fireEmail(
-    product: Product,
+    product: CatalogProductRecord,
     cumulative: number,
     threshold: number,
   ): Promise<void> {

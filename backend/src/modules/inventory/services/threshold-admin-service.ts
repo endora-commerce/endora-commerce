@@ -1,8 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type {
+  CatalogCategoryReadPort,
+  CatalogCategoryWritePort,
+  CatalogProductReadPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { InventoryThreshold } from '../entities/inventory-threshold.entity.js';
-import { Category } from '../../catalog/entities/category.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { InventoryAuditContext } from '../plugin.js';
 
@@ -44,6 +47,16 @@ export interface ThresholdsPatch {
 export class ThresholdAdminService {
   constructor(
     private readonly emFactory: () => EntityManager,
+    /** `catalogCategoryReadPort`, owned by `catalog` (feature 075, Phase C). */
+    private readonly catalogCategories: CatalogCategoryReadPort,
+    /**
+     * `catalogCategoryWritePort`, owned by `catalog`. The per-category half of
+     * these thresholds lives in three columns on `catalog`'s `categories` row,
+     * so the write belongs to `catalog` and this module hands it the patch.
+     */
+    private readonly catalogCategoryWrites: CatalogCategoryWritePort,
+    /** `catalogProductReadPort`, owned by `catalog` — the per-product existence check. */
+    private readonly catalogProducts: CatalogProductReadPort,
     private readonly auditLog?: AuditLogService,
   ) {}
 
@@ -60,18 +73,12 @@ export class ThresholdAdminService {
       low: globalRow?.thresholdLow ?? 1,
     };
 
-    const perCategoryRows = await em.find(Category, {
-      $or: [
-        { inventoryThresholdHigh: { $ne: null } },
-        { inventoryThresholdMedium: { $ne: null } },
-        { inventoryThresholdLow: { $ne: null } },
-      ],
-    });
+    const perCategoryRows = await this.catalogCategories.listWithInventoryThresholds();
     const perCategory = perCategoryRows.map((c) => ({
       categoryId: c.id,
-      high: c.inventoryThresholdHigh ?? null,
-      medium: c.inventoryThresholdMedium ?? null,
-      low: c.inventoryThresholdLow ?? null,
+      high: c.inventoryThresholdHigh,
+      medium: c.inventoryThresholdMedium,
+      low: c.inventoryThresholdLow,
     }));
 
     const perProductRows = await em.find(InventoryThreshold, { scopeKind: 'product' });
@@ -91,13 +98,30 @@ export class ThresholdAdminService {
   ): Promise<ThresholdsView> {
     const em = this.emFactory();
 
-    if (input.global) {
-      await this.applyGlobal(em, input.global);
-    }
+    // Validate every scope before applying any of it (feature 075, Phase C).
+    // The category half is `catalog`'s write now, so it no longer shares this
+    // module's flush: an unknown product id used to roll the whole patch back
+    // because nothing had been flushed yet, and it still applies nothing —
+    // because nothing has been *written* yet.
     if (input.perCategory) {
       for (const c of input.perCategory) {
-        await this.applyCategory(em, c);
+        const category = await this.catalogCategories.findById(c.categoryId);
+        if (!category) {
+          throw new HttpError(404, 'NOT_FOUND', `Category ${c.categoryId} not found`);
+        }
       }
+    }
+    if (input.perProduct) {
+      for (const p of input.perProduct) {
+        const product = await this.catalogProducts.findById(p.productId);
+        if (!product) {
+          throw new HttpError(404, 'PRODUCT_NOT_FOUND', `Product ${p.productId} not found`);
+        }
+      }
+    }
+
+    if (input.global) {
+      await this.applyGlobal(em, input.global);
     }
     if (input.perProduct) {
       for (const p of input.perProduct) {
@@ -105,6 +129,15 @@ export class ThresholdAdminService {
       }
     }
     await em.flush();
+    if (input.perCategory) {
+      for (const c of input.perCategory) {
+        await this.catalogCategoryWrites.setInventoryThresholds(c.categoryId, {
+          ...(c.high !== undefined ? { high: c.high } : {}),
+          ...(c.medium !== undefined ? { medium: c.medium } : {}),
+          ...(c.low !== undefined ? { low: c.low } : {}),
+        });
+      }
+    }
     const view = await this.read();
 
     // Feature 024 — audit threshold patches as a single
@@ -144,27 +177,10 @@ export class ThresholdAdminService {
     if (patch.low !== undefined) row.thresholdLow = patch.low;
   }
 
-  private async applyCategory(
-    em: EntityManager,
-    patch: { categoryId: string } & ThresholdTriplePartial,
-  ): Promise<void> {
-    const cat = await em.findOne(Category, { id: patch.categoryId });
-    if (!cat) {
-      throw new HttpError(404, 'NOT_FOUND', `Category ${patch.categoryId} not found`);
-    }
-    if (patch.high !== undefined) cat.inventoryThresholdHigh = patch.high;
-    if (patch.medium !== undefined) cat.inventoryThresholdMedium = patch.medium;
-    if (patch.low !== undefined) cat.inventoryThresholdLow = patch.low;
-  }
-
   private async applyProduct(
     em: EntityManager,
     patch: { productId: string } & ThresholdTriplePartial,
   ): Promise<void> {
-    const product = await em.findOne(Product, { id: patch.productId });
-    if (!product) {
-      throw new HttpError(404, 'PRODUCT_NOT_FOUND', `Product ${patch.productId} not found`);
-    }
     let row = await em.findOne(InventoryThreshold, {
       scopeKind: 'product',
       scopeId: patch.productId,

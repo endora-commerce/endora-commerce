@@ -4,6 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import type { CatalogCategoryReadPort, CatalogProductReadPort } from '@b2b/contracts';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
@@ -174,7 +175,19 @@ describe('legacy admin stock write (issues #122, #139)', () => {
    * Asserted directly on `StockLevelService` for that reason.
    */
   it('refuses an unknown warehouse at the delegate it now calls', async () => {
-    const service = new StockLevelService(() => h.em(), h.eventBus);
+    // Feature 075, Phase C — the service reads `catalog` through its published
+    // ports, so this resolves the container's registrations rather than
+    // becoming a second reader of the same rows.
+    const cradle = h.container.cradle as never as {
+      catalogProductReadPort: CatalogProductReadPort;
+      catalogCategoryReadPort: CatalogCategoryReadPort;
+    };
+    const service = new StockLevelService(
+      () => h.em(),
+      cradle.catalogProductReadPort,
+      cradle.catalogCategoryReadPort,
+      h.eventBus,
+    );
     const ghostWarehouseId = '00000000-0000-4000-8000-0000000f0140';
 
     await expect(

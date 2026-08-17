@@ -293,6 +293,35 @@ export class CategoryAdminService {
     });
   }
 
+  /**
+   * Set the inventory display-band thresholds on a category (feature 075,
+   * Phase C — published as `catalogCategoryWritePort.setInventoryThresholds`).
+   *
+   * `inventory` owns the meaning of these three columns and stored them here
+   * because the storefront resolver reads them alongside the category row. It
+   * wrote them by importing `Category`; this is the same write, on this side of
+   * the boundary, and deliberately the same write and no more: no Command, no
+   * `category.updated.v1`, no `category.update` audit row. The caller records
+   * one `low_stock_threshold.update` summary row for the whole patch, and
+   * routing this through {@link update} would give an operator reading a
+   * category's history a second, differently-named entry for the same act.
+   */
+  async setInventoryThresholds(
+    id: string,
+    patch: { high?: number | null; medium?: number | null; low?: number | null },
+  ): Promise<void> {
+    // command-coverage-ignore: three threshold columns on a category row, audited
+    // by the caller as one `low_stock_threshold.update` summary — see the doc
+    // comment above and `ThresholdAdminService.patch`.
+    const em = this.emFactory();
+    const cat = await em.findOne(Category, { id, deletedAt: null });
+    if (!cat) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Category ${id} not found`);
+    if (patch.high !== undefined) cat.inventoryThresholdHigh = patch.high;
+    if (patch.medium !== undefined) cat.inventoryThresholdMedium = patch.medium;
+    if (patch.low !== undefined) cat.inventoryThresholdLow = patch.low;
+    await em.flush();
+  }
+
   async #assertParentExists(em: EntityManager, parentId: string): Promise<void> {
     const exists = await em.count(Category, { id: parentId, deletedAt: null });
     if (exists === 0) {

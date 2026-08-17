@@ -1,8 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
-import { DictionaryReferenceError, type DictionaryValidator } from '@b2b/contracts';
+import {
+  DictionaryReferenceError,
+  dispatchValidatorMode,
+  type DictionaryValidator,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import {
   Warehouse,
   DEFAULT_WAREHOUSE_CODE,

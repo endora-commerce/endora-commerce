@@ -94,18 +94,18 @@ import * as module34 from './modules/credit_limits/backend.js';
 import { manifest as manifest34 } from './modules/credit_limits/manifest.js';
 import * as module35 from './modules/delivery_methods/backend.js';
 import { manifest as manifest35 } from './modules/delivery_methods/manifest.js';
-import * as module36 from './modules/inventory/backend.js';
-import { manifest as manifest36 } from './modules/inventory/manifest.js';
-import * as module37 from './modules/payment_methods/backend.js';
-import { manifest as manifest37 } from './modules/payment_methods/manifest.js';
-import * as module38 from './modules/price_lists/backend.js';
-import { manifest as manifest38 } from './modules/price_lists/manifest.js';
-import * as module39 from './modules/customer_accounts/backend.js';
-import { manifest as manifest39 } from './modules/customer_accounts/manifest.js';
-import * as module40 from './modules/api_keys/backend.js';
-import { manifest as manifest40 } from './modules/api_keys/manifest.js';
-import * as module41 from './modules/comparisons/backend.js';
-import { manifest as manifest41 } from './modules/comparisons/manifest.js';
+import * as module36 from './modules/payment_methods/backend.js';
+import { manifest as manifest36 } from './modules/payment_methods/manifest.js';
+import * as module37 from './modules/price_lists/backend.js';
+import { manifest as manifest37 } from './modules/price_lists/manifest.js';
+import * as module38 from './modules/customer_accounts/backend.js';
+import { manifest as manifest38 } from './modules/customer_accounts/manifest.js';
+import * as module39 from './modules/api_keys/backend.js';
+import { manifest as manifest39 } from './modules/api_keys/manifest.js';
+import * as module40 from './modules/comparisons/backend.js';
+import { manifest as manifest40 } from './modules/comparisons/manifest.js';
+import * as module41 from './modules/inventory/backend.js';
+import { manifest as manifest41 } from './modules/inventory/manifest.js';
 import * as module42 from './modules/mfa/backend.js';
 import { manifest as manifest42 } from './modules/mfa/manifest.js';
 import * as module43 from './modules/pim_ergonode/backend.js';
@@ -190,12 +190,12 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'addresses', version: manifest33.version, registerModule: module33.registerModule },
   { id: 'credit_limits', version: manifest34.version, registerModule: module34.registerModule },
   { id: 'delivery_methods', version: manifest35.version, registerModule: module35.registerModule },
-  { id: 'inventory', version: manifest36.version, registerModule: module36.registerModule },
-  { id: 'payment_methods', version: manifest37.version, registerModule: module37.registerModule },
-  { id: 'price_lists', version: manifest38.version, registerModule: module38.registerModule },
-  { id: 'customer_accounts', version: manifest39.version, registerModule: module39.registerModule },
-  { id: 'api_keys', version: manifest40.version, registerModule: module40.registerModule },
-  { id: 'comparisons', version: manifest41.version, registerModule: module41.registerModule },
+  { id: 'payment_methods', version: manifest36.version, registerModule: module36.registerModule },
+  { id: 'price_lists', version: manifest37.version, registerModule: module37.registerModule },
+  { id: 'customer_accounts', version: manifest38.version, registerModule: module38.registerModule },
+  { id: 'api_keys', version: manifest39.version, registerModule: module39.registerModule },
+  { id: 'comparisons', version: manifest40.version, registerModule: module40.registerModule },
+  { id: 'inventory', version: manifest41.version, registerModule: module41.registerModule },
   { id: 'mfa', version: manifest42.version, registerModule: module42.registerModule },
   { id: 'pim_ergonode', version: manifest43.version, registerModule: module43.registerModule },
   { id: 'product_feeds', version: manifest44.version, registerModule: module44.registerModule },

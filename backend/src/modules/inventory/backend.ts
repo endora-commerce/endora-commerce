@@ -5,7 +5,12 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
 import type {
+  CatalogCategoryReadPort,
+  CatalogCategoryWritePort,
   CatalogProductReadPort,
+  CustomerAccountReadPort,
+  EmailDefaultsRegistryPort,
+  EmailMailerPort,
   InventoryStockImportPort,
   InventoryStockReadPort,
   PromptActionToolRegistryPort,
@@ -25,7 +30,6 @@ import { InventoryStockImportService } from './services/stock-import.service.js'
 import { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import { WarehouseChannelReconciler } from './services/warehouse-channel-reconciler.js';
 import { AVAILABILITY_BACK_IN_STOCK_DEFAULT, LOW_STOCK_ALERT_DEFAULT } from './email-templates/transactional-defaults.js';
-import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 import { inventoryPromptTools } from './prompt-tools.js';
 
 /**
@@ -132,6 +136,17 @@ export function registerModule(ctx: ModuleContext): void {
             'salesChannelResolutionPort',
           ),
           dictionaryValidator: lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
+          // Feature 075, Phase C — the four reads and one write this module used
+          // to take by importing `catalog`'s, `customer_accounts`' and `email`'s
+          // files. Every one of them kept answering with its owner switched off.
+          catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+          catalogCategories: lazyPort<CatalogCategoryReadPort>(ctx, 'catalogCategoryReadPort'),
+          catalogCategoryWrites: lazyPort<CatalogCategoryWritePort>(
+            ctx,
+            'catalogCategoryWritePort',
+          ),
+          customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+          mailer: lazyPort<EmailMailerPort>(ctx, 'emailMailer'),
           requireAdmin: (permission) => async (req, reply) =>
             ctx.cradle<InventoryCradle>().requireAdmin(permission)(req, reply),
           requireCustomer: (req, reply) =>
@@ -203,7 +218,13 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(({ emFactory, eventBus, auditLogService }: InventoryCradle) => {
         const warehouseChannels = new WarehouseChannelService(emFactory, auditLogService);
-        const stockLevels = new StockLevelService(emFactory, eventBus, auditLogService);
+        const stockLevels = new StockLevelService(
+          emFactory,
+          lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+          lazyPort<CatalogCategoryReadPort>(ctx, 'catalogCategoryReadPort'),
+          eventBus,
+          auditLogService,
+        );
         return {
           async resolveAvailabilityBands(productIds: string[], salesChannelId: string) {
             const candidateWarehouseIds =
@@ -299,7 +320,7 @@ export function registerModule(ctx: ModuleContext): void {
    * built, so this always lands first — by construction, not by ordering luck.
    */
   ctx.onBoot(async () => {
-    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    const defaults = lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort');
     defaults.register('low_stock_alert', LOW_STOCK_ALERT_DEFAULT, 'inventory');
     defaults.register('availability_back_in_stock', AVAILABILITY_BACK_IN_STOCK_DEFAULT, 'inventory');
   });
@@ -323,6 +344,8 @@ export function registerModule(ctx: ModuleContext): void {
     const registry = cradle.promptActionToolRegistry;
     for (const tool of inventoryPromptTools({
       emFactory: cradle.emFactory,
+      catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+      catalogCategories: lazyPort<CatalogCategoryReadPort>(ctx, 'catalogCategoryReadPort'),
       eventBus: cradle.eventBus,
       auditLogService: cradle.auditLogService,
     })) {

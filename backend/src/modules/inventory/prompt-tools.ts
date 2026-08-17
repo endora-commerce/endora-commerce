@@ -1,6 +1,8 @@
 import {
   SearchWarehousesParamsSchema,
   SetStockLevelParamsSchema,
+  type CatalogCategoryReadPort,
+  type CatalogProductReadPort,
   type PromptActionTool,
   type SearchWarehousesParams,
   type SetStockLevelParams,
@@ -10,7 +12,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
-import { Product } from '../catalog/entities/product.entity.js';
 import { StockLevel } from './entities/stock-level.entity.js';
 import { Warehouse } from './entities/warehouse.entity.js';
 import { StockLevelService } from './services/stock-level-service.js';
@@ -27,6 +28,10 @@ import { WarehouseService } from './services/warehouse-service.js';
 
 export interface InventoryPromptToolsDeps {
   emFactory: () => EntityManager;
+  /** `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C). */
+  catalogProducts: CatalogProductReadPort;
+  /** `catalogCategoryReadPort`, owned by `catalog` — read by the stock service. */
+  catalogCategories: CatalogCategoryReadPort;
   eventBus?: EventBus;
   auditLogService?: AuditLogService;
 }
@@ -41,6 +46,8 @@ export function inventoryPromptTools(deps: InventoryPromptToolsDeps): PromptActi
   const warehouseService = new WarehouseService(deps.emFactory);
   const stockLevelService = new StockLevelService(
     deps.emFactory,
+    deps.catalogProducts,
+    deps.catalogCategories,
     deps.eventBus,
     deps.auditLogService,
   );
@@ -79,7 +86,7 @@ export function inventoryPromptTools(deps: InventoryPromptToolsDeps): PromptActi
       // reads committed rows only, so a fresh fork sees exactly what the
       // request's manager saw.
       const em = deps.emFactory();
-      const product = await em.findOne(Product, { id: params.productId });
+      const product = await deps.catalogProducts.findById(params.productId);
       if (!product) throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'Product not found.');
       const warehouse = await em.findOne(Warehouse, { id: params.warehouseId });
       if (!warehouse) throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found.');

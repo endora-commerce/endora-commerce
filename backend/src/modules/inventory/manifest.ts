@@ -113,10 +113,20 @@ export const manifest = defineModuleManifest({
   description:
     'Multi-warehouse stock levels, fulfilment strategy, and storefront display modes.',
   version: '1.0.0',
+  // Feature 075, Phase C adds `customer_accounts` and `email`. Both were
+  // reached by importing a file rather than resolving a port, so neither
+  // appeared here: the availability queue turns a subscription into an e-mail
+  // address by reading `CustomerAccount`, and every message this module sends
+  // leaves through `email`'s transport. `customer_accounts` belongs in
+  // `dependencies` rather than `nonBindingDependencies` for the reason
+  // `quick_order` gives — a back-in-stock notice addressed to an account the
+  // platform will not identify is worse than a refused subscription.
   dependencies: [
     'auth',
     'catalog',
+    'customer_accounts',
     'dictionaries',
+    'email',
     'organizations',
     'sales_channels',
     'settings',

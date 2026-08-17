@@ -9,9 +9,9 @@ import {
   setProductWarehouseLowStockThresholdsRequestSchema,
   setStockLevelRequestSchema,
   updateWarehouseRequestSchema,
+  type CatalogProductReadPort,
 } from '@b2b/contracts';
 import { StockLevel } from './entities/stock-level.entity.js';
-import { Product } from '../catalog/entities/product.entity.js';
 import { DEFAULT_WAREHOUSE_ID } from './entities/warehouse.entity.js';
 import type { WarehouseService } from './services/warehouse-service.js';
 import type { StockLevelService } from './services/stock-level-service.js';
@@ -34,6 +34,8 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
  */
 export interface InventoryAdminDeps {
   emFactory: () => EntityManager;
+  /** `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C). */
+  catalogProducts: CatalogProductReadPort;
   warehouseService: WarehouseService;
   stockLevelService: StockLevelService;
   warehouseChannelService: WarehouseChannelService;
@@ -82,6 +84,7 @@ export async function registerInventoryAdminRoutes(
 ): Promise<void> {
   const {
     emFactory,
+    catalogProducts,
     warehouseService,
     stockLevelService,
     warehouseChannelService,
@@ -567,9 +570,7 @@ export async function registerInventoryAdminRoutes(
         orderBy: { updatedAt: 'desc' },
       });
       const productIds = Array.from(new Set(rows.map((r) => r.productId)));
-      const products = productIds.length
-        ? await em.find(Product, { id: { $in: productIds } })
-        : [];
+      const products = await catalogProducts.findByIds(productIds);
       const productById = new Map(products.map((p) => [p.id, p]));
       return {
         data: rows.map((r) => {

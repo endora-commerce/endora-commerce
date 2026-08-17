@@ -14,9 +14,15 @@ import { registerInventoryRoutes } from './routes.js';
 import { registerInventoryAdminRoutes } from './routes.admin.js';
 import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
-import { ConsoleMailer, type Mailer } from '../email/services/mailer.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
-import type { DictionaryValidator } from '@b2b/contracts';
+import type {
+  CatalogCategoryReadPort,
+  CatalogCategoryWritePort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  DictionaryValidator,
+  EmailMailerPort,
+} from '@b2b/contracts';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface InventoryAuditContext {
@@ -36,6 +42,17 @@ export interface InventoryAuditContext {
  */
 export interface InventoryModuleOptions {
   emFactory: () => EntityManager;
+  /**
+   * The three reads and one write this module performs across a boundary
+   * (feature 075, Phase C). Required, not optional: `catalog` and
+   * `customer_accounts` are declared dependencies, and an optional port is a
+   * composition that silently answers without them — which is exactly what an
+   * entity import was.
+   */
+  catalogProducts: CatalogProductReadPort;
+  catalogCategories: CatalogCategoryReadPort;
+  catalogCategoryWrites: CatalogCategoryWritePort;
+  customerAccounts: CustomerAccountReadPort;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;
@@ -51,8 +68,13 @@ export interface InventoryModuleOptions {
   /** Optional settings service used to read the inventory.display_mode key
    *  for the storefront-public display-mode endpoint. */
   settingsService?: SettingsService;
-  /** Optional mailer for low-stock alerts. Defaults to ConsoleMailer. */
-  mailer?: Mailer;
+  /**
+   * `emailMailer`, owned by `email`, as its published contract (feature 075).
+   * Required: the `ConsoleMailer` default this used to fall back to was a value
+   * import of another module's driver, and it has had no reachable caller since
+   * the container started resolving `emailMailer` for every composition.
+   */
+  mailer: EmailMailerPort;
   /** Feature 047 — optional admin-editable template path for inventory emails. */
   templateEmail?: InventoryTemplateEmailPort;
   /** Channel id used to read inventory.* settings for low-stock alerts. */
@@ -100,11 +122,17 @@ export interface InventoryModuleResult {
 }
 
 export function inventoryModule(options: InventoryModuleOptions): InventoryModuleResult {
-  const mailer = options.mailer ?? new ConsoleMailer();
-  const availabilityWorker = new AvailabilityWorker(options.emFactory, mailer);
+  const mailer = options.mailer;
+  const availabilityWorker = new AvailabilityWorker(
+    options.emFactory,
+    mailer,
+    options.catalogProducts,
+    options.customerAccounts,
+  );
   const lowStockAlertService = new LowStockAlertService(
     options.emFactory,
     mailer,
+    options.catalogProducts,
     options.settingsService,
     options.settingsChannelId,
     options.templateEmail,
@@ -133,6 +161,8 @@ export function inventoryModule(options: InventoryModuleOptions): InventoryModul
   const plugin = async (app: FastifyInstance): Promise<void> => {
     const availabilityService = new AvailabilityNotificationService(
       options.emFactory,
+      options.catalogProducts,
+      options.customerAccounts,
       mailer,
       options.templateEmail,
     );
@@ -142,15 +172,23 @@ export function inventoryModule(options: InventoryModuleOptions): InventoryModul
     );
     const stockLevelService = new StockLevelService(
       options.emFactory,
+      options.catalogProducts,
+      options.catalogCategories,
       options.eventBus,
       options.auditLogService,
     );
     const thresholdAdminService = new ThresholdAdminService(
       options.emFactory,
+      options.catalogCategories,
+      options.catalogCategoryWrites,
+      options.catalogProducts,
       options.auditLogService,
     );
     await registerInventoryRoutes(app, {
       emFactory: options.emFactory,
+      catalogProducts: options.catalogProducts,
+      catalogCategories: options.catalogCategories,
+      customerAccounts: options.customerAccounts,
       availabilityService,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
@@ -170,11 +208,13 @@ export function inventoryModule(options: InventoryModuleOptions): InventoryModul
       );
       const csvStockImporter = new CsvStockImporter(
         options.emFactory,
+        options.catalogProducts,
         options.eventBus,
         options.auditLogService,
       );
       await registerInventoryAdminRoutes(app, {
         emFactory: options.emFactory,
+        catalogProducts: options.catalogProducts,
         warehouseService,
         stockLevelService,
         warehouseChannelService,

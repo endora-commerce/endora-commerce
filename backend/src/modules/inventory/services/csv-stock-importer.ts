@@ -1,8 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { StockImportError, StockImportResult } from '@b2b/contracts';
+import type {
+  CatalogProductReadPort,
+  StockImportError,
+  StockImportResult,
+} from '@b2b/contracts';
 import type { EventBus } from '../../../events/bus.js';
 import { randomUUID } from 'crypto';
-import { Product } from '../../catalog/entities/product.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { Warehouse } from '../entities/warehouse.entity.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
@@ -39,6 +42,12 @@ export interface CsvImportInput {
 export class CsvStockImporter {
   constructor(
     private readonly emFactory: () => EntityManager,
+    /**
+     * `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C). A
+     * sheet addresses a product by SKU, so somebody has to ask `catalog`; the
+     * `product_not_found` row error is raised from its answer.
+     */
+    private readonly catalogProducts: CatalogProductReadPort,
     private readonly eventBus?: EventBus,
     private readonly auditLog?: AuditLogService,
   ) {}
@@ -96,7 +105,7 @@ export class CsvStockImporter {
         continue;
       }
 
-      const product = await em.findOne(Product, { sku });
+      const product = await this.catalogProducts.findBySku(sku);
       if (!product) {
         errors.push({ row: lineNo, sku, reason: 'product_not_found' });
         rowsSkipped += 1;
