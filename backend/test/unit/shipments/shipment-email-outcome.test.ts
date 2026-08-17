@@ -7,6 +7,10 @@
 
 import { describe, expect, it } from 'vitest';
 import type {
+  CustomerAccountReadPort,
+  CustomerAccountRecord,
+  OrderReadPort,
+  OrderRecord,
   TransactionalEmailSendInput,
   TransactionalEmailSender,
   TransactionalSendOutcome,
@@ -35,38 +39,75 @@ class CapturingSender implements TransactionalEmailSender {
   }
 }
 
-function fakeEmFactory(rows: {
-  order?: unknown;
-  customer?: unknown;
-  channel?: unknown;
-}): ShipmentEmailNotifierDeps['emFactory'] {
+/**
+ * Feature 075 Phase C — the notifier's `EntityManager` refuses every entity but
+ * `SalesChannel`.
+ *
+ * The order and the buyer used to come out of `em.findOne(Order, …)` and
+ * `em.findOne(CustomerAccount, …)`: two of somebody else's tables, queried on
+ * this module's connection, answering rows whatever state their owner was in.
+ * They come from `orderReadPort` and `customerAccountReadPort` now, so the only
+ * entity left is the kernel's `SalesChannel`.
+ *
+ * The refusal is the assertion. A stub that quietly returned `null` for a
+ * foreign entity would let the read creep back and be read as "no such order";
+ * this one names the module that was queried directly.
+ */
+function fakeEmFactory(channel: unknown): ShipmentEmailNotifierDeps['emFactory'] {
   return () =>
     ({
       async findOne(entity: { name: string }) {
-        if (entity.name === 'Order') return rows.order ?? null;
-        if (entity.name === 'CustomerAccount') return rows.customer ?? null;
-        return rows.channel ?? null;
+        if (entity.name !== 'SalesChannel') {
+          throw new Error(
+            `shipments queried '${entity.name}' directly — it belongs to another module, ` +
+              'and its owner publishes a port for it (feature 075, FR-012).',
+          );
+        }
+        return channel;
       },
     }) as unknown as ReturnType<ShipmentEmailNotifierDeps['emFactory']>;
+}
+
+function orderReadPort(order: OrderRecord | null): OrderReadPort {
+  return {
+    findById: async () => order,
+    findByIds: async () => (order ? [order] : []),
+    listAll: async () => (order ? [order] : []),
+    listItems: async () => [],
+  };
+}
+
+function customerAccountReadPort(customer: CustomerAccountRecord | null): CustomerAccountReadPort {
+  return {
+    findById: async () => customer,
+    findByIds: async () => (customer ? [customer] : []),
+  } as unknown as CustomerAccountReadPort;
 }
 
 function notifier(
   sender: TransactionalEmailSender | undefined,
   logged: Logged[],
-  rows: { order?: unknown; customer?: unknown; channel?: unknown } = {},
+  rows: {
+    order?: OrderRecord | null;
+    customer?: CustomerAccountRecord | null;
+    channel?: unknown;
+  } = {},
 ): ShipmentEmailNotifier {
+  const order = {
+    id: ORDER_ID,
+    businessId: 'ORD-2',
+    salesChannelId: CHANNEL_ID,
+    placedByCustomerAccountId: 'customer-1',
+  } as unknown as OrderRecord;
+  const customer = { id: 'customer-1', email: 'buyer@example.com' } as unknown as CustomerAccountRecord;
   return new ShipmentEmailNotifier({
-    emFactory: fakeEmFactory({
-      order: {
-        id: ORDER_ID,
-        businessId: 'ORD-2',
-        salesChannelId: CHANNEL_ID,
-        placedByCustomerAccountId: 'customer-1',
-      },
-      customer: { id: 'customer-1', email: 'buyer@example.com' },
-      channel: { id: CHANNEL_ID, defaultLanguage: 'en-US' },
-      ...rows,
-    }),
+    emFactory: fakeEmFactory(
+      'channel' in rows ? rows.channel : { id: CHANNEL_ID, defaultLanguage: 'en-US' },
+    ),
+    orderRead: orderReadPort('order' in rows ? (rows.order ?? null) : order),
+    customerAccountRead: customerAccountReadPort(
+      'customer' in rows ? (rows.customer ?? null) : customer,
+    ),
     getTransactionalEmailSender: () => sender,
     log: (message, context) => logged.push({ message, context }),
   });
@@ -124,9 +165,41 @@ describe('shipments — the shipment-created notifier reports what happened (#78
 
     await expect(
       notifier(new CapturingSender(), logged, {
-        customer: { id: 'customer-1', email: null },
+        customer: { id: 'customer-1', email: null } as unknown as CustomerAccountRecord,
       }).notify(ORDER_ID, SHIPMENT_ID),
     ).resolves.toEqual({ sent: false, reason: 'no_recipient' });
+  });
+
+  it('reports an order the read port cannot find', async () => {
+    const logged: Logged[] = [];
+
+    await expect(
+      notifier(new CapturingSender(), logged, { order: null }).notify(ORDER_ID, SHIPMENT_ID),
+    ).resolves.toEqual({ sent: false, reason: 'order_not_found' });
+  });
+
+  it('lets a switched-off order module refuse rather than reading its table', async () => {
+    const logged: Logged[] = [];
+    const refusing: OrderReadPort = {
+      findById: async () => {
+        throw new ModuleDisabledError('orders');
+      },
+      findByIds: async () => [],
+      listAll: async () => [],
+      listItems: async () => [],
+    };
+
+    const subject = new ShipmentEmailNotifier({
+      emFactory: fakeEmFactory({ id: CHANNEL_ID, defaultLanguage: 'en-US' }),
+      orderRead: refusing,
+      customerAccountRead: customerAccountReadPort(null),
+      getTransactionalEmailSender: () => new CapturingSender(),
+      log: (message, context) => logged.push({ message, context }),
+    });
+
+    await expect(subject.notify(ORDER_ID, SHIPMENT_ID)).rejects.toBeInstanceOf(ModuleDisabledError);
+    // Not logged as `failed`: a capability that is off is not a send that broke.
+    expect(logged).toHaveLength(0);
   });
 
   it('contains a throwing send but names it in the result and the log', async () => {

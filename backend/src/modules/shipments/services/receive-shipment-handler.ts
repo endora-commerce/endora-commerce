@@ -1,13 +1,24 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type ReceiveShipment } from '@b2b/contracts';
+import type {
+  DeliveryMethodReadPort,
+  OrderStatusAnnouncePort,
+  OrderStatusRegistry,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Shipment } from '../entities/shipment.entity.js';
+// The one cross-module import feature 075 could not retire here, and the
+// reason is transactional rather than typed: this handler moves the order's
+// status **inside its own transaction**, together with the shipment row, so a
+// carrier callback either records both or neither. A port executes on the
+// owner's `EntityManager` — a different fork, therefore a different
+// transaction — so replacing this read would silently trade atomicity for a
+// boundary. It stays ledgered in
+// `scripts/ledgers/cross-module-imports/shipments.ts`, with the question that
+// retires it: does `orders` publish a transaction-participating status write,
+// or does the shipment→order transition become an event `orders` consumes?
 import { Order } from '../../orders/entities/order.entity.js';
-import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.entity.js';
-import type { OrderStatusRegistry } from '../../delivery_methods/services/order-status-registry.port.js';
-import { emitOrderStatusAfter } from '../../orders/events/order-status-events.js';
-import type { EventBus } from '../../../events/bus.js';
 import type { ShippingEventBus } from './events.js';
 
 export interface ReceiveShipmentResult {
@@ -31,6 +42,8 @@ export class ReceiveShipmentHandler {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly orderStatusRegistry: OrderStatusRegistry,
+    private readonly deliveryMethodRead: DeliveryMethodReadPort,
+    private readonly orderStatusAnnounce: OrderStatusAnnouncePort,
     private readonly events?: ShippingEventBus,
   ) {}
 
@@ -61,7 +74,7 @@ export class ReceiveShipmentHandler {
       }
 
       const order = await tx.findOne(Order, { id: shipment.orderId });
-      const method = await tx.findOne(DeliveryMethod, { id: shipment.deliveryMethodId });
+      const method = await this.deliveryMethodRead.findById(shipment.deliveryMethodId);
       const orderStatusBefore = order?.status ?? null;
 
       if (input.outcome === 'success') {
@@ -123,7 +136,10 @@ export class ReceiveShipmentHandler {
         salesChannelId: string | null;
       };
       if (r.orderStatusBefore && r.orderStatusAfter && r.organizationId && r.salesChannelId) {
-        emitOrderStatusAfter(this.events as unknown as EventBus, {
+        // The four templated event names are `orders`' vocabulary and are not
+        // known at compile time — the status set is admin-configurable — so the
+        // announcement is made by the module that owns the naming scheme.
+        this.orderStatusAnnounce.announceStatusChanged({
           orderId: result.shipment.orderId,
           organizationId: r.organizationId,
           salesChannelId: r.salesChannelId,

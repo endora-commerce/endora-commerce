@@ -33,7 +33,11 @@ export const manifest = defineModuleManifest({
   name: 'Shipments',
   description: 'Shipment record and the order_created / shipment_created / receive_shipment lifecycle.',
   version: '1.0.0',
+  // Feature 075 Phase C — `customer_accounts` joins the three that were already
+  // here: the shipment-created e-mail resolves its recipient over
+  // `customerAccountReadPort` instead of reading the `CustomerAccount` entity.
   dependencies: [
+    'customer_accounts',
     'delivery_methods',
     'orders',
     'transactional_emails',
