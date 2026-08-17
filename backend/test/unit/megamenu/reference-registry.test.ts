@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { MegamenuReferenceRegistry } from '../../../src/modules/megamenu/services/megamenu-reference-registry.js';
@@ -62,9 +63,7 @@ describe('MegamenuReferenceRegistry (T013)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   it('findCategoryReferences returns the menu+item rows whose target uses the category', async () => {

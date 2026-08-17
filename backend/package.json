@@ -57,7 +57,8 @@
     "check:port-catches": "tsx scripts/check-port-catches.ts",
     "check:subscribe-seam": "tsx scripts/check-subscribe-seam.ts",
     "check:timer-presence": "tsx scripts/check-timer-presence.ts",
-    "check:error-translations": "tsx scripts/check-error-translations.ts"
+    "check:error-translations": "tsx scripts/check-error-translations.ts",
+    "check:harness-teardown": "tsx scripts/check-harness-teardown.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",

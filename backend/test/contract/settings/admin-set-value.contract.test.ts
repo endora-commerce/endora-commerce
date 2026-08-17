@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { defineModuleSettingsManifest, ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
@@ -48,9 +49,7 @@ describe('admin set value (T030)', () => {
     const em = h.em();
     for (const s of await em.find(Setting, { ownerModule: 'us2_test_setval' })) em.remove(s);
     await em.flush();
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   beforeEach(async () => {

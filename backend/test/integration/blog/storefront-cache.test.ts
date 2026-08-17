@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { setupBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { BlogCacheService } from '../../../src/modules/blog/services/blog-cache.js';
 
@@ -32,9 +36,7 @@ describe('blog storefront cache (T089)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   async function fetchIndex(): Promise<{ statusCode: number; body: unknown }> {

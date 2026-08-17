@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
@@ -66,9 +67,7 @@ describe('public asset file (T037)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
     await rm(baseDir, { recursive: true, force: true });
   });
 

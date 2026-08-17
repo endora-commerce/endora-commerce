@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'crypto';
-import { setupBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
@@ -34,8 +38,8 @@ describe('blog storefront related-* filters (T077)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
+    // Clean up the seeded rows *before* teardown: `teardownBackendServer`
+    // closes the harness ORM, so a connection taken after it has no pool.
     if (productIds.length > 0) {
       const conn = h.orm.em.getConnection();
       await conn.execute(
@@ -46,7 +50,7 @@ describe('blog storefront related-* filters (T077)', () => {
         `{${productIds.join(',')}}`,
       ]);
     }
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   async function createPublishedPost(slug: string): Promise<{ id: string }> {

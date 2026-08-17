@@ -115,6 +115,17 @@ quality:
     # `TIMERS_WITHOUT_PRESENCE` is two-way and is not expected to empty: an entry
     # says why a timer must keep running while its module is off.
     - pnpm --filter backend run check:timer-presence
+    # Issue #111 — a test releases a harness-owned resource through
+    # `teardownBackendServer`, never by closing it itself. Seventy-seven files had
+    # copied the same three lines (`app.close`, `redis.disconnect`, `orm.close`)
+    # and none of them disposed the awilix container or disconnected the pub/sub
+    # Redis client, because neither existed when the shape was first copied — a
+    # hand-written teardown is a copy of the seam frozen at the moment it was
+    # copied, and nothing can teach it about a resource added later. The suite
+    # runs in a single fork, so one abandoned client per composed server
+    # accumulates for the whole run. `HAND_RELEASED_RESOURCES_TO_DRAIN` is an
+    # empty two-way ratchet.
+    - pnpm --filter backend run check:harness-teardown
     # Documentation code blocks are quotations, not paraphrases. The quickstarts
     # are copied by every module conversion, so a stale snippet is a defect
     # scheduled for mass production — six were found across three batches before

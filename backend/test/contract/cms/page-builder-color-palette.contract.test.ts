@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 
@@ -41,9 +42,7 @@ describe('admin CMS page-builder colour palette (072 T093)', () => {
   }, 60_000);
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   it('writes the palette and reads it back through the page-builder config', async () => {

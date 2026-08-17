@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { defineModuleSettingsManifest, ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
@@ -38,9 +39,7 @@ describe('admin set value — concurrent edit detection (T031)', () => {
     const em = h.em();
     for (const s of await em.find(Setting, { ownerModule: 'us2_test_conflict' })) em.remove(s);
     await em.flush();
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   beforeEach(async () => {

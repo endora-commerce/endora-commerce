@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { MegamenuCache } from '../../../src/modules/megamenu/services/megamenu-cache.js';
@@ -31,9 +32,7 @@ describe('Megamenu storefront cache (T083)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   async function seedAndActivate(label: string): Promise<{ id: string; version: number }> {

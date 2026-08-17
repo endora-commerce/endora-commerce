@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
@@ -21,9 +22,7 @@ describe('admin settings group CRUD (T032)', () => {
     const em = h.em();
     for (const g of await em.find(SettingGroup, { ownerModule: 'manual' })) em.remove(g);
     await em.flush();
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   const adminCookie = { b2b_session: 'stub-admin-session' };
