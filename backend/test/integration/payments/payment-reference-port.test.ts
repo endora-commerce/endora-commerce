@@ -121,5 +121,19 @@ describe('PaymentReferenceService', () => {
     const service = new PaymentReferenceService(h.em);
     expect(await service.stampExternalReference(randomUUID(), 'pi_x')).toBe(false);
     expect(await service.stampExternalReferenceIfAbsent(randomUUID(), 'pi_x')).toBe(false);
+    expect(await service.mergeProviderDetails(randomUUID(), { a: 1 })).toBe(false);
+  });
+
+  it('merges provider details rather than replacing them', async () => {
+    // TPay's one-click marker has to survive from the pay call to the
+    // settlement notification, and the settlement path writes the same column.
+    const payment = await seedPayment(h.em());
+    const service = new PaymentReferenceService(h.em);
+
+    expect(await service.mergeProviderDetails(payment.id, { source: 'tpay' })).toBe(true);
+    expect(await service.mergeProviderDetails(payment.id, { alias: 'A1' })).toBe(true);
+
+    const reloaded = await h.em().findOne(Payment, { id: payment.id });
+    expect(reloaded?.providerDetails).toEqual({ source: 'tpay', alias: 'A1' });
   });
 });
