@@ -50,10 +50,19 @@ export async function setChannelStorefrontUrl(
  * Seeds an active, rule-less base price list covering the three products from
  * `seedUs1Catalog`, so the anonymous channel resolution has something to
  * resolve.
+ *
+ * The list is a **catch-all, not the system list** (issue #50). What the
+ * anonymous resolution lands on is `{kind:'all'}` plus `status: 'active'`; the
+ * `is_system` flag it used to raise was never read on this path and marks the
+ * platform's one seeded `Default` row, which is now a database singleton. Every
+ * caller committed such a row and every one of them left it behind, so the next
+ * file to seed `Default` saw two — which is how the guard in
+ * `default-seed-and-migration` started failing. The flag was also never
+ * overridden by a caller, so the option it hung off is gone with it.
  */
 export async function seedFeedPrices(
   em: EntityManager,
-  options: { code?: string; amount?: string; isSystem?: boolean } = {},
+  options: { code?: string; amount?: string } = {},
 ): Promise<string> {
   const list = em.create(PriceList, {
     code: options.code ?? 'feed_test_default',
@@ -62,7 +71,6 @@ export async function seedFeedPrices(
     type: 'base',
     status: 'active',
     applicationRule: { kind: 'all' },
-    isSystem: options.isSystem ?? true,
     modifiedAt: new Date(),
   });
   await em.persistAndFlush(list);

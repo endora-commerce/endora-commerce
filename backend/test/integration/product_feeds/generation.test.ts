@@ -101,6 +101,12 @@ describe('product feed generation [integration]', () => {
     // --- Price lists -------------------------------------------------------
     // The anonymous/default list every channel resolves to when a feed names
     // none, and a named list a feed can point at verbatim (FR-020).
+    //
+    // Catch-all, *not* `isSystem` (issue #50): what makes this the list the
+    // anonymous resolution lands on is `{kind:'all'}` plus `status: 'active'`,
+    // and the flag was never read on this path. It marks the platform's one
+    // seeded `Default` row, which is now a database singleton — a fixture
+    // claiming it left a second system row behind for the next file to trip on.
     const defaultList = em.create(PriceList, {
       code: 'feed_default',
       name: 'Feed default list',
@@ -108,7 +114,6 @@ describe('product feed generation [integration]', () => {
       type: 'base',
       status: 'active',
       applicationRule: { kind: 'all' },
-      isSystem: true,
       modifiedAt: new Date(),
     });
     const namedList = em.create(PriceList, {

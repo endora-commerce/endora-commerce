@@ -143,6 +143,8 @@ describe('product feed channel isolation [integration]', () => {
 
     // One price list covering everything, named by every feed here, so an
     // absent price can never be mistaken for channel scoping doing its job.
+    // Catch-all rather than `isSystem` (issue #50): the system flag marks the
+    // platform's one seeded `Default` row and is now a database singleton.
     const priceList = em.create(PriceList, {
       code: 'feed_isolation_list',
       name: 'Feed isolation list',
@@ -150,7 +152,6 @@ describe('product feed channel isolation [integration]', () => {
       type: 'base',
       status: 'active',
       applicationRule: { kind: 'all' },
-      isSystem: true,
       modifiedAt: new Date(),
     });
     await em.persistAndFlush(priceList);
