@@ -502,7 +502,7 @@
   "errors.INVALID_TRANSITION": "Błąd: invalid transition.",
   "errors.INVOICE_NOT_READY": "Błąd: invoice not ready.",
   "errors.LIMIT_INSUFFICIENT": "Błąd: limit insufficient.",
-  "errors.MODULE_DISABLED": "Błąd: module disabled.",
+  "errors.MODULE_DISABLED": "Moduł \"{module}\" jest wyłączony, więc ta operacja została odrzucona. Sprawdź jego stan na ekranie Moduły.",
   "errors.NOT_FOUND": "Nie znaleziono zasobu.",
   "errors.ORDER_NOT_CANCELLABLE": "Błąd: order not cancellable.",
   "errors.ORDER_NOT_FOUND": "Błąd: order not found.",

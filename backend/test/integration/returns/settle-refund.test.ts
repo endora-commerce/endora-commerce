@@ -1,4 +1,6 @@
 import { randomUUID } from 'crypto';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
@@ -15,7 +17,13 @@ import { Refund } from '../../../src/modules/returns/entities/refund.entity.js';
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
 import { setSellerSettings } from '../invoices/helpers.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { TranslationBundle } from '../../../src/modules/_i18n/entities/translation-bundle.entity.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+
+const I18N_MODULE_PATH = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../../src/modules/_i18n',
+);
 
 /**
  * Feature 046 (US5) — settlement: refund amounts (capped at paid), money
@@ -30,8 +38,21 @@ describe('returns — settlement (US5)', () => {
     // Needed by the invoiced counterpart below: issuance refuses without the
     // seller's own company data.
     await setSellerSettings(h);
+    // Issue #161 — the message assertions in the switched-off-gateway block
+    // need a bundle to resolve against. `setupBackendServer` passes no
+    // lifecycle manifest registry, so `reconcileBundles` is a no-op under the
+    // harness (`test/unit/_i18n/reconcile-timing.test.ts` says so in full) and
+    // `translation_bundles` stays empty; every error message then falls back to
+    // the *written* one, which for `ModuleDisabledError` already contains the
+    // module id — so an assertion over the rendered sentence would pass with
+    // the sentence never consulted. Installing the bundle is what makes it
+    // measure the wire, and what lets it go red without the fix.
+    await h.adminI18n.i18nService.installBundlesForModule('_i18n', I18N_MODULE_PATH, 'i18n');
   });
   afterAll(async () => {
+    // `translation_bundles` is not in the harness' truncate list, so the rows
+    // installed above would outlive this file.
+    await h.em().nativeDelete(TranslationBundle, { moduleId: '_i18n' });
     await teardownBackendServer(h);
   });
 
@@ -98,7 +119,11 @@ describe('returns — settlement (US5)', () => {
     async function settleRefund(
       id: string,
       itemId: string,
-    ): Promise<{ statusCode: number; headers: Record<string, unknown>; error?: { code?: string; message?: string } }> {
+    ): Promise<{
+      statusCode: number;
+      headers: Record<string, unknown>;
+      error?: { code?: string; message?: string; details?: unknown };
+    }> {
       const res = await h.app.inject({
         method: 'POST',
         url: `/api/v1/admin/returns/${id}/settlement`,
@@ -110,7 +135,7 @@ describe('returns — settlement (US5)', () => {
           createCorrectiveInvoice: true,
         },
       });
-      const body = res.json() as { error?: { code?: string; message?: string } };
+      const body = res.json() as { error?: { code?: string; message?: string; details?: unknown } };
       return {
         statusCode: res.statusCode,
         headers: res.headers as Record<string, unknown>,
@@ -156,11 +181,19 @@ describe('returns — settlement (US5)', () => {
         expect(res.statusCode).toBe(503);
         expect(res.error?.code).toBe('MODULE_DISABLED');
         expect(res.headers['retry-after']).toBe('60');
-        // Which module is off is asserted on the error object itself, in
-        // `test/unit/payments/payment-refund-provider.test.ts`. It is not
-        // asserted on the response body: the envelope replaces an operator-
-        // visible message with the registered translation for its code, so what
-        // reaches the admin here is the generic `MODULE_DISABLED` sentence.
+        // Issue #161 — and the operator has to be told *which* module. The id
+        // was on the error object all along (asserted in
+        // `test/unit/payments/payment-refund-provider.test.ts`), but the
+        // envelope replaces an operator-visible message with the registered
+        // sentence for its code, and `MODULE_DISABLED` is one code for every
+        // gated port in the platform: what reached the admin was "Module
+        // Disabled.", and the remedy — switch `stripe` back on — was named
+        // nowhere on the response. It is now in both places a client can use.
+        expect(res.error?.message).toBe(
+          'The "stripe" module is off, so this action was refused. ' +
+            'Check its state on the Modules screen.',
+        );
+        expect(res.error?.details).toEqual({ module: 'stripe' });
       });
 
       await expectNothingSettled(id, orderId);

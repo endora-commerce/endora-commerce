@@ -68,13 +68,27 @@ export interface ErrorEnvelopeOptions {
    * runtime — `_i18n` is `nonDeactivatable` and the map is a static table — but
    * F4's precondition is that packages are not cyclic.
    *
-   * **It stays injected rather than moving into `@b2b/contracts`**, and not only
-   * for symmetry with the two functions below. Translation values are shipped as
-   * module JSON, reconciled into `translation_bundles` at boot, and re-read from
-   * disk on reload; no admin route edits one. So routing a code family to
-   * another module's bundle through this map is the only per-deployment override
-   * of an error message that exists, and freezing the table into a contracts
-   * release would remove it.
+   * **It stays injected rather than moving into `@b2b/contracts`**, for symmetry
+   * with the two functions below and because a routing table frozen into a
+   * contracts release is a routing table a module cannot re-point when it takes
+   * ownership of a code family.
+   *
+   * It is *not*, however, a per-deployment override, and this comment used to
+   * say it was (issue #106). Translation values are shipped as module JSON,
+   * reconciled into `translation_bundles` at boot and re-read on reload, and no
+   * admin route edits one — so a deployment genuinely cannot change a sentence
+   * by configuration. But re-routing a family through this map does not help:
+   * both composition roots pass the same static `ERROR_TRANSLATION_KEYS`, and a
+   * deployment cannot substitute it without editing a core file, which is the
+   * thing the overlay pattern exists to avoid. What a deployment *can* already
+   * do, with no new machinery, is decorate the `adminI18nService` registration
+   * (`backend/src/apps/<deployment>/decorations/`) and answer differently for
+   * the keys it cares about — a lever that reaches every string rather than only
+   * an error family. Whether that is the answer #106 wants is a product
+   * question, not a technical one, and nothing here assumes an answer: this hook
+   * chooses the **key** and the **params**, never the value, so a value-level
+   * override built later slots underneath both it and issue #65's token rule
+   * without touching either.
    *
    * Absent, no message is translated; the envelope keeps the original text.
    */
@@ -84,6 +98,18 @@ export interface ErrorEnvelopeOptions {
     key: string;
     language: SupportedAdminLanguage;
     originalMessage: string;
+    /**
+     * Values for the `{placeholder}`s in the sentence, read off the error's
+     * `details` (issue #161).
+     *
+     * Substitution stays in `_i18n` — it already interpolates `{name}` for
+     * every other backend-side lookup, and two implementations of one template
+     * syntax is one too many. What this plugin decides is *which* values, and
+     * the answer is the error's own structured metadata: `details` is already
+     * on the wire, already survives the message replacement, and is already
+     * where issue #65 put the discriminator this hook reads.
+     */
+    params?: Record<string, string | number>;
     request: FastifyRequest;
   }) => Promise<string>;
   resolvePreferredLanguage?: (request: FastifyRequest) => Promise<SupportedAdminLanguage | null | undefined>;
@@ -119,9 +145,26 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
     // sentence yet resolves to nothing, and both roots' translators answer a
     // missing key with the original message — which is the right fallback here,
     // because untranslated prose that is true beats a translated sentence that
-    // is false. Re-routing the family to another module's bundle (issue #106,
-    // the one per-deployment lever there is) keeps working: the module is still
-    // chosen by the injected map, and only the key inside it changes.
+    // is false. Re-routing the family to another module's bundle keeps working:
+    // the module is still chosen by the injected map, and only the key inside it
+    // changes. (That routing is not the per-deployment override this comment
+    // once called it — see `errorTranslationTargets` above, issue #106.)
+    //
+    // The same reasoning one step further along (issue #161). `MODULE_DISABLED`
+    // is one code for every gated port in the platform, so its sentence is
+    // generic for the same reason `FORBIDDEN`'s is — but the specific part is
+    // not a token choosing a different sentence, it is a *value* the one
+    // sentence is missing. An operator refused a refund because a payment
+    // gateway is switched off read "Module Disabled." and was not told which
+    // module to switch back on, while `ModuleDisabledError` had carried the id
+    // on the error object all along.
+    //
+    // So the error's structured metadata fills the sentence: `details`' scalar
+    // members become the interpolation parameters. It is the same `details` the
+    // token above is read from — already on the wire, already surviving this
+    // replacement — so a thrower that wants its refusal named says so once, in
+    // the place a client can branch on too.
+    const params = messageParams(payload.error.details);
     const token = refusalToken(payload.error.details);
     const language = (await options.resolvePreferredLanguage?.(request)) ?? ADMIN_LANGUAGE_FALLBACK;
     const translated = await options.translateErrorMessage({
@@ -129,8 +172,15 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
       key: token === null ? target.key : `${target.key}.${token}`,
       language,
       originalMessage: payload.error.message,
+      ...(params ? { params } : {}),
       request,
     });
+    // A sentence with a placeholder nothing filled is worse than the prose the
+    // thrower wrote: `The "{module}" module is off` tells the operator less than
+    // the original message and looks broken doing it. Same ruling as the missing
+    // token key above — untranslated prose that is true beats a rendered
+    // sentence that is not.
+    if (hasUnfilledPlaceholder(translated)) return payload;
     return {
       ...payload,
       error: {
@@ -244,6 +294,32 @@ function refusalToken(details: ErrorEnvelope['error']['details']): string | null
   if (!details || Array.isArray(details)) return null;
   const code = (details as Record<string, unknown>)['code'];
   return typeof code === 'string' && code.length > 0 ? code : null;
+}
+
+/**
+ * The values a sentence's `{placeholder}`s may be filled from, or `undefined`.
+ *
+ * Same two shapes as {@link refusalToken}: the Zod-style array carries
+ * `{path, issue}` pairs and nothing a sentence names, so it contributes
+ * nothing. From the free-form object only **scalars** are taken — an array or a
+ * nested object has no defensible rendering inside prose, and one that
+ * stringified to `[object Object]` in front of an operator would be a worse
+ * message than the one it replaced.
+ */
+function messageParams(
+  details: ErrorEnvelope['error']['details'],
+): Record<string, string | number> | undefined {
+  if (!details || Array.isArray(details)) return undefined;
+  const params: Record<string, string | number> = {};
+  for (const [name, value] of Object.entries(details as Record<string, unknown>)) {
+    if (typeof value === 'string' || typeof value === 'number') params[name] = value;
+  }
+  return Object.keys(params).length > 0 ? params : undefined;
+}
+
+/** `{name}` left standing after interpolation — see the call site. */
+function hasUnfilledPlaceholder(message: string): boolean {
+  return /\{\w+\}/.test(message);
 }
 
 function isErrorEnvelope(payload: unknown): payload is ErrorEnvelope {
