@@ -83,8 +83,10 @@ export const entries: Readonly<Record<string, string>> = {
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/services/customer-admin-query-service.ts:organizations/entities/organization.entity':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-admin-query-service.ts:price_lists/entities/customer-group.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
+  'modules/customers/services/customer-admin-query-service.ts:customer_accounts/entities/customer-group.entity':
+    'F3 Phase C — customers. Retired by the customers cut merge request. The target module ' +
+    'changed with feature 076 (D-79), which moved `CustomerGroup` to `customer_accounts`; the ' +
+    'import itself is untouched and is retired by `customerGroupReadPort` in that cut.',
   'modules/customers/services/customer-defaults-service.ts:quick_order/services/default-preference-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/services/customer-deletion-service.ts:customer_accounts/entities/customer-account.entity':

@@ -59,6 +59,7 @@ import { OrganizationDetail } from './modules/organizations/OrganizationDetail.j
 import { CustomersList } from './modules/customers/CustomersList.js';
 import { CustomerDetail } from './modules/customers/CustomerDetail.js';
 import { OnlineCustomers } from './modules/customers/OnlineCustomers.js';
+import { CustomerGroupsPage } from './modules/customer_accounts/CustomerGroupsPage.js';
 import { OrdersList } from './modules/orders/OrdersList.js';
 import { OrderDetail } from './modules/orders/OrderDetail.js';
 import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
@@ -207,6 +208,7 @@ export function App(): ReactNode {
         <Route path="/customers" element={<CustomersList />} />
         <Route path="/customers/online" element={<OnlineCustomers />} />
         <Route path="/customers/:id" element={<CustomerDetail />} />
+        <Route path="/customer-groups" element={<CustomerGroupsPage />} />
         <Route path="/orders" element={<OrdersList />} />
         <Route path="/orders/new" element={<OrderCreatePage />} />
         <Route path="/orders/quick-order" element={<QuickOrderOnBehalfPage />} />

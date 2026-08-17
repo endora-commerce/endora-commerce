@@ -3,6 +3,7 @@ import { ERROR_CODES, type ApplicationRule } from '@b2b/contracts';
 import type {
   CatalogCategoryReadPort,
   CatalogProductReadPort,
+  CustomerGroupReadPort,
   OrganizationDetailsPort,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
@@ -10,7 +11,6 @@ import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListProduct } from '../entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
 import { PriceDisplayModeOverride } from '../entities/price-display-mode-override.entity.js';
-import { CustomerGroup } from '../entities/customer-group.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Setting } from '../../../kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../kernel/settings/setting-value.entity.js';
@@ -77,6 +77,12 @@ export interface PriceListTargetReads {
   organizationDetails: OrganizationDetailsPort;
   catalogCategoryRead: CatalogCategoryReadPort;
   catalogProductRead: CatalogProductReadPort;
+  /**
+   * Feature 076 (D-79) — customer groups moved to `customer_accounts`, so the
+   * rule-target validation reads them the same way it already read
+   * organisations and categories.
+   */
+  customerGroupRead: CustomerGroupReadPort;
 }
 
 /**
@@ -685,7 +691,7 @@ export class PriceListService {
         found = await em.count(SalesChannel, { id: { $in: ids } });
         break;
       case 'customerGroup':
-        found = await em.count(CustomerGroup, { id: { $in: ids } });
+        found = (await this.targets().customerGroupRead.findByIds(ids)).length;
         break;
       case 'organization':
         found = await this.targets().organizationDetails.countByIds(ids);

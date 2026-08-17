@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { CustomerGroupService } from './services/customer-group-service.js';
+import type { CustomerAccountReadPort } from '@b2b/contracts';
 import { PriceListService } from './services/price-list-service.js';
 import { PricingService } from './services/pricing-service.js';
 import type { PriceListTargetReads } from './services/price-list-service.js';
@@ -69,13 +69,18 @@ export interface PriceListsModuleOptions {
    * Feature 075 Phase C — the neighbour read ports this module resolves instead
    * of importing `catalog`'s, `organizations`' and `customer_accounts`'
    * entities. Required: every one of them is a real dependency this module has
-   * always had, and the manifest declares all three.
+   * always had, and the manifest declares all of them.
    */
   targetReads: PriceListTargetReads;
+  /**
+   * Feature 076 (D-79) — the admin resolved-price probe's customer read. It is
+   * not a rule target, so it is its own option rather than a fifth member of
+   * `targetReads`.
+   */
+  customerAccountRead: CustomerAccountReadPort;
 }
 
 export interface PriceListsModuleHandle {
-  customerGroupService: CustomerGroupService;
   priceListService: PriceListService;
   pricingService: PricingServiceContract;
   statusWorker: PriceListStatusWorker;
@@ -85,7 +90,6 @@ export function priceListsModule(options: PriceListsModuleOptions): {
   plugin: (app: FastifyInstance) => Promise<void>;
   handle: PriceListsModuleHandle;
 } {
-  const customerGroupService = new CustomerGroupService(options.emFactory, options.commandBus);
   const pricingCache = new PricingCache<Awaited<ReturnType<PricingService['resolveEngine']>>>(
     options.pricingCacheTtlMs !== undefined ? { ttlMs: options.pricingCacheTtlMs } : {},
   );
@@ -112,10 +116,9 @@ export function priceListsModule(options: PriceListsModuleOptions): {
   const statusWorker = new PriceListStatusWorker(options.emFactory);
 
   return {
-    handle: { customerGroupService, priceListService, pricingService, statusWorker },
+    handle: { priceListService, pricingService, statusWorker },
     plugin: async (app: FastifyInstance) => {
       await registerPricingRoutes(app, {
-        customerGroupService,
         priceListService,
         pricingService,
         emFactory: options.emFactory,
@@ -123,6 +126,8 @@ export function priceListsModule(options: PriceListsModuleOptions): {
         catalogProductRead: options.targetReads.catalogProductRead,
         catalogCategoryRead: options.targetReads.catalogCategoryRead,
         organizationDetails: options.targetReads.organizationDetails,
+        customerGroupRead: options.targetReads.customerGroupRead,
+        customerAccountRead: options.customerAccountRead,
         ...(options.resolveAdminAuditContext
           ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
           : {}),

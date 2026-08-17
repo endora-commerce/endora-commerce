@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { CatalogCategoryReadService } from '../../src/modules/catalog/services/catalog-category-read.service.js';
 import { CatalogProductReadService } from '../../src/modules/catalog/services/catalog-product-read.service.js';
+import { CustomerGroupReadService } from '../../src/modules/customer_accounts/services/customer-group-read-port.js';
 import { OrganizationDetailsService } from '../../src/modules/organizations/services/organization-details-port.js';
 import type { PriceListTargetReads } from '../../src/modules/price_lists/services/price-list-service.js';
 
@@ -9,9 +10,10 @@ import type { PriceListTargetReads } from '../../src/modules/price_lists/service
  *
  * Twenty test files construct `PriceListService` and `PricingService` by hand,
  * so they have to supply what the container supplies in a real composition:
- * `catalog`'s and `organizations`' published read ports, which replaced this
- * module's `em.count(Organization, …)` / `em.findOne(Category, …)` validation
- * of rule and override targets.
+ * `catalog`'s, `organizations`' and — since feature 076 (D-79) —
+ * `customer_accounts`' published read ports, which replaced this module's
+ * `em.count(Organization, …)` / `em.findOne(Category, …)` /
+ * `em.count(CustomerGroup, …)` validation of rule and override targets.
  *
  * The implementations are the **owners' own**, bound to the caller's
  * `EntityManager` factory. Both halves of that matter. A stub would have proved
@@ -26,5 +28,6 @@ export function neighbourReadPorts(emFactory: () => EntityManager): PriceListTar
     catalogProductRead: new CatalogProductReadService(emFactory),
     catalogCategoryRead: new CatalogCategoryReadService(emFactory),
     organizationDetails: new OrganizationDetailsService(emFactory),
+    customerGroupRead: new CustomerGroupReadService(emFactory),
   };
 }

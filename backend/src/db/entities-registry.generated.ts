@@ -90,6 +90,7 @@ import { Currency } from '../modules/currencies/entities/currency.entity.js';
 import { CustomFieldDefinition } from '../modules/custom_fields/entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../modules/custom_fields/entities/custom-field-option.entity.js';
 import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerGroup } from '../modules/customer_accounts/entities/customer-group.entity.js';
 import { PasswordResetToken } from '../modules/customer_accounts/entities/password-reset-token.entity.js';
 import { CustomerAddress } from '../modules/customers/entities/customer-address.entity.js';
 import { DeliveryMethod } from '../modules/delivery_methods/entities/delivery-method.entity.js';
@@ -168,7 +169,6 @@ import { ErgonodeMediaLink } from '../modules/pim_ergonode/entities/ergonode-med
 import { ErgonodePriceBinding } from '../modules/pim_ergonode/entities/ergonode-price-binding.entity.js';
 import { ErgonodeProductLink } from '../modules/pim_ergonode/entities/ergonode-product-link.entity.js';
 import { ErgonodeStreamCursor } from '../modules/pim_ergonode/entities/ergonode-stream-cursor.entity.js';
-import { CustomerGroup } from '../modules/price_lists/entities/customer-group.entity.js';
 import { PriceDisplayModeOverride } from '../modules/price_lists/entities/price-display-mode-override.entity.js';
 import { PriceListPriceBracket } from '../modules/price_lists/entities/price-list-price-bracket.entity.js';
 import { PriceListProduct } from '../modules/price_lists/entities/price-list-product.entity.js';
@@ -312,6 +312,7 @@ export const ALL_ENTITIES = [
   CustomFieldDefinition,
   CustomFieldOption,
   CustomerAccount,
+  CustomerGroup,
   PasswordResetToken,
   CustomerAddress,
   DeliveryMethod,
@@ -390,7 +391,6 @@ export const ALL_ENTITIES = [
   ErgonodePriceBinding,
   ErgonodeProductLink,
   ErgonodeStreamCursor,
-  CustomerGroup,
   PriceDisplayModeOverride,
   PriceListPriceBracket,
   PriceListProduct,

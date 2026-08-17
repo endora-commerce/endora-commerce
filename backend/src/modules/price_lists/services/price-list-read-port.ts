@@ -1,19 +1,16 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type {
-  CustomerGroupReadPort,
-  CustomerGroupRecord,
-  PriceListReadPort,
-  PriceListRecord,
-} from '@b2b/contracts';
-import { CustomerGroup } from '../entities/customer-group.entity.js';
+import type { PriceListReadPort, PriceListRecord } from '@b2b/contracts';
 import { PriceList } from '../entities/price-list.entity.js';
 
 /**
- * The two row-level read models `price_lists` publishes (feature 075, Phase P).
+ * The row-level read model `price_lists` publishes (feature 075, Phase P).
  *
  * `organizations` resolves which lists apply to an organisation and
- * `product_feeds` reads the list a feed prices from; `customers` and `pwa`
- * render the customer-group picker. All four reach the entity classes today.
+ * `product_feeds` reads the list a feed prices from; both reached the entity
+ * class before this port existed.
+ *
+ * The customer-group half left with the entity in feature 076 (D-79) — see
+ * `customer_accounts/services/customer-group-read-port.ts`.
  *
  * `listActive` exists on the price-list side because "active" is a status the
  * owning module defines and the schedule can move — a caller filtering on
@@ -58,26 +55,6 @@ export class PriceListReadService implements PriceListReadPort {
   }
 }
 
-export class CustomerGroupReadService implements CustomerGroupReadPort {
-  constructor(private readonly emFactory: () => EntityManager) {}
-
-  async findById(id: string): Promise<CustomerGroupRecord | null> {
-    const group = await this.emFactory().findOne(CustomerGroup, { id });
-    return group ? toCustomerGroupRecord(group) : null;
-  }
-
-  async findByIds(ids: readonly string[]): Promise<CustomerGroupRecord[]> {
-    if (ids.length === 0) return [];
-    const groups = await this.emFactory().find(CustomerGroup, { id: { $in: [...ids] } });
-    return groups.map(toCustomerGroupRecord);
-  }
-
-  async listAll(): Promise<CustomerGroupRecord[]> {
-    const groups = await this.emFactory().find(CustomerGroup, {}, { orderBy: { code: 'asc' } });
-    return groups.map(toCustomerGroupRecord);
-  }
-}
-
 export function toPriceListRecord(list: PriceList): PriceListRecord {
   return {
     id: list.id,
@@ -98,13 +75,3 @@ export function toPriceListRecord(list: PriceList): PriceListRecord {
   };
 }
 
-export function toCustomerGroupRecord(group: CustomerGroup): CustomerGroupRecord {
-  return {
-    id: group.id,
-    code: group.code,
-    name: group.name,
-    description: group.description ?? null,
-    createdAt: group.createdAt,
-    updatedAt: group.updatedAt,
-  };
-}

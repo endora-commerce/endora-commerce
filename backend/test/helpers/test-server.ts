@@ -115,7 +115,7 @@ import type { StorefrontDeps } from '../../src/modules/megamenu/services/storefr
 // the same generated list production does; only the host values differ.
 import type { BlogCradle } from '../../src/modules/blog/backend.js';
 import type { DictionariesCradle } from '../../src/modules/dictionaries/backend.js';
-import type { PriceListsCradle } from '../../src/modules/price_lists/backend.js';
+import type { CustomerAccountsCradle } from '../../src/modules/customer_accounts/backend.js';
 import type { TaxesCradle } from '../../src/modules/taxes/backend.js';
 import type { PromotionsCradle } from '../../src/modules/promotions/backend.js';
 import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
@@ -1203,7 +1203,7 @@ export async function setupBackendServer(
         return items.map((c) => ({ id: c.id, code: c.code, name: testAnyLabel(c.name) }));
       },
       customerGroups: async () => {
-        const groups = await (container.cradle as unknown as PriceListsCradle).customerGroupService.list();
+        const groups = await (container.cradle as unknown as CustomerAccountsCradle).customerGroupService.list();
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {

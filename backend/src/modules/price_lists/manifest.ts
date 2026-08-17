@@ -44,13 +44,13 @@ export const manifest = defineModuleManifest({
   description:
     'Customer-group pricing, brackets, display modes, and rule-based engine.',
   version: '1.0.0',
-  // Feature 075 Phase C left this list as it was, and the one edge it could not
-  // add is the reason: `customer_accounts.customer_group_id` is a foreign key
-  // into this module's `customer_groups`, so `customer_accounts` declares
-  // `price_lists` and the reverse declaration is a cycle
-  // `src/db/migration-order.ts` refuses outright. The admin resolved-price probe
-  // therefore keeps its one entity read, ledgered with that reason.
-  dependencies: ['catalog', 'organizations', 'settings'],
+  // `customer_accounts` since feature 076 (D-79): customer groups moved to the
+  // module that owns the customer, so this module reads `customerGroupReadPort`
+  // for the rule-target picker and its validation, and `customerAccountReadPort`
+  // for the admin resolved-price probe. Both fail closed, which is why the edge
+  // is binding — pricing for a customer the platform will not identify is worse
+  // than refusing the probe.
+  dependencies: ['catalog', 'customer_accounts', 'organizations', 'settings'],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base, and one of the
   // escalation answers. B2B *is* contract pricing. The deciding fact is the

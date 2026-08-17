@@ -24,12 +24,14 @@ function refusingPort<T extends object>(name: string): T {
   return new Proxy({} as T, { get: () => () => unreachedPort(name) });
 }
 
-const NEIGHBOUR_READS: Pick<PriceListsModuleOptions, 'targetReads'> = {
+const NEIGHBOUR_READS: Pick<PriceListsModuleOptions, 'targetReads' | 'customerAccountRead'> = {
   targetReads: {
     catalogProductRead: refusingPort('catalogProductReadPort'),
     catalogCategoryRead: refusingPort('catalogCategoryReadPort'),
     organizationDetails: refusingPort('organizationDetailsPort'),
+    customerGroupRead: refusingPort('customerGroupReadPort'),
   },
+  customerAccountRead: refusingPort('customerAccountReadPort'),
 };
 
 /**

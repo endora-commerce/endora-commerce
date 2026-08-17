@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import type { ApplicationRule } from '@b2b/contracts';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CustomerGroup } from '../../../src/modules/price_lists/entities/customer-group.entity.js';
+import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';

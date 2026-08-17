@@ -82,7 +82,7 @@ import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
 import { verifyPassword } from './modules/auth/services/password-hasher.js';
 import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
 import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
-import type { PriceListsCradle } from './modules/price_lists/backend.js';
+import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
 import type { TaxesCradle } from './modules/taxes/backend.js';
 import { composeSettingsKernel } from './kernel/settings/compose.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
@@ -694,7 +694,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return items.map((c) => ({ id: c.id, code: c.code, name: anyLabel(c.name) }));
       },
       customerGroups: async () => {
-        const groups = await (container.cradle as unknown as PriceListsCradle).customerGroupService.list();
+        const groups = await (container.cradle as unknown as CustomerAccountsCradle).customerGroupService.list();
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {
