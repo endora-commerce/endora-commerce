@@ -69,9 +69,15 @@ const SUBJECT = 'health_checks';
  *
  * That used to be the exceptional shape, reached by three modules out of 65,
  * because two central lists named everything with an entity or a migration.
- * Feature 071's F2 generates both, so it is now the *ordinary* shape: 36 of the
+ * Feature 071's F2 generates both, so it is now the *ordinary* shape: 34 of the
  * 65 modules are absent below. What is left is references from a composition
  * root, which F3 and F4 drain.
+ *
+ * The figure was 36 until feature 075 moved the catalogue dev seed to
+ * `src/seeds/`. That move added no coupling — see the `src/seeds/` block
+ * below — it made twelve couplings visible to a scan whose substring needle had
+ * been missing them, and a ledger that grows for that reason is the ledger
+ * working.
  */
 const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // ── What feature 071's F2 drained ─────────────────────────────────────────
@@ -89,11 +95,50 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // composition root, which is the residue shape F3 and F4 are scoped to
   // finish — no central list holds a module any more.
   //
+  // ── `src/seeds/` — twelve entries this scan could not see before ──────────
+  //
+  // Feature 075 moved `dev-catalog-seed.ts` and `attribute-fixtures.ts` out of
+  // `src/modules/catalog/seeds/` and into `src/seeds/`, beside `composition.ts`.
+  // The dev seed writes megamenus, organisations, customer accounts, admin
+  // users and roles, delivery methods, payment methods, taxes, a default price
+  // list, warehouses and stock: two of the twelve modules it names are
+  // `catalog`, so it is a composition of the platform's demo data and belongs
+  // where a composition root belongs.
+  //
+  // **The lines it adds below are not new residue.** The seed named all twelve
+  // modules before the move too, and this scan missed every one of them: its
+  // needle is the substring `modules/<id>/`, and from inside
+  // `src/modules/catalog/seeds/` the specifier read `../../megamenu/entities/…`
+  // — module-relative, so no `modules/` segment to match. That is the same
+  // normalisation bug feature 075's FR-004 records as having produced a 2.2×
+  // undercount elsewhere. The move did not create the coupling; it made the
+  // coupling addressable, which is the only way it ever gets paid off.
+  //
+  // What retires them is not another cut: it is the seed reading a
+  // deployment-composed set of writers rather than twelve entity classes, or
+  // — the honest cheap answer — the day a developer bootstrap stops needing to
+  // exist because `db:fresh` seeds from fixtures. Neither is F3 work, and
+  // neither is served by moving the file somewhere this test cannot walk.
+  //
   // `catalog` (wave 4, T142). `composition.ts` types the five contributions a
   // root supplies — the bulk-operation worker flag, the admin audit actor
   // shape, availability bands, the image placeholder, and the Meilisearch
-  // reindex production runs and the harness must not.
-  catalog: ['src/composition.ts'],
+  // reindex production runs and the harness must not. The two seed files are
+  // new here for the reason above, and `catalog` is on the list because the
+  // seed writes products and categories like it writes everything else.
+  catalog: [
+    'src/composition.ts',
+    'src/seeds/attribute-fixtures.ts',
+    'src/seeds/dev-catalog-seed.ts',
+  ],
+  // The four modules the dev seed holds and nothing else does. Each is a plain
+  // entity import in the seed — a warehouse, a stock level, a delivery method,
+  // a payment method, and the custom-field definition half of a product
+  // attribute.
+  custom_fields: ['src/seeds/attribute-fixtures.ts'],
+  delivery_methods: ['src/seeds/dev-catalog-seed.ts'],
+  inventory: ['src/seeds/dev-catalog-seed.ts'],
+  payment_methods: ['src/seeds/dev-catalog-seed.ts'],
   // `orders` (wave 4, T141). `composition.ts` types the sales-rep admin scope
   // it still supplies, which drains when `auth`'s actor resolution unifies.
   orders: ['src/composition.ts'],
@@ -104,7 +149,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // declares a structural `OrganizationSnapshot` over `@b2b/contracts`' status
   // union, and the entity stays in this module. The kernel owning the shape
   // never required it to own the class.
-  organizations: ['src/composition.ts'],
+  organizations: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
 
   // `composition.ts` still reaches into `email` twice: for the `EmailCradle`
   // type it resolves the mailer with, and for `absolutizePublicUrl`, a URL
@@ -122,7 +167,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // annotate what it resolves out of the container — the ordinary shape of a
   // root reading a module's registrations. It leaves when nothing hand-wired
   // needs the annotation.
-  admin_roles: ['src/composition.ts'],
+  admin_roles: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
   // `prompt_actions` (wave 1) — the inverted case, and the reason this ledger is
   // worth keeping. Its `composition.ts` reference was never a leftover of the
   // conversion: three *other* modules contributed into the registry it owns, and
@@ -140,7 +185,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // type to annotate the services it resolves and hands to `customers` and
   // `organizations`. Both of those built their own before this conversion, and
   // the reference leaves when they convert.
-  customer_accounts: ['src/composition.ts'],
+  customer_accounts: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
   // `assets_library` (wave 1, T092). `composition.ts` imports the cradle type
   // to annotate the handle it resolves and hands the `catalog`, `cms` and
   // `megamenu` reference resolvers to. Contributing those is a root's job —
@@ -165,7 +210,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `taxes` (wave 2, T119). `composition.ts` imports the cradle type to
   // annotate the `taxService` port it resolves and threads into `orders` and
   // `carts` for line pricing. That reference goes when those two convert.
-  taxes: ['src/composition.ts'],
+  taxes: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
   // `comparisons` (wave 2, T111). `composition.ts` imports the cradle type to
   // annotate the `comparisonService` port it resolves and binds the login
   // flow's anonymous-comparison adoption to. That reference goes when
@@ -178,7 +223,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // direct reads of another module's storage. Those references are a root's by
   // design rather than a leftover, so unlike most entries here they do not go
   // when some other module converts.
-  megamenu: ['src/composition.ts'],
+  megamenu: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
   // `admin_actions` (wave 2, T099). `composition.ts` imports the cradle type to
   // annotate the reconciler it hands the lifecycle orchestrator. That reference
   // goes when `_lifecycle` converts.
@@ -217,7 +262,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // for. The second is a root's by design — see `audit_logs/backend.ts` — and
   // the first goes when a deployment stops needing to say which module supplies
   // MFA.
-  admin_users: ['src/composition.ts'],
+  admin_users: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
   // `sales_channels` (wave 2, T110). Both roots compose the kernel half —
   // cache, resolver, membership, middleware — through
   // `composeSalesChannelsKernel`, and build `salesChannelCodeIdPort` over the
@@ -251,11 +296,14 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     // wraps, and `tsc` is the gate that keeps the wrapper assignable.
     'src/apps/example/decorations/pricing-service.ts',
     'src/composition.ts',
+    'src/seeds/dev-catalog-seed.ts',
   ],
-  // `inventory` left this ledger with D-44: its last root reference was the
+  // `inventory` left this ledger with D-44 — its last root reference was the
   // prompt-tool contribution, and the module pushes that from its own boot hook
-  // now. The two adapters and the admin audit shape it reaches outside itself
-  // through are registered by name rather than imported from here.
+  // now — and came back above under `src/seeds/`, holding four entity imports
+  // the dev seed has always made and this scan could not previously see. The
+  // two adapters and the admin audit shape it reaches outside itself through
+  // are still registered by name rather than imported from here.
   // `shopping_lists` (wave 3, T133). Both roots contribute the four
   // cross-module names it must not reach for directly — the RFQ service, the
   // org restriction, the lazy order service, and the sink that hands its own

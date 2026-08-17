@@ -1,11 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { CustomFieldDefinition } from '../../custom_fields/entities/custom-field-definition.entity.js';
-import { CustomFieldOption } from '../../custom_fields/entities/custom-field-option.entity.js';
-import { ProductAttribute } from '../entities/product-attribute.entity.js';
+import { CustomFieldDefinition } from '../modules/custom_fields/entities/custom-field-definition.entity.js';
+import { CustomFieldOption } from '../modules/custom_fields/entities/custom-field-option.entity.js';
+import { ProductAttribute } from '../modules/catalog/entities/product-attribute.entity.js';
 import {
   legacyToCfType,
   type LegacyAttributeValueType,
-} from '../services/attribute-type-mapping.js';
+} from '../modules/catalog/services/attribute-type-mapping.js';
 
 /**
  * Seed/fixture helpers for the feature-061 unified attribute model.
@@ -19,6 +19,13 @@ import {
  * SEED-LEVEL CODE ONLY: runtime services never touch the custom_fields
  * entities directly — they go through the apply seam / composed view
  * (Principle I). Seeds are composition-level bootstrap, like migrations.
+ *
+ * Feature 075 took that sentence at its word and moved the file out of
+ * `src/modules/catalog/seeds/`. Its two consumers are `dev-catalog-seed.ts`
+ * beside it and `test/helpers/seed-catalog.ts`; no runtime path reaches it. A
+ * file that writes both `custom_field_definitions` and `product_attributes` in
+ * one call is composition, and composition is allowed to name modules — which
+ * is why the paragraph above was true and the location was not.
  */
 
 export interface AttributeFixtureInput {

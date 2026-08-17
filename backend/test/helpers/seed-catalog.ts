@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Product } from '../../src/modules/catalog/entities/product.entity.js';
 import { Category } from '../../src/modules/catalog/entities/category.entity.js';
 import { AttributeSetAttribute } from '../../src/modules/catalog/entities/attribute-set-attribute.entity.js';
-import { createAttributeFixture } from '../../src/modules/catalog/seeds/attribute-fixtures.js';
+import { createAttributeFixture } from '../../src/seeds/attribute-fixtures.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 
 // Feature 061 — attribute fixtures create the product-host Custom Field
@@ -12,7 +12,7 @@ export {
   createAttributeFixture,
   findAttributeDefinitionByKey,
   findAttributeExtensionByKey,
-} from '../../src/modules/catalog/seeds/attribute-fixtures.js';
+} from '../../src/seeds/attribute-fixtures.js';
 
 /** Fixed UUIDs for the three seeded Products — the RFQ tests reference these directly. */
 export const SEED_PRODUCT_101_ID = '00000000-0000-4000-8000-000000000101';
