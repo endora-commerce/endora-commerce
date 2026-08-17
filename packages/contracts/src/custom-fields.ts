@@ -307,28 +307,11 @@ export interface CustomFieldValuePort {
   ): Promise<Record<string, unknown>>;
 }
 
-/**
- * What `validateAndMerge` throws, as a host outside `custom_fields` sees it.
- *
- * The implementation throws an `Error` subclass carrying `errors`. A host that
- * renders the 422 needs the per-field list and nothing else, so it narrows
- * **structurally** through the guard below rather than importing the
- * constructor — the same substitution D-77 prescribes for
- * `CustomFieldDefinitionError`, and for the same reason: an `instanceof` is an
- * import of a class, and a class is a file in another module's directory.
- */
-export interface CustomFieldValidationFailure {
-  readonly errors: readonly CustomFieldValidationError[];
-}
-
-/** Narrows an unknown throw to {@link CustomFieldValidationFailure}. */
-export function isCustomFieldValidationFailure(
-  error: unknown,
-): error is CustomFieldValidationFailure {
-  if (typeof error !== 'object' || error === null) return false;
-  const errors = (error as { errors?: unknown }).errors;
-  if (!Array.isArray(errors)) return false;
-  return errors.every(
-    (entry) => customFieldValidationErrorSchema.safeParse(entry).success,
-  );
-}
+// `CustomFieldValidationFailure` and `isCustomFieldValidationFailure` are
+// declared once, above, beside the other D-77 structural guards. Two Phase-C
+// cuts published them independently on the same afternoon — `quote_requests`
+// and `organizations` — and both merged, which stopped `@b2b/contracts`
+// compiling at all. The surviving pair keeps the `name === 'CustomFieldValidation
+// Error'` test rather than re-parsing every entry: it is the check that still
+// works once each module is its own npm package (F4), which is the reason the
+// guard exists, and it costs nothing on an error path.
