@@ -349,16 +349,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     };
   } => container.cradle as never;
 
-  // Feature 072 (T110/T118) — the two pieces of kernel infrastructure that
-  // subscribe to the EventBus: the sales-channel cache invalidator and the
-  // settings cache invalidator. Both are composed **before** the modules, and
-  // that is the one ordering this root still has to get right (D-45).
-  // `EventBus.dispatch` awaits its handlers in registration order, and
-  // `ctx.subscribe` calls `eventBus.on` while the module registers — so a
-  // module subscribed to `settings.value_changed` ahead of the settings cache's
-  // own invalidator runs its handler against the pre-write value. Five modules
-  // subscribe to that event; composing the invalidators first means none of
-  // them can be ahead of it.
+  // Feature 072 (T110) — the sales-channel cache invalidator subscribes to the
+  // EventBus, and `EventBus.dispatch` awaits its handlers in registration
+  // order, so composing it **before** the modules is the one ordering this root
+  // still has to get right (D-45).
+  //
+  // The settings cache used to be the second half of that sentence and is not
+  // any more (issue #45): its drop happens at the write seam inside
+  // `SettingsAdminService` and is awaited, so no registration order — and no
+  // buffered `EventBus.run` scope — can defer it past a read. The channel cache
+  // is the remaining one; draining it the same way is its own change.
   //
   // Channel *resolution* is kernel infrastructure for the reason T110 gave:
   // every channel-scoped read depends on it (Principle XII), so it must keep
@@ -377,7 +377,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // storefront resolvers and its routes, and composes itself.
   const settings = composeSettingsKernel({
     emFactory: em,
-    eventBus,
     redis,
     ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
       ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
@@ -1259,6 +1258,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // The kernel's `SettingsService` already implements the read port; the
     // adapter object this replaces existed only to narrow it.
     settingsReadPort: settings.settingsService,
+    // The same cache, seen from the writing side (issue #45). The `settings`
+    // module owns the one write seam, so it is the one place that can drop the
+    // cache *as part of* the write instead of announcing the write and hoping a
+    // subscriber gets there first.
+    settingsCache: settings.cache,
     // Which channel a global-scope settings read resolves against. It is a
     // property of the deployment — the system-default channel, or the env
     // fallback when none is configured yet — not of any module, and this root

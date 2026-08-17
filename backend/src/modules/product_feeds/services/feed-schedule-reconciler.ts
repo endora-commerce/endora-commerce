@@ -252,11 +252,11 @@ const TAXONOMY_SCHEDULE_SETTING_CODES = new Set([
  * rather than at the next boot. An operator who has just been told the platform
  * will stop contacting Google should not have to restart it to make that true.
  *
- * `backend.ts` registers this through `ctx.subscribe`, so the reconcile it
- * triggers re-reads the two settings *after* the kernel's cache invalidator has
- * dropped them: that invalidator subscribes in `composeSettingsKernel`, which
- * runs before any module registers, and the bus dispatches in registration
- * order.
+ * `backend.ts` registers this through `ctx.subscribe`, and the reconcile it
+ * triggers re-reads the two settings *after* they were dropped from the cache:
+ * `SettingsAdminService` invalidates at the write seam and awaits the drop
+ * before it emits (issue #45), so the freshness of that read is a property of
+ * the write rather than of this handler's position in the dispatch order.
  */
 export async function syncTaxonomyScheduleFromEvent(
   schedules: Pick<FeedScheduleReconciler, 'reconcileTaxonomyRefreshSchedule'>,

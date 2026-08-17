@@ -127,8 +127,8 @@ The Post-as-Related-Product relationship uses **soft-delete-+-storefront-filter*
 | `blog.latest_count`   | number  | `5`     | Latest posts on the index.                           |
 | `blog.posts_per_page` | number  | `12`    | Page size on Category and Tag views.                 |
 
-A change to any `blog.*` setting fires an `EventBus` event that wipes
-the storefront cache via the platform-wide settings cache invalidator
+A change to any `blog.*` setting drops the platform-wide settings cache at the
+write seam and then fires an `EventBus` event, which wipes the storefront cache
 (see Cache strategy below).
 
 ## Admin roles

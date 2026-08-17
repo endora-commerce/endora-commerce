@@ -193,7 +193,13 @@ describe('settings secret redaction (T005)', () => {
   it('write without the env key fails with SETTING_SECRET_KEY_MISSING (no silent plaintext)', async () => {
     // An admin service composed without the key (the HTTP envelope mapping of
     // HttpError → 500 is shared machinery covered by other settings tests).
-    const keyless = new SettingsAdminService(h.em, h.eventBus, undefined, undefined);
+    const keyless = new SettingsAdminService(
+      h.em,
+      h.eventBus,
+      h.settings.cache,
+      undefined,
+      undefined,
+    );
     let thrown: unknown;
     try {
       await keyless.setValueForAllChannels(

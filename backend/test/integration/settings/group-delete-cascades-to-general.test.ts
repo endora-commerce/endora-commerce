@@ -8,11 +8,24 @@ import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { EventBus } from '../../../src/events/bus.js';
+import type { SettingsCacheInvalidation } from '../../../src/kernel/settings/settings-cache.js';
 
 /**
  * T033 — Group deletion reassigns owned settings to `general` and preserves
  * their per-channel values byte-for-byte.
  */
+
+/**
+ * This file's harness is a bare transactional `TestDb` with no Redis, and every
+ * assertion below is about rows. The write seam still drops the cache (issue
+ * #45), so the service needs one to call — a counting stand-in, not a mock of
+ * behaviour under test.
+ */
+const noCache: SettingsCacheInvalidation = {
+  invalidateAfterWrite: async () => 0,
+  invalidateAllAfterWrite: async () => 0,
+};
+
 describe('group delete reassigns to general (T033)', () => {
   let db: TestDb;
 
@@ -72,7 +85,7 @@ describe('group delete reassigns to general (T033)', () => {
       await em.flush();
 
       // Delete the owning group.
-      const adminService = new SettingsAdminService(() => db.em(), new EventBus());
+      const adminService = new SettingsAdminService(() => db.em(), new EventBus(), noCache);
       await adminService.deleteGroup('gd_group', { actorAdminUserId: null });
 
       // Setting was reassigned to general; its values survived.
@@ -95,7 +108,7 @@ describe('group delete reassigns to general (T033)', () => {
     try {
       const em = db.em();
       await new ManifestReconciler(em).apply([settingsManifest]);
-      const adminService = new SettingsAdminService(() => db.em(), new EventBus());
+      const adminService = new SettingsAdminService(() => db.em(), new EventBus(), noCache);
       await expect(
         adminService.deleteGroup('general', { actorAdminUserId: null }),
       ).rejects.toMatchObject({ code: 'SETTING_GROUP_PROTECTED' });

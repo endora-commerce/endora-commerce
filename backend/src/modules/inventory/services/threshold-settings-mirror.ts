@@ -54,10 +54,10 @@ export class ThresholdSettingsMirror {
    *
    * The registration lives in this module's `backend.ts` and goes through
    * `ctx.subscribe` (issue #107): as a bare `eventBus.on` this kept writing the
-   * mirror row while `inventory` was switched off. The read it performs comes
-   * after the kernel's settings-cache invalidator, which subscribes during
-   * `composeSettingsKernel` — before any module registers — so the value read
-   * here is the new one.
+   * mirror row while `inventory` was switched off. The read it performs sees the
+   * new value because the settings write seam drops the cache and awaits the
+   * drop before it emits (issue #45) — not because of where this handler sits
+   * in the dispatch order.
    */
   async onSettingChanged(payload: SettingsValueChangedPayload): Promise<void> {
     const field = KEY_TO_FIELD[payload.settingCode];

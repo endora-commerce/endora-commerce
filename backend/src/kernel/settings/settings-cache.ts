@@ -8,8 +8,10 @@ import { SharedDropMarks } from '../cache/shared-drop-marks.js';
  *   1. Per-process LRU (cheap; absorbs intra-request bursts).
  *   2. Redis (`settings:v1:<code>:<channelId>`, TTL 1h; survives restarts).
  *
- * Invalidation goes the other way: write → drop in Redis → drop in LRU →
- * notify this process's subscriber (`SettingsCacheInvalidator`).
+ * Invalidation goes the other way: write → drop in Redis → drop in LRU. The
+ * write seam calls {@link SettingsCacheInvalidation} itself and awaits it
+ * (issue #45); until then the drop rode an EventBus notification, which made it
+ * a function of *which handler the bus reached first*.
  *
  * Dropping the shared layer first is deliberate: it is the layer that outlives
  * this process and would otherwise be re-pulled into every other process's
@@ -74,7 +76,43 @@ interface LruEntry {
   readonly storedAt: number;
 }
 
-export class SettingsCache {
+/**
+ * The invalidating half of the cache, as the **write seam** sees it (issue #45).
+ *
+ * `SettingsAdminService` — the one place a setting value or group changes —
+ * takes this and awaits it before it emits `settings.value_changed`. That is
+ * what makes the drop a property of the write instead of a property of the
+ * dispatch order: a caller that writes and reads back in the same tick, in the
+ * same `EventBus.run` scope, or with any number of module subscribers on the
+ * bus, cannot observe the pre-write value.
+ *
+ * Narrow on purpose. The reader (`SettingsService`) holds the whole
+ * {@link SettingsCache}; the writer needs only these two, and a module that can
+ * only invalidate cannot accidentally seed the cache from the write path.
+ */
+export interface SettingsCacheInvalidation {
+  /**
+   * Drop every cached entry for one setting code, across every channel, on
+   * behalf of a write that has **already committed**.
+   *
+   * Returns the number of shared keys deleted, or `null` when the shared layer
+   * could not be reached. The degrade lives here rather than in a `catch` at
+   * the call site, and it is in the return type on purpose: the row is written
+   * and audited, so a Redis blip must not fail the operator's request or make
+   * them retry a write that succeeded. Correctness does not rest on the number
+   * — {@link SharedDropMarks} has marked the prefix failed, so this process
+   * bypasses both layers for those keys and retries the drop on the next read.
+   */
+  invalidateAfterWrite(code: string): Promise<number | null>;
+  /**
+   * The same contract for a group change, which can move settings between
+   * groups or rescope channels and so can change resolution for any number of
+   * codes.
+   */
+  invalidateAllAfterWrite(): Promise<number | null>;
+}
+
+export class SettingsCache implements SettingsCacheInvalidation {
   private readonly lru = new Map<string, LruEntry>();
   private readonly marks = new SharedDropMarks();
 
@@ -159,6 +197,33 @@ export class SettingsCache {
    */
   async invalidateAll(): Promise<number> {
     return this.drop(KEY_PREFIX, 500);
+  }
+
+  /** {@inheritDoc SettingsCacheInvalidation.invalidateAfterWrite} */
+  async invalidateAfterWrite(code: string): Promise<number | null> {
+    return this.afterWrite(() => this.invalidate(code));
+  }
+
+  /** {@inheritDoc SettingsCacheInvalidation.invalidateAllAfterWrite} */
+  async invalidateAllAfterWrite(): Promise<number | null> {
+    return this.afterWrite(() => this.invalidateAll());
+  }
+
+  /**
+   * The one place the write seam's tolerance is written down.
+   *
+   * `drop` has already marked the prefix failed by the time it re-throws, so
+   * every read in this process bypasses both layers for those keys and retries
+   * the drop until Redis answers — the invariant is intact and the answer is
+   * "slower but correct". What is left of the throw is a report, and a report
+   * must not undo the write that produced it.
+   */
+  private async afterWrite(drop: () => Promise<number>): Promise<number | null> {
+    try {
+      return await drop();
+    } catch {
+      return null;
+    }
   }
 
   /**

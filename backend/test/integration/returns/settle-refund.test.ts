@@ -5,8 +5,11 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { withModuleOff } from '../../helpers/off-state.js';
 import { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
 import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
+import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { gatewayRefundRegistry } from '../../../src/modules/payments/services/registry-singleton.js';
 import { ReturnCase } from '../../../src/modules/returns/entities/return-case.entity.js';
 import { Refund } from '../../../src/modules/returns/entities/refund.entity.js';
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
@@ -52,6 +55,141 @@ describe('returns — settlement (US5)', () => {
     });
     return { id: detail.id, itemId: detail.items[0]!.id, orderId };
   }
+
+  /**
+   * Issue #104 / D-71 — a switched-off payment gateway must not be usable for a
+   * refund, and "not usable" means the settlement is **refused**.
+   *
+   * The execution path has been presence-correct since feature 074:
+   * `gatewayRefundRegistry` skips a handler whose owner is not effectively
+   * present, so a switched-off PSP is never called. What was wrong is where the
+   * skip landed. `PaymentRefundProvider` answered `pending_manual`, and every
+   * layer above reads anything but `'failed'` as success — the case resolved,
+   * a `Refund` row was written, a corrective invoice was issued, the customer
+   * was mailed, and `ReturnDetail.tsx` said "Settled." over money that had
+   * never moved.
+   *
+   * The last clause of each assertion block is the requirement; the status code
+   * is the mechanism. `withModuleOff` drives the flip and asserts it took
+   * before anything below observes a surface, on both axes.
+   */
+  describe('a switched-off payment gateway (#104, D-71)', () => {
+    const STRIPE_SNAPSHOT: Order['paymentMethodSnapshot'] = {
+      code: 'stripe_card',
+      name: 'Card (Stripe)',
+      kind: 'gateway',
+      adapter: 'stripe',
+    };
+
+    /** A `received` case on an order that was paid through Stripe. */
+    async function stripePaidCase(): Promise<{ id: string; itemId: string; orderId: string }> {
+      const seeded = await receivedCase();
+      // `seedReturnableOrder` seeds a bank-transfer order; this block is about
+      // the gateway arm, and the provider resolves the PSP from the snapshot.
+      await withSystemScope('test: mark the seeded order as Stripe-paid', async () => {
+        const em = h.em().fork();
+        const order = await em.findOneOrFail(Order, { id: seeded.orderId });
+        order.paymentMethodSnapshot = STRIPE_SNAPSHOT;
+        await em.flush();
+      });
+      return seeded;
+    }
+
+    async function settleRefund(
+      id: string,
+      itemId: string,
+    ): Promise<{ statusCode: number; headers: Record<string, unknown>; error?: { code?: string; message?: string } }> {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/returns/${id}/settlement`,
+        cookies: ADMIN_COOKIE,
+        payload: {
+          resolutionType: 'refund',
+          lines: [{ returnCaseItemId: itemId, approvedRefundAmount: 100 }],
+          refundPaymentMethodId: randomUUID(),
+          createCorrectiveInvoice: true,
+        },
+      });
+      const body = res.json() as { error?: { code?: string; message?: string } };
+      return {
+        statusCode: res.statusCode,
+        headers: res.headers as Record<string, unknown>,
+        ...(body.error ? { error: body.error } : {}),
+      };
+    }
+
+    /** What the refused settlement must NOT have done. */
+    async function expectNothingSettled(id: string, orderId: string): Promise<void> {
+      const state = await withSystemScope('test: assert nothing settled', async () => {
+        const em = h.em().fork();
+        const rc = await em.findOneOrFail(ReturnCase, { id });
+        return {
+          statusCode: rc.statusCode,
+          resolvedAt: rc.resolvedAt ?? null,
+          resolutionType: rc.resolutionType ?? null,
+          refunds: await em.find(Refund, { returnCaseId: id }),
+          corrections: await em.find(Invoice, { orderId, kind: 'correction' }),
+        };
+      });
+      expect(state.statusCode, 'the case must not have reached a terminal status').toBe('received');
+      expect(state.resolvedAt).toBeNull();
+      expect(state.resolutionType).toBeNull();
+      expect(state.refunds, 'no refund row for money that never moved').toHaveLength(0);
+      expect(
+        state.corrections,
+        'no corrective invoice against a refund that was refused',
+      ).toHaveLength(0);
+    }
+
+    it('has the stripe handler contributed, so the assertions below are about presence', () => {
+      // Without this the provider would take the no-integration branch and
+      // every refusal below would be measuring an adapter nobody registered.
+      expect(gatewayRefundRegistry.ownerOf('stripe')).toBe('stripe');
+      expect(gatewayRefundRegistry.list()).toContain('stripe');
+    });
+
+    it('refuses while the operator has the gateway switched off, and settles nothing', async () => {
+      const { id, itemId, orderId } = await stripePaidCase();
+
+      await withModuleOff('stripe', 'deactivated', async () => {
+        const res = await settleRefund(id, itemId);
+        expect(res.statusCode).toBe(503);
+        expect(res.error?.code).toBe('MODULE_DISABLED');
+        expect(res.headers['retry-after']).toBe('60');
+        // Which module is off is asserted on the error object itself, in
+        // `test/unit/payments/payment-refund-provider.test.ts`. It is not
+        // asserted on the response body: the envelope replaces an operator-
+        // visible message with the registered translation for its code, so what
+        // reaches the admin here is the generic `MODULE_DISABLED` sentence.
+      });
+
+      await expectNothingSettled(id, orderId);
+    });
+
+    it('refuses while the deployment does not offer the gateway at all', async () => {
+      const { id, itemId, orderId } = await stripePaidCase();
+
+      await withModuleOff('stripe', 'platform-unavailable', async () => {
+        const res = await settleRefund(id, itemId);
+        expect(res.statusCode).toBe(503);
+        expect(res.error?.code).toBe('MODULE_DISABLED');
+      });
+
+      await expectNothingSettled(id, orderId);
+    });
+
+    it('stops refusing once the gateway is switched back on', async () => {
+      const { id, itemId } = await stripePaidCase();
+
+      // Off is reversible. What the refund then does is between the handler and
+      // Stripe — with no credentials configured it reports a failed refund,
+      // which is a different answer with a different status. The one thing that
+      // must be gone is the claim that the module is absent.
+      const res = await settleRefund(id, itemId);
+      expect(res.error?.code).not.toBe('MODULE_DISABLED');
+      expect(res.statusCode).not.toBe(503);
+    });
+  });
 
   /**
    * Issue #135 (product ruling 2026-08-17) — a settled return on an order that

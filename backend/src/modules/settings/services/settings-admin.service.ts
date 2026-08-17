@@ -7,6 +7,7 @@ import { SettingGroup } from '../../../kernel/settings/setting-group.entity.js';
 import { Setting } from '../../../kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../kernel/settings/setting-value.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import type { SettingsCacheInvalidation } from '../../../kernel/settings/settings-cache.js';
 import { SecretKeyMissing, SecretKeyInvalid, encryptSecretValue } from '../../../kernel/settings/secret-value-codec.js';
 
 /**
@@ -20,9 +21,31 @@ import { SecretKeyMissing, SecretKeyInvalid, encryptSecretValue } from '../../..
  * matching the pattern adopted in feature 003 governance: when present and
  * stale, the service rejects with `409 VERSION_CONFLICT`.
  *
- * Every successful mutation emits:
- *   - an `audit_log_entries` row via {@link AuditLogService}
- *   - an EventBus event (see contract section E)
+ * Every successful mutation, in this order:
+ *   - flushes;
+ *   - records an `audit_log_entries` row via {@link AuditLogService};
+ *   - **drops the settings cache** through {@link SettingsCacheInvalidation};
+ *   - emits an EventBus event (see contract section E).
+ *
+ * The third step is the write seam this service exists to be (issue #45). The
+ * drop used to be a *consequence* of the fourth: the kernel subscribed
+ * `SettingsCacheInvalidator` to `settings.value_changed`, and `EventBus`
+ * dispatches handlers in registration order and fire-and-forget outside a
+ * scope. So the cache was dropped in time only because that subscriber
+ * happened to be registered first and reached `SharedDropMarks.begin`
+ * synchronously — a module subscribing ahead of it deferred the drop past a
+ * caller's read, and a write inside an `EventBus.run` scope (every Command —
+ * `CommandBus.run` opens one) deferred it past the whole command. Three
+ * separate defects came out of that arrangement (MR !540 / issue #30, issue
+ * #33, issue #45), so the fourth fix is not another correction of the ordering:
+ * the drop is now part of the write and is awaited, and nothing on the bus can
+ * be early or late for it.
+ *
+ * It stays **before** the emit, which also gives every subscriber what the
+ * ordering used to promise them: `inventory`'s threshold mirror, `search`'s LLM
+ * reactor and `product_feeds`' schedule reconcile all re-read the setting they
+ * were told about, and all three now read post-invalidation state by
+ * construction rather than by registration luck.
  */
 
 export interface AdminAuditContext {
@@ -78,6 +101,13 @@ export class SettingsAdminService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly eventBus: EventBus,
+    /**
+     * The kernel's settings cache, contributed by a root as `settingsCache`.
+     * Required, and deliberately not optional: an optional cache is a cache
+     * that is silently absent in one composition and present in the other,
+     * which is the shape every previous defect in this area had.
+     */
+    private readonly cache: SettingsCacheInvalidation,
     private readonly auditLogService?: AuditLogService,
     /** Base64 32-byte key for `secret` settings (feature 043, FR-021). */
     private readonly secretEncryptionKey?: string,
@@ -464,6 +494,16 @@ export class SettingsAdminService {
         });
       }
     }
+    // The write seam drops the cache (issue #45) — after the flush, so a
+    // concurrent read cannot re-pin the pre-commit value, and before the emit,
+    // so every subscriber re-reads post-invalidation state.
+    //
+    // The count is deliberately unread: `invalidateAfterWrite` answers `null`
+    // for an unreachable shared layer and the row is already written and
+    // audited, so there is nothing this method could truthfully do with it.
+    // Reads stay correct meanwhile — the cache bypasses the marked prefix until
+    // a later drop succeeds.
+    await this.cache.invalidateAfterWrite(setting.code);
     this.eventBus.emit('settings.value_changed', {
       eventId: `settings.value_changed:${setting.id}:${Date.now()}`,
       occurredAt: new Date().toISOString(),
@@ -567,6 +607,7 @@ export class SettingsAdminService {
       }
     }
     if (resetChannelIds.length > 0 || globalValueCleared) {
+      await this.cache.invalidateAfterWrite(setting.code);
       this.eventBus.emit('settings.value_changed', {
         eventId: `settings.value_reset:${setting.id}:${Date.now()}`,
         occurredAt: new Date().toISOString(),
@@ -625,6 +666,10 @@ export class SettingsAdminService {
         ...(actor.requestId !== undefined ? { requestId: actor.requestId } : {}),
       });
     }
+    // A group change can move settings between groups or rescope channels, so
+    // it can change resolution for any number of codes; the whole namespace is
+    // the cheapest correct drop.
+    await this.cache.invalidateAllAfterWrite();
     this.eventBus.emit('settings.group_changed', {
       eventId: `settings.group_changed:${group.id}:${Date.now()}`,
       occurredAt: new Date().toISOString(),
@@ -712,6 +757,7 @@ export class SettingsAdminService {
       }
     }
     if (renamed || rescoped) {
+      await this.cache.invalidateAllAfterWrite();
       this.eventBus.emit('settings.group_changed', {
         eventId: `settings.group_changed:${group.id}:${Date.now()}`,
         occurredAt: new Date().toISOString(),
@@ -774,6 +820,7 @@ export class SettingsAdminService {
         ...(actor.requestId !== undefined ? { requestId: actor.requestId } : {}),
       });
     }
+    await this.cache.invalidateAllAfterWrite();
     this.eventBus.emit('settings.group_changed', {
       eventId: `settings.group_changed:${group.id}:${Date.now()}`,
       occurredAt: new Date().toISOString(),

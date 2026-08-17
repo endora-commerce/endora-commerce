@@ -23,21 +23,25 @@ import type {
  * owner and stated no policy, and D-44 §7 named it the one live instance of
  * that gap: a switched-off gateway went on refunding through its own PSP API.
  *
- * **The policy this registry states: an absent owner's handler is skipped.**
- * `get`, `resolve` and `list` answer as if it were not registered; `entry`,
- * `ownerOf` and `listAll` deliberately do not filter, because a settlement
- * screen has to keep showing the handler *and* the reason it is unavailable.
- * Three things decide it, and the money is on the other side of each:
+ * **The policy this registry states: skip an absent owner's handler, and say
+ * so (D-71).** `get`, `resolve` and `list` answer as if it were not registered;
+ * `entry`, `ownerOf`, {@link GatewayRefundRegistry.absentOwnerFor} and `listAll`
+ * deliberately do not filter, because a settlement screen has to keep showing
+ * the handler *and* the reason it is unavailable — and because the caller has to
+ * be able to tell "switched off" from "never installed", which one empty
+ * `resolve` cannot. Three things decide the skip, and the money is on the other
+ * side of each:
  *
  *  1. A module that is off must not act. Refunding through a PSP the operator
  *    switched off charges that PSP's API with that operator's credentials —
  *    the opposite of "behaves as if never installed" (Principle XVII).
- *  2. **The obligation is not dropped with the handler.** Skipping lands on
- *    `PaymentRefundProvider`'s existing `pending_manual` answer, which is what
- *    a deployment that never installed the gateway already gets: the refund
- *    stays on the platform's books, named, for a person to settle. That is why
- *    "a refund is an obligation we may already have incurred" is an argument
- *    for *recording* it, not for honouring the entry.
+ *  2. **The obligation is not dropped with the handler.** The caller has to say
+ *    what happens next, and the two situations it can be in are not the same
+ *    one: a deployment that never installed a PSP integration records
+ *    `pending_manual` and settles by hand, while a gateway an operator switched
+ *    off is a capability that is *supposed* to be there and can be back in one
+ *    click. D-71 rules the second a **refusal**, not an outcome — see
+ *    `PaymentRefundProvider`.
  *  3. {@link resolve} answers with the sole registered handler when the order
  *    names no adapter. Honouring an absent owner would route exactly those
  *    refunds — the ones with the least information behind them — into a
@@ -109,6 +113,36 @@ export class GatewayRefundRegistry {
   /** The module that contributed `adapterKey`, or `null` when nobody did. */
   ownerOf(adapterKey: string): string | null {
     return this.handlers.get(adapterKey)?.module ?? null;
+  }
+
+  /**
+   * The module that would have handled this refund but is not present (D-71).
+   *
+   * The question a caller asks *after* {@link resolve} declined, because one
+   * empty `resolve` covers two situations that are not interchangeable: a
+   * gateway an operator switched off is a capability restorable in one click
+   * and must be **refused**, while an adapter nobody ever registered is a
+   * deployment with no PSP integration, which records the obligation and
+   * settles by hand.
+   *
+   * It mirrors `resolve`'s two arms exactly, which is why the unkeyed one is
+   * here at all: `resolve` answers with the sole registered handler when the
+   * order names no adapter, and point 3 of the docblock above says that is the
+   * worst arm to get wrong — the refunds with the least information behind
+   * them. Presence-blind in the same sense `ownerOf` is.
+   */
+  absentOwnerFor(adapterKey?: string | null): string | null {
+    if (adapterKey) {
+      const entry = this.handlers.get(adapterKey);
+      if (!entry || this.isModulePresent(entry.module)) return null;
+      return entry.module;
+    }
+    // No key: `resolve` would have answered with the sole registered handler.
+    // Nothing is available and exactly one thing is registered ⇒ that one is
+    // the handler the operator switched off.
+    if (this.list().length > 0) return null;
+    const entries = [...this.handlers.values()];
+    return entries.length === 1 ? (entries[0] as GatewayRefundEntry).module : null;
   }
 
   /** The handler, or `undefined` when unregistered or its owner is absent. */

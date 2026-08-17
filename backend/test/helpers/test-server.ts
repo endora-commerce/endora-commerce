@@ -764,10 +764,11 @@ export async function setupBackendServer(
     };
   } => container.cradle as never;
 
-  // Mirrors `composition.ts` (D-45): the two kernel pieces that subscribe to
-  // the EventBus are composed **before** the modules, so no module's
-  // `ctx.subscribe` handler can be ahead of the settings or sales-channel cache
-  // invalidator. `EventBus.dispatch` awaits its handlers in registration order.
+  // Mirrors `composition.ts` (D-45): the sales-channel cache invalidator
+  // subscribes to the EventBus and is composed **before** the modules, so no
+  // module's `ctx.subscribe` handler can be ahead of it. `EventBus.dispatch`
+  // awaits its handlers in registration order. The settings cache no longer
+  // needs that (issue #45) — its drop is part of the write.
   const salesChannels = composeSalesChannelsKernel({
     emFactory: em,
     eventBus,
@@ -778,7 +779,6 @@ export async function setupBackendServer(
   // owns the admin surface and composes itself.
   const settings = composeSettingsKernel({
     emFactory: em,
-    eventBus,
     redis,
     ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
       ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
@@ -1526,6 +1526,8 @@ export async function setupBackendServer(
     // check started reading them (T118).
     // `redis` is registered further up, where the client is created.
     settingsReadPort: settings.settingsService,
+    // Issue #45 — the same cache, seen from the writing side. Mirrors the root.
+    settingsCache: settings.cache,
     // Feature 072 (T093) — `composition.ts` has registered this since T086;
     // the harness passed the same object to `searchModule` as an option but
     // never registered it, so `cms`' colour-palette writer had nothing to
