@@ -112,6 +112,12 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   'commandBus',
   'apiInterceptors',
   'settingsReadPort',
+  // The same kernel object as `settingsReadPort`, seen from the writing side:
+  // `composeSettingsKernel` builds one `SettingsCache` and a root contributes
+  // both names off it. The `settings` module reads this one at its write seam,
+  // which is where the cache is dropped since issue #45 — the drop used to be
+  // an EventBus subscriber, and therefore a function of dispatch order.
+  'settingsCache',
   // The resolved module registry is a composition-root input by nature: which
   // modules a deployment ships is not something a module may decide.
   'resolvedModuleRegistry',

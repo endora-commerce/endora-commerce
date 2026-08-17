@@ -680,14 +680,38 @@ and a dead boot.
 
 ### The one thing a root still has to do in order
 
-`EventBus.dispatch` awaits its handlers in **registration order**, so the two
-kernel cache invalidators — `composeSettingsKernel` and
-`composeSalesChannelsKernel`, each of which attaches one — are composed **before**
-`composeModules(MODULES, …)` in both roots. A module subscribing to
-`settings.value_changed` ahead of the settings cache's own invalidator runs its
-handler against the pre-write value, and the two-pass era recorded the symptom
-the first time `meta_ads` and `linkedin_ads` were moved ahead of it. Compose the
-invalidators first and the question cannot be asked.
+`EventBus.dispatch` awaits its handlers in **registration order**, so
+`composeSalesChannelsKernel` — which attaches the sales-channel cache
+invalidator — is composed **before** `composeModules(MODULES, …)` in both roots.
+A module subscribing to `sales_channels.identity_changed` ahead of it runs its
+handler against the pre-write value.
+
+**The settings cache used to be the other half of that sentence, and is not any
+more (issue #45).** It is worth reading why, because the same repair is
+available to the remaining one. Composing the invalidator first was a working
+arrangement resting on two accidents. First, the drop reached
+`SharedDropMarks.begin` synchronously, so it was in time only while it was
+handler *zero* — and since D-45 all 65 modules register in one pass whose order
+is meaningless by design, so nothing preserved that position and nothing would
+have reported it moving. The two-pass era had already recorded the symptom, the
+first time `meta_ads` and `linkedin_ads` were moved ahead of it. Second, and
+worse, `emit()` **inside** an `EventBus.run` scope is buffered until the scope's
+function returns — and `CommandBus.run` opens exactly one per Command — so no
+registration order could have saved a write and a read-back inside one command.
+
+The repair was not a third correction of the ordering. `SettingsAdminService` —
+the one place a setting value or group changes — now calls
+`SettingsCacheInvalidation` and **awaits it**, after the flush and before the
+emit. The drop is part of the write, so nothing on the bus can be early or late
+for it; `attachSettingsCacheInvalidator` is deleted, and the reason five modules
+cited it in their comments ("my handler re-reads the setting, and the invalidator
+is ahead of me") is now true by construction. The rejected alternatives are worth
+naming: pinning the order with a check makes the dependency explicit but leaves
+it, an EventBus priority tier makes ordering a platform concept every future
+listener has to claim, and neither addresses the buffered-scope case at all.
+
+The sales-channel cache still subscribes, so the ordering rule above still binds
+this root. Draining it the same way is its own change.
 
 Every module subscription in the tree goes through `ctx.subscribe`, and that is
 now enforced rather than asked for. Until issue #107 a module could subscribe
@@ -706,8 +730,8 @@ module's own sources for a call on an event-bus-shaped receiver, and carries
 `BARE_SUBSCRIPTIONS_TO_DRAIN`, an **empty** two-way ledger: an unledgered bare
 subscription fails the build, and so does a ledger entry that no longer describes
 one. The kernel is deliberately out of scope — it composes before any module and
-has no effective state to gate on, so its two cache invalidators subscribe
-directly, which is the ordering fact the paragraph above depends on.
+has no effective state to gate on, so the sales-channel cache invalidator
+subscribes directly, which is the ordering fact the paragraph above depends on.
 
 ### An entry point with no caller decides presence
 

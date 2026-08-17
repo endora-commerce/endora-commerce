@@ -121,14 +121,11 @@ export {
 } from './settings/settings.service.js';
 export {
   SettingsCache,
+  type SettingsCacheInvalidation,
   SETTINGS_CACHE_KEY_PREFIX,
   SETTINGS_CACHE_NAMESPACE,
   SETTINGS_LRU_TTL_MS,
 } from './settings/settings-cache.js';
-export {
-  attachSettingsCacheInvalidator,
-  type SettingsCacheInvalidatorHandle,
-} from './settings/settings-cache-invalidator.js';
 export {
   encryptSecretValue,
   decryptSecretValue,

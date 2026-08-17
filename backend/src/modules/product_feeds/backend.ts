@@ -208,9 +208,9 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   // The taxonomy master switch takes effect at the moment it is flipped. The
-  // reconcile re-reads the two settings, and the kernel's settings-cache
-  // invalidator subscribes in `composeSettingsKernel` — before any module
-  // registers — so it has already dropped them when this handler runs.
+  // reconcile re-reads the two settings, and the settings write seam has already
+  // dropped them: it invalidates the cache and awaits the drop before it emits
+  // (issue #45), so this no longer depends on registration order.
   ctx.subscribe('settings.value_changed', async (payload) => {
     await syncTaxonomyScheduleFromEvent(handle().schedules, payload);
   });

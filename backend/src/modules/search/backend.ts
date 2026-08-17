@@ -181,10 +181,10 @@ export function registerModule(ctx: ModuleContext): void {
   /**
    * The LLM reactor (feature 006 / T027).
    *
-   * The settings cache invalidator is attached by `composeSettingsKernel`, which
-   * runs before any module registers, so this handler is dispatched after the
-   * invalidator has already dropped the code — which is what it needs, since it
-   * re-reads `search.llm.enabled` through the settings service.
+   * It re-reads `search.llm.enabled` through the settings service, and gets the
+   * value that was just written: the settings write seam drops the cache and
+   * awaits the drop before it emits (issue #45). Until then this rested on the
+   * kernel's invalidator being registered ahead of this handler.
    */
   ctx.subscribe('settings.value_changed', async (payload) => {
     await subscriber().onSettingChanged(payload as SettingChangedPayload);

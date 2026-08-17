@@ -1,12 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
-import type { EventBus } from '../../events/bus.js';
-import { SettingsCache } from './settings-cache.js';
+import { inProcessCaches } from '../cache/in-process-cache-registry.js';
+import { SettingsCache, SETTINGS_CACHE_NAMESPACE } from './settings-cache.js';
 import { SettingsService } from './settings.service.js';
-import {
-  attachSettingsCacheInvalidator,
-  type SettingsCacheInvalidatorHandle,
-} from './settings-cache-invalidator.js';
 
 /**
  * The universal settings *reader*, composed as kernel infrastructure rather
@@ -25,7 +21,6 @@ import {
  */
 export interface SettingsKernelOptions {
   readonly emFactory: () => EntityManager;
-  readonly eventBus: EventBus;
   readonly redis: Redis;
   /**
    * Base64 32-byte key for the `secret` value type (feature 043, FR-021), from
@@ -39,9 +34,17 @@ export interface SettingsKernelOptions {
 
 export interface SettingsKernel {
   readonly settingsService: SettingsService;
+  /**
+   * Handed to the `settings` module as `settingsCache`: it owns the one write
+   * seam, and since issue #45 the seam drops the cache itself rather than
+   * announcing the write and hoping a subscriber gets there first.
+   */
   readonly cache: SettingsCache;
-  /** Released for tests; in production it lives until process exit. */
-  readonly cacheInvalidator: SettingsCacheInvalidatorHandle;
+  /**
+   * Withdraws this process's cache from the operator-facing clear. Released
+   * for tests; in production it lives until process exit.
+   */
+  readonly cacheRegistration: { readonly dispose: () => void };
 }
 
 export function composeSettingsKernel(options: SettingsKernelOptions): SettingsKernel {
@@ -51,7 +54,19 @@ export function composeSettingsKernel(options: SettingsKernelOptions): SettingsK
     cache,
     options.secretEncryptionKey,
   );
-  const cacheInvalidator = attachSettingsCacheInvalidator(options.eventBus, cache);
 
-  return { settingsService, cache, cacheInvalidator };
+  /**
+   * The one thing composing the cache still has to *do*: announce it to the
+   * operator-facing "clear cache" action (issue #33). The clear runs in this
+   * process and has to reach the object that owns both layers, or it drops the
+   * Redis keys while every warm process keeps serving — and re-pinning — the
+   * value it had already resolved.
+   *
+   * It used to ride on `attachSettingsCacheInvalidator`, which also subscribed
+   * to `settings.value_changed`. The subscription is gone (issue #45); the
+   * registration is not, because it never had anything to do with the bus.
+   */
+  const unregister = inProcessCaches.register(SETTINGS_CACHE_NAMESPACE, cache);
+
+  return { settingsService, cache, cacheRegistration: { dispose: unregister } };
 }

@@ -45,7 +45,7 @@ describe('SettingsService end-to-end (T046)', () => {
     const em = h.em();
     for (const s of await em.find(Setting, { ownerModule: 'us3_e2e' })) em.remove(s);
     await em.flush();
-    h.settings.cacheInvalidator?.dispose();
+    h.settings.cacheRegistration.dispose();
     await teardownBackendServer(h);
   });
 

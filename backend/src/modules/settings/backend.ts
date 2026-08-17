@@ -6,6 +6,7 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { SettingsCacheInvalidation } from '../../kernel/settings/settings-cache.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import {
   SettingsAdminService,
@@ -62,6 +63,12 @@ export interface SettingsCradle {
   readonly adminAuditActorResolver: (req: FastifyRequest) => AdminAuditContext;
   /** The kernel reader, so the resolvers read through the same cache. */
   readonly settingsReadPort: SettingsService;
+  /**
+   * The kernel cache the reader reads through, so the **write seam** can drop
+   * it and await the drop (issue #45). Root-supplied alongside
+   * `settingsReadPort` — the same object, seen from the writing side.
+   */
+  readonly settingsCache: SettingsCacheInvalidation;
   /** Root-supplied: `redis` for the cache-admin action's flush. */
   readonly redis: Redis;
   /** Root-supplied from `_lifecycle`, so this module keeps no edge into it. */
@@ -131,6 +138,16 @@ export function registerModule(ctx: ModuleContext): void {
           new SettingsAdminService(
             emFactory,
             eventBus,
+            // Read per call rather than captured: `settingsCache` is a root
+            // contribution, made in the slot *after* `composeModules`, so
+            // destructuring it here would resolve a name that does not exist
+            // yet. A forwarder is the same shape `returnsBridge` uses.
+            {
+              invalidateAfterWrite: (code) =>
+                ctx.cradle<SettingsCradle>().settingsCache.invalidateAfterWrite(code),
+              invalidateAllAfterWrite: () =>
+                ctx.cradle<SettingsCradle>().settingsCache.invalidateAllAfterWrite(),
+            },
             auditLogService,
             settingsSecretEncryptionKey,
             settingsModulePresence,

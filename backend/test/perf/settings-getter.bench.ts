@@ -90,7 +90,7 @@ describe.skipIf(!shouldRun)('settings universal getter — p95 latency', () => {
     const em = h.em();
     for (const s of await em.find(Setting, { ownerModule: 'perf_settings' })) em.remove(s);
     await em.flush();
-    h.settings.cacheInvalidator?.dispose();
+    h.settings.cacheRegistration.dispose();
     await teardownBackendServer(h);
   });
 

@@ -180,10 +180,11 @@ export function registerModule(ctx: ModuleContext): void {
    * an operator believed was absent. `ctx.subscribe` puts each behind
    * `subscribeForModule`, which reads the effective state per event.
    *
-   * The threshold mirror re-reads the changed setting, and the kernel's settings
-   * cache invalidator subscribes in `composeSettingsKernel`, which runs before
-   * any module registers — so the invalidator is always ahead of this handler in
-   * the dispatch order and the mirror reads the value that was just written.
+   * The threshold mirror re-reads the changed setting, and reads the value that
+   * was just written: `SettingsAdminService` drops the settings cache at the
+   * write seam and awaits the drop before it emits (issue #45). This used to
+   * depend on the kernel's invalidator being registered ahead of this handler —
+   * true, but only by composition order, which nothing preserved.
    */
   const handle = (): ReturnType<typeof inventoryModule>['handle'] =>
     ctx.cradle<InventoryCradle>().inventory.handle;
