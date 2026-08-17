@@ -191,7 +191,7 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'modules/promotions/PromotionEditPage.tsx': 1,
   'modules/promotions/PromotionStatsPage.tsx': 2,
   'modules/returns/ReturnDeliveryMethodsPage.tsx': 5,
-  'modules/returns/ReturnDetail.tsx': 17,
+  'modules/returns/ReturnDetail.tsx': 12,
   'modules/returns/ReturnReasonsPage.tsx': 4,
   'modules/returns/ReturnStatusesConfigPage.tsx': 4,
   'modules/settings/PushAudienceRuleBuilder.tsx': 17,

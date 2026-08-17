@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { FileDown, Mail, RefreshCw } from 'lucide-react';
-import type { InvoiceDetail as InvoiceDetailData } from '@b2b/contracts';
+import type {
+  InvoiceDetail as InvoiceDetailData,
+  SendInvoiceEmailResult,
+} from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { formatMoney } from '@/lib/money';
@@ -21,6 +24,7 @@ import {
 import { useTranslation } from '@/i18n/useTranslation';
 import { useAuth } from '@/lib/auth';
 import { InvoiceKsefPanel } from '@/modules/ksef/components/InvoiceKsefPanel';
+import { sendInvoiceEmailMessage } from './email-outcome';
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
   pending: 'warning',
@@ -81,8 +85,15 @@ export function InvoiceDetail(): ReactNode {
     setBusy(true);
     setError(null);
     try {
-      await apiClient.post(`/api/v1/admin/invoices/${id}/send-email`, {});
-      setNotice(t('invoices.emailSent'));
+      const res = await apiClient.post<{ data: SendInvoiceEmailResult }>(
+        `/api/v1/admin/invoices/${id}/send-email`,
+        {},
+      );
+      // Issue #149 — the same answer the list surface now reads: a send that
+      // was suppressed says so instead of being confirmed.
+      const outcome = sendInvoiceEmailMessage(res.data, t);
+      if (outcome.ok) setNotice(outcome.message);
+      else setError(outcome.message);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('invoiceDetail.error.load'));
     } finally {

@@ -14,6 +14,8 @@ import { PageHeader } from '@/components/ui/page-header';
 import { InvoiceSectionTabs } from '@/components/InvoiceSectionTabs';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
+import type { SendInvoiceEmailResult } from '@b2b/contracts';
+import { sendInvoiceEmailMessage } from './email-outcome';
 import {
   Table,
   TableBody,
@@ -115,8 +117,16 @@ export function InvoicesList(): ReactNode {
       setError(null);
       setNotice(null);
       try {
-        await apiClient.post(`/api/v1/admin/invoices/${invoiceId}/send-email`, {});
-        setNotice(t('invoices.emailSent'));
+        const res = await apiClient.post<{ data: SendInvoiceEmailResult }>(
+          `/api/v1/admin/invoices/${invoiceId}/send-email`,
+          {},
+        );
+        // Issue #149 — the route has named the reason since #103; announcing
+        // "sent" over an answer that says otherwise is the same defect the
+        // issue route had, on the surface next door.
+        const outcome = sendInvoiceEmailMessage(res.data, t);
+        if (outcome.ok) setNotice(outcome.message);
+        else setError(outcome.message);
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to send.');
       }

@@ -1,6 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { issueInvoiceRequestSchema, sendInvoiceEmailRequestSchema } from '@b2b/contracts';
+import {
+  issueInvoiceRequestSchema,
+  sendInvoiceEmailRequestSchema,
+  type IssueInvoiceEmailOutcome,
+} from '@b2b/contracts';
 import { Invoice } from './entities/invoice.entity.js';
 import { Order } from '../orders/entities/order.entity.js';
 import { isOrgInScope } from '../../tenancy/derived-scope.js';
@@ -139,12 +143,11 @@ export async function registerInvoicesAdminRoutes(
         ...(body.paymentDueDate ? { paymentDueDate: body.paymentDueDate } : {}),
         ...(issuedBy ? { issuedBy } : {}),
       });
-      // Best-effort send-on-issue (FR-024); never fails the issuance.
-      if (deps.emailDispatcher && (await deps.emailDispatcher.sendOnIssueEnabled(detail.salesChannelId))) {
-        await deps.emailDispatcher.dispatch(detail.id);
-      }
+      const email = await sendOnIssue(deps, detail.id, detail.salesChannelId);
+      // Still a 201 whatever `email` says: the notification is best-effort
+      // (FR-024) and a suppressed message must not undo an issued document.
       reply.status(201);
-      return { data: detail };
+      return { data: detail, email };
     },
   );
 
@@ -170,7 +173,10 @@ export async function registerInvoicesAdminRoutes(
     async (request) => {
       const body = sendInvoiceEmailRequestSchema.parse(request.body ?? {});
       if (!deps.emailDispatcher) {
-        return { data: { ok: false, reason: 'email_not_configured' } };
+        // `no_sender`, the name the dispatcher and the issue route both use for
+        // this composition. It was `email_not_configured` — an eighth word for
+        // one of the seven reasons, which no caller could translate (#149).
+        return { data: { ok: false, reason: 'no_sender' } };
       }
       const messageId = `invoice_issued:${request.params.id}:resend:${Date.now()}`;
       // Issue #103 — the operator asked for this send explicitly, so the reason
@@ -266,6 +272,31 @@ export async function registerInvoicesAdminRoutes(
       return reply.send(pdf);
     },
   );
+}
+
+/**
+ * Send-on-issue, and what became of it (issue #149).
+ *
+ * The dispatch result used to be awaited and dropped, so an operator who
+ * clicked "issue and send" was told "issued" whether the e-mail went out or was
+ * suppressed for one of seven named reasons — the last site of the #67/#78/#115
+ * family. Nothing catches here: `dispatch` contains its own failures and names
+ * them in the result (FR-029), and the one thing it re-throws is a presence
+ * answer that must reach the caller as a 503.
+ */
+async function sendOnIssue(
+  deps: InvoicesAdminDeps,
+  invoiceId: string,
+  salesChannelId: string | null,
+): Promise<IssueInvoiceEmailOutcome> {
+  const dispatcher = deps.emailDispatcher;
+  // The situation the dispatcher names `no_sender`, one layer earlier: there is
+  // no dispatcher to name it, so the route does — the same answer the auto-issue
+  // reactor gives for the same composition.
+  if (!dispatcher) return { status: 'not_sent', reason: 'no_sender' };
+  if (!(await dispatcher.sendOnIssueEnabled(salesChannelId))) return { status: 'not_requested' };
+  const result = await dispatcher.dispatch(invoiceId);
+  return result.sent ? { status: 'sent' } : { status: 'not_sent', reason: result.reason };
 }
 
 function serialize(i: Invoice, orderBusinessId: string | null) {

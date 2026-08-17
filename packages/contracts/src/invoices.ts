@@ -138,3 +138,71 @@ export const sendInvoiceEmailRequestSchema = z.object({
   mode: invoiceDeliveryModeSchema.optional(),
 });
 export type SendInvoiceEmailRequest = z.infer<typeof sendInvoiceEmailRequestSchema>;
+
+/**
+ * Why the invoice e-mail did not go out (issue #103).
+ *
+ * The dispatcher has answered these seven since #103; they only ever reached a
+ * log. They are part of the API shape now because the operator who clicked
+ * "issue" is the one person who can act on them (issue #149).
+ */
+export const invoiceEmailNotSentReasonSchema = z.enum([
+  /** No transactional sender is wired in this composition. */
+  'no_sender',
+  /** The invoice, or the order behind it, could not be loaded. */
+  'invoice_not_found',
+  /** No recipient address could be resolved for the order. */
+  'no_recipient',
+  /** The operator switched the `invoice_issued` e-mail off. */
+  'deactivated',
+  /** No mailer is wired behind the sender. */
+  'no_transport',
+  /** No `invoice_issued` template exists yet. */
+  'no_definition',
+  /** The send raised, and the issuance was kept (FR-029). */
+  'failed',
+]);
+export type InvoiceEmailNotSentReason = z.infer<typeof invoiceEmailNotSentReasonSchema>;
+
+/**
+ * `POST /admin/invoices/:id/send-email` — the answer to an explicitly requested
+ * re-send. The route has carried it since issue #103; it is written down here
+ * because both admin surfaces used to announce "sent" over it (issue #149).
+ */
+export const sendInvoiceEmailResultSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true) }),
+  z.object({ ok: z.literal(false), reason: invoiceEmailNotSentReasonSchema }),
+]);
+export type SendInvoiceEmailResult = z.infer<typeof sendInvoiceEmailResultSchema>;
+
+/**
+ * What became of the send-on-issue e-mail an issuance triggered (issue #149).
+ *
+ * Three answers, and the middle one is the point: `not_requested` means the
+ * operator switched send-on-issue off for this channel, which is a configured
+ * choice and not a delivery that failed. Reading "no e-mail" out of a missing
+ * field cannot tell those apart, which is how an issuance whose notification was
+ * suppressed came back as a bare 201 saying "issued".
+ *
+ * A suppressed or failed e-mail never invalidates the issuance (FR-029): the
+ * invoice is a legal document that was drawn, numbered and stored, so this
+ * rides **alongside** a 201 rather than turning it into an error.
+ */
+export const issueInvoiceEmailOutcomeSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('sent') }),
+  z.object({ status: z.literal('not_requested') }),
+  z.object({ status: z.literal('not_sent'), reason: invoiceEmailNotSentReasonSchema }),
+]);
+export type IssueInvoiceEmailOutcome = z.infer<typeof issueInvoiceEmailOutcomeSchema>;
+
+/**
+ * `POST /admin/orders/:orderId/invoices` — the issued document plus what became
+ * of its notification. `email` is a sibling of `data`, the way `pagination` is
+ * on a collection: it describes the action, not the invoice, and the invoice
+ * detail shape stays identical on every surface that reads one.
+ */
+export const issueInvoiceResponseSchema = z.object({
+  data: invoiceDetailSchema,
+  email: issueInvoiceEmailOutcomeSchema,
+});
+export type IssueInvoiceResponse = z.infer<typeof issueInvoiceResponseSchema>;
