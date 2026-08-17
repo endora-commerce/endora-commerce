@@ -1,9 +1,28 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { SystemRoleCodePort } from '@b2b/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import {
   BLOG_ROLE_CODES,
   seedBlogRoles,
 } from '../../../src/modules/blog/services/seed-roles.js';
+
+/**
+ * `admin_roles`' deletion-protection registry, as the seeder receives it since
+ * feature 075's Phase C — a port argument rather than a module-level function
+ * imported out of `admin_roles`. Recording it here is what makes the
+ * registration assertable at all: pushing into a process singleton was
+ * invisible from this suite.
+ */
+function recordingSystemRoleCodes(): SystemRoleCodePort & { readonly registered: string[] } {
+  const registered: string[] = [];
+  return {
+    registered,
+    register: (code) => {
+      registered.push(code);
+    },
+    list: () => [...registered],
+  };
+}
 
 async function loadRole(
   conn: { execute: (sql: string, params?: unknown[]) => Promise<unknown> },
@@ -52,9 +71,14 @@ describe('seedBlogRoles (T024 — idempotent + admin-edit-safe)', () => {
   });
 
   it('upserts both roles on first run with the canonical permission set', async () => {
-    const r = await seedBlogRoles(() => db.em());
+    const codes = recordingSystemRoleCodes();
+    const r = await seedBlogRoles(() => db.em(), codes);
     expect(r).toHaveLength(2);
     expect(r.every((x) => x.created)).toBe(true);
+    // Both seeded codes are handed to the registry that refuses their deletion.
+    expect([...codes.registered].sort()).toEqual(
+      [BLOG_ROLE_CODES.BLOG_MANAGER, BLOG_ROLE_CODES.CONTENT_MANAGER].sort(),
+    );
 
     const conn = db.em().getConnection();
     const blog = await loadRole(conn, 'blog_manager');
@@ -72,34 +96,34 @@ describe('seedBlogRoles (T024 — idempotent + admin-edit-safe)', () => {
   });
 
   it('preserves admin-edited name across reruns', async () => {
-    await seedBlogRoles(() => db.em());
+    await seedBlogRoles(() => db.em(), recordingSystemRoleCodes());
     const conn = db.em().getConnection();
     await conn.execute(
       `update admin_roles set name = 'Bloger', updated_at = now() where code = 'blog_manager'`,
     );
 
-    const r = await seedBlogRoles(() => db.em());
+    const r = await seedBlogRoles(() => db.em(), recordingSystemRoleCodes());
     const blogReloaded = await loadRole(conn, 'blog_manager');
     expect(blogReloaded.name).toBe('Bloger');
     expect(r.find((x) => x.code === 'blog_manager')!.permissionsRefreshed).toBe(false);
   });
 
   it('refreshes permissions if they drift from the canonical set', async () => {
-    await seedBlogRoles(() => db.em());
+    await seedBlogRoles(() => db.em(), recordingSystemRoleCodes());
     const conn = db.em().getConnection();
     await conn.execute(
       `update admin_roles set permissions = '["blog.read"]'::jsonb, updated_at = now() where code = 'blog_manager'`,
     );
 
-    const r = await seedBlogRoles(() => db.em());
+    const r = await seedBlogRoles(() => db.em(), recordingSystemRoleCodes());
     const after = await loadRole(conn, 'blog_manager');
     expect([...after.permissions].sort()).toEqual(['blog.read', 'blog.write']);
     expect(r.find((x) => x.code === 'blog_manager')!.permissionsRefreshed).toBe(true);
   });
 
   it('is idempotent — second run when nothing changed marks created=false and permissionsRefreshed=false', async () => {
-    await seedBlogRoles(() => db.em());
-    const r = await seedBlogRoles(() => db.em());
+    await seedBlogRoles(() => db.em(), recordingSystemRoleCodes());
+    const r = await seedBlogRoles(() => db.em(), recordingSystemRoleCodes());
     expect(r.every((x) => !x.created)).toBe(true);
     expect(r.every((x) => !x.permissionsRefreshed)).toBe(true);
   });

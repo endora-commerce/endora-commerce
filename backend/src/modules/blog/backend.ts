@@ -1,11 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
-import type { DictionaryValidator } from '@b2b/contracts';
+import type {
+  AssetReferenceRegistryPort,
+  DictionaryValidator,
+  SystemRoleCodePort,
+} from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
 
 import { BlogCacheService } from './services/blog-cache.js';
 import {
@@ -55,11 +58,12 @@ export interface BlogCradle {
   readonly settingsReadPort: SettingsServicePort;
   /**
    * Owned by `assets_library`: the registry that blocks deleting a referenced
-   * asset. Still a type-only import of the provider's interface, exactly as
-   * `plugin.ts` had it — the port that would replace it belongs to
-   * `assets_library`'s own conversion, not to this one.
+   * asset, as the shape that module publishes (feature 075, Phase C). It used
+   * to be a type-only import of the provider's own interface — a real edge,
+   * since types resolve at build time, and the one `cms` and `megamenu` cut to
+   * the same contract before this.
    */
-  readonly assetReferenceRegistry: AssetReferenceRegistry;
+  readonly assetReferenceRegistry: AssetReferenceRegistryPort;
   /** Owned by `dictionaries`: validates language-scope fields (feature 017). */
   readonly dictionaryValidator: DictionaryValidator | undefined;
   /** Cross-module storefront ports (asset URL signing, product cards). */
@@ -193,6 +197,9 @@ export function registerModule(ctx: ModuleContext): void {
     if (!effectiveState.isPresent('blog')) return;
     const { emFactory } = ctx.cradle<BlogCradle>();
     await seedDefaultCategory(emFactory);
-    await seedBlogRoles(emFactory);
+    // `systemRoleCodePort` is `admin_roles`' ungated contribution registry, so
+    // resolving it here asks no gate — the probe above is this module's own
+    // answer about its own seeds, not a question about the registry's owner.
+    await seedBlogRoles(emFactory, lazyPort<SystemRoleCodePort>(ctx, 'systemRoleCodePort'));
   });
 }
