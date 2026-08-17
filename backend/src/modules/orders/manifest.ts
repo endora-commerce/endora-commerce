@@ -85,11 +85,19 @@ export const manifest = defineModuleManifest({
   // options a root passed down, so neither appeared here. Order placement
   // resolves a delivery address and reserves against the credit limit; both are
   // as real as the edges already listed.
+  // Feature 075 — `assets_library`, `catalog` and `customer_accounts` join the
+  // list because the route surface and the external intake read their rows
+  // through published ports instead of their entity classes. All three are
+  // non-deactivatable and none of them declares this module, so the edge binds
+  // nothing an operator could otherwise have flipped and closes no cycle.
   dependencies: [
     'addresses',
     'api_keys',
+    'assets_library',
     'carts',
+    'catalog',
     'credit_limits',
+    'customer_accounts',
     'organizations',
     'promotions',
     'settings',
@@ -161,6 +169,57 @@ export const manifest = defineModuleManifest({
         'same shape: `shipments` declares this module, so the edge cannot go in ' +
         '`dependencies`, and binding it would stop an operator switching shipments off on a ' +
         'platform that keeps taking orders. Presence is asked per send in `backend.ts`.',
+    },
+    {
+      moduleId: 'payment_methods',
+      name: 'paymentMethodReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'the admin create-order preview quotes no payment surcharge, because there is no ' +
+        'method catalogue to quote one from',
+      reason:
+        'The method row behind an id the create-order form submitted. It shares the ground ' +
+        'of the two entries above: `payment_methods` serves the catalogue a method is ' +
+        'chosen from, so with the module off no id reaches this read in the first place, and ' +
+        'declaring it in `dependencies` would make `payment_methods.enabled` a control no ' +
+        'operator could use. `routes.ts` receives an accessor and asks presence per request.',
+    },
+    {
+      moduleId: 'delivery_methods',
+      name: 'deliveryMethodReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'the admin create-order preview quotes no delivery cost, because there is no method ' +
+        'catalogue to quote one from',
+      reason:
+        'The delivery twin of `payment_methods:paymentMethodReadPort`, and the same shape. ' +
+        '`shipments` declares `delivery_methods` in `dependencies` and may: it is itself ' +
+        'deactivatable, so the bind costs an operator a choice they still have. This module ' +
+        'is not, so the same declaration here would be permanent.',
+    },
+    {
+      moduleId: 'invoices',
+      name: 'invoiceReadPort',
+      kind: 'degrades-without',
+      whenAbsent: 'an order’s invoice PDF is no longer offered; nothing else about an order changes',
+      reason:
+        'The customer invoice download and the admin bulk print read the document `invoices` ' +
+        'owns. `invoices` declares this module — an invoice is raised against an order — so ' +
+        '`dependencies` would close a cycle `migration-order.ts` fails on, and an ' +
+        'acknowledged edge would keep the bind and make `invoices.enabled` unusable, because ' +
+        'this module is non-deactivatable. Both routes ask presence and answer 404 ' +
+        '`INVOICE_NOT_READY`, which is the answer an order that has not been invoiced yet ' +
+        'already gets.',
+    },
+    {
+      moduleId: 'invoices',
+      name: 'invoicePdfPort',
+      kind: 'degrades-without',
+      whenAbsent: 'an order’s invoice PDF is no longer offered; nothing else about an order changes',
+      reason:
+        'The renderer behind the same two routes, and the same sentence: a VAT document is ' +
+        'an `invoices` surface, so a business that has switched invoicing off should not be ' +
+        'served one from an order screen.',
     },
     {
       moduleId: 'delivery_methods',

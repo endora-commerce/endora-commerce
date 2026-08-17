@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { PromptActionToolRegistry } from '../prompt_actions/services/tool-registry.js';
-import { ordersPromptTools } from './prompt-tools.js';
+import { PromptActionToolRegistry } from '../../../src/modules/prompt_actions/services/tool-registry.js';
+import { ordersPromptTools } from '../../../src/modules/orders/prompt-tools.js';
 
 /**
  * Per-module tool-contribution contract (feature 043): the orders module
  * contributes assistant tools as a flat PromptActionTool[] that the shared
  * registry accepts without `prompt_actions` knowing anything about orders.
+ *
+ * It lived at `src/modules/orders/prompt-tools.test.ts` until feature 075. A
+ * test file under `src/` is in `check:module-boundary`'s scope, so its import
+ * of the host registry read as this module naming another module's internals;
+ * under `backend/test/` the same import is reporting-only, which is where the
+ * repository already keeps every other cross-module test fixture.
  */
 
 // The provider only constructs services lazily; a no-op emFactory is enough to

@@ -1,9 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type AddressServicePort,
+  type CartWritePort,
+  type CustomerAccountReadPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { CartService } from '../../carts/services/cart-service.js';
-import type { AddressService } from '../../addresses/services/address-service.js';
 import type { Order } from '../entities/order.entity.js';
 import { OrderComment } from '../entities/order-comment.entity.js';
 import type { OrderService } from './order-service.js';
@@ -53,9 +55,10 @@ export interface AdminCreateOrderInput {
 export class OrderCreationAdminService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly cartService: CartService,
+    private readonly cartService: CartWritePort,
     private readonly orderService: OrderService,
-    private readonly addressService: AddressService,
+    private readonly addressService: AddressServicePort,
+    private readonly customerAccountRead: CustomerAccountReadPort,
     private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
@@ -65,7 +68,7 @@ export class OrderCreationAdminService {
     // OrderService.placeOrder (audited there); the only local mutation here is
     // the optional append-only OrderComment, not audited domain-state.
     const em = this.emFactory();
-    const customer = await em.findOne(CustomerAccount, { id: input.customerAccountId });
+    const customer = await this.customerAccountRead.findById(input.customerAccountId);
     if (!customer) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
     if (!customer.organizationId) {
       throw new HttpError(
