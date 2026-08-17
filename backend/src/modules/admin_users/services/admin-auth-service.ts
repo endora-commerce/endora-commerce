@@ -1,9 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type AuthSessionPort, type MfaLoginPort } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { hashPassword, verifyPassword } from '../../auth/services/password-hasher.js';
-import type { SessionService } from '../../auth/services/session-service.js';
-import type { MfaLoginPort } from '../../auth/services/mfa-login-port.js';
+import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
@@ -29,7 +27,8 @@ export type AdminLoginOutcome =
 export class AdminAuthService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly sessionService: SessionService,
+    /** `auth`'s published session surface (feature 075, Phase C). */
+    private readonly sessionPort: AuthSessionPort,
     /** Lazily resolved so composition can late-bind the MFA module. */
     private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
     private readonly auditLog?: AuditLogService,
@@ -66,7 +65,7 @@ export class AdminAuthService {
       }
     }
 
-    const session = await this.sessionService.createSession({
+    const session = await this.sessionPort.createSession({
       kind: 'admin',
       adminUserId: admin.id,
       ...(input.ip !== undefined ? { ipAddress: input.ip } : {}),
@@ -116,6 +115,6 @@ export class AdminAuthService {
   }
 
   async logout(sessionId: string): Promise<void> {
-    await this.sessionService.destroySession(sessionId);
+    await this.sessionPort.destroySession(sessionId);
   }
 }

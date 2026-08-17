@@ -3,7 +3,11 @@ import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
-import type { CustomerAddressReadPort } from '@b2b/contracts';
+import type {
+  AuthSessionPort,
+  CustomerAccountReadPort,
+  CustomerAddressReadPort,
+} from '@b2b/contracts';
 import { CustomerAddressReadService } from './services/customer-address-read-port.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -171,6 +175,13 @@ export function registerModule(ctx: ModuleContext): void {
               'passwordResetService',
             ),
             sessionService: lazyPort<CustomersCradle['sessionService']>(ctx, 'sessionService'),
+            // Feature 075 — the two ports the `ImpersonationService` this
+            // module still builds itself now takes. See `plugin.ts`.
+            authSessionPort: lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),
+            customerAccountReadPort: lazyPort<CustomerAccountReadPort>(
+              ctx,
+              'customerAccountReadPort',
+            ),
             customFieldValues: lazyPort<CustomersCradle['customFieldValueService']>(
               ctx,
               'customFieldValueService',

@@ -28,6 +28,7 @@ import { AnonymizationSweepWorker } from './workers/anonymization-sweep-worker.j
 import type { PasswordResetService as PasswordResetServiceType } from '../customer_accounts/services/password-reset-service.js';
 import type { VatValidator } from '../organizations/services/vat-validator-port.js';
 import type { Mailer } from '../email/services/mailer.js';
+import type { AuthSessionPort, CustomerAccountReadPort } from '@b2b/contracts';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
 import {
   registerCustomersSelfRoutes,
@@ -57,6 +58,16 @@ export interface CustomersModuleOptions {
   passwordResetService: PasswordResetServiceType;
   emFactory: () => EntityManager;
   sessionService: SessionService;
+  /**
+   * `auth`'s and `customer_accounts`' published surfaces, needed only by the
+   * `ImpersonationService` this host still constructs itself. `admin_users`'
+   * Phase-C cut moved that class onto both ports (feature 075), so the two
+   * options are threaded through here until this module's own cut replaces the
+   * second instance with `impersonationPort` — which is what its shard entries
+   * for `plugin.ts` and `routes.admin.ts` retire.
+   */
+  authSessionPort: AuthSessionPort;
+  customerAccountReadPort: CustomerAccountReadPort;
   /**
    * Which organizations the acting staff member may see —
    * `organizations`' `organizationSalesRepScopePort` (issue #108).
@@ -152,7 +163,8 @@ export function customersModule(options: CustomersModuleOptions): {
   );
   const impersonationService = new ImpersonationService(
     options.emFactory,
-    options.sessionService,
+    options.authSessionPort,
+    options.customerAccountReadPort,
     options.auditLogService,
   );
   const queryService = new CustomerAdminQueryService(

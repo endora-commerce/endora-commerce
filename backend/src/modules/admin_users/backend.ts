@@ -2,16 +2,20 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type {
+  AdminRolePort,
   AdminUserPreferencePort,
   AdminUserReadPort,
+  AuthSessionPort,
+  CustomerAccountReadPort,
   ImpersonationPort,
+  MfaLoginPort,
+  PermissionCataloguePort,
+  PermissionReadPort,
 } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
-import type { SessionService } from '../auth/services/session-service.js';
-import { adminModule, type AdminModuleOptions } from './plugin.js';
+import { adminModule } from './plugin.js';
 import {
   AdminUserReadService,
   createAdminUserPreferencePort,
@@ -55,10 +59,11 @@ export interface AdminUsersCradle {
   readonly requireAdmin: RequireAdminFactory;
   /** Who the acting admin is — production reads `actor`, the harness `testActor`. */
   readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string };
-  readonly sessionService: SessionService;
-  readonly permissionService: AdminModuleOptions['permissionService'];
-  readonly permissionCatalogueService: AdminModuleOptions['permissionCatalogueService'];
-  readonly adminRoleService: NonNullable<AdminModuleOptions['adminRoleService']>;
+  readonly authSessionPort: AuthSessionPort;
+  readonly permissionService: PermissionReadPort;
+  readonly permissionCataloguePort: PermissionCataloguePort;
+  readonly adminRolePort: AdminRolePort;
+  readonly customerAccountReadPort: CustomerAccountReadPort;
   /**
    * Contribution point: absent means admin login is password-only. Late-bound
    * because `mfa` composes after this module.
@@ -80,18 +85,19 @@ export function registerModule(ctx: ModuleContext): void {
         adminModule({
           emFactory,
           auditLogService,
-          sessionService: lazyPort<SessionService>(ctx, 'sessionService'),
-          permissionService: lazyPort<AdminUsersCradle['permissionService']>(
+          // Feature 075, Phase C — every collaborator below is another
+          // module's published port, resolved lazily by a string literal so
+          // the gate answers per call and nothing captures it.
+          authSessionPort: lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),
+          permissionService: lazyPort<PermissionReadPort>(ctx, 'permissionService'),
+          permissionCataloguePort: lazyPort<PermissionCataloguePort>(
             ctx,
-            'permissionService',
+            'permissionCataloguePort',
           ),
-          permissionCatalogueService: lazyPort<AdminUsersCradle['permissionCatalogueService']>(
+          adminRolePort: lazyPort<AdminRolePort>(ctx, 'adminRolePort'),
+          customerAccountReadPort: lazyPort<CustomerAccountReadPort>(
             ctx,
-            'permissionCatalogueService',
-          ),
-          adminRoleService: lazyPort<AdminUsersCradle['adminRoleService']>(
-            ctx,
-            'adminRoleService',
+            'customerAccountReadPort',
           ),
           requireAdmin: (permission) => async (req, reply) =>
             ctx.cradle<AdminUsersCradle>().requireAdmin(permission)(req, reply),
