@@ -114,6 +114,12 @@ export const manifest = defineModuleManifest({
     'Multi-channel, multi-language blog with categories, tags, and Page Builder posts.',
   version: '1.0.0',
   dependencies: [
+    // Feature 075, Phase C — the boot seeder registers this module's two role
+    // codes as deletion-protected through `systemRoleCodePort`, where it used
+    // to import `admin_roles`' module-level function. The registry is ungated
+    // and its owner is non-deactivatable, so the declaration buys install and
+    // migration order rather than a flip-time refusal.
+    'admin_roles',
     'assets_library',
     // Feature 072 (T061) — blog resolves the `requireAdmin` port, which `auth`
     // owns. Every admin route in this module is gated by it, so `auth` being

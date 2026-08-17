@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'crypto';
-import { registerSystemRoleCode } from '../../admin_roles/services/admin-role-service.js';
+import type { SystemRoleCodePort } from '@b2b/contracts';
 
 /**
  * SeedBlogRoles — feature 016 / R8 / T025.
@@ -47,12 +47,20 @@ export interface BlogRoleSeedResult {
 
 export async function seedBlogRoles(
   emFactory: () => EntityManager,
+  systemRoleCodes: SystemRoleCodePort,
 ): Promise<BlogRoleSeedResult[]> {
   // Register the seeded codes as system-protected up-front. Idempotent,
   // and the registration must happen even when the rows already exist
   // (a fresh process boot starts with an empty in-memory registry).
+  //
+  // Through `systemRoleCodePort` since feature 075's Phase C, where this used
+  // to import `admin_roles`' module-level `registerSystemRoleCode`. The seam is
+  // the same one and its classification is unchanged: a contribution into an
+  // ungated registry, so a `blog` that is off registers nothing and its seeded
+  // roles are simply not protected — which is the right answer, because a
+  // module that is not there has no seeded role to protect.
   for (const def of SEED_DEFINITIONS) {
-    registerSystemRoleCode(def.code);
+    systemRoleCodes.register(def.code);
   }
 
   const conn = emFactory().getConnection();

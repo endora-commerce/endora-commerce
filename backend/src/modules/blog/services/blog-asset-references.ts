@@ -14,13 +14,13 @@
 
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  AssetReference,
   AssetReferenceDescriptor,
-  AssetReferenceRegistry,
-} from '../../assets_library/services/reference-registry.js';
-import type { AssetReference } from '@b2b/contracts';
+  AssetReferenceRegistryPort,
+} from '@b2b/contracts';
 
 export function registerBlogAssetReferences(
-  registry: AssetReferenceRegistry,
+  registry: AssetReferenceRegistryPort,
   emFactory: () => EntityManager,
 ): void {
   registry.register(blogMainImageReferenceDescriptor(emFactory));
