@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { LanguageCountryService } from '../../../src/modules/dictionaries/services/language-country-service.js';
 import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
+import { dictionaryReadPortsFor } from '../../helpers/dictionary-services.js';
 import { LanguageCountry } from '../../../src/modules/dictionaries/entities/language-country.entity.js';
 
 /**
@@ -30,7 +31,7 @@ describe('LanguageCountryService — primary-flag invariant', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    service = new LanguageCountryService(() => em);
+    service = new LanguageCountryService(() => em, dictionaryReadPortsFor(() => em).languages);
   });
 
   afterEach(async () => {

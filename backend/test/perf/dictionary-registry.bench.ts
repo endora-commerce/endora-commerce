@@ -8,6 +8,7 @@ import {
 } from '../helpers/test-server.js';
 import { DictionaryCache } from '../../src/modules/dictionaries/services/dictionary-cache.js';
 import { DictionaryReadService } from '../../src/modules/dictionaries/services/dictionary-read-service.js';
+import { dictionaryReadPortsFor } from '../helpers/dictionary-services.js';
 
 /**
  * Dictionary registry perf harness.
@@ -52,7 +53,8 @@ describe.skipIf(!shouldRun)('dictionary registry — p95 latency', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     cache = new DictionaryCache(h.redis);
-    service = new DictionaryReadService(() => h.em(), cache);
+    const ports = dictionaryReadPortsFor(() => h.em());
+    service = new DictionaryReadService(() => h.em(), ports.currencies, ports.languages, cache);
   }, 60_000);
 
   afterAll(async () => {

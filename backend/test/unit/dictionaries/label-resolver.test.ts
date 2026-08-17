@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
+import { dictionaryReadPortsFor } from '../../helpers/dictionary-services.js';
 import { LabelResolver } from '../../../src/modules/dictionaries/services/label-resolver.js';
 import { DictionaryTranslation } from '../../../src/modules/dictionaries/entities/dictionary-translation.entity.js';
 import { Language } from '../../../src/modules/languages/entities/language.entity.js';
@@ -22,7 +23,11 @@ describe('LabelResolver — locale fallback chain', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    resolver = new LabelResolver(() => em);
+    resolver = new LabelResolver(
+      () => em,
+      dictionaryReadPortsFor(() => em).currencies,
+      dictionaryReadPortsFor(() => em).languages,
+    );
   });
 
   afterEach(async () => {

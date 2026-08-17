@@ -1,12 +1,12 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   DictionaryReferenceError,
+  type CurrencyReadPort,
   type DictionaryEntryType,
   type DictionaryValidator as DictionaryValidatorPort,
   type DictionaryWriteMode,
+  type LanguageReadPort,
 } from '@b2b/contracts';
-import { Currency } from '../../currencies/entities/currency.entity.js';
-import { Language } from '../../languages/entities/language.entity.js';
 import { Country } from '../entities/country.entity.js';
 
 interface CacheEntry {
@@ -20,7 +20,21 @@ const TTL_MS = 60_000;
 export class DictionaryValidator implements DictionaryValidatorPort {
   private readonly cache = new Map<string, CacheEntry>();
 
-  constructor(private readonly emFactory: () => EntityManager) {}
+  /**
+   * Feature 075, Phase C — `country` is this module's own table and stays an
+   * `em.findOne`; `currency` and `language` are not, and go through their
+   * owners' read ports. The reads used to be `em.findOne(Currency, …)` /
+   * `em.findOne(Language, …)` against tables deactivation does not drop, so a
+   * write validated against a switched-off `currencies` was accepted as valid.
+   * Fail-closed is the right answer for a validator: an unvalidated code
+   * written into an order or a tax rule is worse than a refused write, and both
+   * owners are binding `dependencies` of this manifest.
+   */
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly currencies: CurrencyReadPort,
+    private readonly languages: LanguageReadPort,
+  ) {}
 
   async validateCountryCode(code: string, mode: DictionaryWriteMode): Promise<void> {
     await this.validate('country', code.toUpperCase(), mode);
@@ -65,13 +79,12 @@ export class DictionaryValidator implements DictionaryValidatorPort {
     const cached = this.cache.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached;
 
-    const em = this.emFactory();
     const row =
       entryType === 'country'
-        ? await em.findOne(Country, { code: entryCode })
+        ? await this.emFactory().findOne(Country, { code: entryCode })
         : entryType === 'currency'
-          ? await em.findOne(Currency, { code: entryCode })
-          : await em.findOne(Language, { code: entryCode });
+          ? await this.currencies.findByCode(entryCode)
+          : await this.languages.findByCode(entryCode);
     const next: CacheEntry = {
       exists: Boolean(row),
       isActive: row?.isActive ?? false,

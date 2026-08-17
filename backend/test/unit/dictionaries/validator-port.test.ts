@@ -3,7 +3,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { DictionaryReferenceError } from '@b2b/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
-import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 
 describe('DictionaryValidator port', () => {
   let db: TestDb;
@@ -21,7 +22,7 @@ describe('DictionaryValidator port', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    validator = new DictionaryValidator(() => em);
+    validator = dictionaryValidatorFor(() => em);
   });
 
   afterEach(async () => {

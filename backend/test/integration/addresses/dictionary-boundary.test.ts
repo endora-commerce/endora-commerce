@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
-import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { AddressService } from '../../../src/modules/addresses/services/address-service.js';
@@ -25,7 +26,7 @@ describe('Addresses dictionary boundary', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    validator = new DictionaryValidator(() => em);
+    validator = dictionaryValidatorFor(() => em);
     service = new AddressService(() => em, validator);
     const org = em.create(Organization, {
       name: 'Dictionary Boundary Org',

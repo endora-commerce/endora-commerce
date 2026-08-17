@@ -4,7 +4,8 @@ import type { RegisterOrganizationRequest } from '@b2b/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
-import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
 import { RegistrationService } from '../../../src/modules/organizations/services/registration-service.js';
 
@@ -25,7 +26,7 @@ describe('Organizations dictionary boundary', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    validator = new DictionaryValidator(() => em);
+    validator = dictionaryValidatorFor(() => em);
     service = new RegistrationService(() => em, new EventBus(), validator);
   });
 
