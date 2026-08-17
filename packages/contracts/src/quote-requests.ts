@@ -354,3 +354,118 @@ export const storefrontQuoteRequestSettingsSchema = z.object({
   showAddToQuoteOnPdp: z.boolean(),
 });
 export type StorefrontQuoteRequestSettings = z.infer<typeof storefrontQuoteRequestSettingsSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `quote_requests` publishes to the six modules that
+// read it (feature 075, Phase P). Plain TypeScript, not Zod: these describe
+// in-process calls, not an API boundary.
+// ---------------------------------------------------------------------------
+
+/**
+ * The lifecycle statuses of a quote request.
+ *
+ * Published as a **union, not a port** (FR-013): `organizations`' sales-rep
+ * screen counts the three open ones by name, and switching a module off does
+ * not change what `'Pending'` is spelled. Unlike the order lifecycle these are
+ * fixed at compile time — a quote's status set is not admin-configurable.
+ *
+ * The capitalised, space-separated spellings are the persisted column values
+ * (research §R3); do not tidy them.
+ */
+export type QuoteRequestStatus =
+  | 'Created from admin'
+  | 'Pending'
+  | 'Canceled'
+  | 'Approved'
+  | 'Completed'
+  | 'Expired';
+
+/** The statuses that mean "this quote is still live". */
+export const OPEN_QUOTE_REQUEST_STATUSES: readonly QuoteRequestStatus[] = [
+  'Pending',
+  'Created from admin',
+  'Approved',
+];
+
+/**
+ * A quote request as it crosses a module boundary — a plain shape, never the
+ * ORM entity (FR-011). The full customer-facing projection is `RfqDto`
+ * (`QuoteRequest` above), which carries the items, the events and the revision
+ * comparison; this is the row, for the two modules that only need to count or
+ * cross-reference one.
+ */
+export interface QuoteRequestRecord {
+  id: string;
+  businessId: string;
+  organizationId: string;
+  customerAccountId: string;
+  createdByAdminUserId: string | null;
+  assignedAdminUserId: string | null;
+  status: QuoteRequestStatus;
+  headerNote: string | null;
+  cancellationReason: string | null;
+  awaitingCustomerRevisionAcceptance: boolean;
+  lastCustomerSeenRevisionNumber: number;
+  currentRevisionNumber: number;
+  submittedAt: Date | null;
+  approvedAt: Date | null;
+  canceledAt: Date | null;
+  completedAt: Date | null;
+  expiredAt: Date | null;
+  expiresAt: Date | null;
+  convertedOrderId: string | null;
+  customFieldValues: Record<string, unknown>;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Container name: `quoteRequestReadPort`. Owner: `quote_requests`.
+ *
+ * Two consumers, two questions. `carts` resolves the quote a cart was
+ * converted from, to show the buyer where the prices came from;
+ * `organizations` counts the open quotes per organisation on the sales-rep
+ * screen, which is where `OPEN_QUOTE_REQUEST_STATUSES` had been written out by
+ * hand.
+ */
+export interface QuoteRequestReadPort {
+  findById(id: string): Promise<QuoteRequestRecord | null>;
+  /**
+   * Open quotes for the given organisations. Empty `organizationIds` answers
+   * the empty array rather than every quote — a rep assigned nothing sees
+   * nothing, which is not the same question as "no filter".
+   */
+  listOpenForOrganizations(
+    organizationIds: readonly string[],
+  ): Promise<QuoteRequestRecord[]>;
+}
+
+/** Who is asking, on a customer-facing quote path. */
+export interface RfqCustomerContext {
+  customerAccountId: string;
+  organizationId: string;
+  /**
+   * True when the account holds the org-admin role on the current
+   * organisation (FR-011 — broader visibility).
+   */
+  isOrgAdmin: boolean;
+}
+
+/**
+ * Container name: `rfqService`. Owner: `quote_requests`.
+ *
+ * The customer-facing quote surface five modules reach: `carts` converting a
+ * cart, `orders` cloning an order to a quote, `shopping_lists` and
+ * `quick_order` quoting a built list, `customers` listing a buyer's quotes.
+ *
+ * Both methods already answer with contract DTOs, so this port needed no
+ * adapter — only a published name for the shape the five were importing the
+ * class to get.
+ */
+export interface RfqCustomerPort {
+  createForCustomer(ctx: RfqCustomerContext, input: CreateQuoteRequest): Promise<QuoteRequest>;
+  listForCustomer(ctx: RfqCustomerContext): Promise<QuoteRequestSummary[]>;
+}

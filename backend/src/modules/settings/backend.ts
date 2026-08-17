@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { SettingsAdminPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -124,7 +125,13 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
-  ctx.di.providePort(
+  // The type parameter is feature 075 Phase P's compile-time proof that this
+  // service still satisfies `SettingsAdminPort` — the write surface six
+  // modules reach, each hosting an admin screen over settings it owns. The
+  // read side is not published here on purpose: `settingsReadPort` is a kernel
+  // port, because every module reads its own settings and the kernel applies
+  // the channel-scope rules.
+  ctx.di.providePort<SettingsAdminPort>(
     'settingsAdminService',
     ctx
       .asFunction(

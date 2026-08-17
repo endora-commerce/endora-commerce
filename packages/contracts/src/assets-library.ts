@@ -233,3 +233,177 @@ export const assetEmbedResolutionSchema = z.object({
   visibility: assetVisibilitySchema,
 });
 export type AssetEmbedResolution = z.infer<typeof assetEmbedResolutionSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `assets_library` publishes to the six modules that
+// read it (feature 075, Phase P). Plain TypeScript, not Zod: these describe
+// in-process calls, not an API boundary.
+// ---------------------------------------------------------------------------
+
+/**
+ * An asset row as it crosses a module boundary — a plain shape, never the ORM
+ * entity (FR-011). Distinct from `AssetSummary` / `AssetDetail` above, which
+ * are the HTTP projections: those carry ISO strings and a resolved URL, this
+ * carries the columns a module reads when it embeds or attaches one.
+ */
+/**
+ * What the library stores, as the column records it.
+ *
+ * Deliberately **not** `catalog`'s `AssetKind`, which the two attach surfaces
+ * narrow to: this one carries `other`, and a record typed with the narrower
+ * union would make every row the library holds unrepresentable in the shape
+ * that reads it.
+ */
+export type AssetStoredKind = 'image' | 'video' | 'pdf' | 'certificate' | 'other';
+
+export interface AssetRecord {
+  id: string;
+  kind: AssetStoredKind;
+  filename: string;
+  mimeType: string;
+  /** Byte count as a decimal string — the column is `bigint`. */
+  sizeBytes: string;
+  storageUrl: string;
+  altText: Record<string, string> | null;
+  folderId: string | null;
+  visibility: AssetVisibility;
+  label: string | null;
+  storageBackend: 'local' | 's3' | 'gcs' | 'legacy';
+  storageLocator: string;
+  pendingCleanup: boolean;
+  purgeAfterAt: Date | null;
+  mimeTypeOverridden: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+/**
+ * Container name: `assetReadPort`. Owner: `assets_library`.
+ *
+ * Five inbound sites read the `Asset` entity to validate that an id an admin
+ * supplied exists and is the right kind before attaching it — `catalog`'s
+ * gallery, attachments and product links, and `orders`' invoice branding.
+ *
+ * When `assets_library` is off the read fails closed, which is right: an
+ * attach that cannot verify the asset would store a dangling id.
+ */
+export interface AssetReadPort {
+  findById(id: string, options?: { liveOnly?: boolean }): Promise<AssetRecord | null>;
+  findByIds(
+    ids: readonly string[],
+    options?: { liveOnly?: boolean },
+  ): Promise<AssetRecord[]>;
+}
+
+/**
+ * One contributed "who points at this asset" scanner.
+ *
+ * `ownerModuleId` is required and is the whole mechanism (D-39): without it the
+ * registry could not state a policy for an absent owner at all — not "honour",
+ * not "skip", only "nobody looked".
+ */
+export interface AssetReferenceDescriptor {
+  ownerModuleId: string;
+  /**
+   * Given a list of asset ids, return every reference that points at any of
+   * them. MUST issue a single batched query, one per descriptor regardless of
+   * batch size.
+   */
+  findReferences(assetIds: string[]): Promise<AssetReference[]>;
+}
+
+/**
+ * Container name: `assetReferenceRegistry`. Owner: `assets_library`.
+ *
+ * A **contribution seam**: `catalog` (four descriptors), `cms`, `blog` and
+ * `megamenu` register from their boot hooks, and the library consults the
+ * table before every soft-delete (feature 013 FR-030).
+ *
+ * **Enumeration policy: honoured while the contributing module is absent**,
+ * and that is the deviation from D-39's default, with the reason D-39 requires.
+ * This registry is referential integrity, not a surface. If `blog` is switched
+ * off its posts still exist and still embed assets; skipping `blog`'s scanner
+ * would let an operator delete an asset that comes back as a broken image the
+ * moment `blog` is switched on again — data loss caused by an action
+ * Constitution XVII promises is non-destructive and reversible.
+ *
+ * `skip` is right for surface-like contributions, where a switched-off module
+ * must contribute nothing a user can see. Nobody sees these; they exist to
+ * refuse a delete. Publishing the shape must not change that classification.
+ */
+export interface AssetReferenceRegistryPort {
+  register(descriptor: AssetReferenceDescriptor): void;
+  /** The contributing module of every registered descriptor, in registration order. */
+  owners(): readonly string[];
+  /** Every reference pointing at **one** asset, across all descriptors. */
+  findReferences(assetId: string): Promise<AssetReference[]>;
+  /**
+   * The same question for many assets at once, keyed by asset id. Every id
+   * asked for is present in the result, with an empty list when nothing points
+   * at it — a caller deleting in bulk needs to tell "no references" from "not
+   * asked about".
+   */
+  findReferencesMany(assetIds: string[]): Promise<Map<string, AssetReference[]>>;
+}
+
+export interface AssetPatchInput {
+  filename?: string;
+  label?: string | null;
+  mimeType?: string;
+  visibility?: AssetVisibility;
+  folderId?: string | null;
+  /**
+   * Per-language alternate text. Feature 068 needs it, because an imported
+   * image must keep the alternate text the source supplied, per language
+   * (FR-047). Deliberately absent from the HTTP patch schema — this is a
+   * module-caller field.
+   */
+  altText?: Record<string, string> | null;
+}
+
+/**
+ * The byte source an upload streams from, described structurally.
+ *
+ * Deliberately **not** `NodeJS.ReadableStream`: this package is imported by
+ * the admin SPA and the storefront as well as the backend, and naming the
+ * `NodeJS` namespace here fails `@b2b/api-client`'s compile. A Node
+ * `Readable` satisfies this shape — `Buffer` extends `Uint8Array` — so the one
+ * caller passes its multipart part through unchanged.
+ */
+export interface AssetUploadStream {
+  [Symbol.asyncIterator](): AsyncIterableIterator<string | Uint8Array>;
+}
+
+export interface AssetUploadInput {
+  /** Original filename from the multipart part. Used for extension + display. */
+  filename: string;
+  /** MIME from the multipart Content-Type header (may be wrong; sniffed on ingest). */
+  declaredMime: string;
+  /** Streaming source — must be consumed exactly once. */
+  stream: AssetUploadStream;
+  /** Best-effort byte count from headers; `0` when unknown. */
+  declaredSize: number;
+  /** Folder id chosen by the caller, or null for "Unsorted". */
+  folderId: string | null;
+  /** Optional storefront-visible label. */
+  label: string | null;
+  visibility: AssetVisibility;
+}
+
+/**
+ * Container name: `assetsLibraryPort`. Owner: `assets_library`.
+ *
+ * `pim_ergonode` ingests media during an import run: it uploads the file the
+ * source supplied, patches the alternate text onto it, and soft-deletes the
+ * asset an item stopped pointing at. Four methods, which is the whole of the
+ * demand — the module's own admin surface is much larger and stays unpublished.
+ */
+export interface AssetsLibraryPort {
+  upload(input: AssetUploadInput): Promise<AssetDetail>;
+  getAsset(assetId: string): Promise<AssetDetail>;
+  patchAsset(assetId: string, patch: AssetPatchInput): Promise<AssetDetail>;
+  softDelete(assetId: string): Promise<{ deletedAt: Date; purgeAfterAt: Date }>;
+}

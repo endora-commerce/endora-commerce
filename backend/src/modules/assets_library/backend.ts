@@ -1,8 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { AssetReadPort, AssetsLibraryPort } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { assetsLibraryModule } from './plugin.js';
+import { AssetReadService } from './services/asset-read-port.js';
 
 /**
  * `assets_library` — the module whose permission gate defaulted to open
@@ -79,6 +81,34 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(({ assetsLibrary }: AssetsLibraryCradle) => assetsLibrary.handle.referenceRegistry)
       .singleton(),
   });
+
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // `assetReadPort` replaces the five `em.findOne(Asset, …)` calls `catalog`
+  // and `orders` make to validate an id an admin supplied before attaching it.
+  //
+  // `assetsLibraryPort` is the narrow face of the library service that
+  // `pim_ergonode` uses during an import — upload, read, patch the alternate
+  // text, soft-delete what an item stopped pointing at. It is registered here,
+  // by the module, where the existing `assetsLibraryService` name is still
+  // contributed by a composition root; the root's entry stays until Phase C
+  // retires it, and the two resolve the same instance.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<AssetReadPort>(
+    'assetReadPort',
+    ctx
+      .asFunction(({ emFactory }: AssetsLibraryCradle) => new AssetReadService(emFactory))
+      .singleton(),
+  );
+
+  ctx.di.providePort<AssetsLibraryPort>(
+    'assetsLibraryPort',
+    ctx
+      .asFunction(({ assetsLibrary }: AssetsLibraryCradle) => assetsLibrary.handle.service)
+      .singleton(),
+  );
 
   ctx.routes(async (app) => {
     await ctx.cradle<AssetsLibraryCradle>().assetsLibrary.plugin(app);

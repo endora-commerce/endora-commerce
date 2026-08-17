@@ -1,4 +1,8 @@
-import { orderStatusSchema, type OrderStatusOption } from '@b2b/contracts';
+import {
+  orderStatusSchema,
+  type OrderStatusOption,
+  type OrderStatusRegistry,
+} from '@b2b/contracts';
 
 /**
  * OrderStatusRegistry port (feature 035 — research.md R3).
@@ -13,15 +17,14 @@ import { orderStatusSchema, type OrderStatusOption } from '@b2b/contracts';
  * Deliberately a small, isolated duplicate of the payment_methods port rather
  * than a deep import across modules (constitution Principle I). The port does
  * NOT touch the Order entity — applying a status is the caller's job.
+ *
+ * The interface moved to `@b2b/contracts` in feature 075's Phase P. It was
+ * declared twice — once here and once in `payment_methods`, in the same words
+ * — because both modules map an outcome onto an order status; one declaration
+ * is what stops the two drifting. Re-exported here for the length of Phase P,
+ * which cuts no consumer.
  */
-export interface OrderStatusRegistry {
-  /** The selectable Order-status options (code + human label). */
-  list(): OrderStatusOption[];
-  /** True when `code` is a known Order status. */
-  has(code: string): boolean;
-  /** Throws when `code` is not a known Order status. */
-  assertValid(code: string): void;
-}
+export type { OrderStatusRegistry };
 
 export class OrderStatusRegistryError extends Error {
   constructor(public readonly code: string) {

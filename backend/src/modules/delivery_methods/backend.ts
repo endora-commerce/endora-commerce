@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { DeliveryMethodReadPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -11,6 +12,7 @@ import {
 } from './routes.js';
 import { EnumOrderStatusRegistry } from './services/order-status-registry.port.js';
 import { shippingAdapterRegistry } from './services/registry-singleton.js';
+import { DeliveryMethodReadService } from './services/delivery-method-read-port.js';
 import { ShippingMethodEligibilityService } from './services/shipping-method-eligibility.js';
 
 /**
@@ -68,6 +70,26 @@ export function registerModule(ctx: ModuleContext): void {
     shippingOrderStatusRegistry: ctx.asFunction(() => new EnumOrderStatusRegistry()).singleton(),
 
   });
+
+  /**
+   * Feature 075, Phase P — the row-level read model.
+   *
+   * A **port**, unlike the registry registrations above. The distinction is
+   * the deactivation-consequence one: `shippingAdapterRegistry` is a
+   * contribution seam whose absent-owner policy lives inside it and whose
+   * edges classify as `contributes`, so a gate over the registration would
+   * withdraw the table rather than one contributor's entry. A read of this
+   * module's own table is nothing of the kind — with `delivery_methods` off, a
+   * caller asking which methods exist should be told the module is off.
+   */
+  ctx.di.providePort<DeliveryMethodReadPort>(
+    'deliveryMethodReadPort',
+    ctx
+      .asFunction(
+        ({ emFactory }: DeliveryMethodsCradle) => new DeliveryMethodReadService(emFactory),
+      )
+      .singleton(),
+  );
 
   ctx.routes(async (app) => {
     const {

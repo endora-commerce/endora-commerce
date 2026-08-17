@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { ERROR_CODES } from '@b2b/contracts';
+import type { CartQueryPort, CartReadPort, CartWritePort } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -10,6 +11,8 @@ import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { abandonmentSettingsReaders } from './services/cart-abandonment-settings.js';
+import { CartQueryService } from './services/cart-query-service.js';
+import { CartReadService, createCartWritePort } from './services/cart-read-port.js';
 import { CartService } from './services/cart-service.js';
 import { CartUpsellService } from './services/cart-upsell-service.js';
 import { CartCouponService } from './services/cart-coupon-service.js';
@@ -197,6 +200,37 @@ export function registerModule(ctx: ModuleContext): void {
           ),
       )
       .singleton(),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // `cartService` above hands out the class, and five modules type themselves
+  // against it. These three are what they rewire to: none carries a `Cart` or
+  // a `CartItem` across the boundary, and `cartWritePort` adds the one
+  // operation two of them were writing by hand — clear the customer's active
+  // cart and seed it with these lines, which `orders`' reorder and
+  // `quote_requests`' quote conversion each spelled out with `em.create(Cart,
+  // …)` against this module's tables.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<CartReadPort>(
+    'cartReadPort',
+    ctx.asFunction(({ emFactory }: CartsCradle) => new CartReadService(emFactory)).singleton(),
+  );
+
+  ctx.di.providePort<CartWritePort>(
+    'cartWritePort',
+    ctx
+      .asFunction(({ emFactory }: CartsCradle) =>
+        createCartWritePort(emFactory, () => ctx.cradle<CartsCradle>().cartService),
+      )
+      .singleton(),
+  );
+
+  ctx.di.providePort<CartQueryPort>(
+    'cartQueryPort',
+    ctx.asFunction(({ emFactory }: CartsCradle) => new CartQueryService(emFactory)).singleton(),
   );
 
   ctx.routes(async (app) => {

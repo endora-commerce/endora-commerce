@@ -56,6 +56,15 @@ export function registerSystemRoleCode(code: string): void {
   SYSTEM_ROLE_CODES.add(code);
 }
 
+/**
+ * The protected codes, in registration order. Published through
+ * `SystemRoleCodePort` (feature 075, Phase P) so a contributor can read back
+ * what the platform is protecting without reaching into this file.
+ */
+export function listSystemRoleCodes(): readonly string[] {
+  return [...SYSTEM_ROLE_CODES];
+}
+
 /** Test helper — clears the protected-codes registry between suites. */
 export function _resetSystemRoleCodesForTests(): void {
   SYSTEM_ROLE_CODES.clear();
