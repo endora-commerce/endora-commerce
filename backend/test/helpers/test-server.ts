@@ -879,13 +879,6 @@ export async function setupBackendServer(
   let orderServiceForOneClick: import('../../src/modules/orders/services/order-service.js').OrderService | null = null;
   // Feature 040 — late-bound OrderListService for the customers module.
   let orderListServiceForCustomers: import('../../src/modules/orders/services/order-list-service.js').OrderListService | null = null;
-  // Feature 007 — late-bound comparisons adoption hook. Bound once the
-  // comparisons module is constructed below; mirrors composition.ts so the
-  // customer login flow adopts an anonymous comparison carried by cookie.
-  let comparisonAdoption:
-    | ((customerAccountId: string, anonymousToken: string) => Promise<void>)
-    | null = null;
-
   // Feature 026 US4 / 056 — which organizations a sales-rep admin may see.
   // T143a — `organizations`' port, read lazily, where this harness used to
   // build its own `SalesRepAssignmentService` **without** the subtree deps
@@ -1858,10 +1851,6 @@ export async function setupBackendServer(
   // in subsequent stories.
   // Feature 072 (T111) — `comparisons` owns its services and routes now.
   const comparisonsCradle = container.cradle as unknown as ComparisonsCradle;
-  // Late-bind the comparisons adoption hook used by the login flow above.
-  comparisonAdoption = comparisonsCradle.comparisonService.adoptAnonymousComparison.bind(
-    comparisonsCradle.comparisonService,
-  );
 
   // Feature 008 — Quote Requests workflow.
   // Feature 072 (T132) — `quote_requests` owns its services, routes and the
@@ -1945,9 +1934,20 @@ export async function setupBackendServer(
         result = { cartMerge };
       }
       // Feature 007 — adopt an anonymous comparison carried by the
-      // compare_token cookie. Mirrors composition.ts.
-      if (comparisonAdoption && loginCtx.anonymousCompareToken) {
-        await comparisonAdoption(loginCtx.customerAccountId, loginCtx.anonymousCompareToken);
+      // compare_token cookie. Mirrors composition.ts, D-70 included: the
+      // presence question is decided here, and the port is resolved **per
+      // login** rather than bound once at composition time. The old shape
+      // captured `adoptAnonymousComparison` off the cradle while every module
+      // was still on, so the gate this harness composed answered `yes` for the
+      // rest of the process — the one thing an off-state test of this seam has
+      // to be able to see.
+      if (loginCtx.anonymousCompareToken && effectiveState.isPresent('comparisons')) {
+        await (
+          container.cradle as unknown as ComparisonsCradle
+        ).comparisonService.adoptAnonymousComparison(
+          loginCtx.customerAccountId,
+          loginCtx.anonymousCompareToken,
+        );
       }
       return result;
     },

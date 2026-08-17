@@ -769,6 +769,20 @@ describe('providedPortNames — the gated subset', () => {
   });
 });
 
+/**
+ * The three D-73 inputs, empty — for the cases that are about the sibling half
+ * (`HOST_REGISTERED_PORTS`) and say nothing about the platform list.
+ *
+ * They are **required** fields rather than optional ones, so a caller cannot
+ * add a `findRootIssues` site that silently skips the platform sweep; opting
+ * out is written down, which is what this constant is.
+ */
+const noPlatformSweep = {
+  platformNames: new Set<string>(),
+  kernelNames: new Set<string>(),
+  moduleOwnedNames: new Map<string, string>(),
+};
+
 describe('findRootIssues', () => {
   const roots = (production: string[], harness: string[]): Map<string, ReadonlySet<string>> =>
     new Map([
@@ -781,6 +795,7 @@ describe('findRootIssues', () => {
       moduleRegistered: new Map([['apiKeyResolver', 'api_keys']]),
       rootNames: roots(['apiKeyResolver'], ['apiKeyResolver']),
       hostRegistered: {},
+        ...noPlatformSweep,
         resolvedNames: new Set<string>(),
     });
     expect(issues).toHaveLength(1);
@@ -800,6 +815,7 @@ describe('findRootIssues', () => {
         moduleRegistered: new Map(),
         rootNames: roots(['ksefVerificationResolver'], []),
         hostRegistered: {},
+        ...noPlatformSweep,
         resolvedNames: new Set<string>(),
       }),
     ).toEqual([]);
@@ -810,6 +826,7 @@ describe('findRootIssues', () => {
       moduleRegistered: new Map(),
       rootNames: roots([], ['settingsAdminService']),
       hostRegistered: { settingsAdminService: 'settings' },
+      ...noPlatformSweep,
       resolvedNames: new Set(['settingsAdminService']),
     });
     expect(issues).toHaveLength(1);
@@ -827,6 +844,7 @@ describe('findRootIssues', () => {
         moduleRegistered: new Map(),
         rootNames: roots(['requireCustomer'], ['requireCustomer']),
         hostRegistered: { requireCustomer: 'auth' },
+        ...noPlatformSweep,
         resolvedNames: new Set<string>(),
       }),
     ).toEqual([]);
@@ -841,6 +859,7 @@ describe('findRootIssues', () => {
         rootNames: roots([], []),
         hostRegistered: { somePort: 'somewhere' },
         // Nothing resolves it, so the entry is stale rather than broken.
+        ...noPlatformSweep,
         resolvedNames: new Set<string>(),
       }),
     ).toEqual([]);
@@ -859,6 +878,7 @@ describe('findRootIssues — a table entry no root supplies', () => {
         ['harness', new Set<string>()],
       ]),
       hostRegistered: { organizationTreeService: 'organizations' },
+      ...noPlatformSweep,
       resolvedNames: new Set(['organizationTreeService']),
     });
     expect(issues).toHaveLength(1);
@@ -878,7 +898,150 @@ describe('findRootIssues — a table entry no root supplies', () => {
           ['harness', new Set<string>()],
         ]),
         hostRegistered: { organizationTreeService: 'organizations' },
+        ...noPlatformSweep,
         resolvedNames: new Set<string>(),
+      }),
+    ).toEqual([]);
+  });
+});
+
+/**
+ * `findRootIssues` over `PLATFORM_OWNED_NAMES` — issue #49, D-73.
+ *
+ * Being on that list grants two exemptions: the dependency-declaration skip in
+ * `findViolations`, and exclusion from feature 074's deactivation-consequence
+ * ledger — the artefact the operator's confirmation dialog renders. Nothing
+ * verified either, and the assertion has already been wrong in production:
+ * `salesChannelResolutionPort` was resolved by `inventory` and registered by
+ * neither root, so the channel-scoped storefront stock read threw
+ * `AwilixResolutionError` on its first call, in production only, with typecheck,
+ * lint and this check green.
+ *
+ * The detail every case below turns on is that a composition has **three**
+ * supply sources, not two. The last two cases are the ones that keep this sweep
+ * alive: a derivation that does not read `src/kernel/**` reds `orm`, `em` and
+ * `emFactory` on its first run and is deleted the same day.
+ */
+describe('findRootIssues — PLATFORM_OWNED_NAMES', () => {
+  const bothRoots = (production: string[], harness: string[]): Map<string, ReadonlySet<string>> =>
+    new Map([
+      ['production', new Set(production)],
+      ['harness', new Set(harness)],
+    ]);
+
+  const sweep = (input: {
+    roots: Map<string, ReadonlySet<string>>;
+    kernel?: string[];
+    moduleOwned?: [string, string][];
+    resolved?: string[];
+  }) =>
+    findRootIssues({
+      moduleRegistered: new Map(),
+      rootNames: input.roots,
+      hostRegistered: {},
+      resolvedNames: new Set(input.resolved ?? []),
+      platformNames: new Set(['salesChannelResolutionPort']),
+      kernelNames: new Set(input.kernel ?? []),
+      moduleOwnedNames: new Map(input.moduleOwned ?? []),
+    });
+
+  it('flags a platform name nothing registers that a module resolves', () => {
+    const issues = sweep({
+      roots: bothRoots([], []),
+      resolved: ['salesChannelResolutionPort'],
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      kind: 'platform-name-unsupplied',
+      name: 'salesChannelResolutionPort',
+      owner: null,
+    });
+  });
+
+  it('flags a platform name only one root registers', () => {
+    const issues = sweep({
+      roots: bothRoots([], ['salesChannelResolutionPort']),
+      resolved: ['salesChannelResolutionPort'],
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      kind: 'platform-name-divergence',
+      name: 'salesChannelResolutionPort',
+      roots: ['harness'],
+    });
+  });
+
+  it('flags a platform name a module registers as its own', () => {
+    // Both roots register it and something resolves it, so neither of the two
+    // findings above applies — only the ownership scan can see this one. It is
+    // the shape `priceListsPricingCacheTtlMs` was in.
+    const issues = sweep({
+      roots: bothRoots(['salesChannelResolutionPort'], ['salesChannelResolutionPort']),
+      moduleOwned: [['salesChannelResolutionPort', 'sales_channels']],
+      resolved: ['salesChannelResolutionPort'],
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      kind: 'platform-name-owned-by-module',
+      name: 'salesChannelResolutionPort',
+      owner: 'sales_channels',
+    });
+  });
+
+  it('flags a platform name nothing registers and nothing resolves as stale', () => {
+    const issues = sweep({ roots: bothRoots([], []) });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      kind: 'platform-name-stale',
+      name: 'salesChannelResolutionPort',
+    });
+  });
+
+  it('reports exactly one finding per name, ownership first', () => {
+    // A module-owned name registered by one root only would satisfy the
+    // divergence test too. Reporting both would send the reader after the
+    // registrations when the fix is to take the name off the list.
+    const issues = sweep({
+      roots: bothRoots([], ['salesChannelResolutionPort']),
+      moduleOwned: [['salesChannelResolutionPort', 'sales_channels']],
+      resolved: ['salesChannelResolutionPort'],
+    });
+    expect(issues.map((issue) => issue.kind)).toEqual(['platform-name-owned-by-module']);
+  });
+
+  it('counts a kernel registration as supply for every composition', () => {
+    // F47, and the reason this whole sweep is not a false-red generator:
+    // `orm`, `em` and `emFactory` come from `registerOrm` in
+    // `kernel/container.ts`, so no root registers them and both compositions
+    // have them.
+    expect(
+      sweep({
+        roots: bothRoots([], []),
+        kernel: ['salesChannelResolutionPort'],
+        resolved: ['salesChannelResolutionPort'],
+      }),
+    ).toEqual([]);
+  });
+
+  it('counts a kernel registration as supply for the composition the other root lacks', () => {
+    // The same fact on the divergence arm, which is where a two-source
+    // derivation goes wrong more quietly: one root registers it, the kernel
+    // covers the other, and that is not a divergence.
+    expect(
+      sweep({
+        roots: bothRoots(['salesChannelResolutionPort'], []),
+        kernel: ['salesChannelResolutionPort'],
+        resolved: ['salesChannelResolutionPort'],
+      }),
+    ).toEqual([]);
+  });
+
+  it('says nothing about a name both roots register and nobody resolves yet', () => {
+    // A root preparing a seam, which is not a defect — the reason `stale`
+    // requires *both* halves.
+    expect(
+      sweep({
+        roots: bothRoots(['salesChannelResolutionPort'], ['salesChannelResolutionPort']),
       }),
     ).toEqual([]);
   });

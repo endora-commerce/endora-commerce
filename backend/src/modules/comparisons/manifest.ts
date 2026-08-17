@@ -33,7 +33,7 @@ const settings = defineModuleSettingsManifest({
       code: 'comparisons.enabled',
       name: 'Product comparison enabled',
       description:
-        'Switches the product-comparison feature on or off: the storefront compare list, the shareable comparison links and the admin screens. Nothing is dropped — saved comparisons stay in the database and their share links work again when you switch it back on.',
+        'Switches the product-comparison feature on or off: the storefront compare list, the shareable comparison links and the admin screens. Nothing is dropped — saved comparisons stay in the database and their share links work again when you switch it back on. While it is off, a comparison list an anonymous visitor built is no longer adopted when they sign in, and expires with its own cookie.',
       groupCode: 'compare',
       valueType: 'boolean',
       defaultValue: true,

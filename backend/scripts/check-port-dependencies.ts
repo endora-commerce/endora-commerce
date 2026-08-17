@@ -71,6 +71,27 @@ const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src')
  * registrations and the process-level infrastructure a composition root
  * creates. Resolving one needs no dependency declaration — the kernel is the
  * part every deployment has, and there is no manifest it could be declared in.
+ *
+ * **The list is hand-written, and every consequence of being on it is derived**
+ * (issue #49, D-73). The list has to be hand-written: "the platform owns this
+ * name" is a statement about the deployment and nothing in the tree can infer
+ * it. What must not be hand-written is the belief that each entry is true —
+ * being here grants two exemptions, the dependency-declaration skip in
+ * `findViolations` and exclusion from feature 074's deactivation-consequence
+ * ledger in `main`, and until D-73 nothing verified either. That cost a
+ * production defect: `salesChannelResolutionPort` was resolved by `inventory`
+ * and registered by neither root, so the channel-scoped storefront stock read
+ * threw `AwilixResolutionError` on its first call, in production only, while
+ * typecheck, lint and this check all read green (`composition.ts` says so in
+ * its own comment).
+ *
+ * `findRootIssues` now sweeps this set for four findings — unsupplied,
+ * divergence, owned-by-a-module and stale — over the same three supply sources
+ * every composition really has: the two roots and `src/kernel/**`. Two entries
+ * went on its first run: `organizationsSettingsChannelId`, whose name D-41 had
+ * deleted, and `priceListsPricingCacheTtlMs`, which `price_lists` registers
+ * itself and which was therefore a module-owned name laundering a cross-module
+ * edge past both exemptions.
  */
 export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   'orm',
@@ -127,12 +148,20 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // the storefront cache, the harness refreshes through the cache seam because
   // it never populates `module_registrations`.
   'lifecycleActivationPropagation',
-  // Three properties of a composition rather than of the pricing module: does
-  // this process run a wall-clock status sweeper, how long may a resolved price
-  // be cached, and how does this deployment name a non-admin caller on an audit
-  // record (T127).
+  // Two properties of a composition rather than of the pricing module: does
+  // this process run a wall-clock status sweeper, and how does this deployment
+  // name a non-admin caller on an audit record (T127).
+  //
+  // `priceListsPricingCacheTtlMs` was a third and is gone (D-73, the
+  // `platform-name-owned-by-module` finding): `price_lists` registers the name
+  // itself with its own default, production deliberately contributes nothing
+  // and only the harness overrides it. That makes it an ordinary
+  // contribution-point default, and leaving it here would have let a consumer
+  // in another module resolve it with no dependency declared and no row in the
+  // deactivation-consequence ledger. Nothing outside `price_lists` resolves it
+  // today, which is why the correction is a deletion here rather than a move of
+  // the registration.
   'priceListsEnableStatusSweeper',
-  'priceListsPricingCacheTtlMs',
   'priceListsAdminAuditContext',
   // Whether this process runs the Ergonode import and reaper consumers
   // (Principle X). A deployment decision, read at construction because it
@@ -163,12 +192,18 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // `organizations` (T138) and `customers` (T140) both send such links, and two
   // names for `STOREFRONT_BASE_URL` would be two things to keep in step.
   'storefrontBaseUrl',
-  // `organizations`' other two root-supplied inputs (T138). The settings
-  // channel is an env knob; the verification-token probe is a harness fact, and
-  // a route that hands back the last token must not exist in production.
-  // Neither is something the module could default.
+  // `organizations`' remaining root-supplied input (T138): the
+  // verification-token probe is a harness fact, and a route that hands back the
+  // last token must not exist in production. Not something the module could
+  // default.
+  //
+  // `organizationsSettingsChannelId` was the second and is gone (D-73, the
+  // `platform-name-stale` finding). D-41 deleted the name — `organizations`
+  // reads its settings through the kernel's channel resolver now, and
+  // `organizations/backend.ts` says why in its own comment: "a DI name that
+  // carries a sentinel is one no static check can see". The exemption outlived
+  // the name by two features, pre-clearing whatever landed on that string next.
   'organizationsExposeTestProbe',
-  'organizationsSettingsChannelId',
 ]);
 
 /**
@@ -1605,7 +1640,19 @@ export function rootRegisteredNames(source: string, file: string): string[] {
 }
 
 export interface RootRegistrationIssue {
-  readonly kind: 'root-shadows-module-port' | 'root-divergence' | 'root-supplies-nothing';
+  readonly kind:
+    | 'root-shadows-module-port'
+    | 'root-divergence'
+    | 'root-supplies-nothing'
+    // The four `PLATFORM_OWNED_NAMES` findings (issue #49, D-73). Named apart
+    // from the three above even where the failure rhymes, because the fix
+    // differs: a `HOST_REGISTERED_PORTS` entry names a module that *will* own
+    // the name and is deleted the day it does, while a platform name has no
+    // future owner and the answer is usually to take it off the list.
+    | 'platform-name-unsupplied'
+    | 'platform-name-divergence'
+    | 'platform-name-owned-by-module'
+    | 'platform-name-stale';
   readonly name: string;
   /** Roots involved: the shadowing ones, or the ones that *do* register it. */
   readonly roots: readonly string[];
@@ -1620,6 +1667,30 @@ export interface RootCheckInput {
   readonly hostRegistered: Readonly<Record<string, string>>;
   /** Names some module actually resolves. A table entry nothing reads is dead weight, not a bug. */
   readonly resolvedNames: ReadonlySet<string>;
+  /** The hand-written platform list, swept for the four D-73 findings. */
+  readonly platformNames: ReadonlySet<string>;
+  /**
+   * Names registered by `src/kernel/**` — the **third** supply source, and the
+   * detail without which this sweep is worse than useless.
+   *
+   * `orm`, `em` and `emFactory` arrive from `registerOrm`
+   * (`kernel/container.ts`), not from either composition root, so a derivation
+   * that only knows about the two roots reds three correct entries on its first
+   * run and gets deleted the same day (F47). A kernel registration counts as
+   * supply for **every** composition, because the kernel is the part every
+   * deployment has — which is the same fact that put these names on the
+   * platform list in the first place.
+   */
+  readonly kernelNames: ReadonlySet<string>;
+  /**
+   * Name → module id, for every name a module's `backend.ts` registers **or**
+   * provides — wider than `moduleRegistered`, which is ports only.
+   *
+   * A contribution-point default (`ctx.di.register`) is enough to make a name
+   * module-owned: `priceListsPricingCacheTtlMs` was exactly that, sitting on
+   * the platform list and clearing both exemptions for it.
+   */
+  readonly moduleOwnedNames: ReadonlyMap<string, string>;
 }
 
 /**
@@ -1645,6 +1716,34 @@ export interface RootCheckInput {
  * take that on trust. `settingsAdminService` was registered by the harness and
  * by no production composition for four modules that resolve it, so four admin
  * write paths threw in production while every test passed.
+ *
+ * ---
+ *
+ * And **four more over `PLATFORM_OWNED_NAMES`** (issue #49, D-73), in the same
+ * function rather than a parallel one, because they are the same three sweeps
+ * plus one and the shared half is the supply computation. Being on that list
+ * grants two exemptions — the dependency-declaration skip in `findViolations`
+ * and exclusion from the deactivation-consequence ledger — and until D-73
+ * nothing verified either, which is a green that means "not looking" over the
+ * one table in this file where the result was green by construction:
+ *
+ *  - **`platform-name-unsupplied`** — a module resolves it and nothing
+ *    registers it: not a root, not the kernel. This is the
+ *    `salesChannelResolutionPort` defect and is the reason for the ruling.
+ *  - **`platform-name-divergence`** — exactly one root registers it and the
+ *    kernel does not. The #48 failure over a different table: one composition
+ *    works and the other throws. Declarable through `ROOT_DIVERGENCE_ALLOWED`.
+ *  - **`platform-name-owned-by-module`** — a module's `backend.ts` registers or
+ *    provides it, so it is not platform-owned and the exemption is laundering a
+ *    cross-module edge past a dependency declaration *and* an operator's
+ *    confirmation dialog.
+ *  - **`platform-name-stale`** — nothing registers it anywhere **and** no
+ *    module resolves it. Deliberately both halves: a name a root registers
+ *    before anything reads it is a root preparing a seam, not a defect.
+ *
+ * Three of the four are absolute and the fourth reuses the exemption table the
+ * sibling half already has. No number, no per-entry allow-list, no ratchet: the
+ * list may only shrink by being *true*.
  */
 export function findRootIssues(input: RootCheckInput): RootRegistrationIssue[] {
   const issues: RootRegistrationIssue[] = [];
@@ -1676,6 +1775,44 @@ export function findRootIssues(input: RootCheckInput): RootRegistrationIssue[] {
     }
   }
 
+  for (const name of input.platformNames) {
+    const supplying = [...input.rootNames]
+      .filter(([, names]) => names.has(name))
+      .map(([label]) => label);
+
+    // Ownership first, and it returns rather than falls through: a
+    // module-owned name is wrong on this list whatever the roots do with it,
+    // and reporting it a second time as a divergence would send the reader
+    // after the registrations instead of after the list entry.
+    const moduleOwner = input.moduleOwnedNames.get(name);
+    if (moduleOwner !== undefined) {
+      issues.push({
+        kind: 'platform-name-owned-by-module',
+        name,
+        roots: supplying,
+        owner: moduleOwner,
+      });
+      continue;
+    }
+
+    // The kernel supplies every composition at once, so it settles both the
+    // unsupplied and the divergence question in one answer.
+    if (input.kernelNames.has(name)) continue;
+
+    if (supplying.length === 0) {
+      issues.push({
+        kind: input.resolvedNames.has(name) ? 'platform-name-unsupplied' : 'platform-name-stale',
+        name,
+        roots: [],
+        owner: null,
+      });
+      continue;
+    }
+    if (supplying.length < input.rootNames.size && ROOT_DIVERGENCE_ALLOWED[name] === undefined) {
+      issues.push({ kind: 'platform-name-divergence', name, roots: supplying, owner: null });
+    }
+  }
+
   return issues;
 }
 
@@ -1696,6 +1833,46 @@ export function describeRootIssue(issue: RootRegistrationIssue): string {
       `    That entry is a claim about who would own the name, not a registration. Resolving\n` +
       `    it throws AwilixResolutionError at the first call. Register it in both roots, or\n` +
       `    resolve an existing name instead.`
+    );
+  }
+  if (issue.kind === 'platform-name-unsupplied') {
+    return (
+      `  - '${issue.name}' is on PLATFORM_OWNED_NAMES, is resolved by a module, and is ` +
+      `registered\n    by no composition root and by no file under src/kernel/.\n` +
+      `    Being on that list skips the dependency-declaration check and removes the name from\n` +
+      `    the deactivation-consequence ledger — it is not a registration. Resolving it throws\n` +
+      `    AwilixResolutionError at the first call, in whichever composition exercises the path\n` +
+      `    first; that is how the channel-scoped storefront stock read shipped broken (#49).\n` +
+      `    Register it in both roots or in the kernel, or take the name off the list.`
+    );
+  }
+  if (issue.kind === 'platform-name-stale') {
+    return (
+      `  - '${issue.name}' is on PLATFORM_OWNED_NAMES, and nothing registers it anywhere — no\n` +
+      `    root, no kernel file — while no module resolves it either.\n` +
+      `    The name is gone and its exemption outlived it, so the list now pre-clears whatever\n` +
+      `    lands on that string next. Delete the entry.`
+    );
+  }
+  if (issue.kind === 'platform-name-owned-by-module') {
+    return (
+      `  - '${issue.name}' is on PLATFORM_OWNED_NAMES, but the '${issue.owner}' module ` +
+      `registers or\n    provides it in its own backend.ts.\n` +
+      `    Then it is not a platform name, and the exemption is laundering a cross-module edge\n` +
+      `    past both a dependency declaration and the operator's deactivation-consequence\n` +
+      `    ledger. Take it off the list — moving the registration into a root would be fixing\n` +
+      `    the wrong half.`
+    );
+  }
+  if (issue.kind === 'platform-name-divergence') {
+    return (
+      `  - '${issue.name}' is on PLATFORM_OWNED_NAMES and is registered by ` +
+      `${issue.roots.join(' and ')} only,\n    with no kernel registration to cover the other ` +
+      `composition.\n` +
+      `    A module resolving it works in that composition and throws in the other, and the\n` +
+      `    list is what stopped anything from saying so. If the two compositions genuinely\n` +
+      `    differ here, add the name to ROOT_DIVERGENCE_ALLOWED with the reason; otherwise\n` +
+      `    register it in both roots.`
     );
   }
   return (
@@ -1780,6 +1957,27 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
+  // The third supply source (D-73). Read before anything else so its own
+  // vacuous guard fires before the platform sweep can turn an unreadable kernel
+  // directory into a screenful of false `platform-name-unsupplied`.
+  const kernelFiles = walk(join(SRC_ROOT, 'kernel'));
+  if (kernelFiles.length === 0) {
+    console.error(
+      '[port-deps] no kernel sources under src/kernel — the platform-name sweep would ' +
+        'report every kernel-supplied name as unsupplied; refusing to report anything',
+    );
+    process.exit(2);
+  }
+  const kernelNames = new Set<string>();
+  for (const file of kernelFiles) {
+    const source = readFileSync(file, 'utf8');
+    // Both shapes, because the kernel writes both: `container.register({ … })`
+    // in `registerOrm` (which `rootRegisteredNames` reads) and the module-facing
+    // `di.register` / `di.providePort` spellings.
+    for (const name of rootRegisteredNames(source, file)) kernelNames.add(name);
+    for (const name of registeredNames(source, file)) kernelNames.add(name);
+  }
+
   const owners = new Map<string, string>(Object.entries(HOST_REGISTERED_PORTS));
   const resolutions: PortResolution[] = [];
   const seams: ImportedContributionSeam[] = [];
@@ -1823,12 +2021,20 @@ async function main(): Promise<void> {
   // name its owner provides as a port is a gate, and capturing a gate is
   // refused even for the module that owns it (D-38b).
   const moduleRegistered = new Map<string, string>();
+  // Wider than the map above by the contribution-point defaults: what the
+  // platform sweep asks is "does a module own this name at all", and a
+  // `ctx.di.register` default is enough to answer yes (D-73).
+  const moduleOwnedNames = new Map<string, string>();
   for (const file of files) {
     if (!file.endsWith('/backend.ts')) continue;
     const moduleId = moduleOf(file);
     if (moduleId === null) continue;
-    for (const name of providedPortNames(readFileSync(file, 'utf8'), file)) {
+    const source = readFileSync(file, 'utf8');
+    for (const name of providedPortNames(source, file)) {
       moduleRegistered.set(name, moduleId);
+    }
+    for (const name of registeredNames(source, file)) {
+      moduleOwnedNames.set(name, moduleId);
     }
   }
 
@@ -1920,6 +2126,9 @@ async function main(): Promise<void> {
     rootNames,
     hostRegistered: HOST_REGISTERED_PORTS,
     resolvedNames: new Set(resolutions.map((r) => r.name)),
+    platformNames: PLATFORM_OWNED_NAMES,
+    kernelNames,
+    moduleOwnedNames,
   });
 
   if (process.argv.includes('--list')) {
@@ -1958,6 +2167,9 @@ async function main(): Promise<void> {
     `[port-deps] modules scanned=${new Set(files.map(moduleOf)).size} ` +
       `resolutions=${resolutions.length} violations=${violations.length} ` +
       `root-issues=${rootIssues.length} ` +
+      `platform-names=${PLATFORM_OWNED_NAMES.size} kernel-supplied=${
+        [...PLATFORM_OWNED_NAMES].filter((name) => kernelNames.has(name)).length
+      } ` +
       `wiring-debt=${WIRING_RESOLUTIONS_TO_DRAIN.size - drained.length} ` +
       `alias-debt=${Object.keys(ALIAS_HIDDEN_RESOLUTIONS).length - aliasDrained.length} ` +
       `non-binding=${nonBindingEdges.length} non-binding-issues=${nonBindingIssues.length} ` +
