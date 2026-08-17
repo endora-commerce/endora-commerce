@@ -2,8 +2,14 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CartSnapshot, CouponDropReason, PromotionApplication } from '@b2b/contracts';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
-import type { PromotionApplyPort, PromotionCodePort } from '@b2b/contracts';
+import type {
+  CustomerAccountReadPort,
+  OrganizationDetailsPort,
+  PromotionApplyPort,
+  PromotionCodePort,
+} from '@b2b/contracts';
 import type { CartApprovalService } from './cart-approval-service.js';
+import { resolveCartCustomerGroupId } from './customer-group-resolver.js';
 
 /**
  * Cart-level coupon application (feature 027 US2).
@@ -63,8 +69,27 @@ export class CartCouponService {
      * on `isActive` — is that module's business, and this file reproduced it.
      */
     private readonly promotionCodes: PromotionCodePort,
+    /**
+     * Issue #177 — the two reads behind the buyer's effective customer group,
+     * which every snapshot this service builds used to pass as a literal
+     * `null`. A coupon or automatic promotion an operator restricted to a
+     * group therefore matched nobody.
+     */
+    private readonly customerAccounts: CustomerAccountReadPort,
+    private readonly organizations: OrganizationDetailsPort,
     private readonly approvalService?: CartApprovalService,
   ) {}
+
+  /** The buyer's effective group: their own, else their Organization's. */
+  private customerGroupIdFor(cart: Cart): Promise<string | null> {
+    return resolveCartCustomerGroupId(
+      { customerAccounts: this.customerAccounts, organizations: this.organizations },
+      {
+        customerAccountId: cart.customerAccountId ?? null,
+        organizationId: cart.organizationId ?? null,
+      },
+    );
+  }
 
   /**
    * Apply (or replace) the active coupon on the cart. Validates against
@@ -136,7 +161,7 @@ export class CartCouponService {
     // feature 012).
     const snapshot: CartSnapshot = {
       organizationId: cart.organizationId ?? null,
-      customerGroupId: null,
+      customerGroupId: await this.customerGroupIdFor(managedCart),
       currency,
       lines: items.map((it) => ({
         productId: it.productId,
@@ -188,7 +213,7 @@ export class CartCouponService {
     const currency = items[0]?.currency ?? 'PLN';
     const snapshot: CartSnapshot = {
       organizationId: cart.organizationId ?? null,
-      customerGroupId: null,
+      customerGroupId: await this.customerGroupIdFor(cart),
       currency,
       lines: items.map((it) => ({
         productId: it.productId,

@@ -288,6 +288,8 @@ export function registerModule(ctx: ModuleContext): void {
         emFactory,
         lazyPort<PromotionApplyPort>(ctx, 'promotionService'),
         lazyPort<PromotionCodePort>(ctx, 'promotionCodePort'),
+        lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+        lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
         cradle.cartApprovalService,
       ),
       cartConversionService: new CartConversionService(

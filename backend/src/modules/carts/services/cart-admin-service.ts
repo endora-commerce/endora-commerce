@@ -171,7 +171,11 @@ export class CartAdminService {
     if (this.promotion && items.length > 0) {
       const application = await this.promotion.applyToCart({
         organizationId: cart.organizationId ?? null,
-        customerGroupId: null,
+        // Issue #177 — the owner's effective group, from the two records this
+        // handler has already loaded. A literal `null` here showed the operator
+        // an undiscounted total for every buyer a group-targeted promotion
+        // applies to, which is the figure they then quote to that buyer.
+        customerGroupId: cust?.customerGroupId ?? org?.customerGroupId ?? null,
         currency,
         lines: items.map((it) => ({
           productId: it.productId,
