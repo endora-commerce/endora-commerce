@@ -2,7 +2,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { CartAuditEntry } from '../../../src/modules/carts/entities/cart-audit-entry.entity.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
@@ -33,9 +32,7 @@ describe('cart abandonment sweep CLI — module presence', () => {
 
   beforeAll(async () => {
     db = await setupTestDb();
-    const tmpEm = db.orm.em.fork();
-    const ch = await tmpEm.findOne(SalesChannel, { systemDefault: true });
-    systemDefaultChannelId = ch?.id ?? '';
+    systemDefaultChannelId = db.systemDefaultChannelId;
   }, 60_000);
 
   beforeEach(async () => {

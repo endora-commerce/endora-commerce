@@ -9,6 +9,45 @@ Principle III of the constitution mandates TDD for every backend module. This di
 
 Tests are written **before** their corresponding implementation tasks and MUST fail for the right reason first. See tasks.md Phase 2 (T025–T026, T039–T040) for the test-infrastructure scaffolding.
 
+## What the harness guarantees, and why it asserts it
+
+A test is entitled to assume the platform state a real deployment has before it
+serves anything. Two of those assumptions were unfounded until issues #158 and
+#159, and both failed the same way: the harness substituted for the thing under
+test, so the test measured the substitute.
+
+- **A default Sales Channel always exists** (D-47…D-51). `setupBackendServer`
+  re-creates it after its truncate; `test/global-setup.ts` establishes it right
+  after the migrations, so a file that boots no server has one too. Read it as
+  `db.systemDefaultChannelId` — a plain `string`, never `''`. `setupTestDb`
+  throws when it is absent rather than handing back a placeholder, and
+  `pnpm --filter backend run check:fixture-substitution` refuses the placeholder
+  in a test file.
+- **Every module's translation bundles are installed.** The harness contributes
+  the resolved manifest registry to `lifecycleManifestRegistry`, so `_i18n`
+  reconciles `translation_bundles` from disk at plugin attach exactly as
+  production does. Before that, the table was empty in every test and the error
+  envelope's translation path never ran once — which is how an envelope that
+  replaced a written refusal with a generic family sentence shipped on four
+  transacting surfaces with a green suite (issue #65).
+
+Each is **asserted**, not assumed: `setupBackendServer` refuses to return a
+handle whose error messages cannot be translated, and `setupTestDb` refuses to
+return a `TestDb` without the channel. That is the `withModuleOff` move — a
+helper proves the state it promises before the test body observes anything —
+and it is what stops the vacuous form from being writable.
+
+The bundle reconcile was measured before it was adopted, because
+`setupBackendServer` is already ~88% of a booting test file (issue #72). Over
+ten steady-state compositions each side, on an otherwise idle machine: **3184 ms
+→ 3330 ms mean, 3206 ms → 3298 ms median — about +150 ms, ~4.6%.** The reconcile
+alone is ~165 ms (42 modules, 84 bundle upserts), so nearly all of it is the
+upserts and the number scales with the number of modules, not with the test. 604
+files compose a server, so the whole-suite cost is roughly a minute and a half.
+That is what the entire error-message surface being exercised for the first time
+costs; an opt-in helper was the alternative, and at this price it is not worth
+the second way of doing things.
+
 ## Releasing the harness
 
 A file that calls `setupBackendServer` releases it with `teardownBackendServer(h)` — never by

@@ -232,8 +232,13 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
   });
 
   it('happy path 201 — bound org + service account + org pricing + reserved stock', async () => {
-    const stockBefore = await h.em().findOne(StockLevel, { productId: SEED_PRODUCT_101_ID });
-    const reservedBefore = stockBefore?.reserved ?? 0;
+    // Issue #159 — `?? 0` here made the reservation delta below pass whether or
+    // not the seeded stock row existed: no row and no reservation both read as
+    // zero. The harness seeds it, so absence is a broken fixture, not a datum.
+    const stockBefore = await h
+      .em()
+      .findOneOrFail(StockLevel, { productId: SEED_PRODUCT_101_ID });
+    const reservedBefore = stockBefore.reserved;
 
     const res = await post(boundToken, basePayload(), `happy-${randomUUID()}`);
     expect(res.statusCode).toBe(201);

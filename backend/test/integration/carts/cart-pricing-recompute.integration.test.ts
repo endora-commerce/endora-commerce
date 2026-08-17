@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import Redis from 'ioredis';
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { CartRecomputeCache } from '../../../src/modules/carts/services/cart-recompute-cache.js';
 import { CartPricingRecompute } from '../../../src/modules/carts/services/cart-pricing-recompute.js';
@@ -31,9 +30,7 @@ describe('CartPricingRecompute — resolver call counts & write-back', () => {
 
   beforeAll(async () => {
     db = await setupTestDb();
-    const tmpEm = db.orm.em.fork();
-    const ch = await tmpEm.findOne(SalesChannel, { systemDefault: true });
-    systemDefaultChannelId = ch?.id ?? '';
+    systemDefaultChannelId = db.systemDefaultChannelId;
 
     const url = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
     redis = new Redis(url, { maxRetriesPerRequest: null, lazyConnect: false });

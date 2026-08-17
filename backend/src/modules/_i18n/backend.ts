@@ -38,8 +38,10 @@ import {
  * no warning, and the first symptom would be screens rendering raw i18n keys
  * some time after somebody edits a JSON bundle. Moving it therefore needs
  * evidence, not tidiness. `test/unit/_i18n/reconcile-timing.test.ts` pins the
- * placement, because the harness cannot: it passes no registry at all, so this
- * reconcile has always been a no-op under `setupBackendServer`.
+ * placement, because the harness cannot: since issue #158 `setupBackendServer`
+ * does pass the resolved registry and this reconcile does run there, but a
+ * composed server can only observe that it happened — never that it happened at
+ * plugin attach rather than during registration or boot.
  *
  * **The third `AdminUserService` goes away.** `composition.ts` built one
  * specially for this module — `new AdminUserService(em)`, with no audit writer

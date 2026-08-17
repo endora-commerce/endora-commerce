@@ -18,8 +18,12 @@ import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helper
  * this repair exists to end.
  *
  * The bundles are read off disk rather than through the service because that is
- * what ships; the harness installs no bundles, so a test that went through the
- * database would pass on an empty table.
+ * what ships. That used to be load-bearing for a second reason — the harness
+ * installed no bundles at all, so a test going through the database would have
+ * passed on an empty table — and issue #158 removed it: `setupBackendServer`
+ * reconciles every module's bundles now. The disk read stays, because this file
+ * is asserting the agreement between the shipped sentence and the shipped
+ * refusal, not what one composition happened to reconcile.
  */
 const I18N_BUNDLES = resolve(
   dirname(fileURLToPath(import.meta.url)),

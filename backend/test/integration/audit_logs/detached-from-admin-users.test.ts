@@ -49,7 +49,16 @@ describe('audit_logs — owns its surface [integration]', () => {
     const admins = await em.execute<Array<{ id: string }>>(
       'select id from admin_users limit 1',
     );
-    actorId = admins[0]?.id ?? randomUUID();
+    // Issue #159 — this used to fall back to `randomUUID()`, which defeated the
+    // comment above it: an unseeded `admin_users` produced an id matching no
+    // row, so the "enriched" case silently became the degraded one and the test
+    // asserted the same thing twice. `setupBackendServer` seeds the admins, so
+    // absence is a broken harness and says so.
+    const seededAdmin = admins[0];
+    if (!seededAdmin) {
+      throw new Error('setupBackendServer seeds admin_users; none found — the harness is broken.');
+    }
+    actorId = seededAdmin.id;
     objectId = randomUUID();
     em.create(AuditLogEntry, {
       actorAdminUserId: actorId,
