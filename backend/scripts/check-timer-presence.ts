@@ -48,11 +48,18 @@
  *     an `AbortController` deadline, a sleep between retries. Its throw has
  *     somewhere to go, and the tree holds ~20 of them; flagging those would drown
  *     the two sites that matter.
- *   - **Boot hooks.** `ctx.onBoot` does have a caller: `runBootHooks` wraps every
- *     hook and turns a throw into a `ModuleCompositionError` that aborts the
- *     boot. Whether a boot hook should run at all for an absent module is one
- *     decision the kernel makes for every module in one place, not a guard each
- *     module writes — so it is not this check's business.
+ *   - **Boot hooks — for now, and not for the reason this comment used to give.**
+ *     `runBootHooks` wraps every hook and turns a throw into a
+ *     `ModuleCompositionError` that aborts the boot; it does **not** catch, and
+ *     it does **not** consult presence. So "whether a boot hook should run at all
+ *     for an absent module" is not one kernel decision — it is a decision per
+ *     hook, and it splits two ways (issue #146, D-67/D-68): a hook that *does
+ *     work* owes the same probe a timer callback owes, while a hook that
+ *     *contributes* an inert descriptor to another module's registry must not
+ *     probe, because the host filters at enumeration and a probe would make
+ *     runtime activation require a restart. Encoding that split is what D-68
+ *     specifies for this check; until it lands, the population below is the
+ *     three timer shapes only, and a working boot hook is unguarded.
  *   - **A timer reached through a helper in another file**, or one whose callback
  *     is an identifier this check cannot bind to a function in the same file. The
  *     analysis is single-file and syntactic; a scheduler abstracted behind an

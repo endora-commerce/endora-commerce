@@ -10,6 +10,7 @@ import {
 } from '../../../src/kernel/compose.js';
 import type { ModuleContext } from '../../../src/kernel/module-context.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
+import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import {
   ModulePresenceNotLoadedError,
   registryCache,
@@ -183,6 +184,53 @@ describe('module presence is loaded before the first module registers', () => {
     // Loaded and absent is a different answer from unloaded, and the caller
     // must be able to tell them apart: this one is the gate working.
     expect((thrown as ModuleCompositionError).cause).toBeInstanceOf(ModuleDisabledError);
+  });
+
+  /**
+   * The other half of the sentence above, and the one nothing pinned until
+   * issue #146: presence is loaded before composition, and `runBootHooks` still
+   * does not consult it.
+   *
+   * Three documents said the kernel decides this centrally — "`runBootHooks`
+   * catches, so that is one kernel decision rather than a guard per module".
+   * It re-throws (`test/integration/kernel/boot-failure.test.ts` pins that), and
+   * it skips nothing. Both facts are deliberate and this case is the second one:
+   * a boot hook is where a module contributes an inert descriptor to another
+   * module's registry, the host filters those by contributor at enumeration, and
+   * a kernel that skipped an absent module's hook would make switching that
+   * module back on require a restart. The consequence — a working boot hook must
+   * probe its own presence, because nobody does it for it — is D-68's.
+   */
+  it("runs a deactivated module's own boot hook, because the kernel skips nothing", async () => {
+    await loadModulePresence({
+      em: stubEm({
+        registrations: [{ moduleId: CONSUMER, state: 'installed' }],
+        settings: [{ code: `${CONSUMER}.enabled`, globalValue: false }],
+      }),
+      manifests: MANIFESTS,
+    });
+    // Non-vacuity: without this the case would pass on a module that is simply
+    // present, which is the assertion it is not making.
+    expect(effectiveState.isPresent(CONSUMER)).toBe(false);
+
+    const contributed: string[] = [];
+    const composed = composeModules(
+      [
+        entry(CONSUMER, (ctx) => {
+          ctx.onBoot(() => {
+            contributed.push(CONSUMER);
+          });
+        }),
+      ],
+      {
+        container: createRootContainer(),
+        eventBus: new EventBus(),
+        log: { info: () => {}, warn: () => {}, error: () => {} },
+      },
+    );
+    await composed.runBootHooks();
+
+    expect(contributed).toEqual([CONSUMER]);
   });
 
   it('registers a module the registry has never seen, so a new module boots enabled', async () => {

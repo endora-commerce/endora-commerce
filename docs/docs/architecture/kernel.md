@@ -484,10 +484,12 @@ least-wrong behaviour, each with its reason, in three shapes the entries name:
   would be the *wrong* fix: catalog availability degrades to "no indication", the
   Meilisearch listing falls back to Postgres. The answer belongs in the
   contribution's return type or a `nonBindingDependencies` entry;
-- **a boot hook** — `runBootHooks` catches, so the presence answer has no caller
-  to reach. `product_feeds` and `pim_ergonode` reconcile their schedules that way,
-  and narrowing those two was tried and reverted: it changed what the harness
-  boots with. The fix there is the timer rule — decide presence *before* the work.
+- **a boot hook** — the presence answer has no caller to reach, and re-throwing
+  it aborts the boot (see *The boot phase re-throws* below; `runBootHooks` does
+  **not** catch, whatever this bullet said until issue #146). `product_feeds` and
+  `pim_ergonode` reconcile their schedules that way, and narrowing those two was
+  tried and reverted: it changed what the harness boots with. The fix there is the
+  timer rule — decide presence *before* the work.
 
 ## The request scope
 
@@ -594,6 +596,50 @@ not enabled — and *honour* suits integrity-like ones, where skipping would let
 absent module's data be silently orphaned. State which one, per registry, with
 the reason.
 
+### The boot phase re-throws
+
+`runBootHooks` wraps each hook, attributes the failure to the module that
+registered it, and **re-throws**:
+
+<!-- verbatim-from: backend/src/kernel/compose.ts -->
+
+```ts
+try {
+  await hook();
+} catch (err) {
+  if (alreadyNamesTheModule(err)) throw err;
+  throw new ModuleCompositionError(moduleId, 'boot', err);
+}
+```
+
+Three documents said the opposite for months — this page in two places,
+`check-port-catches.ts`'s ledger and `AGENTS.md` — and the claim was
+load-bearing: two boot-hook
+sites were ledgered rather than fixed on the belief that the kernel absorbed the
+throw centrally. The block above is quoted rather than described for that reason;
+`check:doc-snippets` fails this page if it stops matching the source.
+
+Re-throwing is the ruled behaviour (issue #146, D-67). A boot hook runs during
+composition, before the Fastify app exists: there is no request to answer and no
+degraded surface to serve, so a swallowed failure would mean the platform starts
+with a composition that is not what the code says — a missing payment adapter, an
+unregistered asset-reference scanner, an email default nobody pushed — and says
+nothing. `index.ts` turns the throw into `process.exit(1)`, and
+`test/integration/kernel/boot-failure.test.ts` pins both halves: the error names
+the module and the phase, and no partially-composed server ever listens.
+
+The hazard that argues for catching — a module the operator switched off taking
+the boot down with it — is closed structurally rather than by a `catch`. A gated
+port resolved from a boot hook is refused by
+`check:port-dependencies` (`gated-port-at-boot`), and D-39 keeps every
+contribution registry an ungated `ctx.di.register` for the same reason, so an
+operator flipping a switch cannot raise `ModuleDisabledError` during composition.
+What is left is a hook whose own work fails, which is a real failure; a module
+that wants a narrower tolerance writes it **inside** its own hook and says why,
+the way `product_feeds`' `reconcile` helper does. That helper is not redundant
+with a kernel decision — it is the only thing standing between a drifted schedule
+and a dead boot.
+
 ### The one thing a root still has to do in order
 
 `EventBus.dispatch` awaits its handlers in **registration order**, so the two
@@ -644,10 +690,11 @@ returning without re-arming would stop the scheduler for the life of the process
 what it sees is narrower than the rule: a `setInterval`, a `setTimeout` whose
 callback re-arms a timer or calls back into the function that armed it, and a
 `process.on` lifecycle handler — in a module's own sources. A one-shot deadline
-inside an operation that already has a caller is out of scope, and so is
-`ctx.onBoot`: `runBootHooks` wraps every hook and turns a throw into a
-`ModuleCompositionError` that aborts the boot, which makes "should a boot hook run
-for an absent module" one kernel decision rather than a guard each module writes.
+inside an operation that already has a caller is out of scope. `ctx.onBoot` is out
+of the check's population too, but **not** because the kernel decides presence for
+it: nothing in the kernel does (see *The boot phase re-throws* above), so a working
+boot hook carries the same obligation a timer callback does and no check enforces
+it yet — issue #146, and the ratchet it needs is D-68's.
 The first two shapes live in `backend/scripts/lib/repeating-timers.ts` and are
 read by `check-entry-scope.ts` as well (issue #128). That check classified its
 interval entry points by grepping for `setInterval(`, so `search`'s reindex loop

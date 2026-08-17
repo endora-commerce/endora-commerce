@@ -304,11 +304,24 @@ pattern to copy.
 
    `pnpm --filter backend run check:timer-presence` is the ratchet (issue #126), and it sees
    **less than the rule says**: a `setInterval`, a `setTimeout` the callback re-arms, and a
-   `process.on` lifecycle handler, each in a module's own sources. It does not see a boot hook —
-   `runBootHooks` catches, so that is one kernel decision rather than a guard per module — nor a
+   `process.on` lifecycle handler, each in a module's own sources. It does not see a
    one-shot deadline inside an operation that already has a caller. `TIMERS_WITHOUT_PRESENCE` is
    two-way and, unlike the subscribe ledger, is not expected to empty: an entry says why a timer
    is **right** to keep running while its module is off.
+
+   **A boot hook is one of those entry points, and no check sees it yet** (issue #146, D-67/D-68).
+   This paragraph used to except boot hooks on the grounds that "`runBootHooks` catches, so that is
+   one kernel decision rather than a guard per module". It does not catch: it wraps the hook,
+   attributes the failure to the module and **re-throws** as `ModuleCompositionError`, which
+   `index.ts` turns into `process.exit(1)` — and that is the ruled-correct behaviour, because a boot
+   hook runs during composition, where a swallowed failure would mean serving requests on a platform
+   that is not what the code says it is. So the obligation is per hook, and it splits: a hook that
+   **does work** (a reconcile, a seed, a Redis or Postgres write) probes
+   `effectiveState.isPresent('<own id>')` first and returns, exactly like a timer; a hook that
+   **contributes** an inert descriptor to another module's registry must **not** probe, because the
+   host filters by contributor at enumeration and a probe would make runtime activation require a
+   restart. A hook that does both is split in two — `product_feeds/backend.ts` already ships that
+   shape, a work hook and a contribution hook kept separate, with the reason in its own comment.
 4. **Manifest** — declare the module's activation control and its default, and, if the
    platform genuinely cannot run without the module, declare it non-deactivatable with a
    reason. The lifecycle orchestrator refuses to disable a module that declares it, with no
