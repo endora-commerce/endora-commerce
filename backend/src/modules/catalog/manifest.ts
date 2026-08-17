@@ -61,8 +61,28 @@ export const manifest = defineModuleManifest({
         'on it, which is how this was found.',
     },
   ],
-  // D-44 — three edges that are real to the container and bind no operator.
+  // D-44 — four edges that are real to the container and bind no operator.
   nonBindingDependencies: [
+    {
+      moduleId: 'inventory',
+      // The name this module resolves. A composition root registers it on
+      // `inventory`'s behalf — the closure forwards to
+      // `inventoryAvailabilityPort.resolveAvailabilityBands` and probes
+      // presence in front of it — so this is where the edge is visible from
+      // here, and where the check can see something resolving it.
+      name: 'catalogExternalAvailability',
+      kind: 'degrades-without',
+      whenAbsent:
+        'product listings and the external catalog namespace stop carrying an availability band',
+      reason:
+        'D-61. Availability is an indication on a catalog read, never a reason to fail ' +
+        'one: the decorator has always had an absent-contribution path answering the ' +
+        'empty map, so `inventory` being off has a defined behaviour and 503-ing the ' +
+        'product list would be the wrong one. What was missing is that the contribution ' +
+        'said so — the behaviour was written in a `catch` at the call site, which also ' +
+        'swallowed genuine inventory failures. Declared here, probed in front of the ' +
+        'resolution, and the `catch` is gone.',
+    },
     {
       moduleId: 'prompt_actions',
       name: 'promptActionToolRegistry',

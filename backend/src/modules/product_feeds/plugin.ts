@@ -5,7 +5,6 @@ import { z } from 'zod';
 import { FEED_DELIVERY_LIMITS, PRODUCT_FEED_SETTING_CODES } from '@b2b/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModulePlugin } from '../../http/server.js';
-import type { AdminNotificationService } from '../admin_notifications/services/admin-notification-service.js';
 import type { CustomFieldDefinitionService } from '../custom_fields/services/custom-field-definition.service.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
@@ -63,7 +62,10 @@ import {
   ArtefactRetentionService,
   DEFAULT_ARTEFACT_RETENTION_COUNT,
 } from './services/artefact-retention.service.js';
-import { FailedRunNotifier } from './services/failed-run-notifier.js';
+import {
+  FailedRunNotifier,
+  type AdminNotificationRecorder,
+} from './services/failed-run-notifier.js';
 import {
   FeedScheduleReconciler,
   type TaxonomyRefreshSchedulePort,
@@ -211,8 +213,12 @@ export interface ProductFeedsModuleOptions {
    * Operator notification on a failed run (FR-056). Optional because the
    * notifying path itself lands with US6 (T106); declaring it here keeps the
    * seam in one place.
+   *
+   * The **recorder** shape rather than `admin_notifications`' service: absence
+   * is an answer this module reads off the return type (D-60), not an exception
+   * it catches after the fact.
    */
-  adminNotificationService?: AdminNotificationService;
+  adminNotificationService?: AdminNotificationRecorder;
   settings: ProductFeedsSettingsReader;
   /** Origin the public feed URL is built on (`PUBLIC_API_BASE_URL`). */
   publicBaseUrl: string;

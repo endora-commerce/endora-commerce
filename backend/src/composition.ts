@@ -9,7 +9,7 @@ import { resolveCustomerRollupSubtreeIds } from './modules/customer_accounts/ser
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type ProductAvailability } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
 import { ApiInterceptorRegistry } from './http/interceptors/index.js';
@@ -1401,6 +1401,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       };
     },
     catalogExternalAvailability: async (productIds: string[], salesChannelId: string) => {
+      // D-61 — the presence probe a `degrades-without` edge owes its owner
+      // (D-44), and it belongs here because this closure is where the port is
+      // resolved. `catalog` declares the degrade in its manifest: a product
+      // listing without `inventory` carries no availability band, which is the
+      // empty map, and is exactly what the decorator's absent-contribution path
+      // already answers. A closed gate **throws** rather than resolving to
+      // `undefined`, so this has to come before the resolution — optional
+      // chaining and a `catch` both defend against nothing here.
+      if (!effectiveState.isPresent('inventory')) {
+        return new Map<string, ProductAvailability>();
+      }
       return inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
         productIds,
         salesChannelId,

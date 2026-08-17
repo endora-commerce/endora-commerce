@@ -105,9 +105,29 @@
  * Adding the one-line call is cheaper than teaching a static check to read a
  * condition, and it says at the site what the site decided.
  *
+ * ## `OWNER LOCKED` — the answer the check derives for itself (D-63)
+ *
+ * A `catch` can only swallow a presence answer that is **reachable**. When
+ * every gate the alias carries belongs to a module whose manifest declares
+ * `activation.nonDeactivatable`, there is no state in which that gate says no:
+ * the orchestrator refuses the flip on both axes, with no `--force`. The site
+ * is reported as `OWNER LOCKED` rather than as a violation to drain, and a
+ * ledger entry for one reads **stale** — there is nothing left to repair, so a
+ * note saying "drain me" is a debt the tree does not owe.
+ *
+ * It is derived from `manifest.ts` on every run rather than written into a
+ * reason string, and that is the whole of its safety: an owner who un-locks a
+ * module re-reds every site that was resting on that lock, in the same run,
+ * with no ledger edit. A hand-written "locked" would go stale in silence, which
+ * is the failure mode a two-way ledger exists to prevent.
+ *
+ * It is **not** "ignore this file". The `catch` still swallows every other
+ * error and the check still names the site; what changes is what the reader is
+ * being asked to do about it.
+ *
  * Usage: `tsx scripts/check-port-catches.ts [--list]`
- * Exit 0 = every such `catch` handles it (or is ledgered); exit 1 = at least
- * one does not, or a ledger entry is stale.
+ * Exit 0 = every such `catch` handles it (or is ledgered, or its owners are
+ * locked); exit 1 = at least one does not, or a ledger entry is stale.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -135,7 +155,9 @@ const EVERYWHERE = '*';
  * unledgered violation fails the build, and a ledger entry that no longer
  * describes a violation fails it too.
  *
- * There are two shapes here, and each entry says which it is.
+ * There are three shapes here, and each entry says which it is. A fourth
+ * answer, `OWNER LOCKED`, is **derived** and never written here — see the
+ * header.
  *
  *   - **After the fact** — the guarded call runs after the operation it belongs
  *     to has already committed, so re-throwing would report a failure for work
@@ -149,65 +171,33 @@ const EVERYWHERE = '*';
  *     belongs in the port's or the contribution's return type, or in a
  *     `nonBindingDependencies` entry; until it is there, the `catch` is the only
  *     place it is written down, and the entry names what would move it.
+ *   - **Boot hook** — the presence answer is decided at the top of the hook
+ *     (D-62), so what the `catch` absorbs is an ordinary failure with no caller
+ *     to report to. These entries are not drainable and say so.
  */
 export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
-  'modules/orders/services/order-api-intake-service.ts:addressService':
-    'AFTER THE FACT. Compensating cleanup of transient addresses. It runs on the ' +
-    'success path too, after the order is committed, so re-throwing would fail a ' +
-    'placement that succeeded. Retiring it means giving the cleanup somewhere to ' +
-    'report to — a reconciliation row, not the caller.',
-  'modules/orders/services/order-creation-admin-service.ts:addressService':
-    'AFTER THE FACT. The admin-side twin of the intake cleanup above, same shape ' +
-    'and same reason. Both retire together or neither does.',
-  'modules/organizations/routes.public.ts:templateEmail':
-    'AFTER THE FACT. The verification e-mail is sent after the organisation and the ' +
-    'customer account are committed, and the response already tells the caller it ' +
-    'did not go out (`emailVerificationSent: false`). Re-throwing would 503 a ' +
-    'completed registration. Retiring it means an outbox the registration hands the ' +
-    'message to, which is a feature rather than a fix.',
-
-  // Found by the widening for issues #133 and #113 — the seven sites the
-  // fixpoint made visible whose right answer is not `rethrowIfModuleDisabled`.
   'modules/organizations/routes.public.ts:onLogin':
     'AFTER THE FACT. The cart-merge hook runs once the session cookie is on the ' +
     'response: the customer is logged in, and feature 037 FR-007/FR-008 say in so ' +
     'many words that a merge failure must not break the login. Re-throwing would ' +
     'take down a completed authentication. Retiring it means asking presence before ' +
     'the hook rather than catching it after, which needs the merge to be a decision ' +
-    'the route makes rather than a callback it invokes.',
-  'modules/organizations/services/org-registration-notifier.ts:template':
-    'AFTER THE FACT. The registration e-mail goes out from a subscriber to ' +
-    '`organization.registered.v1`, so the organisation exists whatever happens ' +
-    'here and there is no caller to answer. Same outbox question as the ' +
-    '`templateEmail` entry above, and the same fix retires both.',
-  'modules/product_feeds/services/failed-run-notifier.ts:notifications':
-    'AFTER THE FACT, three times in one file. Every call reports a failure that has ' +
-    'already been recorded on the run; the method is documented as never throwing ' +
-    'precisely so a notification cannot turn a recorded failure into an unrecorded ' +
-    'crash. Retiring it means the notifier asking `admin_notifications` for its ' +
-    'presence before it composes the message, so "not reported" and "reported ' +
-    'nowhere" stop sharing one `false`.',
-  'modules/pim_ergonode/services/failed-run-notifier.ts:notifications':
-    'AFTER THE FACT. The import twin of the feed notifier above — same contract, ' +
-    'same already-recorded failure, same retiring question. They drain together.',
-  'modules/catalog/services/bulk-operation.service.ts:notificationService':
-    'AFTER THE FACT. The bell notification is written when the bulk operation has ' +
-    'already finished and its row carries the outcome; re-throwing would fail a ' +
-    'job whose work is done and, on retry, redo the products. Retiring it means the ' +
-    'notification being a step the operation records rather than a call it makes.',
+    'the route makes rather than a callback it invokes — D-60 rules that the ' +
+    'decision moves into the root contribution that resolves `comparisonService`. ' +
+    'The `carts` half is already unreachable: that module is locked.',
   'modules/webhooks/services/webhook-delivery-worker.ts:recordDelivery':
-    'AFTER THE FACT. Delivery bookkeeping, written once the HTTP attempt has been ' +
-    'made. Re-throwing would fail the job after the endpoint was called and the ' +
-    'retry would deliver the same event twice — the one outcome a webhook consumer ' +
-    'must not see. Retiring it means the attempt and its record being one write.',
-  'modules/catalog/services/catalog-org-price-decorator.ts:resolveAvailability':
-    'DEGRADE THE OWNER SHOULD ANSWER. Availability is an indication on a catalog ' +
-    'read, and the decorator already has an absent-contribution path returning an ' +
-    'empty map — so `inventory` being off has a defined behaviour and 503-ing the ' +
-    'product list would be the wrong one. What is missing is that the contribution ' +
-    'says so: retiring this means `resolveAvailability` answering absence in its ' +
-    'return type, or a `nonBindingDependencies` entry on `catalog` declaring the ' +
-    'degrade, rather than a `catch` deciding it.',
+    'LEDGER-PERMANENT, and not because nobody has looked (D-60). This is a ' +
+    '**self-edge**: `webhooks` resolves its own gated port per call, deliberately, ' +
+    'so a job draining mid-flight still meets the gate. The only reachable presence ' +
+    'answer is an operator flipping the module off *between* the HTTP attempt and ' +
+    'the bookkeeping write, and both alternatives to swallowing it are worse. ' +
+    'Re-throwing fails the BullMQ job after the endpoint was called, so the retry ' +
+    'delivers the same event twice — the one outcome a webhook consumer must not ' +
+    'see. A probe before the attempt cannot help, because the flip happens after ' +
+    'it. "The attempt and its record being one write" was the retiring question ' +
+    'this entry used to carry; it is a distributed-transaction wish rather than a ' +
+    'fix, and it is not what this entry is waiting for. Nothing is: do not drain ' +
+    'this by narrowing it.',
   'modules/product_feeds/backend.ts:run':
     'BOOT HOOK, and now a genuine tolerance rather than a swallowed presence ' +
     'answer (issue #147, D-62). The hook asks ' +
@@ -225,25 +215,10 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'moved out of the `catch` and is pinned by ' +
     '`test/unit/product_feeds/boot-reconcile-presence.test.ts`.',
   'modules/pim_ergonode/backend.ts:handle':
-    'BOOT HOOK. The import twin of the `product_feeds` reconcile above — same ' +
-    'log-and-continue, same absent kernel-level catch behind it, same retiring ' +
-    'question. They drain together, and re-throwing was measured to be the wrong ' +
-    'fix for both.',
-  'modules/catalog/routes.public.ts:searchQueryService':
-    'DEGRADE THE OWNER SHOULD ANSWER — and the gate is `pricingService`, not ' +
-    '`search` (issue #144, D-61). `search` owns no registration this alias reaches: ' +
-    '`catalog` constructs the read adapter itself (`plugin.ts`, ' +
-    '`new SearchQueryService(emFactory, attributeReadService, {}, pricingService)`), ' +
-    "so what this `catch` can swallow is `price_lists`' gate arriving through the " +
-    "fourth argument, plus `custom_fields`' through the third. Both owners are " +
-    'non-deactivatable, so the gate has no state in which it closes and there is ' +
-    'nothing here to drain until one of them un-locks. The `search`-is-off hazard ' +
-    'the entry used to describe was real and is fixed at the seam it belonged to: ' +
-    '`useMeili` asks `effectiveState.isPresent(\'search\')` before the query, so the ' +
-    'listing degrades to Postgres by decision rather than by exception ' +
-    '(`test/unit/catalog/public-search-backend-presence.test.ts`). The `catch` ' +
-    'itself stays for the reason it was written — `SearchBackendUnavailable` is the ' +
-    'R-08 reserved fallback — and re-throws everything else.',
+    'BOOT HOOK, and not drainable (D-62). The import twin of the `product_feeds` ' +
+    'reconcile above — same presence probe at the top of the hook, same ' +
+    'log-and-continue for what is left, and the same measurement that re-throwing ' +
+    'is the wrong fix for both.',
 };
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -268,6 +243,12 @@ export interface PortCatch {
   /** The alias or port name the `try` body called through. */
   readonly port: string;
   readonly handled: boolean;
+  /** The gated port names that alias carries — what the `catch` could swallow. */
+  readonly gates: readonly string[];
+  /** The modules owning those gates — whose locks an `OWNER LOCKED` site rests on. */
+  readonly gateOwners: readonly string[];
+  /** Every one of those gates is owned by a `nonDeactivatable` module (D-63). */
+  readonly ownerLocked: boolean;
 }
 
 /** `<file>:<port>` — the ledger key, and the identity of a site. */
@@ -275,9 +256,45 @@ export function keyOf(found: PortCatch): string {
   return `${found.file}:${found.port}`;
 }
 
+/**
+ * The part of a module manifest this check reads: which modules the platform
+ * refuses to switch off (D-63). Structural rather than `ModuleManifest`, so a
+ * fixture can supply the two fields the derivation looks at and nothing else —
+ * and so the derivation itself stays inside the analysis, where a red proof can
+ * reach it.
+ */
+export interface ManifestActivationInput {
+  readonly id: string;
+  readonly activation?:
+    | {
+        readonly settingCode?: string;
+        readonly default?: boolean;
+        readonly nonDeactivatable?: boolean;
+        readonly reason?: string;
+      }
+    | undefined;
+}
+
 export interface PortCatchInput {
   /** Every source under `src/`, keyed by path relative to `src/`. */
   readonly sources: ReadonlyMap<string, string>;
+  /**
+   * The deployment's manifests. Omitted means *nothing is locked*: a caller
+   * that supplies none gets the pre-D-63 classification, which is the safe
+   * default — a site is only ever retired by a lock somebody declared.
+   */
+  readonly manifests?: readonly ManifestActivationInput[];
+}
+
+/** The modules the orchestrator refuses to switch off, on either axis. */
+export function lockedOwners(
+  manifests: readonly ManifestActivationInput[],
+): ReadonlySet<string> {
+  return new Set(
+    manifests
+      .filter((manifest) => manifest.activation?.nonDeactivatable === true)
+      .map((manifest) => manifest.id),
+  );
 }
 
 interface Analysis {
@@ -285,6 +302,16 @@ interface Analysis {
   readonly portOwners: ReadonlyMap<string, string>;
   /** Alias → the modules whose files may read it as a gated port. */
   readonly aliases: ReadonlyMap<string, ReadonlySet<string>>;
+  /**
+   * Alias → the gated port names it carries.
+   *
+   * Keyed by name alone rather than by name and scope, and deliberately
+   * over-approximating: two modules spelling one alias differently merge their
+   * gates, which can only make the `OWNER LOCKED` test *harder* to satisfy. The
+   * error this cannot make is the one that matters — retiring a site whose gate
+   * an operator can still close.
+   */
+  readonly gatesOf: ReadonlyMap<string, ReadonlySet<string>>;
   /** Does `name`, read inside `moduleId`, stand for a gated port? */
   readsAsPort(name: string, moduleId: string, file: string): boolean;
 }
@@ -349,9 +376,16 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
   }
 
   const aliases = new Map<string, Set<string>>();
+  /** Alias → the gated port names it carries; see {@link Analysis.gatesOf}. */
+  const gatesOf = new Map<string, Set<string>>();
   /** True when the alias is new — which is what keeps the fixpoint running. */
   let grew = false;
-  const addAlias = (name: string, scope: string, where?: string): void => {
+  const addAlias = (
+    name: string,
+    scope: string,
+    where?: string,
+    gates?: ReadonlySet<string>,
+  ): void => {
     const scopes = aliases.get(name) ?? new Set<string>();
     aliases.set(name, scopes);
     if (!scopes.has(scope)) {
@@ -359,10 +393,21 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
       grew = true;
       if (process.env.PORT_CATCH_WHY) console.error(`ALIAS ${name} @${scope} <- ${where ?? '-'}`);
     }
+    if (gates === undefined) return;
+    // Gates keep the fixpoint running on their own: a holder can be bound
+    // before the round that discovers what it was built from.
+    const carried = gatesOf.get(name) ?? new Set<string>();
+    gatesOf.set(name, carried);
+    for (const gate of gates) {
+      if (carried.has(gate)) continue;
+      carried.add(gate);
+      grew = true;
+      if (process.env.PORT_CATCH_WHY) console.error(`GATE  ${name} <- ${gate} @${where ?? '-'}`);
+    }
   };
   // A gated port's own name reads as one everywhere except inside its owner,
   // where the identical identifier is normally the module's own instance.
-  for (const name of portOwners.keys()) addAlias(name, EVERYWHERE);
+  for (const name of portOwners.keys()) addAlias(name, EVERYWHERE, undefined, new Set([name]));
 
   const readsAsPort = (name: string, moduleId: string, file: string): boolean => {
     const scopes = aliases.get(name);
@@ -490,6 +535,44 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
         return false;
       };
 
+      /**
+       * **Which** gates a carrying expression reaches — the input to D-63's
+       * `OWNER LOCKED` derivation.
+       *
+       * A blunt walk of the whole expression rather than a mirror of
+       * {@link carries}: it is only ever asked about a value that already
+       * carries, and over-collecting can only add owners, which can only make
+       * the "every owner is locked" test harder to pass. Under-collecting is
+       * the error that would matter, because it retires a site whose gate an
+       * operator can still close.
+       */
+      const gatesIn = (node: ts.Node): Set<string> => {
+        const found = new Set<string>();
+        const record = (name: string): void => {
+          if (portOwners.has(name)) found.add(name);
+          for (const gate of gatesOf.get(name) ?? []) found.add(gate);
+        };
+        const scan = (inner: ts.Node): void => {
+          if (ts.isTypeNode(inner)) return;
+          if (isProxyCall(inner) && ts.isCallExpression(inner)) {
+            const [, nameArgument] = inner.arguments;
+            if (nameArgument !== undefined && ts.isStringLiteralLike(nameArgument)) {
+              found.add(nameArgument.text);
+            }
+            return;
+          }
+          if (ts.isPropertyAccessExpression(inner)) {
+            if (reads(inner.name.text)) record(inner.name.text);
+            scan(inner.expression);
+            return;
+          }
+          if (ts.isIdentifier(inner) && reads(inner.text)) record(inner.text);
+          inner.forEachChild(scan);
+        };
+        scan(node);
+        return found;
+      };
+
       const visit = (node: ts.Node): void => {
         // `const cartService = lazyPort(…)`, `const recompute = new X(port)`.
         // Scoped to the **file**, because a `const` is: `catalog` renames its
@@ -502,14 +585,16 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
           node.initializer &&
           carries(node.initializer)
         ) {
-          addAlias(node.name.text, file, at(node));
+          addAlias(node.name.text, file, at(node), gatesIn(node.initializer));
         }
         // `{ promotion: lazyPort(ctx, 'promotionService') }` — a deps-object key.
         if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name)) {
-          if (carries(node.initializer)) addAlias(node.name.text, scope, at(node));
+          if (carries(node.initializer)) {
+            addAlias(node.name.text, scope, at(node), gatesIn(node.initializer));
+          }
         }
         if (ts.isShorthandPropertyAssignment(node) && reads(node.name.text)) {
-          addAlias(node.name.text, scope, at(node));
+          addAlias(node.name.text, scope, at(node), gatesIn(node.name));
         }
         if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
           // `new CartService(emFactory, lazyPort(…))` — the parameter it lands on.
@@ -522,7 +607,7 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
                 : functions.get(callee);
               const parameter = declaration?.parameters[index];
               if (parameter && ts.isIdentifier(parameter.name)) {
-                addAlias(parameter.name.text, scope, at(node));
+                addAlias(parameter.name.text, scope, at(node), gatesIn(argument));
               }
             });
           }
@@ -542,10 +627,15 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
                   ts.isIdentifier(property.name) &&
                   carries(property.initializer)
                 ) {
-                  addAlias(property.name.text, EVERYWHERE, at(property));
+                  addAlias(
+                    property.name.text,
+                    EVERYWHERE,
+                    at(property),
+                    gatesIn(property.initializer),
+                  );
                 }
                 if (ts.isShorthandPropertyAssignment(property) && reads(property.name.text)) {
-                  addAlias(property.name.text, EVERYWHERE, at(property));
+                  addAlias(property.name.text, EVERYWHERE, at(property), gatesIn(property.name));
                 }
               }
             }
@@ -565,7 +655,7 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
     if (!grew) break;
   }
 
-  return { portOwners, aliases, readsAsPort };
+  return { portOwners, aliases, gatesOf, readsAsPort };
 }
 
 /**
@@ -709,6 +799,19 @@ function handles(clause: ts.CatchClause, delegates: ReadonlySet<string>): boolea
 /** Every `try` in `src/**` whose body calls through a gated port. */
 export function findPortCatches(input: PortCatchInput): PortCatch[] {
   const analysis = analyze(input.sources);
+  const locked = lockedOwners(input.manifests ?? []);
+  /**
+   * D-63 — every gate this alias carries is owned by a module the platform
+   * refuses to switch off, so the `catch` has no reachable presence answer to
+   * swallow. An alias carrying no gate at all (`requireModuleEnabled`) is never
+   * locked: nothing is known about what it answers.
+   */
+  const isOwnerLocked = (gates: readonly string[]): boolean =>
+    gates.length > 0 &&
+    gates.every((gate) => {
+      const owner = analysis.portOwners.get(gate);
+      return owner !== undefined && locked.has(owner);
+    });
   const found: PortCatch[] = [];
   const parsed = new Map<string, ts.SourceFile>();
   for (const [file, text] of input.sources) {
@@ -759,7 +862,30 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
         if (ports.size > 0) {
           const handled = handles(node.catchClause, delegates);
           const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
-          for (const port of ports) found.push({ file, line, moduleId, port, handled });
+          for (const port of ports) {
+            const gates = [
+              ...new Set([
+                ...(analysis.portOwners.has(port) ? [port] : []),
+                ...(analysis.gatesOf.get(port) ?? []),
+              ]),
+            ].sort();
+            found.push({
+              file,
+              line,
+              moduleId,
+              port,
+              handled,
+              gates,
+              gateOwners: [
+                ...new Set(
+                  gates
+                    .map((gate) => analysis.portOwners.get(gate))
+                    .filter((owner): owner is string => owner !== undefined),
+                ),
+              ].sort(),
+              ownerLocked: isOwnerLocked(gates),
+            });
+          }
         }
       }
       node.forEachChild(visit);
@@ -775,6 +901,8 @@ export interface CheckResult {
   readonly total: number;
   readonly violations: readonly PortCatch[];
   readonly ledgered: readonly PortCatch[];
+  /** Sites retired by D-63: every gate they carry has a locked owner. */
+  readonly ownerLocked: readonly PortCatch[];
   /** Ledger keys that no longer describe a violation — the staleness half. */
   readonly stale: readonly string[];
 }
@@ -785,16 +913,22 @@ export function checkPortCatches(
 ): CheckResult {
   const all = findPortCatches(input);
   const unhandled = all.filter((entry) => !entry.handled);
-  const keys = new Set(unhandled.map(keyOf));
+  const ownerLocked = unhandled.filter((entry) => entry.ownerLocked);
+  const open = unhandled.filter((entry) => !entry.ownerLocked);
+  // An `OWNER LOCKED` site is deliberately **not** in the key set: a ledger
+  // entry over one therefore reads stale and has to go, which is what makes the
+  // classification re-red the site if the lock is ever withdrawn (D-63).
+  const keys = new Set(open.map(keyOf));
   return {
     total: all.length,
-    violations: unhandled.filter((entry) => ledger[keyOf(entry)] === undefined),
-    ledgered: unhandled.filter((entry) => ledger[keyOf(entry)] !== undefined),
+    violations: open.filter((entry) => ledger[keyOf(entry)] === undefined),
+    ledgered: open.filter((entry) => ledger[keyOf(entry)] !== undefined),
+    ownerLocked,
     stale: Object.keys(ledger).filter((key) => !keys.has(key)),
   };
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   const files = walk(SRC_ROOT);
   if (files.length === 0) {
@@ -807,16 +941,51 @@ function main(): void {
     sources.set(relative(SRC_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
   }
 
-  const result = checkPortCatches({ sources });
+  // The locks, read from the manifests rather than listed here (D-63). The same
+  // index `check-port-dependencies.ts` derives `neverAbsentOwners` from, so the
+  // two checks cannot disagree about which modules are locked.
+  const { DISCOVERED_MANIFESTS } = (await import(
+    pathToFileURL(join(SRC_ROOT, 'modules/_lifecycle/manifest-index.generated.ts')).href
+  )) as { DISCOVERED_MANIFESTS: ReadonlyArray<{ id: string; manifest: ManifestActivationInput }> };
+  if (DISCOVERED_MANIFESTS.length === 0) {
+    console.error(
+      '[port-catches] the manifest index is empty — every site would read as unlocked, ' +
+        'refusing to report a classification nothing was read for',
+    );
+    process.exit(2);
+  }
+  const manifests = DISCOVERED_MANIFESTS.map((entry) => ({
+    id: entry.id,
+    activation: entry.manifest.activation,
+  }));
+
+  const result = checkPortCatches({ sources, manifests });
 
   if (listMode) {
-    for (const entry of findPortCatches({ sources })) {
+    for (const entry of findPortCatches({ sources, manifests })) {
       const tag = entry.handled
         ? 'HANDLED '
-        : PORT_CATCHES_TO_DRAIN[keyOf(entry)] !== undefined
-          ? 'LEDGERED'
-          : 'BARE    ';
+        : entry.ownerLocked
+          ? 'LOCKED  '
+          : PORT_CATCHES_TO_DRAIN[keyOf(entry)] !== undefined
+            ? 'LEDGERED'
+            : 'BARE    ';
       console.log(`${tag} ${entry.file}:${entry.line}  [${entry.moduleId}] ${entry.port}`);
+    }
+    console.log('');
+  }
+
+  if (result.ownerLocked.length > 0) {
+    console.log(
+      'OWNER LOCKED — the `catch` stays, and there is nothing to drain: every gate it\n' +
+        'carries belongs to a module the platform refuses to switch off, so the presence\n' +
+        'answer it would swallow is unreachable. Un-lock an owner and these come back:\n',
+    );
+    for (const entry of result.ownerLocked) {
+      console.log(
+        `  - ${entry.file}:${entry.line}  [${entry.moduleId}] via ${entry.port} ` +
+          `— locked by ${entry.gateOwners.join(', ')} (gates: ${entry.gates.join(', ')})`,
+      );
     }
     console.log('');
   }
@@ -824,6 +993,7 @@ function main(): void {
   console.log(
     `[port-catches] guarded-port catches=${result.total} ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
+      `owner-locked=${result.ownerLocked.length} ` +
       `ledger-size=${Object.keys(PORT_CATCHES_TO_DRAIN).length} stale=${result.stale.length}`,
   );
 
@@ -838,7 +1008,10 @@ function main(): void {
     }
   }
   if (result.stale.length > 0) {
-    console.error('\nStale ledger entries (no longer describe a bare catch — delete them):');
+    console.error(
+      '\nStale ledger entries (no longer describe a bare catch, or the site is now\n' +
+        'OWNER LOCKED and has nothing left to drain — delete them):',
+    );
     for (const key of result.stale) console.error(`  - ${key}`);
   }
 
@@ -847,5 +1020,5 @@ function main(): void {
 
 // CLI only — importing this module (the unit self-test does) must not scan.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }

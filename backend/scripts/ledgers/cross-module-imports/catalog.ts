@@ -23,8 +23,6 @@ export const entries: Readonly<Record<string, string>> = {
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/commands/attribute-commands.ts:custom_fields/services/custom-field-definitions-cache':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/plugin.ts:admin_notifications/services/admin-notification-service':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/plugin.ts:custom_fields/services/custom-field-value.service':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/plugin.ts:email/services/mailer':
@@ -80,8 +78,6 @@ export const entries: Readonly<Record<string, string>> = {
   'modules/catalog/services/asset-references.ts:assets_library/services/reference-registry':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/attachment.service.ts:assets_library/entities/asset.entity':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/services/bulk-operation.service.ts:admin_notifications/services/admin-notification-service':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/bulk-operation.service.ts:admin_users/entities/admin-user.entity':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',

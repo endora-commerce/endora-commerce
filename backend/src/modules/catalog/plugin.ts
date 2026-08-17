@@ -27,6 +27,7 @@ import { CatalogAttributeReadService } from './services/catalog-attribute-read.s
 import { CatalogBulkUpdateService } from './services/catalog-bulk-update.service.js';
 import {
   BulkOperationService,
+  type BulkNotificationRecorder,
   type SearchReindexRunner,
 } from './services/bulk-operation.service.js';
 import {
@@ -46,7 +47,6 @@ import { ProductScopeContextService } from './services/product-scope-context.ser
 import { ProductValueResolverService } from './services/product-value-resolver.service.js';
 import { SearchQueryService } from '../search/services/search-query.service.js';
 import type { LanguageService } from '../languages/services/language-service.js';
-import type { AdminNotificationService } from '../admin_notifications/services/admin-notification-service.js';
 import type { Mailer } from '../email/services/mailer.js';
 import { registerCatalogPublicRoutes } from './routes.public.js';
 import { registerCatalogAdminRoutes } from './routes.admin.js';
@@ -131,8 +131,12 @@ export interface CatalogModuleOptions {
    * In-app (bell) notifications — used by the queued bulk-edit path to
    * tell the requester their background operation finished. Optional;
    * when omitted the notification is simply skipped.
+   *
+   * The **recorder** shape rather than `admin_notifications`' service: absence
+   * is an answer this module reads off the return type (D-60), not an exception
+   * it catches after the fact.
    */
-  adminNotificationService?: AdminNotificationService;
+  adminNotificationService?: BulkNotificationRecorder;
   /**
    * Email transport — used by the queued bulk-edit path to email the
    * requester on completion. Optional; when omitted email is skipped.

@@ -487,6 +487,22 @@ const PORT_CATCH_TREE = new Map([
   ],
 ]);
 
+/**
+ * `promotions` with and without the lock, for D-63's derived `OWNER LOCKED`.
+ *
+ * The pair is the proof: locked, the site over `PORT_CATCH_TREE` retires; with
+ * the lock withdrawn — the only edit — the same site is a violation again, and
+ * a ledger entry written while it was locked reads stale.
+ */
+const PORT_CATCH_OWNER_LOCKED = {
+  id: 'promotions',
+  activation: { nonDeactivatable: true, reason: 'Nothing prices without it.' },
+};
+const PORT_CATCH_OWNER_UNLOCKED = {
+  id: 'promotions',
+  activation: { settingCode: 'promotions.enabled', default: true },
+};
+
 /** The same port reached through a module-local `lazyPort` alias (shape 2). */
 const PORT_CATCH_ALIAS_TREE = new Map([
   [
@@ -1267,7 +1283,13 @@ const CHECKS: readonly CheckEntry[] = [
   {
     // The three ways a gated port is reached, from the check's own header: its
     // own name, a module-local `lazyPort` alias, and a deps-object key — the
-    // last being 121 of the tree's ~130 `lazyPort` calls.
+    // last being 121 of the tree's ~130 `lazyPort` calls. The fourth proof is
+    // D-63's derived `OWNER LOCKED`: the shape that has to stay refused is a
+    // site resting on a lock **that has been withdrawn**, because a retirement
+    // nothing can un-retire is exactly the stale "locked" reason the derivation
+    // exists to avoid. Both halves enter at the top — source text plus the
+    // manifests — so the derivation itself runs rather than a locked-id set the
+    // fixture hands in.
     script: 'backend/scripts/check-port-catches.ts',
     npmScript: 'check:port-catches',
     job: 'quality',
@@ -1280,6 +1302,20 @@ const CHECKS: readonly CheckEntry[] = [
       ),
       'deps-object-key': top(
         () => checkPortCatches({ sources: PORT_CATCH_DEPS_TREE }, {}).violations.length,
+      ),
+      'lock-withdrawn': top(
+        () =>
+          checkPortCatches(
+            { sources: PORT_CATCH_TREE, manifests: [PORT_CATCH_OWNER_UNLOCKED] },
+            {},
+          ).violations.length,
+      ),
+      'ledger-over-a-locked-owner': top(
+        () =>
+          checkPortCatches(
+            { sources: PORT_CATCH_TREE, manifests: [PORT_CATCH_OWNER_LOCKED] },
+            { 'modules/carts/services/cart-admin-service.ts:promotionService': 'stale now' },
+          ).stale.length,
       ),
     },
   },
@@ -1742,7 +1778,7 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-kernel-boundary.ts': 3,
       'backend/scripts/check-module-boundary.ts': 13,
       'backend/scripts/check-overlay-determinism.ts': 3,
-      'backend/scripts/check-port-catches.ts': 3,
+      'backend/scripts/check-port-catches.ts': 5,
       'backend/scripts/check-port-dependencies.ts': 15,
       'backend/scripts/check-subscribe-seam.ts': 3,
       'backend/scripts/check-timer-presence.ts': 3,
