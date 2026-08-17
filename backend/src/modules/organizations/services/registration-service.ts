@@ -4,14 +4,15 @@ import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   DictionaryReferenceError,
   ERROR_CODES,
+  type CustomerAccountMemberWritePort,
+  type CustomerAccountReadPort,
+  type CustomerAccountRecord,
   type DictionaryValidator,
   type RegisterOrganizationRequest,
 } from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import { hashPassword } from '../../auth/services/password-hasher.js';
 import { Organization } from '../entities/organization.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
@@ -69,15 +70,32 @@ const TOKEN_TTL_HOURS = 48;
 
 export interface RegistrationResult {
   organization: Organization;
-  customerAccount: CustomerAccount;
+  customerAccount: CustomerAccountRecord;
   /** Raw token to include in the verification email — shown once. */
   verificationToken: string;
+}
+
+export interface RegistrationAccountPorts {
+  /**
+   * `customer_accounts`' published read and write (feature 075, Phase C). The
+   * first user of a new Organization is a row in *that* module's table, and
+   * this service used to create it with `em.create(CustomerAccount, …)` and a
+   * `hashPassword` imported from `auth`. Both are on the owner's side of the
+   * port now, which is also why the plain password crosses and no hash does.
+   *
+   * With `customer_accounts` off registration fails closed. That is right: an
+   * Organization whose administrator could not be created is not a
+   * registration, and the module is in any case non-deactivatable.
+   */
+  read: CustomerAccountReadPort;
+  write: CustomerAccountMemberWritePort;
 }
 
 export class RegistrationService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: OrganizationEventBus,
+    private readonly accounts: RegistrationAccountPorts,
     private readonly dictionaryValidator?: DictionaryValidator,
     private readonly auditLog?: AuditLogService,
   ) {}
@@ -87,7 +105,8 @@ export class RegistrationService {
     await this.validateCountry(req.organization.registeredAddress.country);
 
     // Pre-check the easy cases so we can return the right error code before
-    // hashing the password (avoids a wasted ~50 ms of argon2 work).
+    // hashing the password (avoids a wasted ~50 ms of argon2 work — the hash
+    // is computed inside `create` below, after both checks have passed).
     const existingByTaxId = await em.findOne(Organization, { taxId: req.organization.taxId });
     if (existingByTaxId) {
       throw new HttpError(
@@ -96,7 +115,7 @@ export class RegistrationService {
         'An organization with this taxId already exists.',
       );
     }
-    const existingByEmail = await em.findOne(CustomerAccount, { email: req.firstUser.email });
+    const existingByEmail = await this.accounts.read.findByEmail(req.firstUser.email);
     if (existingByEmail) {
       throw new HttpError(
         409,
@@ -104,8 +123,6 @@ export class RegistrationService {
         'An account with this email already exists.',
       );
     }
-
-    const passwordHash = await hashPassword(req.firstUser.password);
 
     const organization = em.create(Organization, {
       name: req.organization.name,
@@ -132,26 +149,17 @@ export class RegistrationService {
       throw err;
     }
 
-    const customerAccount = em.create(CustomerAccount, {
+    // `create` raises the same 409 `EMAIL_ALREADY_REGISTERED` on the unique
+    // index that the `catch` here used to, so the translation moved with the
+    // write rather than being dropped.
+    const customerAccount = await this.accounts.write.create({
       organizationId: organization.id,
       email: req.firstUser.email,
-      passwordHash,
+      password: req.firstUser.password,
       firstName: req.firstUser.firstName,
       lastName: req.firstUser.lastName,
       role: 'organization_admin',
     });
-    try {
-      await em.persistAndFlush(customerAccount);
-    } catch (err) {
-      if (err instanceof UniqueConstraintViolationException) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.EMAIL_ALREADY_REGISTERED,
-          'An account with this email already exists.',
-        );
-      }
-      throw err;
-    }
 
     const rawToken = randomBytes(32).toString('base64url');
     const token = em.create(EmailVerificationToken, {

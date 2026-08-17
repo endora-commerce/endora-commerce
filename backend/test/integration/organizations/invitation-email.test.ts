@@ -8,6 +8,7 @@ import { InvitationService } from '../../../src/modules/organizations/services/i
 import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
+import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
 
 /**
  * T178 / FR-043 — InvitationService dispatches an invitation email through
@@ -42,7 +43,7 @@ describe('InvitationService dispatches invitation email', () => {
 
   it('emails the invitee with an accept link built from the configured storefront base URL', async () => {
     const mailer = new InMemoryMailer();
-    const service = new InvitationService(h.em, mailer, {
+    const service = new InvitationService(h.em, customerAccountPortsFor(h.em), mailer, {
       acceptBaseUrl: 'https://shop.test.example',
     });
 
@@ -63,7 +64,7 @@ describe('InvitationService dispatches invitation email', () => {
   });
 
   it('omits the email send when no Mailer is wired (back-compat path)', async () => {
-    const service = new InvitationService(h.em); // no mailer
+    const service = new InvitationService(h.em, customerAccountPortsFor(h.em)); // no mailer
 
     const result = await service.invite(
       { customerAccountId: admin.id, organizationId: organization.id },

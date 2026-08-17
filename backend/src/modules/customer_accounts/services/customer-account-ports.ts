@@ -1,12 +1,21 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type {
-  CustomerAccountLookupOptions,
-  CustomerAccountReadPort,
-  CustomerAccountRecord,
-  CustomerAccountRole,
-  CustomerAuthPort,
-  CustomerRolePort,
+import { UniqueConstraintViolationException } from '@mikro-orm/core';
+import {
+  ERROR_CODES,
+  type CustomerAccountCreateInput,
+  type CustomerAccountLookupOptions,
+  type CustomerAccountMemberWritePort,
+  type CustomerAccountProfilePatch,
+  type CustomerAccountReadPort,
+  type CustomerAccountRecord,
+  type CustomerAccountRole,
+  type CustomerAuthPort,
+  type CustomerRolePort,
 } from '@b2b/contracts';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import { HttpError } from '../../../http/error-envelope.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import type { CustomerAuthService } from './customer-auth-service.js';
 import type { RoleService } from './role-service.js';
@@ -157,6 +166,203 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
       { orderBy: { email: 'asc' } },
     );
     return accounts.map(toCustomerAccountRecord);
+  }
+}
+
+/**
+ * The member lifecycle `organizations` runs over this module's table
+ * (feature 075, Phase C).
+ *
+ * It ran it by creating and mutating the `CustomerAccount` entity in its own
+ * services and route handlers — seven write sites across five files. They are
+ * six methods here, each one unit of work on this table alone, because a write
+ * port that took the caller's `EntityManager` would publish the coupling
+ * instead of removing it (D-78).
+ *
+ * **Each write audits itself**, in the same unit of work, exactly as
+ * `RoleService` and `addresses`' `AddressService` — the two write surfaces
+ * `organizations` already reaches across this boundary — have always done. The
+ * host's own row is a different fact and stays where it is: "an operator edited
+ * this member on the organisation panel" is not "this account's e-mail
+ * changed", and the role endpoint has recorded both for as long as it has
+ * existed.
+ */
+export class CustomerAccountMemberWriteService implements CustomerAccountMemberWritePort {
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  async create(input: CustomerAccountCreateInput): Promise<CustomerAccountRecord> {
+    const em = this.emFactory();
+    const email = input.email.toLowerCase();
+    const existing = await em.findOne(CustomerAccount, { email });
+    if (existing) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.EMAIL_ALREADY_REGISTERED,
+        'An account with this email already exists.',
+      );
+    }
+    const account = em.create(CustomerAccount, {
+      organizationId: input.organizationId,
+      email,
+      passwordHash: await hashPassword(input.password),
+      firstName: input.firstName,
+      lastName: input.lastName,
+      role: input.role,
+      ...(input.emailVerified ? { emailVerifiedAt: new Date() } : {}),
+    });
+    this.#audit(em, 'customer_account.create', account.id, null, {
+      organizationId: account.organizationId ?? null,
+      email: account.email,
+      role: account.role,
+    });
+    try {
+      await em.persistAndFlush(account);
+    } catch (err) {
+      // The unique index is the real arbiter; the pre-check above only buys a
+      // better message for the common case. Two registrations racing on one
+      // address must both answer 409 rather than one answering 500.
+      if (err instanceof UniqueConstraintViolationException) {
+        throw new HttpError(
+          409,
+          ERROR_CODES.EMAIL_ALREADY_REGISTERED,
+          'An account with this email already exists.',
+        );
+      }
+      throw err;
+    }
+    return toCustomerAccountRecord(account);
+  }
+
+  async updateProfile(
+    customerAccountId: string,
+    patch: CustomerAccountProfilePatch,
+  ): Promise<CustomerAccountRecord> {
+    const em = this.emFactory();
+    const account = await this.#loadLive(em, customerAccountId);
+    const before = {
+      email: account.email,
+      firstName: account.firstName,
+      lastName: account.lastName,
+    };
+    if (patch.email !== undefined) {
+      const nextEmail = patch.email.toLowerCase();
+      if (nextEmail !== account.email) {
+        const taken = await em.findOne(CustomerAccount, { email: nextEmail, deletedAt: null });
+        if (taken && taken.id !== account.id) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.EMAIL_ALREADY_REGISTERED,
+            'That email is already used by another account.',
+          );
+        }
+        account.email = nextEmail;
+        account.emailVerifiedAt = null;
+      }
+    }
+    if (patch.firstName !== undefined) account.firstName = patch.firstName;
+    if (patch.lastName !== undefined) account.lastName = patch.lastName;
+    this.#audit(em, 'customer_account.update_profile', account.id, before, {
+      email: account.email,
+      firstName: account.firstName,
+      lastName: account.lastName,
+    });
+    await em.flush();
+    return toCustomerAccountRecord(account);
+  }
+
+  async setSubtreeRollup(
+    customerAccountId: string,
+    enabled: boolean,
+  ): Promise<CustomerAccountRecord> {
+    const em = this.emFactory();
+    const account = await this.#loadLive(em, customerAccountId);
+    const before = { subtreeRollupEnabled: account.subtreeRollupEnabled };
+    account.subtreeRollupEnabled = enabled;
+    this.#audit(em, 'customer_account.set_subtree_rollup', account.id, before, {
+      subtreeRollupEnabled: enabled,
+    });
+    await em.flush();
+    return toCustomerAccountRecord(account);
+  }
+
+  async promoteToOrganizationAdmin(customerAccountId: string): Promise<CustomerAccountRecord> {
+    const em = this.emFactory();
+    const account = await this.#loadLive(em, customerAccountId);
+    const before = { role: account.role };
+    account.role = 'organization_admin';
+    this.#audit(em, 'customer_account.promote_organization_admin', account.id, before, {
+      role: account.role,
+    });
+    await em.flush();
+    return toCustomerAccountRecord(account);
+  }
+
+  async markEmailVerified(
+    customerAccountId: string,
+    verifiedAt: Date,
+  ): Promise<CustomerAccountRecord> {
+    const em = this.emFactory();
+    const account = await em.findOne(CustomerAccount, { id: customerAccountId });
+    if (!account) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
+    }
+    // Idempotent: a retried verification keeps the first timestamp, and records
+    // nothing the second time — an audit row per retry would say a change
+    // happened that did not.
+    if (!account.emailVerifiedAt) {
+      account.emailVerifiedAt = verifiedAt;
+      this.#audit(em, 'customer_account.email_verified', account.id, { emailVerifiedAt: null }, {
+        emailVerifiedAt: verifiedAt.toISOString(),
+      });
+      await em.flush();
+    }
+    return toCustomerAccountRecord(account);
+  }
+
+  async attachToOrganization(
+    customerAccountId: string,
+    organizationId: string,
+  ): Promise<CustomerAccountRecord> {
+    const em = this.emFactory();
+    const account = await em.findOne(CustomerAccount, { id: customerAccountId });
+    if (!account) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
+    }
+    const before = { organizationId: account.organizationId ?? null };
+    account.organizationId = organizationId;
+    this.#audit(em, 'customer_account.attach_organization', account.id, before, {
+      organizationId,
+    });
+    await em.flush();
+    return toCustomerAccountRecord(account);
+  }
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (!this.auditLog) return;
+    recordAuditFromContext(this.auditLog, em, {
+      action,
+      objectType: 'customer_account',
+      objectId,
+      stateBefore,
+      stateAfter,
+    });
+  }
+
+  async #loadLive(em: EntityManager, id: string): Promise<CustomerAccount> {
+    const account = await em.findOne(CustomerAccount, { id, deletedAt: null });
+    if (!account) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
+    }
+    return account;
   }
 }
 

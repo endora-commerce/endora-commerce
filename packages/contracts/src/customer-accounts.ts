@@ -146,6 +146,121 @@ export interface CustomerAccountReadPort {
   listAll(): Promise<CustomerAccountRecord[]>;
 }
 
+/**
+ * A new account, as the module that owns the membership asks for one.
+ *
+ * The **plain** password crosses, not a hash: `passwordHash` is deliberately
+ * absent from {@link CustomerAccountRecord} for the same reason, and a caller
+ * that hashes is a caller that has to be told which algorithm the owner uses
+ * and be trusted to keep using it. Hashing belongs on the owner's side of the
+ * port, and moving it there removed the last three `hashPassword` imports from
+ * `organizations`.
+ */
+export interface CustomerAccountCreateInput {
+  organizationId: string;
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role: CustomerAccountRole;
+  /**
+   * Whether the address is already confirmed. Accepting an invitation implies
+   * it — the invitation was delivered to that address; self-registration and
+   * the admin direct-create do not.
+   */
+  emailVerified?: boolean;
+}
+
+/** Absent fields are left unchanged. */
+export interface CustomerAccountProfilePatch {
+  /**
+   * Lower-cased by the owner. Changing it clears `emailVerifiedAt`: the new
+   * address has not been confirmed, and leaving the old confirmation standing
+   * would let an admin verify an address by editing it.
+   */
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+/**
+ * Container name: `customerAccountMemberWritePort`. Owner: `customer_accounts`.
+ *
+ * The member lifecycle `organizations` runs over accounts in its
+ * organisations, published because that module ran it by creating and mutating
+ * this module's entity directly (feature 075, Phase C). It is the union of
+ * what that module measurably does and no more: three creation paths
+ * (self-registration, invitation accept, admin direct-create) collapse into
+ * one `create`, and the four field writes are one method each.
+ *
+ * **Every method is one unit of work on this module's table only** (D-78 rule
+ * 1). No `EntityManager` crosses, and none needs to: each caller's remaining
+ * writes are its own tables, flushed on its own side. Where that splits a
+ * flush the caller used to share — the invitation accept wrote the account and
+ * consumed the invitation together — the caller orders the two so the
+ * recoverable half fails first, and says so at the call site.
+ *
+ * **Each method audits its own write**, in the same unit of work, exactly as
+ * `roleService` and `addresses`' `addressService` do. The caller's own audit
+ * row is a different fact — "an operator edited this member on the
+ * organisation panel" rather than "this account's e-mail changed" — and both
+ * are kept, which is what the role endpoint has always recorded.
+ *
+ * `changeRole` is **not** here: {@link CustomerRolePort} already owns it, with
+ * the "an organisation keeps at least one admin" guard.
+ * {@link CustomerAccountMemberWritePort.promoteToOrganizationAdmin} is a
+ * different question — the break-glass path an operator reaches *because* an
+ * organisation has no admin left — and it is named rather than expressed as an
+ * unguarded `setRole`, which is a footgun beside a guarded one.
+ *
+ * When `customer_accounts` is off every method fails closed. The module is
+ * non-deactivatable, so that gate cannot be reached today; it is registered
+ * through `providePort` anyway, for the reason its seven siblings give.
+ */
+export interface CustomerAccountMemberWritePort {
+  /**
+   * Creates the account. Throws HTTP 409 `EMAIL_ALREADY_REGISTERED` when the
+   * address is taken — the check is inside the write, so a caller that races
+   * its own pre-check still gets the right code rather than a constraint
+   * violation.
+   */
+  create(input: CustomerAccountCreateInput): Promise<CustomerAccountRecord>;
+
+  /**
+   * Throws HTTP 404 `NOT_FOUND` when no live account has that id, and HTTP 409
+   * `EMAIL_ALREADY_REGISTERED` when the new address belongs to another one.
+   */
+  updateProfile(
+    customerAccountId: string,
+    patch: CustomerAccountProfilePatch,
+  ): Promise<CustomerAccountRecord>;
+
+  /** Feature 056 — the customer-side subtree roll-up capability. */
+  setSubtreeRollup(
+    customerAccountId: string,
+    enabled: boolean,
+  ): Promise<CustomerAccountRecord>;
+
+  /** The break-glass promotion. Idempotent on an account that already holds it. */
+  promoteToOrganizationAdmin(customerAccountId: string): Promise<CustomerAccountRecord>;
+
+  /**
+   * Stamps `emailVerifiedAt`, idempotently — a second call keeps the first
+   * timestamp, so a retried verification does not move it.
+   */
+  markEmailVerified(customerAccountId: string, verifiedAt: Date): Promise<CustomerAccountRecord>;
+
+  /**
+   * Feature 051 — binds an org-less account to the organisation just
+   * provisioned for it. Throws HTTP 404 `NOT_FOUND` when no account has that
+   * id.
+   */
+  attachToOrganization(
+    customerAccountId: string,
+    organizationId: string,
+  ): Promise<CustomerAccountRecord>;
+}
+
 // --- the authenticated-surface ports -----------------------------------------
 
 /** What a caller sets the session cookie from after a successful first factor. */

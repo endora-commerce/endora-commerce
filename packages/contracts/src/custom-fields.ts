@@ -218,3 +218,29 @@ export interface CustomFieldValuePort {
     bag: Record<string, unknown>,
   ): Promise<Record<string, unknown>>;
 }
+
+/**
+ * What `validateAndMerge` throws, as a host outside `custom_fields` sees it.
+ *
+ * The implementation throws an `Error` subclass carrying `errors`. A host that
+ * renders the 422 needs the per-field list and nothing else, so it narrows
+ * **structurally** through the guard below rather than importing the
+ * constructor — the same substitution D-77 prescribes for
+ * `CustomFieldDefinitionError`, and for the same reason: an `instanceof` is an
+ * import of a class, and a class is a file in another module's directory.
+ */
+export interface CustomFieldValidationFailure {
+  readonly errors: readonly CustomFieldValidationError[];
+}
+
+/** Narrows an unknown throw to {@link CustomFieldValidationFailure}. */
+export function isCustomFieldValidationFailure(
+  error: unknown,
+): error is CustomFieldValidationFailure {
+  if (typeof error !== 'object' || error === null) return false;
+  const errors = (error as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) return false;
+  return errors.every(
+    (entry) => customFieldValidationErrorSchema.safeParse(entry).success,
+  );
+}

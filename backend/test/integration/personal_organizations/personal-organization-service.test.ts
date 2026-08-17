@@ -4,6 +4,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { PersonalOrganizationService } from '../../../src/modules/organizations/services/personal-organization-service.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
 
 /**
  * Feature 051 (T005) — PersonalOrganizationService: idempotent provisioning,
@@ -19,7 +20,10 @@ describe('PersonalOrganizationService', () => {
   });
   beforeEach(async () => {
     em = await db.beginTx();
-    svc = new PersonalOrganizationService(() => em);
+    svc = new PersonalOrganizationService(
+      () => em,
+      customerAccountPortsFor(() => em),
+    );
   });
   afterEach(async () => db.rollbackTx());
   afterAll(async () => db.close());

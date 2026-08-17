@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type {
   AuthSessionPort,
+  CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
   CustomerAuthPort,
   CustomerPasswordResetPort,
@@ -20,6 +21,7 @@ import type { SettingsService } from '../../kernel/settings/settings.service.js'
 import { hashPassword } from '../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from './entities/customer-account.entity.js';
 import {
+  CustomerAccountMemberWriteService,
   CustomerAccountReadService,
   createCustomerAuthPort,
   createCustomerRolePort,
@@ -124,6 +126,23 @@ export function registerModule(ctx: ModuleContext): void {
     'customerAccountReadPort',
     ctx
       .asFunction(({ emFactory }: CustomerAccountsCradle) => new CustomerAccountReadService(emFactory))
+      .singleton(),
+  );
+
+  /**
+   * Feature 075, Phase C — the member lifecycle `organizations` runs over this
+   * table. Published when that module was cut: it created and mutated the
+   * entity in seven places, and the argon2 hash it needed to do so came from an
+   * import of `auth`. Both are on this side of the port now, and each write
+   * records its own audit row, as `roleService` beside it always has.
+   */
+  ctx.di.providePort<CustomerAccountMemberWritePort>(
+    'customerAccountMemberWritePort',
+    ctx
+      .asFunction(
+        ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
+          new CustomerAccountMemberWriteService(emFactory, auditLogService),
+      )
       .singleton(),
   );
 

@@ -1,7 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Organization } from '../entities/organization.entity.js';
-import type { AdminNotificationService } from '../../admin_notifications/services/admin-notification-service.js';
-import type { Mailer } from '../../email/services/mailer.js';
+import type { AdminNotificationRecordPort, EmailMailerPort } from '@b2b/contracts';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
 
 /**
@@ -21,8 +20,8 @@ import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-emai
  */
 export interface OrgRegistrationNotifierDeps {
   emFactory: () => EntityManager;
-  adminNotificationService: AdminNotificationService;
-  mailer: Mailer;
+  adminNotificationService: AdminNotificationRecordPort;
+  mailer: EmailMailerPort;
   resolveRecipients: () => Promise<string[]>;
   onError?: (err: unknown) => void;
   /** Feature 047 — optional admin-editable template path. */
