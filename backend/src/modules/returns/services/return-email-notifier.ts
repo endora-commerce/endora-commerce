@@ -1,5 +1,4 @@
-import type { Mailer } from '../../email/services/mailer.js';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type { EmailMailerPort, TransactionalEmailSender } from '@b2b/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { ReturnCase } from '../entities/return-case.entity.js';
 import type { ReturnNotifier } from './return-authorization-service.js';
@@ -75,7 +74,7 @@ export class ReturnEmailNotifier implements ReturnNotifier {
   private readonly log: ReturnEmailLog;
 
   constructor(
-    private readonly mailer: Mailer,
+    private readonly mailer: EmailMailerPort,
     private readonly resolveCustomerEmail: CustomerEmailResolver,
     private readonly emailOptions: ReturnNotifierEmailOptions = {},
   ) {

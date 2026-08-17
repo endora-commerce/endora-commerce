@@ -14,17 +14,15 @@
 
 import { describe, expect, it } from 'vitest';
 import type {
+  EmailMailerPort,
+  EmailMailerSendInput,
+  EmailMailerSendOutcome,
   TransactionalEmailSendInput,
   TransactionalEmailSender,
   TransactionalSendOutcome,
 } from '@b2b/contracts';
 import { ReturnEmailNotifier } from '../../../src/modules/returns/services/return-email-notifier.js';
 import type { ReturnCase } from '../../../src/modules/returns/entities/return-case.entity.js';
-import type {
-  Mailer,
-  MailerSendInput,
-  MailerSendOutcome,
-} from '../../../src/modules/email/services/mailer.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 
 const CHANNEL_ID = 'cccccccc-0000-4000-8000-0000000000aa';
@@ -45,9 +43,9 @@ function returnCase(overrides: Partial<ReturnCase> = {}): ReturnCase {
   } as unknown as ReturnCase;
 }
 
-class CapturingMailer implements Mailer {
-  readonly sent: MailerSendInput[] = [];
-  async send(email: MailerSendInput): Promise<MailerSendOutcome> {
+class CapturingMailer implements EmailMailerPort {
+  readonly sent: EmailMailerSendInput[] = [];
+  async send(email: EmailMailerSendInput): Promise<EmailMailerSendOutcome> {
     this.sent.push(email);
     return { status: 'sent' };
   }
@@ -63,7 +61,7 @@ class CapturingSender implements TransactionalEmailSender {
 }
 
 function notifier(
-  mailer: Mailer,
+  mailer: EmailMailerPort,
   sender: TransactionalEmailSender | undefined,
   logged: Logged[],
   recipient: string | null = 'buyer@example.com',

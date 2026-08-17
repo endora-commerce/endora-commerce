@@ -1,6 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type {
+  EmailDefaultsRegistryPort,
+  EmailMailerPort,
+  TransactionalEmailSender,
+} from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
@@ -11,9 +15,7 @@ import {
   ReturnEmailNotifier,
   type CustomerEmailResolver,
 } from './services/return-email-notifier.js';
-import type { Mailer } from '../email/services/mailer.js';
 import { RETURN_AUTHORIZED_DEFAULT, RETURN_REJECTED_DEFAULT } from './email-templates/transactional-defaults.js';
-import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 
 /**
  * `returns` — four settlement ports and a dead callback (feature 072, wave 2,
@@ -103,7 +105,7 @@ export function registerModule(ctx: ModuleContext): void {
          * `transactional_emails` announces it after this module composes.
          */
         const notifier = new ReturnEmailNotifier(
-          lazyPort<Mailer>(ctx, 'emailMailer'),
+          lazyPort<EmailMailerPort>(ctx, 'emailMailer'),
           (customerAccountId) => bridge().resolveCustomerEmail(customerAccountId),
           {
             getTransactionalEmailSender: () =>
@@ -159,7 +161,7 @@ export function registerModule(ctx: ModuleContext): void {
    * built, so this always lands first — by construction, not by ordering luck.
    */
   ctx.onBoot(async () => {
-    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    const defaults = lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort');
     defaults.register('return_authorized', RETURN_AUTHORIZED_DEFAULT, 'returns');
     defaults.register('return_rejected', RETURN_REJECTED_DEFAULT, 'returns');
   });
