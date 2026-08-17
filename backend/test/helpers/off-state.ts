@@ -41,6 +41,81 @@ import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-ma
  * empty declaration, so an off-state test cannot pass vacuously.
  */
 
+/**
+ * Which axis is being driven off. Both produce absence; they are not
+ * interchangeable, because a `nonDeactivatable` module has no off state on the
+ * operator axis at all.
+ */
+export type OffStateAxis = 'deactivated' | 'platform-unavailable';
+
+/**
+ * Run `body` with `moduleId` genuinely off on `axis`, and restore afterwards.
+ *
+ * The point of this helper is the line in the middle: after the flip it asserts
+ * that the module **is** absent, before the body observes anything. Issue #141
+ * is what that line is for — four tests seeded an off state that never took and
+ * then asserted behaviour a switched-*on* module produces anyway, so all four
+ * were green while measuring nothing:
+ *
+ *  - `{ deactivated: ['admin_users'] }` is inert. The module declares itself
+ *    `nonDeactivatable`, so `ModuleEffectiveState` returns `true` for its
+ *    operator axis whatever is stored — the seed wrote a value nothing reads.
+ *  - an *exemption* test ("this surface keeps answering while its module is
+ *    off") asserts the same outcome in both states by construction, so the flip
+ *    going inert is invisible to it. The positive control is the only thing
+ *    that can tell the two apart.
+ *
+ * Misuse throws rather than failing an expectation: asking for the operator
+ * axis of a module that has none is a wiring mistake in the test, and the
+ * message says which axis to use instead.
+ */
+export async function withModuleOff<T>(
+  moduleId: string,
+  axis: OffStateAxis,
+  body: () => Promise<T> | T,
+): Promise<T> {
+  const baseline = registryCache.enabledIds();
+  if (!baseline.includes(moduleId)) {
+    throw new Error(
+      `[off-state] "${moduleId}" is not enabled before the test runs, so ` +
+        `switching it off proves nothing. Seed the registry cache first.`,
+    );
+  }
+  if (axis === 'deactivated' && registryCache.activationDeclaration(moduleId)?.settingCode === null) {
+    throw new Error(
+      `[off-state] "${moduleId}" declares itself non-deactivatable, so the ` +
+        `operator axis has no off state for it and seeding one changes nothing. ` +
+        `Drive the platform axis instead: withModuleOff('${moduleId}', 'platform-unavailable', …).`,
+    );
+  }
+
+  if (axis === 'deactivated') {
+    registryCache.__setEnabledForTesting(baseline, { deactivated: [moduleId] });
+  } else {
+    registryCache.__setEnabledForTesting(baseline.filter((id) => id !== moduleId));
+  }
+
+  try {
+    expect(
+      effectiveState.isPresent(moduleId),
+      `[off-state:${axis}] "${moduleId}" is still present after the flip — ` +
+        `whatever the body asserts, it is not measuring an off module`,
+    ).toBe(false);
+    if (axis === 'deactivated') {
+      // The axes are orthogonal: the case Constitution XVII calls out by name
+      // is the one where the platform still offers the module.
+      expect(
+        effectiveState.presence(moduleId)?.platformAvailable,
+        `[off-state:deactivated] "${moduleId}" lost its platform axis too — ` +
+          `that is the other case, and it is asserted separately`,
+      ).toBe(true);
+    }
+    return await body();
+  } finally {
+    registryCache.__setEnabledForTesting(baseline);
+  }
+}
+
 /** A request to make while the module is off. A bare string means `GET`. */
 export interface OffStateProbe {
   method?: InjectOptions['method'];
@@ -241,29 +316,40 @@ export async function expectModuleAbsent(
 
     // Axis 1 — the operator switched it off; the platform still offers it.
     // This is the case Constitution XVII calls out by name.
-    registryCache.__setEnabledForTesting(baseline, { deactivated: [moduleId] });
     if (isCore(moduleId)) {
-      // …except that this module declares itself non-deactivatable, so the
-      // seeding above does nothing and the assertion worth making is that it
-      // does nothing. Anything else here would be a green measured with the
-      // module running.
+      // …except that this module declares itself non-deactivatable, so seeding
+      // an activation value does nothing and the assertion worth making is that
+      // it does nothing. Anything else here would be a green measured with the
+      // module running. `withModuleOff` refuses this axis for a core module by
+      // design (issue #141), so the seeding stays inline — the point is that the
+      // flip is inert, which is precisely what the helper will not let a caller
+      // assume elsewhere.
+      registryCache.__setEnabledForTesting(baseline, { deactivated: [moduleId] });
       expect(
         effectiveState.isPresent(moduleId),
         `[off-state:deactivated] "${moduleId}" declares itself non-deactivatable, so no ` +
           `seeded activation value may make it absent`,
       ).toBe(true);
       await expectRoutesAnswering(server, moduleId, surfaces, 'deactivated');
+      registryCache.__setEnabledForTesting(baseline);
     } else {
-      await expectRoutesRefused(server, moduleId, surfaces, 'deactivated');
-      await expectPresenceReports(server, moduleId, surfaces, false, 'deactivated');
-      await expectSettingWriteRefused(server, moduleId, surfaces, 'deactivated');
+      // `withModuleOff` asserts the flip actually took before anything observes
+      // a surface (issue #141), and restores in its own `finally`.
+      await withModuleOff(moduleId, 'deactivated', async () => {
+        await expectRoutesRefused(server, moduleId, surfaces, 'deactivated');
+        await expectPresenceReports(server, moduleId, surfaces, false, 'deactivated');
+        await expectSettingWriteRefused(server, moduleId, surfaces, 'deactivated');
+      });
     }
 
-    // Axis 2 — the deployment does not offer it at all.
-    registryCache.__setEnabledForTesting(baseline.filter((id) => id !== moduleId));
-    await expectRoutesRefused(server, moduleId, surfaces, 'platform-unavailable');
-    await expectPresenceReports(server, moduleId, surfaces, false, 'platform-unavailable');
-    await expectSettingWriteRefused(server, moduleId, surfaces, 'platform-unavailable');
+    // Axis 2 — the deployment does not offer it at all. This one holds for every
+    // module, `nonDeactivatable` included: that declaration binds the operator
+    // axis, not the platform's.
+    await withModuleOff(moduleId, 'platform-unavailable', async () => {
+      await expectRoutesRefused(server, moduleId, surfaces, 'platform-unavailable');
+      await expectPresenceReports(server, moduleId, surfaces, false, 'platform-unavailable');
+      await expectSettingWriteRefused(server, moduleId, surfaces, 'platform-unavailable');
+    });
   } finally {
     registryCache.__setEnabledForTesting(baseline);
   }

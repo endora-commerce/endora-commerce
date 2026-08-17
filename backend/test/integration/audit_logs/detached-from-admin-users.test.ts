@@ -8,7 +8,7 @@ import {
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { expectModuleAbsent } from '../../helpers/off-state.js';
+import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
 
 /**
  * Feature 072 wave 1 (T084) — `audit_logs` stops being a passenger of
@@ -92,8 +92,7 @@ describe('audit_logs — owns its surface [integration]', () => {
     // axis for it. A deployment that does not ship the module at all is the
     // case this degradation was designed for, and it is the one axis that can
     // still produce it.
-    registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'admin_users'));
-    try {
+    await withModuleOff('admin_users', 'platform-unavailable', async () => {
       const entry = await readEntry();
       // The record is the point. Losing the display name is acceptable;
       // losing the audit trail because a *different* module is off is not.
@@ -103,23 +102,24 @@ describe('audit_logs — owns its surface [integration]', () => {
       // absent module was supplying, so it is what degrades.
       expect(entry?.['actorAdminUserId']).toBe(actorId);
       expect(entry?.['actorName']).toBeNull();
-    } finally {
-      registryCache.__setEnabledForTesting(ALL_IDS);
-    }
+    });
   });
 
-  it('recent activity keeps answering when admin_users is switched off', async () => {
-    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['admin_users'] });
-    try {
+  it('recent activity keeps answering when admin_users is absent', async () => {
+    // Issue #141 — this asked for `{ deactivated: ['admin_users'] }`, which is
+    // inert: the module is `nonDeactivatable`, so its operator axis is `true`
+    // whatever is stored, and the 200 below was a fully present module
+    // answering normally. The platform axis is the one that can produce the
+    // absence, exactly as the case above says, and `withModuleOff` refuses the
+    // other axis rather than letting it read as an off state again.
+    await withModuleOff('admin_users', 'platform-unavailable', async () => {
       const res = await h.app.inject({
         method: 'GET',
         url: '/api/v1/admin/audit-log/recent-activity',
         cookies: ADMIN,
       });
       expect(res.statusCode).toBe(200);
-    } finally {
-      registryCache.__setEnabledForTesting(ALL_IDS);
-    }
+    });
   });
 
   it('is absent on both axes while off, and fully restored when on', async () => {
