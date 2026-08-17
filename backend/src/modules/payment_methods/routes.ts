@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  paymentMethodStatusPatchSchema,
   paymentMethodUpsertSchema,
   type PaymentMethodAdminListItem,
   type PaymentMethodAvailability,
@@ -10,6 +11,7 @@ import { HttpError } from '../../http/error-envelope.js';
 import type { CommandBus } from '../../commands/index.js';
 import {
   makeDeletePaymentMethodCommand,
+  makeSetPaymentMethodStatusCommand,
   makeUpsertPaymentMethodCommand,
 } from './commands/payment-method.commands.js';
 import {
@@ -185,6 +187,31 @@ export async function registerPaymentMethodsAdminRoutes(
         await replaceChannelMembership(deps.salesChannelMembership, row.id, body.salesChannelIds);
       }
 
+      return { data: await serializeAdmin(row, deps) };
+    },
+  );
+
+  /**
+   * Availability — feature 076, D-82. The one write that decides whether a
+   * method is offered to buyers, wherever an operator arrives from: the four
+   * gateway screens link here rather than writing the column themselves.
+   *
+   * Keyed by **id**, like the `DELETE` beside it and unlike the `PUT` above:
+   * the `PUT` is an upsert, so it is keyed by the natural key it may create,
+   * while this operates on a row that must already exist. The 404 is inside the
+   * Command, on its own transaction.
+   */
+  app.patch<{ Params: { id: string } }>(
+    '/api/v1/admin/payment-methods/:id/status',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: paymentMethodStatusPatchSchema },
+    },
+    async (request) => {
+      const body = paymentMethodStatusPatchSchema.parse(request.body);
+      const row = await deps.commandBus.run(
+        makeSetPaymentMethodStatusCommand(request.params.id, body.status),
+      );
       return { data: await serializeAdmin(row, deps) };
     },
   );

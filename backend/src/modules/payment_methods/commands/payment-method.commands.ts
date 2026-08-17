@@ -117,6 +117,51 @@ export function makeUpsertPaymentMethodCommand(
 }
 
 /**
+ * Availability, as its own Command — feature 076, D-82.
+ *
+ * Whether a method is offered to buyers used to be writable from five places:
+ * this module's upsert and the four gateway rule Commands, each under its own
+ * action name, three of which named a gateway. One action name is what makes
+ * "who turned this off, and when" one audit query.
+ *
+ * `before` / `after` are `{ status }` only, not the full
+ * {@link paymentMethodAuditState}: the operation changed one field and an audit
+ * diff that pretends otherwise is noise in the one report this Command exists
+ * to make readable.
+ *
+ * **Not `reversible`**, for the reason its three siblings above give: that flag
+ * marks the commands wired into feature 054's stored-revert undo, and this
+ * module has no such surface. The inverse is the same PATCH carrying the other
+ * value, which the audit row's `stateBefore` holds in full.
+ */
+export function makeSetPaymentMethodStatusCommand(
+  id: string,
+  status: 'active' | 'inactive',
+): Command<PaymentMethod> {
+  return {
+    action: 'payment_method.set_status',
+    objectType: 'payment_method',
+    objectId: id,
+    run: async ({ em }) => {
+      const row = await em.findOne(PaymentMethod, { id });
+      if (!row) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Payment method not found.');
+      }
+      // Setting the value it already holds is not a write, so it records no
+      // audit row: "no write ⇒ no audit row" is what makes the query above
+      // answer "who turned this off" rather than "who last opened the screen".
+      if (row.status === status) {
+        return { result: row, skipAudit: true };
+      }
+      const before = { status: row.status };
+      row.status = status;
+      await em.flush();
+      return { result: row, before, after: { status: row.status } };
+    },
+  };
+}
+
+/**
  * Delete-guard (feature 034, FR-003): never orphan a Payment's method reference.
  * Counted on the Command's own transaction, so the guard and the delete answer
  * the same moment.

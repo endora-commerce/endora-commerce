@@ -46,4 +46,26 @@ export const manifest = defineModuleManifest({
   // `quick_order`, and the four provider modules — fail closed when it is off,
   // which is the intended meaning of switching a payment catalog off.
   activation: { settingCode: 'payment_methods.enabled', default: true },
+  i18n: { bundlesDir: 'i18n' },
+  // Feature 076 (D-83 item 8) — a standing Principle XVI gap, closed here
+  // because this change is what starts sending operators to `/payment-methods`
+  // from four gateway screens. The module owned a real admin route and declared
+  // no palette action at all.
+  //
+  // `targetRoute` is the landing route **plain**: the action route regex rejects
+  // a query string, so the gateway screens' `?highlight=<code>` deep link is an
+  // in-page anchor rather than a second action. `catalog:read` is what gates
+  // `GET /api/v1/admin/payment-methods`, so the palette never advertises a 403.
+  actions: [
+    {
+      id: 'open-payment-methods',
+      labelKey: 'actions.openPaymentMethods.label',
+      descriptionKey: 'actions.openPaymentMethods.description',
+      icon: 'CreditCard',
+      targetRoute: '/payment-methods',
+      requiredPermission: 'catalog:read',
+      keywords: ['payment', 'method', 'availability', 'checkout', 'płatność', 'metoda'],
+      weight: 150,
+    },
+  ],
 });

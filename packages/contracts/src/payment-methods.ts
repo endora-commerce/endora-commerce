@@ -55,6 +55,23 @@ export const paymentMethodUpsertSchema = z.object({
 });
 export type PaymentMethodUpsert = z.infer<typeof paymentMethodUpsertSchema>;
 
+/**
+ * Whether the method is offered to buyers — feature 076, D-82.
+ *
+ * Its own body, because it is its own operation. `paymentMethodUpsertSchema`
+ * requires `name` and `kind`, so a toggle expressed through the `PUT` would
+ * have to resend the whole record, and a stale client that did would clobber a
+ * concurrent edit of fields it never meant to touch.
+ *
+ * `status` stays on the upsert as well: a full edit that happens to include
+ * availability is one legitimate operation, and removing it there would force
+ * two round trips for one form.
+ */
+export const paymentMethodStatusPatchSchema = z.object({
+  status: z.enum(['active', 'inactive']),
+});
+export type PaymentMethodStatusPatch = z.infer<typeof paymentMethodStatusPatchSchema>;
+
 /** Admin detail (full config) response. */
 export const paymentMethodAdminSchema = z.object({
   id: uuidSchema,
