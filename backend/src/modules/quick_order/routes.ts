@@ -4,9 +4,10 @@ import {
   quickOrderBuildRequestSchema,
   quickOrderImportRequestSchema,
   quickOrderSearchQuerySchema,
+  type CatalogAttributeReadPort,
+  type CatalogProductReadPort,
+  type CatalogProductRecord,
 } from '@b2b/contracts';
-import { Product } from '../catalog/entities/product.entity.js';
-import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
 import type { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import type { QuickOrderBuildService } from './services/quick-order-build-service.js';
 import { parseImportRequest } from './services/import-from-request.js';
@@ -37,7 +38,9 @@ export interface QuickOrderRoutesDeps {
    * former direct `ProductAttribute` entity find (Principle I): quick-search
    * sources its `quick_searchable` keys through this injected port.
    */
-  catalogAttributeRead: CatalogAttributeReadService;
+  catalogAttributeRead: CatalogAttributeReadPort;
+  /** `catalog`'s product read model — the rows the search ids resolve to. */
+  catalogProducts: CatalogProductReadPort;
 }
 
 export async function registerQuickOrderRoutes(
@@ -92,6 +95,27 @@ export async function registerQuickOrderRoutes(
       (a) => a.key,
     );
 
+    // ---------------------------------------------------------------------
+    // A cross-module read `check:module-boundary` is structurally unable to
+    // see (feature 075, plan.md trap 6). `products` is `catalog`'s table, and
+    // this is a hand-written `select` against it — no import specifier, so no
+    // ledger entry can key it and the shard reads clean either way.
+    //
+    // It is left standing rather than "fixed" here, deliberately. Inlining is
+    // what trap 6 forbids and this predates the sweep; the remedy is a
+    // published quick-search port on `catalog`, because the predicate is a
+    // catalogue question — `status = 'active'`, `sku`/`slug`/`name` ILIKE and
+    // a lookup into `attribute_values` keyed by the `quickSearchable`
+    // attributes — and `CatalogProductReadPort` has no text search. Publishing
+    // one is a Phase-P change on `catalog`, not a consumer's cut.
+    //
+    // Two facts to carry into that MR. The query filters neither `visibility`
+    // nor `allowed_organization_ids` nor sales-channel membership, so a
+    // signed-in buyer's type-ahead sees every active product on the platform
+    // whatever channel they are shopping (Principle XII); and the JSONB reach
+    // into `attribute_values` is `catalog`'s storage layout, so a column
+    // rename in `catalog` breaks this file with nothing to warn either side.
+    // ---------------------------------------------------------------------
     const knex = em.getKnex();
     const idRows = (await knex('products as p')
       .select('p.id')
@@ -110,10 +134,10 @@ export async function registerQuickOrderRoutes(
 
     const ids = idRows.map((r) => r.id);
     if (ids.length === 0) return { data: [] };
-    const products = await em.find(Product, { id: { $in: ids } });
+    const products = await deps.catalogProducts.findByIds(ids);
     const byId = new Map(products.map((p) => [p.id, p]));
 
-    const matchedOnFor = (p: Product): Array<'sku' | 'name' | 'attribute'> => {
+    const matchedOnFor = (p: CatalogProductRecord): Array<'sku' | 'name' | 'attribute'> => {
       const matched: Array<'sku' | 'name' | 'attribute'> = [];
       if (p.sku.toLowerCase().includes(ql)) matched.push('sku');
       if (Object.values(p.name).some((n) => String(n).toLowerCase().includes(ql))) {
@@ -128,7 +152,7 @@ export async function registerQuickOrderRoutes(
     return {
       data: ids
         .map((id) => byId.get(id))
-        .filter((p): p is Product => Boolean(p))
+        .filter((p): p is CatalogProductRecord => Boolean(p))
         .map((p) => ({
           productId: p.id,
           sku: p.sku,

@@ -1,12 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   quickOrderPreferenceScopeSchema,
   quickOrderPreferenceUpsertSchema,
+  type CustomerAccountReadPort,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import type { DefaultPreferenceService } from './services/default-preference-service.js';
 import { canManagePreference, type PreferenceActor } from './services/default-preference-authz.js';
 
@@ -18,7 +17,8 @@ import { canManagePreference, type PreferenceActor } from './services/default-pr
  */
 export interface QuickOrderPreferenceRoutesDeps {
   service: DefaultPreferenceService;
-  emFactory: () => EntityManager;
+  /** `customer_accounts`' read model — the caller's organisation and role. */
+  customerAccounts: CustomerAccountReadPort;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;
@@ -27,10 +27,10 @@ export interface QuickOrderPreferenceRoutesDeps {
 }
 
 async function resolveActor(
-  em: EntityManager,
+  customerAccounts: CustomerAccountReadPort,
   customerAccountId: string,
 ): Promise<{ actor: PreferenceActor; organizationId: string | null }> {
-  const account = await em.findOne(CustomerAccount, { id: customerAccountId });
+  const account = await customerAccounts.findById(customerAccountId);
   const organizationId = account?.organizationId ?? null;
   if (account?.role === 'organization_admin' && organizationId) {
     return { actor: { kind: 'org_admin', organizationId }, organizationId };
@@ -42,7 +42,7 @@ export async function registerQuickOrderPreferenceRoutes(
   app: FastifyInstance,
   deps: QuickOrderPreferenceRoutesDeps,
 ): Promise<void> {
-  const { service, emFactory, requireCustomer, resolveCustomerContext } = deps;
+  const { service, customerAccounts, requireCustomer, resolveCustomerContext } = deps;
 
   app.get(
     '/api/v1/quick-order/preferences/resolved',
@@ -58,12 +58,11 @@ export async function registerQuickOrderPreferenceRoutes(
     const scope = quickOrderPreferenceScopeSchema.parse(query.scope);
     const scopeId = query.scopeId ?? '';
     const ctx = resolveCustomerContext(request);
-    const em = emFactory();
-    const { actor } = await resolveActor(em, ctx.customerAccountId);
+    const { actor } = await resolveActor(customerAccounts, ctx.customerAccountId);
 
     const targetCustomerOrgId =
       scope === 'customer'
-        ? ((await em.findOne(CustomerAccount, { id: scopeId }))?.organizationId ?? null)
+        ? ((await customerAccounts.findById(scopeId))?.organizationId ?? null)
         : null;
     if (!canManagePreference(actor, { scope, scopeId }, targetCustomerOrgId)) {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Not allowed to read these defaults.');
@@ -77,8 +76,7 @@ export async function registerQuickOrderPreferenceRoutes(
     async (request) => {
       const body = quickOrderPreferenceUpsertSchema.parse(request.body);
       const ctx = resolveCustomerContext(request);
-      const em = emFactory();
-      const { actor } = await resolveActor(em, ctx.customerAccountId);
+      const { actor } = await resolveActor(customerAccounts, ctx.customerAccountId);
       const result = await service.upsert(actor, body, {
         customerAccountId: ctx.customerAccountId,
       });

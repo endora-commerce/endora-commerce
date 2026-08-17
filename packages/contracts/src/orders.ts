@@ -847,6 +847,27 @@ export interface OrderCustomerContext {
 }
 
 /**
+ * What a placement answers with: the order row **plus** the payment
+ * next-action computed during that placement.
+ *
+ * `nextAction` is not on {@link OrderRecord} and must not be: it is a virtual
+ * column (`persist: false`, `order.entity.ts`) that exists only in the reply to
+ * the call that created the order, so a *read* of an order can never carry a
+ * meaningful one. It is on this record because the one thing a caller does with
+ * a freshly placed order is route the buyer — to the gateway, to the transfer
+ * details, or to the success page.
+ *
+ * Corrected in feature 075's `quick_order` cut: the port below published
+ * `OrderRecord`, and `quick_order`'s one-click response renders `nextAction`.
+ * Cutting onto the port as published would have dropped the redirect from the
+ * one-click reply — a product change wearing a refactor, on the path
+ * MR !582 / issue #64 had just brought under test.
+ */
+export interface PlacedOrderRecord extends OrderRecord {
+  nextAction: NextAction | null;
+}
+
+/**
  * Container name: `orderPlacementPort`. Owner: `orders`.
  *
  * `quick_order`'s one-click buy is the only consumer: it seeds the cart and
@@ -856,7 +877,7 @@ export interface OrderCustomerContext {
  * accessor is indistinguishable from a wiring mistake.
  */
 export interface OrderPlacementPort {
-  placeOrder(ctx: OrderCustomerContext, req: PlaceOrderRequest): Promise<OrderRecord>;
+  placeOrder(ctx: OrderCustomerContext, req: PlaceOrderRequest): Promise<PlacedOrderRecord>;
 }
 
 export interface OrderStatusActor {

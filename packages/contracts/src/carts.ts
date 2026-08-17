@@ -612,7 +612,13 @@ export interface CartReadPort {
 }
 
 /**
- * Container name: `cartService`. Owner: `carts`.
+ * Container name: `cartWritePort`. Owner: `carts`.
+ *
+ * (It said `cartService` until feature 075's `quick_order` cut resolved it and
+ * found the name taken: `carts/backend.ts` registers `cartService` for the
+ * `CartService` **class**, which still hands `Cart` and `CartItem` entities
+ * across, and `cartWritePort` for this adapter. A consumer copying the wrong
+ * name out of this comment gets the class, and only `tsc` stops it.)
  *
  * The write surface `orders`, `quick_order` and `shopping_lists` reach today.
  * `replaceItemsForCustomer` is the one addition: `orders`' reorder and
