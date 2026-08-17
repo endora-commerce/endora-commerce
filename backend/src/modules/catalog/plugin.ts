@@ -199,7 +199,11 @@ export interface CatalogModuleOptions {
 
 export function catalogModule(options: CatalogModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
-    const productLinkServiceForRead = new ProductLinkService(options.emFactory, options.commandBus);
+    const productLinkServiceForRead = new ProductLinkService(
+      options.emFactory,
+      options.commandBus,
+      options.pricingService,
+    );
     // Feature 061 — the composed attribute read model (definitions from the
     // custom_fields cache + catalog extension rows). Constructed once and
     // threaded into every attribute consumer in this module.
@@ -213,6 +217,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       productLinkServiceForRead,
       options.customFieldDefinitions,
       attributeReadService,
+      options.pricingService,
     );
     const adminService = new CatalogAdminService(
       options.emFactory,
@@ -228,7 +233,12 @@ export function catalogModule(options: CatalogModuleOptions) {
     // without restarting (R-08 reserved-fallback still applies). Lifecycle
     // for the indexer + event subscriber lives in `searchModule` (feature
     // 006 / R-3); catalog only owns the read-side adapter here.
-    const searchQueryService = new SearchQueryService(options.emFactory, attributeReadService);
+    const searchQueryService = new SearchQueryService(
+      options.emFactory,
+      attributeReadService,
+      {},
+      options.pricingService,
+    );
 
     const bulkUpdateService = new CatalogBulkUpdateService(
       options.emFactory,
@@ -311,7 +321,11 @@ export function catalogModule(options: CatalogModuleOptions) {
     const galleryService = new GalleryService(options.emFactory, options.commandBus);
     const attachmentService = new AttachmentService(options.emFactory, options.commandBus);
     const packagingUnitService = new PackagingUnitService(options.emFactory, options.commandBus);
-    const productLinkService = new ProductLinkService(options.emFactory, options.commandBus);
+    const productLinkService = new ProductLinkService(
+      options.emFactory,
+      options.commandBus,
+      options.pricingService,
+    );
     const groupedService = new GroupedService(options.emFactory, options.commandBus);
     const bundleService = new BundleService(options.emFactory, options.commandBus);
     await registerCatalogApiKeyRoutes(app, {

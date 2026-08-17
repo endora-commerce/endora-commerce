@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
+  CART_UNAVAILABLE,
   getCart,
   getCartUpsells,
   removeCartItem,
@@ -70,6 +71,28 @@ export default async function CartPage({
   await touchCart(jar).catch(() => undefined);
 
   const result = await getCart(jar);
+  if (result === CART_UNAVAILABLE) {
+    // `carts` is not present (issue #132). The page renders the absence rather
+    // than a Next error page: an empty cart is a cart, and this is not one.
+    const { locale: absentLocale } = await getServerContext();
+    const absentStrings = STRINGS(absentLocale);
+    return (
+      <div className="mx-auto max-w-[1360px] px-[24px]">
+        <Breadcrumbs strings={absentStrings.breadcrumbs} />
+        <div className="rounded-md border border-line bg-surface px-[24px] py-[48px] text-center">
+          <h1 className="m-0 mb-2 text-[22px] font-semibold text-fg">
+            {absentStrings.unavailable.heading}
+          </h1>
+          <p className="m-0 mb-[18px] text-[14px] text-muted">
+            {absentStrings.unavailable.body}
+          </p>
+          <Link href="/catalog" className="btn btn--dark">
+            {absentStrings.browseCatalog}
+          </Link>
+        </div>
+      </div>
+    );
+  }
   if (result.newAnonCookie) await setAnonCartCookie(result.newAnonCookie);
   const cart = result.cart;
 
@@ -550,6 +573,8 @@ function STRINGS(locale: string): {
   heading: string;
   subheading: (n: number) => string;
   empty: string;
+  /** Issue #132 — the `carts` module is absent; distinct from an empty cart. */
+  unavailable: { heading: string; body: string };
   browseCatalog: string;
   cardHeading: string;
   itemCount: (n: number) => string;
@@ -579,6 +604,10 @@ function STRINGS(locale: string): {
       subheading: (n: number) =>
         n === 1 ? '1 pozycja gotowa do kasy.' : `${n} pozycji gotowych do kasy.`,
       empty: 'Twój koszyk jest pusty.',
+      unavailable: {
+        heading: 'Koszyk jest niedostępny',
+        body: 'Zakupy online są w tej chwili wyłączone w tym sklepie. Katalog produktów pozostaje dostępny.',
+      },
       browseCatalog: 'Przejdź do katalogu',
       cardHeading: 'Koszyk',
       itemCount: (n: number) => (n === 1 ? '1 pozycja' : `${n} pozycji`),
@@ -678,6 +707,10 @@ function STRINGS(locale: string): {
     subheading: (n: number) =>
       n === 1 ? '1 item ready for checkout.' : `${n} items ready for checkout.`,
     empty: 'Your cart is empty.',
+    unavailable: {
+      heading: 'The cart is unavailable',
+      body: 'Online ordering is switched off in this shop right now. The product catalogue is still available.',
+    },
     browseCatalog: 'Browse the catalog',
     cardHeading: 'Cart',
     itemCount: (n: number) => (n === 1 ? '1 item' : `${n} items`),

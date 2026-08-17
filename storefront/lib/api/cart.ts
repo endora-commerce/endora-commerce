@@ -1,5 +1,6 @@
 import { apiMutate, extractSessionCookieValue } from './mutations';
-import type { RequestContext } from './client';
+import { StorefrontApiError, type RequestContext } from './client';
+import { withModuleAbsence } from './module-absence';
 
 /**
  * Cart API bindings (T156). The backend cart accepts either an
@@ -121,7 +122,27 @@ export async function getCartItemCount(
   }
 }
 
-export async function getCart(jar: CartCookieJar, ctx?: RequestContext): Promise<CartResult> {
+/**
+ * The `carts` module is not present — issue #132, feature 073's R-8 applied to
+ * the one surface that had been left out.
+ *
+ * Distinct from an empty cart, which is a cart. A page that gets this renders
+ * an absence: no lines, no totals and no checkout CTA, because there is nothing
+ * behind any of them.
+ */
+export const CART_UNAVAILABLE = 'cart-unavailable' as const;
+export type CartUnavailable = typeof CART_UNAVAILABLE;
+
+export async function getCart(
+  jar: CartCookieJar,
+  ctx?: RequestContext,
+): Promise<CartResult | CartUnavailable> {
+  // A switched-off module answers with the absence; everything else still
+  // throws, which is the asymmetry `withModuleAbsence` exists to hold.
+  return withModuleAbsence(() => fetchCart(jar, ctx), CART_UNAVAILABLE);
+}
+
+async function fetchCart(jar: CartCookieJar, ctx?: RequestContext): Promise<CartResult> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (ctx?.salesChannelCode) headers['X-Sales-Channel'] = ctx.salesChannelCode;
   if (ctx?.locale) headers['Accept-Language'] = ctx.locale;
@@ -146,9 +167,40 @@ export async function getCart(jar: CartCookieJar, ctx?: RequestContext): Promise
       cache: 'no-store',
     });
   }
-  if (!response.ok) throw new Error(`GET /cart failed with ${response.status}`);
+  if (!response.ok) throw await cartApiError(response);
   const payload = (await response.json()) as { data: CartSummary };
   return { cart: payload.data, newAnonCookie: extractAnonCookie(response.headers) };
+}
+
+/**
+ * Turn a non-OK cart response into a `StorefrontApiError` carrying the error
+ * envelope's `code`. This route is fetched directly rather than through
+ * `apiGet` (it needs the response headers for the anon-cookie mint), so the
+ * envelope has to be read here — and until it was, `MODULE_DISABLED` arrived as
+ * an untyped `Error` that nothing could classify.
+ */
+async function cartApiError(response: Response): Promise<StorefrontApiError> {
+  try {
+    const envelope = (await response.json()) as {
+      error?: { code?: string; message?: string; requestId?: string };
+    };
+    if (envelope.error?.code) {
+      return new StorefrontApiError(
+        response.status,
+        envelope.error.code,
+        envelope.error.message ?? `GET /cart failed with ${response.status}`,
+        envelope.error.requestId,
+      );
+    }
+  } catch {
+    // Body was not the JSON envelope — fall through to the status-only error.
+    // Narrow on purpose: this tolerates an unparseable body, nothing else.
+  }
+  return new StorefrontApiError(
+    response.status,
+    'INTERNAL',
+    `GET /cart failed with ${response.status}`,
+  );
 }
 
 export async function addCartItem(

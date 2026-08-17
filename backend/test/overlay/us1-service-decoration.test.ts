@@ -69,6 +69,8 @@ describe('US1 — the example deployment decorates the pricing engine', () => {
         return { priceListId: 'core-list' } as PricingLineResult;
       },
       listBracketMinQuantities: async () => [1, 5],
+      resolveListingPrices: async () => new Map(),
+      namedListPrices: async () => new Map(),
     };
 
     const decorated = decorate(core);

@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, listingPriceMoney, type ListingPricePort } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CommandBus } from '../../../commands/index.js';
 import { Asset } from '../../assets_library/entities/asset.entity.js';
@@ -11,9 +11,16 @@ interface StorefrontContext {
    * The request's resolved sales channel (feature 053 / FR-002). Always
    * present — the canonical resolver guarantees a concrete channel — so
    * cross/up-sell filtering is unconditional and fails closed (Principle XII).
-   * `isPublic` is the price-visibility flag.
+   * `isPublic` is the price-visibility flag, and `defaultCurrency` is the
+   * currency the link tiles quote in — it used to be the literal `'PLN'`, which
+   * mislabelled every amount on a channel trading in anything else.
    */
-  resolvedChannel: { id: string; code: string; isPublic: boolean };
+  resolvedChannel: {
+    id: string;
+    code: string;
+    isPublic: boolean;
+    defaultCurrency: string;
+  };
   preferredLanguage?: string | undefined;
 }
 
@@ -76,7 +83,22 @@ export class ProductLinkService {
     private readonly emFactory: () => EntityManager,
     /** Feature 054 — audits product-link writes co-transactionally when provided. */
     private readonly commandBus?: CommandBus,
+    /**
+     * Issue #132 — the pricing engine, through the `pricingService` port. A
+     * related-product tile is a listing: it prices through the same chain as the
+     * catalogue grid, not off the catalogue's legacy default-price attribute.
+     */
+    private readonly listingPrices?: ListingPricePort,
   ) {}
+
+  #requireListingPrices(): ListingPricePort {
+    if (!this.listingPrices) {
+      throw new Error(
+        'ProductLinkService: the pricing port is not wired — link tiles cannot be priced.',
+      );
+    }
+    return this.listingPrices;
+  }
 
   /** Feature 054 — run a product-link write through the Command Bus. */
   async #audited<T>(
@@ -333,25 +355,34 @@ export class ProductLinkService {
 
     void Asset; // imported for side-effect parity with other catalog services
 
+    // Sales-channel public flag controls price visibility (R-18), read off the
+    // resolved channel handed in by the route. A channel that withholds prices
+    // is not asked for them (issue #132).
+    const visibleTargets = rows
+      .filter((link) => visibleIds.has(link.targetProductId))
+      .map((link) => byId.get(link.targetProductId))
+      .filter((target): target is Product => target !== undefined);
+    const resolvedPrices =
+      ctx.resolvedChannel.isPublic && visibleTargets.length > 0
+        ? await this.#requireListingPrices().resolveListingPrices({
+            products: visibleTargets,
+            context: {
+              salesChannel: {
+                id: ctx.resolvedChannel.id,
+                defaultCurrency: ctx.resolvedChannel.defaultCurrency,
+              },
+            },
+          })
+        : new Map();
+
     const out: StorefrontLinkSummary[] = [];
     for (const link of rows) {
       if (!visibleIds.has(link.targetProductId)) continue;
       const target = byId.get(link.targetProductId);
       if (!target) continue;
       const name = pickLang(target.name, ctx.preferredLanguage);
-      const rawPrice = Number(
-        target.attributeValues['defaultPrice'] ??
-          target.attributeValues['price'] ??
-          Number.NaN,
-      );
-      // Sales-channel public flag controls price visibility (R-18), read off
-      // the resolved channel handed in by the route.
-      const isPublic = ctx.resolvedChannel.isPublic;
-      const currency = 'PLN';
-      const price =
-        isPublic && Number.isFinite(rawPrice)
-          ? { amount: rawPrice, currency }
-          : null;
+      const resolved = resolvedPrices.get(target.id);
+      const price = resolved === undefined ? null : listingPriceMoney(resolved);
       out.push({
         id: link.id,
         kind: link.kind,

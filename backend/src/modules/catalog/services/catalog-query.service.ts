@@ -20,8 +20,11 @@ import { BundleSlot } from '../entities/bundle-slot.entity.js';
 import { BundleSlotOption } from '../entities/bundle-slot-option.entity.js';
 import {
   ERROR_CODES,
+  listingPriceMoney,
   type CategoryNode,
   type FilterDefinition,
+  type ListingPrice,
+  type ListingPricePort,
   type ProductDetail,
   type ProductSummary,
   type ProductVariant as VariantDto,
@@ -121,6 +124,18 @@ export class CatalogQueryService {
      * fixtures keep constructing the service without attribute wiring.
      */
     private readonly attributeRead?: CatalogAttributeReadService,
+    /**
+     * Issue #132 — the pricing engine, resolved through the `pricingService`
+     * port. Every storefront-facing price this service emits comes from here;
+     * the catalogue no longer projects its own legacy default-price attribute,
+     * because that figure is not a price any price list stands behind.
+     *
+     * Optional only in the signature, and unwiring it is not a fallback: a
+     * listing asked to render a price without it fails loudly, the same way an
+     * unwired attribute read model does. `null` from the port is the engine's
+     * own "nothing applies" answer and is rendered as an absence.
+     */
+    private readonly listingPrices?: ListingPricePort,
   ) {}
 
   #requireAttributeRead(): CatalogAttributeReadService {
@@ -130,6 +145,52 @@ export class CatalogQueryService {
       );
     }
     return this.attributeRead;
+  }
+
+  #requireListingPrices(): ListingPricePort {
+    if (!this.listingPrices) {
+      throw new Error(
+        'CatalogQueryService: the pricing port is not wired — a listing cannot be priced.',
+      );
+    }
+    return this.listingPrices;
+  }
+
+  /**
+   * The chain's answer for a batch of products, keyed by product id.
+   *
+   * A non-public sales channel withholds prices (R-18), and it withholds them
+   * *before* the resolution rather than after: the catalogue has nothing to ask
+   * about on a channel whose prices it may not show.
+   */
+  async #listingPricesFor(
+    products: readonly Product[],
+    channel: CatalogResolvedChannel | undefined,
+  ): Promise<Map<string, ListingPrice>> {
+    if (products.length === 0) return new Map();
+    if (!(channel?.isPublic ?? true)) return new Map();
+    return this.#requireListingPrices().resolveListingPrices({
+      products,
+      context: {
+        salesChannel: {
+          id: channel?.id ?? '',
+          defaultCurrency: channel?.defaultCurrency ?? 'PLN',
+        },
+      },
+    });
+  }
+
+  /**
+   * `ProductSummary.price` for one resolved chain answer. A product the channel
+   * withholds prices for is absent from the map and renders `null`, and so does
+   * the chain's `none` arm — the wire field has one spelling for "no price".
+   */
+  #summaryPrice(
+    resolved: Map<string, ListingPrice>,
+    productId: string,
+  ): { amount: number; currency: string } | null {
+    const price = resolved.get(productId);
+    return price === undefined ? null : listingPriceMoney(price);
   }
 
   // ------------------------------------------------------------------
@@ -700,16 +761,9 @@ export class CatalogQueryService {
       }
     }
 
-    const isPublic = channel?.isPublic ?? true;
+    const resolvedPrices = await this.#listingPricesFor(products, channel);
     for (const p of products) {
-      const rawPrice = Number(
-        p.attributeValues['defaultPrice'] ??
-          p.attributeValues['price'] ??
-          Number.NaN,
-      );
-      const currency = channel?.defaultCurrency ?? 'PLN';
-      const price =
-        isPublic && Number.isFinite(rawPrice) ? { amount: rawPrice, currency } : null;
+      const price = this.#summaryPrice(resolvedPrices, p.id);
       result.set(p.id, {
         id: p.id,
         sku: p.sku,
@@ -1337,15 +1391,14 @@ export class CatalogQueryService {
       [product.id],
     );
 
-    // Price (from PriceList module in US2; for US1 we derive from attributeValues.defaultPrice
-    // if set, otherwise null). Sales Channel visibility strips price on non-public channels.
-    const rawPrice = Number(
-      product.attributeValues['defaultPrice'] ?? product.attributeValues['price'] ?? Number.NaN,
+    // Price — the pricing engine's answer for this product on this channel
+    // (issue #132). Sales Channel visibility still strips it on a non-public
+    // channel; what changed is that the figure underneath is one a price list
+    // stands behind rather than the catalogue's own legacy attribute.
+    const price = this.#summaryPrice(
+      await this.#listingPricesFor([product], channel),
+      product.id,
     );
-    const currency = channel?.defaultCurrency ?? 'PLN';
-    const showPrice = channel?.isPublic ?? true;
-    const price =
-      showPrice && Number.isFinite(rawPrice) ? { amount: rawPrice, currency } : null;
 
     const nameText = this.pickLang(product.name, preferredLanguage, channel);
 

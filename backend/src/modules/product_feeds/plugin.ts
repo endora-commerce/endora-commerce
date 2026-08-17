@@ -30,6 +30,7 @@ import {
   type PublicImageUrlResolver,
 } from './services/feed-generation.service.js';
 import { FeedRunService } from './services/feed-run.service.js';
+import { createNamedListPriceResolver } from './services/named-list-price-resolver.js';
 import { ItemFieldResolver } from './services/item-field-resolver.js';
 import type { ItemFieldResolverPort } from './services/item-field-resolver.interface.js';
 import { FeedTemplateService } from './services/feed-template.service.js';
@@ -374,22 +375,15 @@ export function productFeedsModule(
 
   const runs = new FeedRunService(options.emFactory);
 
-  /** A named price list is used verbatim (FR-020) — no rule evaluation. */
-  const resolveNamedListPrice: NamedListPriceResolver = async (input) => {
-    const em = options.emFactory();
-    const rows = (await em
-      .getConnection()
-      .execute(
-        `select "amount" from "price_list_price_brackets"
-          where "price_list_id" = ? and "product_id" = ? and "currency_code" = ?
-          order by "min_quantity" asc limit 1`,
-        [input.priceListId, input.productId, input.currencyCode],
-        'all',
-        em.getTransactionContext(),
-      )) as Array<{ amount: string }>;
-    const amount = rows[0]?.amount;
-    return amount === undefined ? null : Number(amount);
-  };
+  /**
+   * A named price list is used verbatim (FR-020) — no rule evaluation. The read
+   * goes through the `pricingService` port (issue #132), so an operator who has
+   * switched `price_lists` off stops the feed run instead of letting it publish
+   * prices the platform is refusing to serve.
+   */
+  const namedListPrices = createNamedListPriceResolver(options.pricingService);
+  const resolveNamedListPrice: NamedListPriceResolver = async (input) =>
+    namedListPrices.one(input);
 
   /** The anonymous storefront resolution: no organization, no customer group (R12). */
   const resolveAnonymousPrice: AnonymousPriceResolver = async (input) => {
@@ -419,21 +413,14 @@ export function productFeedsModule(
     const em = options.emFactory();
 
     if (input.priceListId) {
-      const placeholders = input.productIds.map(() => '?').join(',');
-      const rows = (await em
-        .getConnection()
-        .execute(
-          `select distinct on ("product_id") "product_id", "amount"
-             from "price_list_price_brackets"
-            where "price_list_id" = ? and "currency_code" = ?
-              and "product_id" in (${placeholders})
-            order by "product_id" asc, "min_quantity" asc`,
-          [input.priceListId, input.currencyCode, ...input.productIds],
-          'all',
-          em.getTransactionContext(),
-        )) as Array<{ product_id: string; amount: string }>;
-      for (const row of rows) out.set(row.product_id, Number(row.amount));
-      return out;
+      // Same port, same list, same amounts as generation reads (issue #132), so
+      // the count an operator sees before saving is computed from the prices the
+      // next run will emit (FR-028).
+      return namedListPrices.many({
+        priceListId: input.priceListId,
+        productIds: input.productIds,
+        currencyCode: input.currencyCode,
+      });
     }
 
     const { salesChannelId } = input;

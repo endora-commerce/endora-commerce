@@ -227,6 +227,95 @@ export const resolvedPriceEngineSchema = z.object({
 });
 export type ResolvedPriceEngine = z.infer<typeof resolvedPriceEngineSchema>;
 
+// --- Listing price (catalogue listing / search / compare / links) -----------
+
+/**
+ * What a catalogue listing may show as a product's price — issue #132.
+ *
+ * There is always one default price list, so the first arm is the path a
+ * listing normally takes. The product ruling names the whole chain and this
+ * union is that chain, one arm each:
+ *
+ *   `price_list` — an applicable list priced this product for this buyer;
+ *   `product`    — no list applied, so the price assigned directly to the
+ *                  Product stands in (the legacy `defaultPrice` attribute);
+ *   `none`       — neither exists, and the listing renders no price.
+ *
+ * The `none` arm carries **no `amount` field**, following the `ResolvedTax`
+ * precedent (issue #124): a listing showing nothing and a listing offering a
+ * free product are different pages, so a caller has to narrow on `source`
+ * before it can read a figure. A product priced at zero comes back as
+ * `{ source: 'price_list' | 'product', amount: '0.00' }` and renders as zero —
+ * `amount` is never a falsy sentinel for absence.
+ *
+ * As with `ResolvedTax`, "the `price_lists` module is absent" is deliberately
+ * not an arm: absence is not a value, and the port gate throws
+ * `MODULE_DISABLED` before a resolution runs.
+ */
+export const listingPriceSchema = z.discriminatedUnion('source', [
+  z.object({
+    source: z.literal('price_list'),
+    amount: DECIMAL_STRING,
+    currency: CURRENCY,
+    priceListId: uuidSchema,
+    isSale: z.boolean(),
+  }),
+  z.object({
+    source: z.literal('product'),
+    amount: DECIMAL_STRING,
+    currency: CURRENCY,
+  }),
+  z.object({ source: z.literal('none') }),
+]);
+export type ListingPrice = z.infer<typeof listingPriceSchema>;
+
+/**
+ * The money a listing renders for one resolved chain answer, or `null` when the
+ * chain ended in `none`.
+ *
+ * The narrowing is the point: `null` here means "there is no price", which the
+ * `ProductSummary.price` wire field already spells `null`. A resolved `0` comes
+ * back as `{ amount: 0 }` and survives every caller, because nothing on this
+ * path tests an amount for truthiness.
+ */
+export function listingPriceMoney(
+  price: ListingPrice,
+): { amount: number; currency: string } | null {
+  if (price.source === 'none') return null;
+  const amount = Number(price.amount);
+  return Number.isFinite(amount) ? { amount, currency: price.currency } : null;
+}
+
+/** The little of a Product a listing resolution reads. */
+export interface ListingPriceProduct {
+  id: string;
+  attributeValues: Record<string, unknown>;
+}
+
+/**
+ * The slice of the `pricingService` port a catalogue listing path resolves.
+ *
+ * Declared here rather than in each consumer so the catalogue, search,
+ * comparisons and product links ask for the same thing in the same words, and
+ * declared as a *shape* rather than imported from `price_lists` so none of them
+ * reaches into the owning module (Principle I). The owner's
+ * `PricingServiceContract` is a superset and satisfies it structurally.
+ *
+ * There is no organization in the context: these are anonymous surfaces — the
+ * public catalogue routes resolve a sales channel and no customer — so a
+ * listing quotes the channel's anonymous price, which is the same resolution
+ * the storefront's own `getResolvedPrice` performs from a server component.
+ */
+export interface ListingPricePort {
+  resolveListingPrices(input: {
+    products: readonly ListingPriceProduct[];
+    context: {
+      salesChannel: { id: string; defaultCurrency: string };
+      currencyCode?: string;
+    };
+  }): Promise<Map<string, ListingPrice>>;
+}
+
 // --- Settings keys (also exposed via the settings manifest) -----------------
 
 export const PRICING_SETTING_CODES = {

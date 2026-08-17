@@ -60,7 +60,20 @@ export const manifest = defineModuleManifest({
   // `auth` owns the `requireAdmin` port the admin routes are gated by; feature
   // 072 made it a container resolution rather than an optional argument that
   // decided whether the admin surface existed at all.
-  dependencies: ['catalog', 'customer_accounts', 'sales_channels', 'settings', 'auth'],
+  //
+  // `price_lists` joined in issue #132: a comparison column shows a price, and
+  // it now resolves that price through the `pricingService` port instead of
+  // projecting the catalogue's legacy attribute. The edge binds — comparing
+  // products on prices the platform is refusing to serve is exactly the
+  // failure the port gate exists to prevent.
+  dependencies: [
+    'catalog',
+    'customer_accounts',
+    'price_lists',
+    'sales_channels',
+    'settings',
+    'auth',
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: 'comparisons:read', label: 'View product comparisons' }],

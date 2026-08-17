@@ -1,6 +1,12 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Meilisearch, type SearchResponse } from 'meilisearch';
-import { ERROR_CODES, type ProductSummary } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  listingPriceMoney,
+  type ListingPrice,
+  type ListingPricePort,
+  type ProductSummary,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
@@ -82,6 +88,13 @@ export class SearchQueryService {
      */
     private readonly attributeRead?: CatalogAttributeReadService,
     options: SearchQueryOptions = {},
+    /**
+     * Issue #132 — the pricing engine, through the `pricingService` port. The
+     * hydration below exists so that Postgres, not the index, decides what a
+     * hit shows; the price it hydrates now comes from the engine for the same
+     * reason.
+     */
+    private readonly listingPrices?: ListingPricePort,
   ) {
     const host =
       options.meilisearchHost ??
@@ -180,12 +193,29 @@ export class SearchQueryService {
       id: { $in: hits.map((h) => h.id) },
     });
     const productById = new Map(products.map((p) => [p.id, p]));
+    // A channel that withholds prices is not asked for them (R-18), so the
+    // resolution never runs and every hit reports `null`.
+    const resolvedPrices =
+      channel.isPublic && products.length > 0
+        ? await this.#requireListingPrices().resolveListingPrices({
+            products,
+            context: {
+              salesChannel: { id: channel.id, defaultCurrency: channel.defaultCurrency },
+            },
+          })
+        : new Map<string, ListingPrice>();
     const summaries: ProductSummary[] = [];
     for (const hit of hits) {
       const product = productById.get(hit.id);
       if (!product) continue; // Index pointed at a deleted row.
       summaries.push(
-        toSummary(product, hit, channel, ctx.preferredLanguage),
+        searchHitSummary(
+          product,
+          hit,
+          channel,
+          ctx.preferredLanguage,
+          resolvedPrices.get(product.id),
+        ),
       );
     }
 
@@ -195,6 +225,14 @@ export class SearchQueryService {
     };
   }
 
+  #requireListingPrices(): ListingPricePort {
+    if (!this.listingPrices) {
+      throw new Error(
+        'SearchQueryService: the pricing port is not wired — a search hit cannot be priced.',
+      );
+    }
+    return this.listingPrices;
+  }
 }
 
 export class SearchBackendUnavailable extends Error {
@@ -256,21 +294,22 @@ function decodeOffsetCursor(cursor: string | undefined): number | null {
   }
 }
 
-function toSummary(
+/**
+ * Project one hydrated hit into a `ProductSummary` (issue #132).
+ *
+ * `resolvedPrice` is the chain's answer for this product, or `undefined` when
+ * the channel withheld the resolution — both render `null`, which is the one
+ * spelling `ProductSummary.price` has for "no price". Exported so the
+ * projection can be asserted without a Meilisearch round trip.
+ */
+export function searchHitSummary(
   product: Product,
   hit: DocumentHit,
   channel: ResolvedSearchChannel,
   preferredLanguage: string | undefined,
+  resolvedPrice: ListingPrice | undefined,
 ): ProductSummary {
-  const rawPrice = Number(
-    product.attributeValues['defaultPrice'] ??
-      product.attributeValues['price'] ??
-      Number.NaN,
-  );
-  const currency = channel?.defaultCurrency ?? 'PLN';
-  const showPrice = channel?.isPublic ?? true;
-  const price =
-    showPrice && Number.isFinite(rawPrice) ? { amount: rawPrice, currency } : null;
+  const price = resolvedPrice === undefined ? null : listingPriceMoney(resolvedPrice);
 
   return {
     id: product.id,

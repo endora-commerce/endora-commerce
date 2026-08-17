@@ -25,12 +25,12 @@ const ALLOW = new Set<string>([
   'backend/src/modules/price_lists/migrations/20260504T125655_price_lists_engine.ts',
   'backend/src/modules/price_lists/services/default-price-list-migration.ts',
 
-  // Catalog projection layer — feeds storefront ProductSummary.price
-  // until the contract migration drops the legacy column. catalog-query
-  // is the read path; product-link mirrors the same projection on
-  // cross-sell payloads.
-  'backend/src/modules/catalog/services/catalog-query.service.ts',
-  'backend/src/modules/catalog/services/product-link.service.ts',
+  // Issue #132 — the one read of the legacy keys on any *serving* path, and it
+  // belongs to the module that owns pricing. It is the second step of the
+  // product ruling's chain (applicable list → the Product's own price →
+  // nothing), so the catalogue, search, comparisons and product links no
+  // longer read the keys at all: they ask this module and render its answer.
+  'backend/src/modules/price_lists/services/listing-price-chain.ts',
 
   // Cart-service keeps the legacy reader as a foundation fallback for
   // composition rigs that don't wire pricingService (T076 made the
@@ -42,11 +42,6 @@ const ALLOW = new Set<string>([
   // cart is never refused by the API surface; migrates together with
   // cart-service when the legacy keys are stripped.
   'backend/src/modules/orders/services/order-api-intake-service.ts',
-
-  // Comparison + search projections mirror the same fallback as
-  // catalog-query; they're the next migration targets.
-  'backend/src/modules/comparisons/services/comparison-service.ts',
-  'backend/src/modules/search/services/search-query.service.ts',
 
   // Dev seed comment only — the seed itself now invokes the engine
   // migrator (T011) and writes no legacy rows.

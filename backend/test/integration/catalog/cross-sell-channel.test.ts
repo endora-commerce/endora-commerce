@@ -32,13 +32,14 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
   let counter = 0;
 
   // Feature 053: the route hands the service the request's resolved channel.
+  // Issue #132 added `defaultCurrency` — the tiles used to quote a literal PLN.
   const rc = (id: string, code: string, isPublic: boolean) => ({
-    resolvedChannel: { id, code, isPublic },
+    resolvedChannel: { id, code, isPublic, defaultCurrency: 'PLN' },
   });
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    svc = new ProductLinkService(() => h.em());
+    svc = new ProductLinkService(() => h.em(), undefined, h.pricingService);
 
     const def = await h.salesChannels.resolver.getSystemDefault();
     defaultChannelId = def.id;

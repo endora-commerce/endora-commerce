@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type ListingPricePort } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
@@ -287,6 +287,7 @@ export function registerModule(ctx: ModuleContext): void {
             undefined,
             undefined,
             lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort'),
+            lazyPort<ListingPricePort>(ctx, 'pricingService'),
           ),
       )
       .singleton(),
@@ -368,7 +369,12 @@ export function registerModule(ctx: ModuleContext): void {
     'productLinkService',
     ctx
       .asFunction(
-        ({ emFactory, commandBus }: CatalogCradle) => new ProductLinkService(emFactory, commandBus),
+        ({ emFactory, commandBus }: CatalogCradle) =>
+          new ProductLinkService(
+            emFactory,
+            commandBus,
+            lazyPort<ListingPricePort>(ctx, 'pricingService'),
+          ),
       )
       .singleton(),
   );
