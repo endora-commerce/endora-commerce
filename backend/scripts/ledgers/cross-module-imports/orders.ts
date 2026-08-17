@@ -15,22 +15,6 @@
  * says so.
  */
 export const entries: Readonly<Record<string, string>> = {
-  'modules/orders/backend.ts:organizations/services/organization-restriction-service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/backend.ts:transactional_emails/services/email-defaults-registry':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/email-templates/admin-created-order.ts:email/services/mailer':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/email-templates/order-comment-notification.ts:email/services/mailer':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/email-templates/order-confirmation.ts:email/services/mailer':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/email-templates/order-confirmation.ts:payments/services/payment-email-renderer':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/email-templates/order-confirmation.ts:shipments/services/shipping-email-renderer':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/email-templates/reorder-created.ts:email/services/mailer':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/plugin.ts:addresses/services/address-service':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/plugin.ts:carts/services/cart-service':
@@ -38,8 +22,6 @@ export const entries: Readonly<Record<string, string>> = {
   'modules/orders/plugin.ts:custom_fields/services/custom-field-value.service':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/plugin.ts:delivery_methods/services/shipping-adapter-registry':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/plugin.ts:email/services/mailer':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/plugin.ts:organizations/entities/organization.entity':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
@@ -95,15 +77,11 @@ export const entries: Readonly<Record<string, string>> = {
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-comment-service.ts:customer_accounts/entities/customer-account.entity':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/services/order-comment-service.ts:email/services/mailer':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-creation-admin-service.ts:addresses/services/address-service':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-creation-admin-service.ts:carts/services/cart-service':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-creation-admin-service.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/services/order-creation-admin-service.ts:email/services/mailer':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-list-service.ts:customer_accounts/entities/customer-account.entity':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
@@ -118,8 +96,6 @@ export const entries: Readonly<Record<string, string>> = {
   'modules/orders/services/order-reorder-service.ts:catalog/entities/product.entity':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-reorder-service.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/services/order-reorder-service.ts:email/services/mailer':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-return-context.ts:returns/ports/order-return-context.port':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
@@ -136,8 +112,6 @@ export const entries: Readonly<Record<string, string>> = {
   'modules/orders/services/order-service.ts:delivery_methods/entities/delivery-method.entity':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-service.ts:delivery_methods/services/shipping-adapter-registry':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/services/order-service.ts:email/services/mailer':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-service.ts:inventory/entities/stock-allocation.entity':
     'F3 Phase C — orders. Retired by the orders cut merge request.',

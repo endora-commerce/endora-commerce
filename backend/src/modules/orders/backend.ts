@@ -3,12 +3,16 @@ import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import { z } from 'zod';
 import type {
+  EmailDefaultsRegistryPort,
   OrderListPort,
   OrderPlacementPort,
   OrderReadPort,
   OrderStatusAnnouncePort,
+  OrganizationRestrictionPort,
+  PaymentEmailRendererPort,
   PromptActionToolRegistryPort,
   ResolvedTax,
+  ShippingEmailRendererPort,
   TransactionalEmailSender,
 } from '@b2b/contracts';
 import { ERROR_CODES } from '@b2b/contracts';
@@ -21,7 +25,6 @@ import { lazyPort } from '../../kernel/index.js';
 import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
-import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import { commerceModule, type OrdersModuleOptions } from './plugin.js';
 import { emitOrderStatusAfter } from './events/order-status-events.js';
 import { OrderReadService, toOrderRecord } from './services/order-read-port.js';
@@ -31,8 +34,13 @@ import type { OrderListService } from './services/order-list-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './email-templates/order-confirmation.default.js';
 import { ADMIN_CREATED_ORDER_DEFAULT, ORDER_COMMENT_DEFAULT, REORDER_CREATED_DEFAULT } from './email-templates/secondary-defaults.js';
-import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 import { ordersPromptTools } from './prompt-tools.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
+import type { OrderConfirmationRenderers } from './email-templates/order-confirmation.js';
+import {
+  noCarrierShippingLineRenderer,
+  noGatewayPaymentLineRenderer,
+} from './email-templates/adapter-line-baselines.js';
 
 /**
  * `orders` — forty options, twenty-seven of them optional, and nine settings
@@ -136,7 +144,7 @@ export interface OrdersCradle {
   readonly requireBoundApiKey: NonNullable<OrdersModuleOptions['requireBoundApiKey']>;
   readonly emailMailer: NonNullable<OrdersModuleOptions['mailer']>;
   readonly organizationReadPort: OrganizationReadPort;
-  readonly organizationRestrictionPort: OrganizationRestrictionService;
+  readonly organizationRestrictionPort: OrganizationRestrictionPort;
   /** `transactional_emails`' own accessor since T120, late-bound by that module. */
   readonly transactionalEmailSenderAccessor: () => TransactionalEmailSender | undefined;
   /** Root-shaped, owner `auth`: which organizations a sales-rep admin may see. */
@@ -209,6 +217,32 @@ export function registerModule(ctx: ModuleContext): void {
     }
   };
 
+  /**
+   * The order-confirmation e-mail's two adapter-rendered lines (feature 034
+   * FR-016/FR-017, feature 035), resolved per send.
+   *
+   * `payments` and `shipments` each host a registry an adapter may push a
+   * custom renderer into, and each publishes it as a gated port. Both declare
+   * `orders` in their own `dependencies`, so declaring them here would close a
+   * cycle `migration-order.ts` fails on; and recording them in
+   * `acknowledgedDependencies` — which drops the ordering and keeps the bind —
+   * would make two deactivatable modules undeactivatable for as long as the
+   * platform takes orders, because `orders` is non-deactivatable. A buyer who
+   * paid on invoice must still get their confirmation.
+   *
+   * So both edges are `degrades-without`, and this is the presence check that
+   * declaration obliges. It is asked at the send rather than at composition,
+   * because an operator may flip either module between two orders.
+   */
+  const confirmationRenderers = (): OrderConfirmationRenderers => ({
+    payment: effectiveState.isPresent('payments')
+      ? lazyPort<PaymentEmailRendererPort>(ctx, 'paymentEmailRendererPort')
+      : noGatewayPaymentLineRenderer,
+    shipping: effectiveState.isPresent('shipments')
+      ? lazyPort<ShippingEmailRendererPort>(ctx, 'shippingEmailRendererPort')
+      : noCarrierShippingLineRenderer,
+  });
+
   ctx.di.register({
     orders: ctx
       .asFunction(
@@ -240,6 +274,7 @@ export function registerModule(ctx: ModuleContext): void {
             shippingAdapterRegistry: () => cradle().shippingAdapterRegistry,
             paymentOrderStatusRegistry: () => cradle().paymentOrderStatusRegistry,
             mailer: lazyPort<OrdersCradle['emailMailer']>(ctx, 'emailMailer'),
+            confirmationRenderers,
             getTransactionalEmailSender: () => cradle().transactionalEmailSenderAccessor(),
             getRfqService: () => lazyPort<OrdersCradle['rfqService']>(ctx, 'rfqService'),
             requireAdmin: (permission) => async (req, reply) =>
@@ -493,7 +528,7 @@ export function registerModule(ctx: ModuleContext): void {
    * built, so this always lands first — by construction, not by ordering luck.
    */
   ctx.onBoot(async () => {
-    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    const defaults = lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort');
     defaults.register('order_confirmation', ORDER_CONFIRMATION_DEFAULT, 'orders');
     defaults.register('order_comment', ORDER_COMMENT_DEFAULT, 'orders');
     defaults.register('reorder_created', REORDER_CREATED_DEFAULT, 'orders');

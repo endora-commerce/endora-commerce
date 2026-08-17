@@ -72,13 +72,17 @@ import { OrderAccessService } from './order-access-service.js';
 import type { PaymentAdapterRegistry } from '../../payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from '../../payment_methods/services/order-status-registry.port.js';
 import type { ShippingAdapterRegistry } from '../../delivery_methods/services/shipping-adapter-registry.js';
-import type { Mailer } from '../../email/services/mailer.js';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type { EmailMailerPort, TransactionalEmailSender } from '@b2b/contracts';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import {
   buildOrderConfirmationEmail,
   buildOrderConfirmationVariables,
+  type OrderConfirmationRenderers,
 } from '../email-templates/order-confirmation.js';
+import {
+  noCarrierShippingLineRenderer,
+  noGatewayPaymentLineRenderer,
+} from '../email-templates/adapter-line-baselines.js';
 
 /**
  * Narrow port consumed by the order-placement transaction. The credit_limits
@@ -178,7 +182,17 @@ export class OrderService {
   private readonly paymentAdapters: PaymentAdapterRegistry | undefined;
   private readonly orderStatusRegistry: OrderStatusRegistry | undefined;
   private readonly shippingAdapters: ShippingAdapterRegistry | undefined;
-  private readonly mailer: Mailer | undefined;
+  private readonly mailer: EmailMailerPort | undefined;
+  /**
+   * Feature 075 — the order-confirmation e-mail's two adapter-rendered lines.
+   *
+   * An accessor rather than a value: `payments` and `shipments` own the two
+   * renderer registries and are both deactivatable, so which renderer answers
+   * is a question with a different answer per send. `orders` declares both as
+   * `degrades-without`, and the accessor answers with this module's own
+   * baselines when the owner is not effectively present.
+   */
+  private readonly confirmationRenderers: (() => OrderConfirmationRenderers) | undefined;
   /** Feature 036 — generates the customer-facing business Order ID. */
   private readonly businessId: BusinessIdGenerator | undefined;
   /** Feature 036 (US3) — recomputes the cart's coupon discount at placement. */
@@ -210,7 +224,8 @@ export class OrderService {
       paymentAdapters?: PaymentAdapterRegistry;
       orderStatusRegistry?: OrderStatusRegistry;
       shippingAdapters?: ShippingAdapterRegistry;
-      mailer?: Mailer;
+      mailer?: EmailMailerPort;
+      confirmationRenderers?: () => OrderConfirmationRenderers;
       businessId?: BusinessIdGenerator;
       promotion?: PromotionPort;
       confirmationRecipients?: (input: {
@@ -248,6 +263,7 @@ export class OrderService {
     this.orderStatusRegistry = paymentDeps?.orderStatusRegistry;
     this.shippingAdapters = paymentDeps?.shippingAdapters;
     this.mailer = paymentDeps?.mailer;
+    this.confirmationRenderers = paymentDeps?.confirmationRenderers;
     this.businessId = paymentDeps?.businessId;
     this.promotion = paymentDeps?.promotion;
     this.confirmationRecipients = paymentDeps?.confirmationRecipients;
@@ -321,6 +337,24 @@ export class OrderService {
    * log — and every non-sent path reaches the log whether or not anyone reads
    * the result.
    */
+  /**
+   * The renderer pair for one confirmation e-mail, asked for per send.
+   *
+   * Unwired ⇒ this module's own baselines, which is also what a composition
+   * with neither `payments` nor `shipments` present gets. Those baselines are
+   * not a copy of either module's capability: the registry, the adapter key
+   * lookup and a gateway's custom wording stay with their owners and are
+   * reached through their ports whenever the owners are there.
+   */
+  private orderConfirmationRenderers(): OrderConfirmationRenderers {
+    return (
+      this.confirmationRenderers?.() ?? {
+        payment: noGatewayPaymentLineRenderer,
+        shipping: noCarrierShippingLineRenderer,
+      }
+    );
+  }
+
   private async sendOrderConfirmation(order: Order): Promise<OrderEmailResult> {
     const emailContext = { orderId: order.id, code: 'order_confirmation' };
     if (!this.mailer) return orderEmailNotSent(undefined, emailContext, 'no_transport');
@@ -342,34 +376,37 @@ export class OrderService {
       const deliveryMethod = await em.findOne(DeliveryMethod, { id: order.deliveryMethodId });
       const shippingRendererKey =
         this.shippingAdapters?.get(deliveryMethod?.adapter ?? '')?.renderers?.email ?? null;
-      const variables = buildOrderConfirmationVariables({
-        to: customer.email,
-        customerFirstName: customer.firstName,
-        language,
-        order: {
-          id: order.id,
-          businessId: order.businessId,
-          deliveryMethodSnapshot: order.deliveryMethodSnapshot,
-          paymentMethodSnapshot: order.paymentMethodSnapshot,
-          paymentRendererKey: rendererKey,
-          shippingRendererKey,
-          subtotal: order.subtotal,
-          taxTotal: order.taxTotal,
-          discountTotal: order.discountTotal,
-          deliveryTotal: order.deliveryTotal,
-          total: order.total,
-          currency: order.currency,
-          promotionCode: order.promotionCode ?? null,
-          deliveryAddress: order.deliveryAddress,
-          billingAddress: order.billingAddress,
+      const variables = buildOrderConfirmationVariables(
+        {
+          to: customer.email,
+          customerFirstName: customer.firstName,
+          language,
+          order: {
+            id: order.id,
+            businessId: order.businessId,
+            deliveryMethodSnapshot: order.deliveryMethodSnapshot,
+            paymentMethodSnapshot: order.paymentMethodSnapshot,
+            paymentRendererKey: rendererKey,
+            shippingRendererKey,
+            subtotal: order.subtotal,
+            taxTotal: order.taxTotal,
+            discountTotal: order.discountTotal,
+            deliveryTotal: order.deliveryTotal,
+            total: order.total,
+            currency: order.currency,
+            promotionCode: order.promotionCode ?? null,
+            deliveryAddress: order.deliveryAddress,
+            billingAddress: order.billingAddress,
+          },
+          items: items.map((it) => ({
+            productSnapshot: { sku: it.productSnapshot.sku, name: it.productSnapshot.name },
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+            lineTotal: it.lineTotal,
+          })),
         },
-        items: items.map((it) => ({
-          productSnapshot: { sku: it.productSnapshot.sku, name: it.productSnapshot.name },
-          quantity: it.quantity,
-          unitPrice: it.unitPrice,
-          lineTotal: it.lineTotal,
-        })),
-      });
+        this.orderConfirmationRenderers(),
+      );
       const messageId = `order_confirmation:${order.id}`;
       const meta = { kind: 'order_confirmation', orderId: order.id };
       // The channel language is already resolved above for the variables, so it
@@ -421,33 +458,36 @@ export class OrderService {
       this.shippingAdapters?.get(deliveryMethod?.adapter ?? '')?.renderers?.email ?? null;
     const channel = await em.findOne(SalesChannel, { id: order.salesChannelId });
     const language = channel?.defaultLanguage ?? 'en-US';
-    const message = buildOrderConfirmationEmail({
-      to: customer.email,
-      language,
-      order: {
-        id: order.id,
-        businessId: order.businessId,
-        deliveryMethodSnapshot: order.deliveryMethodSnapshot,
-        paymentMethodSnapshot: order.paymentMethodSnapshot,
-        paymentRendererKey: rendererKey,
-        shippingRendererKey,
-        subtotal: order.subtotal,
-        taxTotal: order.taxTotal,
-        discountTotal: order.discountTotal,
-        deliveryTotal: order.deliveryTotal,
-        total: order.total,
-        currency: order.currency,
-        promotionCode: order.promotionCode ?? null,
-        deliveryAddress: order.deliveryAddress,
-        billingAddress: order.billingAddress,
+    const message = buildOrderConfirmationEmail(
+      {
+        to: customer.email,
+        language,
+        order: {
+          id: order.id,
+          businessId: order.businessId,
+          deliveryMethodSnapshot: order.deliveryMethodSnapshot,
+          paymentMethodSnapshot: order.paymentMethodSnapshot,
+          paymentRendererKey: rendererKey,
+          shippingRendererKey,
+          subtotal: order.subtotal,
+          taxTotal: order.taxTotal,
+          discountTotal: order.discountTotal,
+          deliveryTotal: order.deliveryTotal,
+          total: order.total,
+          currency: order.currency,
+          promotionCode: order.promotionCode ?? null,
+          deliveryAddress: order.deliveryAddress,
+          billingAddress: order.billingAddress,
+        },
+        items: items.map((it) => ({
+          productSnapshot: { sku: it.productSnapshot.sku, name: it.productSnapshot.name },
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          lineTotal: it.lineTotal,
+        })),
       },
-      items: items.map((it) => ({
-        productSnapshot: { sku: it.productSnapshot.sku, name: it.productSnapshot.name },
-        quantity: it.quantity,
-        unitPrice: it.unitPrice,
-        lineTotal: it.lineTotal,
-      })),
-    });
+      this.orderConfirmationRenderers(),
+    );
     let result: OrderEmailResult;
     try {
       const outcome = await this.mailer.send(message);

@@ -3,6 +3,21 @@ import {
   buildOrderConfirmationEmail,
   buildOrderConfirmationVariables,
 } from '../../../src/modules/orders/email-templates/order-confirmation.js';
+import {
+  noCarrierShippingLineRenderer,
+  noGatewayPaymentLineRenderer,
+} from '../../../src/modules/orders/email-templates/adapter-line-baselines.js';
+
+/**
+ * Feature 075 — the builder takes the two renderer contracts instead of
+ * importing `payments`' and `shipments`' resolvers. With neither module
+ * present these are the baselines the module falls back to, so this suite is
+ * also the proof that the degrade renders the same two lines it always did.
+ */
+const renderers = {
+  payment: noGatewayPaymentLineRenderer,
+  shipping: noCarrierShippingLineRenderer,
+};
 
 /**
  * Order-confirmation e-mail builder — covers every section required by the
@@ -57,7 +72,7 @@ const input = () => ({
 
 describe('buildOrderConfirmationEmail', () => {
   it('renders all required sections', () => {
-    const mail = buildOrderConfirmationEmail(input());
+    const mail = buildOrderConfirmationEmail(input(), renderers);
     expect(mail.to).toBe('buyer@example.com');
     expect(mail.messageId).toBe('order_confirmation:abcdef12-0000-4000-8000-000000000001');
 
@@ -74,7 +89,7 @@ describe('buildOrderConfirmationEmail', () => {
   });
 
   it('identifies the order by its business Order ID (feature 036)', () => {
-    const mail = buildOrderConfirmationEmail(input());
+    const mail = buildOrderConfirmationEmail(input(), renderers);
     expect(mail.subject).toContain('ORD-1042');
     expect(mail.text).toContain('Order: ORD-1042');
     expect(mail.subject).not.toContain('abcdef12');
@@ -85,13 +100,13 @@ describe('buildOrderConfirmationEmail', () => {
     const i = input();
     i.order.discountTotal = '0.00';
     i.order.promotionCode = null as unknown as string;
-    const body = buildOrderConfirmationEmail(i).text;
+    const body = buildOrderConfirmationEmail(i, renderers).text;
     expect(body).toContain('Applied discounts:');
     expect(body).toContain('none');
   });
 
   it('localizes summary labels for pl-PL', () => {
-    const mail = buildOrderConfirmationEmail({ ...input(), language: 'pl-PL' });
+    const mail = buildOrderConfirmationEmail({ ...input(), language: 'pl-PL' }, renderers);
     expect(mail.subject).toContain('Potwierdzenie zamówienia');
     expect(mail.text).toContain('Suma częściowa: 100.00 PLN');
     expect(mail.text).toContain('VAT: 23.00 PLN');
@@ -103,14 +118,14 @@ describe('buildOrderConfirmationEmail', () => {
 
 describe('buildOrderConfirmationVariables', () => {
   it('uses English totals labels by default', () => {
-    const vars = buildOrderConfirmationVariables(input());
+    const vars = buildOrderConfirmationVariables(input(), renderers);
     const order = vars['order'] as { summaryText: string };
     expect(order.summaryText).toContain('Subtotal:');
     expect(order.summaryText).toContain('Tax:');
   });
 
   it('uses Polish totals labels for pl-PL', () => {
-    const vars = buildOrderConfirmationVariables({ ...input(), language: 'pl-PL' });
+    const vars = buildOrderConfirmationVariables({ ...input(), language: 'pl-PL' }, renderers);
     const order = vars['order'] as { summaryText: string };
     expect(order.summaryText).toContain('Suma częściowa:');
     expect(order.summaryText).toContain('VAT:');

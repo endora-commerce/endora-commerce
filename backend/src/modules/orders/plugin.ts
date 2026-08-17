@@ -14,7 +14,7 @@ import type { AddressService } from '../addresses/services/address-service.js';
 import type { PromotionService } from '../promotions/services/promotion-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type Redis from 'ioredis';
-import type { Mailer } from '../email/services/mailer.js';
+import type { EmailMailerPort } from '@b2b/contracts';
 import {
   OrderService,
   type CreditLimitPort,
@@ -37,6 +37,7 @@ import type { FulfilmentStrategy } from '@b2b/contracts';
 import { Organization } from '../organizations/entities/organization.entity.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerOrderRoutes } from './routes.js';
+import type { OrderConfirmationRenderers } from './email-templates/order-confirmation.js';
 // Feature 035 — shipping-method adapter framework + shipment lifecycle.
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
@@ -63,7 +64,7 @@ export interface OrdersModuleOptions {
   /** Feature 055 — validates + persists Order custom-field values on the admin edit path. */
   customFieldValues?: CustomFieldValueService;
   /** Feature 034 — mailer for the order-confirmation e-mail (best-effort, post-commit). */
-  mailer?: Mailer;
+  mailer?: EmailMailerPort;
   /**
    * Feature 047 — late-bound transactional-email sender. When provided, the order
    * confirmation is rendered from the admin-editable template instead of the
@@ -72,6 +73,14 @@ export interface OrdersModuleOptions {
   getTransactionalEmailSender?: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
   /** Optional CreditLimit driver — wired by the credit_limits module composition root. */
   creditLimit?: CreditLimitPort;
+  /**
+   * Feature 075 — the order-confirmation e-mail's two adapter-rendered lines.
+   *
+   * An accessor, read per send: `payments` and `shipments` own the two renderer
+   * registries and both are deactivatable, so the answer is theirs to give at
+   * the moment the message is built. Omit ⇒ this module's own baselines.
+   */
+  confirmationRenderers?: () => OrderConfirmationRenderers;
   /**
    * Feature 005 / T027b — when injected, newly-created PaymentMethods and
    * DeliveryMethods auto-bind to the system-default Sales Channel (FR-011).
@@ -323,6 +332,9 @@ export function commerceModule(options: OrdersModuleOptions) {
         ...(options.promotionService ? { promotion: options.promotionService } : {}),
         resolveTaxRate: options.resolveTaxRate,
         ...(options.mailer ? { mailer: options.mailer } : {}),
+        ...(options.confirmationRenderers
+          ? { confirmationRenderers: options.confirmationRenderers }
+          : {}),
         ...(options.getTransactionalEmailSender
           ? { getTransactionalEmailSender: options.getTransactionalEmailSender }
           : {}),
