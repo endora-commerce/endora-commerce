@@ -1,11 +1,10 @@
 import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
-import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
+import { NEWSLETTER_SETTING_CODES, type EmailMailerPort } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
-import type { Mailer } from '../email/services/mailer.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { NewsletterTokenHelper } from './services/token.helper.js';
@@ -70,7 +69,14 @@ export interface NewsletterModuleOptions {
   resolveCustomerAccountId: (req: FastifyRequest) => string;
   /** Resolve a customer account's email (cross-module lookup). */
   loadCustomerEmail: (customerAccountId: string) => Promise<string | null>;
-  mailer?: Mailer;
+  /**
+   * `emailMailer`, owned by `email` — the container's registration, contributed
+   * here by a root. Typed as the published contract (feature 075, Phase C)
+   * rather than by naming `email`'s own `Mailer` alias: this module described
+   * the transport it needs by reaching into the module that owns it, which is
+   * the compile-time coupling Principle I forbids even when nothing is called.
+   */
+  mailer?: EmailMailerPort;
   auditLog: AuditLogService;
   /** Optional observability emitter (wraps the in-process EventBus). */
   emitEvent?: (name: string, payload: Record<string, unknown>) => void;

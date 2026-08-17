@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { Mailer } from '../../email/services/mailer.js';
+import type { EmailMailerPort } from '@b2b/contracts';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';
@@ -28,7 +28,8 @@ export interface SubscriberServiceDeps {
   /** Channel used for opt-in reads when a subscriber has no origin channel. */
   defaultChannelId: string | null;
   links: NewsletterLinkBuilder;
-  mailer?: Mailer;
+  /** `emailMailer`, owned by `email`, as its published contract (feature 075). */
+  mailer?: EmailMailerPort;
   auditLog?: AuditLogService;
   /** Optional observability emitter (wraps the in-process EventBus). */
   emitEvent?: (name: string, payload: Record<string, unknown>) => void;
