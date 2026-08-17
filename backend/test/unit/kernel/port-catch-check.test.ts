@@ -135,6 +135,185 @@ describe('findPortCatches — the shapes it has to see', () => {
   });
 });
 
+/**
+ * The two shapes the analysis could not follow (issues #133 and #113).
+ *
+ * Both are the same defect seen twice: the port arrives by a route the value
+ * analysis did not walk, so the `catch` around it read clean. They enter here at
+ * `findPortCatches`, the top of the analysis, because the blindness was in the
+ * alias table rather than in the `catch` classifier — a fixture handed a
+ * pre-built alias would prove nothing (MR !550).
+ */
+describe('findPortCatches — a port reached one hop away (issue #133)', () => {
+  /** `price_lists` owns the resolver; `carts` builds a helper around it. */
+  const PRICING_PROVIDER = `
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.providePort('pricingService', ctx.asFunction(() => new PricingService()).singleton());
+}
+`;
+
+  const CARTS_BACKEND = `
+import { lazyPort } from '../../kernel/index.js';
+export function registerModule(ctx: ModuleContext): void {
+  ctx.routes(async (app) => {
+    await registerCartRoutes(app, {
+      emFactory,
+      cartPricingRecompute: new CartPricingRecompute(
+        emFactory,
+        lazyPort<PricingServiceContract>(ctx, 'pricingService'),
+        cradle.cartRecomputeCache,
+      ),
+    });
+  });
+}
+`;
+
+  const CARTS_ROUTES = (body: string): string => `
+export async function registerCartRoutes(app, deps) {
+  app.get('/api/v1/cart', async (request) => {
+    let recomputed = null;
+    try {
+      recomputed = await deps.cartPricingRecompute.recompute({ cartId: '1' }, lines);
+    } catch (err) {
+${body}
+    }
+    return recomputed;
+  });
+}
+`;
+
+  const holderTree = (routes: string): Map<string, string> =>
+    new Map([
+      ['modules/price_lists/backend.ts', PRICING_PROVIDER],
+      ['modules/carts/backend.ts', CARTS_BACKEND],
+      ['modules/carts/routes.ts', routes],
+    ]);
+
+  it('follows the port into the holder it was constructed into', () => {
+    // The `catch` wraps `CartPricingRecompute`, never the `lazyPort` call. Three
+    // of these survived issue #84`s sweep on `GET /api/v1/cart` and rendered a
+    // priced cart from stale snapshots with `price_lists` switched off.
+    const found = findPortCatches({ sources: holderTree(CARTS_ROUTES('      recomputed = null;')) });
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      file: 'modules/carts/routes.ts',
+      moduleId: 'carts',
+      port: 'cartPricingRecompute',
+      handled: false,
+    });
+  });
+
+  it('accepts the same holder once the tolerance is narrowed', () => {
+    const narrowed = CARTS_ROUTES('      rethrowIfModuleDisabled(err);\n      recomputed = null;');
+    expect(findPortCatches({ sources: holderTree(narrowed) }).map((e) => e.handled)).toEqual([true]);
+  });
+
+  it('does not read a holder built from no port as one', () => {
+    // The widening has to stay a *value* analysis: a helper constructed from an
+    // EntityManager factory alone carries no gate, and a `catch` around it is
+    // nobody`s business.
+    const plain = CARTS_BACKEND.replace(
+      /new CartPricingRecompute\([\s\S]*?\),\n/,
+      'new CartPricingRecompute(emFactory),\n',
+    );
+    const sources = holderTree(CARTS_ROUTES('      recomputed = null;'));
+    sources.set('modules/carts/backend.ts', plain);
+    expect(findPortCatches({ sources })).toHaveLength(0);
+  });
+});
+
+describe('findPortCatches — a port contributed by a root (issue #113)', () => {
+  /** `transactional_emails` publishes the sender accessor as a gated port. */
+  const EMAIL_PROVIDER = `
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.providePort(
+    'transactionalEmailSenderAccessor',
+    ctx.asFunction(() => () => exposed.sender ?? undefined).singleton(),
+  );
+}
+`;
+
+  /** The root hands the port on under a name of its own — no `lazyPort` here. */
+  const ROOT = `
+export function composeBackend(container) {
+  registerValues(container, {
+    shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
+  });
+}
+`;
+
+  const SHIPMENTS_BACKEND = `
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.register({
+    shipmentEmailNotifier: ctx
+      .asFunction(
+        ({ emFactory }: ShipmentsCradle) =>
+          new ShipmentEmailNotifier({
+            emFactory,
+            getTransactionalEmailSender: () =>
+              ctx.cradle<ShipmentsCradle>().shipmentEmailSender(),
+          }),
+      )
+      .singleton(),
+  });
+}
+`;
+
+  const NOTIFIER = (body: string): string => `
+export class ShipmentEmailNotifier {
+  async notify(orderId: string): Promise<ShipmentEmailResult> {
+    try {
+      const sender = this.deps.getTransactionalEmailSender();
+      if (!sender) return { sent: false, reason: 'no_sender' };
+      await sender.send({ code: 'shipment_created', to: orderId });
+      return { sent: true };
+    } catch (error) {
+${body}
+    }
+  }
+}
+`;
+
+  const contributionTree = (notifier: string): Map<string, string> =>
+    new Map([
+      ['modules/transactional_emails/backend.ts', EMAIL_PROVIDER],
+      ['composition.ts', ROOT],
+      ['modules/shipments/backend.ts', SHIPMENTS_BACKEND],
+      ['modules/shipments/services/shipment-email-notifier.ts', notifier],
+    ]);
+
+  it('follows a gated port through a root contribution point', () => {
+    // The five e-mail notifiers that discarded their send outcome were invisible
+    // for exactly this reason: the sender reaches them through `registerValues`,
+    // so the count read `catches=42 violations=0` before and after the repair.
+    const found = findPortCatches({
+      sources: contributionTree(NOTIFIER("      return { sent: false, reason: 'failed' };")),
+    });
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      file: 'modules/shipments/services/shipment-email-notifier.ts',
+      moduleId: 'shipments',
+      port: 'getTransactionalEmailSender',
+      handled: false,
+    });
+  });
+
+  it('accepts the same notifier once the tolerance is narrowed', () => {
+    const narrowed = NOTIFIER(
+      "      rethrowIfModuleDisabled(error);\n      return { sent: false, reason: 'failed' };",
+    );
+    expect(findPortCatches({ sources: contributionTree(narrowed) }).map((e) => e.handled)).toEqual([
+      true,
+    ]);
+  });
+
+  it('does not read a root value built from no port as one', () => {
+    const sources = contributionTree(NOTIFIER("      return { sent: false, reason: 'failed' };"));
+    sources.set('composition.ts', ROOT.replace('emailCradle().transactionalEmailSenderAccessor()', 'undefined'));
+    expect(findPortCatches({ sources })).toHaveLength(0);
+  });
+});
+
 describe('checkPortCatches — the two-way ratchet', () => {
   it('fails on an unledgered bare catch', () => {
     const result = checkPortCatches({ sources: tree(BARE) }, {});

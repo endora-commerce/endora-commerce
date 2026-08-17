@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { cmsColorPaletteSchema, type CmsColorPalette } from '@b2b/contracts';
 import { CMS_PAGE_BUILDER_SETTING_CODES } from './manifest.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { CmsPage } from './entities/cms-page.entity.js';
 import { CmsBlock } from './entities/cms-block.entity.js';
@@ -141,9 +142,13 @@ export function registerModule(ctx: ModuleContext): void {
               ),
             ]);
             return { tabletMin, desktopMin };
-          } catch {
+          } catch (err) {
             // Unset settings are the normal state on a fresh platform; the
             // registry's env-derived defaults are the answer, not an error.
+            // A settings store the platform is refusing to serve is not that:
+            // the builder would render the defaults as though they were the
+            // operator's breakpoints, and a save would then write over them.
+            rethrowIfModuleDisabled(err);
             return result.handle.pageBuilderRegistry.getBreakpoints();
           }
         });
@@ -157,7 +162,11 @@ export function registerModule(ctx: ModuleContext): void {
               channelId,
               cmsColorPaletteSchema,
             );
-          } catch {
+          } catch (err) {
+            // Same rule as the breakpoints above: an unset palette is empty, an
+            // absent settings store is not — an empty palette the builder then
+            // saves is data loss dressed as a default.
+            rethrowIfModuleDisabled(err);
             return [];
           }
         });

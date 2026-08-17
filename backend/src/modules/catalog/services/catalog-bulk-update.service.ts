@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type BulkUpdateProductsRequest } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { CatalogAdminService} from './catalog-admin.service.js';
@@ -323,6 +324,13 @@ export class CatalogBulkUpdateService {
   }
 
   private classifyPerProductError(productId: string, err: unknown): BulkUpdateOutcome {
+    // The per-product tolerance is right — one product that fails validation
+    // must not abandon the other 4 999 — but a presence answer is not per
+    // product. `ModuleDisabledError` is an `HttpError`, so without this line it
+    // classified as `validation_failed` on every row, and the report read as a
+    // data problem in the catalogue rather than a module that is off. Placed
+    // here rather than at the two call sites so a third one inherits it.
+    rethrowIfModuleDisabled(err);
     if (err instanceof HttpError) {
       if (err.code === ERROR_CODES.PRODUCT_NOT_FOUND) {
         return { productId, status: 'skipped', reason: 'product_not_found' };

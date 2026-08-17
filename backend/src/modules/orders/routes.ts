@@ -21,6 +21,7 @@ import {
 } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
+import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { Command, CommandBus } from '../../commands/index.js';
 import {
   CustomFieldValidationError,
@@ -421,6 +422,11 @@ export async function registerOrderRoutes(
     err: unknown,
     orderId: string,
   ): Promise<'invalid_transition' | 'terminal' | 'not_found'> {
+    // Every reason this returns is a statement about the order. A module that
+    // is off is a statement about the platform, and reporting one hundred
+    // orders as `invalid_transition` sends the operator to the status graph to
+    // look for a rule that was never the problem.
+    rethrowIfModuleDisabled(err);
     if (err instanceof HttpError && err.code === ERROR_CODES.ORDER_NOT_FOUND) return 'not_found';
     const order = await emFactory().findOne(Order, { id: orderId });
     if (!order) return 'not_found';

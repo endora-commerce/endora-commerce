@@ -139,7 +139,10 @@ never add a "module options" object for something the module can read itself.
    why the tolerance is right; "defensive" is not a reason. Enforced by
    `pnpm --filter backend run check:port-catches`, which also refuses a *conditional*
    re-throw: `ModuleDisabledError` is an `HttpError`, so a status-code test lets it through by
-   accident rather than by decision.
+   accident rather than by decision. It follows the port **through the value**, not the
+   `lazyPort` literal (issues #133/#113): a `catch` around a holder the port was constructed
+   into, or around a name a composition root contributed, is the same violation. Run it with
+   `PORT_CATCH_WHY=1` to see why a name reads as a port.
 8. **One registration pass, one boot phase (D-45).** A root calls `composeModules(MODULES, …)`
    once and `runBootHooks()` once, immediately before it builds the Fastify app — so **a boot
    hook may resolve anything**, whichever module registered it. Registration itself resolves
