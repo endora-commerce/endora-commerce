@@ -13,26 +13,25 @@
  * After 2026-12-31 it stops being an acceptable one: an entry still carrying it
  * is a boundary the repository has decided to keep, and it needs a reason that
  * says so.
+ *
+ * **Nothing left here carries that sentence.** The `orders` cut drained 64 of
+ * this module's 73 entries across five merge requests. What remains is nine
+ * entries of two kinds, and neither is "not yet done":
+ *
+ *  - **two `permanent: true`** — the `payments` and `invoices` rows placement
+ *    opens, held co-transactional by `payments_order_fk` and
+ *    `invoices_order_fk` (D-78 point 2). Each names its constraint and what
+ *    would retire it.
+ *  - **seven escalated** — the stock reservation (five) and the cart
+ *    completion (two). Both are co-transactional with placement and neither
+ *    has a foreign key to justify it, so they are D-78 point 3: a boundary
+ *    error raised for a design decision rather than solved inside a cut. Each
+ *    entry states the analysis, including why moving the operation into the
+ *    owner does not work and which test asserts the property that stops it.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/orders/plugin.ts:custom_fields/services/custom-field-value.service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/plugin.ts:delivery_methods/services/shipping-adapter-registry':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/plugin.ts:organizations/entities/organization.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/plugin.ts:payment_methods/services/order-status-registry.port':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/plugin.ts:payment_methods/services/payment-adapter-registry':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/plugin.ts:price_lists/services/pricing-service.interface':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/plugin.ts:promotions/services/promotion-service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/plugin.ts:quote_requests/services/rfq-service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-service.ts:carts/entities/cart-item.entity':
     'F3 Phase C — orders. **Escalated, not deferred.** Placement ends by clearing the buyer`s cart and marking it `completed`, inside the placement transaction and on the same `Cart` object the totals were read from. There is no foreign key between `carts` and `orders` in either direction, so D-78 point 2 does not apply; and D-78 point 1 does not either, because a `cartWritePort` call would commit the cart completion in its own transaction and leave a buyer with an emptied cart and no order whenever placement then fails (test/integration/orders/place-order-failure-preserves-cart.test.ts asserts the opposite). So it is D-78 point 3, and it is raised rather than solved. The reorder path`s cart write was a different question and is already cut, through `cartWritePort.replaceItemsForCustomer`.',
   'modules/orders/services/order-service.ts:carts/entities/cart.entity':
