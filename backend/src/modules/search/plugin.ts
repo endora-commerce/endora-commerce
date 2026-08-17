@@ -1,7 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import type { ListingPricePort } from '@b2b/contracts';
+import type {
+  CatalogAttributeReadPort,
+  CatalogProductReadPort,
+  ListingPricePort,
+  SettingsAdminAuditContext,
+  SettingsAdminPort,
+} from '@b2b/contracts';
 import { SearchIndexer } from './services/search-indexer.js';
 import { SearchEventSubscriber } from './services/search-event-subscriber.js';
 import { SearchQueryService } from './services/search-query.service.js';
@@ -20,11 +26,6 @@ import {
   type SuggestionPricingEnricher,
 } from './routes.public.js';
 import { registerSearchAdminRoutes } from './routes.admin.js';
-import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
-import type {
-  AdminAuditContext,
-  SettingsAdminService,
-} from '../settings/services/settings-admin.service.js';
 import {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
@@ -75,7 +76,14 @@ export interface SearchModuleOptions {
    * Backs the indexer's searchable/filterable settings + option-label
    * aggregation and the query service's filterable validation.
    */
-  catalogAttributeRead: CatalogAttributeReadService;
+  catalogAttributeRead: CatalogAttributeReadPort;
+  /**
+   * Feature 075, Phase C — the product rows the indexer turns into Meilisearch
+   * documents, read over `catalog`'s published port instead of out of its
+   * table. The edge is the binding `catalog` dependency the manifest declares:
+   * with `catalog` off there is nothing to index and the call answers 503.
+   */
+  catalogProducts: CatalogProductReadPort;
   /**
    * Universal-getter for Settings. Backs the suggest service's per-channel
    * popup-count + minimum-query-length, the `settings.value_changed` →
@@ -94,11 +102,11 @@ export interface SearchModuleOptions {
    * Injected as a narrow port (Principle I).
    */
   credentials: CredentialResolvePort;
-  /** Admin Settings service — drives the `LlmToggleService.toggle` write path. */
-  settingsAdminService: SettingsAdminService;
+  /** Admin Settings write port — drives the `LlmToggleService.toggle` path. */
+  settingsAdminService: SettingsAdminPort;
   /** Admin routes mount under `/api/v1/admin/search/*`. */
   requireAdmin: RequireAdminFactory;
-  resolveAdminAuditContext: (req: FastifyRequest) => AdminAuditContext;
+  resolveAdminAuditContext: (req: FastifyRequest) => SettingsAdminAuditContext;
   /**
    * Typeahead suggestions carry the per-customer price-list resolution (SKU +
    * image already ride on the summary), so the popup shows the price the
@@ -144,7 +152,10 @@ export interface SearchModuleResult {
 const numberSchema = z.number();
 
 export function searchModule(options: SearchModuleOptions): SearchModuleResult {
-  const indexer = new SearchIndexer({ attributeRead: options.catalogAttributeRead });
+  const indexer = new SearchIndexer({
+    attributeRead: options.catalogAttributeRead,
+    products: options.catalogProducts,
+  });
   // Handlers only: `backend.ts` registers them through `ctx.subscribe`, which
   // is what makes this module's effective state decide whether they run.
   const subscriber = new SearchEventSubscriber({

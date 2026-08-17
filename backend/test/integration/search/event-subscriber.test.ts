@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { CatalogProductReadPort } from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -24,6 +25,17 @@ import { Meilisearch } from 'meilisearch';
 const meilisearchHost = process.env['MEILISEARCH_URL'] ?? 'http://localhost:7700';
 const meilisearchKey = process.env['MEILISEARCH_API_KEY'] ?? 'devMasterKeyChangeMe';
 
+/**
+ * The container's `catalogProductReadPort` — feature 075, Phase C. The indexer
+ * takes `catalog`'s published read port instead of querying its table, so a
+ * hand-built indexer here resolves the same registration the composed module
+ * does rather than a second reader of the same rows.
+ */
+function catalogProductReadPort(handle: BackendServerHandle): CatalogProductReadPort {
+  return (handle.container.cradle as never as { catalogProductReadPort: CatalogProductReadPort })
+    .catalogProductReadPort;
+}
+
 describe('SearchEventSubscriber — incremental index updates', () => {
   let h: BackendServerHandle;
   let eventBus: EventBus<never>;
@@ -43,6 +55,7 @@ describe('SearchEventSubscriber — incremental index updates', () => {
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
       attributeRead: h.catalogAttributeRead,
+      products: catalogProductReadPort(h),
     });
     eventBus = new EventBus();
     subscriber = new SearchEventSubscriber({

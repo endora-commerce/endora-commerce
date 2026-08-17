@@ -3,13 +3,17 @@ import { Meilisearch, type SearchResponse } from 'meilisearch';
 import {
   ERROR_CODES,
   listingPriceMoney,
+  type CatalogAttributeReadPort,
   type ListingPrice,
   type ListingPricePort,
   type ProductSummary,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+// Feature 075, Phase C — the one `catalog` import this module could not retire.
+// `catalog/plugin.ts` builds its own `SearchQueryService`, so the constructor
+// cannot lose its `EntityManager` until that construction goes, and that is
+// issue #153's business rather than this cut's. See the shard entry.
 import { Product } from '../../catalog/entities/product.entity.js';
-import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
 import { encodeCursor, decodeCursor } from '../../../http/cursor.js';
 import { indexUidFor, type IndexedDocument } from './search-indexer.js';
 
@@ -84,9 +88,11 @@ export class SearchQueryService {
     private readonly emFactory: () => EntityManager,
     /**
      * Feature 061 — the catalog's composed attribute read model (Principle I:
-     * filterable validation reads the view, not the catalog entity).
+     * filterable validation reads the view, not the catalog entity). Feature
+     * 075, Phase C — typed as the published port; `catalog`'s own service
+     * satisfies it structurally, so its construction of this class is unchanged.
      */
-    private readonly attributeRead?: CatalogAttributeReadService,
+    private readonly attributeRead?: CatalogAttributeReadPort,
     options: SearchQueryOptions = {},
     /**
      * Issue #132 — the pricing engine, through the `pricingService` port. The
@@ -122,7 +128,7 @@ export class SearchQueryService {
       if (keys.length > 0) {
         if (!this.attributeRead) {
           throw new Error(
-            'SearchQueryService: CatalogAttributeReadService is not wired — attribute-filter validation is unavailable.',
+            'SearchQueryService: the catalog attribute read port is not wired — attribute-filter validation is unavailable.',
           );
         }
         const attrs = await this.attributeRead.listAll();

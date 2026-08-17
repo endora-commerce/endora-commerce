@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { CatalogProductReadPort } from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -25,6 +26,17 @@ import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.e
 const meilisearchHost = process.env['MEILISEARCH_URL'] ?? 'http://localhost:7700';
 const meilisearchKey = process.env['MEILISEARCH_API_KEY'] ?? 'devMasterKeyChangeMe';
 
+/**
+ * The container's `catalogProductReadPort` — feature 075, Phase C. The indexer
+ * takes `catalog`'s published read port instead of querying its table, so a
+ * hand-built indexer here resolves the same registration the composed module
+ * does rather than a second reader of the same rows.
+ */
+function catalogProductReadPort(handle: BackendServerHandle): CatalogProductReadPort {
+  return (handle.container.cradle as never as { catalogProductReadPort: CatalogProductReadPort })
+    .catalogProductReadPort;
+}
+
 describe('catalog list — Meilisearch backend', () => {
   let h: BackendServerHandle;
   let originalBackend: string | undefined;
@@ -46,6 +58,7 @@ describe('catalog list — Meilisearch backend', () => {
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
       attributeRead: h.catalogAttributeRead,
+      products: catalogProductReadPort(h),
     });
     const channels = await h.em().find(SalesChannel, {});
     for (const channel of channels) {
