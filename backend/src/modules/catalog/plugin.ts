@@ -10,6 +10,12 @@ import {
   BULK_OPERATION_TYPES,
   type AssetReadPort,
   type SearchQueryPort,
+  type AdminUserReadPort,
+  type EmailMailerPort,
+  type LanguageReadPort,
+  type ListingPricePort,
+  type OrgLinePricePort,
+  type OrganizationDetailsPort,
 } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
@@ -49,8 +55,6 @@ import { ProductEditorPreferencesService } from './services/product-editor-prefe
 import { ProductOverridesService } from './services/product-overrides.service.js';
 import { ProductScopeContextService } from './services/product-scope-context.service.js';
 import { ProductValueResolverService } from './services/product-value-resolver.service.js';
-import type { LanguageService } from '../languages/services/language-service.js';
-import type { Mailer } from '../email/services/mailer.js';
 import { registerCatalogPublicRoutes } from './routes.public.js';
 import { registerCatalogAdminRoutes } from './routes.admin.js';
 import { registerCatalogApiKeyRoutes } from './routes.api-key.js';
@@ -59,7 +63,6 @@ import {
   CatalogOrgPriceDecorator,
   type ResolveAvailabilityPort,
 } from './services/catalog-org-price-decorator.js';
-import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
@@ -109,12 +112,23 @@ export interface CatalogModuleOptions {
    * pricing uses). Consumed only by the external catalog namespace's
    * decoration layer — SC-001 parity by construction.
    */
-  pricingService?: PricingServiceContract;
+  pricingService?: OrgLinePricePort & ListingPricePort;
   /**
    * Feature 062 — inventory availability port for the external namespace's
    * `availability` indication. Optional: when omitted the field is omitted.
    */
   resolveExternalAvailability?: ResolveAvailabilityPort;
+  /**
+   * Feature 075 — `organizations`' read port. The external namespace's price
+   * decoration resolves the calling organisation through it, where it used to
+   * run `em.findOne(Organization, …)` against another module's table.
+   */
+  organizations?: OrganizationDetailsPort;
+  /**
+   * Feature 075 — `admin_users`' read port, for the one row the bulk-operation
+   * completion notice reads: the requester's e-mail address.
+   */
+  adminUsers?: AdminUserReadPort;
   /**
    * Feature 005 / T027 — when provided, every newly-created Product is
    * automatically bound to the system-default Sales Channel unless it
@@ -129,7 +143,7 @@ export interface CatalogModuleOptions {
    * and the resolver service (for the same). Optional: when omitted,
    * the new admin endpoints are NOT registered.
    */
-  languageService?: LanguageService;
+  languageService?: LanguageReadPort;
   /**
    * In-app (bell) notifications — used by the queued bulk-edit path to
    * tell the requester their background operation finished. Optional;
@@ -144,7 +158,7 @@ export interface CatalogModuleOptions {
    * Email transport — used by the queued bulk-edit path to email the
    * requester on completion. Optional; when omitted email is skipped.
    */
-  mailer?: Mailer;
+  mailer?: EmailMailerPort;
   /**
    * Redis connection used to back the bulk-operation queue (Principle X).
    * When provided, `create()` enqueues each operation onto a durable BullMQ
@@ -280,6 +294,7 @@ export function catalogModule(options: CatalogModuleOptions) {
         ? { notificationService: options.adminNotificationService }
         : {}),
       ...(options.mailer ? { mailer: options.mailer } : {}),
+      ...(options.adminUsers ? { adminUsers: options.adminUsers } : {}),
       ...(options.reindexSearchIndexes
         ? { reindexRunner: options.reindexSearchIndexes }
         : {}),
@@ -367,10 +382,16 @@ export function catalogModule(options: CatalogModuleOptions) {
     // Feature 062 — external catalog namespace (/api/v1/external/catalog/*).
     // Registered only when the api-key gates AND the pricing engine are wired
     // (production + full test harness); legacy fixtures skip it.
-    if (options.requireApiKey && options.requireBoundApiKey && options.pricingService) {
+    if (
+      options.requireApiKey &&
+      options.requireBoundApiKey &&
+      options.pricingService &&
+      options.organizations
+    ) {
       const decorator = new CatalogOrgPriceDecorator({
         emFactory: options.emFactory,
         pricingService: options.pricingService,
+        organizations: options.organizations,
         ...(options.resolveExternalAvailability
           ? { resolveAvailability: options.resolveExternalAvailability }
           : {}),

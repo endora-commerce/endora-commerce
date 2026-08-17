@@ -7,9 +7,10 @@ import {
   type OverrideRow,
   type Resolved,
   type ResolveAllResult,
+  type LanguageReadPort,
   type ResolverContext,
 } from '@b2b/contracts';
-import type { LanguageService } from '../../languages/services/language-service.js';
+
 import type { Product } from '../entities/product.entity.js';
 import { ProductValueOverride } from '../entities/product-value-override.entity.js';
 import type { CatalogAttributeReadService } from './catalog-attribute-read.service.js';
@@ -32,7 +33,7 @@ import {
 export class ProductValueResolverService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly languageService: LanguageService,
+    private readonly languageService: LanguageReadPort,
     /** Feature 061 — composed attribute read model (scope lookups). */
     private readonly attributeRead?: CatalogAttributeReadService,
   ) {}

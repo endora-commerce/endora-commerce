@@ -5,6 +5,7 @@ import { ERROR_CODES, type ListingPricePort } from '@b2b/contracts';
 import type {
   AssetReadPort,
   AssetReferenceRegistryPort,
+  AdminUserReadPort,
   CatalogAttachmentPort,
   CatalogAttributeReadPort,
   CatalogAttributeSetPort,
@@ -22,6 +23,8 @@ import type {
   CatalogPromoAttributePort,
   CatalogQuickSearchPort,
   SearchQueryPort,
+  LanguageReadPort,
+  OrganizationDetailsPort,
 } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
@@ -283,7 +286,11 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'salesChannelMembershipPort',
             ),
-            languageService: lazyPort<CatalogCradle['languageService']>(ctx, 'languageService'),
+            // Feature 075 — the *read* port rather than the whole admin service.
+            // The two consumers in this module ask two questions between them,
+            // `listActive` and `getDefault`, which is what `languageReadPort`
+            // publishes.
+            languageService: lazyPort<LanguageReadPort>(ctx, 'languageReadPort'),
             // Absent from the harness before T142, so the bulk-operation
             // completion notice and its e-mail ran in no test.
             //
@@ -309,6 +316,11 @@ export function registerModule(ctx: ModuleContext): void {
             // `assets_library` in `dependencies`, so an operator cannot switch
             // it off underneath this.
             assets: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+            // Feature 075 — the external namespace's calling organisation, and
+            // the bulk-operation requester's e-mail address. Both were reads of
+            // another module's entity against another module's table.
+            organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             requireAdmin: (permission) => async (req, reply) =>
               cradle().requireAdmin(permission)(req, reply),
             requireApiKey: requireApiKeyGate,

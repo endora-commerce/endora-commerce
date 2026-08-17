@@ -1,8 +1,12 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { BULK_OPERATION_TYPES, type BulkUpdateProductsRequest } from '@b2b/contracts';
-import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
-import type { Mailer } from '../../email/services/mailer.js';
+import {
+  BULK_OPERATION_TYPES,
+  type AdminUserReadPort,
+  type BulkUpdateProductsRequest,
+  type EmailMailerPort,
+} from '@b2b/contracts';
+
 import { effectiveState } from '../../../kernel/lifecycle/effective-state.js';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { Command, CommandBus } from '../../../commands/index.js';
@@ -158,7 +162,16 @@ export class BulkOperationService {
     private readonly bulkUpdateService: CatalogBulkUpdateService,
     private readonly deps: {
       notificationService?: BulkNotificationRecorder;
-      mailer?: Mailer;
+      mailer?: EmailMailerPort;
+      /**
+       * Feature 075 — who requested the operation, read through `admin_users`'
+       * port instead of `em.findOne(AdminUser, …)` against its table. Only the
+       * e-mail address is used, to tell the requester their run finished.
+       *
+       * Optional in the shape, like the two above, because a composition that
+       * neither notifies nor mails never reaches it.
+       */
+      adminUsers?: AdminUserReadPort;
       /**
        * Producer hook: hands the new operation's id to the durable queue.
        * Called once per `create()` with the persisted row's id. Failures are
@@ -494,8 +507,7 @@ export class BulkOperationService {
     summary: { succeeded: number; skipped: number; failed: number; total: number } | null,
     error?: string,
   ): Promise<void> {
-    const em = this.emFactory();
-    const admin = await em.findOne(AdminUser, { id: op.requestedByAdminUserId });
+    const admin = await this.deps.adminUsers?.findById(op.requestedByAdminUserId);
 
     const succeeded = summary?.succeeded ?? 0;
     const total = summary?.total ?? op.total;

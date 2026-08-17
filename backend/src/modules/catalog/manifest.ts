@@ -43,12 +43,30 @@ export const manifest = defineModuleManifest({
     'email',
     'sales_channels',
   ],
+  // Feature 075 — `organizations` is resolved, not imported, since the cut
+  // replaced `em.findOne(Organization, …)` in the external namespace's price
+  // decorator with `organizationDetailsPort`. It is acknowledged rather than
+  // declared for the reason `price_lists` is, one line down: `organizations`
+  // declares this module (the org-scoped catalogue restriction is a list of
+  // products), so declaring it back closes a cycle and `migration-order` fails
+  // the build on one. The module is non-deactivatable, so the acknowledgement
+  // binds nothing an operator can flip.
   // Feature 073, Amendment A1. This one differs from the `organizations` pairs
   // in the way that matters to an operator: `price_lists` is deactivatable
   // (`price_lists.enabled`), so without this declaration the pricing engine
   // could be switched off underneath a live resolver in a core commerce module,
   // and nothing would refuse the flip.
   acknowledgedDependencies: [
+    {
+      moduleId: 'organizations',
+      port: 'organizationDetailsPort',
+      reason:
+        'Feature 075. The external catalog namespace decorates a bound caller’s prices with ' +
+        'their organisation’s effective tiers, and read the `Organization` entity directly to ' +
+        'do it. Over the port now — but `organizations` declares this module, so declaring it ' +
+        'back closes a cycle. Acknowledged rather than declared, and the module is ' +
+        'non-deactivatable, so nothing an operator can flip depends on the difference.',
+    },
     {
       moduleId: 'price_lists',
       port: 'pricingService',
