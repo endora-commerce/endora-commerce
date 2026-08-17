@@ -25,6 +25,12 @@ export class CmsPageReadService implements CmsPageReadPort {
     return page ? toCmsPageRecord(page) : null;
   }
 
+  async findByIds(ids: readonly string[]): Promise<CmsPageRecord[]> {
+    if (ids.length === 0) return [];
+    const pages = await this.emFactory().find(CmsPage, { id: { $in: [...ids] } });
+    return pages.map(toCmsPageRecord);
+  }
+
   async listPublished(): Promise<CmsPageRecord[]> {
     const pages = await this.emFactory().find(
       CmsPage,
@@ -39,7 +45,10 @@ export function toCmsPageRecord(page: CmsPage): CmsPageRecord {
   return {
     id: page.id,
     path: page.path,
+    slug: page.slug,
     status: page.status,
+    name: page.name,
+    active: page.active,
     title: page.title,
     metaTitle: page.metaTitle ?? null,
     metaDescription: page.metaDescription ?? null,

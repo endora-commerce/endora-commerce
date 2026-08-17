@@ -16,7 +16,15 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port the admin routes are gated by. Feature
   // 072 made it a container resolution rather than a constructor argument.
-  dependencies: ['auth'],
+  //
+  // `catalog` and `cms` arrived with feature 075 Phase C. Both edges were
+  // always real — the meta-tag resolver and the sitemap read their tables
+  // directly — and both are **binding**: a sitemap that silently drops every
+  // product or page URL still parses as a sitemap, and a crawler cannot tell
+  // it from a shop that genuinely sells nothing. Refusing is the honest
+  // answer. Meta tags likewise describe a page a customer can reach, which a
+  // switched-off `catalog` or `cms` no longer serves.
+  dependencies: ['auth', 'catalog', 'cms'],
   settings: {
     moduleCode: 'seo',
     groups: [{ code: 'seo', name: 'SEO' }],
