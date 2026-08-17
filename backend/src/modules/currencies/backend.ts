@@ -1,7 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import {
+  CURRENCY_CHANGED_EVENT,
+  type CurrencyAdminPort,
+  type CurrencyReadPort,
+} from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { CurrencyService } from './services/currency-service.js';
+import { CurrencyReadService, createCurrencyAdminPort } from './services/currency-ports.js';
 
 /**
  * `currencies` — one service, where there were two (feature 072, wave 1).
@@ -31,10 +37,17 @@ export interface CurrenciesCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditLogService;
   readonly eventBus: { emit: (event: string, payload: unknown) => void };
+  readonly currencyService: CurrencyService;
 }
 
-/** Emitted after any write that changes the set or shape of currencies. */
-export const CURRENCY_CHANGED_EVENT = 'currencies.changed';
+/**
+ * Emitted after any write that changes the set or shape of currencies.
+ *
+ * The spelling moved to `@b2b/contracts` in feature 075's Phase P — it is a
+ * constant, not behaviour, and `dictionaries` subscribes to it. Re-exported
+ * here for the length of Phase P, which cuts no consumer.
+ */
+export { CURRENCY_CHANGED_EVENT };
 
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
@@ -51,4 +64,31 @@ export function registerModule(ctx: ModuleContext): void {
       })
       .singleton(),
   });
+
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // Six of the fifteen inbound sites read the `Currency` **entity** rather than
+  // this module's service: `dictionaries` resolving a label or validating a
+  // code. These two ports are what they and the service consumers rewire to.
+  //
+  // `currencyService` above keeps its plain `ctx.di.register`, unchanged,
+  // because retiring it is a cut and Phase P cuts nothing.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<CurrencyReadPort>(
+    'currencyReadPort',
+    ctx
+      .asFunction(({ emFactory }: CurrenciesCradle) => new CurrencyReadService(emFactory))
+      .singleton(),
+  );
+
+  ctx.di.providePort<CurrencyAdminPort>(
+    'currencyAdminPort',
+    ctx
+      .asFunction(() =>
+        createCurrencyAdminPort(() => ctx.cradle<CurrenciesCradle>().currencyService),
+      )
+      .singleton(),
+  );
 }

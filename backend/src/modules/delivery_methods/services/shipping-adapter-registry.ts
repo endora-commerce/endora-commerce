@@ -1,4 +1,4 @@
-import type { ShippingAdapter } from '@b2b/contracts';
+import type { ShippingAdapter, ShippingAdapterRegistryPort } from '@b2b/contracts';
 import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /**
@@ -32,7 +32,12 @@ export interface ShippingAdapterEntry {
   readonly module: string;
 }
 
-export class ShippingAdapterRegistry {
+/**
+ * `implements` the shape feature 075's Phase P published, which is what stops
+ * the registry and its contract drifting: `orders` and `shipments` read the
+ * published type, and `tsc` refuses the day a method here stops matching.
+ */
+export class ShippingAdapterRegistry implements ShippingAdapterRegistryPort {
   private readonly entries = new Map<string, ShippingAdapterEntry>();
 
   constructor(

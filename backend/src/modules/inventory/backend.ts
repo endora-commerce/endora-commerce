@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type { DictionaryValidator } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { EventBus } from '../../events/bus.js';
+import type { InventoryStockReadPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
@@ -13,6 +14,7 @@ import { inventoryModule, type InventoryModuleOptions } from './plugin.js';
 import type { AdjustedPayload } from './services/availability-worker.js';
 import type { SettingsValueChangedPayload } from './services/threshold-settings-mirror.js';
 import { StockLevelService } from './services/stock-level-service.js';
+import { InventoryStockReadService } from './services/inventory-read-port.js';
 import { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import { WarehouseChannelReconciler } from './services/warehouse-channel-reconciler.js';
 import { AVAILABILITY_BACK_IN_STOCK_DEFAULT, LOW_STOCK_ALERT_DEFAULT } from './email-templates/transactional-defaults.js';
@@ -150,6 +152,22 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton(),
   });
+
+  /**
+   * Feature 075, Phase P — the stock read model.
+   *
+   * `orders` assembles candidate warehouses for a line from three of this
+   * module's tables today, inside its own transaction, reaching them through a
+   * **dynamic** import. `candidatesFor` is that assembly, on this side of the
+   * boundary; the three list methods beside it are the transcriptions
+   * `import_export` and the dev seed need.
+   */
+  ctx.di.providePort<InventoryStockReadPort>(
+    'inventoryStockReadPort',
+    ctx
+      .asFunction(({ emFactory }: InventoryCradle) => new InventoryStockReadService(emFactory))
+      .singleton(),
+  );
 
   ctx.di.providePort(
     'inventoryAvailabilityPort',

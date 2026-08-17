@@ -379,3 +379,66 @@ export type HomepageConfig = z.infer<typeof HomepageConfigSchema>;
 
 export const HomepageConfigResponseSchema = z.object({ data: HomepageConfigSchema });
 export type HomepageConfigResponse = z.infer<typeof HomepageConfigResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process **write** surface `settings` publishes (feature 075, Phase P).
+//
+// The read side is deliberately absent: `settingsReadPort` is a *kernel* port
+// (`src/kernel/settings/settings.service.ts`), because every module reads its
+// own settings and the kernel applies the channel-scope rules. Only the write
+// path crosses a module boundary, and it does so from six modules — the four
+// payment gateways, `search` and `transactional_emails` — each of which hosts
+// an admin screen over settings it owns.
+// ---------------------------------------------------------------------------
+
+/** Who made a settings write, for the audit entry. */
+export interface SettingsAdminAuditContext {
+  actorAdminUserId: string | null;
+  requestId?: string | null;
+}
+
+/**
+ * What a write did. `affectedChannelIds` is what the caller re-reads, and
+ * `newVersion` is the optimistic-lock token for the next write.
+ *
+ * `setting` is deliberately **not** here. The service returns the `Setting`
+ * entity on it, no cross-module caller reads it, and publishing an ORM row
+ * would be exactly the substitution this feature exists to remove.
+ */
+export interface SettingsSetValueResult {
+  affectedChannelIds: string[];
+  newVersion: string;
+}
+
+/**
+ * Container name: `settingsAdminService`. Owner: `settings`.
+ *
+ * Two writes, and the difference between them is the whole channel-scoping
+ * story (Constitution XII): a value set for all channels and a value set for a
+ * named subset are different operations with different audit entries, not one
+ * operation with an optional argument.
+ *
+ * `expectedVersion` is `null` for a first write and the previous
+ * `newVersion` afterwards; a mismatch is a 409, on this side of the port.
+ *
+ * When `settings` is off the write fails closed. There is no degrade to
+ * design: a configuration screen that reported success while storing nothing
+ * is worse than one that refuses.
+ */
+export interface SettingsAdminPort {
+  setValueForAllChannels(
+    code: string,
+    rawValue: unknown,
+    expectedVersion: string | null,
+    actor: SettingsAdminAuditContext,
+  ): Promise<SettingsSetValueResult>;
+  setValueForSubset(
+    code: string,
+    channelCodes: string[],
+    rawValue: unknown,
+    expectedVersion: string | null,
+    actor: SettingsAdminAuditContext,
+  ): Promise<SettingsSetValueResult>;
+}

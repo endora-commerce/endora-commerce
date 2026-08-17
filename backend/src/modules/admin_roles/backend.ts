@@ -1,8 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { RegisteredManifestEntry } from '../_lifecycle/registered-manifests.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type {
+  AdminRolePort,
+  PermissionCataloguePort,
+  PermissionReadPort,
+  SystemRoleCodePort,
+} from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { AdminRoleService } from './services/admin-role-service.js';
+import { createAdminRolePort, createSystemRoleCodePort } from './services/admin-role-ports.js';
 import { PermissionCatalogueService } from './services/permission-catalogue.service.js';
 import { PermissionService } from './services/permission-service.js';
 
@@ -36,6 +43,9 @@ export interface AdminRolesCradle {
   /** Core manifests + this deployment's overlay modules (feature 057). */
   readonly resolvedModuleRegistry: readonly RegisteredManifestEntry[];
   readonly permissionCatalogueService: PermissionCatalogueService;
+  readonly adminRoleService: AdminRoleService;
+  /** Feature 075, Phase P — the deletion-protection contribution seam. */
+  readonly systemRoleCodePort: SystemRoleCodePort;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -57,8 +67,47 @@ export function registerModule(ctx: ModuleContext): void {
 
   // A port: `auth` resolves it from another module, so its availability is a
   // cross-module question and answers on the effective state.
-  ctx.di.providePort(
+  ctx.di.providePort<PermissionReadPort>(
     'permissionService',
     ctx.asFunction(({ emFactory }: AdminRolesCradle) => new PermissionService(emFactory)).singleton(),
   );
+
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // `adminRoleService` and `permissionCatalogueService` above are plain
+  // registrations that three other modules resolve; these three ports are what
+  // they rewire to, and `adminRolePort` is the one that stops handing the
+  // `AdminRole` entity across.
+  //
+  // `systemRoleCodePort` is a **contribution seam** and stays one: `blog`
+  // registers its seeded code from a boot hook, so a gate would throw during
+  // composition — and, worse, would let an operator delete a protected role by
+  // switching its owner off for a moment. It is `providePort` all the same
+  // because reading the list back is a call rather than a contribution, and
+  // the gate is unreachable in the direction that matters: nothing in the tree
+  // registers a code after boot.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<AdminRolePort>(
+    'adminRolePort',
+    ctx
+      .asFunction(({ emFactory }: AdminRolesCradle) =>
+        createAdminRolePort(emFactory, () => ctx.cradle<AdminRolesCradle>().adminRoleService),
+      )
+      .singleton(),
+  );
+
+  ctx.di.providePort<PermissionCataloguePort>(
+    'permissionCataloguePort',
+    ctx
+      .asFunction(
+        ({ permissionCatalogueService }: AdminRolesCradle) => permissionCatalogueService,
+      )
+      .singleton(),
+  );
+
+  ctx.di.register({
+    systemRoleCodePort: ctx.asFunction(() => createSystemRoleCodePort()).singleton(),
+  });
 }

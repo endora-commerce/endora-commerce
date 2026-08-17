@@ -1,12 +1,22 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type {
+  AdminUserPreferencePort,
+  AdminUserReadPort,
+  ImpersonationPort,
+} from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
 import type { SessionService } from '../auth/services/session-service.js';
 import { adminModule, type AdminModuleOptions } from './plugin.js';
+import {
+  AdminUserReadService,
+  createAdminUserPreferencePort,
+  createImpersonationPort,
+} from './services/admin-user-ports.js';
 
 /**
  * `admin_users` — who the admin is, and who is allowed to say so (feature 072,
@@ -98,6 +108,46 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort(
     'adminUserService',
     ctx.asFunction(({ admin }: AdminUsersCradle) => admin.handle.adminUserService).singleton(),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // Seven of the eleven inbound sites read the `AdminUser` **entity** to put a
+  // name beside an id, and none of them wants a service: `admin_roles`
+  // resolving a user's role, `quote_requests` listing the admins a
+  // notification fans out to, `catalog` attributing a bulk operation,
+  // `organizations` rendering the sales-rep picker. `adminUserReadPort` is
+  // that read.
+  //
+  // The two adapters narrow the module's services to what one consumer each
+  // calls — `_i18n` writes a language preference, `customers` starts and ends
+  // an impersonation — and neither hands an entity across.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<AdminUserReadPort>(
+    'adminUserReadPort',
+    ctx
+      .asFunction(({ emFactory }: AdminUsersCradle) => new AdminUserReadService(emFactory))
+      .singleton(),
+  );
+
+  ctx.di.providePort<AdminUserPreferencePort>(
+    'adminUserPreferencePort',
+    ctx
+      .asFunction(() =>
+        createAdminUserPreferencePort(() => ctx.cradle<AdminUsersCradle>().adminUserService),
+      )
+      .singleton(),
+  );
+
+  ctx.di.providePort<ImpersonationPort>(
+    'impersonationPort',
+    ctx
+      .asFunction(({ admin }: AdminUsersCradle) =>
+        createImpersonationPort(() => admin.handle.impersonationService),
+      )
+      .singleton(),
   );
 
   ctx.routes(async (app) => {

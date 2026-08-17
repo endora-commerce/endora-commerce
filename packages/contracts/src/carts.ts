@@ -509,3 +509,169 @@ export const adminRejectCartSchema = z.object({
   reason: z.string().min(1).max(2000),
 });
 export type AdminRejectCart = z.infer<typeof adminRejectCartSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `carts` publishes to the five modules that read it
+// (feature 075, Phase P). Plain TypeScript, not Zod: these describe in-process
+// calls, not an API boundary.
+// ---------------------------------------------------------------------------
+
+/** Who a cart belongs to. `organizationId` is null for a guest-style account. */
+export interface CartCustomerContext {
+  customerAccountId: string;
+  /**
+   * Feature 026 US2 — null for guest-style customer accounts that have no
+   * organisation. Carts persist `organization_id` nullable, so either case is
+   * valid; a no-org cart falls back to platform-default prices.
+   */
+  organizationId: string | null;
+}
+
+/**
+ * A cart as it crosses a module boundary — a plain shape, never the ORM entity
+ * (FR-011). `version` travels because it is the optimistic-lock token a caller
+ * has to pass back on a versioned write.
+ */
+export interface CartRecord {
+  id: string;
+  customerAccountId: string | null;
+  organizationId: string | null;
+  anonymousCartToken: string | null;
+  salesChannelId: string | null;
+  status: CartStatus;
+  approvalStatus: CartApprovalStatus;
+  submittedForApprovalAt: Date | null;
+  approvedAt: Date | null;
+  approvedByCustomerAccountId: string | null;
+  rejectedAt: Date | null;
+  rejectedByActor: string | null;
+  rejectedReason: string | null;
+  appliedPromotionCode: string | null;
+  convertedToQuoteRequestId: string | null;
+  abandonmentNotifiedAt: Date | null;
+  lastActivityAt: Date;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * One cart line. The money columns stay strings — `decimal`, and the checkout
+ * that reads them turns them into order lines verbatim.
+ */
+export interface CartItemRecord {
+  id: string;
+  cartId: string;
+  productId: string;
+  variantId: string | null;
+  quantity: number;
+  unitPrice: string;
+  currency: string;
+  recomputedUnitPrice: string | null;
+  recomputedAt: Date | null;
+  recomputedCurrency: string | null;
+  packagingUnitId: string | null;
+  packagingUnitName: string | null;
+  packagingUnitBaseQuantity: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** A cart with its lines — the unit every consumer actually wants. */
+export interface CartWithItems {
+  cart: CartRecord;
+  items: CartItemRecord[];
+}
+
+/** One line to seed a cart with. */
+export interface CartSeedLine {
+  productId: string;
+  variantId?: string | null;
+  quantity: number;
+  unitPrice: string;
+  currency: string;
+}
+
+/**
+ * Container name: `cartReadPort`. Owner: `carts`.
+ *
+ * `orders` and `quote_requests` both ask the same question at checkout and at
+ * quote conversion: what is this customer's active cart, and what is on it?
+ * Six sites spell it as `em.findOne(Cart, { …, status: 'active' })` followed
+ * by `em.find(CartItem, { cartId })`, which is two round trips and one place
+ * to forget the status filter.
+ *
+ * When `carts` is off the read fails closed, which is right: a checkout that
+ * cannot see the cart must refuse rather than place an empty order.
+ */
+export interface CartReadPort {
+  findActiveForCustomer(ctx: CartCustomerContext): Promise<CartWithItems | null>;
+  findById(cartId: string): Promise<CartWithItems | null>;
+}
+
+/**
+ * Container name: `cartService`. Owner: `carts`.
+ *
+ * The write surface `orders`, `quick_order` and `shopping_lists` reach today.
+ * `replaceItemsForCustomer` is the one addition: `orders`' reorder and
+ * `quote_requests`' quote-to-cart conversion both create a cart with
+ * `em.create(Cart, …)` and then hand-build `CartItem` rows — two modules
+ * writing another module's two tables, with the clear-then-seed rule spelled
+ * out twice and the `lastActivityAt` bookkeeping in neither.
+ */
+export interface CartWritePort {
+  getOrCreateForCustomer(ctx: CartCustomerContext): Promise<CartRecord>;
+  addItem(
+    actor: { customer?: CartCustomerContext; anonymousToken?: string },
+    input: {
+      productId: string;
+      variantId?: string;
+      quantity: number;
+      packagingUnitId?: string;
+    },
+  ): Promise<CartWithItems>;
+  clearForCustomer(ctx: CartCustomerContext): Promise<void>;
+  /**
+   * Clear the customer's active cart and seed it with these lines, creating
+   * the cart when there is none. The single-active-cart model admin
+   * order-create, reorder and RFQ conversion all assume.
+   */
+  replaceItemsForCustomer(
+    ctx: CartCustomerContext,
+    lines: readonly CartSeedLine[],
+  ): Promise<CartWithItems>;
+}
+
+export interface CartItemView {
+  productId: string;
+  variantId: string | null;
+  quantity: number;
+  unitPrice: string;
+  currency: string;
+}
+
+export interface CartView {
+  id: string;
+  status: string;
+  lastActivityAt: string | null;
+  items: CartItemView[];
+}
+
+export interface CustomerCartsView {
+  current: CartView | null;
+  abandoned: CartView[];
+}
+
+/**
+ * Container name: `cartQueryPort`. Owner: `carts`.
+ *
+ * The customer-detail panels in `customers` (feature 040, US5 / FR-030,
+ * FR-031): the account's current cart and its abandoned ones. A reporting
+ * read, deliberately separate from {@link CartReadPort}, which is the
+ * transactional one.
+ */
+export interface CartQueryPort {
+  listForCustomer(customerAccountId: string): Promise<CustomerCartsView>;
+}

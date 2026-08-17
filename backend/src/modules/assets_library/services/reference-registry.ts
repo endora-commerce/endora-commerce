@@ -6,24 +6,19 @@
 // composition time. The Library consults the registry before every
 // soft-delete attempt (FR-030).
 
-import type { AssetReference } from '@b2b/contracts';
-export type { AssetReference };
+import type {
+  AssetReference,
+  AssetReferenceDescriptor,
+  AssetReferenceRegistryPort,
+} from '@b2b/contracts';
 
-export type AssetReferenceDescriptor = {
-  /**
-   * The module that contributed this descriptor, recorded from feature 072's
-   * D-39. A contribution seam records its contributor: without it the registry
-   * could not state a policy for an absent owner at all — not "honour", not
-   * "skip", only "nobody looked". It is required for that reason.
-   */
-  ownerModuleId: string;
-  /**
-   * Implementation: given a list of asset ids, return every reference that
-   * points at any of them. MUST issue a single batched query under the hood
-   * (one query per descriptor regardless of batch size).
-   */
-  findReferences(assetIds: string[]): Promise<AssetReference[]>;
-};
+/**
+ * Both shapes moved to `@b2b/contracts` in feature 075's Phase P — four
+ * modules contribute a descriptor, so the descriptor is a boundary shape and
+ * not an internal. Re-exported here for the length of Phase P, which cuts no
+ * consumer.
+ */
+export type { AssetReference, AssetReferenceDescriptor };
 
 /**
  * Enumeration policy: **honoured** while the contributing module is absent
@@ -44,7 +39,7 @@ export type AssetReferenceDescriptor = {
  * filter on it, because the alternative is a registry that could not express the
  * decision either way, and because it attributes a 409 to a module.
  */
-export class AssetReferenceRegistry {
+export class AssetReferenceRegistry implements AssetReferenceRegistryPort {
   private readonly descriptors: AssetReferenceDescriptor[] = [];
 
   register(d: AssetReferenceDescriptor): void {

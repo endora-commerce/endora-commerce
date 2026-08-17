@@ -368,3 +368,297 @@ export const availabilityNotificationRequestSchema = z.object({
 export type AvailabilityNotificationRequest = z.infer<
   typeof availabilityNotificationRequestSchema
 >;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `inventory` publishes to the three modules that read
+// it (feature 075, Phase P) — `orders` at placement, `import_export` for the
+// stock adapter, and the dev seed.
+// ---------------------------------------------------------------------------
+
+/**
+ * The deterministic id of the warehouse every install seeds.
+ *
+ * Published as a **constant, not a port** (FR-013): switching `inventory` off
+ * does not change what the seeded id is, and `orders` compares against it when
+ * a line names no warehouse.
+ */
+export const DEFAULT_WAREHOUSE_ID = '00000000-0000-4000-8000-00000000d017';
+
+/**
+ * A warehouse as it crosses a module boundary — never the ORM entity.
+ *
+ * `address` reuses {@link WarehouseAddress}, declared above for the HTTP
+ * surface: the column stores exactly that JSONB shape, so a second
+ * declaration would be two names for one blob.
+ */
+export interface WarehouseRecord {
+  id: string;
+  name: string;
+  code: string;
+  active: boolean;
+  description: string | null;
+  address: WarehouseAddress | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  defaultLowStockThreshold: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** One product's stock in one warehouse. `available` is `onHand - reserved`. */
+export interface StockLevelRecord {
+  id: string;
+  productId: string;
+  variantId: string | null;
+  warehouseId: string;
+  onHand: number;
+  reserved: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Which warehouses serve which sales channel, and in what order. */
+export interface WarehouseChannelAssignmentRecord {
+  id: string;
+  warehouseId: string;
+  salesChannelId: string;
+  isDefault: boolean;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+/**
+ * Container name: `inventoryStockReadPort`. Owner: `inventory`.
+ *
+ * `orders` reads stock at placement to pick warehouses, and `import_export`
+ * reads it to export a stock sheet. Both reach the `StockLevel` entity today,
+ * and `orders` does so through a **dynamic** import inside a method body —
+ * invisible to a reviewer scanning the import block, which is why the boundary
+ * check was taught to see one.
+ *
+ * `candidatesFor` answers the question `orders` actually asks: which
+ * warehouses can serve this line on this channel, with how much available,
+ * already shaped for {@link resolveAllocations}. Assembling that from three
+ * tables is this module's business, and it was being assembled in `orders`.
+ */
+export interface InventoryStockReadPort {
+  listStockForProducts(
+    productIds: readonly string[],
+    options?: { warehouseId?: string },
+  ): Promise<StockLevelRecord[]>;
+  listWarehouses(options?: { activeOnly?: boolean }): Promise<WarehouseRecord[]>;
+  listChannelAssignments(salesChannelId: string): Promise<WarehouseChannelAssignmentRecord[]>;
+  /**
+   * Candidate warehouses for one product line on one channel, ordered by
+   * warehouse code, with `available = onHand - reserved`. An empty answer
+   * means the line cannot be allocated anywhere, which is not the same as an
+   * error.
+   */
+  candidatesFor(input: {
+    productId: string;
+    variantId?: string | null;
+    salesChannelId: string | null;
+  }): Promise<CandidateWarehouse[]>;
+}
+
+// --- the two pure allocation functions ---------------------------------------
+//
+// Relocated here from `inventory/services/` (feature 075, Phase P, FR-013).
+// Both are pure over their arguments — candidate warehouses in, an allocation
+// decision out — so switching `inventory` off cannot change the answer and a
+// gated port answering 503 would be a bug rather than a degrade.
+//
+// `orders` calls both at placement, inside its own transaction, through a
+// dynamic import. Publishing them removes the dynamic import rather than
+// wrapping it.
+
+export interface FulfilmentLayer {
+  strategy: FulfilmentStrategy | null | undefined;
+  warehouseOrder: string[] | null | undefined;
+}
+
+export interface EffectiveFulfilment {
+  strategy: FulfilmentStrategy;
+  warehouseOrder: string[];
+}
+
+/**
+ * Effective fulfilment-strategy resolver (feature 010).
+ *
+ * The warehouse-picking strategy used to reserve stock at order placement is
+ * configurable at three levels, resolved with precedence:
+ *
+ *   Product > Organization > Sales Channel (setting) > platform default
+ *
+ * Product and organisation each contribute an optional override layer; the
+ * sales-channel layer, and the platform default behind it, are resolved
+ * upstream by the settings module and arrive already collapsed into
+ * `channelDefault`. The first layer with a non-null `strategy` wins and
+ * supplies **both** its `strategy` and its `warehouseOrder` — the warehouse
+ * walk for `defined_order` never mixes across layers.
+ */
+export function resolveEffectiveFulfilmentStrategy(
+  product: FulfilmentLayer,
+  organization: FulfilmentLayer,
+  channelDefault: EffectiveFulfilment,
+): EffectiveFulfilment {
+  for (const layer of [product, organization]) {
+    if (layer.strategy) {
+      return { strategy: layer.strategy, warehouseOrder: layer.warehouseOrder ?? [] };
+    }
+  }
+  return channelDefault;
+}
+
+export interface CandidateWarehouse {
+  warehouseId: string;
+  warehouseCode: string;
+  /** `onHand - reserved`. */
+  available: number;
+  isDefault: boolean;
+}
+
+export interface AllocationDecision {
+  warehouseId: string;
+  quantity: number;
+  /**
+   * True when this allocation is going through with insufficient stock
+   * because the product has `backorderEnabled = true`.
+   */
+  isBackorder: boolean;
+}
+
+export interface ResolveAllocationsInput {
+  quantity: number;
+  candidateWarehouses: CandidateWarehouse[];
+  strategy: FulfilmentStrategy;
+  /** When `defined_order`, the configured warehouse-id list to walk. */
+  warehouseOrder?: string[];
+  /**
+   * When the product allows backorder, lines that cannot be fully fulfilled
+   * still go through; the unfulfilled remainder is flagged as a backorder
+   * against the first-choice warehouse.
+   */
+  backorderEnabled: boolean;
+}
+
+export type AllocationOutcome =
+  | { ok: true; allocations: AllocationDecision[] }
+  | { ok: false; reason: 'insufficient_stock' };
+
+/**
+ * Fulfilment-strategy resolver (feature 010 / FR-029…FR-033, research §R4).
+ *
+ * Picks a list of `(warehouseId, quantity)` allocations for a single order
+ * line given the available candidate warehouses and the resolved strategy.
+ * Tie-break on equal `available` quantities is warehouse-code lexical order —
+ * deterministic and documented.
+ *
+ * Of the five strategies only `default_first` **splits** a line across
+ * warehouses; the others pick a single warehouse per line and refuse the line
+ * if that warehouse cannot fully satisfy the requested quantity.
+ */
+export function resolveAllocations(input: ResolveAllocationsInput): AllocationOutcome {
+  const { quantity, strategy, candidateWarehouses, backorderEnabled } = input;
+  if (candidateWarehouses.length === 0) {
+    // No warehouses at all: even a backorder has nothing to be flagged against.
+    return { ok: false, reason: 'insufficient_stock' };
+  }
+
+  switch (strategy) {
+    case 'any':
+      return pickFirstWhole(quantity, sortByCode(candidateWarehouses), backorderEnabled);
+
+    case 'default_first': {
+      const preferred = candidateWarehouses.find((w) => w.isDefault);
+      const others = sortByCode(candidateWarehouses.filter((w) => !w.isDefault));
+      const ordered = preferred ? [preferred, ...others] : others;
+      return splitAcross(quantity, ordered, backorderEnabled);
+    }
+
+    case 'lowest_stock_first': {
+      const candidates = candidateWarehouses
+        .filter((w) => w.available >= quantity)
+        .sort(
+          (a, b) => a.available - b.available || a.warehouseCode.localeCompare(b.warehouseCode),
+        );
+      return pickFirstWhole(quantity, candidates, backorderEnabled);
+    }
+
+    case 'highest_stock_first': {
+      const candidates = candidateWarehouses
+        .filter((w) => w.available >= quantity)
+        .sort(
+          (a, b) => b.available - a.available || a.warehouseCode.localeCompare(b.warehouseCode),
+        );
+      return pickFirstWhole(quantity, candidates, backorderEnabled);
+    }
+
+    case 'defined_order': {
+      const order = input.warehouseOrder ?? [];
+      const byId = new Map(candidateWarehouses.map((w) => [w.warehouseId, w]));
+      const ordered = order
+        .map((id) => byId.get(id))
+        .filter((w): w is CandidateWarehouse => Boolean(w));
+      return pickFirstWhole(quantity, ordered, backorderEnabled);
+    }
+  }
+}
+
+function sortByCode(list: CandidateWarehouse[]): CandidateWarehouse[] {
+  return [...list].sort((a, b) => a.warehouseCode.localeCompare(b.warehouseCode));
+}
+
+function pickFirstWhole(
+  quantity: number,
+  ordered: CandidateWarehouse[],
+  backorderEnabled: boolean,
+): AllocationOutcome {
+  for (const w of ordered) {
+    if (w.available >= quantity) {
+      return {
+        ok: true,
+        allocations: [{ warehouseId: w.warehouseId, quantity, isBackorder: false }],
+      };
+    }
+  }
+  if (backorderEnabled && ordered.length > 0) {
+    return {
+      ok: true,
+      allocations: [{ warehouseId: ordered[0]!.warehouseId, quantity, isBackorder: true }],
+    };
+  }
+  return { ok: false, reason: 'insufficient_stock' };
+}
+
+function splitAcross(
+  quantity: number,
+  ordered: CandidateWarehouse[],
+  backorderEnabled: boolean,
+): AllocationOutcome {
+  const allocations: AllocationDecision[] = [];
+  let remaining = quantity;
+  for (const w of ordered) {
+    if (remaining <= 0) break;
+    if (w.available <= 0) continue;
+    const take = Math.min(w.available, remaining);
+    allocations.push({ warehouseId: w.warehouseId, quantity: take, isBackorder: false });
+    remaining -= take;
+  }
+  if (remaining === 0) return { ok: true, allocations };
+  if (backorderEnabled && ordered.length > 0) {
+    const first = ordered[0]!;
+    const existing = allocations.find((a) => a.warehouseId === first.warehouseId);
+    if (existing) {
+      existing.quantity += remaining;
+      existing.isBackorder = true;
+    } else {
+      allocations.push({ warehouseId: first.warehouseId, quantity: remaining, isBackorder: true });
+    }
+    return { ok: true, allocations };
+  }
+  return { ok: false, reason: 'insufficient_stock' };
+}

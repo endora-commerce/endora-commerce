@@ -2,7 +2,9 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { EventBus } from '../../events/bus.js';
+import type { QuoteRequestReadPort, RfqCustomerPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
+import { QuoteRequestReadService } from './services/quote-request-read-port.js';
 import {
   lazyPort,
   SettingNotRegistered,
@@ -225,7 +227,20 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
-  ctx.di.providePort(
+  // The type parameter is feature 075 Phase P's compile-time proof that the
+  // service still satisfies `RfqCustomerPort` — the two methods `carts`,
+  // `orders`, `shopping_lists`, `quick_order` and `customers` measurably call.
+  // Both already answer with contract DTOs, so no adapter was needed.
+  ctx.di.providePort<QuoteRequestReadPort>(
+    'quoteRequestReadPort',
+    ctx
+      .asFunction(
+        ({ emFactory }: QuoteRequestsCradle) => new QuoteRequestReadService(emFactory),
+      )
+      .singleton(),
+  );
+
+  ctx.di.providePort<RfqCustomerPort>(
     'rfqService',
     ctx
       .asFunction(({ quoteRequests }: QuoteRequestsCradle) => quoteRequests.handle().rfqService)

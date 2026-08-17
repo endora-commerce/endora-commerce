@@ -185,3 +185,91 @@ export interface ShippingAdapter {
   /** Optional renderer keys; absent ⇒ the default fallback renderer is used. */
   readonly renderers?: { storefront?: string; admin?: string; email?: string };
 }
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The rest of the in-process surface `delivery_methods` publishes (feature 075,
+// Phase P). `ShippingAdapter` above is the first of them and pre-dates this
+// section; the module's contracts file is named for the feature-035 framework
+// rather than for the module, which is why nothing new is created here.
+// ---------------------------------------------------------------------------
+
+/**
+ * A delivery method as it crosses a module boundary — a plain shape, never the
+ * ORM entity (FR-011).
+ *
+ * `cost` stays a decimal string: it lands verbatim in an order's
+ * `deliveryMethodSnapshot`, and a `number` cannot round-trip it. The two
+ * `statusOn…` fields name **order statuses**, which are admin-configurable, so
+ * they are `string` rather than a union.
+ */
+export interface DeliveryMethodRecord {
+  id: string;
+  code: string;
+  name: Record<string, string>;
+  cost: string;
+  currency: string;
+  status: 'active' | 'inactive';
+  /** The adapter registry key this method ships through; `''` for none. */
+  adapter: string;
+  statusOnSuccess: string;
+  statusOnFailure: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Container name: `deliveryMethodReadPort`. Owner: `delivery_methods`.
+ *
+ * Five inbound sites read the entity: `orders` resolving the method at
+ * placement, `shipments` resolving it at dispatch, `quick_order` resolving a
+ * buyer's default, and the dev seed.
+ *
+ * `listActive` is separate from `listAll` for the reason its payment twin
+ * gives: a catalogue read wants active methods, a settlement of an order
+ * placed earlier wants any, or the order stops being explicable the day an
+ * operator retires a method.
+ */
+export interface DeliveryMethodReadPort {
+  findById(id: string): Promise<DeliveryMethodRecord | null>;
+  findByIds(ids: readonly string[]): Promise<DeliveryMethodRecord[]>;
+  findByCode(code: string): Promise<DeliveryMethodRecord | null>;
+  /** Every method, ordered by code. */
+  listAll(): Promise<DeliveryMethodRecord[]>;
+  /** Only `status === 'active'`, ordered by code. */
+  listActive(): Promise<DeliveryMethodRecord[]>;
+}
+
+/**
+ * Container name: `shippingAdapterRegistry`. Owner: `delivery_methods`.
+ *
+ * A **contribution seam**, the delivery-side twin of
+ * `PaymentAdapterRegistryPort`: a module that ships parcels registers its
+ * adapter from its boot hook, and this module's catalogue reads the table.
+ * Every edge into it classifies as `contributes`, and publishing the shape
+ * must not change that.
+ *
+ * `register` names its contributor, and `isAvailable` / `get` / `resolve` /
+ * `list` filter on that name's effective state, while `entry`, `ownerOf` and
+ * `listAll` deliberately do not — an admin screen has to keep showing a method
+ * *and* the reason it is unavailable.
+ */
+export interface ShippingAdapterRegistryPort {
+  register(adapter: ShippingAdapter, module: string): void;
+  unregister(adapterKey: string): void;
+  /** Registered at all, presence-blind. */
+  isRegistered(adapterKey: string): boolean;
+  /** Registered **and** its owning module effectively present. */
+  isAvailable(adapterKey: string): boolean;
+  /** The adapter, or `undefined` when unregistered or its owner is absent. */
+  get(adapterKey: string): ShippingAdapter | undefined;
+  /** Like {@link get}, but throws rather than answering `undefined`. */
+  resolve(adapterKey: string): ShippingAdapter;
+  /** Adapter keys whose owner is present, in registration order. */
+  list(): string[];
+  /** Every registered adapter key, presence-blind. */
+  listAll(): string[];
+  /** Which module contributed the key, or `null` when nobody did. */
+  ownerOf(adapterKey: string): string | null;
+}

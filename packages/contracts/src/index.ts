@@ -135,3 +135,7 @@ export * from './kernel.js';
 export * from './auth.js';
 export * from './customer-accounts.js';
 export * from './email.js';
+export * from './languages.js';
+export * from './currencies.js';
+export * from './admin-roles.js';
+export * from './admin-users.js';

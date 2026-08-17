@@ -1,9 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import { LANGUAGE_CHANGED_EVENT, type LanguageAdminPort, type LanguageReadPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { CurrencyService } from '../currencies/services/currency-service.js';
 import { LanguageService } from './services/language-service.js';
+import { LanguageReadService, createLanguageAdminPort } from './services/language-ports.js';
 import { LocaleService } from './services/locale-service.js';
 import { registerI18nRoutes } from './routes.js';
 
@@ -38,7 +40,12 @@ import { registerI18nRoutes } from './routes.js';
  */
 
 /** Emitted after any language write; the root drops the dictionary caches. */
-export const LANGUAGE_CHANGED_EVENT = 'languages.changed';
+/**
+ * The spelling moved to `@b2b/contracts` in feature 075's Phase P — it is a
+ * constant, not behaviour, and `dictionaries` subscribes to it. Re-exported
+ * here for the length of Phase P, which cuts no consumer.
+ */
+export { LANGUAGE_CHANGED_EVENT };
 
 export interface LanguagesCradle {
   readonly emFactory: () => EntityManager;
@@ -62,6 +69,36 @@ export function registerModule(ctx: ModuleContext): void {
         };
         return new LanguageService(emFactory, announce, auditLogService);
       })
+      .singleton(),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // `languageService` above hands out the class; ten of the sixteen inbound
+  // sites do not want a service at all, they read the `Language` **entity**
+  // to resolve a label, validate a code or walk a fallback chain. These two
+  // ports are what both halves rewire to, and neither lets the entity across.
+  //
+  // The write side crosses a boundary by design rather than by accident:
+  // `dictionaries` hosts the admin screen for this table. The invariants —
+  // exactly one default, a default may not be deactivated, a fallback chain
+  // may not cycle — stay on this side of the port, where they already were.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<LanguageReadPort>(
+    'languageReadPort',
+    ctx
+      .asFunction(({ emFactory }: LanguagesCradle) => new LanguageReadService(emFactory))
+      .singleton(),
+  );
+
+  ctx.di.providePort<LanguageAdminPort>(
+    'languageAdminPort',
+    ctx
+      .asFunction(() =>
+        createLanguageAdminPort(() => ctx.cradle<LanguagesCradle>().languageService),
+      )
       .singleton(),
   );
 
