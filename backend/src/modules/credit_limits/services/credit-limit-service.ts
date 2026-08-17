@@ -5,7 +5,7 @@ import type { EventBase, EventBus } from '../../../events/bus.js';
 import type { Command, CommandBus } from '../../../commands/index.js';
 import { CreditLimit } from '../entities/credit-limit.entity.js';
 import { CreditLimitReservation } from '../entities/credit-limit-reservation.entity.js';
-import type { OrganizationInheritanceService } from '../../organizations/services/organization-inheritance-service.js';
+import type { OrganizationInheritancePort } from '@b2b/contracts';
 
 /**
  * CreditLimitService (T214) — implements the contract documented in
@@ -71,7 +71,7 @@ export class CreditLimitService {
      * ancestor's per the effective mode (shared_pool / independent_default).
      * Absent ⇒ flat behavior (byte-for-byte the pre-feature single-org path).
      */
-    private readonly inheritance?: OrganizationInheritanceService,
+    private readonly inheritance?: OrganizationInheritancePort,
   ) {}
 
   async getForOrganization(organizationId: string): Promise<CreditLimit | null> {

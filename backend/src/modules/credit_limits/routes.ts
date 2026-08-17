@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   adjustCreditLimitRequestSchema,
   grantCreditLimitRequestSchema,
+  type OrganizationDetailsPort,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { testAdminUserId } from '../../http/test-actor-carrier.js';
@@ -11,12 +11,18 @@ import { isOrgInScope } from '../../tenancy/derived-scope.js';
 import type { CreditLimitService } from './services/credit-limit-service.js';
 import type { CreditLimit } from './entities/credit-limit.entity.js';
 import type { CreditLimitReservation } from './entities/credit-limit-reservation.entity.js';
-import { Organization } from '../organizations/entities/organization.entity.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface CreditLimitsDeps {
   creditLimitService: CreditLimitService;
-  emFactory: () => EntityManager;
+  /**
+   * `organizationDetailsPort`, owned by `organizations` — the roster's one
+   * question about that table (feature 075, Phase C). It replaces an
+   * `em.find(Organization, …)`, which linked this module against another
+   * module's entity class at build time and kept answering with `organizations`
+   * switched off. The port fails the request closed instead.
+   */
+  organizationDetailsPort: OrganizationDetailsPort;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
   resolveCustomerContext: (req: FastifyRequest) => {
@@ -29,17 +35,19 @@ export async function registerCreditLimitsRoutes(
   app: FastifyInstance,
   deps: CreditLimitsDeps,
 ): Promise<void> {
-  const { creditLimitService, emFactory, requireCustomer, requireAdmin, resolveCustomerContext } = deps;
+  const {
+    creditLimitService,
+    organizationDetailsPort,
+    requireCustomer,
+    requireAdmin,
+    resolveCustomerContext,
+  } = deps;
 
   /** Resolve organization names for the given ids (read-only, missing ⇒ absent). */
   const loadOrgNames = async (ids: string[]): Promise<Map<string, string>> => {
     const unique = [...new Set(ids)].filter(Boolean);
     if (unique.length === 0) return new Map();
-    const orgs = await emFactory().find(
-      Organization,
-      { id: { $in: unique } },
-      { fields: ['id', 'name'] },
-    );
+    const orgs = await organizationDetailsPort.findByIds(unique);
     return new Map(orgs.map((o) => [o.id, o.name]));
   };
 
