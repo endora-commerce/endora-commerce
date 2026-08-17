@@ -589,6 +589,44 @@ export interface OrganizationInheritancePort {
   creditOwner(organizationId: string): Promise<OrganizationCreditOwner>;
 }
 
+/** What a cart-approval-policy write answers with. */
+export interface CartApprovalPolicyWriteResult {
+  readonly organization: OrganizationRecord;
+  /**
+   * `false` when the row already carried the requested value, so nothing was
+   * written and nothing was audited. It is part of the return type rather than
+   * something the caller re-derives from a read, because the caller's cascade
+   * hangs off it: `carts` resets its pending and approved carts when — and only
+   * when — the policy actually moved to `false`.
+   */
+  readonly changed: boolean;
+}
+
+/**
+ * Container name: `organizationCartApprovalWritePort`. Owner: `organizations`.
+ *
+ * The per-organisation "an Org Admin must approve a cart before checkout"
+ * policy (feature 027 US4). `carts` drives both surfaces that flip it — the
+ * platform-admin route and the Org-Admin self-service one — but the column is
+ * this module's, so the operation is (issue #175, D-78 step 1).
+ *
+ * The write runs through `CommandBus.run`, so it carries the audit row it had
+ * never had while `carts` was writing the column directly, with the actor
+ * derived from the caller's ambient context (Constitution XIII). The cart
+ * cascade that follows a switch-off stays with `carts`: those are its rows, and
+ * they are audited in its own per-cart trail.
+ *
+ * This module is non-deactivatable, so the gate the port registration applies
+ * cannot be reached; the registration is a `providePort` anyway, for the reason
+ * its siblings give.
+ */
+export interface OrganizationCartApprovalWritePort {
+  setCartApprovalPolicy(
+    organizationId: string,
+    requiresCartApproval: boolean,
+  ): Promise<CartApprovalPolicyWriteResult>;
+}
+
 /** The three allow-list kinds an organisation can restrict. */
 export type OrganizationAllowListKind =
   | 'paymentMethodIds'

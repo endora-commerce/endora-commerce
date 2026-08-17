@@ -10,6 +10,7 @@ import type {
   CatalogProductReadPort,
   CustomerAccountReadPort,
   LinePricePort,
+  OrganizationCartApprovalWritePort,
   OrganizationDetailsPort,
   PromotionApplyPort,
   PromotionCodePort,
@@ -181,6 +182,10 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             cartAuditService,
             lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            lazyPort<OrganizationCartApprovalWritePort>(
+              ctx,
+              'organizationCartApprovalWritePort',
+            ),
             lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
           ),
       )
