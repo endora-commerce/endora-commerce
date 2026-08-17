@@ -18,8 +18,12 @@ export function makeDeleteConfigurationCommand(input: {
 }): Command<{ code: string }> {
   const { code, registry } = input;
 
+  // The registry's diagnostic read (issue #129): the audit snapshot has to know
+  // which value was a secret whatever the contributing module's state, or a
+  // deletion while that module is off records the credential without recording
+  // that it held one.
   const variantFields = (entity: CredentialConfiguration) => {
-    const descriptor = registry.get(entity.typeCode);
+    const descriptor = registry.entry(entity.typeCode);
     return descriptor?.providers.find((p) => p.code === entity.providerCode)?.fields ?? [];
   };
 

@@ -739,6 +739,26 @@ export const CONTRIBUTION_POLICY_STATED: Readonly<Record<string, 'skip' | 'honou
   // it is unavailable (issue #96).
   'payment_methods:paymentAdapterRegistry': 'skip',
   'delivery_methods:shippingAdapterRegistry': 'skip',
+  // Honoured, and the entry says so because there is nothing to skip: neither
+  // order-status registry holds a contributed entry at all. The option set is
+  // `orderStatusSchema`, fixed at compile time, and the cross-module reads are
+  // guards — `payments` and `shipments` ask `has` before moving an order into
+  // the status a settlement names. A skip would leave a paid or shipped order
+  // silently in its old status, and every code in the table is one live orders
+  // are already in. The buyer-facing consequence of the owning module being off
+  // is carried by that module's own catalogue seam and by `orders`' declared
+  // sentence, not here (issue #129).
+  'payment_methods:paymentOrderStatusRegistry': 'honour',
+  'delivery_methods:shippingOrderStatusRegistry': 'honour',
+  // Skipped: a surface. A configuration type is what the credentials screen
+  // offers to configure and what a write is validated against, so a capability
+  // an operator switched off is neither offered nor creatable. The descriptor
+  // already carried its `ownerModule`, so the host had the contributor recorded
+  // and was simply not consulting it. `entry`, `ownerOf`, `isRegistered` and
+  // `listAll` stay presence-blind, because a stored configuration keeps its row
+  // and its audit snapshot has to keep knowing which of its values is a secret
+  // (issue #129).
+  'credentials:configurationTypeRegistry': 'skip',
   // Skipped: a PSP handler whose module is switched off must not charge or
   // refund through that PSP's API. The refund is not dropped with it —
   // `PaymentRefundProvider` records `pending_manual` naming the module, which
@@ -772,19 +792,6 @@ export const REGISTRY_POLICIES_UNSTATED: Readonly<Record<string, string>> = {
     'capability, and feature 074 classifies it as core on exactly that ground — the entry ' +
     'drains when that declaration lands, without anybody stating a policy for a name whose ' +
     'owner can no longer be absent.',
-  'payment_methods:paymentOrderStatusRegistry':
-    'The order-status references `payments` reads to name the status a paid order moves to. ' +
-    'A skip answer would leave a payment with nowhere to move the order, so the policy is a ' +
-    'question about order lifecycle rather than about the registry, and it belongs to the two ' +
-    'modules that own those states.',
-  'delivery_methods:shippingOrderStatusRegistry':
-    'Same shape and same question as `payment_methods:paymentOrderStatusRegistry`, read by ' +
-    '`shipments`.',
-  'credentials:configurationTypeRegistry':
-    '`pim_ergonode` and `product_feeds` push their configuration types into it from a boot ' +
-    'hook, and it records no contributing module id — so with either contributor switched off ' +
-    'the credentials screen keeps offering to configure it. The host-side fix is the one ' +
-    '`PromptActionToolRegistry` already ships: record the contributor and skip an absent one.',
 };
 
 export interface PortViolation {

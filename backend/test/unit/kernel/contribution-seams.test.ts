@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import type { ConfigurationTypeDescriptor } from '@b2b/contracts';
+import { orderStatusSchema } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { CONTRIBUTION_POLICY_STATED } from '../../../scripts/check-port-dependencies.js';
+import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
+import { ConfigurationTypeRegistry } from '../../../src/modules/credentials/services/configuration-type-registry.js';
+import { EnumOrderStatusRegistry as PaymentOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
+import { EnumOrderStatusRegistry as ShippingOrderStatusRegistry } from '../../../src/modules/delivery_methods/services/order-status-registry.port.js';
 import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
 import { CmsReferenceRegistry } from '../../../src/modules/cms/services/cms-reference-registry.js';
 import { EmailDefaultsRegistry } from '../../../src/modules/transactional_emails/services/email-defaults-registry.js';
@@ -121,6 +128,125 @@ describe('the imported contribution seams carry the presence probe', () => {
     );
     expect(source).toContain(`export const ${name}`);
     expect(flat(source)).toContain(flat('effectiveState.isPresent(moduleId)'));
+  });
+});
+
+/**
+ * The three registries issue #129 drained out of `REGISTRY_POLICIES_UNSTATED`.
+ *
+ * They did not get one answer, because they are not one shape. The two
+ * order-status registries hold no contributed entry at all — their option set is
+ * the `orderStatusSchema` enum, fixed at compile time — so there is nothing an
+ * absent owner could have pushed and nothing a filter could drop; honouring is
+ * the only policy the class can implement, and the reads are guards that stop a
+ * live order being moved into a status that does not exist. The configuration
+ * types are the opposite: three modules push a descriptor each, the descriptor
+ * carries its `ownerModule`, and offering to configure a capability the operator
+ * switched off is precisely the surface Principle XVII closes.
+ */
+const ORDER_STATUS_SEAMS = [
+  { owner: 'payment_methods', name: 'paymentOrderStatusRegistry' },
+  { owner: 'delivery_methods', name: 'shippingOrderStatusRegistry' },
+] as const;
+
+describe('the order-status registries — honoured, because there is nothing to skip', () => {
+  it.each(ORDER_STATUS_SEAMS)('$owner states an honour policy for $name', ({ owner, name }) => {
+    expect(CONTRIBUTION_POLICY_STATED[`${owner}:${name}`]).toBe('honour');
+  });
+
+  it.each([
+    { label: 'payment_methods', registryClass: PaymentOrderStatusRegistry },
+    { label: 'delivery_methods', registryClass: ShippingOrderStatusRegistry },
+  ])('$label takes no presence input, so no read can drop a status', (seam) => {
+    // The policy made structural rather than promised: a constructor with no
+    // presence probe cannot be given one without changing the stated policy, and
+    // a skip filter with nothing to consult cannot be written. An order sitting
+    // in `shipment_sent` stays nameable while the module holding the registry is
+    // off, which is the outcome the alternative would break.
+    expect(seam.registryClass.length).toBe(0);
+
+    const registry = new seam.registryClass();
+    expect(registry.list().map((option) => option.code)).toEqual([...orderStatusSchema.options]);
+    for (const code of orderStatusSchema.options) expect(registry.has(code)).toBe(true);
+  });
+});
+
+describe('ConfigurationTypeRegistry — an absent contributor’s type is skipped', () => {
+  const OWNER = 'pim_ergonode';
+
+  function type(code: string, ownerModule: string): ConfigurationTypeDescriptor {
+    return {
+      code,
+      label: code.toUpperCase(),
+      ownerModule,
+      providers: [{ code: 'only', label: 'Only', fields: [] }],
+    };
+  }
+
+  /** Everything present except `pim_ergonode`; an unknown id is not a module. */
+  const presenceOf = (moduleId: string): boolean | undefined =>
+    moduleId === OWNER ? false : moduleId === 'credentials' ? true : undefined;
+
+  function registry(): ConfigurationTypeRegistry {
+    const instance = new ConfigurationTypeRegistry(undefined, presenceOf);
+    instance.register(type('ergonode', OWNER));
+    instance.register(type('llm', 'credentials'));
+    return instance;
+  }
+
+  it('states a skip policy', () => {
+    expect(CONTRIBUTION_POLICY_STATED['credentials:configurationTypeRegistry']).toBe('skip');
+  });
+
+  it('wires the singleton to the kernel effective state', () => {
+    // The half a class-level assertion cannot see: the class defaults its probe
+    // to "say nothing", so a perfect skip skips nothing in production unless the
+    // one instance the platform composes is handed the real presence.
+    const source = readFileSync(
+      `${backendRoot}src/modules/credentials/services/registry-singleton.ts`,
+      'utf8',
+    );
+    expect(source).toContain('export const configurationTypeRegistry');
+    expect(flat(source)).toContain(flat('effectiveState.presenceOf(moduleId)'));
+  });
+
+  it('drops the type from the acting reads', () => {
+    // The picker on the credentials screen and every write validated against a
+    // descriptor: a capability an operator switched off is not offered, and a
+    // configuration of its type cannot be created.
+    const instance = registry();
+    expect(instance.list().map((d) => d.code)).toEqual(['llm']);
+    expect(instance.describe().map((d) => d.code)).toEqual(['llm']);
+    expect(instance.get('ergonode')).toBeUndefined();
+    expect(() => instance.resolve('ergonode')).toThrow(ModuleDisabledError);
+  });
+
+  it('keeps the diagnostic reads presence-blind', () => {
+    // What the admin screen renders an existing Ergonode credential from, and
+    // what the audit snapshot of a delete is redacted with. Switching a module
+    // off is not uninstalling it: the row keeps its label, its field shape and
+    // its owner, so the screen can say which module is off rather than showing a
+    // configuration that has silently become shapeless.
+    const instance = registry();
+    expect(instance.isRegistered('ergonode')).toBe(true);
+    expect(instance.entry('ergonode')?.label).toBe('ERGONODE');
+    expect(instance.ownerOf('ergonode')).toBe(OWNER);
+    expect(instance.listAll().map((d) => d.code)).toEqual(['ergonode', 'llm']);
+    expect(instance.isAvailable('ergonode')).toBe(false);
+    expect(instance.isAvailable('llm')).toBe(true);
+  });
+
+  it('honours a contributor the platform knows nothing about', () => {
+    // The tri-state the kernel already wrote down: `isPresent` collapses "absent"
+    // and "not a module" into one `false`, which is right for a gating seam and
+    // wrong here. This registry is the documented seam an overlay or external
+    // module pushes a type through, and its `ownerModule` may be a string no
+    // manifest declares — filtering those would delete the extension point.
+    const instance = new ConfigurationTypeRegistry(undefined, presenceOf);
+    instance.register(type('throwaway', 'not_a_module'));
+
+    expect(instance.list().map((d) => d.code)).toEqual(['throwaway']);
+    expect(instance.resolve('throwaway').code).toBe('throwaway');
   });
 });
 
