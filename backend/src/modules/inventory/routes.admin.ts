@@ -10,8 +10,6 @@ import {
   setStockLevelRequestSchema,
   updateWarehouseRequestSchema,
 } from '@b2b/contracts';
-import { recordAuditFromContext } from '../../commands/index.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { StockLevel } from './entities/stock-level.entity.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { DEFAULT_WAREHOUSE_ID } from './entities/warehouse.entity.js';
@@ -36,8 +34,6 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
  */
 export interface InventoryAdminDeps {
   emFactory: () => EntityManager;
-  /** Feature 024 — optional, matching the plugin options it is threaded from. */
-  auditLogService?: AuditLogService;
   warehouseService: WarehouseService;
   stockLevelService: StockLevelService;
   warehouseChannelService: WarehouseChannelService;
@@ -475,8 +471,48 @@ export async function registerInventoryAdminRoutes(
   // screen, no `@b2b/api-client` method, no seed, no script — and the module's
   // documentation page lists neither. They are kept for a deployment's own
   // integration, which is the only caller they can still have (issue #125).
+  //
+  // Issue #139 (D-66) ruled the `GET .../legacy` below deletable on the
+  // condition that `GET .../levels` is a strict superset of it, "and if
+  // `/levels` turns out not to cover a field this returns, that gap is the
+  // finding and the deletion waits". It does not: `/levels` aggregates per
+  // product across variants and warehouses, so it answers with neither
+  // `variantId` nor the row's `updatedAt` (nor the `stock_levels` row id, nor
+  // the pre-computed `available`, both derivable). The deletion therefore
+  // waits on a per-row read that covers those two fields, not on a caller
+  // census — that census is done, and it is zero.
   // ---------------------------------------------------------------------------
 
+  /**
+   * @deprecated Use `PUT /api/v1/admin/inventory/levels`, which takes an
+   * explicit `warehouseId` instead of writing into the seeded Default one.
+   * Kept for a deployment's own integration until the access log or the
+   * deployment owner confirms nothing calls it (issue #139, D-66 part 3).
+   *
+   * Delegates to `StockLevelService.setOnHand`, the single point that emits
+   * `inventory.adjusted.v1` (issue #139). Until then this handler wrote
+   * `StockLevel.onHand` straight through the EntityManager, so a restock
+   * performed here fired no back-in-stock fan-out (US6) and no low-stock
+   * crossing alert (US4), and validated neither the product nor the warehouse
+   * — a typo'd product id created a stock row for a product that does not
+   * exist. The delegation is the whole of that repair; the response shape and
+   * the `catalog:write` gate are unchanged.
+   *
+   * The audited path for a stock change is `StockLevelService`
+   * (`stock_level.adjust`); this endpoint recorded nothing until issue #122,
+   * which the coverage scan could not see until it reached route files. The
+   * delegate records the same action token, so the two paths still land in one
+   * audit history.
+   *
+   * Deliberately **not** a Command (issue #125). A Command is what an undo
+   * attaches to, and an on-hand count is not a value an undo may restore:
+   * between the write and the undo, orders reserve and release stock, so
+   * putting back the number that stood before would overwrite movements
+   * nobody asked to reverse. The other two paths that set stock — the service
+   * behind `/levels` and the CSV importer — take the same view. Nor may this
+   * row's action diverge from theirs: an auditor reading a product's stock
+   * history reads one action, not three.
+   */
   app.put(
     '/api/v1/admin/inventory',
     {
@@ -485,54 +521,25 @@ export async function registerInventoryAdminRoutes(
     },
     async (request) => {
       const body = setLegacyStockLevelSchema.parse(request.body);
-      const em = emFactory();
       const variantId = body.variantId ?? null;
-      let row = await em.findOne(StockLevel, {
+
+      await stockLevelService.setOnHand(
+        {
+          productId: body.productId,
+          warehouseId: DEFAULT_WAREHOUSE_ID,
+          variantId,
+          onHand: body.onHand,
+        },
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
+
+      // Re-read for the foundation-001 response shape: `setOnHand` answers with
+      // the before/after counts, this route has always answered with the row.
+      const row = await emFactory().findOneOrFail(StockLevel, {
         productId: body.productId,
         variantId,
         warehouseId: DEFAULT_WAREHOUSE_ID,
       });
-      const before = row?.onHand ?? null;
-      if (row) {
-        row.onHand = body.onHand;
-      } else {
-        row = em.create(StockLevel, {
-          productId: body.productId,
-          ...(variantId ? { variantId } : {}),
-          warehouseId: DEFAULT_WAREHOUSE_ID,
-          onHand: body.onHand,
-        });
-      }
-      // The audited path for a stock change is `StockLevelService`
-      // (`stock_level.adjust`); this legacy single-warehouse endpoint wrote
-      // straight through the EntityManager and recorded nothing, which the
-      // coverage scan could not see until it reached route files (issue #122).
-      // Same action token, so the two paths land in one audit history.
-      //
-      // Deliberately **not** a Command (issue #125). A Command is what an undo
-      // attaches to, and an on-hand count is not a value an undo may restore:
-      // between the write and the undo, orders reserve and release stock, so
-      // putting back the number that stood before would overwrite movements
-      // nobody asked to reverse. The other two paths that set stock — the
-      // service behind `/levels` and the CSV importer — take the same view.
-      // Nor may this row's action diverge from theirs: an auditor reading a
-      // product's stock history reads one action, not three.
-      if (deps.auditLogService && before !== body.onHand) {
-        recordAuditFromContext(deps.auditLogService, em, {
-          action: 'stock_level.adjust',
-          objectType: 'stock_level',
-          objectId: `${body.productId}:${DEFAULT_WAREHOUSE_ID}`,
-          stateBefore: before === null ? null : { onHand: before },
-          stateAfter: {
-            productId: body.productId,
-            variantId,
-            warehouseId: DEFAULT_WAREHOUSE_ID,
-            onHand: body.onHand,
-            delta: body.onHand - (before ?? 0),
-          },
-        });
-      }
-      await em.persistAndFlush(row);
       return {
         data: {
           id: row.id,

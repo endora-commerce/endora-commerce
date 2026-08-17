@@ -61,6 +61,24 @@ Admin routes are gated by `orders:read` (read) / `catalog:write` (write).
 | `GET /api/v1/storefront/inventory/stock/:id` | Storefront-public per-product stock with cumulative on-hand summed only over the caller's channel-bound warehouses |
 | `POST /api/v1/catalog/products/:id/notify-when-available` | Customer subscribes to back-in-stock; signed-in callers have email pre-filled |
 
+### Deprecated
+
+Two foundation-001 routes predate the per-warehouse surface above and always
+address the seeded Default warehouse. Nothing in the platform calls either one
+— no admin screen, no `@b2b/api-client` method, no seed, no script — so they
+exist for a deployment's own integration and nothing else. Do not build against
+them.
+
+| Verb + Path | Purpose | Replacement |
+| --- | --- | --- |
+| `PUT /api/v1/admin/inventory` | Set absolute on-hand for `(productId, variantId?)` in the Default warehouse | `PUT /api/v1/admin/inventory/levels`, which takes an explicit `warehouseId` |
+| `GET /api/v1/admin/inventory/legacy` | Flat `stock_levels` rows, newest first, optionally filtered by `productId` | `GET /api/v1/admin/inventory/levels` for everything except `variantId` and `updatedAt`, which it does not carry |
+
+Since issue #139 the `PUT` delegates to the same service as
+`PUT .../levels`, so it emits `inventory.adjusted.v1` and answers `404` for an
+unknown product instead of writing a stock row for one. It will be removed once
+a production access log or the deployment owner confirms nothing calls it.
+
 ## Per-product flags
 
 Five new fields live on `products` and ride through `PATCH /api/v1/admin/catalog/products/:id`:

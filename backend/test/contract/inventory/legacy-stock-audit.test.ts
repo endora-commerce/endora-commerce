@@ -6,9 +6,16 @@ import {
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
+import {
+  StockLevelService,
+  type InventoryAdjustedEvent,
+} from '../../../src/modules/inventory/services/stock-level-service.js';
 
 /**
  * Issue #122 — the legacy single-bucket stock write audits like the other one.
+ * Issue #139 (ruling D-66 part 2) — and it now delegates to
+ * `StockLevelService.setOnHand` rather than writing through the EntityManager.
  *
  * `PUT /api/v1/admin/inventory` is foundation 001's backward-compatible stock
  * setter. The audited path for a stock change has been `StockLevelService`
@@ -16,12 +23,18 @@ import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.
  * through the EntityManager instead, recording nothing — invisible to
  * `check-command-coverage`, which never opened a `routes*.ts` file.
  *
+ * The same hand-rolled write skipped two more things the service does, which is
+ * the live defect D-66 repairs: it emitted no `inventory.adjusted.v1`, the one
+ * event behind the back-in-stock fan-out (US6) and the low-stock crossing alert
+ * (US4), and it validated neither the product nor the warehouse, so a typo'd
+ * product id silently created a stock row for a product that does not exist.
+ *
  * `admin-stock.test.ts` claims this surface is "covered by `legacy-stock.test.ts`".
  * That file has never existed.
  */
 const DEFAULT_WAREHOUSE_ID = '00000000-0000-4000-8000-00000000d017';
 
-describe('legacy admin stock write (issue #122)', () => {
+describe('legacy admin stock write (issues #122, #139)', () => {
   let h: BackendServerHandle;
 
   beforeAll(async () => {
@@ -72,5 +85,107 @@ describe('legacy admin stock write (issue #122)', () => {
     });
     // "no write ⇒ no audit row", the same rule `CommandOutcome.skipAudit` keeps.
     expect(after.length).toBe(before.length);
+  });
+
+  // -------------------------------------------------------------------------
+  // Issue #139 / D-66 part 2 — the route delegates to `StockLevelService`.
+  // -------------------------------------------------------------------------
+
+  /** The bus dispatches outside a request scope, so a handler may still be pending. */
+  const waitForEvents = async (
+    seen: InventoryAdjustedEvent[],
+    atLeast: number,
+  ): Promise<void> => {
+    for (let i = 0; i < 50 && seen.length < atLeast; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  };
+
+  it('emits inventory.adjusted.v1 so restock and low-stock fan-out can react', async () => {
+    const seen: InventoryAdjustedEvent[] = [];
+    const off = h.eventBus.on('inventory.adjusted.v1', (payload) => {
+      seen.push(payload as unknown as InventoryAdjustedEvent);
+    });
+    try {
+      await put(5);
+      await waitForEvents(seen, 1);
+      seen.length = 0;
+
+      const res = await put(0);
+      expect(res.statusCode).toBe(200);
+      await waitForEvents(seen, 1);
+    } finally {
+      off();
+    }
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      productId: SEED_PRODUCT_101_ID,
+      warehouseId: DEFAULT_WAREHOUSE_ID,
+      variantId: null,
+      before: 5,
+      after: 0,
+    });
+  });
+
+  it('emits nothing when the write is a no-op', async () => {
+    const seen: InventoryAdjustedEvent[] = [];
+    const off = h.eventBus.on('inventory.adjusted.v1', (payload) => {
+      seen.push(payload as unknown as InventoryAdjustedEvent);
+    });
+    try {
+      // Subscribed before the setup write, not after it: `dispatch` iterates the
+      // live handler array with an `await` between entries, so a handler added
+      // while an earlier emission is still draining is still called by it.
+      await put(9);
+      await waitForEvents(seen, 1);
+      seen.length = 0;
+
+      const res = await put(9);
+      expect(res.statusCode).toBe(200);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    } finally {
+      off();
+    }
+
+    expect(seen).toHaveLength(0);
+  });
+
+  it('404s an unknown product instead of creating a stock row for it', async () => {
+    const ghostProductId = '00000000-0000-4000-8000-0000000f0139';
+
+    const res = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/inventory',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: { productId: ghostProductId, onHand: 12 },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect((res.json() as { error?: { code?: string } }).error?.code).toBe('PRODUCT_NOT_FOUND');
+
+    const rows = await h.em().find(StockLevel, { productId: ghostProductId });
+    expect(rows).toHaveLength(0);
+  });
+
+  /**
+   * The route hard-codes the seeded Default warehouse, so its own body cannot
+   * carry an unknown one — the warehouse check it gained is the delegate's.
+   * Asserted directly on `StockLevelService` for that reason.
+   */
+  it('refuses an unknown warehouse at the delegate it now calls', async () => {
+    const service = new StockLevelService(() => h.em(), h.eventBus);
+    const ghostWarehouseId = '00000000-0000-4000-8000-0000000f0140';
+
+    await expect(
+      service.setOnHand({
+        productId: SEED_PRODUCT_101_ID,
+        warehouseId: ghostWarehouseId,
+        onHand: 3,
+      }),
+    ).rejects.toMatchObject({ code: 'WAREHOUSE_NOT_FOUND' });
+
+    const rows = await h.em().find(StockLevel, { warehouseId: ghostWarehouseId });
+    expect(rows).toHaveLength(0);
   });
 });

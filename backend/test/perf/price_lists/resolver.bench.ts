@@ -34,11 +34,23 @@ import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.e
  *     PLN brackets per list, so the bracket lookup runs over a non-
  *     trivial corpus.
  *
+ * ## The budget (issue #143, D-65)
+ *
+ * D-65 called this one "plausible, unmeasured, and sharing F9's environment
+ * variable, so it cannot be re-based independently until precondition 1 is
+ * done". Precondition 1 is done — the name above is this bench's own — and
+ * here is the measurement. Four runs 2026-08-17 on a 16-core / 64 GB Linux dev
+ * box, load average 1.7-3.6, Postgres 16 on localhost: p95 8.49 / 9.94 /
+ * 10.98 / 10.14 ms. Budget = worst observed × 3, rounded up: **35 ms**, down
+ * from 50. The multiplier is ×3 rather than D-65's ×2 for the reason stated in
+ * `test/perf/catalog-list.bench.ts`. Re-base from the first three scheduled
+ * `perf:backend` runs.
+ *
  * Tuning knobs (env):
  *   PERF_LIST_COUNT    — number of active lists (default 50)
  *   PERF_BRACKETS      — brackets per (list, product, currency) (default 5)
  *   PERF_ITERATIONS    — request count (default 200)
- *   PERF_P95_BUDGET_MS — assertion budget (default 50)
+ *   PERF_PRICE_RESOLVER_P95_MS — assertion budget (default 35, see above)
  *   PERF_RUN           — set to 'true' to actually run; otherwise the
  *                         suite skips so PR runs aren't blocked by
  *                         perf flake.
@@ -47,7 +59,7 @@ import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.e
 const listCount = Number(process.env['PERF_LIST_COUNT'] ?? '50');
 const bracketsPerCurrency = Number(process.env['PERF_BRACKETS'] ?? '5');
 const iterations = Number(process.env['PERF_ITERATIONS'] ?? '200');
-const p95Budget = Number(process.env['PERF_P95_BUDGET_MS'] ?? '50');
+const p95Budget = Number(process.env['PERF_PRICE_RESOLVER_P95_MS'] ?? '35');
 const shouldRun = process.env['PERF_RUN'] === 'true';
 
 describe.skipIf(!shouldRun)('pricing resolver — p95 latency', () => {

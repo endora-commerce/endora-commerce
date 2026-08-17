@@ -33,7 +33,7 @@ import { DictionaryReadService } from '../../src/modules/dictionaries/services/d
 const shouldRun = process.env['PERF_RUN'] === 'true';
 const iterations = Number(process.env['PERF_ITERATIONS'] ?? '100');
 const p95WarmBudget = Number(process.env['PERF_P95_WARM_MS'] ?? '5');
-const p95ColdBudget = Number(process.env['PERF_P95_COLD_MS'] ?? '30');
+const p95ColdBudget = Number(process.env['PERF_DICTIONARY_COLD_P95_MS'] ?? '30');
 /** Statements one cold build may issue: the channel, four tables, the fallback languages, the translations. */
 const coldStatementCeiling = Number(process.env['PERF_COLD_STATEMENTS'] ?? '7');
 /**

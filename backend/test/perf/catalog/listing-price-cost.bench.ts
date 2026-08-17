@@ -22,12 +22,26 @@ import {
  * change actually added.
  *
  * Skipped unless `PERF_RUN=true`, like every other bench here.
+ *
+ * ## The budget (issue #143, D-65)
+ *
+ * D-65 recorded no post-#140 measurement for this bench: it had a budget
+ * before it had a number. Measured 2026-08-17 over four runs on a 16-core /
+ * 64 GB Linux dev box, load average 1.7-3.6, Postgres 16 on localhost: p95
+ * 79.6 / 76.9 / 86.9 / 79.5 ms. Budget = worst observed × 3, rounded up:
+ * **275 ms**, down from 400. The multiplier is ×3 rather than D-65's ×2 for
+ * the reason stated in `test/perf/catalog-list.bench.ts`. Re-base from the
+ * first three scheduled `perf:backend` runs.
+ *
+ * This is by far the most expensive read in the suite — 6× `catalog-list`,
+ * which pages the same table without pricing it — so it is also the one whose
+ * budget is worth the least slack.
  */
 
 const pageSize = Number(process.env['PERF_PAGE_SIZE'] ?? '24');
 const corpusSize = Number(process.env['PERF_CORPUS_SIZE'] ?? '120');
 const iterations = Number(process.env['PERF_ITERATIONS'] ?? '40');
-const p95Budget = Number(process.env['PERF_P95_BUDGET_MS'] ?? '400');
+const p95Budget = Number(process.env['PERF_LISTING_PRICE_P95_MS'] ?? '275');
 const shouldRun = process.env['PERF_RUN'] === 'true';
 
 describe.skipIf(!shouldRun)('priced catalogue listing — p95 latency', () => {
