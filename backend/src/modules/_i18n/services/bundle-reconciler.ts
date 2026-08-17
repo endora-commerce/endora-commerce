@@ -18,7 +18,7 @@ export interface I18nReconcileResult {
  * FR-014's diagnostic surface and the platform keeps serving.
  */
 /** One module's manifest + on-disk location, as the reconciler needs it. */
-interface I18nReconcileEntry {
+export interface I18nReconcileEntry {
   manifest: { id: string; i18n?: { bundlesDir: string } | undefined };
   filePath: string;
 }

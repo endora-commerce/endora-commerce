@@ -1,13 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
+import type { AdminUserPreferencePort } from '@b2b/contracts';
 import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { LoadedManifestRegistry } from '../_lifecycle/services/manifest-loader.js';
-import type { AdminUserService } from '../admin_users/services/admin-user-service.js';
 import { registerI18nAdminRoutes } from './routes.admin.js';
 import { I18nService } from './services/i18n-service.js';
 import {
   reconcileBundles,
+  type I18nReconcileEntry,
   type I18nReconcileResult,
 } from './services/bundle-reconciler.js';
 
@@ -57,13 +57,30 @@ import {
  * It does not reappear here.
  */
 
+/**
+ * The slice of the lifecycle registry this module reads: every registered
+ * module's manifest and the path it was loaded from, which is all
+ * `reconcileBundles` needs to find `<module>/<bundlesDir>/<lang>.json`.
+ *
+ * Declared here rather than imported from `_lifecycle` (feature 075, Phase C).
+ * `lifecycleManifestRegistry` is a name a **composition root** supplies —
+ * which modules a deployment ships is a root's input, and `_lifecycle`'s own
+ * `LoadedManifestRegistry` additionally carries a dependency graph and each
+ * module's install hooks, none of which a bundle reconcile has any business
+ * seeing. Stating the demand is what keeps the two apart.
+ */
+export interface I18nManifestRegistryView {
+  readonly modules: { values(): Iterable<I18nReconcileEntry> };
+}
+
 /** Reads the lifecycle registry lazily; `undefined` until `_lifecycle` exists. */
-export type LifecycleManifestRegistryAccessor = () => LoadedManifestRegistry | undefined;
+export type LifecycleManifestRegistryAccessor = () =>
+  | I18nManifestRegistryView
+  | undefined;
 
 export interface AdminI18nCradle {
   readonly emFactory: () => EntityManager;
   readonly requireAdmin: RequireAdminFactory;
-  readonly adminUserService: AdminUserService;
   readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string };
   readonly lifecycleManifestRegistry: LifecycleManifestRegistryAccessor;
   readonly adminI18nService: I18nService;
@@ -130,11 +147,14 @@ export function registerModule(ctx: ModuleContext): void {
     // is the point in a composition where the lifecycle registry exists.
     await runReconcile(ctx);
 
-    const { adminI18nService, adminUserService, requireAdmin, adminContextResolver } =
+    const { adminI18nService, requireAdmin, adminContextResolver } =
       ctx.cradle<AdminI18nCradle>();
     await registerI18nAdminRoutes(app, {
       i18nService: adminI18nService,
-      adminUserService,
+      // Feature 075, Phase C — one method of `admin_users`, resolved per call.
+      // The class this replaced brought creation, roles, deletion and
+      // impersonation across the boundary for a single language write.
+      adminUserPreference: lazyPort<AdminUserPreferencePort>(ctx, 'adminUserPreferencePort'),
       requireAdmin,
       resolveAdminContext: adminContextResolver,
       reload: () => runReconcile(ctx),
