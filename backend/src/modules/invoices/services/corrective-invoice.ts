@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { ERROR_CODES } from '@b2b/contracts';
+import { HttpError } from '../../../http/error-envelope.js';
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
 import { Order } from '../../orders/entities/order.entity.js';
@@ -16,12 +18,42 @@ function round2(n: number): number {
 }
 
 /**
+ * The VAT rate a corrective line carries: the rate of the original line it
+ * corrects (product ruling 2026-08-16), never the rate in force on the
+ * correction date and never a constant.
+ *
+ * Without an original invoice there is no line to mirror. That is the
+ * never-invoiced order the numbering fallback also recognises: the document is
+ * not a correction of any VAT invoice, so it stays at zero. With an original,
+ * a line naming an order item that original never invoiced is refused —
+ * inventing a rate for an added position is worse than refusing it.
+ */
+function rateFor(
+  original: Invoice | null,
+  rateByOrderItem: ReadonlyMap<string, number>,
+  orderItemId: string,
+): number {
+  if (!original) return 0;
+  const rate = rateByOrderItem.get(orderItemId);
+  if (rate === undefined) {
+    throw new HttpError(
+      422,
+      ERROR_CODES.VALIDATION_FAILED,
+      'The corrected line has no counterpart on the original invoice, so its VAT rate is unknown.',
+      { code: 'no_corrected_line', orderItemId, originalInvoiceId: original.id },
+    );
+  }
+  return rate;
+}
+
+/**
  * Invoices-side implementation of the returns module's `CorrectiveInvoicePort`
  * (feature 046 / 047 US3). Creates an `invoices` row of kind `correction`:
  *   - number drawn from the correction counter (per channel/year) when a
  *     number generator is wired (falls back to a UUID-stamped number otherwise);
  *   - references the order's original VAT invoice;
- *   - snapshots the corrected lines into `invoice_lines`;
+ *   - snapshots the corrected lines into `invoice_lines`, each carrying the VAT
+ *     rate of the original line it corrects (issue #131);
  *   - caps the credited total at the original invoice gross (FR-020).
  */
 export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
@@ -51,6 +83,47 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
     const requested = round2(input.total);
     const credited = Math.min(requested, originalGross);
 
+    // A correction mirrors the VAT rate of the line it corrects, not the rate
+    // in force on the correction date (product ruling 2026-08-16). The link is
+    // `orderItemId`: issuance snapshots it on every product line of the
+    // original, and a return case item names the same order item.
+    const rateByOrderItem = new Map<string, number>();
+    if (original) {
+      const originalLines = await em.find(InvoiceLine, { invoiceId: original.id });
+      for (const l of originalLines) {
+        if (l.orderItemId) rateByOrderItem.set(l.orderItemId, Number(l.taxRate));
+      }
+    }
+    // Resolve every line before the transaction opens, so a line that cannot
+    // be mirrored refuses without having drawn a correction number.
+    //
+    // The credited amount is gross (a return credits what was paid, tax
+    // included), so the net follows from the mirrored rate rather than the
+    // other way round.
+    let remaining = credited;
+    const snapshots = input.lines.map((l, index) => {
+      const rate = rateFor(original, rateByOrderItem, l.orderItemId);
+      const gross = round2(Math.min(Math.max(l.amount, 0), remaining));
+      remaining = round2(remaining - gross);
+      const net = round2(gross / (1 + rate));
+      const qty = l.quantity || 1;
+      return {
+        ordinal: index + 1,
+        orderItemId: l.orderItemId,
+        name: l.productName,
+        quantity: qty,
+        rate,
+        net,
+        gross,
+        unitNetPrice: net / qty,
+      };
+    });
+
+    // The document's own totals follow its lines: net + tax = the credited
+    // gross, which stays the FR-020 cap.
+    const taxTotal = round2(snapshots.reduce((sum, s) => sum + (s.gross - s.net), 0));
+    const netTotal = round2(credited - taxTotal);
+
     const issuedAt = new Date();
     const invoice = await em.transactional(async (tx) => {
       // Draw from the correction counter only when there is an original invoice
@@ -70,8 +143,8 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
         issuedAt,
         saleDate: issuedAt.toISOString().slice(0, 10),
         currency: input.currency,
-        netTotal: credited.toFixed(2),
-        taxTotal: '0.00',
+        netTotal: netTotal.toFixed(2),
+        taxTotal: taxTotal.toFixed(2),
         total: credited.toFixed(2),
         paidTotal: '0',
         originalInvoiceId: original?.id ?? null,
@@ -82,24 +155,19 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
       });
       await tx.persistAndFlush(inv);
 
-      // Snapshot corrected lines, capping each at the credited remainder.
-      let remaining = credited;
-      let ordinal = 0;
-      for (const l of input.lines) {
-        ordinal += 1;
-        const amount = round2(Math.min(Math.max(l.amount, 0), remaining));
-        remaining = round2(remaining - amount);
-        const qty = l.quantity || 1;
+      // Snapshot the corrected lines (already capped at the credited remainder).
+      for (const s of snapshots) {
         tx.create(InvoiceLine, {
           invoiceId: inv.id,
-          ordinal,
-          name: l.productName,
+          ordinal: s.ordinal,
+          name: s.name,
           unit: 'szt.',
-          quantity: String(qty),
-          unitNetPrice: (amount / qty).toFixed(4),
-          taxRate: '0.0000',
-          netValue: amount.toFixed(2),
-          grossValue: amount.toFixed(2),
+          quantity: String(s.quantity),
+          unitNetPrice: s.unitNetPrice.toFixed(4),
+          taxRate: s.rate.toFixed(4),
+          netValue: s.net.toFixed(2),
+          grossValue: s.gross.toFixed(2),
+          orderItemId: s.orderItemId,
         });
       }
       await tx.flush();

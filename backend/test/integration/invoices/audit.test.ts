@@ -42,7 +42,7 @@ describe('invoices — audit logging (FR-035)', () => {
   });
 
   it('records invoice.corrected on a correction', async () => {
-    const { orderId } = await seedInvoiceableOrder(h.em(), { salesChannelId: CH });
+    const { orderId, itemIds } = await seedInvoiceableOrder(h.em(), { salesChannelId: CH });
     await h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/orders/${orderId}/invoices`,
@@ -56,7 +56,7 @@ describe('invoices — audit logging (FR-035)', () => {
     );
     const result = await provider.createCorrection({
       orderId,
-      lines: [{ productName: 'X', quantity: 1, amount: 100 }],
+      lines: [{ orderItemId: itemIds[0], productName: 'X', quantity: 1, amount: 100 }],
       total: 100,
       currency: 'PLN',
     });

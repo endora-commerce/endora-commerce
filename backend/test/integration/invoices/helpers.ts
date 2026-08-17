@@ -11,11 +11,15 @@ export const ADMIN_COOKIE = { b2b_admin_session: 'stub-admin-session' };
 export interface SeededInvoiceOrder {
   orderId: string;
   salesChannelId: string;
+  /** The seeded order items, in line order — the link an invoice line snapshots. */
+  itemIds: [string, string];
 }
 
 /**
  * Seed a paid order owned by the test customer with two 23%-VAT lines
  * (net 900 + net 4505 = 5405 net, 6648.15 gross — matches the reference invoice).
+ * `lineTaxRate` re-rates both product lines, so a genuinely zero-rated original
+ * is expressible without a second seeder.
  */
 export async function seedInvoiceableOrder(
   em: EntityManager,
@@ -26,14 +30,18 @@ export async function seedInvoiceableOrder(
     discountTotal?: number;
     organizationId?: string;
     placedByCustomerAccountId?: string;
+    lineTaxRate?: number;
   } = {},
 ): Promise<SeededInvoiceOrder> {
   const salesChannelId = opts.salesChannelId ?? randomUUID();
   const deliveryTotal = opts.deliveryTotal ?? 0;
   const discountTotal = opts.discountTotal ?? 0;
-  // Base products: net 5405, VAT 1243.15. Order model adds delivery and
-  // subtracts discount on the gross without extra VAT.
-  const total = 6648.15 + deliveryTotal - discountTotal;
+  const lineTaxRate = opts.lineTaxRate ?? 0.23;
+  // Base products: net 5405, VAT 1243.15 at the default 23%. Order model adds
+  // delivery and subtracts discount on the gross without extra VAT.
+  const productNet = 5405;
+  const productTax = Math.round((productNet * lineTaxRate + Number.EPSILON) * 100) / 100;
+  const total = productNet + productTax + deliveryTotal - discountTotal;
   const order = em.create(Order, {
     organizationId: opts.organizationId ?? TEST_ORGANIZATION_ID,
     placedByCustomerAccountId: opts.placedByCustomerAccountId ?? TEST_CUSTOMER_ID,
@@ -54,8 +62,8 @@ export async function seedInvoiceableOrder(
     deliveryMethodSnapshot: { code: 'dm', name: 'Kurier', cost: 0 },
     paymentMethodId: randomUUID(),
     paymentMethodSnapshot: { code: 'pm', name: 'Przelew', kind: 'bank_transfer' },
-    subtotal: '5405.00',
-    taxTotal: '1243.15',
+    subtotal: productNet.toFixed(2),
+    taxTotal: productTax.toFixed(2),
     deliveryTotal: deliveryTotal.toFixed(2),
     discountTotal: discountTotal.toFixed(2),
     total: total.toFixed(2),
@@ -70,7 +78,7 @@ export async function seedInvoiceableOrder(
     productSnapshot: { sku: 'TM-1', name: 'Example Server', primaryAssetUrl: null },
     quantity: 1,
     unitPrice: '900.00',
-    taxRate: '0.2300',
+    taxRate: lineTaxRate.toFixed(4),
     lineTotal: '900.00',
   });
   const item2 = em.create(OrderItem, {
@@ -79,12 +87,12 @@ export async function seedInvoiceableOrder(
     productSnapshot: { sku: 'TM-2', name: 'Example Labour Hours', primaryAssetUrl: null },
     quantity: 27,
     unitPrice: '170.00',
-    taxRate: '0.2300',
+    taxRate: lineTaxRate.toFixed(4),
     lineTotal: '4505.00',
   });
   await em.persistAndFlush([item1, item2]);
 
-  return { orderId: order.id, salesChannelId };
+  return { orderId: order.id, salesChannelId, itemIds: [item1.id, item2.id] };
 }
 
 /** Configure the seller (own company) settings globally so issuance is allowed. */
