@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   DictionaryReferenceError,
   ERROR_CODES,
+  dispatchValidatorMode,
   type DictionaryValidator,
   type ResolvedTax,
   type TaxResolutionInput,
@@ -9,7 +10,6 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
 import { Tax } from '../entities/tax.entity.js';
 
