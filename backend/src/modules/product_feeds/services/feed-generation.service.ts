@@ -1,9 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { FeedRunFailureCode, FeedRunTrigger } from '@b2b/contracts';
+import type {
+  CatalogCategoryReadPort,
+  CatalogCategoryRecord,
+  CatalogProductReadPort,
+  CatalogProductRecord,
+  CatalogProductVariantRecord,
+  FeedRunFailureCode,
+  FeedRunTrigger,
+} from '@b2b/contracts';
 import { withSystemScope } from '../../../tenancy/escape-hatch.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { ProductVariant } from '../../catalog/entities/product-variant.entity.js';
-import { Category } from '../../catalog/entities/category.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { FeedRun } from '../entities/feed-run.entity.js';
 import { FeedArtefact } from '../entities/feed-artefact.entity.js';
@@ -75,7 +80,7 @@ export type NamedListPriceResolver = (input: {
 
 /** Resolves the anonymous channel price — organization-less, the storefront's own path. */
 export type AnonymousPriceResolver = (input: {
-  product: Product;
+  product: CatalogProductRecord;
   variantId: string | null;
   salesChannel: { id: string; defaultCurrency: string };
   currencyCode: string;
@@ -149,6 +154,15 @@ export type ArtefactDeliveryPort = (input: {
 
 export interface FeedGenerationDeps {
   emFactory: () => EntityManager;
+  /**
+   * Feature 075, Phase C — the product, variant and category rows a feed line
+   * is built from. All three were `em.find(<catalog entity>, …)` against tables
+   * this module does not own, so a run kept publishing a catalogue an operator
+   * had switched `catalog` off from. `catalog` is a binding dependency of this
+   * manifest and the reads now fail closed with it.
+   */
+  catalogProducts: CatalogProductReadPort;
+  catalogCategories: CatalogCategoryReadPort;
   selection: ProductSelectionService;
   runs: FeedRunService;
   artefactStore: ArtefactStorePort;
@@ -633,7 +647,7 @@ export class FeedGenerationService {
     // binding the channel as a local keeps that visible where the reads happen
     // (`no-unscoped-channel-query`), and it is what availability resolves against.
     const { salesChannelId } = prepared;
-    const products = await em.find(Product, { id: { $in: productIds } });
+    const products = await this.deps.catalogProducts.findByIds(productIds);
     if (products.length === 0) return [];
 
     const conn = em.getConnection();
@@ -648,7 +662,7 @@ export class FeedGenerationService {
     )) as Array<{ product_id: string; category_id: string }>;
     const categoryIds = [...new Set(categoryRows.map((r) => r.category_id))];
     const categories = categoryIds.length
-      ? await em.find(Category, { id: { $in: categoryIds } })
+      ? await this.deps.catalogCategories.findByIds(categoryIds)
       : [];
     const categoryById = new Map(categories.map((c) => [c.id, c]));
 
@@ -668,9 +682,9 @@ export class FeedGenerationService {
 
     const variants =
       prepared.itemGranularity === 'variant'
-        ? await em.find(ProductVariant, { parentProductId: { $in: productIds } })
+        ? await this.deps.catalogProducts.listVariantsByProductIds(productIds)
         : [];
-    const variantsByProduct = new Map<string, ProductVariant[]>();
+    const variantsByProduct = new Map<string, CatalogProductVariantRecord[]>();
     for (const variant of variants) {
       const list = variantsByProduct.get(variant.parentProductId) ?? [];
       list.push(variant);
@@ -745,7 +759,7 @@ export class FeedGenerationService {
   /** Deepest assigned category's ancestry, localized. */
   private categoryPath(
     ids: string[],
-    byId: Map<string, Category>,
+    byId: Map<string, CatalogCategoryRecord>,
     languageCode: string,
   ): string[] {
     let best: string[] = [];
@@ -764,7 +778,7 @@ export class FeedGenerationService {
   }
 
   private async resolvePrice(
-    product: Product,
+    product: CatalogProductRecord,
     variantId: string | null,
     prepared: FeedItemHydrationScope,
   ): Promise<FeedItemPrice | null> {

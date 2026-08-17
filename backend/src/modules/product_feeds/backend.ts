@@ -6,7 +6,12 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { ConfigurationTypeRegistry } from '../credentials/services/configuration-type-registry.js';
+import type {
+  CatalogCategoryReadPort,
+  CatalogProductReadPort,
+  ConfigurationTypeRegistryPort,
+  PriceListReadPort,
+} from '@b2b/contracts';
 import { productFeedsModule, type ProductFeedsModuleOptions } from './plugin.js';
 import { feedDeliveryConfigurationType } from './services/delivery/delivery-credential.type.js';
 import {
@@ -151,10 +156,26 @@ export function registerModule(ctx: ModuleContext): void {
             customFieldDefinitions: lazyPort<
               ProductFeedsCradle['customFieldDefinitionService']
             >(ctx, 'customFieldDefinitionService'),
+            // Feature 075, Phase C — `languageReadPort`, not `languageService`.
+            // The four calls this module makes are all reads, and the read port
+            // is the shape `languages` published for exactly them.
             languageService: lazyPort<ProductFeedsCradle['languageService']>(
               ctx,
-              'languageService',
+              'languageReadPort',
             ),
+            // Feature 075, Phase C — `catalog`'s two published read models and
+            // `price_lists`' list reader, replacing `em.find(Product, …)`,
+            // `em.find(Category, …)` and `em.findOne(PriceList, …)` in this
+            // module's own services. All three owners are already binding
+            // `dependencies` of this manifest, and all three reads fail closed:
+            // a feed built from a catalogue the platform is not serving is worse
+            // than a run that stops and says so.
+            catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            catalogCategories: lazyPort<CatalogCategoryReadPort>(
+              ctx,
+              'catalogCategoryReadPort',
+            ),
+            priceLists: lazyPort<PriceListReadPort>(ctx, 'priceListReadPort'),
             // D-60 — the bell's absence is decided here, in front of the gate,
             // and reaches the notifiers as `not-present` in the return type.
             // A `catch` at the call site fused "the operator switched
@@ -293,7 +314,7 @@ export function registerModule(ctx: ModuleContext): void {
    * switches back on at runtime contributes nothing until the next restart.
    */
   ctx.onBoot(() => {
-    lazyPort<ConfigurationTypeRegistry>(ctx, 'configurationTypeRegistry').register(
+    lazyPort<ConfigurationTypeRegistryPort>(ctx, 'configurationTypeRegistry').register(
       feedDeliveryConfigurationType,
     );
   });

@@ -5,12 +5,12 @@ import {
   PRODUCT_FEED_ERROR_CODES,
   isSecretDeliveryHeader,
   type FeedDeliveryConfig,
+  type CredentialsPort,
   type FeedDeliveryHeader,
   type UpsertFeedDeliveryRequest,
 } from '@b2b/contracts';
 import type { CommandBus } from '../../../../commands/index.js';
 import { HttpError } from '../../../../http/error-envelope.js';
-import type { CredentialsService } from '../../../credentials/services/credentials.service.js';
 import { FeedDelivery } from '../../entities/feed-delivery.entity.js';
 import { ProductFeed } from '../../entities/product-feed.entity.js';
 import {
@@ -53,7 +53,7 @@ import type { FeedDeliveryTarget } from './delivery-adapter.interface.js';
 export interface DeliveryConfigServiceDeps {
   emFactory: () => EntityManager;
   commandBus: CommandBus;
-  credentials: CredentialsService;
+  credentials: CredentialsPort;
 }
 
 export class DeliveryConfigService {

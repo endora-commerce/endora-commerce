@@ -452,25 +452,16 @@ describe('product feed channel isolation [integration]', () => {
      * a statement someone can rely on when it is finally switched on.
      */
     const ALLOWED_UNSCOPED: ReadonlyArray<{ file: string; entity: string; why: string }> = [
-      {
-        file: 'services/product-feed.service.ts',
-        entity: 'PriceList',
-        why: 'existence check on the price list a feed names — a price list is not a per-channel object',
-      },
+      // Feature 075, Phase C removed the other three, and the exactness half
+      // below is what said so: the `PriceList` existence check and both
+      // `Category` reads now go through `priceListReadPort` and
+      // `catalogCategoryReadPort`, so this module no longer names those entities
+      // at all and an allow-list entry over them would be a scoping decision
+      // nobody is making.
       {
         file: 'services/product-selection.service.ts',
         entity: 'Product',
-        why: 'sampleProducts re-reads ids that iterateProductIds already scoped to the channel',
-      },
-      {
-        file: 'services/taxonomy-mapping.service.ts',
-        entity: 'Category',
-        why: 'category → provider-node mappings are installation-wide by design (FR-079), never per channel',
-      },
-      {
-        file: 'services/taxonomy-revision.service.ts',
-        entity: 'Category',
-        why: 'the impact preview counts coverage over the whole category tree — mappings carry no channel dimension (FR-081), so a channel-scoped read would report a loss that does not depend on the channel',
+        why: 'sampleProducts re-reads ids that iterateProductIds already scoped to the channel; the whole file is the one edge the cut escalated, because the selection rule compiles to a MikroORM filter no port may take',
       },
     ];
 

@@ -6,11 +6,11 @@ import {
   TAXONOMY_FETCH_LIMITS,
   type FeedTaxonomyCheck as FeedTaxonomyCheckDto,
   type FeedTaxonomyRevision as FeedTaxonomyRevisionDto,
+  type CatalogCategoryReadPort,
   type TaxonomyProviderCode,
 } from '@b2b/contracts';
 import type { CommandBus } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import { Category } from '../../catalog/entities/category.entity.js';
 import { FeedTaxonomy } from '../entities/feed-taxonomy.entity.js';
 import { FeedTaxonomyCheck } from '../entities/feed-taxonomy-check.entity.js';
 import { FeedTaxonomyMapping } from '../entities/feed-taxonomy-mapping.entity.js';
@@ -45,6 +45,11 @@ import type { TaxonomyRefreshService } from './taxonomy-refresh.service.js';
 export interface TaxonomyRevisionServiceDeps {
   emFactory: () => EntityManager;
   commandBus: CommandBus;
+  /**
+   * Feature 075, Phase C — the category tree a revision's impact is measured
+   * against, read over `catalog`'s published port instead of out of its table.
+   */
+  catalogCategories: CatalogCategoryReadPort;
   reconciler: Pick<
     TaxonomyReconcilerService,
     'reevaluateMappings' | 'linkTemplatesToCurrentTaxonomies'
@@ -208,7 +213,7 @@ export class TaxonomyRevisionService {
     language: string,
   ): Promise<Parameters<typeof computeTaxonomyRevisionImpact>[0]> {
     const [categories, mappings, candidateNodes, currentNodes] = await Promise.all([
-      em.find(Category, { deletedAt: null }),
+      this.deps.catalogCategories.listAll({ liveOnly: true }),
       em.find(FeedTaxonomyMapping, { taxonomyProviderCode: candidate.providerCode }),
       em.find(FeedTaxonomyNode, { taxonomyId: candidate.id }),
       current ? em.find(FeedTaxonomyNode, { taxonomyId: current.id }) : Promise.resolve([]),
