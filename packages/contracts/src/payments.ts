@@ -124,6 +124,40 @@ export interface PaymentReadPort {
   findByExternalReference(externalReference: string): Promise<PaymentRecord | null>;
 }
 
+/**
+ * Container name: `paymentReferencePort`. Owner: `payments`.
+ *
+ * The one **write** the four gateways make into this module's table, and the
+ * only one they make anywhere outside the settlement ingress: when a gateway
+ * has created its own object for an attempt — a Stripe PaymentIntent or
+ * Checkout Session, a TPay transaction, a PayU order, an Autopay transaction —
+ * it records that object's identifier on the attempt, so a later provider
+ * event that carries only the provider's own reference resolves back to a
+ * payment. It is the write side of `PaymentReadPort.findByExternalReference`.
+ *
+ * Two methods rather than one, because the four gateways genuinely do two
+ * different things and neither is wrong: `stampExternalReference` replaces
+ * whatever was there (TPay, PayU — a new provider object supersedes the old
+ * one, and keeping the stale reference would strand the settlement event),
+ * while `stampExternalReferenceIfAbsent` keeps a reference already on the row
+ * (Stripe — a redirect Checkout Session and the PaymentIntent it later spawns
+ * are two identifiers for one attempt, and the first is the one its metadata
+ * was written against). Publishing the divergence is how it becomes a decision
+ * somebody can take; hiding it behind one method would have taken it silently.
+ *
+ * Each returns whether the row changed.
+ *
+ * When `payments` is off the write fails closed, and a gateway that has just
+ * created a provider object must hear that: swallowing it would leave a live
+ * PaymentIntent at the provider with nothing on this side able to resolve the
+ * event it will send.
+ */
+export interface PaymentReferencePort {
+  stampExternalReference(paymentId: string, externalReference: string): Promise<boolean>;
+  /** Stamp only when the attempt carries no reference yet. */
+  stampExternalReferenceIfAbsent(paymentId: string, externalReference: string): Promise<boolean>;
+}
+
 export interface ReceivePaymentResult {
   paymentId: string;
   status: PaymentAttemptStatus;
