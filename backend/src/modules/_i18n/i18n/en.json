@@ -502,7 +502,7 @@
   "errors.INVALID_TRANSITION": "Invalid Transition.",
   "errors.INVOICE_NOT_READY": "Invoice Not Ready.",
   "errors.LIMIT_INSUFFICIENT": "Limit Insufficient.",
-  "errors.MODULE_DISABLED": "Module Disabled.",
+  "errors.MODULE_DISABLED": "The \"{module}\" module is off, so this action was refused. Check its state on the Modules screen.",
   "errors.NOT_FOUND": "Resource not found.",
   "errors.ORDER_NOT_CANCELLABLE": "Order Not Cancellable.",
   "errors.ORDER_NOT_FOUND": "Order Not Found.",

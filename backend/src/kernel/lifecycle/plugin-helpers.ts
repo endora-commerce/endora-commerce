@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Worker } from 'bullmq';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type ModuleDisabledDetails } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModulePlugin } from '../../http/server.js';
 import { effectiveState } from './effective-state.js';
@@ -18,6 +18,19 @@ const RETRY_AFTER_SECONDS = '60';
  * surface. Surfaces as `503 Service Unavailable` via the standard error
  * envelope, with `Retry-After` so a well-behaved client backs off rather than
  * treating the module as gone.
+ *
+ * **`details` names the module** (issue #161, `moduleDisabledDetailsSchema`).
+ * The id was on the error object from the start, and every caller that catches
+ * the throw could read it — but the envelope replaces an operator-visible
+ * message with the registered sentence for its *code*, and this one code covers
+ * every gated port in the platform, so the wire carried a generic "Module
+ * Disabled." An operator refused a refund because a payment gateway is switched
+ * off was not told which module to switch back on, which also undercut D-71's
+ * own rationale: the remedy was named on the object, not on the response.
+ * `details` is the part of the envelope that survives the replacement, and the
+ * sentence interpolates `{module}` out of it. `carts` had already written the
+ * same key by hand for its one contribution-point refusal
+ * (`src/modules/carts/backend.ts`); this makes the platform-wide throw agree.
  */
 export class ModuleDisabledError extends HttpError {
   constructor(public readonly moduleId: string) {
@@ -25,7 +38,7 @@ export class ModuleDisabledError extends HttpError {
       503,
       ERROR_CODES.MODULE_DISABLED,
       `Module '${moduleId}' is currently disabled.`,
-      undefined,
+      { module: moduleId } satisfies ModuleDisabledDetails,
       { 'Retry-After': RETRY_AFTER_SECONDS },
     );
     this.name = 'ModuleDisabledError';

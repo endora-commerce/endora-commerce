@@ -2296,11 +2296,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
         return adminUser?.preferredLanguage === 'pl' ? 'pl' : 'en';
       },
-      translateErrorMessage: async ({ moduleId, key, language, originalMessage }) => {
+      translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
         const translated = await adminI18nCradle.adminI18nService.translate(
           moduleId,
           key,
           language,
+          params,
         );
         return translated === `${moduleId}.${key}` ? originalMessage : translated;
       },

@@ -139,9 +139,11 @@ Hard-uninstall (`--hard`) additionally reverts the module's migrations and delet
 
 When a module is disabled the platform inactivates three layers via wrappers:
 
-1. **HTTP routes** registered through `defineModuleRoutes(moduleId, register)` — the wrapper installs an `onRequest` hook that returns `503 Service Unavailable` with `{error:{code:'MODULE_DISABLED',module:'<id>'}}` and `Retry-After: 60`.
+1. **HTTP routes** registered through `defineModuleRoutes(moduleId, register)` — the wrapper installs an `onRequest` hook that returns `503 Service Unavailable` with `{error:{code:'MODULE_DISABLED',details:{module:'<id>'}}}` and `Retry-After: 60`.
 2. **BullMQ workers** registered through `defineModuleWorker(moduleId, worker)` — paused on disable, resumed on enable.
 3. **Event subscribers** registered through `subscribeForModule(moduleId, bus, event, handler)` — handler is a no-op when the module is disabled.
+
+The refused module is named in `details.module` on **every** `MODULE_DISABLED` response, not only the route gate: the id travels on `ModuleDisabledError` itself, so a port resolution and a `requireModuleEnabled` call answer the same shape. It has to be `details` rather than a field beside `code`, because the error envelope replaces an operator-visible message with the registered sentence for its **code**, and `MODULE_DISABLED` is one code for every gated port in the platform — the module id is what turns "Module Disabled." into a sentence an operator can act on, and `errors.MODULE_DISABLED` interpolates `{module}` out of exactly that detail (issue #161).
 
 The enabled set is cached per process and refreshed via Redis pub/sub on the `b2b:module:state-changed` channel; cache lookups are O(1) in-memory (~50 µs).
 

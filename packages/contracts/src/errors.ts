@@ -468,3 +468,22 @@ export const errorEnvelopeSchema = z.object({
 });
 
 export type ErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
+
+/**
+ * `MODULE_DISABLED` names the module it refused for (issue #161).
+ *
+ * The refusal is raised in one place — the kernel's `ModuleDisabledError` — and
+ * carried the module id on the error object only. The envelope replaces an
+ * operator-visible message with the registered sentence for its **code**, and
+ * `MODULE_DISABLED` is one code for every gated port in the platform, so the
+ * wire carried "Module Disabled." and the one fact the operator needs to act —
+ * which module to look at — never left the process. It is published here rather
+ * than left implicit because it is a wire shape: a client may read it, and the
+ * sentence interpolates `{module}` out of it.
+ */
+export const moduleDisabledDetailsSchema = z.object({
+  /** Manifest id of the module whose effective state refused the call. */
+  module: z.string().min(1),
+});
+
+export type ModuleDisabledDetails = z.infer<typeof moduleDisabledDetailsSchema>;

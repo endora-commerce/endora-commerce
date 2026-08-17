@@ -40,6 +40,25 @@ const buildProbe = async (
       { path: 'productId', issue: 'unknown' },
     ]);
   });
+  app.get('/module-off', async () => {
+    throw new HttpError(
+      503,
+      ERROR_CODES.MODULE_DISABLED,
+      "Module 'stripe' is currently disabled.",
+      { module: 'stripe' },
+    );
+  });
+  app.get('/module-off-unnamed', async () => {
+    throw new HttpError(503, ERROR_CODES.MODULE_DISABLED, 'Something is switched off.');
+  });
+  app.get('/mixed-details', async () => {
+    throw new HttpError(400, ERROR_CODES.BULK_TOO_LARGE, 'Too many rows.', {
+      maxBatchSize: 200,
+      attribute: 'brand',
+      rejected: ['a', 'b'],
+      context: { nested: true },
+    });
+  });
   await app.ready();
   return app;
 };
@@ -55,8 +74,24 @@ const translator = async ({ moduleId, key }: { moduleId: string; key: string }):
  */
 const bundleTranslator =
   (bundle: Record<string, string>) =>
-  async ({ key, originalMessage }: { key: string; originalMessage: string }): Promise<string> =>
-    bundle[key] ?? originalMessage;
+  async ({
+    key,
+    originalMessage,
+    params,
+  }: {
+    key: string;
+    originalMessage: string;
+    params?: Record<string, string | number>;
+  }): Promise<string> => {
+    const sentence = bundle[key];
+    if (sentence === undefined) return originalMessage;
+    // `_i18n`'s own `interpolate`, reproduced: substitute what the params name
+    // and leave every other `{placeholder}` standing, which is the case the
+    // envelope has to notice.
+    return sentence.replace(/\{(\w+)\}/g, (_match, name: string) =>
+      params?.[name] != null ? String(params[name]) : `{${name}}`,
+    );
+  };
 
 describe('the error envelope with an injected translation map', () => {
   it('routes a code to the module and key the injected map names', async () => {
@@ -196,6 +231,110 @@ describe('the error envelope with a refusal token in details.code', () => {
     });
     const response = await app.inject({ method: 'GET', url: '/zod-shaped' });
     expect(response.json().error.message).toBe('translated:catalog.errors.PRODUCT_NOT_FOUND');
+    await app.close();
+  });
+});
+
+/**
+ * Issue #161 — the sentence is filled from `details`.
+ *
+ * `MODULE_DISABLED` is one code for every gated port in the platform, so its
+ * sentence has to be generic in exactly the way `FORBIDDEN`'s is — except that
+ * here the specific part is not a token choosing another sentence, it is a
+ * *value* the one sentence is missing. An operator refused a refund because a
+ * gateway is switched off read "Module Disabled." and was not told which module
+ * to switch back on, while the id sat on the error object the whole time.
+ *
+ * So `details`' scalar members are the interpolation parameters: the envelope
+ * chooses them, `_i18n` substitutes them (it already interpolates `{name}` for
+ * every other backend-side lookup), and a sentence with a placeholder no
+ * parameter fills falls back to the written message rather than showing a
+ * literal `{module}` — the same ruling as issue #65's, that untranslated prose
+ * which is true beats a rendered sentence that is not.
+ */
+describe('the error envelope filling a sentence from details', () => {
+  const moduleDisabled = {
+    [ERROR_CODES.MODULE_DISABLED]: { moduleId: 'core', key: 'errors.MODULE_DISABLED' },
+  };
+  const OFF_SENTENCE = 'The "{module}" module is off, so this action was refused.';
+
+  it('names the module in the sentence an operator reads', async () => {
+    const app = await buildProbe({
+      errorTranslationTargets: moduleDisabled,
+      translateErrorMessage: bundleTranslator({ 'errors.MODULE_DISABLED': OFF_SENTENCE }),
+    });
+    const response = await app.inject({ method: 'GET', url: '/module-off' });
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error.message).toBe(
+      'The "stripe" module is off, so this action was refused.',
+    );
+    await app.close();
+  });
+
+  it('leaves the module id on the wire as well as in the sentence', async () => {
+    // The sentence is for a human; `details` is what a client can branch on
+    // without parsing prose, and it is the same fact in both places.
+    const app = await buildProbe({
+      errorTranslationTargets: moduleDisabled,
+      translateErrorMessage: bundleTranslator({ 'errors.MODULE_DISABLED': OFF_SENTENCE }),
+    });
+    const response = await app.inject({ method: 'GET', url: '/module-off' });
+    expect(response.json().error.details).toEqual({ module: 'stripe' });
+    await app.close();
+  });
+
+  it('passes only the scalar members of details, so a nested value cannot land in prose', async () => {
+    const seen: Array<Record<string, string | number> | undefined> = [];
+    const app = await buildProbe({
+      errorTranslationTargets: {
+        [ERROR_CODES.BULK_TOO_LARGE]: { moduleId: 'core', key: 'errors.BULK_TOO_LARGE' },
+      },
+      translateErrorMessage: async ({ params, originalMessage }) => {
+        seen.push(params);
+        return originalMessage;
+      },
+    });
+    await app.inject({ method: 'GET', url: '/mixed-details' });
+    expect(seen).toEqual([{ maxBatchSize: 200, attribute: 'brand' }]);
+    await app.close();
+  });
+
+  it('passes no parameters for the Zod-shaped details array', async () => {
+    const seen: Array<Record<string, string | number> | undefined> = [];
+    const app = await buildProbe({
+      errorTranslationTargets: {
+        [ERROR_CODES.PRODUCT_NOT_FOUND]: { moduleId: 'catalog', key: 'errors.PRODUCT_NOT_FOUND' },
+      },
+      translateErrorMessage: async ({ params, originalMessage }) => {
+        seen.push(params);
+        return originalMessage;
+      },
+    });
+    await app.inject({ method: 'GET', url: '/zod-shaped' });
+    expect(seen).toEqual([undefined]);
+    await app.close();
+  });
+
+  it('keeps the written message when a placeholder has no value to fill it', async () => {
+    // A refusal that names no module still exists — the four modules that wrap
+    // their own plugin, a hand-written 503 — and "The "{module}" module is off"
+    // is worse than the prose the thrower wrote.
+    const app = await buildProbe({
+      errorTranslationTargets: moduleDisabled,
+      translateErrorMessage: bundleTranslator({ 'errors.MODULE_DISABLED': OFF_SENTENCE }),
+    });
+    const response = await app.inject({ method: 'GET', url: '/module-off-unnamed' });
+    expect(response.json().error.message).toBe('Something is switched off.');
+    await app.close();
+  });
+
+  it('still translates a sentence that has no placeholder at all', async () => {
+    const app = await buildProbe({
+      errorTranslationTargets: moduleDisabled,
+      translateErrorMessage: bundleTranslator({ 'errors.MODULE_DISABLED': 'Module Disabled.' }),
+    });
+    const response = await app.inject({ method: 'GET', url: '/module-off-unnamed' });
+    expect(response.json().error.message).toBe('Module Disabled.');
     await app.close();
   });
 });
