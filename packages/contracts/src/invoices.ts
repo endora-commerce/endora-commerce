@@ -263,6 +263,12 @@ export interface InvoiceRecord {
 export interface InvoiceReadPort {
   findById(id: string): Promise<InvoiceRecord | null>;
   findByIds(ids: readonly string[]): Promise<InvoiceRecord[]>;
+  /**
+   * The document number is the operator's handle on an invoice — `ksef` filters
+   * its submission list by it — so the lookup is published rather than left as
+   * a second module's query over this one's unique index.
+   */
+  findByNumber(number: string): Promise<InvoiceRecord | null>;
   /** An order's invoices, newest first. */
   listForOrder(orderId: string): Promise<InvoiceRecord[]>;
   /** Several orders' invoices at once, for a list screen. */

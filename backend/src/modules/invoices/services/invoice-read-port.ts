@@ -31,6 +31,11 @@ export class InvoiceReadService implements InvoiceReadPort {
     return invoices.map(toInvoiceRecord);
   }
 
+  async findByNumber(number: string): Promise<InvoiceRecord | null> {
+    const invoice = await this.emFactory().findOne(Invoice, { number });
+    return invoice ? toInvoiceRecord(invoice) : null;
+  }
+
   async listForOrder(orderId: string): Promise<InvoiceRecord[]> {
     const invoices = await this.emFactory().find(
       Invoice,
