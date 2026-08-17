@@ -112,7 +112,19 @@ export const manifest = defineModuleManifest({
   description:
     'Per-channel Meilisearch indexes, suggest popup, and optional LLM-augmented search.',
   version: '1.0.0',
-  dependencies: ['catalog', 'credentials', 'price_lists', 'sales_channels', 'settings'],
+  // Feature 075, Phase C — `organizations` joins the five that were already
+  // here. The typeahead's price resolution needs the buyer's organisation, and
+  // this module used to read that row with `em.findOne(Organization, …)`; it
+  // now resolves `organizationDetailsPort`, and an undeclared port edge is a
+  // build failure rather than a silent one.
+  dependencies: [
+    'catalog',
+    'credentials',
+    'organizations',
+    'price_lists',
+    'sales_channels',
+    'settings',
+  ],
   settings,
   activation: { settingCode: 'search.enabled', default: true },
   i18n: { bundlesDir: 'i18n' },

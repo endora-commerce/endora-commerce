@@ -140,6 +140,7 @@ function searchOptions(settingsGet: () => Promise<number>): SearchModuleOptions 
   return {
     emFactory: notCalled('emFactory'),
     catalogAttributeRead: {} as SearchModuleOptions['catalogAttributeRead'],
+    catalogProducts: {} as SearchModuleOptions['catalogProducts'],
     listingPrices: {
       resolveListingPrices: notCalled('resolveListingPrices'),
     } as unknown as SearchModuleOptions['listingPrices'],

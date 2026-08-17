@@ -1,6 +1,9 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type CatalogProductReadPort,
+  type OrganizationDetailsPort,
+} from '@b2b/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import {
   createSuggestionPricingEnricher,
@@ -23,12 +26,14 @@ import {
 
 const PRODUCT = { id: 'p1' } as never;
 
-function fakeEm(): EntityManager {
-  return {
-    findOne: async () => null,
-    find: async () => [PRODUCT],
-  } as unknown as EntityManager;
-}
+/** Feature 075, Phase C — the rows come from the owners' ports now. */
+const catalogProducts = {
+  findByIds: async () => [PRODUCT],
+} as unknown as CatalogProductReadPort;
+
+const organizations = {
+  findById: async () => null,
+} as unknown as OrganizationDetailsPort;
 
 const CTX = {
   organizationId: null,
@@ -38,7 +43,11 @@ const CTX = {
 const ITEMS = [{ id: 'p1', name: 'Widget', slug: 'widget' }] as never;
 
 function enricherWith(resolveEngine: SuggestionPriceResolverPort['resolveEngine']) {
-  return createSuggestionPricingEnricher({ emFactory: fakeEm, pricingService: { resolveEngine } });
+  return createSuggestionPricingEnricher({
+    catalogProducts,
+    organizations,
+    pricingService: { resolveEngine },
+  });
 }
 
 describe('suggestion pricing enricher', () => {

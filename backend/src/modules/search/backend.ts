@@ -1,6 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ListingPricePort } from '@b2b/contracts';
-import type { SearchQueryPort } from '@b2b/contracts';
+import type {
+  CatalogProductReadPort,
+  ListingPricePort,
+  OrganizationDetailsPort,
+  SearchQueryPort,
+} from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -85,6 +89,11 @@ export function registerModule(ctx: ModuleContext): void {
             ctx,
             'catalogAttributeReadPort',
           ),
+          // Feature 075, Phase C — the indexer's product rows. It read them
+          // with `em.find(Product, …)` against `catalog`'s table, which no gate
+          // can see; over the port the read answers 503 when `catalog` is off,
+          // which is the binding dependency this manifest already declares.
+          catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
           settingsService: lazyPort<SearchModuleOptions['settingsService']>(
             ctx,
             'settingsReadPort',
@@ -101,7 +110,8 @@ export function registerModule(ctx: ModuleContext): void {
           // Built here rather than in a root: the enricher is this module's own
           // code, and the only foreign part is the price resolver it wraps.
           enrichSuggestionPricing: createSuggestionPricingEnricher({
-            emFactory,
+            catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
             pricingService: lazyPort<SuggestionPriceResolverPort>(ctx, 'pricingService'),
           }),
           // Issue #132 — the result list prices through the same port the

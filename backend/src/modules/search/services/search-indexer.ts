@@ -2,14 +2,15 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Meilisearch, type Index } from 'meilisearch';
 import {
   resolveAttribute,
+  SYSTEM_ATTRIBUTE_SCOPES,
+  type CatalogAttributeReadPort,
+  type CatalogProductReadPort,
+  type CatalogProductRecord,
+  type CatalogProductValueOverrideRecord,
   type OverrideRow,
   type ResolverContext,
 } from '@b2b/contracts';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { ProductValueOverride } from '../../catalog/entities/product-value-override.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import { SYSTEM_ATTRIBUTE_SCOPES } from '../../catalog/services/system-attribute-scopes.js';
-import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
 
 /**
  * SearchIndexer (T067 — initial offline path).
@@ -39,8 +40,22 @@ export interface SearchIndexerOptions {
    * replaces the former direct `ProductAttribute` entity find + raw
    * `attribute_options` SQL). Required — the searchable/filterable settings
    * and the option-label aggregation are derived from it.
+   *
+   * Feature 075, Phase C — typed as the published port rather than `catalog`'s
+   * service class, so this module names no file in `catalog`'s directory.
    */
-  attributeRead: CatalogAttributeReadService;
+  attributeRead: CatalogAttributeReadPort;
+  /**
+   * Feature 075, Phase C — the product rows an index document is built from.
+   *
+   * They used to be `em.find(Product, …)` / `em.findOne(Product, …)` against
+   * `catalog`'s table from inside this module, which is the shape Principle
+   * XVII cannot gate: deactivation drops no tables, so the indexer kept
+   * rewriting Meilisearch documents out of a module an operator had switched
+   * off. Through the port the same read answers 503 `MODULE_DISABLED`, which is
+   * the binding `catalog` dependency this module's manifest declares.
+   */
+  products: CatalogProductReadPort;
 }
 
 export interface IndexedDocument {
@@ -77,7 +92,8 @@ export interface IndexedDocument {
 export class SearchIndexer {
   private readonly client: Meilisearch;
   private readonly locale: string;
-  private readonly attributeRead: CatalogAttributeReadService;
+  private readonly attributeRead: CatalogAttributeReadPort;
+  private readonly products: CatalogProductReadPort;
 
   constructor(options: SearchIndexerOptions) {
     const host =
@@ -91,6 +107,7 @@ export class SearchIndexer {
     this.client = new Meilisearch(apiKey ? { host, apiKey } : { host });
     this.locale = options.locale ?? FALLBACK_LOCALE;
     this.attributeRead = options.attributeRead;
+    this.products = options.products;
   }
 
   /**
@@ -108,9 +125,10 @@ export class SearchIndexer {
     const index = await this.ensureIndex(indexUid);
 
     const productIds = await this.productIdsInChannel(em, channel.id);
-    const products = productIds.length === 0
-      ? []
-      : await em.find(Product, { id: { $in: productIds } });
+    // The channel query above has already narrowed to publishable rows, so the
+    // port is asked for the wider read it defaults to — the same set the
+    // `em.find(Product, { id: { $in: … } })` this replaced returned.
+    const products = await this.products.findByIds(productIds);
     const categoryRows = await em
       .getConnection()
       .execute<Array<{ product_id: string; category_id: string; slug: string }>>(
@@ -139,11 +157,8 @@ export class SearchIndexer {
     // in one query, then bucket by productId. Each document is built
     // with the channel's defaultLanguage so per-(channel, language)
     // overrides for system Name / Description flow through.
-    const overrideRows =
-      productIds.length === 0
-        ? []
-        : await em.find(ProductValueOverride, { productId: { $in: productIds } });
-    const overridesByProduct = new Map<string, ProductValueOverride[]>();
+    const overrideRows = await this.products.listValueOverridesByProductIds(productIds);
+    const overridesByProduct = new Map<string, CatalogProductValueOverrideRecord[]>();
     for (const row of overrideRows) {
       const list = overridesByProduct.get(row.productId) ?? [];
       list.push(row);
@@ -197,7 +212,7 @@ export class SearchIndexer {
    * one-line summary.
    */
   async upsertProduct(em: EntityManager, productId: string): Promise<string[]> {
-    const product = await em.findOne(Product, { id: productId });
+    const product = await this.products.findById(productId);
     if (!product) return [];
 
     const channels = await em.find(SalesChannel, {});
@@ -227,7 +242,7 @@ export class SearchIndexer {
     const optionLookup = await this.loadSearchableOptionLookup(em, this.locale);
     // Feature 022 — per-channel overrides for system Name / Description.
     // Fetch once; the resolver then runs per (channel, channel.defaultLanguage).
-    const overrides = await em.find(ProductValueOverride, { productId });
+    const overrides = await this.products.listValueOverridesByProductIds([productId]);
 
     const isPublishable =
       product.status === 'active' && !product.deletedAt && !product.archivedAt;
@@ -491,12 +506,12 @@ export function indexUidFor(channel: { code: string }): string {
 }
 
 function buildDocument(
-  product: Product,
+  product: CatalogProductRecord,
   categories: Array<{ id: string; slug: string }>,
   locale: string,
   searchableOptionLookup: Map<string, Map<string, string>>,
   resolverInputs?: {
-    overrides: ProductValueOverride[];
+    overrides: CatalogProductValueOverrideRecord[];
     channelId: string;
     languageCode: string;
   },

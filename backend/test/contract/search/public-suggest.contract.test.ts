@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES, SearchSuggestResponseSchema } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  SearchSuggestResponseSchema,
+  type CatalogProductReadPort,
+} from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -26,6 +30,17 @@ import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
 
 const meilisearchHost = process.env['MEILISEARCH_URL'] ?? 'http://localhost:7700';
 const meilisearchKey = process.env['MEILISEARCH_API_KEY'] ?? 'devMasterKeyChangeMe';
+
+/**
+ * The container's `catalogProductReadPort` — feature 075, Phase C. The indexer
+ * takes `catalog`'s published read port instead of querying its table, so a
+ * hand-built indexer here resolves the same registration the composed module
+ * does rather than a second reader of the same rows.
+ */
+function catalogProductReadPort(handle: BackendServerHandle): CatalogProductReadPort {
+  return (handle.container.cradle as never as { catalogProductReadPort: CatalogProductReadPort })
+    .catalogProductReadPort;
+}
 
 describe('GET /api/v1/search/suggest — feature 006 / US1', () => {
   let h: BackendServerHandle;
@@ -56,6 +71,7 @@ describe('GET /api/v1/search/suggest — feature 006 / US1', () => {
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
       attributeRead: h.catalogAttributeRead,
+      products: catalogProductReadPort(h),
     });
     const channels = await h.em().find(SalesChannel, {});
     for (const channel of channels) {

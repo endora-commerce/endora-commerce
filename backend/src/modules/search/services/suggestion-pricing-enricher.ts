@@ -1,8 +1,13 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DisplayMode, ProductSummary, SearchSuggestItem } from '@b2b/contracts';
+import type {
+  CatalogProductReadPort,
+  CatalogProductRecord,
+  DisplayMode,
+  OrganizationDetailsPort,
+  OrganizationRecord,
+  ProductSummary,
+  SearchSuggestItem,
+} from '@b2b/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
 import type { SuggestionPricingEnricher } from '../routes.public.js';
 
 /**
@@ -11,8 +16,10 @@ import type { SuggestionPricingEnricher } from '../routes.public.js';
  *
  * The search module stays isolated from the price-lists module's concrete
  * service: it depends only on the narrow {@link SuggestionPriceResolverPort}
- * structural port below, which the composition root satisfies with the
- * price-lists `PricingService`. (Constitution I — modules talk through ports.)
+ * structural port below, which the container's `pricingService` satisfies with
+ * the price-lists `PricingService`. (Constitution I — modules talk through
+ * ports.) Its two row parameters are the published contract records, so the
+ * declaration names no file in `catalog`'s or `organizations`' directory.
  *
  * Pricing is resolved per hit in parallel, capped by the suggest `limit`
  * (default 8), and the resolver caches per-tuple for 60s, so the popup adds
@@ -25,11 +32,11 @@ import type { SuggestionPricingEnricher } from '../routes.public.js';
 
 export interface SuggestionPriceResolverPort {
   resolveEngine(input: {
-    product: Product;
+    product: CatalogProductRecord;
     variantId?: string | null;
     context: {
       quantity: number;
-      organization?: Organization | null;
+      organization?: OrganizationRecord | null;
       salesChannel: { id: string; defaultCurrency: string };
       currencyCode?: string;
     };
@@ -42,25 +49,30 @@ export interface SuggestionPriceResolverPort {
 }
 
 export function createSuggestionPricingEnricher(deps: {
-  emFactory: () => EntityManager;
+  /**
+   * Feature 075, Phase C — the two rows a priced suggestion needs, each read
+   * from the module that owns it instead of out of its table. `em.find(Product,
+   * …)` and `em.findOne(Organization, …)` from inside this module went on
+   * answering after an operator had switched either owner off, because
+   * deactivation drops no tables; the ports fail closed instead.
+   */
+  catalogProducts: CatalogProductReadPort;
+  organizations: OrganizationDetailsPort;
   pricingService: SuggestionPriceResolverPort;
 }): SuggestionPricingEnricher {
-  const { emFactory, pricingService } = deps;
+  const { catalogProducts, organizations, pricingService } = deps;
 
   return async (items: ProductSummary[], ctx): Promise<SearchSuggestItem[]> => {
     if (items.length === 0) return [];
-    const em = emFactory();
 
     // Feature 053 / FR-002: the channel is resolved once upstream and handed in.
     const channel = ctx.resolvedChannel;
 
     const organization = ctx.organizationId
-      ? await em.findOne(Organization, { id: ctx.organizationId })
+      ? await organizations.findById(ctx.organizationId)
       : null;
 
-    const products = await em.find(Product, {
-      id: { $in: items.map((i) => i.id) },
-    });
+    const products = await catalogProducts.findByIds(items.map((i) => i.id));
     const byId = new Map(products.map((p) => [p.id, p]));
 
     return Promise.all(
