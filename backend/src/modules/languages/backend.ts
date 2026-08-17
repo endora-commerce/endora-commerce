@@ -1,9 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
-import { LANGUAGE_CHANGED_EVENT, type LanguageAdminPort, type LanguageReadPort } from '@b2b/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
+import {
+  LANGUAGE_CHANGED_EVENT,
+  type CurrencyAdminPort,
+  type CurrencyReadPort,
+  type LanguageAdminPort,
+  type LanguageReadPort,
+} from '@b2b/contracts';
+import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { CurrencyService } from '../currencies/services/currency-service.js';
 import { LanguageService } from './services/language-service.js';
 import { LanguageReadService, createLanguageAdminPort } from './services/language-ports.js';
 import { LocaleService } from './services/locale-service.js';
@@ -53,8 +58,6 @@ export interface LanguagesCradle {
   /** Narrowed the same way `currencies` narrows it: announce, do not type. */
   readonly eventBus: { emit: (event: string, payload: unknown) => void };
   readonly requireAdmin: RequireAdminFactory;
-  /** Owned by `currencies`; the admin surface here serves both. */
-  readonly currencyService: CurrencyService;
   readonly languageService: LanguageService;
   readonly localeService: LocaleService;
 }
@@ -120,11 +123,18 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.routes(async (app) => {
-    const { languageService, currencyService, localeService, requireAdmin } =
-      ctx.cradle<LanguagesCradle>();
+    const { languageService, localeService, requireAdmin } = ctx.cradle<LanguagesCradle>();
     await registerI18nRoutes(app, {
       languageService,
-      currencyService,
+      // Feature 075, Phase C — the admin surface here serves both catalogues,
+      // but `currencies` owns one of them. Its half arrives over the ports
+      // `currencies` publishes rather than over its service class, so this
+      // module names no file of theirs and the currency routes answer 503
+      // `MODULE_DISABLED` if `currencies` ever stops being present. The
+      // proxies resolve per call: a port captured in a singleton keeps
+      // answering after its owner is switched off.
+      currencyRead: lazyPort<CurrencyReadPort>(ctx, 'currencyReadPort'),
+      currencyAdmin: lazyPort<CurrencyAdminPort>(ctx, 'currencyAdminPort'),
       requireAdmin,
       onConfigChange: () => localeService.invalidateDefault(),
     });
