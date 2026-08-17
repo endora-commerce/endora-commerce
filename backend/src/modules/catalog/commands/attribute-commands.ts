@@ -3,13 +3,14 @@ import {
   ERROR_CODES,
   isCustomFieldDefinitionFailure,
   type CreateAttributeRequest,
+  type CustomFieldDefinitionWithOptions,
   type CustomFieldOptionDto,
   type UpdateAttributeRequest,
 } from '@b2b/contracts';
 import type { Command } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CustomFieldDefinitionApplyApi } from '../../custom_fields/services/custom-field-definition.service.js';
-import type { CachedDefinition } from '../../custom_fields/services/custom-field-definitions-cache.js';
+
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import {
   cfToLegacyValueType,
@@ -61,7 +62,7 @@ export interface AttributeCommandDeps {
   /** The custom_fields transactional apply seam (definition/option writes). */
   apply: CustomFieldDefinitionApplyApi;
   /** Committed-state definition read (capture snapshots + guard inputs). */
-  readDefinition: (id: string) => Promise<CachedDefinition | null>;
+  readDefinition: (id: string) => Promise<CustomFieldDefinitionWithOptions | null>;
 }
 
 export interface AttributeMutationResult {

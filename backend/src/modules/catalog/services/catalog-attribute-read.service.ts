@@ -4,9 +4,10 @@ import type {
   CatalogAttributeFlag,
   CatalogAttributeOptionView,
   CatalogAttributeView,
+  CustomFieldDefinitionReadPort,
+  CustomFieldDefinitionWithOptions,
 } from '@b2b/contracts';
-import type { DefinitionSource } from '../../custom_fields/services/custom-field-value.service.js';
-import type { CachedDefinition } from '../../custom_fields/services/custom-field-definitions-cache.js';
+
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { cfToLegacyValueType } from './attribute-type-mapping.js';
@@ -58,7 +59,7 @@ export class CatalogAttributeIntegrityError extends Error {
  * invalidate-and-reload round separates that benign window from real
  * data corruption.
  */
-export interface AttributeDefinitionSource extends DefinitionSource {
+export interface AttributeDefinitionSource extends CustomFieldDefinitionReadPort {
   publishInvalidate?(entityType: 'product'): Promise<void>;
 }
 
@@ -146,7 +147,7 @@ export class CatalogAttributeReadService {
       if (options.length === 0) continue;
       const bucket = new Map<string, { label: Record<string, string>; labelDefault: string }>();
       for (const o of options) {
-        bucket.set(o.value, { label: o.label ?? {}, labelDefault: o.labelDefault });
+        bucket.set(o.value, { label: o.label, labelDefault: o.labelDefault });
       }
       out.set(definition.key, bucket);
     }
@@ -155,12 +156,14 @@ export class CatalogAttributeReadService {
 
   // -- internals -------------------------------------------------------------
 
-  private definitionIndex(defs: CachedDefinition[]): Map<string, CachedDefinition> {
+  private definitionIndex(
+    defs: CustomFieldDefinitionWithOptions[],
+  ): Map<string, CustomFieldDefinitionWithOptions> {
     return new Map(defs.map((d) => [d.definition.id, d]));
   }
 
   private composeAll(
-    defs: CachedDefinition[],
+    defs: CustomFieldDefinitionWithOptions[],
     extensions: ProductAttribute[],
   ): CatalogAttributeView[] {
     const extByDefId = new Map(extensions.map((e) => [e.customFieldDefinitionId, e]));
@@ -187,7 +190,7 @@ export class CatalogAttributeReadService {
 
   private compose(
     ext: ProductAttribute,
-    defById: Map<string, CachedDefinition>,
+    defById: Map<string, CustomFieldDefinitionWithOptions>,
   ): CatalogAttributeView {
     const cached = defById.get(ext.customFieldDefinitionId);
     if (!cached) {
@@ -200,14 +203,14 @@ export class CatalogAttributeReadService {
 
   private composeFromCached(
     ext: ProductAttribute,
-    cached: CachedDefinition,
+    cached: CustomFieldDefinitionWithOptions,
   ): CatalogAttributeView {
     const { definition, options } = cached;
     return {
       id: ext.id,
       customFieldDefinitionId: definition.id,
       key: definition.key,
-      label: definition.label ?? {},
+      label: definition.label,
       labelDefault: definition.labelDefault,
       valueType: cfToLegacyValueType(
         definition.valueType,
@@ -218,7 +221,7 @@ export class CatalogAttributeReadService {
       options: options.map((o) => ({
         id: o.id,
         value: o.value,
-        label: o.label ?? {},
+        label: o.label,
         labelDefault: o.labelDefault,
         isDefault: o.isDefault,
         sortOrder: o.sortOrder,

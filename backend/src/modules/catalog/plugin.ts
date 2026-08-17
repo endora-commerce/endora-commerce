@@ -2,10 +2,6 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { CommandBus } from '../../commands/index.js';
-import type {
-  CustomFieldValueService,
-  DefinitionSource,
-} from '../custom_fields/services/custom-field-value.service.js';
 import {
   BULK_OPERATION_TYPES,
   type AssetReadPort,
@@ -15,6 +11,8 @@ import {
   type LanguageReadPort,
   type ListingPricePort,
   type OrgLinePricePort,
+  type CustomFieldDefinitionReadPort,
+  type CustomFieldValuePort,
   type OrganizationDetailsPort,
 } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
@@ -193,7 +191,7 @@ export interface CatalogModuleOptions {
     salesChannelCode: string | undefined,
   ) => Promise<string | null>;
   /** Feature 055 — validates + reads Category custom-field values on the admin edit path. */
-  customFieldValues?: CustomFieldValueService;
+  customFieldValues?: CustomFieldValuePort;
   /**
    * Feature 055 (US4) — custom-field definition source. When wired, Category
    * custom fields flagged `config.filterable` are merged into the storefront
@@ -204,7 +202,7 @@ export interface CatalogModuleOptions {
    * model and, when it satisfies {@link CatalogCustomFieldsPort}, the
    * attribute write path (apply seam).
    */
-  customFieldDefinitions?: DefinitionSource;
+  customFieldDefinitions?: CustomFieldDefinitionReadPort;
   /**
    * Feature 061 — the custom_fields apply seam + committed-state read used by
    * the attribute Commands. Production + test composition pass the

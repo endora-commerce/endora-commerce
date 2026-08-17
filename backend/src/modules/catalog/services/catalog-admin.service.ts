@@ -36,12 +36,13 @@ import {
 } from './product-type-validations.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { CustomFieldDefinitionWithOptions } from '@b2b/contracts';
 import type { Command, CommandBus } from '../../../commands/index.js';
 // D-77 — the apply seam is named once in this module, by `attribute-commands.ts`
 // (see the re-export there for why it is a re-export and not a local
 // declaration). This file extends it into the slice the catalog write path uses.
 import type { CustomFieldDefinitionApplyApi } from '../commands/attribute-commands.js';
-import type { CachedDefinition } from '../../custom_fields/services/custom-field-definitions-cache.js';
+
 import type {
   CatalogAttributeReadService,
   CatalogAttributeView,
@@ -69,7 +70,7 @@ export { dbToApiAttributeType, resolveAttributeApiType } from './attribute-type-
  * this structurally (Principle I — documented exported service surface only).
  */
 export interface CatalogCustomFieldsPort extends CustomFieldDefinitionApplyApi {
-  getById(id: string): Promise<CachedDefinition | null>;
+  getById(id: string): Promise<CustomFieldDefinitionWithOptions | null>;
 }
 
 /**
