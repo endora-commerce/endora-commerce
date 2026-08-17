@@ -235,13 +235,13 @@ export class CatalogOrgPriceDecorator {
     productIds: string[],
     salesChannelId: string,
   ): Promise<Map<string, ProductAvailability>> {
+    // D-61 — no `catch` here. `inventory` being absent is *decided* by the
+    // contribution, in front of the gate, and arrives as the empty map this
+    // method already returns when nothing is wired; the manifest declares that
+    // degrade as `degrades-without`. What a `catch` would add is the ability to
+    // turn a genuine inventory failure into a silently unpriced band.
     if (!this.deps.resolveAvailability) return new Map();
-    try {
-      return await this.deps.resolveAvailability(productIds, salesChannelId);
-    } catch {
-      // Availability is an indication, never a reason to fail a catalog read.
-      return new Map();
-    }
+    return this.deps.resolveAvailability(productIds, salesChannelId);
   }
 
   #withAvailability(

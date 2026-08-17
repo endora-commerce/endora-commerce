@@ -10,6 +10,10 @@ import type { ConfigurationTypeRegistry } from '../credentials/services/configur
 import { productFeedsModule, type ProductFeedsModuleOptions } from './plugin.js';
 import { feedDeliveryConfigurationType } from './services/delivery/delivery-credential.type.js';
 import {
+  presenceAwareRecorder,
+  type AdminNotificationPort,
+} from './services/failed-run-notifier.js';
+import {
   FEED_CACHE_INVALIDATION_EVENTS,
   invalidateFeedTokenCache,
 } from './services/feed-cache-invalidator.js';
@@ -66,7 +70,8 @@ export interface ProductFeedsCradle {
   readonly credentialsService: NonNullable<ProductFeedsModuleOptions['credentials']>;
   readonly customFieldDefinitionService: NonNullable<ProductFeedsModuleOptions['customFieldDefinitions']>;
   readonly languageService: NonNullable<ProductFeedsModuleOptions['languageService']>;
-  readonly adminNotificationService: NonNullable<ProductFeedsModuleOptions['adminNotificationService']>;
+  /** `admin_notifications`' gated port — wrapped below, never handed on raw. */
+  readonly adminNotificationService: AdminNotificationPort;
   readonly settingsReadPort: NonNullable<ProductFeedsModuleOptions['settings']>;
   readonly moduleQueueRedis: Redis | undefined;
   /** Root-supplied (Principle X): the harness runs no generation or reaper consumer. */
@@ -150,9 +155,13 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'languageService',
             ),
-            adminNotificationService: lazyPort<
-              ProductFeedsCradle['adminNotificationService']
-            >(ctx, 'adminNotificationService'),
+            // D-60 — the bell's absence is decided here, in front of the gate,
+            // and reaches the notifiers as `not-present` in the return type.
+            // A `catch` at the call site fused "the operator switched
+            // notifications off" with "the write failed" into one `false`.
+            adminNotificationService: presenceAwareRecorder(
+              lazyPort<AdminNotificationPort>(ctx, 'adminNotificationService'),
+            ),
             settings: lazyPort<ProductFeedsCradle['settingsReadPort']>(ctx, 'settingsReadPort'),
             // Forwarded per call so a root may contribute the bridge at any
             // point in its own ordering.

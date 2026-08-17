@@ -65,7 +65,7 @@ import type { PermissionCatalogueService } from '../../src/modules/admin_roles/s
 import type { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
 import type { AuthCradle } from '../../src/modules/auth/backend.js';
 import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type ProductAvailability } from '@b2b/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
@@ -1682,6 +1682,13 @@ export async function setupBackendServer(
       impersonatedCustomerAccountId: null,
     }),
     catalogExternalAvailability: async (productIds: string[], salesChannelId: string) => {
+      // D-61 — the same presence probe production's contribution makes, and it
+      // has to be the same or the off-state test would assert against a
+      // composition production does not run. `catalog` declares the degrade as
+      // `degrades-without`: no `inventory`, no availability band.
+      if (!effectiveState.isPresent('inventory')) {
+        return new Map<string, ProductAvailability>();
+      }
       return inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
         productIds,
         salesChannelId,

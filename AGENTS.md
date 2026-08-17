@@ -148,7 +148,11 @@ never add a "module options" object for something the module can read itself.
    accident rather than by decision. It follows the port **through the value**, not the
    `lazyPort` literal (issues #133/#113): a `catch` around a holder the port was constructed
    into, or around a name a composition root contributed, is the same violation. Run it with
-   `PORT_CATCH_WHY=1` to see why a name reads as a port.
+   `PORT_CATCH_WHY=1` to see why a name reads as a port. A site whose **every** gate belongs to
+   a module the platform refuses to switch off is reported as `OWNER LOCKED` instead: the
+   presence answer is unreachable, so there is nothing to drain and a ledger entry over one
+   reads stale (D-63). That classification is derived from the manifests on every run, never
+   written into a reason — un-lock the owner and the site is a violation again, in the same run.
 8. **One registration pass, one boot phase (D-45).** A root calls `composeModules(MODULES, …)`
    once and `runBootHooks()` once, immediately before it builds the Fastify app — so **a boot
    hook may resolve anything**, whichever module registered it. Registration itself resolves

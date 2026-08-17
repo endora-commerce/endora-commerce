@@ -314,6 +314,145 @@ ${body}
   });
 });
 
+/**
+ * The fourth answer — `OWNER LOCKED`, derived rather than written (D-63).
+ *
+ * A site whose every gate belongs to a module the platform refuses to switch
+ * off has no presence answer to swallow: the `catch` is still there and still
+ * absorbs everything else, but there is nothing left to drain. The
+ * classification is computed from the manifests **at check time**, and that is
+ * the whole point — a hand-written "locked" in a reason string would go stale
+ * in silence the day somebody removes the lock, which is the failure mode a
+ * two-way ledger exists to prevent.
+ *
+ * So the shape this pair of tests protects is not "does it retire the site" but
+ * "does it **re-red** the site the moment the lock is withdrawn", with the
+ * fixture entering where a real run enters: source text plus the manifests, not
+ * a ready-made set of locked ids.
+ */
+describe('findPortCatches — OWNER LOCKED, derived from the manifests (D-63)', () => {
+  /** `addresses` owns the port; `orders` catches around a compensating cleanup. */
+  const ADDRESSES_BACKEND = `
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.providePort('addressService', ctx.asFunction(() => new AddressService()).singleton());
+}
+`;
+
+  const ORDERS_SERVICE = `
+export class OrderApiIntakeService {
+  async place() {
+    try {
+      await this.deps.addressService.deleteTransient(id);
+    } catch {
+      /* compensating cleanup, best effort */
+    }
+  }
+}
+`;
+
+  /** A second gate in the same `catch`, owned by a module an operator may flip. */
+  const COMPARISONS_BACKEND = `
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.providePort('comparisonService', ctx.asFunction(() => new ComparisonService()).singleton());
+}
+`;
+
+  const ORDERS_TWO_GATES = `
+export class OrderApiIntakeService {
+  async place() {
+    try {
+      await this.deps.addressService.deleteTransient(id);
+      await this.deps.comparisonService.adopt(id);
+    } catch {
+      /* best effort */
+    }
+  }
+}
+`;
+
+  const sources = (service: string): Map<string, string> =>
+    new Map([
+      ['modules/addresses/backend.ts', ADDRESSES_BACKEND],
+      ['modules/comparisons/backend.ts', COMPARISONS_BACKEND],
+      ['modules/orders/services/order-api-intake-service.ts', service],
+    ]);
+
+  const lockedAddresses = {
+    id: 'addresses',
+    activation: {
+      nonDeactivatable: true,
+      reason: 'Every stored address is organization-scoped.',
+    },
+  };
+  const switchableAddresses = {
+    id: 'addresses',
+    activation: { settingCode: 'addresses.enabled', default: true },
+  };
+  const switchableComparisons = {
+    id: 'comparisons',
+    activation: { settingCode: 'comparisons.enabled', default: true },
+  };
+
+  it('retires a site whose every gate is owned by a locked module', () => {
+    const result = checkPortCatches(
+      { sources: sources(ORDERS_SERVICE), manifests: [lockedAddresses, switchableComparisons] },
+      {},
+    );
+    expect(result.violations).toHaveLength(0);
+    expect(result.ownerLocked.map(keyOf)).toEqual([
+      'modules/orders/services/order-api-intake-service.ts:addressService',
+    ]);
+  });
+
+  it('re-reds the same site the moment the lock is withdrawn', () => {
+    // No ledger edit, no code change — the manifest alone decides, so an owner
+    // who un-locks their module gets every site resting on that lock back in
+    // the same run.
+    const result = checkPortCatches(
+      { sources: sources(ORDERS_SERVICE), manifests: [switchableAddresses, switchableComparisons] },
+      {},
+    );
+    expect(result.ownerLocked).toHaveLength(0);
+    expect(result.violations.map(keyOf)).toEqual([
+      'modules/orders/services/order-api-intake-service.ts:addressService',
+    ]);
+  });
+
+  it('does not retire a site that also carries a switchable owner`s gate', () => {
+    // The login hook's shape: `carts` is locked and `comparisons` is not, so
+    // there is a reachable presence answer in that `catch` and the site stays.
+    const result = checkPortCatches(
+      { sources: sources(ORDERS_TWO_GATES), manifests: [lockedAddresses, switchableComparisons] },
+      {},
+    );
+    expect(result.ownerLocked.map((entry) => entry.port)).not.toContain('comparisonService');
+    expect(result.violations.map((entry) => entry.port).sort()).toEqual(['comparisonService']);
+  });
+
+  it('locks nothing when no manifest is supplied', () => {
+    const result = checkPortCatches({ sources: sources(ORDERS_SERVICE) }, {});
+    expect(result.ownerLocked).toHaveLength(0);
+    expect(result.violations).toHaveLength(1);
+  });
+
+  it('reads a ledger entry for an OWNER LOCKED site as stale', () => {
+    // This is how the four entries retire: the classification takes them out of
+    // the violation set, and the staleness half then requires the entry to go.
+    // Keeping it would leave a "drain me" note over a question the product
+    // already answered — and would silence the re-red above.
+    const ledger = {
+      'modules/orders/services/order-api-intake-service.ts:addressService': 'a reason that would be real enough to pass the length rule in this ledger',
+    };
+    const result = checkPortCatches(
+      { sources: sources(ORDERS_SERVICE), manifests: [lockedAddresses] },
+      ledger,
+    );
+    expect(result.stale).toEqual([
+      'modules/orders/services/order-api-intake-service.ts:addressService',
+    ]);
+  });
+});
+
 describe('checkPortCatches — the two-way ratchet', () => {
   it('fails on an unledgered bare catch', () => {
     const result = checkPortCatches({ sources: tree(BARE) }, {});

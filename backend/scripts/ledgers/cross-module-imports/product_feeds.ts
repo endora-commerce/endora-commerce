@@ -17,8 +17,6 @@
 export const entries: Readonly<Record<string, string>> = {
   'modules/product_feeds/backend.ts:credentials/services/configuration-type-registry':
     'F3 Phase C — product_feeds. Retired by the product_feeds cut merge request.',
-  'modules/product_feeds/plugin.ts:admin_notifications/services/admin-notification-service':
-    'F3 Phase C — product_feeds. Retired by the product_feeds cut merge request.',
   'modules/product_feeds/plugin.ts:catalog/entities/product.entity':
     'F3 Phase C — product_feeds. Retired by the product_feeds cut merge request.',
   'modules/product_feeds/plugin.ts:credentials/services/credentials.service':

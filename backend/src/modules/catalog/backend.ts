@@ -25,6 +25,10 @@ import { CatalogQueryService } from './services/catalog-query.service.js';
 import type { CatalogEventBus } from './services/catalog-admin.service.js';
 import { registerCatalogAssetReferences } from './services/asset-references.js';
 import {
+  presenceAwareBulkRecorder,
+  type BulkNotificationPort,
+} from './services/bulk-operation.service.js';
+import {
   catalogPromptMutationTools,
   catalogPromptResolverTools,
   type CatalogPromptToolsDeps,
@@ -88,7 +92,8 @@ export interface CatalogCradle {
    */
   readonly pricingService: NonNullable<CatalogModuleOptions['pricingService']>;
   readonly languageService: NonNullable<CatalogModuleOptions['languageService']>;
-  readonly adminNotificationService: NonNullable<CatalogModuleOptions['adminNotificationService']>;
+  /** `admin_notifications`' gated port — wrapped below, never handed on raw. */
+  readonly adminNotificationService: BulkNotificationPort;
   readonly emailMailer: NonNullable<CatalogModuleOptions['mailer']>;
   readonly requireApiKey: NonNullable<CatalogModuleOptions['requireApiKey']>;
   readonly requireBoundApiKey: NonNullable<CatalogModuleOptions['requireBoundApiKey']>;
@@ -236,9 +241,13 @@ export function registerModule(ctx: ModuleContext): void {
             languageService: lazyPort<CatalogCradle['languageService']>(ctx, 'languageService'),
             // Absent from the harness before T142, so the bulk-operation
             // completion notice and its e-mail ran in no test.
-            adminNotificationService: lazyPort<CatalogCradle['adminNotificationService']>(
-              ctx,
-              'adminNotificationService',
+            //
+            // D-60 — the bell's absence is decided here, in front of the gate,
+            // and reaches the bulk-operation service as `not-present` in the
+            // return type. A `catch` at the call site fused "the operator
+            // switched notifications off" with "the write failed".
+            adminNotificationService: presenceAwareBulkRecorder(
+              lazyPort<BulkNotificationPort>(ctx, 'adminNotificationService'),
             ),
             mailer: lazyPort<CatalogCradle['emailMailer']>(ctx, 'emailMailer'),
             requireAdmin: (permission) => async (req, reply) =>
