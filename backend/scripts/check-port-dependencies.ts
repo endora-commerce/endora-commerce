@@ -1559,9 +1559,15 @@ export const ROOT_DIVERGENCE_ALLOWED: Readonly<Record<string, string>> = {};
 /**
  * Every registration name a composition root writes into the container.
  *
- * Both shapes a root uses: `registerValues(container, { … })` and a direct
- * `container.register({ … })`. Spread elements are ignored — a name that only
- * exists inside a spread is not a name this check can reason about.
+ * Every shape a root uses: `registerValues(container, { … })`, a direct
+ * `container.register({ … })`, and `composedModules.contribute({ … })` — D-45's
+ * contribution window as a method (issue #52). Missing the third would empty
+ * this list of nearly every name a root supplies, and the shadowing, divergence
+ * and unsupplied findings below are all computed from it: the check would report
+ * green because it had stopped looking.
+ *
+ * Spread elements are ignored — a name that only exists inside a spread is not a
+ * name this check can reason about.
  */
 export function rootRegisteredNames(source: string, file: string): string[] {
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
@@ -1582,7 +1588,12 @@ export function rootRegisteredNames(source: string, file: string): string[] {
         const [, second] = node.arguments;
         if (second && ts.isObjectLiteralExpression(second)) collect(second);
       }
-      if (callee === 'container.register' || callee === 'register') {
+      if (
+        callee === 'container.register' ||
+        callee === 'register' ||
+        callee === 'contribute' ||
+        callee.endsWith('.contribute')
+      ) {
         const [first] = node.arguments;
         if (first && ts.isObjectLiteralExpression(first)) collect(first);
       }

@@ -301,7 +301,14 @@ const RESOLVER_ENTRIES = new Set(['asFunction', 'asValue', 'asClass']);
 
 /**
  * A call that claims a **container** name — `registerValues(container, …)`,
- * `ctx.di.register(…)`, `ctx.di.providePort(…)`.
+ * `composedModules.contribute(…)`, `ctx.di.register(…)`,
+ * `ctx.di.providePort(…)`.
+ *
+ * `contribute` is the same claim as `registerValues` made inside D-45's window
+ * (issue #52), and it has to be read here for the same reason: a root moving 72
+ * contributions onto the method would otherwise take every one of those names
+ * out of this analysis, and the check would go quiet without anything changing
+ * about the tree.
  *
  * Deliberately narrow. Matching a bare `.register(` would also match Fastify's
  * `app.register(plugin, options)` and turn every option key in the tree into an
@@ -313,6 +320,7 @@ function isContainerRegistration(node: ts.CallExpression): boolean {
   if (ts.isIdentifier(node.expression)) return node.expression.text === 'registerValues';
   if (!ts.isPropertyAccessExpression(node.expression)) return false;
   const method = node.expression.name.text;
+  if (method === 'contribute') return true;
   if (method !== 'register' && method !== 'providePort') return false;
   return tailName(node.expression.expression) === 'di';
 }

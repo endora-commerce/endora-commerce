@@ -41,7 +41,9 @@ import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { type TenantContext } from '../../src/tenancy/tenant-context.js';
 import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js';
 // Feature 072 — the generated module list, composed in one pass exactly as
-// `src/composition.ts` composes it (D-45).
+// `src/composition.ts` composes it (D-45). Issue #52 — and contributed into
+// through the same `composedModules.contribute(…)` window, which is a method
+// rather than a convention precisely because this pair kept drifting.
 import { MODULES } from '../../src/composition.generated.js';
 import {
   composeModules,
@@ -867,7 +869,7 @@ export async function setupBackendServer(
   const emailMailer = (container.cradle as unknown as EmailCradle).emailMailer;
   const injectedMailer = options.organizationsMailer ?? emailMailer;
   if (options.organizationsMailer) {
-    registerValues(container, { emailMailer: injectedMailer });
+    composedModules.contribute({ emailMailer: injectedMailer });
   }
 
   // CartService is exposed by the commerce module so the login handler in
@@ -945,7 +947,7 @@ export async function setupBackendServer(
   // absent. Registered after `composeModules` so it overrides the module's own
   // default rather than being overwritten by it; the getter is late-bound, so
   // the order the modules register in is not a race.
-  registerValues(container, { mfaLoginPortGetter: getTestMfaLoginPort });
+  composedModules.contribute({ mfaLoginPortGetter: getTestMfaLoginPort });
 
 
   // Feature 056 — organization tree + inheritance resolution, built here for
@@ -1025,7 +1027,7 @@ export async function setupBackendServer(
   // Feature 072 (T110) — the channel-resolution names. The kernel itself is
   // composed above `composeModules`, for the subscriber ordering; what belongs
   // here is the registration, in the one contribution slot.
-  registerValues(container, {
+  composedModules.contribute({
     salesChannelsCache: salesChannels.cache,
     salesChannelMembershipPort: salesChannels.membershipService,
     // Mirrors `composition.ts`: the real resolver, so a test can reach the
@@ -1053,7 +1055,7 @@ export async function setupBackendServer(
   // breath. Production keeps the sweeper on and takes the module's own default
   // TTL, which it stopped restating in T143a — so the 0 below is now the only
   // opinion either composition holds about this cache.
-  registerValues(container, {
+  composedModules.contribute({
     priceListsEnableStatusSweeper: false,
     priceListsPricingCacheTtlMs: 0,
     priceListsAdminAuditContext: (request: FastifyRequest) => ({
@@ -1070,7 +1072,7 @@ export async function setupBackendServer(
   // sources read `organizations`, `categories`, `payment_methods` and
   // `delivery_methods` directly, and the catalog read port is `catalog`'s.
   // Registered after `composeModules`, where the module declares its defaults.
-  registerValues(container, {
+  composedModules.contribute({
     organizationStatusResolver: async (orgId: string) => {
       const row = (await em().getKnex()
         .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
@@ -1224,7 +1226,7 @@ export async function setupBackendServer(
   // Feature 072 (T118) — the settings names. The kernel itself is composed
   // above `composeModules`, for the subscriber ordering; what belongs here is
   // the registration, in the one contribution slot.
-  registerValues(container, {
+  composedModules.contribute({
     settingsSecretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
     // Mirrors composition.ts: the effective-state reader that classifies each
     // setting and refuses writes an absent module owns.
@@ -1240,7 +1242,7 @@ export async function setupBackendServer(
   // What this harness still owns is the actor shape: it authenticates through
   // `request.testActor` where production uses `request.actor`, which is exactly
   // why the bridge is contributed rather than built into the module.
-  registerValues(container, {
+  composedModules.contribute({
     // D-48 — the system-default channel, which always exists.
     mfaDefaultChannelIdResolver: async () =>
       (await salesChannels.resolver.getSystemDefault()).id,
@@ -1320,7 +1322,7 @@ export async function setupBackendServer(
   // Feature 072 (T099) — `admin_actions` owns its service, its reconcile and
   // its routes now. The operator presence axis stays a root's to supply:
   // which modules a deployment ships is not this module's business.
-  registerValues(container, {
+  composedModules.contribute({
     moduleActivationProbe: (moduleId: string) =>
       effectiveState.presence(moduleId)?.operatorActivated ?? true,
   });
@@ -1340,7 +1342,7 @@ export async function setupBackendServer(
   //
   // What stays is how an admin actor is resolved from a request, which the two
   // compositions genuinely answer differently.
-  registerValues(container, {
+  composedModules.contribute({
     adminContextResolver: (request: FastifyRequest) => ({
       adminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
@@ -1366,7 +1368,7 @@ export async function setupBackendServer(
   // now. What stays here is every way it reaches outside itself, contributed
   // as one bridge: a composition knows how to reach `assets_library` and
   // `sales_channels`, or it does not.
-  registerValues(container, {
+  composedModules.contribute({
     // The harness has a producer and no consumer: it enqueues so the routes can
     // assert the queued ack, and starting a delivery worker per test file would
     // be a BullMQ consumer nothing ever closes.
@@ -1433,7 +1435,7 @@ export async function setupBackendServer(
   //
   // Registered after `composeModules`, where `megamenu` declares its own
   // defaults — contributing earlier would let the module overwrite the root.
-  registerValues(container, {
+  composedModules.contribute({
     megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
         const rows = (await em().getConnection().execute(
@@ -1522,7 +1524,7 @@ export async function setupBackendServer(
 
   // Feature 072 — the host names, mirroring `composition.ts`. They are the only
   // thing this root knows about the modules it composes.
-  registerValues(container, {
+  composedModules.contribute({
     // `requireAdmin` is NOT here: `auth` provides it as a port (T078).
     // `apiKeyResolver` is NOT here either: `api_keys` provides it as a gated
     // port (T100), and re-registering the name replaced that gate with a plain
@@ -1583,12 +1585,12 @@ export async function setupBackendServer(
   // registered **after `composeModules`**: earlier and the module's own default
   // would overwrite it and every admin login would silently go password-only.
   // The getter is late-bound, so nothing about `mfa` is a race.
-  registerValues(container, { adminMfaLoginPortGetter: getTestMfaLoginPort });
+  composedModules.contribute({ adminMfaLoginPortGetter: getTestMfaLoginPort });
 
   // `audit_logs` registers its own empty default for `auditActorResolver`, so a
   // value written before `composeModules` would be overwritten by it (the same
   // trap `prompt_actions` hit).
-  registerValues(container, {
+  composedModules.contribute({
     // Feature 072 (T117) — composition-specific sitemap tuning: regeneration is
     // deterministic with no staleness window, and a fixed base URL gives the
     // assertions something stable. Production contributes nothing and takes the
@@ -1634,7 +1636,7 @@ export async function setupBackendServer(
   // the fetcher and delivery adapters refuse by default, so a code path that
   // starts reaching outward without a test opting in shows up as a failed check
   // rather than a real request.
-  registerValues(container, {
+  composedModules.contribute({
     // Same window, same reason, and here it is a latent *outbound request*
     // rather than a file read: `pim_ergonode`'s boot hook only skips
     // constructing the module because `pimErgonodeRunWorkers` is false in this
@@ -1659,7 +1661,7 @@ export async function setupBackendServer(
   // Feature 072 (T120) — the harness resolves no asset URLs, which is the
   // module's own default; naming it keeps the difference from production
   // visible rather than implied by an omission.
-  registerValues(container, {
+  composedModules.contribute({
     transactionalEmailAssetUrl: async (): Promise<string | null> => null,
   });
 
@@ -1667,7 +1669,7 @@ export async function setupBackendServer(
   // bulk-operation consumer and must not reindex Meilisearch, which is exactly
   // what these two say; the other three are the same adapters, reading this
   // harness's own actor property where one is involved.
-  registerValues(container, {
+  composedModules.contribute({
     catalogRunBulkOperationWorker: false,
     // T143a — deliberately **not** forwarded to `searchReindexPort`, which is
     // what production does now. A `searchable` flag flips in a good number of
@@ -1707,11 +1709,11 @@ export async function setupBackendServer(
 
   // Feature 072 (T141) — mirrors `composition.ts`: the sales-rep admin scope
   // (reading this harness's own actor property) and the late-bound sender.
-  registerValues(container, {
+  composedModules.contribute({
     ordersAdminScopeResolver: resolveTestAdminOrdersScope,
   });
 
-  registerValues(container, {
+  composedModules.contribute({
     // The organization transact guard used to be a no-op here, named
     // explicitly so the divergence stayed visible. T138 removed it: the guard
     // is `organizationReadPort.assertCanTransact` now, provided by the module
@@ -1781,7 +1783,7 @@ export async function setupBackendServer(
   // The tools themselves are no longer here: since D-44 each contributing module
   // pushes its own from its own boot hook, which is also how the `orders` tools
   // — production-only until then — came to be composed in this harness at all.
-  registerValues(container, {
+  composedModules.contribute({
     promptActionsBulkProgressResolver: catalogBulkProgressResolver({
       emFactory: em,
       events: eventBus,
@@ -1818,7 +1820,7 @@ export async function setupBackendServer(
   // harness runs no reindex sweep: it has no worker role, and a periodic
   // Meilisearch pass per test file is exactly what `enableReindexScheduler`
   // exists to keep out.
-  registerValues(container, {
+  composedModules.contribute({
     searchRunWorkers: false,
     // T143a — the same statement for `webhooks`' delivery consumer, which the
     // harness has never run: production built it in `composition.ts` and this
@@ -1833,7 +1835,7 @@ export async function setupBackendServer(
   // event bus, channel resolver or settings reader to this module at all, so
   // three of its behaviours were exercised by nothing; the module reads all
   // three from the container now.
-  registerValues(container, {
+  composedModules.contribute({
     // Feature 072 (T138) — the admin-editable sender `organizations` sends its
     // verification, invitation and new-registration emails through. A getter
     // because `transactional_emails` announces the sender well after this
@@ -1859,7 +1861,7 @@ export async function setupBackendServer(
   // four settings reads now. What stays is a composition's answer to who is
   // asking, the organization's tax rate, and the subtree the RFQ admin scope
   // rolls up over.
-  registerValues(container, {
+  composedModules.contribute({
       rfqCustomerContextResolver: async (request: FastifyRequest) => {
         const ctx = customerResolver(request);
         const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
@@ -1911,7 +1913,7 @@ export async function setupBackendServer(
   // defaults rather than being overwritten by them. Both are read lazily — the
   // clients when the tax-ID service is first constructed, the hook at login — so
   // this placement is safe.
-  registerValues(container, {
+  composedModules.contribute({
     // No test may open a socket to VIES or Ministerstwo Finansow. The fake
     // returns `validated` for any taxId ending in `00000` and `failed` /
     // `deferred` otherwise, giving three deterministic branches.
@@ -1949,7 +1951,7 @@ export async function setupBackendServer(
   // composition's, and the fake VAT validator is contributed rather than passed
   // as an argument, so it is the same instance `organizations` gets by
   // construction rather than by a comment asking for it.
-  registerValues(container, {
+  composedModules.contribute({
     customersVatValidator: new FakeVatValidator('vies'),
     customerActorResolver: (request: FastifyRequest) => {
       if (request.testActor?.kind !== 'customer') {
@@ -1992,7 +1994,7 @@ export async function setupBackendServer(
     correctiveInvoicePort: ReturnsBridge['correctiveInvoice'];
     creditTopupPort: ReturnsBridge['creditTopup'];
   } => container.cradle as never;
-  registerValues(container, {
+  composedModules.contribute({
     returnsBridge: {
       resolveCustomerAccountId: (req) =>
         req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
@@ -2035,7 +2037,7 @@ export async function setupBackendServer(
   // Feature 072 (T113) — `invoices` owns its services and routes now. What
   // stays here is how this composition reaches outside the module,
   // contributed as one bridge.
-  registerValues(container, {
+  composedModules.contribute({
     invoicesBridge: {
       resolveAdminUserId: (req) =>
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
@@ -2061,7 +2063,7 @@ export async function setupBackendServer(
   // Feature 059 — KSeF. No redis queue in tests (submissions are processed by
   // driving `submissions.process(...)` directly); the sweep interval is off.
   // Feature 072 (T104) — `ksef` owns its services and routes now.
-  registerValues(container, {
+  composedModules.contribute({
     ksefSellerNipResolver: async () => {
       try {
         const { z: zod } = await import('zod');
@@ -2092,7 +2094,7 @@ export async function setupBackendServer(
   // Feature 072 (T137) — `product_feeds` owns its services and routes now.
   // The four adapters it reaches outside itself through stay a root's: each
   // crosses a boundary the module must not reach through directly.
-  registerValues(container, {
+  composedModules.contribute({
     productFeedsBridge: {
       storageAdapters: {
         getActive: () => assetsLibrary.handle.adapters.getActive(),
@@ -2158,7 +2160,7 @@ export async function setupBackendServer(
   // second time, purely for this module, while `catalog` built its own;
   // registering them means one instance each per composition. They go when
   // `catalog` and `assets_library` convert.
-  registerValues(container, {
+  composedModules.contribute({
     // Mirrors `composition.ts`: the seven `catalog` services this block built a
     // second time are that module's ports since T142. Only `assets_library`'s
     // is left, and it drains when that module converts.
@@ -2170,12 +2172,16 @@ export async function setupBackendServer(
   // subscribes through `ctx.subscribe`, so it stops when the module does. The
   // sender stays a contribution: `transactional_emails` announces it through a
   // callback this root holds, later than the module composes.
-  registerValues(container, { paymentEmailSender: () => emailCradle().transactionalEmailSenderAccessor() });
+  composedModules.contribute({
+    paymentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
+  });
   // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
   // subscribes through `ctx.subscribe`, so it stops when the module does. The
   // sender stays a contribution: `transactional_emails` announces it through a
   // callback this root holds, later than the module composes.
-  registerValues(container, { shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor() });
+  composedModules.contribute({
+    shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
+  });
   modules.push(
   );
 
@@ -2183,7 +2189,7 @@ export async function setupBackendServer(
   // These stay here because they are pinned per composition rather than
   // derived: the token secret and base URLs decide what an unsubscribe link
   // looks like, and the harness needs that predictable.
-  registerValues(container, {
+  composedModules.contribute({
     newsletterBridge: {
       tokenSecret: 'test-newsletter-secret',
       defaultChannelId: (await salesChannels.resolver.getSystemDefault()).id,
@@ -2221,7 +2227,7 @@ export async function setupBackendServer(
   // Feature 072 (T133) — mirrors `composition.ts`. The harness passed no
   // `settingsService` here, so the quick-order import cap fell back to its
   // manifest default in every test while production read it per channel.
-  registerValues(container, {
+  composedModules.contribute({
     oneClickOrderServiceGetter: () => orderServiceForOneClick,
     shoppingListServiceSink: (svc: ShoppingListService) => {
       shoppingListServiceRef = svc;
@@ -2238,7 +2244,7 @@ export async function setupBackendServer(
   // seeded enabled-set and take every gated route down mid-run. No
   // `lifecycleOrchestrator` is contributed, so the module list is not served —
   // which is exactly the composition this harness has always been.
-  registerValues(container, {
+  composedModules.contribute({
     lifecycleActivationPropagation: {
       commandBus,
       propagation: {
@@ -2264,7 +2270,9 @@ export async function setupBackendServer(
   // The explicit boot phase (FR-021), run **once**, after every registration
   // and every contribution above and immediately before the app is built —
   // exactly where `composition.ts` runs it (D-45). A boot hook may therefore
-  // resolve anything this composition registers.
+  // resolve anything this composition registers. It is also what closes the
+  // contribution window: a `composedModules.contribute(…)` below this line
+  // throws instead of writing a value no hook will read (issue #52).
   await composedModules.runBootHooks();
 
   const app = await buildServer({

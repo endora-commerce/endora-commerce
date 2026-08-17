@@ -27,6 +27,13 @@ import { registerRequestScopeHook } from './kernel/request-scope-hook.js';
 // `registering` guard), so the order modules register in carries no meaning,
 // and every contribution this root makes over a name a module defaults belongs
 // in the one slot between `composeModules` and `runBootHooks`.
+//
+// Issue #52 — that slot is `composedModules.contribute(…)`, so it is no longer
+// a convention two roots had to spell identically. The window's early edge is
+// structural (there is nothing to call the method on until every module has
+// registered) and its late edge throws `ContributionWindowClosedError`.
+// `registerValues` stays for the host values no module defaults, which have no
+// window because there is nothing to overwrite.
 import { MODULES } from './composition.generated.js';
 import {
   composeModules,
@@ -522,7 +529,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // was ever a deployment decision, and the consumer built here was the one
   // part of the module nothing could switch off, draining the queue and writing
   // `webhook_deliveries` rows with `webhooks` disabled.
-  registerValues(container, { webhooksRunWorkers: runWorkers });
+  composedModules.contribute({ webhooksRunWorkers: runWorkers });
 
   // Feature 072 (T078) — the auth plugin is `auth`'s own contribution now,
   // collected by `ctx.rootPlugin` because it decorates `request.actor` for the
@@ -550,7 +557,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // absent. Registered after `composeModules` so it overrides the module's own
   // default rather than being overwritten by it; the getter resolves lazily, so
   // nothing about `mfa` is a race.
-  registerValues(container, { mfaLoginPortGetter: getMfaLoginPort });
+  composedModules.contribute({ mfaLoginPortGetter: getMfaLoginPort });
 
 
   // Feature 056 — organization tree + inheritance resolution. Both are
@@ -625,7 +632,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 072 (T110) — the channel-resolution names. The kernel itself is
   // composed above `composeModules`, for the subscriber ordering; what belongs
   // here is the registration, in the one contribution slot.
-  registerValues(container, {
+  composedModules.contribute({
     salesChannelsCache: salesChannels.cache,
     // The kernel-reserved membership port. `payment_methods` and
     // `delivery_methods` resolve it to auto-bind a new method to the system
@@ -660,7 +667,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // module's own `DEFAULT_PRICING_CACHE_TTL_MS` to hand it back to the module.
   // The module defaults it now, and production wanting the shipped TTL says so
   // by contributing nothing.
-  registerValues(container, {
+  composedModules.contribute({
     priceListsEnableStatusSweeper: true,
     priceListsAdminAuditContext: (request: FastifyRequest) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
@@ -682,7 +689,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // sources read `organizations`, `categories`, `payment_methods` and
   // `delivery_methods` directly, and the catalog read port is `catalog`'s.
   // Registered after `composeModules`, where the module declares its defaults.
-  registerValues(container, {
+  composedModules.contribute({
     promotionRuleTargets: {
       salesChannels: async () => {
         const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
@@ -722,7 +729,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 072 (T118) — the settings names. The kernel itself is composed
   // above `composeModules`, for the subscriber ordering; what belongs here is
   // the registration, in the one contribution slot.
-  registerValues(container, {
+  composedModules.contribute({
     settingsSecretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
     // Feature 073 — the effective-state reader. Registered here rather than
     // imported inside the module so the dependency direction stays declared in
@@ -758,7 +765,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `product_feeds`), from that module's own boot hook. What stays is how an
   // admin actor is resolved from a request, which production and the harness
   // genuinely answer differently.
-  registerValues(container, {
+  composedModules.contribute({
     adminContextResolver,
     // US2 — the delete-integrity guard reaches settings only through this port
     // (Principle I): `SettingsService.listReferencesToConfiguration`.
@@ -808,7 +815,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // production reads `request.actor`, the harness reads `request.testActor`.
   // That is contributed whole rather than as ten separate names, because a
   // composition either knows how to resolve an actor or it does not.
-  registerValues(container, {
+  composedModules.contribute({
     // D-48 — the system-default channel, which always exists. It used to be
     // `?? null`, which switched MFA policy resolution to the platform-wide
     // settings tier on a branch that cannot be taken.
@@ -1064,7 +1071,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   // Feature 072 (T093) — contributed, not set: which modules a deployment
   // ships is this root's business, and `cms` reads the contribution per call.
-  registerValues(container, {
+  composedModules.contribute({
     cmsAssetResolver: async (assetId: string) => {
       try {
         const detail = await assetsLibrary.handle.service.getAsset(assetId);
@@ -1090,7 +1097,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // now. What stays here is every way it reaches outside itself, contributed
   // as one bridge: a composition knows how to reach `assets_library` and
   // `sales_channels`, or it does not.
-  registerValues(container, {
+  composedModules.contribute({
     pwaRunWorkers: runWorkers,
     pwaBridge: {
       assetUpload: {
@@ -1152,7 +1159,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   //
   // Registered after `composeModules`, where `megamenu` declares its own
   // defaults — contributing earlier would let the module overwrite the root.
-  registerValues(container, {
+  composedModules.contribute({
     megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
         const rows = (await em().getConnection().execute(
@@ -1238,7 +1245,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // module is named here: each entry is a name whose value only a composition
   // can supply, and several are ports their owning module will register itself
   // once the surface they wrap is theirs.
-  registerValues(container, {
+  composedModules.contribute({
     // `requireAdmin` is NOT here any more: `auth` provides it as a port
     // (T078), and re-registering the name would silently replace a gated
     // registration with an ungated value — the exact failure `providePort`
@@ -1324,12 +1331,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // registered **after `composeModules`**: earlier and the module's own default
   // would overwrite it and every admin login would silently go password-only.
   // The getter is late-bound, so nothing about `mfa` is a race.
-  registerValues(container, { adminMfaLoginPortGetter: getMfaLoginPort });
+  composedModules.contribute({ adminMfaLoginPortGetter: getMfaLoginPort });
 
   // `audit_logs` registers its own empty default for this name, so a value
   // written before `composeModules` would be overwritten by it (the same trap
   // `prompt_actions` hit).
-  registerValues(container, {
+  composedModules.contribute({
     // Feature 072 (T084) — `audit_logs` owns its routes now and no longer
     // reaches into `admin_users` for identities. Turning an actor id into a
     // name is a **contribution**, so it is gated here rather than declared as
@@ -1363,7 +1370,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 072 (T120) — how an asset id becomes a public URL inside an email.
   // It reaches `assets_library`, which `transactional_emails` must not read
   // through directly, so it stays a composition's to supply.
-  registerValues(container, {
+  composedModules.contribute({
     transactionalEmailAssetUrl: async (assetId: string): Promise<string | null> => {
       try {
         const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
@@ -1380,7 +1387,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // the bulk-operation consumer (Principle X), how this deployment names an
   // acting admin on an audit record, and the three adapters that reach modules
   // `catalog` must not read through directly.
-  registerValues(container, {
+  composedModules.contribute({
     catalogRunBulkOperationWorker: runWorkers,
     catalogAdminAuditContext: (request: FastifyRequest) => {
       if (request.actor.kind !== 'admin') {
@@ -1436,11 +1443,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // which organizations a sales-rep admin may see (actor-shaped, owner `auth`),
   // and the admin-editable sender, late-bound because `transactional_emails`
   // publishes it after this module composes.
-  registerValues(container, {
+  composedModules.contribute({
     ordersAdminScopeResolver: resolveAdminOrdersScope,
   });
 
-  registerValues(container, {
+  composedModules.contribute({
     cartActorResolver: (request: FastifyRequest) => {
       if (request.actor.kind === 'customer') {
         return {
@@ -1516,7 +1523,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // cadence now. Two names stay a composition's: whether this process runs the
   // sweep, and `price_lists`' resolver, which the module narrows to a
   // suggestion price.
-  registerValues(container, {
+  composedModules.contribute({
     searchRunWorkers: runWorkers,
   });
 
@@ -1525,7 +1532,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // announces late, and the Organization's warehouse assignment. Both are a
   // root's to build; how this deployment names a non-admin caller on an audit
   // record is too.
-  registerValues(container, {
+  composedModules.contribute({
     // Feature 072 (T138) — the admin-editable sender `organizations` sends its
     // verification, invitation and new-registration emails through. A getter
     // because `transactional_emails` announces the sender well after this
@@ -1563,7 +1570,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // four settings reads now. What stays is a composition's answer to who is
   // asking, the organization's tax rate, and the subtree the RFQ admin scope
   // rolls up over.
-  registerValues(container, {
+  composedModules.contribute({
       rfqCustomerContextResolver: async (request: FastifyRequest) => {
         if (request.actor.kind !== 'customer') {
           throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
@@ -1643,7 +1650,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // registered before is what the module's own default then overwrites. It is
   // safe this late for the reason it is safe at all: the hook is read at login
   // time, not at construction.
-  registerValues(container, {
+  composedModules.contribute({
     organizationsLoginHook: async (loginCtx: {
       customerAccountId: string;
       organizationId: string | null;
@@ -1686,7 +1693,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // three settings reads now. Three names stay a composition's: who is asking,
   // who is moderating (both actor-shaped, owner `auth`), and the late-bound
   // order-list service `orders` builds.
-  registerValues(container, {
+  composedModules.contribute({
     customerActorResolver: (request: FastifyRequest) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
@@ -1724,7 +1731,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 072 (T113) — `invoices` owns its services and routes now. What
   // stays here is how this composition reaches outside the module,
   // contributed as one bridge.
-  registerValues(container, {
+  composedModules.contribute({
     invoicesBridge: {
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       resolveCustomerContext: (req: FastifyRequest) => {
@@ -1764,7 +1771,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // domain events, submits FA(3) documents through a durable queue, and feeds
   // the KSeF number/QR back through the invoices port + PDF-renderer seam.
   // Feature 072 (T104) — `ksef` owns its services and routes now.
-  registerValues(container, {
+  composedModules.contribute({
     ksefSellerNipResolver: async () => {
       try {
         // Platform-wide: one legal seller issues every invoice this deployment
@@ -1785,7 +1792,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 072 (T113) — contributed, not set. `invoices` installs its own
   // resolver at construction and reads this per call, so a deployment without
   // KSeF simply has no verification block rather than an unset setter.
-  registerValues(container, {
+  composedModules.contribute({
     ksefVerificationResolver: ksefCradle.ksef.handle.buildVerification,
   });
 
@@ -1803,7 +1810,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 072 (T137) — `product_feeds` owns its services and routes now.
   // The four adapters it reaches outside itself through stay a root's: each
   // crosses a boundary the module must not reach through directly.
-  registerValues(container, {
+  composedModules.contribute({
     productFeedsBridge: {
       storageAdapters: {
         getActive: () => assetsLibrary.handle.adapters.getActive(),
@@ -1890,7 +1897,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // ports, so there is one instance of each per composition and the Ergonode
   // importer writes through the same one the admin API does. `assetsLibrary`'s
   // is the last one left here, and it drains when that module converts.
-  registerValues(container, {
+  composedModules.contribute({
     assetsLibraryService: assetsLibrary.handle.service,
   });
   // FR-005 — the boot-time schedule reconcile moved into the module's own
@@ -1917,7 +1924,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     correctiveInvoicePort: ReturnsBridge['correctiveInvoice'];
     creditTopupPort: ReturnsBridge['creditTopup'];
   } => container.cradle as never;
-  registerValues(container, {
+  composedModules.contribute({
     returnsBridge: {
       resolveCustomerAccountId,
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
@@ -1953,12 +1960,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // subscribes through `ctx.subscribe`, so it stops when the module does. The
   // sender stays a contribution: `transactional_emails` announces it through a
   // callback this root holds, later than the module composes.
-  registerValues(container, { paymentEmailSender: () => emailCradle().transactionalEmailSenderAccessor() });
+  composedModules.contribute({
+    paymentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
+  });
   // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
   // subscribes through `ctx.subscribe`, so it stops when the module does. The
   // sender stays a contribution: `transactional_emails` announces it through a
   // callback this root holds, later than the module composes.
-  registerValues(container, { shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor() });
+  composedModules.contribute({
+    shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
+  });
   // Feature 049 — Stripe payment gateway. Registers the Stripe PaymentAdapter
   // + gateway refund handler into the shared singletons, seeds one
   // payment_methods row per Stripe method, and mounts the webhook / storefront /
@@ -1979,7 +1990,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // These stay here because they are pinned per composition rather than
   // derived: the token secret and base URLs decide what an unsubscribe link
   // looks like, and the harness needs that predictable.
-  registerValues(container, {
+  composedModules.contribute({
     newsletterBridge: {
       tokenSecret:
         process.env['NEWSLETTER_TOKEN_SECRET'] ??
@@ -2038,7 +2049,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // reads the quick-order settings itself. Three names stay a composition's:
   // two cross-module services it must not reach for directly, and the sink that
   // hands its own service back to `carts` until that module converts.
-  registerValues(container, {
+  composedModules.contribute({
     shoppingListServiceSink: (svc: ShoppingListService) => {
       shoppingListService = svc;
     },
@@ -2066,7 +2077,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 072 (T099) — `admin_actions` owns its service, its reconcile and
   // its routes now. The operator presence axis stays a root's to supply:
   // which modules a deployment ships is not this module's business.
-  registerValues(container, {
+  composedModules.contribute({
     moduleActivationProbe: (moduleId: string) =>
       effectiveState.presence(moduleId)?.operatorActivated ?? true,
   });
@@ -2117,7 +2128,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // differ: this deployment boots an orchestrator (the harness does not, because
   // it never populates `module_registrations`), and a committed flip propagates
   // by refreshing from the database and dropping the storefront's cache.
-  registerValues(container, {
+  composedModules.contribute({
     lifecycleOrchestrator: lifecycle.handle.orchestrator,
     lifecycleActivationPropagation: {
       commandBus,
@@ -2142,7 +2153,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // above, and the registry it needs does not exist until the line above this
   // one. `_i18n` resolves it at plugin-attach time, which
   // is after this function returns. Goes when `_lifecycle` converts.
-  registerValues(container, {
+  composedModules.contribute({
     lifecycleManifestRegistry: () => lifecycleRef?.handle.registry,
   });
 
@@ -2168,7 +2179,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // another module owns (`kernel.md`). So this one stays here, in the single slot
   // between `composeModules` and `runBootHooks` (D-45), until `prompt_actions`
   // turns that slot into a registry keyed by contributing module.
-  registerValues(container, {
+  composedModules.contribute({
     promptActionsBulkProgressResolver: catalogBulkProgressResolver({
       emFactory: em,
       events: eventBus,
@@ -2242,6 +2253,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `newsletterEmailBranding`, `shoppingListServiceSink`, `lifecycleOrchestrator`,
   // `promptActionsBulkProgressResolver`). One `composeModules` call, one
   // contribution slot, one `runBootHooks()` is what keeps that unspellable.
+  //
+  // Issue #52 — and this line is what closes the slot: every
+  // `composedModules.contribute(…)` below it throws
+  // `ContributionWindowClosedError` naming the rule, rather than landing
+  // somewhere no hook will read.
   await composedModules.runBootHooks();
 
   return {

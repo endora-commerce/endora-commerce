@@ -335,8 +335,12 @@ function rootIssues(input: {
 
 /** A root registering nothing the fixtures care about, so a divergence has a silent half. */
 const ROOT_REGISTERS_NOTHING = 'registerValues(container, { orm, em });';
+// Written in the contribution-window spelling (issue #52), which is where a
+// root writes nearly every name today — so the three fixtures below cover all
+// three shapes `rootRegisteredNames` has to read: the window method here,
+// `registerValues` above, and a direct `container.register` below.
 const ROOT_SHADOWS_THE_PORT =
-  'registerValues(container, { paymentAdapterRegistry: builtHere });';
+  'composedModules.contribute({ paymentAdapterRegistry: builtHere });';
 const ROOT_SUPPLIES_THE_BRIDGE = 'container.register({ ordersAdminScopeResolver: fromRequest });';
 const ORDERS_RESOLVES_THE_BRIDGE = [
   'export function registerModule(ctx: ModuleContext): void {',

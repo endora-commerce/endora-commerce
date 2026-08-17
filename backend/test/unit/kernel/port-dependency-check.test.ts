@@ -736,6 +736,23 @@ describe('rootRegisteredNames — what a composition root writes into the contai
     const source = `registerValues(container, { ...extras, redis });`;
     expect(rootRegisteredNames(source, 'composition.ts')).toEqual(['redis']);
   });
+
+  it('collects the contribution window, which is where a root writes most names', () => {
+    // Issue #52 moved D-45's contribution slot onto a method. Nearly every name
+    // a root supplies is written there, and the shadowing, divergence and
+    // unsupplied findings are all computed from this list — so a reader that
+    // did not know the spelling would report green having stopped looking.
+    const source = `
+      composedModules.contribute({
+        organizationsLoginHook: hook,
+        requireCustomer,
+      });
+    `;
+    expect(rootRegisteredNames(source, 'composition.ts').sort()).toEqual([
+      'organizationsLoginHook',
+      'requireCustomer',
+    ]);
+  });
 });
 
 describe('providedPortNames — the gated subset', () => {
