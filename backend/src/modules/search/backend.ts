@@ -8,6 +8,7 @@ import type {
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { createSearchQueryPort } from './services/search-query-port.js';
 import { createSuggestionPricingEnricher } from './services/suggestion-pricing-enricher.js';
 import type { SuggestionPriceResolverPort } from './services/suggestion-pricing-enricher.js';
 import { searchModule, type SearchModuleOptions, type SearchModuleResult } from './plugin.js';
@@ -133,12 +134,21 @@ export function registerModule(ctx: ModuleContext): void {
    * `searchModule` already built.
    *
    * The Postgres fallback is a declared `nonBindingDependencies` degrade, not
-   * a `catch`: catching here would swallow `ModuleDisabledError` and make a
-   * switched-off `search` look like a slow one.
+   * a `catch`: catching there would swallow `ModuleDisabledError` and make a
+   * switched-off `search` look like a slow one. Which is why the *other*
+   * degrade — an index that refuses or times out — is converted here rather
+   * than at the call site: `createSearchQueryPort` turns this module's own
+   * `SearchBackendUnavailable` into the `index-unavailable` arm of
+   * `SearchListOutcome`, so the consumer reads a field instead of writing the
+   * conditional re-throw `check:port-catches` refuses.
    */
   ctx.di.providePort<SearchQueryPort>(
     'searchQueryPort',
-    ctx.asFunction(({ search }: SearchCradle) => search.handle.searchQueryService).singleton(),
+    ctx
+      .asFunction(({ search }: SearchCradle) =>
+        createSearchQueryPort(search.handle.searchQueryService),
+      )
+      .singleton(),
   );
 
   ctx.di.providePort(

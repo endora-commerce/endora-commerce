@@ -223,6 +223,27 @@ export interface SearchListResult {
 }
 
 /**
+ * What a listing query answered: the page, or the fact that the index could
+ * not be reached.
+ *
+ * The second arm exists so the caller does not have to write a `catch` to
+ * learn it. `search` raises `SearchBackendUnavailable` internally when
+ * Meilisearch is unreachable; the port converts it here, on the owner's side,
+ * because a consumer catching it would be a `catch` around a port call — and
+ * that `catch` would swallow `ModuleDisabledError` too, turning "the operator
+ * switched `search` off" into "the index is slow today". Two different facts
+ * with two different right answers, fused by one `catch` clause.
+ *
+ * This is the `allowedIdsFor(): Promise<string[] | null>` shape AGENTS.md names
+ * as the worked example: where a degrade genuinely belongs, it goes inside the
+ * owner's implementation and is expressed in the return type.
+ */
+export type SearchListOutcome =
+  | { status: 'ok'; result: SearchListResult }
+  /** Meilisearch refused or timed out. `reason` is for the caller's log line. */
+  | { status: 'index-unavailable'; reason: string };
+
+/**
  * Container name: `searchQueryPort`. Owner: `search`.
  *
  * **The one port in the sweep whose consumer is right to degrade rather than
@@ -234,12 +255,14 @@ export interface SearchListResult {
  * Note what the fallback is *not* allowed to be: a `try`/`catch` around the
  * call. Catching here would swallow `ModuleDisabledError` and make a
  * switched-off `search` look like a slow one, which is the fail-open shape
- * `check:port-catches` exists for.
+ * `check:port-catches` exists for. That is why `listProducts` answers a
+ * {@link SearchListOutcome} rather than throwing: the consumer distinguishes
+ * the two states by reading a field, and never by catching.
  */
 export interface SearchQueryPort {
   listProducts(
     params: SearchListProductsParams,
     ctx: SearchQueryContext,
-  ): Promise<SearchListResult>;
+  ): Promise<SearchListOutcome>;
 }
 
