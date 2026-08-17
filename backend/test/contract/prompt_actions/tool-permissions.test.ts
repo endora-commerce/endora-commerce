@@ -5,7 +5,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { describe, expect, it } from 'vitest';
 import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
-import type { PromptActionTool } from '../../../src/modules/prompt_actions/services/tool-registry.js';
+import type { PromptActionTool } from '@b2b/contracts';
 import {
   catalogPromptMutationTools,
   catalogPromptResolverTools,

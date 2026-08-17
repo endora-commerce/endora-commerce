@@ -17,8 +17,6 @@
 export const entries: Readonly<Record<string, string>> = {
   'modules/orders/backend.ts:organizations/services/organization-restriction-service':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/backend.ts:prompt_actions/services/tool-registry':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/backend.ts:transactional_emails/services/email-defaults-registry':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/email-templates/admin-created-order.ts:email/services/mailer':
@@ -56,8 +54,6 @@ export const entries: Readonly<Record<string, string>> = {
   'modules/orders/plugin.ts:quote_requests/services/rfq-service':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/prompt-tools.test.ts:prompt_actions/services/tool-registry':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/prompt-tools.ts:prompt_actions/services/tool-registry':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/routes.external.ts:organizations/services/organization-context-service':
     'F3 Phase C — orders. Retired by the orders cut merge request.',

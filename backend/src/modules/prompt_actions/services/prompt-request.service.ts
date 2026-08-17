@@ -1,11 +1,16 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, PROMPT_ACTION_PLAN_TTL_MINUTES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  PROMPT_ACTION_PLAN_TTL_MINUTES,
+  type BulkProgressSnapshot,
+  type ToolAuditContext,
+  type ToolContext,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { PromptActionRequest } from '../entities/prompt-action-request.entity.js';
 import type { InterpreterService, StoredConversation } from './interpreter.service.js';
 import { PermissionRevoked, type PlanExecutorService } from './plan-executor.service.js';
-import type { ToolAuditContext, ToolContext } from './tool-registry.js';
 
 /**
  * PromptRequestService — feature 043 lifecycle (data-model §2).
@@ -30,8 +35,16 @@ export interface PromptRequestServiceDeps {
   executor: PlanExecutorService;
   auditLogService?: AuditLogService;
   visibilityFor: OperatorVisibilityFactory;
-  /** US2: folds live catalog bulk-operation progress into a delegated request. */
-  bulkProgressResolver?: (row: PromptActionRequest, em: EntityManager) => Promise<void>;
+  /**
+   * US2: reads live progress for a delegated bulk operation from whichever
+   * module started it.
+   *
+   * Data in, data out (D-76). It used to be handed the request row and the
+   * `EntityManager` and left to mutate both, which put this module's state
+   * machine in a contributor's hands; the fold and the terminal-status decision
+   * live in {@link foldBulkProgress} now.
+   */
+  bulkProgressReader?: (bulkOperationId: string) => Promise<BulkProgressSnapshot | null>;
   ttlMinutes?: number;
   now?: () => Date;
 }
@@ -145,7 +158,6 @@ export class PromptRequestService {
     const toolCtx: ToolContext = {
       adminUserId: op.adminUserId,
       requestId: row.id,
-      em,
       auditCtx: op.auditCtx,
     };
 
@@ -258,7 +270,6 @@ export class PromptRequestService {
     const toolCtx: ToolContext = {
       adminUserId: op.adminUserId,
       requestId: row.id,
-      em,
       auditCtx: op.auditCtx,
     };
 
@@ -321,8 +332,9 @@ export class PromptRequestService {
   async get(op: OperatorContext, id: string): Promise<PromptActionRequest> {
     const em = this.deps.emFactory();
     const row = await this.loadOwned(em, id, op.adminUserId);
-    if (row.status === 'executing' && row.bulkOperationId && this.deps.bulkProgressResolver) {
-      await this.deps.bulkProgressResolver(row, em);
+    if (row.status === 'executing' && row.bulkOperationId && this.deps.bulkProgressReader) {
+      const snapshot = await this.deps.bulkProgressReader(row.bulkOperationId);
+      if (snapshot) this.foldBulkProgress(row, snapshot);
       if (row.status !== 'executing') {
         row.finishedAt = row.finishedAt ?? this.now();
         await em.flush();
@@ -330,6 +342,49 @@ export class PromptRequestService {
       }
     }
     return row;
+  }
+
+  /**
+   * Fold one contributor's snapshot into the request, and rule on the request's
+   * own terminal status (D-76, FR-011/FR-018).
+   *
+   * Both halves used to live in `catalog/prompt-tools.ts`, which meant a
+   * contributing module decided whether *this* module's request was
+   * `completed`, `failed` or `completed_with_errors`. The mapping is unchanged
+   * — it is moved, not rewritten: a run that ended with no failures completed,
+   * one with no successes failed, and anything between is
+   * `completed_with_errors`.
+   *
+   * `snapshot.terminal` says only that the bulk run ended. What it ended *as*
+   * for the request is read from the counts, which is what the previous
+   * implementation did too — it tested `op.status` for "ended" and then ignored
+   * it.
+   */
+  private foldBulkProgress(row: PromptActionRequest, snapshot: BulkProgressSnapshot): void {
+    if (!row.result || !row.bulkOperationId) return;
+    const summary = {
+      total: snapshot.total,
+      succeeded: snapshot.succeeded,
+      failed: snapshot.failed,
+      failures: snapshot.failures,
+    };
+    row.result = {
+      ...row.result,
+      operations: row.result.operations.map((operation) =>
+        operation.bulkOperationId === row.bulkOperationId ? { ...operation, summary } : operation,
+      ),
+    };
+
+    if (snapshot.terminal === null) return;
+    const outcome =
+      snapshot.failed === 0
+        ? 'completed'
+        : snapshot.succeeded === 0
+          ? 'failed'
+          : 'completed_with_errors';
+    row.result = { ...row.result, outcome };
+    row.status = outcome;
+    if (snapshot.error) row.error = snapshot.error;
   }
 
   async listUnseenFinished(op: OperatorContext, limit: number): Promise<PromptActionRequest[]> {

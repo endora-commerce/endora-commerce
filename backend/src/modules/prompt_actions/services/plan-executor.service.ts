@@ -2,8 +2,9 @@ import type {
   PromptActionPlan,
   PromptActionResult,
   ResultOperation,
+  ToolContext,
 } from '@b2b/contracts';
-import type { PromptActionToolRegistry, ToolContext } from './tool-registry.js';
+import type { PromptActionToolRegistry } from './tool-registry.js';
 
 /**
  * PlanExecutorService — feature 043 US1/US2 (research §R6).

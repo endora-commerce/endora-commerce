@@ -1,6 +1,5 @@
 import type { z } from 'zod';
-import type { PromptActionsProvider } from '@b2b/contracts';
-import type { LlmToolDefinition } from '../tool-registry.js';
+import type { LlmToolDefinition, PromptActionsProvider } from '@b2b/contracts';
 
 /**
  * Provider-neutral LLM adapter contract (feature 043, research §R2).

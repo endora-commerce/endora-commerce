@@ -1,6 +1,10 @@
 import { z } from 'zod';
-import type { EntityManager } from '@mikro-orm/postgresql';
-import type { OperationPreview } from '@b2b/contracts';
+import type {
+  LlmToolDefinition,
+  PromptActionTool,
+  PromptActionToolRegistryPort,
+  ToolVisibilityContext,
+} from '@b2b/contracts';
 
 /**
  * PromptActionToolRegistry — the module-facing port of feature 043
@@ -22,51 +26,20 @@ import type { OperationPreview } from '@b2b/contracts';
  *   4. Mutations are inert at interpretation time and MUST implement
  *      `preview()` returning server-computed facts.
  *   5. Resolvers are side-effect-free and cap their result size.
+ *
+ * **The contribution shape is published** (feature 075, D-75):
+ * `PromptActionTool`, `ToolContext`, `ToolAuditContext`, `LlmToolDefinition`,
+ * `ToolVisibilityContext` and `PromptActionToolRegistryPort` all live in
+ * `@b2b/contracts`, so a contributor names the interface and this module keeps
+ * the class. What made that possible was deleting `ToolContext.em`: it carried
+ * a MikroORM type that may not appear in a browser-bundled package, and — more
+ * to the point — it carried nothing anybody used. Every contributor read it in
+ * `preview()` only, only for reads, only of its own tables.
  */
-
-export interface ToolAuditContext {
-  ipAddress?: string | null;
-  userAgent?: string | null;
-  requestId?: string | null;
-}
-
-export interface ToolContext {
-  adminUserId: string;
-  requestId: string;
-  em: EntityManager;
-  auditCtx: ToolAuditContext;
-}
-
-export interface PromptActionTool<P = unknown> {
-  /** '<moduleId>.<snake_case_name>' */
-  id: string;
-  moduleId: string;
-  kind: 'resolver' | 'mutation';
-  /** English, action-oriented — this is the LLM's only documentation. */
-  description: string;
-  requiredPermission: string;
-  paramsSchema: z.ZodType<P>;
-  /** Resolvers run during interpretation; mutations only at confirm time. */
-  execute(params: P, ctx: ToolContext): Promise<unknown>;
-  /** Mutations only: server-computed preview shown in the confirmable plan. */
-  preview?(params: P, ctx: ToolContext): Promise<OperationPreview>;
-}
-
-export interface LlmToolDefinition {
-  name: string;
-  description: string;
-  /** JSON Schema for the tool arguments (derived from paramsSchema). */
-  inputSchema: Record<string, unknown>;
-}
-
-export interface ToolVisibilityContext {
-  hasPermission(permission: string): Promise<boolean>;
-  isModuleInstalled(moduleId: string): Promise<boolean>;
-}
 
 const TOOL_ID_RE = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
 
-export class PromptActionToolRegistry {
+export class PromptActionToolRegistry implements PromptActionToolRegistryPort {
   private readonly tools = new Map<string, PromptActionTool>();
 
   register<P>(tool: PromptActionTool<P>): void {

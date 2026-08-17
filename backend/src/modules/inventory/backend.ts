@@ -8,6 +8,7 @@ import type {
   CatalogProductReadPort,
   InventoryStockImportPort,
   InventoryStockReadPort,
+  PromptActionToolRegistryPort,
 } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -25,7 +26,6 @@ import { WarehouseChannelService } from './services/warehouse-channel-service.js
 import { WarehouseChannelReconciler } from './services/warehouse-channel-reconciler.js';
 import { AVAILABILITY_BACK_IN_STOCK_DEFAULT, LOW_STOCK_ALERT_DEFAULT } from './email-templates/transactional-defaults.js';
 import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
-import type { PromptActionToolRegistry } from '../prompt_actions/services/tool-registry.js';
 import { inventoryPromptTools } from './prompt-tools.js';
 
 /**
@@ -95,7 +95,7 @@ export interface InventoryCradle {
    * registration this module pushes into once, from a boot hook — declared as a
    * `contributes-to` edge rather than a dependency (D-44).
    */
-  readonly promptActionToolRegistry: PromptActionToolRegistry;
+  readonly promptActionToolRegistry: PromptActionToolRegistryPort;
   /**
    * Availability bands for a set of products, scoped to the warehouses the
    * caller's sales channel is bound to (T143a).

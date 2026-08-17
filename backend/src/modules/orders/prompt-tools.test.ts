@@ -50,7 +50,7 @@ describe('ordersPromptTools — per-module registration', () => {
     await expect(
       setOrderStatus!.execute(
         { orderId: '00000000-0000-0000-0000-000000000000', toStatusCode: 'cancelled' },
-        { adminUserId: 'a', requestId: 'r', em: {} as never, auditCtx: {} },
+        { adminUserId: 'a', requestId: 'r', auditCtx: {} },
       ),
     ).rejects.toThrow(/not available/i);
   });

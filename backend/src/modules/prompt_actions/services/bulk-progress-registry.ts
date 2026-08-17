@@ -1,5 +1,8 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PromptActionRequest } from '../entities/prompt-action-request.entity.js';
+import type {
+  BulkProgressReader,
+  BulkProgressSnapshot,
+  PromptActionBulkProgressRegistryPort,
+} from '@b2b/contracts';
 
 /**
  * The bulk-progress contribution registry (feature 043 US2; D-72 point 4).
@@ -39,19 +42,25 @@ import type { PromptActionRequest } from '../entities/prompt-action-request.enti
  *  3. The request is not lost with the progress. It keeps its row, its plan and
  *     its audit trail, and expires on the module's own TTL exactly as a request
  *     whose bulk run never reported does.
+ *
+ * **D-76 inverted what a contributor hands back.** It used to be
+ * `(row: PromptActionRequest, em: EntityManager) => Promise<void>`, and both
+ * parameters were wrong in different ways: `em` was **dead** — the only
+ * implementation destructured `row` alone — and `row` handed this module's
+ * entity, and its state machine, to a contributor that then wrote `row.status`,
+ * `row.error` and `row.result` for this module to flush. Whether a prompt
+ * request is `completed`, `failed` or `completed_with_errors` is decided here
+ * now; what a bulk operation did is the contributor's fact, and the snapshot is
+ * exactly that fact.
  */
-export type BulkProgressResolver = (
-  row: PromptActionRequest,
-  em: EntityManager,
-) => Promise<void>;
 
-/** One contributed resolver, with the module that contributed it. */
+/** One contributed reader, with the module that contributed it. */
 export interface BulkProgressEntry {
-  readonly resolve: BulkProgressResolver;
+  readonly read: BulkProgressReader;
   readonly module: string;
 }
 
-export class PromptActionBulkProgressRegistry {
+export class PromptActionBulkProgressRegistry implements PromptActionBulkProgressRegistryPort {
   private readonly entries: BulkProgressEntry[] = [];
 
   /**
@@ -62,8 +71,8 @@ export class PromptActionBulkProgressRegistry {
    */
   constructor(private readonly isModulePresent: (moduleId: string) => boolean = () => true) {}
 
-  register(moduleId: string, resolve: BulkProgressResolver): void {
-    this.entries.push({ module: moduleId, resolve });
+  register(moduleId: string, read: BulkProgressReader): void {
+    this.entries.push({ module: moduleId, read });
   }
 
   /** Every contributing module, presence-blind. Diagnostics read this. */
@@ -71,24 +80,27 @@ export class PromptActionBulkProgressRegistry {
     return this.entries.map((entry) => entry.module);
   }
 
-  /** The resolvers whose owner is present, in registration order. */
-  resolvers(): BulkProgressResolver[] {
+  /** The readers whose owner is present, in registration order. */
+  readers(): BulkProgressReader[] {
     return this.entries
       .filter((entry) => this.isModulePresent(entry.module))
-      .map((entry) => entry.resolve);
+      .map((entry) => entry.read);
   }
 
   /**
-   * Fold whatever live progress the present contributors have into `row`.
+   * The first present contributor's snapshot of that bulk operation, or `null`
+   * when no present contributor knows the id.
    *
-   * Sequential rather than concurrent: each resolver mutates the same managed
-   * row, and two of them writing `row.result` in parallel would make the last
-   * write win by scheduling accident. There is one contributor today; the shape
-   * is what makes a second one safe.
+   * Sequential and first-answer-wins rather than concurrent-and-merged: a bulk
+   * operation id belongs to exactly one contributor, so a second answer would
+   * be a second module claiming the same run. There is one contributor today;
+   * the shape is what makes a second one safe.
    */
-  async apply(row: PromptActionRequest, em: EntityManager): Promise<void> {
-    for (const resolve of this.resolvers()) {
-      await resolve(row, em);
+  async apply(bulkOperationId: string): Promise<BulkProgressSnapshot | null> {
+    for (const read of this.readers()) {
+      const snapshot = await read(bulkOperationId);
+      if (snapshot !== null) return snapshot;
     }
+    return null;
   }
 }

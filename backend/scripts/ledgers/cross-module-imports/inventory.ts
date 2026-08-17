@@ -15,15 +15,11 @@
  * says so.
  */
 export const entries: Readonly<Record<string, string>> = {
-  'modules/inventory/backend.ts:prompt_actions/services/tool-registry':
-    'F3 Phase C — inventory. Retired by the inventory cut merge request.',
   'modules/inventory/backend.ts:transactional_emails/services/email-defaults-registry':
     'F3 Phase C — inventory. Retired by the inventory cut merge request.',
   'modules/inventory/plugin.ts:email/services/mailer':
     'F3 Phase C — inventory. Retired by the inventory cut merge request.',
   'modules/inventory/prompt-tools.ts:catalog/entities/product.entity':
-    'F3 Phase C — inventory. Retired by the inventory cut merge request.',
-  'modules/inventory/prompt-tools.ts:prompt_actions/services/tool-registry':
     'F3 Phase C — inventory. Retired by the inventory cut merge request.',
   'modules/inventory/routes.admin.ts:catalog/entities/product.entity':
     'F3 Phase C — inventory. Retired by the inventory cut merge request.',
