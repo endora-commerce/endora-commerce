@@ -2437,6 +2437,15 @@
         }
       }
     },
+    "/api/v1/admin/import-export/entities": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/import/{entity}": {
       "post": {
         "responses": {
