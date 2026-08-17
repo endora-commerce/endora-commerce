@@ -36,6 +36,18 @@ import {
   serializeManifestModule,
 } from '../src/overlay/override-manifest.js';
 
+/**
+ * Where a deployment's committed override manifest lives — `null` for bare core.
+ *
+ * Path only, so the determinism gate can enumerate the artefacts it covers
+ * without walking the overlay tree once per deployment to learn their names.
+ */
+export function overrideManifestOutputPath(deployment: string | null): string {
+  return deployment === null
+    ? join(coreModulesRoot(), '..', 'overlay', 'override-manifest.core.generated.ts')
+    : join(overlayModulesRootFor(deployment), '..', 'override-manifest.generated.ts');
+}
+
 /** Pure render — the target path + expected file content. Used by the generator
  * and by the git-free determinism check (`check-overlay-determinism.ts`). */
 export function renderOverrideManifest(env: NodeJS.ProcessEnv = process.env): {
@@ -54,10 +66,7 @@ export function renderOverrideManifest(env: NodeJS.ProcessEnv = process.env): {
   const resolution = resolveOverlay({ coreRoot, overlayRoot, deployment });
   const manifest = buildOverrideManifest({ deployment, coreRoot, overlayRoot, resolution });
 
-  const outputPath =
-    deployment === null
-      ? join(coreModulesRoot(), '..', 'overlay', 'override-manifest.core.generated.ts')
-      : join(overlayModulesRootFor(deployment), '..', 'override-manifest.generated.ts');
+  const outputPath = overrideManifestOutputPath(deployment);
 
   // Module-resolvable path from the emitted file to src/overlay/types.js.
   const typesFile = join(coreModulesRoot(), '..', 'overlay', 'types.ts');
