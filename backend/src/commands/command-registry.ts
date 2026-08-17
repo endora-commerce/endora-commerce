@@ -44,6 +44,23 @@ export const COMMAND_REGISTRY = {
   'category.create': { reversible: false, description: 'Create a category' },
   'category.update': { reversible: false, description: 'Update a category' },
   'category.delete': { reversible: false, description: 'Soft-delete a category' },
+  // Feature 075 / D-74 — the CSV import's writes. One Command and one audit row
+  // per run, not per row: a spreadsheet is one operator action. Before this the
+  // import rewrote catalogue and stock with no Command and no audit row at all,
+  // and `check:command-coverage` could not see it, because `em.create` and a
+  // field assignment on a managed entity are not in its vocabulary.
+  'catalog.categories.import': {
+    reversible: false,
+    description: 'Apply a bulk categories import (one run)',
+  },
+  'catalog.products.import': {
+    reversible: false,
+    description: 'Apply a bulk products import (one run)',
+  },
+  'inventory.stock_levels.import': {
+    reversible: false,
+    description: 'Apply a bulk stock-level import (one run)',
+  },
   'attribute_set.create': { reversible: false, description: 'Create an attribute set' },
   'attribute_set.update': { reversible: false, description: 'Update an attribute set' },
   'attribute_set.delete': { reversible: false, description: 'Delete an attribute set' },

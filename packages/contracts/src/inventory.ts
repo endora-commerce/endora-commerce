@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
+import type { BulkImportReport } from './import-export.js';
 
 /**
  * Inventory module contracts — feature 010 multi-warehouse rewrite.
@@ -462,6 +463,44 @@ export interface InventoryStockReadPort {
     variantId?: string | null;
     salesChannelId: string | null;
   }): Promise<CandidateWarehouse[]>;
+}
+
+// --- the bulk import surface -------------------------------------------------
+//
+// D-74, the second half of the same ruling `catalog` carries: `import_export`
+// held this module's `StockLevel` class, wrote it inside its own transaction,
+// and named the seeded warehouse by a UUID literal copied out of
+// `warehouse.entity.ts`. All three go with the port — a caller has a SKU and a
+// quantity, not a warehouse id.
+
+/**
+ * One row of a stock-level import.
+ *
+ * `productSku` rather than a product id: a spreadsheet addresses a product the
+ * way an operator does, and resolving it is this module's business because it
+ * is this module that decides a row addressing nothing is a rejected row.
+ * `variantId` absent or `null` addresses the simple-product baseline level.
+ *
+ * The row names no warehouse. The import applies to the seeded default one —
+ * the behaviour the CSV path has always had, kept explicit here rather than
+ * left to a constant a caller copies.
+ */
+export interface StockLevelImportRow {
+  productSku: string;
+  variantId?: string | null;
+  onHand: number;
+}
+
+/**
+ * Container name: `inventoryStockImportPort`. Owner: `inventory`.
+ *
+ * All-or-nothing per call, one audit row — the same contract `catalog`'s bulk
+ * import port carries, and for the same reason. With `inventory` off the call answers 503
+ * `MODULE_DISABLED`; the caller is expected to decide presence before offering
+ * the surface at all.
+ */
+export interface InventoryStockImportPort {
+  importStockLevels(rows: readonly StockLevelImportRow[]): Promise<BulkImportReport>;
 }
 
 // --- the two pure allocation functions ---------------------------------------

@@ -150,3 +150,6 @@ export * from './admin-users.js';
 export * from './addresses.js';
 export * from './shipments.js';
 export * from './admin-notifications.js';
+// The bulk-import report both owners answer in and `import_export` renders
+// (feature 075, D-74). Not a module's port surface — a shape two of them share.
+export * from './import-export.js';
