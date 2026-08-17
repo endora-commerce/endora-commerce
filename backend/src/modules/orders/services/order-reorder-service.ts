@@ -144,10 +144,12 @@ export class OrderReorderService {
     }
     if (!this.mailer) return orderEmailNotSent(undefined, context, 'no_transport');
     try {
-      await this.mailer.send(
+      const outcome = await this.mailer.send(
         buildReorderCreatedEmail({ to: customer.email, sourceBusinessId: order.businessId, orderId: order.id }),
       );
-      return { sent: true };
+      return outcome.status === 'sent'
+        ? { sent: true }
+        : orderEmailNotSent(undefined, context, 'suppressed');
     } catch (error) {
       // Best-effort: the cart is rebuilt either way. A switched-off module is
       // not a delivery failure, so it travels on.

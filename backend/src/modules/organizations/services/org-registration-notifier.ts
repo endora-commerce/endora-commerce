@@ -87,13 +87,23 @@ export class OrgRegistrationNotifier {
           meta: { organizationId: org.id, kind: 'organization.registered' },
         });
         if (!sentViaTemplate) {
-          await this.deps.mailer.send({
+          const outcome = await this.deps.mailer.send({
             messageId,
             to,
             subject: `Nowa Organizacja: ${org.name}`,
             text: this.composeBody(org),
             meta: { organizationId: org.id, kind: 'organization.registered' },
           });
+          if (outcome.status !== 'sent') {
+            // `onError` is for a throw; a suppression is not one. Each
+            // recipient is independent, so it is named on its own — and D-59's
+            // record holds the same fact per recipient.
+            console.warn('[organizations] the new-organization e-mail was not sent', {
+              organizationId: org.id,
+              to,
+              reason: outcome.reason,
+            });
+          }
         }
       } catch (err) {
         this.deps.onError?.(err);

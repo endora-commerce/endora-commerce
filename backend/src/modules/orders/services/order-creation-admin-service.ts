@@ -196,9 +196,12 @@ export class OrderCreationAdminService {
         orderEmailNotSent(undefined, emailContext, 'no_transport');
       } else {
         try {
-          await this.mailer.send(
+          const outcome = await this.mailer.send(
             buildAdminCreatedOrderEmail({ to: customer.email, businessId: order.businessId, orderId: order.id }),
           );
+          if (outcome.status !== 'sent') {
+            orderEmailNotSent(undefined, emailContext, 'suppressed');
+          }
         } catch (error) {
           // A switched-off module is not a delivery failure, so it travels on.
           rethrowIfModuleDisabled(error);

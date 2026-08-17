@@ -98,8 +98,12 @@ export async function registerOrganizationsPublicRoutes(
               meta: message.meta,
             })
           : false;
-        if (!sentViaTemplate) await deps.mailer.send(message);
-        emailVerificationSent = true;
+        // The flag is in the response body, so it answers what the transport
+        // answered rather than "we reached this line" (D-59).
+        const outcome = sentViaTemplate
+          ? ({ status: 'sent' } as const)
+          : await deps.mailer.send(message);
+        emailVerificationSent = outcome.status === 'sent';
       } catch (err) {
         request.log.error({ err }, 'Failed to send verification email');
       }

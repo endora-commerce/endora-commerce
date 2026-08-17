@@ -20,7 +20,11 @@ import type {
 } from '@b2b/contracts';
 import { ReturnEmailNotifier } from '../../../src/modules/returns/services/return-email-notifier.js';
 import type { ReturnCase } from '../../../src/modules/returns/entities/return-case.entity.js';
-import type { Mailer, MailerSendInput } from '../../../src/modules/email/services/mailer.js';
+import type {
+  Mailer,
+  MailerSendInput,
+  MailerSendOutcome,
+} from '../../../src/modules/email/services/mailer.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 
 const CHANNEL_ID = 'cccccccc-0000-4000-8000-0000000000aa';
@@ -43,8 +47,9 @@ function returnCase(overrides: Partial<ReturnCase> = {}): ReturnCase {
 
 class CapturingMailer implements Mailer {
   readonly sent: MailerSendInput[] = [];
-  async send(email: MailerSendInput): Promise<void> {
+  async send(email: MailerSendInput): Promise<MailerSendOutcome> {
     this.sent.push(email);
+    return { status: 'sent' };
   }
 }
 

@@ -27,6 +27,7 @@ import { renderEmailText } from '@b2b/email-components/render/render-email-text'
 import { renderDirectives } from '@b2b/email-components/directives/directive-engine';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { Mailer } from '../../email/services/mailer.js';
+import type { EmailDeliveryRecorder, EmailDeliveryReason } from '@b2b/contracts';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { TransactionalEmail } from '../entities/transactional-email.entity.js';
 import { TransactionalEmailContent } from '../entities/transactional-email-content.entity.js';
@@ -73,6 +74,12 @@ export interface TransactionalEmailServiceDeps {
    */
   defaults: EmailDefaultsRegistry;
   mailer?: Mailer;
+  /**
+   * Where the three outcomes decided **before** the transport are recorded
+   * (D-59). Optional: a composition with no recorder loses the row, not the
+   * send, which is the same tolerance the recorder itself states.
+   */
+  deliveryRecorder?: EmailDeliveryRecorder;
   auditLog?: AuditLogService;
 }
 
@@ -83,6 +90,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   private readonly embeds: EmbedResolver;
   private readonly defaults: EmailDefaultsRegistry;
   private readonly mailer: Mailer | undefined;
+  private readonly deliveryRecorder: EmailDeliveryRecorder | undefined;
   private readonly auditLog: AuditLogService | undefined;
 
   constructor(deps: TransactionalEmailServiceDeps) {
@@ -92,6 +100,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
     this.embeds = deps.embeds;
     this.defaults = deps.defaults;
     this.mailer = deps.mailer;
+    this.deliveryRecorder = deps.deliveryRecorder;
     this.auditLog = deps.auditLog;
   }
 
@@ -102,6 +111,13 @@ export class TransactionalEmailService implements TransactionalEmailSender {
    * used to be one silent `return`, which left every caller unable to tell an
    * operator's "off" from a code with no template — and suppressing its own
    * fallback for both.
+   *
+   * Since D-59 each of those three also leaves a **row**. They are the outcomes
+   * decided before the transport is reached, so the record `RecordingMailer`
+   * writes never gets the chance — and one of them, `deactivated`, is the whole
+   * reason the record has to tell a deliberate configuration from an outage.
+   * A delivered message is deliberately *not* recorded here: the transport
+   * records it, so one send stays one row.
    */
   async send(input: TransactionalEmailSendInput): Promise<TransactionalSendOutcome> {
     if (!this.mailer) {
@@ -111,14 +127,21 @@ export class TransactionalEmailService implements TransactionalEmailSender {
           '[transactional_emails] no mailer configured — transactional emails are not being delivered (logged once per process).',
         );
       }
+      await this.recordNotSent(input, 'failed', 'no_transport');
       return { status: 'no_transport' };
     }
     const em = this.emFactory();
     const email = await em.findOne(TransactionalEmail, { code: input.code });
     // No definition: the caller may still have a legacy in-code builder for
     // this code. Deactivated: the operator chose silence, so nothing goes out.
-    if (!email) return { status: 'no_definition' };
-    if (!email.active) return { status: 'deactivated' };
+    if (!email) {
+      await this.recordNotSent(input, 'failed', 'no_definition');
+      return { status: 'no_definition' };
+    }
+    if (!email.active) {
+      await this.recordNotSent(input, 'suppressed', 'deactivated');
+      return { status: 'deactivated' };
+    }
 
     const fallbackLanguage = email.languages[0];
     const resolved = await this.contentResolver.resolve(em, email, {
@@ -139,10 +162,43 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       subject: rendered.subject,
       text: rendered.text,
       html: rendered.html,
+      // What the delivery record needs and only this layer holds: the code the
+      // message was rendered from, the channel it was rendered for, and the
+      // document it delivers.
+      kind: input.code,
+      salesChannelId: input.salesChannelId,
+      ...(input.document ? { document: input.document } : {}),
       ...(input.attachments ? { attachments: input.attachments } : {}),
       ...(input.meta ? { meta: input.meta } : {}),
     });
     return { status: 'sent' };
+  }
+
+  /**
+   * One row for a message this layer decided not to send.
+   *
+   * No `catch`: the recorder answers `null` for a row it could not write and
+   * never throws (its own contract), so there is nothing here to contain — and
+   * a `catch` around a collaborator another module owns is how a presence
+   * answer stops travelling.
+   */
+  private async recordNotSent(
+    input: TransactionalEmailSendInput,
+    status: 'suppressed' | 'failed',
+    reason: EmailDeliveryReason,
+  ): Promise<void> {
+    await this.deliveryRecorder?.record({
+      messageId: input.messageId,
+      recipient: input.to,
+      kind: input.code,
+      status,
+      reason,
+      salesChannelId: input.salesChannelId,
+      ...(input.document
+        ? { documentType: input.document.type, documentId: input.document.id }
+        : {}),
+      ...(input.meta ? { context: input.meta } : {}),
+    });
   }
 
   // --- Rendering ----------------------------------------------------------

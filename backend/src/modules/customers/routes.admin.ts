@@ -479,12 +479,22 @@ export async function registerCustomersAdminRoutes(
       const { rawToken } = await deps.passwordResetService.requestReset(customer.email);
       if (rawToken) {
         const link = `${deps.storefrontBaseUrl}/reset-password?token=${rawToken}`;
-        await deps.mailer.send({
+        const outcome = await deps.mailer.send({
           messageId: `admin-pwd-reset.${customer.id}.${rawToken.slice(0, 8)}`,
           to: customer.email,
           subject: 'Set a new password',
           text: `An administrator started a password reset for your account. Set a new password here: ${link}`,
+          kind: 'admin_password_reset',
         });
+        if (outcome.status !== 'sent') {
+          // The reset token is minted either way, and the audit row below
+          // records the request rather than the delivery — so the message's own
+          // fate is named here and kept by D-59's record.
+          request.log.warn(
+            { customerId: customer.id, reason: outcome.reason },
+            '[customers] the password-reset e-mail was not sent',
+          );
+        }
       }
       await deps.auditLogService.record({
         actorAdminUserId: actor.adminUserId,

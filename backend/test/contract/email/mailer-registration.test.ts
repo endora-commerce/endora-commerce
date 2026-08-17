@@ -6,6 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import type { EmailCradle } from '../../../src/modules/email/backend.js';
 import { ConsoleMailer } from '../../../src/modules/email/services/mailer.js';
+import { RecordingMailer } from '../../../src/modules/email/services/recording-mailer.js';
 import { SmtpMailer } from '../../../src/modules/email/services/smtp-mailer.js';
 
 /**
@@ -42,7 +43,15 @@ describe('email — the mailer is a module registration', () => {
 
   it('picks the driver from the resolved SMTP url', () => {
     const cradle = h.container.cradle as unknown as EmailCradle;
-    expect(cradle.emailMailer).toBeInstanceOf(cradle.emailSmtpUrl ? SmtpMailer : ConsoleMailer);
+    expect(cradle.emailTransport).toBeInstanceOf(cradle.emailSmtpUrl ? SmtpMailer : ConsoleMailer);
+  });
+
+  it('hands every sending module the recording mailer, not the bare driver', () => {
+    // D-59 — the delivery record wraps the driver at the registration, so no
+    // module can reach a transport that writes no row.
+    const cradle = h.container.cradle as unknown as EmailCradle;
+    expect(cradle.emailMailer).toBeInstanceOf(RecordingMailer);
+    expect(cradle.emailMailer).not.toBe(cradle.emailTransport);
   });
 
   it('is a singleton — one transport per composition, not one per resolution', () => {

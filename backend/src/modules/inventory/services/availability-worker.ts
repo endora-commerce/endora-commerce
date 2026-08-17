@@ -88,17 +88,28 @@ export class AvailabilityWorker {
         sub.notifiedAt = now;
         continue;
       }
-      await this.mailer.send({
+      const outcome = await this.mailer.send({
         messageId: `availability:${sub.id}`,
         to,
         subject: `Back in stock: ${productName}`,
         text: `Good news — "${productName}" is available again.`,
+        kind: 'availability_back_in_stock',
         meta: {
           productId: input.productId,
           variantId: input.variantId ?? null,
           notificationId: sub.id,
         },
       });
+      if (outcome.status !== 'sent') {
+        // The subscription is still consumed: the one suppression a transport
+        // performs is an already-accepted `messageId`, which means this
+        // subscriber was notified by an earlier run. Re-sending it is the
+        // duplicate the idempotency key exists to prevent.
+        console.warn('[inventory] the back-in-stock e-mail was not sent', {
+          notificationId: sub.id,
+          reason: outcome.reason,
+        });
+      }
       sub.notifiedAt = now;
     }
     await em.flush();

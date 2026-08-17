@@ -31,6 +31,11 @@ export type ReturnEmailNotSentReason =
   | 'no_transport'
   /** No template exists for this code yet. */
   | 'no_definition'
+  /**
+   * The transport itself declined to send (D-59) — today, an already-accepted
+   * `messageId`, so an earlier call delivered the message and this one did not.
+   */
+  | 'suppressed'
   /** The send raised, and the workflow transition stays applied. */
   | 'failed';
 
@@ -107,7 +112,10 @@ export class ReturnEmailNotifier implements ReturnNotifier {
         if (outcome.status !== 'sent') return this.notSent(rc, kind, outcome.status);
         return { sent: true };
       }
-      await this.mailer.send(buildReturnAuthorizedEmail({ to, rmaNumber, returnCaseId: rc.id }));
+      const outcome = await this.mailer.send(
+        buildReturnAuthorizedEmail({ to, rmaNumber, returnCaseId: rc.id }),
+      );
+      if (outcome.status !== 'sent') return this.notSent(rc, kind, 'suppressed');
       return { sent: true };
     } catch (error) {
       return this.contained(rc, kind, error);
@@ -134,7 +142,10 @@ export class ReturnEmailNotifier implements ReturnNotifier {
         if (outcome.status !== 'sent') return this.notSent(rc, kind, outcome.status);
         return { sent: true };
       }
-      await this.mailer.send(buildReturnRejectedEmail({ to, reason, returnCaseId: rc.id }));
+      const outcome = await this.mailer.send(
+        buildReturnRejectedEmail({ to, reason, returnCaseId: rc.id }),
+      );
+      if (outcome.status !== 'sent') return this.notSent(rc, kind, 'suppressed');
       return { sent: true };
     } catch (error) {
       return this.contained(rc, kind, error);

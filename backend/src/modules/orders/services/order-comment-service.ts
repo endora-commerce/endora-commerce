@@ -139,8 +139,10 @@ export class OrderCommentService {
     }
     if (!this.mailer) return orderEmailNotSent(undefined, context, 'no_transport');
     try {
-      await this.mailer.send(message);
-      return { sent: true };
+      const outcome = await this.mailer.send(message);
+      return outcome.status === 'sent'
+        ? { sent: true }
+        : orderEmailNotSent(undefined, context, 'suppressed');
     } catch (error) {
       // Notification delivery is best-effort; never block the comment. A
       // switched-off module is not a delivery failure, so it travels on.

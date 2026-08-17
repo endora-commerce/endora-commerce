@@ -856,6 +856,14 @@ export async function setupBackendServer(
   // shadowing a module's port. It is registered after `composeModules`, in the
   // one contribution slot, so this overrides `email`'s default rather than being
   // overwritten by it.
+  //
+  // D-59 — `emailMailer` is now the *recording* mailer: the driver plus the
+  // delivery record. A spy supplied here replaces both, so a test that injects
+  // one asserts on messages and writes no `email_deliveries` row. That is
+  // deliberate — the alternative is every mail-sending suite in the tree
+  // acquiring a database write it never asked for — and the composed path is
+  // covered directly by `test/integration/email/delivery-record.test.ts`, which
+  // sends through the container's own mailer.
   const emailMailer = (container.cradle as unknown as EmailCradle).emailMailer;
   const injectedMailer = options.organizationsMailer ?? emailMailer;
   if (options.organizationsMailer) {

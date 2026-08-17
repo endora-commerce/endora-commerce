@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import type { Mailer, MailerSendInput } from './mailer.js';
+import type { Mailer, MailerSendInput, MailerSendOutcome } from './mailer.js';
 
 /**
  * Production SMTP mailer using `nodemailer`. Configure via `SMTP_URL`
@@ -12,7 +12,12 @@ export class SmtpMailer implements Mailer {
     this.transport = nodemailer.createTransport(smtpUrl);
   }
 
-  async send(input: MailerSendInput): Promise<void> {
+  /**
+   * Answers `sent` or raises. There is no suppression an SMTP relay performs on
+   * our behalf: `nodemailer` either hands the message over or throws, and the
+   * throw is what the delivery record turns into a `failed` row (D-59).
+   */
+  async send(input: MailerSendInput): Promise<MailerSendOutcome> {
     await this.transport.sendMail({
       from: process.env['SMTP_FROM'] ?? process.env['MAIL_FROM'] ?? 'noreply@localhost',
       to: input.to,
@@ -33,5 +38,6 @@ export class SmtpMailer implements Mailer {
         : {}),
       messageId: input.messageId,
     });
+    return { status: 'sent' };
   }
 }
