@@ -4,6 +4,8 @@ import {
   SetOrderStatusParamsSchema,
   type BulkSetOrderStatusParams,
   type SearchOrdersParams,
+  type CustomerAccountReadPort,
+  type OrganizationDetailsPort,
   type PromptActionTool,
   type SetOrderStatusParams,
   type ToolContext,
@@ -30,6 +32,14 @@ import type { OrderTransitionService } from './services/order-transition-service
 export interface OrdersPromptToolsDeps {
   emFactory: () => EntityManager;
   /**
+   * The two name searches the assistant's order resolver runs behind its `q`
+   * (feature 075). `OrderListService` resolves the organisation and the
+   * customer a term names through their owners' ports, so this file hands the
+   * same two down rather than letting the list build them.
+   */
+  organizationDetails: OrganizationDetailsPort;
+  customerAccountRead: CustomerAccountReadPort;
+  /**
    * Late-bound accessor for the configured OrderTransitionService (exposed by
    * the orders plugin at boot). Status-change tools call it at confirm time —
    * long after boot — so a getter is sufficient. Omit it to ship only the
@@ -46,7 +56,12 @@ function statusLabel(name: Record<string, string>, code: string): string {
 
 export function ordersPromptTools(deps: OrdersPromptToolsDeps): PromptActionTool[] {
   const graphService = new OrderStatusGraphService(deps.emFactory);
-  const listService = new OrderListService(deps.emFactory, graphService);
+  const listService = new OrderListService(
+    deps.emFactory,
+    graphService,
+    deps.organizationDetails,
+    deps.customerAccountRead,
+  );
 
   function requireTransitionService(): OrderTransitionService {
     const svc = deps.getTransitionService?.() ?? null;

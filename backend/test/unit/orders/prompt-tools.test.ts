@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@b2b/contracts';
 import { PromptActionToolRegistry } from '../../../src/modules/prompt_actions/services/tool-registry.js';
 import { ordersPromptTools } from '../../../src/modules/orders/prompt-tools.js';
 
@@ -16,7 +17,26 @@ import { ordersPromptTools } from '../../../src/modules/orders/prompt-tools.js';
 
 // The provider only constructs services lazily; a no-op emFactory is enough to
 // inspect the contributed tool metadata.
-const deps = { emFactory: (() => ({})) as never };
+const deps = {
+  emFactory: (() => ({})) as never,
+  // The two neighbour ports the order resolver's list search reads. The tool
+  // metadata this suite inspects is built without touching either, so a
+  // refusing stub keeps the fixture honest: if a tool ever resolves one at
+  // construction time, the throw says so instead of a silent empty answer.
+  organizationDetails: refusing<OrganizationDetailsPort>('organizationDetailsPort'),
+  customerAccountRead: refusing<CustomerAccountReadPort>('customerAccountReadPort'),
+};
+
+function refusing<T>(name: string): T {
+  return new Proxy(
+    {},
+    {
+      get: () => () => {
+        throw new Error(`prompt-tools fixture: ${name} was not expected to be called`);
+      },
+    },
+  ) as T;
+}
 
 describe('ordersPromptTools — per-module registration', () => {
   it('contributes well-formed orders.* tools that the shared registry accepts', () => {

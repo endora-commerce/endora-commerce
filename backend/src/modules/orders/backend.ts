@@ -586,6 +586,8 @@ export function registerModule(ctx: ModuleContext): void {
     const registry = cradle().promptActionToolRegistry;
     for (const tool of ordersPromptTools({
       emFactory: cradle().emFactory,
+      organizationDetails: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+      customerAccountRead: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
       getTransitionService: transitionService,
     })) {
       registry.register(tool);

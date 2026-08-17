@@ -396,18 +396,27 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.exposeOrderTransitionService(orderTransitionService);
     }
     // Feature 038 US2 — orders list query, saved views, CSV export.
-    const orderListService = new OrderListService(options.emFactory, orderStatusGraphService);
+    const orderListService = new OrderListService(
+      options.emFactory,
+      orderStatusGraphService,
+      options.organizationDetails,
+      options.customerAccountRead,
+    );
     if (options.exposeOrderListService) options.exposeOrderListService(orderListService);
     const orderListViewService = new OrderListViewService(options.emFactory);
     const orderExportService = new OrderExportService(orderListService);
     const orderCommentService = new OrderCommentService(
       options.emFactory,
       orderStatusGraphService,
+      options.customerAccountRead,
       options.mailer,
       options.getTransactionalEmailSender,
     );
     const orderReorderService = new OrderReorderService(
       options.emFactory,
+      options.cartWritePort,
+      options.catalogProductRead,
+      options.customerAccountRead,
       options.resolveReorderEnabled,
       options.mailer,
       options.getTransactionalEmailSender,

@@ -11,6 +11,7 @@ import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
+import { cartWritePortOf, ordersNeighbourPorts } from '../../helpers/orders-neighbour-ports.js';
 import { OrderReorderService } from '../../../src/modules/orders/services/order-reorder-service.js';
 import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
@@ -78,8 +79,30 @@ describe('Order reorder', () => {
     await teardownBackendServer(h);
   });
 
+  /**
+   * Feature 075 — the service reseeds the cart through `carts`' published
+   * `cartWritePort` instead of writing `Cart` and `CartItem` itself, and reads
+   * the products and the buyer through their owners' ports. The real
+   * implementations are used, so what this rig exercises is the same path the
+   * composed service takes.
+   */
+  function reorderService(
+    resolveReorderEnabled: (salesChannelId: string) => Promise<boolean>,
+    mailer?: InMemoryMailer,
+  ): OrderReorderService {
+    const ports = ordersNeighbourPorts(h.em);
+    return new OrderReorderService(
+      h.em,
+      cartWritePortOf(h),
+      ports.catalogProductRead,
+      ports.customerAccountRead,
+      resolveReorderEnabled,
+      mailer,
+    );
+  }
+
   it('rebuilds the cart from available items and reports the discontinued one', async () => {
-    const svc = new OrderReorderService(h.em, async () => true);
+    const svc = reorderService(async () => true);
     const result = await svc.reorder(orderId, ctx);
     expect(result.unavailableItems).toHaveLength(1);
     expect(result.unavailableItems[0]).toMatchObject({ productId: missingProductId, reason: 'discontinued' });
@@ -92,14 +115,14 @@ describe('Order reorder', () => {
   });
 
   it('is refused when reorder is disabled for the scope (403)', async () => {
-    const svc = new OrderReorderService(h.em, async () => false);
+    const svc = reorderService(async () => false);
     await expect(svc.reorder(orderId, ctx)).rejects.toMatchObject({ statusCode: 403 });
   });
 
   it('notifies the customer when reordered on their behalf', async () => {
     const acct = await h.em().findOne(CustomerAccount, { id: TEST_CUSTOMER_ID });
     const mailer = new InMemoryMailer();
-    const svc = new OrderReorderService(h.em, async () => true, mailer);
+    const svc = reorderService(async () => true, mailer);
     await svc.reorder(orderId, ctx, { notifyCustomer: true });
     if (acct?.email) {
       expect(mailer.sent).toHaveLength(1);
