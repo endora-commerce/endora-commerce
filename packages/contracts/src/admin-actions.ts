@@ -57,6 +57,9 @@ export const KnownIconNameSchema = z.enum([
   'Tag',
   'ShoppingCart',
   'Receipt',
+  // Feature 076 (D-83 item 8) — `payment_methods`' landing action. The same
+  // icon the sidebar already renders for `/payment-methods`.
+  'CreditCard',
   // people
   'Users',
   'UserPlus',

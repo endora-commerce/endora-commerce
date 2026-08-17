@@ -79,6 +79,18 @@ export const paymentMethodsClient = {
       )
       .then((r) => r.data);
   },
+  /**
+   * Availability — feature 076 (D-82). Its own endpoint, because it is its own
+   * operation: the `PUT` above requires `name` and `kind`, so a toggle through
+   * it would resend the whole record and clobber a concurrent edit.
+   */
+  setStatus(id: string, status: 'active' | 'inactive'): Promise<AdminPaymentMethod> {
+    return apiClient
+      .patch<{ data: AdminPaymentMethod }>(`/api/v1/admin/payment-methods/${id}/status`, {
+        status,
+      })
+      .then((r) => r.data);
+  },
   remove(id: string): Promise<void> {
     return apiClient.delete<void>(`/api/v1/admin/payment-methods/${id}`);
   },

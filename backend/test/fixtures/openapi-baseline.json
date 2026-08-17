@@ -3963,6 +3963,15 @@
         }
       }
     },
+    "/api/v1/admin/payment-methods/{id}/status": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/payu/config": {
       "get": {
         "responses": {
