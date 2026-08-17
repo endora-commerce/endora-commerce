@@ -1,10 +1,12 @@
 /**
- * CI check — a module does not import another module's internals
- * (Constitution I; feature 075, FR-001…FR-005 and FR-020…FR-028).
+ * CI check — a module does not reach into another module's internals
+ * (Constitution I; feature 075, FR-001…FR-005 and FR-020…FR-028; feature 077,
+ * D-87).
  *
  * **The rule, in one sentence:** no file under `backend/src/modules/<A>/` or
  * `backend/src/apps/<deployment>/modules/<A>/` may name an import specifier that
- * resolves into a different module's directory.
+ * resolves into a different module's directory, **or** name another module's
+ * table in raw SQL.
  *
  * Features 072 and 073 finished the *runtime* half of Principle I: 891 port
  * resolutions through the container with zero violations. What was left is the
@@ -12,6 +14,36 @@
  * against, and the entity class a module still queries directly — and it is
  * **674 sites**, 43% of them `import type`. `check-port-dependencies.ts`' header
  * defers this work by name; this is the different rule it defers to.
+ *
+ * ## Two predicates, one ledger
+ *
+ * The **import** predicate reads specifiers. The **`sql`** predicate reads table
+ * identifiers out of string and template literals and resolves each against a
+ * table→owner map. Both produce findings into the same per-consumer shard and
+ * the same `ledger-size`, because the question the number answers is "is there
+ * cross-module coupling left", not "is there coupling of a particular syntax
+ * left" (D-87). A raw `SELECT` across a package boundary compiles, runs and
+ * returns rows; a `violations=0` that cannot see one licenses a package split
+ * that is 116 couplings short of true.
+ *
+ * The owner map is built from **two** sources and the second is not optional:
+ * every `@Entity()` class's table name (220 tables), and every `create table` in
+ * a `migrations/` file (21 more). The 21 are all join tables and bridges, and
+ * they carry the findings that matter most — every `sales_channel_*` bridge is
+ * declared in DDL and by no entity class, so an entity-only map reports zero of
+ * them. Where the two disagree the **entity wins**: an entity is a live
+ * declaration and a migration is a historical one.
+ *
+ * A table whose DDL sits in `src/db/migrations` is attributed to no module by
+ * either pass, and most of those are one module's own join table that happens to
+ * have been created in the pre-065 core block. So a **core-owned table is
+ * attributed to the module that owns the table its name begins with**:
+ * `product_categories` and `product_assets` belong to `catalog` because
+ * `products` does, `sales_channel_products` belongs to the kernel because
+ * `sales_channels` does. That is the one judgement the map needs, and stating it
+ * this way keeps it derived from the map rather than listed in it. A table that
+ * is still core-owned after attribution is nobody's to ask for, so it is not a
+ * finding — the count of those is printed, so a residue cannot grow in silence.
  *
  * ## What counts as a specifier
  *
@@ -59,6 +91,15 @@
  *   - `backend/test/**` — reporting only, under `--tests`. A test is allowed to
  *     know more than the code it tests, and after F4 a test importing another
  *     module's entity is a `devDependency` edge.
+ *   - **`migrations/`, for the `sql` predicate** — a migration naming another
+ *     module's table is the dependency-corrected execution order's problem, and
+ *     `test/unit/db/fk-dependency-drift.test.ts` already owns it.
+ *   - **Comments, for the `sql` predicate** — not by exclusion but by
+ *     construction: the predicate reads literal *nodes*. The first spike was a
+ *     regex over source text and hallucinated a dozen tables (`every`, `bumps`,
+ *     `used`, `path`), because an apostrophe in an English comment opens a
+ *     string literal that runs to the next apostrophe. `sql-in-a-comment` is a
+ *     red proof for exactly that.
  *   - {@link GENERATED_MODULE_FILES} — a file is exempt because a **generator
  *     owns it**, and the entry says which. Not a `.generated.` filename match:
  *     scoping a rule to a filename convention makes the rule's reach a property
@@ -111,9 +152,12 @@
  * one it is in the middle of removing.
  *
  * Usage: `tsx scripts/check-module-boundary.ts [--list] [--tests] [--module <id>]`
- * Exit 0 = every cross-module import is ledgered in its own shard;
+ * Exit 0 = every cross-module reach is ledgered in its own shard;
  * exit 1 = at least one is not, or the ledger lies in one of the other four ways;
- * exit 2 = the check read nothing (issue #113).
+ * exit 2 = the check read nothing — no module sources, no ledger directory, or a
+ * table→owner map in which **either** pass resolved zero tables. Each pass
+ * proves it looked, and a silently empty migration pass is precisely the
+ * entity-only blindness the second source exists to remove (issue #113).
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -122,6 +166,12 @@ import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { moduleOf } from './check-container-imports.js';
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
+import {
+  declaredTableNames,
+  sqlTableAccesses,
+  type SqlAccessDirection,
+} from './lib/sql-tables.js';
+import { pluralize } from '../src/db/pluralizing-naming-strategy.js';
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const SRC_ROOT = join(BACKEND_ROOT, 'src');
@@ -147,6 +197,8 @@ export type CrossModuleImportKind = SpecifierKind;
 export type CrossModuleSurface = 'entity' | 'service' | 'port' | 'manifest' | 'wiring' | 'other';
 
 export interface CrossModuleImport {
+  /** Which predicate produced it — see the header's "two predicates, one ledger". */
+  readonly predicate: 'import';
   /** Path under `src/`, POSIX separators: `modules/orders/services/order-service.ts`. */
   readonly file: string;
   readonly line: number;
@@ -168,8 +220,47 @@ export interface CrossModuleImport {
   readonly overlay: boolean;
 }
 
-/** `<file>:<target module>/<target path>` — the ledger key, and a site's identity. */
-export function keyOf(found: CrossModuleImport): string {
+/**
+ * A module naming another module's table in raw SQL (D-87).
+ *
+ * The owner is the module (or the kernel) whose entity class or `create table`
+ * DDL declares the table, so the remedy is the same one an import edge gets:
+ * ask the owner through a port.
+ */
+export interface CrossModuleSqlAccess {
+  readonly predicate: 'sql';
+  /** Path under `src/`, POSIX separators. */
+  readonly file: string;
+  readonly line: number;
+  /** The module the literal lives in. */
+  readonly moduleId: string;
+  /** The owner of the table — a module id, or `kernel`. */
+  readonly target: string;
+  /** The table identifier as the statement names it, lower-cased. */
+  readonly table: string;
+  readonly direction: SqlAccessDirection;
+  /** The head of the statement, for the message. */
+  readonly statement: string;
+  /** True when either side lives under `src/apps/<deployment>/modules/`. */
+  readonly overlay: boolean;
+}
+
+/** What either predicate produces. Both are ledgered in the same shard. */
+export type ModuleBoundaryFinding = CrossModuleImport | CrossModuleSqlAccess;
+
+/**
+ * The ledger key, and a site's identity.
+ *
+ * `<file>:<target module>/<target path>` for an import,
+ * `<file>:sql:<owner>/<table>` for a SQL access. Keyed by file and target rather
+ * than by line (FR-026), so code can move inside a file without invalidating the
+ * ledger, and the `sql:` segment keeps the two predicates' keys disjoint while
+ * leaving the file half — which is what decides misfiling — in the same place.
+ */
+export function keyOf(found: ModuleBoundaryFinding): string {
+  if (found.predicate === 'sql') {
+    return `${found.file}:sql:${found.target}/${found.table}`;
+  }
   return found.targetPath === ''
     ? `${found.file}:${found.target}`
     : `${found.file}:${found.target}/${found.targetPath}`;
@@ -262,13 +353,23 @@ export function permanentEntryIssue(key: string, entry: PermanentLedgerEntry): s
 export interface ModuleBoundaryInput {
   /** Every module source, keyed by path relative to `src/`. */
   readonly sources: ReadonlyMap<string, string>;
+  /**
+   * Every source the table→owner map is built from, keyed the same way — the
+   * whole of `src/`, because entity classes live in modules **and** in the
+   * kernel and the pre-065 DDL lives in `src/db/migrations`.
+   *
+   * Absent means "do not run the `sql` predicate": that is what keeps the
+   * import predicate's own fixtures — which hand in three files and no schema —
+   * meaning what they meant.
+   */
+  readonly schema?: ReadonlyMap<string, string>;
 }
 
 export interface CheckResult {
   readonly total: number;
-  /** Cross-module imports no shard accounts for. */
-  readonly violations: readonly CrossModuleImport[];
-  readonly ledgered: readonly CrossModuleImport[];
+  /** Cross-module reaches no shard accounts for. */
+  readonly violations: readonly ModuleBoundaryFinding[];
+  readonly ledgered: readonly ModuleBoundaryFinding[];
   /** Ledger keys that describe no finding in this run. */
   readonly stale: readonly string[];
   /** Shards with no entries — the file is to be deleted, not emptied. */
@@ -281,6 +382,8 @@ export interface CheckResult {
   readonly permanentKeys: readonly string[];
   /** A permanent entry that states no reason or no retiring condition. */
   readonly permanentIssues: readonly string[];
+  /** What each pass of the table→owner map resolved, and what is left over. */
+  readonly tableOwners: TableOwnerReport;
 }
 
 /** Where a module lives and what it is called: `{ id: 'orders', dir: 'modules/orders' }`. */
@@ -360,6 +463,7 @@ export function analyzeSource(source: string, file: string): CrossModuleImport[]
     if (target.dir === owner.dir) continue;
     const targetPath = resolved === target.dir ? '' : resolved.slice(target.dir.length + 1);
     found.push({
+      predicate: 'import',
       file,
       line: specifier.line,
       moduleId: owner.id,
@@ -381,6 +485,183 @@ export function findCrossModuleImports(input: ModuleBoundaryInput): CrossModuleI
   return found;
 }
 
+// ---------------------------------------------------------------------------
+// The `sql` predicate (D-87)
+// ---------------------------------------------------------------------------
+
+/** Who owns a table: a module id and the directory that decides its identity. */
+interface TableOwner {
+  readonly id: string;
+  readonly dir: string;
+}
+
+/**
+ * What the two passes resolved, so a green cannot mean "the map was empty".
+ *
+ * Both counts are in the vacuous-pass guard, separately: an entity pass that
+ * resolves nothing is a walk that read no `src/`, and a migration pass that
+ * resolves nothing is exactly the entity-only blindness the second source was
+ * added to remove — and it would report a *smaller* number rather than an error.
+ */
+export interface TableOwnerReport {
+  readonly entityTables: number;
+  readonly migrationTables: number;
+  /**
+   * Tables the migration pass resolved that **no** entity declares — the 21 the
+   * second source exists for. Printed, because an entity pass that started
+   * swallowing them would leave this at zero while every other number held.
+   */
+  readonly migrationOnlyTables: number;
+  /** Tables no module or kernel owns after attribution — never a finding. */
+  readonly unattributed: readonly string[];
+}
+
+/** The declaring file's owner: a module, the kernel, or a core directory. */
+function declaringOwnerOf(file: string): TableOwner | null {
+  const module = moduleLocationOf(file);
+  if (module !== null) return module;
+  const head = file.split('/')[0] ?? '';
+  if (head === 'kernel') return { id: 'kernel', dir: 'kernel' };
+  if (head === '') return null;
+  // `core:*` marks "declared outside any module" — the pre-065 DDL block lives
+  // in `src/db/migrations`, and attribution below decides whose table it is.
+  return { id: `core:${head}`, dir: `core:${head}` };
+}
+
+/** A `core:*` owner is a placeholder for "nobody's yet" — see the header. */
+function isCoreOwner(owner: TableOwner): boolean {
+  return owner.id.startsWith('core:');
+}
+
+/**
+ * The table→owner map, from entity declarations and migration DDL.
+ *
+ * Two passes over the same sources, entity first because it wins: an entity is a
+ * live declaration and a migration is a historical one. Then the join-table
+ * attribution the header describes — a core-owned table belongs to the module
+ * that owns the table its name begins with, longest prefix first, so
+ * `sales_channel_products` resolves through `sales_channels` and not through
+ * some shorter accident.
+ */
+export function buildTableOwners(schema: ReadonlyMap<string, string>): {
+  readonly owners: ReadonlyMap<string, TableOwner>;
+  readonly report: TableOwnerReport;
+} {
+  const owners = new Map<string, TableOwner>();
+  const fromEntity = new Set<string>();
+  const fromMigration = new Set<string>();
+
+  for (const [file, text] of schema) {
+    const owner = declaringOwnerOf(file);
+    if (owner === null) continue;
+    for (const declaration of declaredTableNames(text, file)) {
+      const seen = declaration.source === 'entity' ? fromEntity : fromMigration;
+      seen.add(declaration.table);
+      if (declaration.source === 'entity') owners.set(declaration.table, owner);
+      else if (!fromEntity.has(declaration.table)) owners.set(declaration.table, owner);
+    }
+  }
+
+  const unattributed: string[] = [];
+  for (const [table, owner] of [...owners]) {
+    if (!isCoreOwner(owner)) continue;
+    const attributed = attributeCoreTable(table, owners);
+    if (attributed === null) unattributed.push(table);
+    else owners.set(table, attributed);
+  }
+
+  return {
+    owners,
+    report: {
+      entityTables: fromEntity.size,
+      migrationTables: fromMigration.size,
+      migrationOnlyTables: [...fromMigration].filter((table) => !fromEntity.has(table)).length,
+      unattributed: unattributed.sort(),
+    },
+  };
+}
+
+/**
+ * The module that owns the table a core-owned table's name begins with.
+ *
+ * `product_categories` → `products` → `catalog`; `sales_channel_products` →
+ * `sales_channels` → the kernel. Longest prefix first, and the prefix is tried
+ * both as written and pluralised, because a join table names the owning side in
+ * the singular.
+ */
+function attributeCoreTable(
+  table: string,
+  owners: ReadonlyMap<string, TableOwner>,
+): TableOwner | null {
+  const segments = table.split('_');
+  for (let take = segments.length - 1; take >= 1; take -= 1) {
+    const head = segments.slice(0, take).join('_');
+    for (const candidate of [pluralize(head), head]) {
+      const owner = owners.get(candidate);
+      if (owner !== undefined && !isCoreOwner(owner)) return owner;
+    }
+  }
+  return null;
+}
+
+/**
+ * Every table another module owns that `source` names in raw SQL.
+ *
+ * Same entry point as {@link analyzeSource}: source text and a path in, findings
+ * out. The owner map is a parameter rather than a module-level cache so that
+ * {@link findCrossModuleSql} can build it from source text too — a fixture that
+ * handed in a ready-made map would leave both owner-map passes unproven, which
+ * is the failure mode issue #130 is about.
+ */
+export function analyzeSqlSource(
+  source: string,
+  file: string,
+  owners: ReadonlyMap<string, TableOwner>,
+): CrossModuleSqlAccess[] {
+  if (GENERATED_MODULE_FILES[file] !== undefined) return [];
+  // A migration naming another module's table is the execution order's problem,
+  // and `fk-dependency-drift.test.ts` already owns it.
+  if (file.includes('/migrations/')) return [];
+  const owner = moduleLocationOf(file);
+  if (owner === null) return [];
+
+  const found: CrossModuleSqlAccess[] = [];
+  for (const access of sqlTableAccesses(source, file)) {
+    const target = owners.get(access.table);
+    if (target === undefined || isCoreOwner(target)) continue;
+    if (target.dir === owner.dir) continue;
+    found.push({
+      predicate: 'sql',
+      file,
+      line: access.line,
+      moduleId: owner.id,
+      target: target.id,
+      table: access.table,
+      direction: access.direction,
+      statement: access.statement,
+      overlay: owner.dir.startsWith('apps/') || target.dir.startsWith('apps/'),
+    });
+  }
+  return found;
+}
+
+/** Every cross-module SQL access in the input, in file then line order. */
+export function findCrossModuleSql(input: ModuleBoundaryInput): {
+  readonly found: CrossModuleSqlAccess[];
+  readonly report: TableOwnerReport;
+} {
+  if (input.schema === undefined) {
+    return {
+      found: [],
+      report: { entityTables: 0, migrationTables: 0, migrationOnlyTables: 0, unattributed: [] },
+    };
+  }
+  const { owners, report } = buildTableOwners(input.schema);
+  const found = [...input.sources].flatMap(([file, text]) => analyzeSqlSource(text, file, owners));
+  found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
+  return { found, report };
+}
+
 /** The file half of a ledger key, or `null` when the key does not parse. */
 function fileOfKey(key: string): string | null {
   const at = key.indexOf(':');
@@ -399,7 +680,9 @@ export function checkModuleBoundary(
   input: ModuleBoundaryInput,
   shards: readonly LedgerShard[],
 ): CheckResult {
-  const all = findCrossModuleImports(input);
+  const sql = findCrossModuleSql(input);
+  const all: ModuleBoundaryFinding[] = [...findCrossModuleImports(input), ...sql.found];
+  all.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   const present = new Set(all.map(keyOf));
 
   const modules = new Set<string>();
@@ -455,6 +738,7 @@ export function checkModuleBoundary(
     misfiledEntries: misfiledEntries.sort(),
     permanentKeys: permanentKeys.sort(),
     permanentIssues: permanentIssues.sort(),
+    tableOwners: sql.report,
   };
 }
 
@@ -467,12 +751,28 @@ export function checkModuleBoundary(
 export function vacuousReason(input: {
   readonly moduleFiles: number;
   readonly ledgerDirectoryExists: boolean;
+  /** Tables the `@Entity()` pass resolved. */
+  readonly entityTables: number;
+  /** Tables the `create table` pass resolved — see {@link TableOwnerReport}. */
+  readonly migrationTables: number;
 }): string | null {
   if (input.moduleFiles === 0) {
     return 'no module sources under src/ — refusing to report a vacuous pass';
   }
   if (!input.ledgerDirectoryExists) {
     return 'ledger directory missing — refusing to report a vacuous pass';
+  }
+  // Each pass of the owner map proves it looked, separately. A half-blind map
+  // does not fail — it reports *fewer* SQL findings — so a green `violations=0
+  // ledger-size=0` must be unable to mean "the map was empty" (issue #113).
+  if (input.entityTables === 0) {
+    return 'the table→owner map resolved no @Entity() table — refusing to report a vacuous pass';
+  }
+  if (input.migrationTables === 0) {
+    return (
+      'the table→owner map resolved no `create table` DDL — an entity-only map is blind to ' +
+      'every join table and every channel bridge; refusing to report a vacuous pass'
+    );
   }
   return null;
 }
@@ -528,6 +828,18 @@ export function collectModuleFiles(srcRoot: string = SRC_ROOT): string[] {
   return [...walk(join(srcRoot, 'modules')), ...walk(join(srcRoot, 'apps'))];
 }
 
+/**
+ * Every file the **owner map** is built from: the whole of `src/`.
+ *
+ * Wider than {@link collectModuleFiles} on purpose, and it is the difference the
+ * `sql` predicate lives on — five of the tables it resolves are the kernel's
+ * (`sales_channels` alone carries 25 findings) and 21 more are declared only by
+ * DDL under `src/db/migrations`, which no module walk reaches.
+ */
+export function collectSchemaFiles(srcRoot: string = SRC_ROOT): string[] {
+  return walk(srcRoot);
+}
+
 function walk(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir).sort()) {
@@ -575,7 +887,8 @@ export function generatedExemptionIssues(
 // ---------------------------------------------------------------------------
 
 /** What the module author should do instead, chosen by the surface reached. */
-function remedyFor(finding: CrossModuleImport): string {
+function remedyFor(finding: ModuleBoundaryFinding): string {
+  if (finding.predicate === 'sql') return sqlRemedyFor(finding);
   const consumer = finding.moduleId;
   const owner = finding.target;
   const head = `    This is ${describe(finding.surface)} of \`${owner}\`.`;
@@ -629,7 +942,43 @@ function describe(surface: CrossModuleSurface): string {
   }
 }
 
-function describeFinding(finding: CrossModuleImport): string {
+/**
+ * What to do about a raw statement against another module's table.
+ *
+ * The `sales_channel_*` bridges get their own sentence because Principle XII
+ * names the accessor by hand and, until D-87, credited a lint rule that was
+ * wired into no ESLint config with enforcing it.
+ */
+function sqlRemedyFor(finding: CrossModuleSqlAccess): string {
+  const head = `    \`${finding.table}\` is owned by \`${finding.target}\`.`;
+  if (finding.table.startsWith('sales_channel')) {
+    return [
+      `${head} It is a sales-channel membership bridge, and Principle XII`,
+      '    says those are read and written only through the channel-membership service:',
+      '      SalesChannelMembershipPort.listEntityIdsForChannel(channelId, entityType)',
+      '    for a read, and the membership service for a write — a direct write records no',
+      '    `sales_channel_membership` audit row, which is Principle XIII as well.',
+    ].join('\n');
+  }
+  return [
+    `${head} A raw statement across the boundary compiles, runs and returns`,
+    '    rows, and no import specifier names it. Ask the owner instead:',
+    `      1. \`${finding.target}\` publishes a port and its contract type in`,
+    `         packages/contracts/src/${finding.target}.ts;`,
+    "      2. resolve it here with lazyPort<ContractType>(ctx, '<literalPortName>');",
+    `      3. add '${finding.target}' to \`dependencies\` in`,
+    `         src/modules/${finding.moduleId}/manifest.ts.`,
+  ].join('\n');
+}
+
+function describeFinding(finding: ModuleBoundaryFinding): string {
+  if (finding.predicate === 'sql') {
+    return (
+      `  - ${finding.file}:${finding.line}\n` +
+      `      ${finding.moduleId} -> ${finding.target}   sql ${finding.direction}   ` +
+      `${finding.table}\n      ${finding.statement}\n`
+    );
+  }
   return (
     `  - ${finding.file}:${finding.line}\n` +
     `      ${finding.moduleId} -> ${finding.target}   ${finding.kind}   ${finding.specifier}\n`
@@ -658,9 +1007,14 @@ async function main(): Promise<void> {
   const only = moduleAt === -1 ? null : (process.argv[moduleAt + 1] ?? null);
 
   const files = collectModuleFiles();
+  const sources = sourcesOf(files);
+  const schema = sourcesOf(collectSchemaFiles());
+  const owners = buildTableOwners(schema).report;
   const vacuous = vacuousReason({
     moduleFiles: files.length,
     ledgerDirectoryExists: existsSync(LEDGER_ROOT),
+    entityTables: owners.entityTables,
+    migrationTables: owners.migrationTables,
   });
   if (vacuous !== null) {
     console.error(`[module-boundary] ${vacuous}`);
@@ -676,8 +1030,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const sources = sourcesOf(files);
-  const result = checkModuleBoundary({ sources }, shards);
+  const result = checkModuleBoundary({ sources, schema }, shards);
   const selected = <T extends { readonly moduleId: string }>(entries: readonly T[]): readonly T[] =>
     only === null ? entries : entries.filter((entry) => entry.moduleId === only);
 
@@ -689,9 +1042,12 @@ async function main(): Promise<void> {
       a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file),
     )) {
       const tag = result.violations.includes(finding) ? 'CROSS   ' : 'LEDGERED';
+      const detail =
+        finding.predicate === 'sql'
+          ? `sql  ${finding.direction}\n           ${finding.table}`
+          : `${finding.kind}  ${finding.surface}\n           ${finding.specifier}`;
       console.log(
-        `${tag} ${finding.file}:${finding.line}  [${finding.moduleId} -> ${finding.target}] ` +
-          `${finding.kind}  ${finding.surface}\n           ${finding.specifier}`,
+        `${tag} ${finding.file}:${finding.line}  [${finding.moduleId} -> ${finding.target}] ${detail}`,
       );
     }
     console.log('');
@@ -705,11 +1061,24 @@ async function main(): Promise<void> {
   const ledgerSize =
     shards.reduce((sum, shard) => sum + Object.keys(shard.entries).length, 0) -
     result.permanentKeys.length;
+  const sqlFindings = result.violations
+    .concat(result.ledgered)
+    .filter((finding) => finding.predicate === 'sql').length;
   console.log(
-    `[module-boundary] module files=${files.length} cross-module imports=${result.total} ` +
+    `[module-boundary] module files=${files.length} cross-module reaches=${result.total} ` +
+      `(imports=${result.total - sqlFindings} sql=${sqlFindings}) ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
       `ledger-size=${ledgerSize} shards=${shards.length} stale=${result.stale.length} ` +
       `permanent=${result.permanentKeys.length}`,
+  );
+  console.log(
+    `[module-boundary] table→owner map: entity pass=${result.tableOwners.entityTables} ` +
+      `migration pass=${result.tableOwners.migrationTables} ` +
+      `(declared by no entity=${result.tableOwners.migrationOnlyTables}) ` +
+      `unattributed=${result.tableOwners.unattributed.length}` +
+      (result.tableOwners.unattributed.length > 0
+        ? ` (${result.tableOwners.unattributed.join(', ')} — owned by no module, so never a finding)`
+        : ''),
   );
   if (result.permanentKeys.length > 0) {
     console.log(
@@ -733,7 +1102,8 @@ async function main(): Promise<void> {
 
   if (result.violations.length > 0) {
     console.error(
-      '\nA module imported another module\'s internals (Constitution I; feature 075 FR-001).\n',
+      "\nA module reached another module's internals (Constitution I; feature 075 FR-001,\n" +
+        'feature 077 D-87).\n',
     );
     for (const finding of result.violations) {
       console.error(describeFinding(finding));

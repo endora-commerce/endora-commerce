@@ -58,4 +58,24 @@ export const entries: Readonly<Record<string, string>> = {
     'F3 Phase C — search, escalated. Same CLI entry point, same missing container: the ' +
     'product read port the indexer now takes is built by hand here. Retired by the ruling ' +
     'on how a module CLI script reaches a composition-root input.',
+  'modules/search/services/search-indexer.ts:sql:catalog/categories':
+    'D-87 seed — `search` reads `catalog`\'s `categories` table in raw SQL. The statement ' +
+    'names no import specifier, so the boundary it crosses compiles and returns rows. ' +
+    'Retired by: `catalogCategoryReadPort`, resolved through `lazyPort` with `catalog` ' +
+    'declared in this module\'s manifest dependencies.',
+  'modules/search/services/search-indexer.ts:sql:catalog/product_categories':
+    'D-87 seed — `search` reads `catalog`\'s `product_categories` table in raw SQL. The ' +
+    'statement names no import specifier, so the boundary it crosses compiles and returns ' +
+    'rows. Retired by: `catalogCategoryReadPort`, resolved through `lazyPort` with ' +
+    '`catalog` declared in this module\'s manifest dependencies.',
+  'modules/search/services/search-indexer.ts:sql:catalog/products':
+    'D-87 seed — `search` reads `catalog`\'s `products` table in raw SQL. The statement ' +
+    'names no import specifier, so the boundary it crosses compiles and returns rows. ' +
+    'Retired by: `catalogProductReadPort`, resolved through `lazyPort` with `catalog` ' +
+    'declared in this module\'s manifest dependencies.',
+  'modules/search/services/search-indexer.ts:sql:kernel/sales_channel_products':
+    'D-87 seed — `search` reads the `sales_channel_products` membership bridge directly. ' +
+    'Principle XII says the `sales_channel_*` bridges are read and written only through ' +
+    'the channel-membership service. Retired by: ' +
+    '`SalesChannelMembershipPort.listEntityIdsForChannel`.',
 };

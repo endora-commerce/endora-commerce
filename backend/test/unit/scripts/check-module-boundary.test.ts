@@ -6,6 +6,8 @@ import {
   analyzeSource,
   checkModuleBoundary,
   collectModuleFiles,
+  collectSchemaFiles,
+  findCrossModuleSql,
   generatedExemptionIssues,
   isPermanent,
   keyOf,
@@ -240,6 +242,197 @@ describe('analyzeSource — what it must not flag', () => {
   });
 });
 
+/**
+ * The schema every SQL fixture below resolves against — source text, never a
+ * ready-made table→owner map.
+ *
+ * Handing the analysis a map would leave both owner-map passes unproven, and the
+ * migration pass is the one that matters: an entity-only map is blind to every
+ * join table and every channel bridge (D-87, F2). So the fixture declares
+ * `products`, `blog_posts` and `cms_blocks` through `@Entity({ tableName })`,
+ * `assets` through a class name the naming strategy pluralises, `sales_channels`
+ * through a **kernel** entity, and `sales_channel_products` through `create
+ * table` DDL in the pre-065 core block and nothing else.
+ */
+const SQL_SCHEMA: ReadonlyMap<string, string> = new Map([
+  [
+    'modules/catalog/entities/product.entity.ts',
+    "@Entity({ tableName: 'products' })\nexport class Product {}",
+  ],
+  [
+    'modules/blog/entities/blog-post.entity.ts',
+    "@Entity({ tableName: 'blog_posts' })\nexport class BlogPost {}",
+  ],
+  // No `tableName`: the owner map has to run the naming strategy to get `assets`.
+  ['modules/assets_library/entities/asset.entity.ts', '@Entity()\nexport class Asset {}'],
+  [
+    'modules/cms/entities/cms-block.entity.ts',
+    "@Entity({ tableName: 'cms_blocks' })\nexport class CmsBlock {}",
+  ],
+  [
+    'kernel/sales-channels/sales-channel.entity.ts',
+    "@Entity({ tableName: 'sales_channels' })\nexport class SalesChannel {}",
+  ],
+  [
+    'db/migrations/20260424T165847_core_foundation_init.ts',
+    'this.addSql(`create table "sales_channel_products" ' +
+      '("sales_channel_id" uuid not null, "product_id" uuid not null);`);',
+  ],
+]);
+
+/** One module source against the fixture schema — source text in, findings out. */
+function sqlFindings(source: string, file: string) {
+  return findCrossModuleSql({
+    sources: new Map([[file, source]]),
+    schema: new Map([...SQL_SCHEMA, [file, source]]),
+  }).found;
+}
+
+describe('the sql predicate — the shapes it has to see (D-87)', () => {
+  const BLOG_SERVICE = 'modules/blog/services/blog-service.ts';
+
+  it('sees a select against another module’s table', () => {
+    const found = sqlFindings(
+      'const rows = await conn.execute(`select id from products where status = ?`, [s]);',
+      BLOG_SERVICE,
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      predicate: 'sql',
+      moduleId: 'blog',
+      target: 'catalog',
+      table: 'products',
+      direction: 'read',
+    });
+  });
+
+  it('sees the joined table, not the module’s own one', () => {
+    const found = sqlFindings(
+      'await conn.execute(`select p.id, a.url from blog_posts p join assets a on a.id = p.cover_id`);',
+      BLOG_SERVICE,
+    );
+    expect(found.map((f) => f.table)).toEqual(['assets']);
+    expect(found[0]?.target).toBe('assets_library');
+  });
+
+  it('records a write as a write', () => {
+    // The direction selects the remedy: a bridge read has a port, a bridge write
+    // also has an audit row nobody is recording.
+    const found = sqlFindings(
+      'await conn.execute(`insert into "cms_blocks" ("id", "slug") values (?, ?)`, [id, slug]);',
+      'modules/newsletter/services/consent-block-seeder.ts',
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ target: 'cms', table: 'cms_blocks', direction: 'write' });
+  });
+
+  it('sees a bridge table whose only declaration is `create table` DDL', () => {
+    // The shape an entity-only owner map reports zero of, and the cluster the
+    // live defect sits in: `sales_channel_products` is declared by no entity
+    // class anywhere in the tree.
+    const found = sqlFindings(
+      'await conn.execute(`select product_id from sales_channel_products where sales_channel_id = ?`, [id]);',
+      'modules/catalog/services/catalog-query.service.ts',
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ moduleId: 'catalog', target: 'kernel', table: 'sales_channel_products' });
+  });
+
+  it('reads a template literal whose `in (…)` list is built by a substitution', () => {
+    const found = sqlFindings(
+      'await conn.execute(`select id from products where id in (${ids.map(() => \'?\').join(\',\')})`, ids);',
+      BLOG_SERVICE,
+    );
+    expect(found.map((f) => f.table)).toEqual(['products']);
+  });
+
+  it('names the module’s own table as the module’s own', () => {
+    expect(sqlFindings('await conn.execute(`select * from blog_posts`);', BLOG_SERVICE)).toEqual([]);
+  });
+
+  it('does not read SQL out of a comment', () => {
+    // The regex-over-source spike hallucinated a dozen tables — `every`,
+    // `bumps`, `used`, `path` — because an apostrophe in English prose opens a
+    // string literal that runs to the next apostrophe. Reading literal *nodes*
+    // takes comments out of the population by construction.
+    const source = [
+      '/* Historically this did `select id from products`, which is why the port exists. */',
+      "// It's the same read, and it's the one that couldn't stay: select id from products.",
+      'export class BlogService {}',
+    ].join('\n');
+    expect(sqlFindings(source, BLOG_SERVICE)).toEqual([]);
+  });
+
+  it('ignores a migration — the execution order owns that question', () => {
+    expect(
+      sqlFindings(
+        'this.addSql(`select id from products`);',
+        'modules/blog/migrations/20260810T101010_blog_thing.ts',
+      ),
+    ).toEqual([]);
+  });
+
+  it('ignores a table nobody owns, and does not throw doing it', () => {
+    expect(sqlFindings('await conn.execute(`select 1 from a_table_nobody_owns`);', BLOG_SERVICE)).toEqual(
+      [],
+    );
+  });
+
+  it('does not read English prose as an UPDATE', () => {
+    // `'Update products in the catalog'` is an UPDATE against `catalog`'s
+    // `products` table to a test that only anchors on the first word.
+    expect(
+      sqlFindings("const label = 'Update products in the catalog';", BLOG_SERVICE),
+    ).toEqual([]);
+  });
+
+  it('does not treat a CTE name that shadows a table as that table', () => {
+    const found = sqlFindings(
+      'await conn.execute(`with products as (select id from blog_posts) select * from products`);',
+      BLOG_SERVICE,
+    );
+    expect(found).toEqual([]);
+  });
+});
+
+describe('the table→owner map — two sources, and the entity wins', () => {
+  it('resolves a table from an entity’s `tableName`', () => {
+    const found = sqlFindings(
+      'await conn.execute(`select id from products`);',
+      'modules/blog/services/blog-service.ts',
+    );
+    expect(found[0]?.target).toBe('catalog');
+  });
+
+  it('resolves a table from the naming strategy when the entity sets no `tableName`', () => {
+    const found = sqlFindings(
+      'await conn.execute(`select id from assets`);',
+      'modules/blog/services/blog-service.ts',
+    );
+    expect(found[0]?.target).toBe('assets_library');
+  });
+
+  it('attributes a core-block join table to the module that owns its leading table', () => {
+    // `sales_channel_products` is declared in `src/db/migrations`, which is no
+    // module. The judgement is derived from the map rather than listed in it:
+    // the table its name begins with is `sales_channels`, and the kernel owns
+    // that.
+    const found = sqlFindings(
+      'await conn.execute(`select product_id from sales_channel_products`);',
+      'modules/search/services/search-indexer.ts',
+    );
+    expect(found[0]?.target).toBe('kernel');
+  });
+
+  it('counts both passes separately, so a blind one cannot hide behind the other', () => {
+    const { report } = findCrossModuleSql({ sources: new Map(), schema: SQL_SCHEMA });
+    expect(report.entityTables).toBe(5);
+    expect(report.migrationTables).toBe(1);
+    expect(report.migrationOnlyTables).toBe(1);
+    expect(report.unattributed).toEqual([]);
+  });
+});
+
 describe('checkModuleBoundary — the six ways the ledger fails', () => {
   const CROSS = "import { Product } from '../../catalog/entities/product.entity.js';";
   const key = `${ORDER_SERVICE}:${PRODUCT}`;
@@ -385,20 +578,42 @@ describe('checkModuleBoundary — the six ways the ledger fails', () => {
 });
 
 describe('checkModuleBoundary — refusing a vacuous pass (FR-021)', () => {
+  const READ_SOMETHING = {
+    moduleFiles: 1309,
+    ledgerDirectoryExists: true,
+    entityTables: 220,
+    migrationTables: 241,
+  };
+
   it('reports a reason when the module walk returned nothing', () => {
-    expect(vacuousReason({ moduleFiles: 0, ledgerDirectoryExists: true })).toMatch(
+    expect(vacuousReason({ ...READ_SOMETHING, moduleFiles: 0 })).toMatch(
       /no module sources under src\/ — refusing to report a vacuous pass/,
     );
   });
 
   it('reports a reason when the ledger directory is missing', () => {
-    expect(vacuousReason({ moduleFiles: 1309, ledgerDirectoryExists: false })).toMatch(
+    expect(vacuousReason({ ...READ_SOMETHING, ledgerDirectoryExists: false })).toMatch(
       /ledger directory missing — refusing to report a vacuous pass/,
     );
   });
 
-  it('reports no reason when it read both', () => {
-    expect(vacuousReason({ moduleFiles: 1309, ledgerDirectoryExists: true })).toBeNull();
+  it('reports a reason when the entity pass resolved no table', () => {
+    expect(vacuousReason({ ...READ_SOMETHING, entityTables: 0 })).toMatch(
+      /resolved no @Entity\(\) table/,
+    );
+  });
+
+  it('reports a reason when the migration pass resolved no table', () => {
+    // The pass that is *supposed* to be empty on a tree with no join tables is
+    // exactly the pass whose silence means "entity-only, and blind to every
+    // channel bridge". Each pass proves it looked, separately (issue #113).
+    expect(vacuousReason({ ...READ_SOMETHING, migrationTables: 0 })).toMatch(
+      /resolved no `create table` DDL/,
+    );
+  });
+
+  it('reports no reason when it read all four', () => {
+    expect(vacuousReason(READ_SOMETHING)).toBeNull();
   });
 
   it('refuses to load a ledger directory that is not there', async () => {
@@ -423,12 +638,18 @@ describe('the generated-file exemption is checked both ways', () => {
 });
 
 describe('the tree itself', () => {
-  it('has every cross-module import ledgered, in its own shard', async () => {
+  it('has every cross-module reach ledgered, in its own shard', async () => {
     const shards = await loadLedgerShards(ledgerDirectory());
     const sources = sourcesOf(collectModuleFiles());
+    const schema = sourcesOf(collectSchemaFiles());
     expect(sources.size, 'no module sources found — a vacuous pass').toBeGreaterThan(1000);
+    expect(schema.size, 'no schema sources found — a vacuous pass').toBeGreaterThan(sources.size);
 
-    const result = checkModuleBoundary({ sources }, shards);
+    const result = checkModuleBoundary({ sources, schema }, shards);
+    expect(result.tableOwners.entityTables, 'entity pass resolved nothing').toBeGreaterThan(100);
+    expect(result.tableOwners.migrationOnlyTables, 'migration pass added nothing').toBeGreaterThan(
+      0,
+    );
     expect(result.violations.map(keyOf)).toEqual([]);
     expect(result.stale).toEqual([]);
     expect(result.emptyShards).toEqual([]);

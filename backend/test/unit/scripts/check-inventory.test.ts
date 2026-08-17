@@ -42,6 +42,7 @@ import {
 import {
   analyzeSource as moduleBoundaryAnalyze,
   checkModuleBoundary,
+  findCrossModuleSql,
   type CrossModuleImportKind,
 } from '../../../scripts/check-module-boundary.js';
 import { compareArtifact } from '../../../scripts/check-overlay-determinism.js';
@@ -703,6 +704,69 @@ function moduleBoundaryTree(source: string): Map<string, string> {
     [ORDER_SERVICE_FILE, source],
   ]);
 }
+
+/**
+ * The schema the `sql` predicate's proofs resolve against — **source text**, not
+ * a table→owner map (D-87; issue #130).
+ *
+ * A fixture handing in a ready-made map would leave both owner-map passes
+ * unproven, and the second pass is the one with the recorded blindness: an
+ * entity-only map resolves 220 tables and reports **zero** of the 39 findings
+ * that hang off a join table or a channel bridge. So `products` and `cms_blocks`
+ * arrive through `@Entity({ tableName })`, `sales_channels` through a *kernel*
+ * entity, and `sales_channel_products` through `create table` DDL in the
+ * pre-065 core block and nothing else.
+ */
+const SQL_BOUNDARY_SCHEMA: ReadonlyMap<string, string> = new Map([
+  [
+    'modules/catalog/entities/product.entity.ts',
+    "@Entity({ tableName: 'products' })\nexport class Product {}",
+  ],
+  [
+    'modules/blog/entities/blog-post.entity.ts',
+    "@Entity({ tableName: 'blog_posts' })\nexport class BlogPost {}",
+  ],
+  ['modules/assets_library/entities/asset.entity.ts', '@Entity()\nexport class Asset {}'],
+  [
+    'modules/cms/entities/cms-block.entity.ts',
+    "@Entity({ tableName: 'cms_blocks' })\nexport class CmsBlock {}",
+  ],
+  [
+    'kernel/sales-channels/sales-channel.entity.ts',
+    "@Entity({ tableName: 'sales_channels' })\nexport class SalesChannel {}",
+  ],
+  [
+    'db/migrations/20260424T165847_core_foundation_init.ts',
+    'this.addSql(`create table "sales_channel_products" ' +
+      '("sales_channel_id" uuid not null, "product_id" uuid not null);`);',
+  ],
+]);
+
+const BLOG_SERVICE_FILE = 'modules/blog/services/blog-service.ts';
+
+/** One module source against {@link SQL_BOUNDARY_SCHEMA}: text in, findings out. */
+function sqlBoundaryFindings(source: string, file: string = BLOG_SERVICE_FILE) {
+  return findCrossModuleSql({
+    sources: new Map([[file, source]]),
+    schema: new Map([...SQL_BOUNDARY_SCHEMA, [file, source]]),
+  }).found;
+}
+
+/**
+ * A shape the predicate must **not** flag, proven as a discrimination.
+ *
+ * "No finding" cannot go red on its own, so each of these fixtures carries the
+ * negative shape *and* a control the predicate does have to see, and returns 1
+ * only when exactly the control comes back. A predicate that starts reading
+ * comments, migrations or its own module's tables returns two findings and the
+ * proof drops to 0 — red, in the run that widened it.
+ */
+function sqlOnlyTheControl(source: string, file: string = BLOG_SERVICE_FILE): number {
+  const found = sqlBoundaryFindings(source, file);
+  return found.length === 1 && found[0]?.table === 'products' ? 1 : 0;
+}
+
+const SQL_CONTROL = 'await conn.execute(`select id from products where status = ?`, [s]);';
 
 const DRIFTED_DOC = [
   '# Doc',
@@ -1369,6 +1433,11 @@ const CHECKS: readonly CheckEntry[] = [
     // one level up (D-77): the flag removes an entry from `ledger-size`, so a
     // check that stopped refusing an unjustified one would let the residue be
     // lowered by declaration.
+    //
+    // Nine more for the `sql` predicate (D-87), and its two owner-map passes are
+    // the reason the schema enters as source text: an entity-only map resolves
+    // 220 tables, misses every join table and every bridge, and reports 39 fewer
+    // findings — a smaller number rather than an error, again.
     script: 'backend/scripts/check-module-boundary.ts',
     npmScript: 'check:module-boundary',
     job: 'quality',
@@ -1520,6 +1589,81 @@ const CHECKS: readonly CheckEntry[] = [
               entries: { [CROSS_MODULE_KEY]: { permanently: true } as never },
             },
           ]).permanentIssues.length,
+      ),
+
+      // --- the `sql` predicate (D-87) --------------------------------------
+      //
+      // Nine, and the last four are discriminations rather than counts: "no
+      // finding" cannot go red on its own, so each carries a control the
+      // predicate does have to see and returns 0 the moment a second finding
+      // appears beside it. Every one enters as source text — including the
+      // schema, so both owner-map passes run rather than being handed their
+      // answer.
+      'sql-select-foreign-table': top(
+        () =>
+          sqlBoundaryFindings(SQL_CONTROL).filter(
+            (f) => f.predicate === 'sql' && f.table === 'products' && f.target === 'catalog',
+          ).length,
+      ),
+      'sql-join-foreign-table': top(
+        () =>
+          sqlBoundaryFindings(
+            'await conn.execute(`select p.id, a.url from blog_posts p join assets a on a.id = p.cover_id`);',
+          ).filter((f) => f.table === 'assets').length,
+      ),
+      'sql-write-foreign-table': top(
+        () =>
+          sqlBoundaryFindings(
+            'await conn.execute(`insert into "cms_blocks" ("id") values (?)`, [id]);',
+            'modules/newsletter/services/consent-block-seeder.ts',
+          ).filter((f) => f.direction === 'write' && f.target === 'cms').length,
+      ),
+      // The shape an entity-only owner map reports zero of: no entity class in
+      // the tree declares `sales_channel_products`, and it is the cluster the
+      // live defect (#174) sits in.
+      'sql-bridge-table-owned-by-a-migration': top(
+        () =>
+          sqlBoundaryFindings(
+            'await conn.execute(`select product_id from sales_channel_products where sales_channel_id = ?`, [id]);',
+            'modules/catalog/services/catalog-query.service.ts',
+          ).filter((f) => f.table === 'sales_channel_products' && f.target === 'kernel').length,
+      ),
+      'sql-template-with-substitution': top(
+        () =>
+          sqlBoundaryFindings(
+            "await conn.execute(`select id from products where id in (${ids.map(() => '?').join(',')})`, ids);",
+          ).filter((f) => f.table === 'products').length,
+      ),
+      'sql-own-table-is-not-a-finding': top(() =>
+        sqlOnlyTheControl(`${SQL_CONTROL}\nawait conn.execute(\`select * from blog_posts\`);`),
+      ),
+      // The regex-over-source spike hallucinated a dozen tables off apostrophes
+      // in English prose, because an apostrophe opens a string literal that runs
+      // to the next one. The fixture enters as source text, so the *parser* is
+      // what refuses it.
+      'sql-in-a-comment-is-not-a-finding': top(() =>
+        sqlOnlyTheControl(
+          [
+            '/* Historically this did `select id from products`, hence the port. */',
+            "// It's the same read, and it's the one that couldn't stay: select id from products.",
+            SQL_CONTROL,
+          ].join('\n'),
+        ),
+      ),
+      'sql-in-a-migration-is-not-a-finding': top(() => {
+        const found = findCrossModuleSql({
+          sources: new Map([
+            [BLOG_SERVICE_FILE, SQL_CONTROL],
+            ['modules/blog/migrations/20260810T101010_blog_thing.ts', 'this.addSql(`select id from products`);'],
+          ]),
+          schema: SQL_BOUNDARY_SCHEMA,
+        }).found;
+        return found.length === 1 && found[0]?.file === BLOG_SERVICE_FILE ? 1 : 0;
+      }),
+      'sql-unknown-table-is-not-a-finding': top(() =>
+        sqlOnlyTheControl(
+          `${SQL_CONTROL}\nawait conn.execute(\`select 1 from a_table_nobody_owns\`);`,
+        ),
       ),
     },
   },
@@ -2159,8 +2303,11 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-kernel-boundary.ts': 3,
       // Thirteen, plus D-77's three permanence shapes: the flag removes an
       // entry from `ledger-size`, so a check that stopped refusing an
-      // unjustified one would let the residue be lowered by declaration.
-      'backend/scripts/check-module-boundary.ts': 16,
+      // unjustified one would let the residue be lowered by declaration. Plus
+      // D-87's nine for the second predicate — five shapes it must see and four
+      // it must not, the four proven as discriminations because "no finding"
+      // cannot go red on its own.
+      'backend/scripts/check-module-boundary.ts': 25,
       'backend/scripts/check-overlay-determinism.ts': 3,
       'backend/scripts/check-port-catches.ts': 5,
       'backend/scripts/check-port-dependencies.ts': 19,

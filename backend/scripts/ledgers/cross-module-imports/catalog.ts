@@ -43,4 +43,43 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
         'internals. Dropping `fk_product_attributes_custom_field_definition` would retire it too, ' +
         'and would cost the invariant the constraint buys.',
     },
+  'modules/catalog/services/catalog-admin.service.ts:sql:inventory/product_warehouse_low_stock_thresholds':
+    'D-87 seed — `catalog` writes `inventory`\'s `product_warehouse_low_stock_thresholds` ' +
+    'table in raw SQL. The statement names no import specifier, so the boundary it ' +
+    'crosses compiles and returns rows. Retired by: `inventoryStockReadPort`, resolved ' +
+    'through `lazyPort` with `inventory` declared in this module\'s manifest dependencies.',
+  'modules/catalog/services/catalog-admin.service.ts:sql:kernel/sales_channel_products':
+    'D-87 seed, and the live defect the sweep was named for (issue #174) — the product ' +
+    'duplication copies the source product’s whole channel assortment with a raw `INSERT` ' +
+    'into `sales_channel_products`, after its `CommandBus.run` has already returned. That ' +
+    'is Principle XII’s accessor clause and Principle XIII in one statement: the copy ' +
+    'writes the bridge directly and records no `sales_channel_membership` audit row for ' +
+    'any of the memberships it creates. Retired by: the copy moving inside the ' +
+    'duplication Command and onto the channel-membership service, so it is audited once ' +
+    'with the rest of the duplication (D-87 handoff step 8).',
+  'modules/catalog/services/catalog-org-price-decorator.ts:sql:kernel/sales_channel_products':
+    'D-87 seed — `catalog` reads the `sales_channel_products` membership bridge directly. ' +
+    'Principle XII says the `sales_channel_*` bridges are read and written only through ' +
+    'the channel-membership service. Retired by: ' +
+    '`SalesChannelMembershipPort.listEntityIdsForChannel`.',
+  'modules/catalog/services/catalog-query.service.ts:sql:kernel/sales_channel_products':
+    'D-87 seed — `catalog` reads the `sales_channel_products` membership bridge directly. ' +
+    'Principle XII says the `sales_channel_*` bridges are read and written only through ' +
+    'the channel-membership service. Retired by: ' +
+    '`SalesChannelMembershipPort.listEntityIdsForChannel`.',
+  'modules/catalog/services/product-link.service.ts:sql:kernel/sales_channel_products':
+    'D-87 seed — `catalog` reads the `sales_channel_products` membership bridge directly. ' +
+    'Principle XII says the `sales_channel_*` bridges are read and written only through ' +
+    'the channel-membership service. Retired by: ' +
+    '`SalesChannelMembershipPort.listEntityIdsForChannel`.',
+  'modules/catalog/services/catalog-quick-search.service.ts:sql:kernel/sales_channel_products':
+    'D-87 seed, added at rebase — this site did not exist when the sweep ran. It arrived ' +
+    'with `cb5be278`, the #174 fix that moved the quick-order type-ahead out of ' +
+    '`quick_order` and into its owner and gave it the channel scoping it had never had: ' +
+    'before that commit the query filtered neither visibility, nor organization, nor ' +
+    'channel, so a buyer saw every active product. So this entry records a boundary that ' +
+    'is now crossed *correctly* rather than one that is new debt — the scoping is applied, ' +
+    'and what remains is that it is applied by hand against the bridge. Retired by: ' +
+    '`SalesChannelMembershipPort.listEntityIdsForChannel`, together with the two ' +
+    '`product-link.service.ts` entries above, which retire on the same method.',
 };

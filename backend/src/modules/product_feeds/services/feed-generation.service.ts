@@ -645,7 +645,7 @@ export class FeedGenerationService {
     const em = this.deps.emFactory();
     // The ids arrive already scoped to this channel by `ProductSelectionService`;
     // binding the channel as a local keeps that visible where the reads happen
-    // (`no-unscoped-channel-query`), and it is what availability resolves against.
+    // (Principle XII's accessor clause), and it is what availability resolves against.
     const { salesChannelId } = prepared;
     const products = await this.deps.catalogProducts.findByIds(productIds);
     if (products.length === 0) return [];

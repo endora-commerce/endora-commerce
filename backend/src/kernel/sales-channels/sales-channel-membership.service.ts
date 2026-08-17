@@ -14,8 +14,11 @@ import { SalesChannel } from './sales-channel.entity.js';
  *
  * Single mutator for every M:N bridge between Sales Channels and the
  * channel-scoped entity types (FR-009). Going through this service is
- * mandatory; the lint rule `no-unscoped-channel-query` ensures owning
- * modules cannot reach for the bridge tables directly.
+ * mandatory: `check:module-boundary`'s `sql` predicate resolves every
+ * `sales_channel_*` table to its owner out of the DDL, so an owning module
+ * reaching for a bridge table in raw SQL is a ledgered finding (D-87). Until
+ * then this clause was credited to `no-unscoped-channel-query`, an ESLint rule
+ * wired into no config that never looked at a bridge table.
  *
  * Responsibilities:
  *
