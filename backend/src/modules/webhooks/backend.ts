@@ -3,8 +3,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { Webhook } from './entities/webhook.entity.js';
-import { WebhookDelivery } from './entities/webhook-delivery.entity.js';
 import { registerWebhooksAdminRoutes } from './routes.js';
 import { bridgeEventHandler } from './services/event-bridge.js';
 import { WebhookService } from './services/webhook-service.js';
@@ -53,8 +51,6 @@ import { createDeliveryProcessor } from './services/webhook-delivery-worker.js';
  * harness runs no consumer, and deriving that from `BACKEND_ROLE` here would
  * start one in every test file.
  */
-
-export const entities = [Webhook, WebhookDelivery];
 
 /** The events bridged to the delivery queue (contracts/order-webhooks.md §2). */
 export const BRIDGED_EVENT_TYPES = ['order.created.v1', 'order.status_changed.v1'] as const;

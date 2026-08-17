@@ -4,7 +4,6 @@ import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { LoadedManifestRegistry } from '../_lifecycle/services/manifest-loader.js';
 import type { AdminUserService } from '../admin_users/services/admin-user-service.js';
-import { TranslationBundle } from './entities/translation-bundle.entity.js';
 import { registerI18nAdminRoutes } from './routes.admin.js';
 import { I18nService } from './services/i18n-service.js';
 import {
@@ -55,8 +54,6 @@ import {
  * `deps.orm` was in the option interface and read nowhere in the factory body.
  * It does not reappear here.
  */
-
-export const entities = [TranslationBundle];
 
 /** Reads the lifecycle registry lazily; `undefined` until `_lifecycle` exists. */
 export type LifecycleManifestRegistryAccessor = () => LoadedManifestRegistry | undefined;

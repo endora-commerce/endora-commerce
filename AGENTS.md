@@ -156,7 +156,13 @@ never add a "module options" object for something the module can read itself.
    The one ordering rule left is for the **root**: a contribution over a name a module
    defaults goes in the single slot between `composeModules(MODULES, …)` and `runBootHooks()`
    — earlier and the module's default overwrites it, later and a boot hook has already read
-   that default.
+   that default. **That slot is a method** (issue #52): write
+   `composedModules.contribute({ name: value })`, never `registerValues(container, …)` after
+   the compose call. The early edge is then structural — there is no object to call it on
+   until every module has registered — and the late edge throws
+   `ContributionWindowClosedError`. `registerValues` stays legal *above* the compose call, for
+   a host value no module defaults (`redis`, `eventBus`, the `*RunWorkers` flags): there is no
+   window because there is nothing to overwrite.
 9. **Install-time work goes in `manifest.ts`, never in the context.** `ctx.onBoot` is the
    only lifecycle hook a `ModuleContext` carries; `ctx.onInstall` / `ctx.onUninstall` were
    deleted (D-46) because `module:install` composes nothing, so a hook the container

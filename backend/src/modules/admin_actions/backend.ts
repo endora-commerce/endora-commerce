@@ -6,7 +6,6 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { LoadedManifestRegistry } from '../_lifecycle/services/manifest-loader.js';
 import type { I18nService } from '../_i18n/services/i18n-service.js';
 import type { PermissionService } from '../admin_roles/services/permission-service.js';
-import { ModuleAction } from './entities/module-action.entity.js';
 import { adminActionsModule, type AdminActionsModuleHandle } from './plugin.js';
 
 /**
@@ -38,8 +37,6 @@ import { adminActionsModule, type AdminActionsModuleHandle } from './plugin.js';
  * `adminActionsReconciler` is a **port** — the lifecycle orchestrator resolves
  * it across a module boundary on install and hard-uninstall.
  */
-
-export const entities = [ModuleAction];
 
 export interface AdminActionsCradle {
   readonly emFactory: () => EntityManager;

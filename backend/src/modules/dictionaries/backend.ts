@@ -9,7 +9,6 @@ import type { CurrencyService } from '../currencies/services/currency-service.js
 import type { LanguageService } from '../languages/services/language-service.js';
 import { CURRENCY_CHANGED_EVENT } from '../currencies/backend.js';
 import { LANGUAGE_CHANGED_EVENT } from '../languages/backend.js';
-import { Country } from './entities/country.entity.js';
 import { DictionaryCache } from './services/dictionary-cache.js';
 import { DictionaryValidator as DictionaryValidatorService } from './services/dictionary-validator.js';
 import { DictionaryReadService } from './services/dictionary-read-service.js';
@@ -55,8 +54,6 @@ import { registerDictionaryStorefrontRoutes } from './routes.storefront.js';
  * composition with dictionaries off should refuse those writes rather than
  * accept unvalidated ones.
  */
-
-export const entities = [Country];
 
 export interface DictionariesCradle {
   readonly emFactory: () => EntityManager;

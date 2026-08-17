@@ -1,7 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { AnalyticsEvent } from './entities/analytics-event.entity.js';
 import { registerAnalyticsRoutes } from './routes.js';
 import { AnalyticsIngestService } from './services/analytics-ingest.service.js';
 import { AnalyticsQueryService } from './services/analytics-query.service.js';
@@ -21,8 +20,6 @@ import { buildForwarderFromEnv, type AnalyticsForwarder } from './services/ga4-f
  * a test overrides it by re-registering the name instead of by passing an
  * option through a factory it does not otherwise care about.
  */
-
-export const entities = [AnalyticsEvent];
 
 export interface AnalyticsCradle {
   readonly emFactory: () => EntityManager;

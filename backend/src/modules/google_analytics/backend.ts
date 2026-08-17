@@ -7,7 +7,6 @@ import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
-import { GaCustomEvent } from './entities/ga-custom-event.entity.js';
 import { GaConfigService } from './services/ga-config.service.js';
 import {
   GaCustomEventsService,
@@ -49,8 +48,6 @@ import { registerGoogleAnalyticsStorefrontRoutes } from './routes.storefront.js'
  * `sales_channels` and is registered by a root until that module converts
  * (T110). `auditLog` stops being optional, as in the other three.
  */
-
-export const entities = [GaCustomEvent];
 
 interface GaServices {
   readonly revalidator: StorefrontRevalidator;

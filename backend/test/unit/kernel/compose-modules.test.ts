@@ -8,7 +8,11 @@ import {
   createRegistrationOwnership,
   type ModuleContext,
 } from '../../../src/kernel/module-context.js';
-import { composeModules, type ModuleEntry } from '../../../src/kernel/compose.js';
+import {
+  ContributionWindowClosedError,
+  composeModules,
+  type ModuleEntry,
+} from '../../../src/kernel/compose.js';
 
 /**
  * The two composition-time checks (feature 072, T042 / T043).
@@ -237,5 +241,131 @@ describe('composeModules — the boot phase', () => {
 
     await composed.runBootHooks();
     expect(seen).toHaveBeenCalledWith('system:boot: scoped_module');
+  });
+});
+
+/**
+ * The contribution window (D-45, issue #52).
+ *
+ * A root's contribution over a name a module defaults has exactly one legal
+ * slot: after `composeModules(MODULES, …)` and before `runBootHooks()`. Earlier
+ * and the module's own registration overwrites it; later and a boot hook has
+ * already read the default it was meant to replace.
+ *
+ * That was a convention two composition roots had to remember identically, so
+ * it is a method on what `composeModules` returns. The **early** half is then
+ * structural rather than checked: there is no object to call `contribute` on
+ * until the registration pass is over. The **late** half is what these tests
+ * pin, because the object outlives the window.
+ */
+describe('issue #52 — the contribution window is a method, not a convention', () => {
+  function moduleWithDefault(): ModuleEntry {
+    return entry('defaulting_module', (ctx) => {
+      ctx.di.register({ mailer: ctx.asValue('module-default') });
+    });
+  }
+
+  it('overwrites the default a module registered', () => {
+    const container = createRootContainer();
+    const composed = composeModules([moduleWithDefault()], {
+      container,
+      eventBus: new EventBus(),
+      log: log(),
+    });
+
+    expect(container.resolve<string>('mailer')).toBe('module-default');
+    composed.contribute({ mailer: 'root-contribution' });
+    expect(container.resolve<string>('mailer')).toBe('root-contribution');
+  });
+
+  it('is visible to every boot hook, which is what the window is for', async () => {
+    const seen: string[] = [];
+    const container = createRootContainer();
+    const composed = composeModules(
+      [
+        entry('defaulting_module', (ctx) => {
+          ctx.di.register({ mailer: ctx.asValue('module-default') });
+          ctx.onBoot(() => {
+            seen.push(ctx.cradle<{ mailer: string }>().mailer);
+          });
+        }),
+      ],
+      { container, eventBus: new EventBus(), log: log() },
+    );
+
+    composed.contribute({ mailer: 'root-contribution' });
+    await composed.runBootHooks();
+
+    expect(seen).toEqual(['root-contribution']);
+  });
+
+  it('refuses a contribution once the boot phase has started', async () => {
+    const container = createRootContainer();
+    const composed = composeModules([moduleWithDefault()], {
+      container,
+      eventBus: new EventBus(),
+      log: log(),
+    });
+
+    await composed.runBootHooks();
+
+    let thrown: unknown;
+    try {
+      composed.contribute({ mailer: 'too-late' });
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(ContributionWindowClosedError);
+    // The message states the rule, because the reader who hits this is holding a
+    // value and no idea where it should have gone.
+    const message = (thrown as Error).message;
+    expect(message).toContain('mailer');
+    expect(message).toContain('composeModules');
+    expect(message).toContain('runBootHooks');
+    // And the value did not land: a refusal that still writes is worse than none.
+    expect(container.resolve<string>('mailer')).toBe('module-default');
+  });
+
+  it('refuses one made from inside a boot hook — the window closes when the phase starts', async () => {
+    const container = createRootContainer();
+    let thrown: unknown;
+    const composed = composeModules(
+      [
+        moduleWithDefault(),
+        entry('late_contributor', (ctx) => {
+          ctx.onBoot(() => {
+            try {
+              composed.contribute({ mailer: 'from-a-boot-hook' });
+            } catch (err) {
+              thrown = err;
+            }
+          });
+        }),
+      ],
+      { container, eventBus: new EventBus(), log: log() },
+    );
+
+    await composed.runBootHooks();
+
+    // Not merely stylistic: hooks run in registration order, so a contribution
+    // made from one is invisible to every hook that already ran. "After the
+    // phase finished" and "during it" are the same defect.
+    expect(thrown).toBeInstanceOf(ContributionWindowClosedError);
+    expect(container.resolve<string>('mailer')).toBe('module-default');
+  });
+
+  it('contributes every name it is given, so a root writes one call per cluster', () => {
+    const container = createRootContainer();
+    const composed = composeModules([moduleWithDefault()], {
+      container,
+      eventBus: new EventBus(),
+      log: log(),
+    });
+
+    composed.contribute({ mailer: 'a', extraPort: 'b' });
+
+    expect(container.resolve<string>('mailer')).toBe('a');
+    expect(container.resolve<string>('extraPort')).toBe('b');
   });
 });

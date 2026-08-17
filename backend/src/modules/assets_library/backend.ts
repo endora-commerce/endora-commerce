@@ -2,8 +2,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { Asset } from './entities/asset.entity.js';
-import { AssetFolder } from './entities/asset-folder.entity.js';
 import { assetsLibraryModule } from './plugin.js';
 
 /**
@@ -34,8 +32,6 @@ import { assetsLibraryModule } from './plugin.js';
  * defect this wave keeps removing, and it is easy to write by accident here,
  * because the factory returns two things that look independent.
  */
-
-export const entities = [Asset, AssetFolder];
 
 type AssetsLibraryResult = ReturnType<typeof assetsLibraryModule>;
 

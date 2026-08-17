@@ -517,7 +517,7 @@ hook runs once, after every registration and every root contribution:
 ```
 load module presence                 (PostgreSQL, awaited, fatal)
 composeModules(MODULES)              (one call; registration resolves nothing)
-…all root contributions…             (registerValues, bridges, eager reads)
+…all root contributions…             (composedModules.contribute, bridges, eager reads)
 runBootHooks()                       (once, after every contribution)
 the Fastify app is built             (plugin bodies run)
 registryCache.watch()                (Redis, non-fatal)
@@ -578,6 +578,19 @@ insensitive to it — but do not rely on that without saying so. A **host value*
 no module defaults (`redis`, `eventBus`, `commandBus`, `auditLogService`, the
 `*RunWorkers` flags) has no such window and is registered where the value comes
 into existence.
+
+That slot is a **method**, not a convention (issue #52): `composeModules`
+returns a `ComposedModules`, and a contribution is
+`composedModules.contribute({ name: value })`. Both edges of the window come
+with the shape rather than with the reader's memory — the early edge because
+there is no object to call it on until every module has registered, the late
+edge because `runBootHooks()` closes it and a later call throws
+`ContributionWindowClosedError` quoting this rule. Closed by the *start* of the
+boot phase, not its end: hooks run in registration order, so a contribution made
+from inside one is already invisible to every hook that ran before it. Writing
+`registerValues(container, …)` after `composeModules` would reopen the window
+silently, so `test/contract/kernel/harness-parity.test.ts` refuses one in either
+root — above the call it stays correct, and that is where a host value belongs.
 
 **4. Boot hooks run regardless of effective state.** `runBootHooks()` does not
 consult module presence, so a switched-off module's hook still runs. Two

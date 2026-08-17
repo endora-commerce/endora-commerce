@@ -37,6 +37,7 @@ export {
 
 export {
   composeModules,
+  ContributionWindowClosedError,
   ModuleCompositionError,
   type ComposedModules,
   type ComposeModulesOptions,

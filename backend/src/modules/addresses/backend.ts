@@ -3,7 +3,6 @@ import type { DictionaryValidator } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
-import { Address } from './entities/address.entity.js';
 import { AddressService } from './services/address-service.js';
 
 /**
@@ -38,8 +37,6 @@ import { AddressService } from './services/address-service.js';
  * singleton may not hold a transient gate. `lazyPort` defers it per call, which
  * is what the comment always claimed was happening.
  */
-
-export const entities = [Address];
 
 export interface AddressesCradle {
   readonly emFactory: () => EntityManager;

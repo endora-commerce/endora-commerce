@@ -5,7 +5,6 @@ import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import { builtInShippingAdapters } from './adapters/built-in-adapters.js';
-import { DeliveryMethod } from './entities/delivery-method.entity.js';
 import {
   registerDeliveryMethodsAdminRoutes,
   registerDeliveryMethodsPublicRoutes,
@@ -36,8 +35,6 @@ import { ShippingMethodEligibilityService } from './services/shipping-method-eli
  * import it directly would create a second registry, which is the defect this
  * wave keeps removing rather than adding.
  */
-
-export const entities = [DeliveryMethod];
 
 export interface DeliveryMethodsCradle {
   readonly emFactory: () => EntityManager;

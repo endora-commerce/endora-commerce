@@ -1,37 +1,40 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_ENTITIES } from '../../../src/db/entities-registry.generated.js';
-import { entities as blogEntities } from '../../../src/modules/blog/backend.js';
+import {
+  declaredEntityNamesFor,
+  registeredEntityNamesFor,
+} from '../../helpers/entity-registry.js';
 
 /**
- * `backend.ts` exports the module's entity list (feature 072, T040 / FR-030).
+ * `blog`'s entities reach the ORM (feature 072 FR-030, issue #73).
  *
- * The list is only worth exporting if it is the truth, so this pins it to what
- * the ORM actually loads. It is the assertion that makes User Story 4 —
- * "removing a module leaves nothing behind" — checkable: an entity added to
- * `blog` and forgotten in one of the two places is a failure here rather than a
- * missing table at runtime or an orphan the removal check cannot see.
+ * This used to compare `blog/backend.ts`'s exported `entities` array with what
+ * the ORM loads. That array was a second answer to "which entities does this
+ * module own": nothing read it — `ModuleEntry` has no such member and MikroORM
+ * reads `src/db/entities-registry.generated.ts` — so the next entity added to
+ * `blog` could have been declared in the wrong one of the two. It is deleted,
+ * and the assertion it was worth keeping is kept here, pointed at the generated
+ * registry.
  *
- * `ALL_ENTITIES` is generated from the tree since feature 071's F2, so the
- * "forgotten in one of the two places" half is now structurally impossible on
- * the registry side. What is left is the half that still matters: the module's
- * own exported list is hand-written and can drift from what it actually
- * declares.
+ * `blog` is the subject because it owns eleven entities across three shapes —
+ * aggregates, per-language rows and join tables — so a walk that found only the
+ * obvious ones would show up.
  */
 
-describe('blog — the exported entity list', () => {
-  const ownedByBlog = ALL_ENTITIES.filter((entity) =>
-    /^Blog[A-Z]/.test((entity as { name: string }).name),
-  );
+describe('blog — the entities the ORM loads', () => {
+  const declared = declaredEntityNamesFor('blog');
+  const registered = registeredEntityNamesFor('blog');
 
-  it('names every blog entity the ORM loads', () => {
-    expect([...blogEntities].map((e) => e.name).sort()).toEqual(
-      ownedByBlog.map((e) => (e as { name: string }).name).sort(),
-    );
+  it('declares entities at all, so the comparison below is not vacuous', () => {
+    expect(declared.length).toBeGreaterThan(10);
   });
 
-  it('names nothing the ORM does not load', () => {
-    for (const entity of blogEntities) {
-      expect(ALL_ENTITIES, entity.name).toContain(entity);
-    }
+  it('registers every entity the module declares, and nothing else', () => {
+    expect(registered).toEqual(declared);
+  });
+
+  it('exports each of them from the array the ORM config reads', () => {
+    const exported = new Set(ALL_ENTITIES.map((entity) => (entity as { name: string }).name));
+    for (const name of registered) expect(exported, name).toContain(name);
   });
 });

@@ -89,6 +89,34 @@ describe('T075 — a converted module costs no test-helper edit', () => {
     }
   });
 
+  it('each root contributes through the window method, not by hand', () => {
+    // Issue #52 — D-45's contribution slot used to be a convention: a root
+    // wrote `registerValues(container, …)` and had to have written it in the
+    // right place. `composedModules.contribute(…)` *is* the slot, so the two
+    // roots cannot spell it differently and a contribution cannot land after
+    // the boot phase without throwing.
+    for (const source of [harness, production]) {
+      expect(source).toContain('composedModules.contribute(');
+    }
+  });
+
+  it('neither root writes the container by hand once the modules have composed', () => {
+    // The half a method alone cannot enforce: `registerValues(container, …)`
+    // still works after `composeModules` and silently reopens the window. It is
+    // legal *above* the call — that is where a host value no module defaults is
+    // registered — so this is a position check, not a ban.
+    for (const [root, source] of [
+      ['harness', harness],
+      ['production', production],
+    ] as const) {
+      const composeAt = source.indexOf('= composeModules(');
+      expect(composeAt, `${root} composes no modules`).toBeGreaterThan(0);
+      const afterCompose = source.slice(composeAt);
+      const byHand = [...afterCompose.matchAll(/registerValues\(container, /g)].length;
+      expect(byHand, `${root} registers a value by hand inside the window`).toBe(0);
+    }
+  });
+
   it('each root runs the one boot phase exactly once', () => {
     // The other half of D-45: a second `runBootHooks()` would mean a root had
     // grown a second boot phase, and with it the question of which half of the

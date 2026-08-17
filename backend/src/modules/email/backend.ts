@@ -1,7 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleContext } from '../../kernel/index.js';
 
-import { EmailDelivery } from './entities/email-delivery.entity.js';
 import { resolveSmtpUrlFromEnv } from './resolve-smtp-url.js';
 import { ConsoleMailer, type Mailer } from './services/mailer.js';
 import {
@@ -25,13 +24,6 @@ import { SmtpMailer } from './services/smtp-mailer.js';
  * It owns one entity since D-59: the transport is where a message's fate is
  * decided, so it is where the record of that fate belongs.
  */
-
-/**
- * Every entity this module owns. The transactional email *templates* belong to
- * `transactional_emails`; what lives here is the record of what the transport
- * did with a rendered message (D-59).
- */
-export const entities = [EmailDelivery];
 
 /** What `email` resolves from the container, and the names it owns. */
 export interface EmailCradle {

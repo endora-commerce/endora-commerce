@@ -6,11 +6,6 @@ import { CMS_PAGE_BUILDER_SETTING_CODES } from './manifest.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { CmsPage } from './entities/cms-page.entity.js';
-import { CmsBlock } from './entities/cms-block.entity.js';
-import { CmsTemplate } from './entities/cms-template.entity.js';
-import { CmsHook } from './entities/cms-hook.entity.js';
-import { CmsHookBlockAttachment } from './entities/cms-hook-block-attachment.entity.js';
 import { cmsModule } from './plugin.js';
 import type { CmsAssetResolver } from './services/storefront-resolver.js';
 import { registerCmsAssetReferences } from './services/asset-references.js';
@@ -67,8 +62,6 @@ import type { AssetReferenceRegistry } from '../assets_library/services/referenc
  *
  * `cacheOptions` was an option no caller ever passed. It does not reappear.
  */
-
-export const entities = [CmsPage, CmsBlock, CmsTemplate, CmsHook, CmsHookBlockAttachment];
 
 type CmsResult = ReturnType<typeof cmsModule>;
 

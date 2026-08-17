@@ -6,18 +6,6 @@ import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
 
-import { BlogCategory } from './entities/blog-category.entity.js';
-import { BlogCategorySalesChannel } from './entities/blog-category-sales-channel.entity.js';
-import { BlogCategoryLanguage } from './entities/blog-category-language.entity.js';
-import { BlogPost } from './entities/blog-post.entity.js';
-import { BlogPostSalesChannel } from './entities/blog-post-sales-channel.entity.js';
-import { BlogPostLanguage } from './entities/blog-post-language.entity.js';
-import { BlogPostCategory } from './entities/blog-post-category.entity.js';
-import { BlogPostTag } from './entities/blog-post-tag.entity.js';
-import { BlogPostRelatedPost } from './entities/blog-post-related-post.entity.js';
-import { BlogPostRelatedProduct } from './entities/blog-post-related-product.entity.js';
-import { BlogTag } from './entities/blog-tag.entity.js';
-
 import { BlogCacheService } from './services/blog-cache.js';
 import {
   BlogSettingsResolver,
@@ -45,21 +33,6 @@ import { registerBlogStorefrontRoutes } from './routes.storefront.js';
  * appears in a composition root any more, which is what makes removing it a
  * deletion rather than a search.
  */
-
-/** Every entity this module owns. The ORM's list is assembled from these. */
-export const entities = [
-  BlogCategory,
-  BlogCategorySalesChannel,
-  BlogCategoryLanguage,
-  BlogPost,
-  BlogPostSalesChannel,
-  BlogPostLanguage,
-  BlogPostCategory,
-  BlogPostTag,
-  BlogPostRelatedPost,
-  BlogPostRelatedProduct,
-  BlogTag,
-] as const;
 
 /**
  * What `blog` resolves from the container: the names it owns, plus the shapes

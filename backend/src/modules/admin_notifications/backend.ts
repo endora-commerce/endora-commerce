@@ -1,8 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { AdminNotification } from './entities/admin-notification.entity.js';
-import { AdminNotificationRead } from './entities/admin-notification-read.entity.js';
 import { registerAdminNotificationsRoutes } from './routes.admin.js';
 import { AdminNotificationService } from './services/admin-notification-service.js';
 
@@ -22,8 +20,6 @@ import { AdminNotificationService } from './services/admin-notification-service.
  * guard, not an operator preference, and nothing in the tree ever passed a
  * value other than the default.
  */
-
-export const entities = [AdminNotification, AdminNotificationRead];
 
 /** Cap of unread entries per audience before older ones auto-archive. */
 const MAX_UNREAD_PER_AUDIENCE = 50;

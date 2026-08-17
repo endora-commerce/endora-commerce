@@ -4,7 +4,6 @@ import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { CredentialConfiguration } from './entities/credential-configuration.entity.js';
 import { registerCredentialsAdminRoutes } from './routes.admin.js';
 import type { ConfigurationTypeRegistry } from './services/configuration-type-registry.js';
 import { configurationTypeRegistry } from './services/registry-singleton.js';
@@ -55,8 +54,6 @@ import {
  * `test/integration/credentials/registry-extensibility.test.ts`, which is that
  * path under test).
  */
-
-export const entities = [CredentialConfiguration];
 
 export interface CredentialsCradle {
   readonly emFactory: () => EntityManager;

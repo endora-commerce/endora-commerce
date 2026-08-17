@@ -4,9 +4,6 @@ import type { DictionaryValidator } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { Megamenu } from './entities/megamenu.entity.js';
-import { MegamenuItem } from './entities/megamenu-item.entity.js';
-import { MegamenuBinding } from './entities/megamenu-binding.entity.js';
 import { MegamenuCache, type MegamenuCacheOptions } from './services/megamenu-cache.js';
 import { MegamenuReferenceRegistry } from './services/megamenu-reference-registry.js';
 import { MegamenuService } from './services/megamenu-service.js';
@@ -51,8 +48,6 @@ import type { CmsExternalReferenceScanner } from '../cms/services/cms-reference-
  * suite assert nothing. The seam stays for a deployment that wants to tune the
  * TTL; the default is the behaviour both compositions actually want.
  */
-
-export const entities = [Megamenu, MegamenuItem, MegamenuBinding];
 
 interface MegamenuServices {
   readonly menuService: MegamenuService;

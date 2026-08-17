@@ -5,8 +5,6 @@ import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
-import { Comparison } from './entities/comparison.entity.js';
-import { ComparisonProduct } from './entities/comparison-product.entity.js';
 import { ComparisonService } from './services/comparison-service.js';
 import { ComparisonAdminService } from './services/comparison-admin.service.js';
 import { ComparableAttributeProjection } from './services/comparable-attribute-projection.js';
@@ -46,8 +44,6 @@ import { registerComparisonsAdminRoutes } from './routes.admin.js';
  * `comparisonService` is a **port**: the login flow adopts an anonymous
  * comparison through it, across a module boundary.
  */
-
-export const entities = [Comparison, ComparisonProduct];
 
 export interface ComparisonsCradle {
   readonly emFactory: () => EntityManager;

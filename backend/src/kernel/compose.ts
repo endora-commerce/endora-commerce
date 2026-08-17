@@ -1,6 +1,6 @@
 import type { EventBus } from '../events/bus.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
-import type { KernelContainer } from './container.js';
+import { registerValues, type KernelContainer } from './container.js';
 import { enterSystemScope } from './scope.js';
 import {
   AmbiguousDecorationError,
@@ -74,6 +74,28 @@ export class ModuleCompositionError extends Error {
   }
 }
 
+/**
+ * A root contributed outside the contribution window (issue #52).
+ *
+ * The window is the single slot between `composeModules(MODULES, …)` and
+ * `runBootHooks()` (D-45), and both of its edges used to be a convention two
+ * composition roots had to remember identically. {@link ComposedModules.contribute}
+ * makes the early edge structural — there is nothing to call the method on until
+ * the registration pass is over — and this makes the late edge loud.
+ */
+export class ContributionWindowClosedError extends Error {
+  constructor(readonly names: readonly string[]) {
+    super(
+      `[kernel] contribution outside the window: ${names.join(', ')}. ` +
+        'A root contribution over a name a module defaults goes between ' +
+        '`composeModules(MODULES, …)` and `runBootHooks()` (D-45). The boot phase has ' +
+        'already started, so a hook may have read the default this was meant to replace ' +
+        '— move the `contribute(…)` call above `runBootHooks()`.',
+    );
+    this.name = 'ContributionWindowClosedError';
+  }
+}
+
 /** Both already carry the module id; wrapping them would only bury it. */
 function alreadyNamesTheModule(error: unknown): boolean {
   return (
@@ -137,6 +159,23 @@ export interface ComposedModules {
    * and it means it explicitly.
    */
   readonly decorations: readonly DecorationRecord[];
+  /**
+   * The **contribution window** (D-45, issue #52): the one slot where a root
+   * may write a name a module has defaulted.
+   *
+   * Register it earlier and the module's own registration overwrites it;
+   * register it later and a boot hook has already read the default. Both edges
+   * are enforced by the shape rather than remembered: the early one because
+   * this object does not exist until every module has registered, the late one
+   * because the method refuses once {@link runBootHooks} has started
+   * ({@link ContributionWindowClosedError}).
+   *
+   * Host values **no module defaults** — the Redis client, the EventBus, a
+   * deployment flag — have no window at all and are registered with
+   * `registerValues` where they come into existence. The window is about
+   * overwriting, and there is nothing to overwrite.
+   */
+  contribute(values: Readonly<Record<string, unknown>>): void;
   /**
    * Run the explicit boot phase (FR-021): every module's `onBoot` hook, in
    * registration order, each inside its own `enterSystemScope`.
@@ -214,11 +253,23 @@ export function composeModules(
     );
   }
 
+  // Closed by the boot phase rather than by the end of it: hooks run in
+  // registration order, so a contribution made from inside one is already
+  // invisible to every hook that ran before it.
+  let contributionWindowOpen = true;
+
   return {
     sink: combined,
     ownerOf: (name) => ownership.ownerOf(name),
     decorations: decorations.entries,
+    contribute(values: Readonly<Record<string, unknown>>): void {
+      if (!contributionWindowOpen) {
+        throw new ContributionWindowClosedError(Object.keys(values));
+      }
+      registerValues(options.container, values);
+    },
     async runBootHooks(): Promise<void> {
+      contributionWindowOpen = false;
       for (const { moduleId, hook } of bootHooks) {
         await enterSystemScope(
           `boot: ${moduleId}`,

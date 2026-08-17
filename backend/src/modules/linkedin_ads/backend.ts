@@ -6,7 +6,6 @@ import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
-import { LinkedInConversionMapping } from './entities/linkedin-conversion-mapping.entity.js';
 import { LinkedInConfigService } from './services/linkedin-config.service.js';
 import {
   LinkedInConversionMappingsService,
@@ -33,8 +32,6 @@ import { registerLinkedInAdsStorefrontRoutes } from './routes.storefront.js';
  * blocks, and splitting them would have meant leaving the shared
  * `adminAuditActorResolver` contribution half-introduced between commits.
  */
-
-export const entities = [LinkedInConversionMapping];
 
 interface LinkedInAdsServices {
   readonly revalidator: StorefrontRevalidator;

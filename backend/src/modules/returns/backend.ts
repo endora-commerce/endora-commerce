@@ -6,17 +6,6 @@ import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { ReturnStatus } from './entities/return-status.entity.js';
-import { ReturnStatusTransition } from './entities/return-status-transition.entity.js';
-import { ReturnCase } from './entities/return-case.entity.js';
-import { ReturnCaseItem } from './entities/return-case-item.entity.js';
-import { ReturnCaseComment } from './entities/return-case-comment.entity.js';
-import { ReturnReason } from './entities/return-reason.entity.js';
-import { ReturnDeliveryMethod } from './entities/return-delivery-method.entity.js';
-import { Refund } from './entities/refund.entity.js';
-import { ReturnShipment } from './entities/return-shipment.entity.js';
-import { ReturnCaseAttachment } from './entities/return-case-attachment.entity.js';
-import { ReturnListSavedView } from './entities/return-list-saved-view.entity.js';
 import { returnsModule, type ReturnsModuleOptions } from './plugin.js';
 import {
   ReturnEmailNotifier,
@@ -50,20 +39,6 @@ import type { EmailDefaultsRegistry } from '../transactional_emails/services/ema
  * `auditLog` stops being optional. FR-041 requires status changes *and*
  * settlement to be recorded, and settlement is where the money moved.
  */
-
-export const entities = [
-  ReturnStatus,
-  ReturnStatusTransition,
-  ReturnCase,
-  ReturnCaseItem,
-  ReturnCaseComment,
-  ReturnReason,
-  ReturnDeliveryMethod,
-  Refund,
-  ReturnShipment,
-  ReturnCaseAttachment,
-  ReturnListSavedView,
-];
 
 /**
  * How this composition settles a return, and who is asking.
