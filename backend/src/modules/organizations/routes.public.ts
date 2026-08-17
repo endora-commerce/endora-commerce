@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
+  SESSION_COOKIE_NAME,
   customerLoginRequestSchema,
   emailVerificationRequestSchema,
   passwordResetConfirmSchema,
@@ -7,14 +8,14 @@ import {
   registerOrganizationRequestSchema,
   type CartMergeOutcome,
   type CartMergeOutcomePublic,
+  type CustomerAccountRecord,
+  type CustomerAuthPort,
+  type CustomerPasswordResetPort,
+  type EmailMailerPort,
 } from '@b2b/contracts';
 import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { RegistrationService } from './services/registration-service.js';
 import type { EmailVerificationService } from './services/email-verification-service.js';
-import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
-import type { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
-import { SESSION_COOKIE_NAME } from '../auth/plugin.js';
-import type { Mailer } from '../email/services/mailer.js';
 import { buildVerificationEmail } from './email-templates/verification.js';
 import type { OrgTemplateEmail } from './services/org-template-email.js';
 
@@ -26,8 +27,8 @@ import type { OrgTemplateEmail } from './services/org-template-email.js';
 export interface OrganizationsPublicDeps {
   registrationService: RegistrationService;
   verificationService: EmailVerificationService;
-  customerAuthService: CustomerAuthService;
-  passwordResetService: PasswordResetService;
+  customerAuthService: CustomerAuthPort;
+  passwordResetService: CustomerPasswordResetPort;
   /**
    * Exposes the latest raw verification token for the test-only probe endpoint.
    * Not wired outside of test mode — production keeps this undefined so the
@@ -53,7 +54,7 @@ export interface OrganizationsPublicDeps {
     anonymousCompareToken?: string;
   }) => Promise<{ cartMerge?: CartMergeOutcome }>;
   /** Dispatches verification email after registration. */
-  mailer: Mailer;
+  mailer: EmailMailerPort;
   /** Feature 047 — optional admin-editable template path. */
   templateEmail?: OrgTemplateEmail;
   /** Storefront URL for verify link in the email body. */
@@ -287,18 +288,7 @@ function serializeOrganization(o: {
   };
 }
 
-function serializeCustomerAccount(c: {
-  id: string;
-  organizationId?: string | null;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: string;
-  emailVerifiedAt?: Date | null;
-  twoFactorConfirmedAt?: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
+function serializeCustomerAccount(c: CustomerAccountRecord) {
   return {
     id: c.id,
     organizationId: c.organizationId ?? null,
@@ -307,7 +297,9 @@ function serializeCustomerAccount(c: {
     lastName: c.lastName,
     role: c.role,
     emailVerifiedAt: c.emailVerifiedAt?.toISOString() ?? null,
-    twoFactorEnabled: !!c.twoFactorConfirmedAt,
+    // The record already answers this; the entity carried the secret's
+    // confirmation timestamp and every caller derived the same boolean from it.
+    twoFactorEnabled: c.twoFactorEnabled,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   };

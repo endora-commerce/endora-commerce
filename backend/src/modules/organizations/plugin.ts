@@ -1,6 +1,17 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CartMergeOutcome } from '@b2b/contracts';
+import type {
+  AddressServicePort,
+  CartMergeOutcome,
+  CustomFieldValuePort,
+  CustomerAccountMemberWritePort,
+  CustomerAccountReadPort,
+  CustomerAuthPort,
+  CustomerPasswordResetPort,
+  CustomerRolePort,
+  CustomerTotpEnrolmentPort,
+  EmailMailerPort,
+} from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { OrganizationModerationService } from './services/organization-moderation-service.js';
 import type { OrganizationRestrictionService } from './services/organization-restriction-service.js';
@@ -11,14 +22,8 @@ import {
   type OrganizationEventBus,
 } from './services/registration-service.js';
 import { EmailVerificationService } from './services/email-verification-service.js';
-import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
-import type { AddressService } from '../addresses/services/address-service.js';
 import { InvitationService } from './services/invitation-service.js';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './services/org-template-email.js';
-import type { RoleService } from '../customer_accounts/services/role-service.js';
-import type { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
-import type { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
-import { ConsoleMailer, type Mailer } from '../email/services/mailer.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
 import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
@@ -28,7 +33,6 @@ import { registerMembersRoutes } from './routes.members.js';
 import { registerOrganizationsAdminRoutes } from './routes.admin.js';
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import type { CommandBus } from '../../commands/index.js';
-import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import type { RequireAdminAnyFactory } from '../../kernel/ports/require-admin.js';
 import type { DictionaryValidator } from '@b2b/contracts';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -45,10 +49,17 @@ export interface OrganizationsModuleOptions {
    * than built here, because this host and `customers` each built their own and the
    * MFA argument differed between them.
    */
-  customerAuthService: CustomerAuthService;
-  passwordResetService: PasswordResetService;
-  customerRoleService: RoleService;
-  totpEnrolmentService: TotpEnrolmentService;
+  customerAuthService: CustomerAuthPort;
+  passwordResetService: CustomerPasswordResetPort;
+  customerRoleService: CustomerRolePort;
+  totpEnrolmentService: CustomerTotpEnrolmentPort;
+  /**
+   * `customer_accounts`' published read and member write (feature 075, Phase
+   * C). Registration, invitation accept, the member panel, `GET /me` and the
+   * Org-Admin gate all reached this module's entity directly before the cut.
+   */
+  customerAccountRead: CustomerAccountReadPort;
+  customerAccountWrite: CustomerAccountMemberWritePort;
   emFactory: () => EntityManager;
   eventBus: EventBus;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
@@ -80,8 +91,16 @@ export interface OrganizationsModuleOptions {
   requireAdmin?: RequireAdminFactory;
   /** Read-only org routes accept `customers:read` OR `customers:manage`. */
   requireAdminAny?: RequireAdminAnyFactory;
-  /** Mailer used to dispatch invitation + verification emails. Defaults to ConsoleMailer. */
-  mailer?: Mailer;
+  /**
+   * Transport for the invitation and verification e-mails.
+   *
+   * Required since feature 075's Phase C. It defaulted to `new ConsoleMailer()`
+   * — a value import of `email`'s driver — and the default has had no reachable
+   * caller since the container started resolving `emailMailer` for every
+   * composition: an omitted mailer would mean an e-mail nobody receives and a
+   * registration that reports it as sent.
+   */
+  mailer: EmailMailerPort;
   /**
    * Feature 047 / 072 (T120) — the template-routed sender, supplied by
    * `transactional_emails` through `templateEmailPort`. Absent, every
@@ -98,7 +117,7 @@ export interface OrganizationsModuleOptions {
   auditLogService?: AuditLogService;
   dictionaryValidator?: DictionaryValidator;
   /** Resolved from the container since feature 072 (T090) — one instance, always armed. */
-  addressService: AddressService;
+  addressService: AddressServicePort;
   /**
    * Feature 026 — moderation service that owns approve / reject / block /
    * unblock. When provided alongside `requireAdmin`, the matching admin
@@ -124,7 +143,7 @@ export interface OrganizationsModuleOptions {
    */
   taxIdValidationService?: OrganizationTaxIdValidationService;
   /** Feature 055 — validates + reads organization custom-field values on the admin edit path. */
-  customFieldValues?: CustomFieldValueService;
+  customFieldValues?: CustomFieldValuePort;
   /**
    * Feature 056 — Command Bus for the org-hierarchy tree mutations
    * (`organization.set_parent` / `organization.move`). When present alongside
@@ -135,7 +154,7 @@ export interface OrganizationsModuleOptions {
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
-    const mailer = options.mailer ?? new ConsoleMailer();
+    const mailer = options.mailer;
     // Feature 072 (T120) — supplied rather than assembled. This used to build
     // its own adapter from three options; `transactional_emails` owns the
     // implementation now and every module that sends template-routed mail
@@ -143,20 +162,27 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
     const orgTemplateEmail = options.templateEmail ?? noopOrgTemplateEmail;
     const storefrontBaseUrl = options.storefrontBaseUrl ?? 'http://localhost:3000';
     const latestTokenByEmail = new Map<string, string>();
+    const accountPorts = {
+      read: options.customerAccountRead,
+      write: options.customerAccountWrite,
+    };
     const registrationService = new RegistrationService(
       options.emFactory,
       options.eventBus as OrganizationEventBus,
+      accountPorts,
       options.dictionaryValidator,
       options.auditLogService,
     );
     const verificationService = new EmailVerificationService(
       options.emFactory,
       options.eventBus as OrganizationEventBus,
+      accountPorts,
       options.auditLogService,
     );
     const customerAuthService = options.customerAuthService;
     const invitationService = new InvitationService(
       options.emFactory,
+      accountPorts,
       mailer,
       { acceptBaseUrl: storefrontBaseUrl },
       options.eventBus as OrganizationEventBus,
@@ -185,6 +211,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       customerAuthService,
       addressService,
       totpEnrolmentService,
+      customerAccountRead: options.customerAccountRead,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
       resolveCustomerActorOptionalOrg: resolveOptionalOrgContext,
@@ -206,11 +233,11 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
     await registerMembersRoutes(app, {
       invitationService,
       roleService,
+      customerAccountRead: options.customerAccountRead,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
       exposeTestProbe: options.exposeTestProbe ?? false,
       latestInvitationToken,
-      emFactory: options.emFactory,
     });
     if (options.requireAdmin) {
       if (!options.auditLogService) {
@@ -225,6 +252,8 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         requireAdminAny: options.requireAdminAny,
         invitationService,
         roleService,
+        customerAccountRead: options.customerAccountRead,
+        customerAccountWrite: options.customerAccountWrite,
         auditLogService: options.auditLogService,
         eventBus: options.eventBus as OrganizationEventBus,
         addressService,

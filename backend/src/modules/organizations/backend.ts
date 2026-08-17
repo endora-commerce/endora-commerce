@@ -1,11 +1,24 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type {
+  AddressServicePort,
+  AdminNotificationRecordPort,
+  CustomFieldValuePort,
+  CustomerAccountMemberWritePort,
+  CustomerAccountReadPort,
+  CustomerAuthPort,
+  CustomerPasswordResetPort,
+  CustomerRolePort,
+  CustomerTotpEnrolmentPort,
   DictionaryValidator,
+  EmailDefaultsRegistryPort,
+  EmailMailerPort,
   OrganizationDetailsPort,
   OrganizationInheritancePort,
   OrganizationRestrictionPort,
   PersonalOrganizationPort,
+  PriceListReadPort,
+  TemplateEmailPort,
   TransactionalEmailSender,
 } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
@@ -46,11 +59,9 @@ import { OrgRegistrationNotifier } from './services/org-registration-notifier.js
 import { Organization } from './entities/organization.entity.js';
 import { ViesClient } from './integrations/vies-client.js';
 import { MinisterstwoFinansowClient } from './integrations/ministerstwo-finansow-client.js';
-import type { TemplateEmail } from '../transactional_emails/services/template-email.js';
 import type { OrganizationEventBus } from './services/registration-service.js';
 import { organizationsModule, type OrganizationsModuleOptions } from './plugin.js';
 import { EMAIL_VERIFICATION_DEFAULT, NEW_ORG_REGISTRATION_DEFAULT, ORGANIZATION_INVITATION_DEFAULT } from './email-templates/transactional-defaults.js';
-import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 
 /**
  * `organizations` — the tenancy root, and seven container names claimed by a
@@ -148,24 +159,32 @@ export interface OrganizationsCradle {
   readonly requireAdminAny: RequireAdminAnyFactory;
   readonly requireCustomer: OrganizationsModuleOptions['requireCustomer'];
   readonly customerContextResolver: OrganizationsModuleOptions['resolveCustomerContext'];
-  readonly customerAuthService: OrganizationsModuleOptions['customerAuthService'];
-  readonly passwordResetService: OrganizationsModuleOptions['passwordResetService'];
-  readonly customerRoleService: OrganizationsModuleOptions['customerRoleService'];
-  readonly totpEnrolmentService: OrganizationsModuleOptions['totpEnrolmentService'];
-  readonly addressService: OrganizationsModuleOptions['addressService'];
-  readonly customFieldValueService: NonNullable<OrganizationsModuleOptions['customFieldValues']>;
+  readonly customerAuthPort: CustomerAuthPort;
+  readonly passwordResetService: CustomerPasswordResetPort;
+  readonly customerRolePort: CustomerRolePort;
+  readonly totpEnrolmentService: CustomerTotpEnrolmentPort;
+  /**
+   * The two halves of `customer_accounts`' published surface this module runs
+   * its member lifecycle over (feature 075, Phase C). Every route file and
+   * three services named that module's entity before the cut.
+   */
+  readonly customerAccountReadPort: CustomerAccountReadPort;
+  readonly customerAccountMemberWritePort: CustomerAccountMemberWritePort;
+  readonly addressService: AddressServicePort;
+  readonly customFieldValueService: CustomFieldValuePort;
   readonly dictionaryValidator: DictionaryValidator;
-  readonly emailMailer: NonNullable<OrganizationsModuleOptions['mailer']>;
-  readonly adminNotificationService: ConstructorParameters<
-    typeof OrgRegistrationNotifier
-  >[0]['adminNotificationService'];
+  readonly emailMailer: EmailMailerPort;
+  readonly adminNotificationRecordPort: AdminNotificationRecordPort;
+  /** `price_lists`' own answer to "which lists are active" (feature 075, Phase C). */
+  readonly priceListReadPort: PriceListReadPort;
   /**
    * `transactional_emails`' own accessors since T120. The sender is late-bound
    * — that module publishes it at route registration — and the template adapter
    * is the one this module used to build for itself from a helper it owned.
    */
   readonly transactionalEmailSenderAccessor: () => TransactionalEmailSender | undefined;
-  readonly templateEmailPort: TemplateEmail;
+  readonly templateEmailPort: TemplateEmailPort;
+  readonly emailDefaultsPort: EmailDefaultsRegistryPort;
   /**
    * Deployment inputs. The storefront origin an invitation link points at is an
    * environment fact; the probe is a harness fact — a route that hands back the
@@ -266,7 +285,7 @@ export function registerModule(ctx: ModuleContext): void {
             // a transient gate inside a singleton — it would keep answering
             // after `email` was switched off, and Awilix's strict mode refuses
             // it outright.
-            lazyPort<OrganizationsCradle['emailMailer']>(ctx, 'emailMailer'),
+            lazyPort<EmailMailerPort>(ctx, 'emailMailer'),
             () =>
               readSetting<'auto' | 'manual'>(
                 ORGANIZATIONS_SETTING_CODES.MODERATION_MODE,
@@ -282,20 +301,18 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory }: OrganizationsCradle) =>
           new OrgRegistrationNotifier({
             emFactory,
-            adminNotificationService: lazyPort<
-              OrganizationsCradle['adminNotificationService']
-            >(ctx, 'adminNotificationService'),
-            mailer: lazyPort<OrganizationsCradle['emailMailer']>(ctx, 'emailMailer'),
+            adminNotificationService: lazyPort<AdminNotificationRecordPort>(
+              ctx,
+              'adminNotificationRecordPort',
+            ),
+            mailer: lazyPort<EmailMailerPort>(ctx, 'emailMailer'),
             resolveRecipients: () =>
               readSetting<string[]>(
                 ORGANIZATIONS_SETTING_CODES.NEW_REGISTRATION_RECIPIENTS,
                 notificationRecipientsSchema,
                 [],
               ),
-            templateEmail: lazyPort<OrganizationsCradle['templateEmailPort']>(
-              ctx,
-              'templateEmailPort',
-            ),
+            templateEmail: lazyPort<TemplateEmailPort>(ctx, 'templateEmailPort'),
           }),
       )
       .singleton(),
@@ -308,44 +325,41 @@ export function registerModule(ctx: ModuleContext): void {
             eventBus,
             commandBus,
             auditLogService,
-            addressService: lazyPort<OrganizationsCradle['addressService']>(
-              ctx,
-              'addressService',
-            ),
+            addressService: lazyPort<AddressServicePort>(ctx, 'addressService'),
             // Every one of these is another module's **gated** port, and this
             // registration is a singleton: reading one here would put a
             // transient gate inside a longer-lived object, which Awilix's
             // strict mode refuses outright — `Dependency has a shorter lifetime
             // than its ancestor`. `lazyPort` resolves per method call, so the
             // gate stays live and the lifetimes stay honest.
-            customerAuthService: lazyPort<OrganizationsCradle['customerAuthService']>(
-              ctx,
-              'customerAuthService',
-            ),
-            passwordResetService: lazyPort<OrganizationsCradle['passwordResetService']>(
+            // Feature 075, Phase C — `customerAuthPort` / `customerRolePort`
+            // rather than the two same-named services beside them. Those hand
+            // back `customer_accounts`' entity; these hand back the published
+            // record, which is what stops the entity crossing.
+            customerAuthService: lazyPort<CustomerAuthPort>(ctx, 'customerAuthPort'),
+            passwordResetService: lazyPort<CustomerPasswordResetPort>(
               ctx,
               'passwordResetService',
             ),
-            customerRoleService: lazyPort<OrganizationsCradle['customerRoleService']>(
-              ctx,
-              'customerRoleService',
-            ),
-            totpEnrolmentService: lazyPort<OrganizationsCradle['totpEnrolmentService']>(
+            customerRoleService: lazyPort<CustomerRolePort>(ctx, 'customerRolePort'),
+            totpEnrolmentService: lazyPort<CustomerTotpEnrolmentPort>(
               ctx,
               'totpEnrolmentService',
             ),
-            customFieldValues: lazyPort<OrganizationsCradle['customFieldValueService']>(
+            customerAccountRead: lazyPort<CustomerAccountReadPort>(
               ctx,
-              'customFieldValueService',
+              'customerAccountReadPort',
             ),
+            customerAccountWrite: lazyPort<CustomerAccountMemberWritePort>(
+              ctx,
+              'customerAccountMemberWritePort',
+            ),
+            customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
             // Passed for the first time by any composition — see the note above
             // on `validateCountry`.
             dictionaryValidator: lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
-            mailer: lazyPort<OrganizationsCradle['emailMailer']>(ctx, 'emailMailer'),
-            templateEmail: lazyPort<OrganizationsCradle['templateEmailPort']>(
-              ctx,
-              'templateEmailPort',
-            ),
+            mailer: lazyPort<EmailMailerPort>(ctx, 'emailMailer'),
+            templateEmail: lazyPort<TemplateEmailPort>(ctx, 'templateEmailPort'),
             storefrontBaseUrl: cradle().storefrontBaseUrl,
             exposeTestProbe: cradle().organizationsExposeTestProbe,
             requireAdmin: (permission) => async (req, reply) =>
@@ -377,6 +391,10 @@ export function registerModule(ctx: ModuleContext): void {
               // The branch cannot be taken, so the fallback goes with it.
               resolveDefaultSalesChannelId: async () =>
                 (await cradle().salesChannelResolutionPort.getSystemDefault()).id,
+              // Feature 075, Phase C — `price_lists`' own `listActive`, where
+              // this service used to run `em.find(PriceList, …)` against that
+              // module's table and spell the status filter itself.
+              priceListRead: lazyPort<PriceListReadPort>(ctx, 'priceListReadPort'),
             }),
             taxIdValidationService: new OrganizationTaxIdValidationService({
               emFactory,
@@ -426,7 +444,16 @@ export function registerModule(ctx: ModuleContext): void {
     'personalOrganizationPort',
     ctx
       .asFunction(({ emFactory }: OrganizationsCradle): PersonalOrganizationPort => {
-        const service = new PersonalOrganizationService(emFactory);
+        const service = new PersonalOrganizationService(emFactory, {
+          // Feature 075, Phase C — `lazyPort` rather than a captured value:
+          // the gates stay live inside this singleton, and the service reads
+          // them per call.
+          read: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+          write: lazyPort<CustomerAccountMemberWritePort>(
+            ctx,
+            'customerAccountMemberWritePort',
+          ),
+        });
         return {
           ensureForCustomerAccount: async (customerAccountId) =>
             toOrganizationRecord(await service.ensureForCustomerAccountId(customerAccountId)),
@@ -586,7 +613,7 @@ export function registerModule(ctx: ModuleContext): void {
    * built, so this always lands first — by construction, not by ordering luck.
    */
   ctx.onBoot(async () => {
-    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    const defaults = lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort');
     defaults.register('email_verification', EMAIL_VERIFICATION_DEFAULT, 'organizations');
     defaults.register('organization_invitation', ORGANIZATION_INVITATION_DEFAULT, 'organizations');
     defaults.register('new_org_registration', NEW_ORG_REGISTRATION_DEFAULT, 'organizations');

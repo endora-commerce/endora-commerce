@@ -8,6 +8,7 @@ import type { DictionaryValidator } from '../../../src/modules/dictionaries/serv
 import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
 import { RegistrationService } from '../../../src/modules/organizations/services/registration-service.js';
+import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
 
 describe('Organizations dictionary boundary', () => {
   let db: TestDb;
@@ -27,7 +28,12 @@ describe('Organizations dictionary boundary', () => {
   beforeEach(async () => {
     em = await db.beginTx();
     validator = dictionaryValidatorFor(() => em);
-    service = new RegistrationService(() => em, new EventBus(), validator);
+    service = new RegistrationService(
+      () => em,
+      new EventBus(),
+      customerAccountPortsFor(() => em),
+      validator,
+    );
   });
 
   afterEach(async () => {

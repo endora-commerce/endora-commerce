@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { OptimisticLockError } from '@mikro-orm/core';
 import { Organization, type OrganizationStatus } from '../entities/organization.entity.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import type { Mailer } from '../../email/services/mailer.js';
+import type { EmailMailerPort } from '@b2b/contracts';
 import type { OrganizationEventBus } from './registration-service.js';
 
 /**
@@ -63,7 +63,7 @@ export class OrganizationModerationService {
     private readonly emFactory: () => EntityManager,
     private readonly auditLogService: AuditLogService,
     private readonly events: OrganizationEventBus,
-    private readonly mailer: Mailer,
+    private readonly mailer: EmailMailerPort,
     /** Resolver for the moderation-mode setting. Returns 'auto' or 'manual'. */
     private readonly resolveModerationMode: () => Promise<'auto' | 'manual'>,
   ) {}

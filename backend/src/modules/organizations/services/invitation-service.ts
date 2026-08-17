@@ -1,13 +1,16 @@
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type CustomerAccountMemberWritePort,
+  type CustomerAccountReadPort,
+  type CustomerAccountRecord,
+  type EmailMailerPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { hashPassword } from '../../auth/services/password-hasher.js';
 import { Organization } from '../entities/organization.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
-import type { Mailer } from '../../email/services/mailer.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { buildInvitationEmail } from '../email-templates/invitation.js';
@@ -44,15 +47,33 @@ export interface InvitationServiceOptions {
   acceptBaseUrl?: string;
 }
 
+/**
+ * `customer_accounts`' published read and write (feature 075, Phase C).
+ *
+ * An invitation is this module's row; the member it creates is that module's.
+ * The membership pre-checks used to be `em.findOne`/`em.count` on its entity
+ * and the accept used to `em.create` one, with a `hashPassword` imported from
+ * `auth`.
+ *
+ * With `customer_accounts` off every invitation path fails closed — inviting a
+ * member the platform cannot see, or accepting into an account it cannot
+ * create, are both incoherent rather than degraded.
+ */
+export interface InvitationAccountPorts {
+  read: CustomerAccountReadPort;
+  write: CustomerAccountMemberWritePort;
+}
+
 export class InvitationService {
-  private readonly mailer: Mailer | null;
+  private readonly mailer: EmailMailerPort | null;
   private readonly acceptBaseUrl: string;
 
   private readonly templateEmail: OrgTemplateEmail;
 
   constructor(
     private readonly emFactory: () => EntityManager,
-    mailer?: Mailer | null,
+    private readonly accounts: InvitationAccountPorts,
+    mailer?: EmailMailerPort | null,
     options?: InvitationServiceOptions,
     private readonly events?: OrganizationEventBus,
     templateEmail?: OrgTemplateEmail,
@@ -83,7 +104,7 @@ export class InvitationService {
     }
 
     // Pre-check existing membership.
-    const existingByEmail = await em.findOne(CustomerAccount, { email: lowercaseEmail });
+    const existingByEmail = await this.accounts.read.findByEmail(lowercaseEmail);
     if (existingByEmail) {
       if (existingByEmail.organizationId === actor.organizationId) {
         throw new HttpError(
@@ -133,7 +154,7 @@ export class InvitationService {
     if (this.mailer || this.templateEmail !== noopOrgTemplateEmail) {
       const organization = await em.findOne(Organization, { id: actor.organizationId });
       const inviter = actor.customerAccountId
-        ? await em.findOne(CustomerAccount, { id: actor.customerAccountId })
+        ? await this.accounts.read.findById(actor.customerAccountId)
         : null;
       const inviterName = inviter
         ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ').trim() || inviter.email
@@ -213,11 +234,11 @@ export class InvitationService {
     if (invitation.consumedAt || invitation.revokedAt) return;
 
     if (invitation.role === 'organization_admin') {
-      const adminCount = await em.count(CustomerAccount, {
-        organizationId: actor.organizationId,
-        role: 'organization_admin',
-        deletedAt: null,
-      });
+      const adminCount = await this.accounts.read.countByOrganizationRole(
+        actor.organizationId,
+        'organization_admin',
+        { activeOnly: true },
+      );
       if (adminCount === 0) {
         const otherPending = await em.count(OrganizationInvitation, {
           organizationId: actor.organizationId,
@@ -249,10 +270,24 @@ export class InvitationService {
     await em.flush();
   }
 
+  /**
+   * The account insert and the invitation's `consumedAt` were one flush until
+   * feature 075's Phase C, and they are two units of work now: the account is
+   * `customer_accounts`' row, the invitation is this module's, and no port
+   * parameter may be a unit of work (D-78). The two modules share no foreign
+   * key between *these* two rows, so D-78's second answer does not apply and
+   * the seam is split rather than declared.
+   *
+   * The account is created **first**, deliberately. If the consume then fails,
+   * the buyer has the account they just set a password for and can sign in;
+   * what is left behind is a pending invitation an org admin can revoke. The
+   * other order loses the account instead, which is the half that cannot be
+   * recovered from the screen the buyer is looking at.
+   */
   async acceptByToken(
     rawToken: string,
     input: { password: string; firstName: string; lastName: string },
-  ): Promise<{ customerAccount: CustomerAccount }> {
+  ): Promise<{ customerAccount: CustomerAccountRecord }> {
     const em = this.emFactory();
     const tokenHash = sha256Hex(rawToken);
     const invitation = await em.findOne(OrganizationInvitation, { tokenHash });
@@ -271,8 +306,10 @@ export class InvitationService {
       );
     }
 
-    // FR-041: at most one CustomerAccount per email installation-wide.
-    const existing = await em.findOne(CustomerAccount, { email: invitation.email });
+    // FR-041: at most one CustomerAccount per email installation-wide. The
+    // owner re-checks inside `create`; this one keeps the invitation
+    // unconsumed when the address is already taken.
+    const existing = await this.accounts.read.findByEmail(invitation.email);
     if (existing) {
       throw new HttpError(
         409,
@@ -285,15 +322,16 @@ export class InvitationService {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization no longer exists.');
     }
 
-    const passwordHash = await hashPassword(input.password);
-    const customer = em.create(CustomerAccount, {
+    const customer = await this.accounts.write.create({
       organizationId: invitation.organizationId,
       email: invitation.email,
-      passwordHash,
+      password: input.password,
       firstName: input.firstName,
       lastName: input.lastName,
       role: invitation.role,
-      emailVerifiedAt: new Date(), // accepting an invitation implies confirmed email
+      // Accepting an invitation implies a confirmed address: it was delivered
+      // to that address.
+      emailVerified: true,
     });
     invitation.consumedAt = new Date();
     if (this.auditLog) {
@@ -305,7 +343,7 @@ export class InvitationService {
         stateAfter: { email: invitation.email, role: invitation.role, customerAccountId: customer.id },
       });
     }
-    await em.persistAndFlush([customer, invitation]);
+    await em.flush();
 
     if (this.events) {
       emitCustomerAccountCreated(this.events, customer.id, invitation.organizationId);

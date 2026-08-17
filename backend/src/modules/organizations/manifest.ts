@@ -127,29 +127,61 @@ export const manifest = defineModuleManifest({
     },
     {
       moduleId: 'customer_accounts',
-      port: 'customerAuthService',
+      port: 'customerAuthPort',
       reason:
-        'The same mutual pair, four names over. `customer_accounts` declares this ' +
+        'The same mutual pair, six names over. `customer_accounts` declares this ' +
         'module — every account belongs to one, and feature 051 made that the tenancy ' +
         "direction — while this module's public registration, login, password-reset " +
-        'and TOTP routes are served by those four services. The manifest already ' +
+        'and TOTP routes are served by those services. The manifest already ' +
         'records the mirror of this as an acknowledged FK edge ' +
-        '(`email_verification_tokens.customer_account_id`).',
+        '(`email_verification_tokens.customer_account_id`). Feature 075 Phase C ' +
+        'renamed two of the six: `customerAuthService` and `customerRoleService` hand ' +
+        "back that module's entity, and this module resolves the record-returning " +
+        '`customerAuthPort` / `customerRolePort` beside them instead.',
     },
     {
       moduleId: 'customer_accounts',
       port: 'passwordResetService',
-      reason: 'See the `customerAuthService` edge above — same mutual pair.',
+      reason: 'See the `customerAuthPort` edge above — same mutual pair.',
     },
     {
       moduleId: 'customer_accounts',
-      port: 'customerRoleService',
-      reason: 'See the `customerAuthService` edge above — same mutual pair.',
+      port: 'customerRolePort',
+      reason: 'See the `customerAuthPort` edge above — same mutual pair.',
     },
     {
       moduleId: 'customer_accounts',
       port: 'totpEnrolmentService',
-      reason: 'See the `customerAuthService` edge above — same mutual pair.',
+      reason: 'See the `customerAuthPort` edge above — same mutual pair.',
+    },
+    {
+      moduleId: 'customer_accounts',
+      port: 'customerAccountReadPort',
+      reason:
+        'Feature 075 Phase C. Every route file and three services in this module read ' +
+        "that module's `CustomerAccount` entity directly — the member panel, the " +
+        'Org-Admin gate, `GET /me`, registration, invitation and the personal-organization ' +
+        'provisioner. Same mutual pair as `customerAuthPort` above, so the same trade.',
+    },
+    {
+      moduleId: 'customer_accounts',
+      port: 'customerAccountMemberWritePort',
+      reason:
+        'Feature 075 Phase C, the write half of the edge above: this module created and ' +
+        "mutated that module's entity in seven places. The writes moved to the owner and " +
+        'the audit rows stayed here. Same mutual pair, same trade.',
+    },
+    {
+      moduleId: 'price_lists',
+      port: 'priceListReadPort',
+      reason:
+        'Feature 075 Phase C. The applicable-price-lists panel ran ' +
+        "`em.find(PriceList, { status: 'active' })` against that module's table and spelled " +
+        "the status filter itself; it asks `price_lists` now. `price_lists` declares this " +
+        'module (every price rule is organization-scoped), so declaring the second direction ' +
+        'closes the cycle and makes the tenancy root uninstallable first, which Rule 3 ' +
+        'forbids — the same trade the four FK edges above record. It goes when the panel ' +
+        'moves to the module that owns the table.',
     },
   ],
   // Feature 072/073 (Constitution XVII). The Organization is the single unit of

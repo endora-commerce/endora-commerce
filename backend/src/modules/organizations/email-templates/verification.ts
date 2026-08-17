@@ -1,4 +1,4 @@
-import type { MailerSendInput } from '../../email/services/mailer.js';
+import type { EmailMailerSendInput } from '@b2b/contracts';
 
 export interface BuildVerificationEmailInput {
   customerAccountId: string;
@@ -12,7 +12,7 @@ export interface BuildVerificationEmailInput {
 /**
  * Verification email for first-time organization registration (FR-001).
  */
-export function buildVerificationEmail(input: BuildVerificationEmailInput): MailerSendInput {
+export function buildVerificationEmail(input: BuildVerificationEmailInput): EmailMailerSendInput {
   const base = trimSlash(input.storefrontBaseUrl);
   /** Must match storefront `app/(auth)/verify/page.tsx` (path `/verify`). */
   const verifyUrl = `${base}/verify?token=${encodeURIComponent(input.rawToken)}`;
