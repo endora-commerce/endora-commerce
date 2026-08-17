@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type {
   CatalogCategoryReadPort,
   CatalogProductReadPort,
+  CustomerAccountReadPort,
   CustomerGroupReadPort,
   OrganizationDetailsPort,
   PriceListAdminPort,
@@ -15,11 +16,7 @@ import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { priceListsModule, type PriceListsModuleOptions } from './plugin.js';
 import { DEFAULT_PRICING_CACHE_TTL_MS } from './services/pricing-cache.js';
-import {
-  CustomerGroupReadService,
-  PriceListReadService,
-  toPriceListRecord,
-} from './services/price-list-read-port.js';
+import { PriceListReadService, toPriceListRecord } from './services/price-list-read-port.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
 
 /**
@@ -93,7 +90,6 @@ export interface PriceListsCradle {
   readonly decoratePricingService: PriceListsModuleOptions['decoratePricingService'];
   readonly priceLists: ReturnType<typeof priceListsModule>;
   readonly pricingService: PricingServiceContract;
-  readonly customerGroupService: ReturnType<typeof priceListsModule>['handle']['customerGroupService'];
   readonly priceListService: ReturnType<typeof priceListsModule>['handle']['priceListService'];
 }
 
@@ -148,7 +144,15 @@ export function registerModule(ctx: ModuleContext): void {
                 ctx,
                 'organizationDetailsPort',
               ),
+              // Feature 076 (D-79). This module used to *publish* this port;
+              // customer groups belong to the customer, so it reads it now.
+              customerGroupRead: lazyPort<CustomerGroupReadPort>(ctx, 'customerGroupReadPort'),
             },
+            // Feature 076 (D-79) — the admin resolved-price probe's customer
+            // read, which was the one entry in this module's ledger shard. It
+            // fails closed, deliberately: refusing the probe is better than
+            // pricing for a customer the platform will not identify.
+            customerAccountRead: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
             // Read at construction, and it has to be: the decoration decides
             // which object every consumer then holds, so it cannot be deferred
             // past the moment the engine is built.
@@ -168,12 +172,6 @@ export function registerModule(ctx: ModuleContext): void {
     ctx.asFunction(({ priceLists }: PriceListsCradle) => priceLists.handle.pricingService).singleton(),
   );
   ctx.di.providePort(
-    'customerGroupService',
-    ctx
-      .asFunction(({ priceLists }: PriceListsCradle) => priceLists.handle.customerGroupService)
-      .singleton(),
-  );
-  ctx.di.providePort(
     'priceListService',
     ctx
       .asFunction(({ priceLists }: PriceListsCradle) => priceLists.handle.priceListService)
@@ -183,11 +181,14 @@ export function registerModule(ctx: ModuleContext): void {
   // ---------------------------------------------------------------------------
   // Feature 075, Phase P — the published surface.
   //
-  // The three ports above hand out services built inside the plugin, and the
-  // two heaviest consumers do not want a service at all: `organizations` and
-  // `product_feeds` read a price-list *row*, `customers` and `pwa` read a
-  // customer-group row. Those four reach the entity classes today; these two
-  // read ports are what they rewire to.
+  // The two ports above hand out services built inside the plugin, and the
+  // heaviest consumers do not want a service at all: `organizations` and
+  // `product_feeds` read a price-list *row*. Both reached the entity class
+  // before `priceListReadPort` existed.
+  //
+  // `customerGroupReadPort` used to be published here as well. It left with the
+  // entity in feature 076 (D-79) — a customer group describes the customer, so
+  // `customer_accounts` owns it and this module resolves it.
   //
   // `priceListAdminPort` narrows `PriceListService` to the five methods
   // `pim_ergonode` measurably calls during an import run. `PricingServiceContract`
@@ -198,13 +199,6 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<PriceListReadPort>(
     'priceListReadPort',
     ctx.asFunction(({ emFactory }: PriceListsCradle) => new PriceListReadService(emFactory)).singleton(),
-  );
-
-  ctx.di.providePort<CustomerGroupReadPort>(
-    'customerGroupReadPort',
-    ctx
-      .asFunction(({ emFactory }: PriceListsCradle) => new CustomerGroupReadService(emFactory))
-      .singleton(),
   );
 
   ctx.di.providePort<PriceListAdminPort>(

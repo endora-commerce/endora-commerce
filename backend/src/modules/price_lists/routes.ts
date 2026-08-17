@@ -4,41 +4,27 @@ import {
   patchPriceListEngineRequestSchema,
   replaceBracketsRequestSchema,
   replaceProductsRequestSchema,
-  upsertCustomerGroupRequestSchema,
   ERROR_CODES,
 } from '@b2b/contracts';
 import { z } from 'zod';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ApplicationRule } from '@b2b/contracts';
 import { ruleVisibleForScope } from '../../tenancy/derived-scope.js';
-import type { CustomerGroupService } from './services/customer-group-service.js';
 import type { PriceListService } from './services/price-list-service.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
-import { CustomerGroup } from './entities/customer-group.entity.js';
 import type { PriceList } from './entities/price-list.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import type {
   CatalogCategoryReadPort,
   CatalogProductReadPort,
+  CustomerAccountReadPort,
+  CustomerGroupReadPort,
   OrganizationDetailsPort,
 } from '@b2b/contracts';
-// The one cross-module import feature 075 could not retire in `price_lists`,
-// and the obstruction is the schema rather than the type: `customer_accounts`
-// holds a foreign key into this module's `customer_groups`, so it declares
-// `price_lists`, and the reverse declaration `customerAccountReadPort` would
-// require is a cycle `src/db/migration-order.ts` refuses. Nor may it be
-// non-binding: the read must fail closed — pricing for a customer the platform
-// will not identify is worse than refusing the probe — and a `degrades-without`
-// entry would have to be bought with a `catch` around the port call, which is
-// fail-open with punctuation on. Ledgered in
-// `scripts/ledgers/cross-module-imports/price_lists.ts` with the question that
-// retires it.
-import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface PricingRoutesDeps {
-  customerGroupService: CustomerGroupService;
   priceListService: PriceListService;
   pricingService: PricingServiceContract;
   emFactory: () => EntityManager;
@@ -54,6 +40,16 @@ export interface PricingRoutesDeps {
   catalogProductRead: CatalogProductReadPort;
   catalogCategoryRead: CatalogCategoryReadPort;
   organizationDetails: OrganizationDetailsPort;
+  /**
+   * Feature 076 (D-79) — the last two neighbour reads this module made by
+   * importing another module's entity, both of them into `customer_accounts`.
+   * The rule-target picker lists customer groups; the admin resolved-price
+   * probe reads the customer behind the price it is asked to explain. Both fail
+   * closed at the seam, which is the right answer for a probe that would
+   * otherwise price for a customer the platform will not identify.
+   */
+  customerGroupRead: CustomerGroupReadPort;
+  customerAccountRead: CustomerAccountReadPort;
   /** Feature 024 — resolves admin actor identity for audit entries. */
   resolveAdminAuditContext?: (req: FastifyRequest) => {
     actorAdminUserId: string;
@@ -103,7 +99,6 @@ export async function registerPricingRoutes(
   deps: PricingRoutesDeps,
 ): Promise<void> {
   const {
-    customerGroupService,
     priceListService,
     pricingService,
     emFactory,
@@ -111,43 +106,9 @@ export async function registerPricingRoutes(
     catalogProductRead,
     catalogCategoryRead,
     organizationDetails,
+    customerGroupRead,
+    customerAccountRead,
   } = deps;
-
-  // ---- Customer groups ------------------------------------------------
-  app.get(
-    '/api/v1/admin/customer-groups',
-    { preHandler: requireAdmin('catalog:write') },
-    async () => {
-      const rows = await customerGroupService.list();
-      return { data: rows.map(serializeCustomerGroup) };
-    },
-  );
-
-  app.put<{ Params: { code: string } }>(
-    '/api/v1/admin/customer-groups/:code',
-    {
-      preHandler: requireAdmin('catalog:write'),
-      schema: { body: upsertCustomerGroupRequestSchema },
-    },
-    async (request) => {
-      const body = upsertCustomerGroupRequestSchema.parse(request.body);
-      const row = await customerGroupService.upsertByCode({
-        code: request.params.code,
-        name: body.name,
-        ...(body.description !== undefined ? { description: body.description } : {}),
-      });
-      return { data: serializeCustomerGroup(row) };
-    },
-  );
-
-  app.delete<{ Params: { id: string } }>(
-    '/api/v1/admin/customer-groups/:id',
-    { preHandler: requireAdmin('catalog:write') },
-    async (request, reply) => {
-      await customerGroupService.remove(request.params.id);
-      return reply.status(204).send();
-    },
-  );
 
   // ---- Engine routes (feature 011) -----------------------------------
 
@@ -416,8 +377,8 @@ export async function registerPricingRoutes(
     '/api/v1/admin/pricing/rule-targets/customer-groups',
     { preHandler: requireAdmin('catalog:write') },
     async () => {
-      const em = emFactory();
-      const rows = await em.find(CustomerGroup, {}, { orderBy: { code: 'asc' } });
+      // Already ordered by code on the owner's side.
+      const rows = await customerGroupRead.listAll();
       return {
         data: {
           items: rows.map((r) => ({ id: r.id, code: r.code, name: r.name })),
@@ -649,7 +610,7 @@ export async function registerPricingRoutes(
       }
 
       const customer = request.query.customerAccountId
-        ? await em.findOne(CustomerAccount, { id: request.query.customerAccountId })
+        ? await customerAccountRead.findById(request.query.customerAccountId)
         : null;
       const organizationId = request.query.organizationId ?? customer?.organizationId ?? null;
       const organization = organizationId
@@ -694,17 +655,6 @@ export async function registerPricingRoutes(
       };
     },
   );
-}
-
-function serializeCustomerGroup(row: CustomerGroup): Record<string, unknown> {
-  return {
-    id: row.id,
-    code: row.code,
-    name: row.name,
-    description: row.description ?? null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
 }
 
 function toArray(v: string | string[] | undefined): string[] {

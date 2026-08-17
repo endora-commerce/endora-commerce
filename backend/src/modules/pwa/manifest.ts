@@ -147,12 +147,15 @@ export const manifest = defineModuleManifest({
   // `auth` owns the `requireAdmin` port the admin routes are gated by; feature
   // 072 made it a container resolution rather than a constructor argument.
   //
-  // `customer_accounts`, `organizations` and `price_lists` arrived with feature
-  // 075 Phase C: the push Rule Builder's three target pickers and the
-  // rule-audience expansion read rows those modules own, and they used to read
-  // them off the tables directly. All three are **binding**: a picker that
-  // silently lists nothing and an audience that silently resolves to nobody
-  // both read as legitimate answers, so the seam fails closed.
+  // `customer_accounts` and `organizations` arrived with feature 075 Phase C:
+  // the push Rule Builder's three target pickers and the rule-audience
+  // expansion read rows those modules own, and they used to read them off the
+  // tables directly. Both are **binding**: a picker that silently lists nothing
+  // and an audience that silently resolves to nobody both read as legitimate
+  // answers, so the seam fails closed. `price_lists` was the third, for
+  // `customerGroupReadPort`; feature 076 (D-79) moved that port to
+  // `customer_accounts`, which this module already declares, and the port check
+  // confirms nothing else here resolves out of `price_lists`.
   dependencies: [
     '_i18n',
     '_lifecycle',
@@ -162,7 +165,6 @@ export const manifest = defineModuleManifest({
     'auth',
     'customer_accounts',
     'organizations',
-    'price_lists',
   ],
   settings,
   i18n: { bundlesDir: 'i18n' },

@@ -227,6 +227,17 @@ const NAV: NavSection[] = [
         requiredPermission: 'customers:read',
         module: 'organizations',
       },
+      // Feature 076 (D-79) — customer groups belong to the customer, so the
+      // screen is filed here and the module that owns it is the one that owns
+      // the account. `customer_accounts` is non-deactivatable, so this entry
+      // never disappears; the permission is what decides who sees it.
+      {
+        to: '/customer-groups',
+        labelKey: 'appShell.nav.customerGroups',
+        icon: Users,
+        requiredPermission: 'customer_groups:read',
+        module: 'customer_accounts',
+      },
       { to: '/credit-limits', labelKey: 'appShell.nav.creditLimits', icon: CreditCard, module: 'credit_limits' },
       {
         to: '/comparisons',

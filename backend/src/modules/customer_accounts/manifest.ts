@@ -21,13 +21,15 @@ export const manifest = defineModuleManifest({
   // It is *only* that: feature 075's Phase C took password hashing and the TOTP
   // primitives out of this edge, because a pure function has no owner to be
   // switched off.
-  // `customer_accounts.organization_id` and `customer_accounts.customer_group_id`
-  // are real foreign keys, and feature 072 is what made them visible: the module
-  // exports its entities now, so the ORM registry attributes the table to it and
-  // the FK-drift check can see across the boundary. The edges predate the
-  // conversion — they were simply unattributable while the table belonged to
-  // nobody. `customer_groups` is owned by `price_lists`.
-  dependencies: ['auth', 'organizations', 'price_lists'],
+  // `customer_accounts.organization_id` is a real foreign key, and feature 072
+  // is what made it visible: the module exports its entities now, so the ORM
+  // registry attributes the table to it and the FK-drift check can see across
+  // the boundary. The edge predates the conversion — it was simply
+  // unattributable while the table belonged to nobody.
+  // `customer_accounts.customer_group_id` is a real foreign key too, and since
+  // feature 076 (D-79) it points at `customer_groups`, which this module now
+  // owns: the constraint is intra-module and declares nothing.
+  dependencies: ['auth', 'organizations'],
   // Feature 074 (Constitution XVII), test C1 — reachability. The flag used to
   // rest on four port edges another module declares; ruling 2 withdraws that
   // authority, so the ground is now this module's own and it is the stronger
@@ -41,4 +43,27 @@ export const manifest = defineModuleManifest({
       'The identity a buyer signs in as; no customer-side path — registration, login, cart, ' +
       'order or account — exists without it.',
   },
+  i18n: { bundlesDir: 'i18n' },
+  // Feature 076 (D-79) — the customer-group admin surface came here with the
+  // entity, and its gate came with a correction. `price_lists` served these
+  // three routes under `catalog:write`, which asks a pricing question about a
+  // customer's segmentation; these two codes ask the right one. Granting them
+  // is a deliberate act on each admin role — nothing inherits from
+  // `catalog:write`.
+  permissions: [
+    { code: 'customer_groups:read', label: 'View customer groups' },
+    { code: 'customer_groups:write', label: 'Manage customer groups' },
+  ],
+  actions: [
+    {
+      id: 'open-customer-groups',
+      labelKey: 'actions.openCustomerGroups.label',
+      descriptionKey: 'actions.openCustomerGroups.description',
+      icon: 'Users',
+      targetRoute: '/customer-groups',
+      requiredPermission: 'customer_groups:read',
+      keywords: ['customer', 'group', 'segment', 'klient', 'grupa', 'segment'],
+      weight: 140,
+    },
+  ],
 });

@@ -6,20 +6,24 @@ import type {
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
   CustomerAuthPort,
+  CustomerGroupReadPort,
   CustomerPasswordResetPort,
   CustomerRolePort,
   CustomerTotpEnrolmentPort,
   MfaLoginPort,
 } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
 import { recordAuditFromContext } from '../../commands/index.js';
 import { withSystemScope } from '../../tenancy/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 // Feature 075, Phase C — a pure function, so the kernel rather than `auth`.
 import { hashPassword } from '../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from './entities/customer-account.entity.js';
+import { registerCustomerGroupAdminRoutes } from './routes.admin.js';
 import {
   CustomerAccountMemberWriteService,
   CustomerAccountReadService,
@@ -27,6 +31,8 @@ import {
   createCustomerRolePort,
 } from './services/customer-account-ports.js';
 import { CustomerAuthService } from './services/customer-auth-service.js';
+import { CustomerGroupReadService } from './services/customer-group-read-port.js';
+import { CustomerGroupService } from './services/customer-group-service.js';
 import { PasswordResetService } from './services/password-reset-service.js';
 import { RoleService } from './services/role-service.js';
 import { TotpEnrolmentService } from './services/totp-enrolment-service.js';
@@ -80,6 +86,10 @@ import { TotpEnrolmentService } from './services/totp-enrolment-service.js';
 export interface CustomerAccountsCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditLogService;
+  /** Feature 054 — the customer-group writes audit co-transactionally. */
+  readonly commandBus: CommandBus;
+  /** `auth`'s admin guard, for the customer-group admin routes. */
+  readonly requireAdmin: RequireAdminFactory;
   /** Late-bound: `mfa` is composed after this module. */
   readonly mfaLoginPortGetter: (() => MfaLoginPort | undefined) | undefined;
   readonly settingsReadPort: SettingsService;
@@ -102,6 +112,7 @@ export interface CustomerAccountsCradle {
   readonly passwordResetService: PasswordResetService;
   readonly customerRoleService: RoleService;
   readonly totpEnrolmentService: TotpEnrolmentService;
+  readonly customerGroupService: CustomerGroupService;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -335,6 +346,39 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  // ---------------------------------------------------------------------------
+  // Feature 076, D-79 — customer groups.
+  //
+  // The entity, its service, its read port and its three admin routes moved
+  // here from `price_lists`. A customer group describes the customer; a price
+  // list refers to one by id. Under the previous owner the single real foreign
+  // key into `customer_groups` — `customer_accounts.customer_group_id` — forced
+  // this module to declare `price_lists`, which made the reverse declaration a
+  // cycle `src/db/migration-order.ts` refuses. The key is intra-module now and
+  // the class of problem is gone rather than routed around.
+  //
+  // `customerGroupService` keeps its container name: both composition roots
+  // read it for the promotion Rule Builder's target picker, and renaming it
+  // would have churned two roots to encode an owner this file already states.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort(
+    'customerGroupService',
+    ctx
+      .asFunction(
+        ({ emFactory, commandBus }: CustomerAccountsCradle) =>
+          new CustomerGroupService(emFactory, commandBus),
+      )
+      .singleton(),
+  );
+
+  ctx.di.providePort<CustomerGroupReadPort>(
+    'customerGroupReadPort',
+    ctx
+      .asFunction(({ emFactory }: CustomerAccountsCradle) => new CustomerGroupReadService(emFactory))
+      .singleton(),
+  );
+
   ctx.di.register({
     // Contribution point: which module supplies the MFA port is a deployment
     // question, and a platform without `mfa` resolves it to nothing rather
@@ -342,5 +386,16 @@ export function registerModule(ctx: ModuleContext): void {
     mfaLoginPortGetter: ctx
       .asFunction((): (() => MfaLoginPort | undefined) | undefined => undefined)
       .singleton(),
+  });
+
+  // The module's only routes. They are the customer-group admin surface and
+  // nothing else — customer login, registration and self-service stay with
+  // `organizations` and `customers`, which own those screens.
+  ctx.routes(async (app) => {
+    await registerCustomerGroupAdminRoutes(app, {
+      customerGroupService: () => ctx.cradle<CustomerAccountsCradle>().customerGroupService,
+      requireAdmin: (permission) => async (req, reply) =>
+        ctx.cradle<CustomerAccountsCradle>().requireAdmin(permission)(req, reply),
+    });
   });
 }

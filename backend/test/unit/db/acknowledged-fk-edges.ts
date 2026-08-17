@@ -155,7 +155,12 @@ export const ACKNOWLEDGED_FK_EDGES: readonly AcknowledgedFkEdge[] = [
       'Per-channel customer visibility is a membership bridge; the customer ' +
       'domain is what needs channel scoping.',
     rule: 'bridge-owner',
-    cycle: 'sales_channels → customer_accounts → price_lists → catalog → sales_channels',
+    // Re-measured for feature 076 (D-79). The route through `price_lists` is
+    // gone — `customer_accounts` no longer declares it, because it owns
+    // `customer_groups` now — and the edge is still undeclarable, through a
+    // path that was there all along.
+    cycle:
+      'sales_channels → customer_accounts → organizations → transactional_emails → sales_channels',
   },
   {
     from: 'sales_channels',

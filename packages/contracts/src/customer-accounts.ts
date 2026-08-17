@@ -9,10 +9,71 @@
  *
  * Plain TypeScript rather than Zod: these describe in-process calls, not API
  * boundaries. The module's HTTP shapes live in `customers.ts`, which is a
- * different module's surface over the same rows and stays where it is.
+ * different module's surface over the same rows and stays where it is — with
+ * one exception, the customer-group admin surface, whose Zod schemas arrived
+ * here with the entity in feature 076 (D-79) because this module serves those
+ * three routes itself.
  *
  * Nothing here imports from `backend/src/` (FR-034).
  */
+
+import { z } from 'zod';
+import { isoDateTimeSchema, uuidSchema } from './common.js';
+
+// --- customer groups ---------------------------------------------------------
+//
+// Feature 076, D-79 — the segmentation bucket a customer belongs to. It used to
+// live in `price-lists.ts` because `price_lists` owned the table; a price list
+// refers to a group by id, which is a reference rather than ownership, and the
+// one real foreign key into `customer_groups` is
+// `customer_accounts.customer_group_id`.
+
+export const customerGroupSchema = z.object({
+  id: uuidSchema,
+  code: z.string().min(1).max(64),
+  name: z.string().min(1).max(160),
+  description: z.string().max(1000).nullable(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type CustomerGroup = z.infer<typeof customerGroupSchema>;
+
+export const upsertCustomerGroupRequestSchema = z.object({
+  code: z.string().min(1).max(64),
+  name: z.string().min(1).max(160),
+  description: z.string().max(1000).nullable().optional(),
+});
+
+/** A segmentation bucket as a module outside `customer_accounts` sees it. */
+export interface CustomerGroupRecord {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Container name: `customerGroupReadPort`. Owner: `customer_accounts`.
+ *
+ * The container name is unchanged by the relocation (D-81): it is what
+ * `check-port-dependencies.ts` compares, and keeping it means `pwa` did not
+ * have to be edited at all. `price_lists` reads it for the pricing rule-target
+ * picker and the rule-target validation; `pwa` for the push audience builder;
+ * `customers` for the group name on the admin customer list.
+ *
+ * This module is non-deactivatable, so the gate the port registration applies
+ * cannot be reached — as it could not under the previous owner, which is also
+ * non-deactivatable. The registration is a `providePort` anyway, for the reason
+ * its siblings give.
+ */
+export interface CustomerGroupReadPort {
+  findById(id: string): Promise<CustomerGroupRecord | null>;
+  findByIds(ids: readonly string[]): Promise<CustomerGroupRecord[]>;
+  /** Every group, ordered by code. */
+  listAll(): Promise<CustomerGroupRecord[]>;
+}
 
 // --- records -----------------------------------------------------------------
 

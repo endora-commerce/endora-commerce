@@ -2,7 +2,7 @@ import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
 import type { AdminCustomerDetail, AdminCustomerListItem } from '@b2b/contracts';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
-import { CustomerGroup } from '../../price_lists/entities/customer-group.entity.js';
+import { CustomerGroup } from '../../customer_accounts/entities/customer-group.entity.js';
 import { Order } from '../../orders/entities/order.entity.js';
 import type { CustomerDefaultsService } from './customer-defaults-service.js';
 

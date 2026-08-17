@@ -23,22 +23,12 @@ const DECIMAL_STRING = z
   .regex(/^\d+(\.\d{1,4})?$/, 'decimal as string with up to 4 fractional digits');
 
 // --- Customer Group ---------------------------------------------------------
-
-export const customerGroupSchema = z.object({
-  id: uuidSchema,
-  code: z.string().min(1).max(64),
-  name: z.string().min(1).max(160),
-  description: z.string().max(1000).nullable(),
-  createdAt: isoDateTimeSchema,
-  updatedAt: isoDateTimeSchema,
-});
-export type CustomerGroup = z.infer<typeof customerGroupSchema>;
-
-export const upsertCustomerGroupRequestSchema = z.object({
-  code: z.string().min(1).max(64),
-  name: z.string().min(1).max(160),
-  description: z.string().max(1000).nullable().optional(),
-});
+//
+// The schemas, the record and the read port moved to `customer-accounts.ts`
+// with the entity (feature 076, D-79): a customer group describes the customer,
+// and a price list merely refers to one by id. Nothing here imports them back —
+// `PriceListAssignment` and the rule-target types carry a `customerGroupId`
+// string, never the record.
 
 // =============================================================================
 // FEATURE 011 — pricing-engine schemas
@@ -410,16 +400,6 @@ export interface PriceListRecord {
   updatedAt: Date;
 }
 
-/** A pricing bucket. `customers` and `pwa` render the picker from it. */
-export interface CustomerGroupRecord {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 /**
  * Container name: `priceListReadPort`. Owner: `price_lists`.
  *
@@ -436,20 +416,6 @@ export interface PriceListReadPort {
   listAll(): Promise<PriceListRecord[]>;
   /** Only `status === 'active'`, ordered by priority then code. */
   listActive(): Promise<PriceListRecord[]>;
-}
-
-/**
- * Container name: `customerGroupReadPort`. Owner: `price_lists`.
- *
- * The groups themselves are a pricing concept, which is why the table lives
- * here rather than in `customers`; two admin pickers and the customer detail
- * screen read them.
- */
-export interface CustomerGroupReadPort {
-  findById(id: string): Promise<CustomerGroupRecord | null>;
-  findByIds(ids: readonly string[]): Promise<CustomerGroupRecord[]>;
-  /** Every group, ordered by code. */
-  listAll(): Promise<CustomerGroupRecord[]>;
 }
 
 /**
