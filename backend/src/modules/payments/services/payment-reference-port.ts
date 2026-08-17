@@ -24,8 +24,10 @@ export class PaymentReferenceService implements PaymentReferencePort {
   constructor(private readonly emFactory: () => EntityManager) {}
 
   async stampExternalReference(paymentId: string, externalReference: string): Promise<boolean> {
-    // command-coverage-ignore: records the provider's own identifier for an
-    // attempt so its later event resolves; provider-integration bookkeeping.
+    // Records the provider's own identifier for an attempt so its later event
+    // resolves; provider-integration bookkeeping. The exemption sits on `stamp`,
+    // which is where the write is — a second marker here guarded nothing, and
+    // since D-89(c) the staleness half says so instead of counting it.
     return this.stamp(paymentId, externalReference, false);
   }
 
@@ -33,8 +35,8 @@ export class PaymentReferenceService implements PaymentReferencePort {
     paymentId: string,
     externalReference: string,
   ): Promise<boolean> {
-    // command-coverage-ignore: as above, for the gateway whose first reference
-    // is the one its provider metadata was written against.
+    // As above, for the gateway whose first reference is the one its provider
+    // metadata was written against; `stamp` carries the exemption.
     return this.stamp(paymentId, externalReference, true);
   }
 
@@ -59,11 +61,12 @@ export class PaymentReferenceService implements PaymentReferencePort {
     onlyIfAbsent: boolean,
   ): Promise<boolean> {
     // command-coverage-ignore: the mutation both public entry points delegate
-    // to, and it carries the marker for the same reason they do — recording the
-    // provider's own identifier for an attempt is integration bookkeeping, not
-    // an operator decision. It is repeated here rather than inherited because
-    // the check reads the function that writes, and marking only the callers
-    // left `--strict` blocking on the line below (feature 075, Phase P).
+    // to, and the one place the exemption belongs — recording the provider's own
+    // identifier for an attempt is integration bookkeeping, not an operator
+    // decision. Marking only the callers left `--strict` blocking on the line
+    // below (feature 075, Phase P); marking the callers *as well* left two
+    // markers guarding nothing, which is what D-89(c) taught the staleness half
+    // to report.
     const em = this.emFactory();
     const payment = await em.findOne(Payment, { id: paymentId });
     if (!payment) return false;

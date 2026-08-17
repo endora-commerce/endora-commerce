@@ -564,6 +564,78 @@ describe('a mutation name only counts off an EntityManager when the name is ambi
     ]);
   });
 
+  // --- `create` joins the vocabulary (D-89) ---------------------------------
+
+  it('flags `em.create` alone, with no persist and no flush in the unit', () => {
+    // The entity is managed from that call, so the next flush inserts it
+    // whoever calls it. This is the hole that let a CSV import rewrite
+    // catalogue and stock unaudited for a year.
+    const src = `
+      export class Svc {
+        constructor(private em: () => any) {}
+        async add(id: string) {
+          this.em().create(Thing, { id });
+        }
+      }`;
+    expect(analyzeSource('src/modules/price_lists/services/x.ts', src).map((f) => f.kind)).toEqual([
+      'unaudited-sensitive-write',
+    ]);
+  });
+
+  it('flags `em.create` on every EntityManager spelling', () => {
+    for (const em of ['em', 'tem', 'cem', 'tx', 'txEm', 'targetEm']) {
+      const src = `
+        export class Svc {
+          async add(${em}: any, id: string) {
+            ${em}.create('X', { id });
+          }
+        }`;
+      expect(analyzeSource('src/modules/catalog/services/x.ts', src).map((f) => f.kind), em).toEqual(
+        ['unaudited-sensitive-write'],
+      );
+    }
+  });
+
+  it('ignores `create` on a service receiver — the `remove` narrowing’s twin', () => {
+    // `create` is the name of nearly every service method in this tree, so
+    // without the EntityManager narrowing the widening would manufacture a
+    // finding on most route handlers rather than find one.
+    const src = `
+      export function registerAdminRoutes(app: any, deps: any) {
+        app.post('/api/v1/admin/orders', {}, async (request: any, reply: any) => {
+          const order = await deps.orderService.create(request.body);
+          return reply.status(201).send(order);
+        });
+      }`;
+    expect(analyzeSource('src/modules/orders/routes.admin.ts', src)).toEqual([]);
+  });
+
+  it('ignores `em.create` in a unit that runs a Command', () => {
+    const src = `
+      export class Svc {
+        constructor(private em: () => any) {}
+        async add(id: string) {
+          await this.commandBus.run(addThing(id));
+          this.em().create(Thing, { id });
+        }
+      }`;
+    expect(analyzeSource('src/modules/price_lists/services/x.ts', src)).toEqual([]);
+  });
+
+  it('does not see a field assignment on a managed entity, and says so in the header', () => {
+    // The stated limit (D-89b), asserted rather than discovered. Teaching the
+    // check to read assignments has to rewrite the header paragraph in the same
+    // merge request, because this test goes red.
+    const src = `
+      export class Svc {
+        async settle(order: any, ref: string) {
+          order.status = 'paid';
+          order.externalReference = ref;
+        }
+      }`;
+    expect(analyzeSource('src/modules/orders/services/x.ts', src)).toEqual([]);
+  });
+
   it('keeps an ambiguous `remove` counting for the staleness half', () => {
     // The asymmetry the sweep depends on: the flagging half declines to call
     // `scheduler.remove(id)` an ORM write, and the staleness half still counts
@@ -743,6 +815,32 @@ describe('the escape hatch is swept for staleness', () => {
   it('leaves a marker alone when the write is one delegation away', () => {
     // `reserve` documents the decision for the whole path and delegates the
     // rows to a private helper. Reading only the marked method would report it.
+    // Asserted on `reserve` alone: the helper's own coverage is a separate
+    // question, and answering both here is what made this fixture ambiguous
+    // once D-89(c) gave the callee's marker a second meaning.
+    const src = `
+      export class Svc {
+        constructor(private em: () => any) {}
+        async reserve(input: any) {
+          // command-coverage-ignore: runs inside the caller's order transaction
+          return this.applyReservation(input);
+        }
+        private async applyReservation(input: any) {
+          const em = this.em();
+          em.persist(em.create('Reservation', input));
+        }
+      }`;
+    expect(analyzeSource(PATH, src).filter((f) => f.method === 'reserve')).toEqual([]);
+  });
+
+  it('reports the caller when the delegate carries a marker of its own (D-89c)', () => {
+    // The mirror image, and the shape `payments/services/payment-reference-port.ts`
+    // carried in the tree: an exemption on two public callers while the private
+    // body did the `flush`, plus a third marker on the body added later with a
+    // comment explaining that the check "reads the function that writes". The
+    // write is already exempted where it happens, so the caller's marker is
+    // provably guarding nothing — and until D-89(c) the transitive rule counted
+    // the callee's write and kept it alive.
     const src = `
       export class Svc {
         constructor(private em: () => any) {}
@@ -756,7 +854,33 @@ describe('the escape hatch is swept for staleness', () => {
           em.persist(em.create('Reservation', input));
         }
       }`;
-    expect(analyzeSource(PATH, src)).toEqual([]);
+    const findings = analyzeSource(PATH, src);
+    expect(findings.map((f) => f.kind)).toEqual(['stale-ignore']);
+    expect(findings[0]?.method).toBe('reserve');
+  });
+
+  it('still leaves a marker alone when only some of the delegates carry one', () => {
+    // The subtraction is per callee, not per unit: a marker whose *other*
+    // delegate writes unexempted is still guarding something.
+    const src = `
+      export class Svc {
+        constructor(private em: () => any) {}
+        async reserve(input: any) {
+          // command-coverage-ignore: runs inside the caller's order transaction
+          await this.markAudited(input);
+          return this.applyReservation(input);
+        }
+        private async markAudited(input: any) {
+          // command-coverage-ignore: bookkeeping counter only
+          const em = this.em();
+          await em.nativeUpdate('Counter', { id: input.id }, { seen: 1 });
+        }
+        private async applyReservation(input: any) {
+          const em = this.em();
+          em.persist(em.create('Reservation', input));
+        }
+      }`;
+    expect(analyzeSource(PATH, src).filter((f) => f.method === 'reserve')).toEqual([]);
   });
 
   it('terminates on a delegation cycle instead of recursing forever', () => {
