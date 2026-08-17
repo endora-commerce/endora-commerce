@@ -5,7 +5,7 @@ import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { OrganizationInheritanceService } from '../organizations/services/organization-inheritance-service.js';
+import type { OrganizationDetailsPort, OrganizationInheritancePort } from '@b2b/contracts';
 import { CreditLimitService, type CreditLimitEventBus } from './services/credit-limit-service.js';
 import { CreditTopupProvider } from './services/credit-topup.js';
 import { registerCreditLimitsRoutes } from './routes.js';
@@ -47,7 +47,7 @@ export interface CreditLimitsCradle {
     organizationId: string;
   };
   /** A port `organizations` provides — read it per call, never captured. */
-  readonly organizationInheritancePort: OrganizationInheritanceService;
+  readonly organizationInheritancePort: OrganizationInheritancePort;
   readonly creditLimitService: CreditLimitService;
 }
 
@@ -68,12 +68,14 @@ export function registerModule(ctx: ModuleContext): void {
             // keep answering after an operator switched `organizations` off.
             // Resolving at the point of use also means this registration does not
             // care which module registered first — registration resolves nothing.
-            // `creditOwner` is the only method reached, so the delegate is exact
-            // rather than a cast hiding a gap.
+            // `creditOwner` is the only method reached, and since Phase C the
+            // delegate is typed by `organizations`' published contract rather
+            // than cast onto its service class, so this module names nothing in
+            // that module's directory.
             {
               creditOwner: (orgId: string) =>
                 ctx.cradle<CreditLimitsCradle>().organizationInheritancePort.creditOwner(orgId),
-            } as OrganizationInheritanceService,
+            },
           ),
       )
       .singleton(),
@@ -101,7 +103,7 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   ctx.routes(async (app) => {
-    const { emFactory, requireCustomer, requireAdmin, customerContextResolver } =
+    const { requireCustomer, requireAdmin, customerContextResolver } =
       ctx.cradle<CreditLimitsCradle>();
     await registerCreditLimitsRoutes(app, {
       // Lazily, even though the module owns this port: `providePort` gates on
@@ -112,7 +114,10 @@ export function registerModule(ctx: ModuleContext): void {
       // of stopping its routes. Inside a handler the gate is open by
       // construction, so nothing else changes.
       creditLimitService: lazyPort<CreditLimitService>(ctx, 'creditLimitService'),
-      emFactory,
+      // `organizations`' port, lazily for the same reason and one more: it is
+      // another module's gate, so a captured reference would keep answering
+      // after an operator switched that module off.
+      organizationDetailsPort: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
       requireCustomer,
       requireAdmin,
       resolveCustomerContext: customerContextResolver,
