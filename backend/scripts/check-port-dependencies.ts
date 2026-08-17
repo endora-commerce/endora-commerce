@@ -773,6 +773,13 @@ export const CONTRIBUTION_POLICY_STATED: Readonly<Record<string, 'skip' | 'honou
   // whose recorded owner is not effectively present, and `PlanExecutorService`
   // re-checks at execution.
   'prompt_actions:promptActionToolRegistry': 'skip',
+  // Skipped: folding progress reads the contributor's own tables through the
+  // contributor's own services, so a module that is off must not be read
+  // through. Nothing is dropped with the resolver — the absent behaviour was
+  // already the documented one (the request reports no progress and expires on
+  // the assistant's TTL), there is no obligation to record and no money on the
+  // other side. `contributors()` stays presence-blind for diagnostics.
+  'prompt_actions:promptActionBulkProgressRegistry': 'skip',
   // Skipped: a surface, and the worked example of the split the class writes
   // down — `get`, `resolve` and `list` answer as if an absent owner's adapter
   // were not registered, while `entry`, `ownerOf` and `listAll` stay

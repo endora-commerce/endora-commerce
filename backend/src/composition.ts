@@ -102,7 +102,6 @@ import type { NewsletterBridge } from './modules/newsletter/backend.js';
 import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
-import { catalogBulkProgressResolver } from './modules/catalog/prompt-tools.js';
 import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
 import { loadModulePresence } from './modules/_lifecycle/services/presence-load.js';
@@ -2193,24 +2192,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   // Feature 043 — prompt assistant for the admin command palette.
   //
+  // Nothing here any more, and the sentence that used to be is worth keeping.
   // The **tools** left this root with D-44: `catalog`, `inventory` and `orders`
   // each push their own from their own boot hook, declaring the edge as
   // `nonBindingDependencies` — a contribution that says nothing about who may
-  // switch whom off. What a root cannot hand over is a name a module *defaults*:
-  // `prompt_actions` registers `promptActionsBulkProgressResolver` as `undefined`
-  // for a deployment that ships no `catalog`, and a module may not write a name
-  // another module owns (`kernel.md`). So this one stays here, in the single slot
-  // between `composeModules` and `runBootHooks` (D-45), until `prompt_actions`
-  // turns that slot into a registry keyed by contributing module.
-  composedModules.contribute({
-    promptActionsBulkProgressResolver: catalogBulkProgressResolver({
-      emFactory: em,
-      events: eventBus,
-      auditLogService,
-      salesChannelMembership: salesChannels.membershipService,
-      redis,
-    }),
-  });
+  // switch whom off. The bulk-progress reader could not follow, because what a
+  // root cannot hand over is a name a module *defaults*: `prompt_actions`
+  // registered `promptActionsBulkProgressResolver` as `undefined` for a
+  // deployment that ships no `catalog`, and a module may not write a name
+  // another module owns (`kernel.md`). D-72 point 4 turned that slot into
+  // `promptActionBulkProgressRegistry`, a table keyed by contributing module,
+  // so `catalog` pushes from its own boot hook like the other five and this
+  // root stops naming `catalog/prompt-tools.js` at all.
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings

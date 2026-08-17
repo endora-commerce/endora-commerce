@@ -557,17 +557,16 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
   // declaration without the claim, so all four now push from their own module's
   // boot hook. The `orders` one also closed a parity gap on its way out: it was
   // production-only, so no test composed an order tool.
-  'catalog:catalogBulkProgressResolver': {
-    owner: 'catalog',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'The progress reader for the bulk operations those tools start, and the one of the five ' +
-      'that D-44 does **not** drain: `promptActionsBulkProgressResolver` is not a registry but ' +
-      'a single name `prompt_actions` defaults, and a module may not write a name another ' +
-      'module owns. It drains when `prompt_actions` turns that slot into a registry keyed by ' +
-      'contributing module — a shape change in the host, not a manifest entry.',
-  },
+  //
+  // `catalog:catalogBulkProgressResolver` was the fifth and drained under D-72
+  // point 4, which is why this comment is now the whole family's. Its obstacle
+  // was the one D-44 could not remove and the core-set locks did not touch:
+  // `promptActionsBulkProgressResolver` was not a registry but a single name
+  // `prompt_actions` defaulted, and a module may not write a name another
+  // module owns. The host keeps `promptActionBulkProgressRegistry` — a table
+  // keyed by contributing module, stating a skip policy — so `catalog` pushes
+  // from its own boot hook with a `nonBindingDependencies` entry, and neither
+  // root names `catalog/prompt-tools.js`. Production 15 → 14, harness 10 → 9.
   'product_feeds:FeedDeliveryError': {
     owner: 'product_feeds',
     roots: ['harness'],
@@ -606,8 +605,8 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
  * became 10 for that reason and for no drain.
  */
 const ROOT_MODULE_IMPORT_CEILING: Readonly<Record<RootName, number>> = {
-  production: 15,
-  harness: 10,
+  production: 14,
+  harness: 9,
 };
 
 /** What the restated SC-001 / SC-006 ask for, kept beside what is true. */

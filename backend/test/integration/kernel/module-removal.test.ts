@@ -130,11 +130,12 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // that. D-44 moved every one of those pushes into the contributing module's
   // own boot hook, and both type imports went with them, so the entry is gone.
   //
-  // One root contribution into this module survives and is **not** recorded
-  // here, because the import it needs names `catalog`, not this module:
-  // `catalogBulkProgressResolver` is written over a single name
-  // `prompt_actions` *defaults* rather than a registry, and a module may not
-  // write a name another module owns.
+  // The one root contribution that survived D-44 is gone too, under D-72 point
+  // 4: the bulk-progress reader was written over a single name this module
+  // *defaulted* rather than a registry, which is the one thing a module may not
+  // push into. The host keeps `promptActionBulkProgressRegistry` now, so
+  // `catalog` pushes from its own boot hook and no root imports
+  // `catalog/prompt-tools.js` either.
   // `customer_accounts` (wave 1, T094). `composition.ts` imports the cradle
   // type to annotate the services it resolves and hands to `customers` and
   // `organizations`. Both of those built their own before this conversion, and

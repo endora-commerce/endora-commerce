@@ -5,7 +5,6 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
-import type { PromptActionRequest } from './entities/prompt-action-request.entity.js';
 import { registerPromptActionsAdminRoutes } from './routes.admin.js';
 import { InterpreterService } from './services/interpreter.service.js';
 import { PlanExecutorService } from './services/plan-executor.service.js';
@@ -14,6 +13,7 @@ import {
   type OperatorVisibilityFactory,
 } from './services/prompt-request.service.js';
 import { PromptActionToolRegistry } from './services/tool-registry.js';
+import { PromptActionBulkProgressRegistry } from './services/bulk-progress-registry.js';
 import {
   LlmProviderFactory,
   type CredentialResolvePort,
@@ -68,14 +68,19 @@ export interface PromptActionsCradle {
   };
   readonly credentialsService: CredentialResolvePort;
   /**
-   * Contributed by `catalog` when a deployment ships it, so a delegated bulk
+   * Pushed into by `catalog` when a deployment ships it, so a delegated bulk
    * request can show live progress. Absent is a supported state — the request
    * simply reports no progress — which is why this module does not declare
    * `catalog` as a dependency for it.
+   *
+   * D-72 point 4 — a **registry keyed by contributing module**, where it used
+   * to be a single name this module defaulted to `undefined` and a composition
+   * root overwrote with `catalog`'s resolver. That shape was the last thing
+   * keeping `catalog/prompt-tools.js` named in both roots: a module may not
+   * write a name another module owns, so `catalog` could not push a resolver
+   * into a slot, only into a table.
    */
-  readonly promptActionsBulkProgressResolver:
-    | ((row: PromptActionRequest, em: EntityManager) => Promise<void>)
-    | undefined;
+  readonly promptActionBulkProgressRegistry: PromptActionBulkProgressRegistry;
   /** Test seams; a root overrides them by re-registering the name. */
   readonly promptActionsLlmFetch: FetchLike | undefined;
   readonly promptActionsNow: (() => Date) | undefined;
@@ -90,14 +95,17 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     promptActionToolRegistry: ctx.asFunction(() => new PromptActionToolRegistry()).singleton(),
 
-    // Contribution points, defaulted to empty by their owner. A deployment
-    // that ships `catalog` overrides the resolver from its composition root;
-    // one that does not gets the documented absent behaviour rather than an
-    // `AwilixResolutionError` at first request.
-    promptActionsBulkProgressResolver: ctx
+    // The second contribution registry, and an ordinary registration for the
+    // same reason as the first: a boot hook has to be able to push into it
+    // whatever the assistant's own effective state is. The presence question
+    // is answered at enumeration, keyed on the module recorded with each
+    // entry, and the probe is wired to the kernel here — the class defaults it
+    // to always-present so a unit test that builds its own registry keeps
+    // answering about the resolvers that test registered.
+    promptActionBulkProgressRegistry: ctx
       .asFunction(
-        (): ((row: PromptActionRequest, em: EntityManager) => Promise<void>) | undefined =>
-          undefined,
+        () =>
+          new PromptActionBulkProgressRegistry((moduleId) => effectiveState.isPresent(moduleId)),
       )
       .singleton(),
 
@@ -170,8 +178,14 @@ export function registerModule(ctx: ModuleContext): void {
             isModuleInstalled: async (moduleId) => effectiveState.isPresent(moduleId),
           });
 
-          const bulkProgressResolver =
-            ctx.cradle<PromptActionsCradle>().promptActionsBulkProgressResolver;
+          // Read through the registry per call rather than captured out of it:
+          // a contributor's boot hook runs after this factory may first be
+          // resolved, and — more to the point — an operator switching a
+          // contributor off has to change the answer without a restart.
+          const bulkProgressResolver: NonNullable<
+            ConstructorParameters<typeof PromptRequestService>[0]['bulkProgressResolver']
+          > = (row, em) =>
+            ctx.cradle<PromptActionsCradle>().promptActionBulkProgressRegistry.apply(row, em);
 
           return new PromptRequestService({
             emFactory,
@@ -179,7 +193,7 @@ export function registerModule(ctx: ModuleContext): void {
             executor: new PlanExecutorService(promptActionToolRegistry),
             visibilityFor,
             auditLogService,
-            ...(bulkProgressResolver === undefined ? {} : { bulkProgressResolver }),
+            bulkProgressResolver,
             ...(promptActionsNow === undefined ? {} : { now: promptActionsNow }),
             ...(promptActionsTtlMinutes === undefined
               ? {}

@@ -17,6 +17,12 @@
 export const entries: Readonly<Record<string, string>> = {
   'modules/catalog/backend.ts:assets_library/services/reference-registry':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
+  'modules/catalog/backend.ts:prompt_actions/services/bulk-progress-registry':
+    'D-72 point 4 — the type of the contribution registry this module pushes its bulk-progress ' +
+    'reader into, alongside the tool registry on the line below and retired with it by the ' +
+    'catalog cut merge request. It arrived as part of taking the last D-44 contribution out of ' +
+    'both composition roots: the boundary moved from a root naming `catalog/prompt-tools.js` to ' +
+    'this module naming a contribution seam, which is the trade F3 is making everywhere.',
   'modules/catalog/backend.ts:prompt_actions/services/tool-registry':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/commands/attribute-commands.ts:custom_fields/services/custom-field-definition.service':
