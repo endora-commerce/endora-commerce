@@ -9,6 +9,10 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+// Feature 075, Phase C — `invoices` reads orders over `orders`' published port,
+// so a hand-built service in a test takes the same implementation the container
+// registers under `orderReadPort`.
+import { OrderReadService } from '../../../src/modules/orders/services/order-read-port.js';
 import { InvoiceEmailDispatcher } from '../../../src/modules/invoices/services/invoice-email-dispatch.js';
 import { InvoiceService } from '../../../src/modules/invoices/services/invoice-service.js';
 import { InvoicePdfRenderer } from '../../../src/modules/invoices/services/invoice-pdf-renderer.js';
@@ -44,13 +48,15 @@ describe('invoices — invoice email dispatch (US5)', () => {
     await h.settings.adminService.setValueForAllChannels('invoices.storefront_base_url', 'https://shop.example.com', null, audit);
 
     sender = new CapturingSender();
+    const orderReadPort = new OrderReadService(h.em);
     const invoiceService = new InvoiceService(
       h.em,
+      orderReadPort,
       new InvoiceNumberGenerator(createSettingsPatternResolver(h.settings.settingsService)),
       new SellerSettingsResolver(h.settings.settingsService),
     );
     dispatcher = new InvoiceEmailDispatcher({
-      emFactory: h.em,
+      orderReadPort,
       invoiceService,
       pdfRenderer: new InvoicePdfRenderer(),
       settingsService: h.settings.settingsService,
@@ -108,9 +114,10 @@ describe('invoices — invoice email dispatch (US5)', () => {
     const id = await issue();
     const logged: Array<{ message: string; context: Record<string, unknown> }> = [];
     const throwingDispatcher = new InvoiceEmailDispatcher({
-      emFactory: h.em,
+      orderReadPort: new OrderReadService(h.em),
       invoiceService: new InvoiceService(
         h.em,
+        new OrderReadService(h.em),
         new InvoiceNumberGenerator(createSettingsPatternResolver(h.settings.settingsService)),
         new SellerSettingsResolver(h.settings.settingsService),
       ),

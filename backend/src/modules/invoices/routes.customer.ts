@@ -1,15 +1,16 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type OrderReadPort, type OrderRecord } from '@b2b/contracts';
 import { Invoice } from './entities/invoice.entity.js';
-import { Order } from '../orders/entities/order.entity.js';
 import type { InvoiceService } from './services/invoice-service.js';
 import type { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
 import type { InvoiceTemplateService } from './services/invoice-template-service.js';
 
 export interface InvoicesCustomerDeps {
   emFactory: () => EntityManager;
+  /** `orders`' published read model — the ownership check (feature 075, Phase C). */
+  orderReadPort: OrderReadPort;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => { customerAccountId: string; organizationId: string };
   invoiceService: InvoiceService;
@@ -26,12 +27,11 @@ export async function registerInvoicesCustomerRoutes(
   app: FastifyInstance,
   deps: InvoicesCustomerDeps,
 ): Promise<void> {
-  const { emFactory, requireCustomer, resolveCustomerContext, invoiceService, pdfRenderer, templateService } = deps;
+  const { emFactory, orderReadPort, requireCustomer, resolveCustomerContext, invoiceService, pdfRenderer, templateService } = deps;
 
-  async function ownedOrderOr404(req: FastifyRequest, orderId: string): Promise<Order> {
+  async function ownedOrderOr404(req: FastifyRequest, orderId: string): Promise<OrderRecord> {
     const ctx = resolveCustomerContext(req);
-    const em = emFactory();
-    const order = await em.findOne(Order, { id: orderId });
+    const order = await orderReadPort.findById(orderId);
     if (
       !order ||
       (order.placedByCustomerAccountId !== ctx.customerAccountId &&

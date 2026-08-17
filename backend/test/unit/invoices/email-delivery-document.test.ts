@@ -41,10 +41,9 @@ class CapturingSender implements TransactionalEmailSender {
 
 function deps(sender: TransactionalEmailSender): InvoiceEmailDispatchDeps {
   return {
-    emFactory: () =>
-      ({
-        findOne: async () => ({ id: ORDER_ID, businessId: 'ORD-1' }),
-      }) as unknown as ReturnType<InvoiceEmailDispatchDeps['emFactory']>,
+    orderReadPort: {
+      findById: async () => ({ id: ORDER_ID, businessId: 'ORD-1' }),
+    } as unknown as InvoiceEmailDispatchDeps['orderReadPort'],
     invoiceService: {
       buildDetail: async () => ({
         id: INVOICE_ID,

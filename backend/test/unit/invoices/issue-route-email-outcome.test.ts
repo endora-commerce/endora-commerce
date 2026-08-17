@@ -87,6 +87,11 @@ function buildDeps(dispatcher?: InvoiceEmailDispatcher): InvoicesAdminDeps {
     emFactory: (() => {
       throw new Error('the issue route must not touch the database in this test');
     }) as unknown as InvoicesAdminDeps['emFactory'],
+    orderReadPort: new Proxy({} as InvoicesAdminDeps['orderReadPort'], {
+      get() {
+        throw new Error('the issue route must not read orders in this test');
+      },
+    }),
     requireAdmin: () => async () => undefined,
     invoiceService: { issue: vi.fn(async () => DETAIL) } as unknown as InvoiceService,
     pdfRenderer: {} as InvoicePdfRenderer,
