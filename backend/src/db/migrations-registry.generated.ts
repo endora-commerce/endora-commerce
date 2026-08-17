@@ -200,6 +200,7 @@ import { Migration20260804T190439PimErgonodeInit } from '../modules/pim_ergonode
 // ── price_lists ─────────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '../modules/price_lists/migrations/20260426T075235_price_lists_pricing_init.js';
 import { Migration20260504T125655PriceListsEngine } from '../modules/price_lists/migrations/20260504T125655_price_lists_engine.js';
+import { Migration20260817T055457PriceListsSingleSystemPriceList } from '../modules/price_lists/migrations/20260817T055457_price_lists_single_system_price_list.js';
 
 // ── product_feeds ───────────────────────────────────────────────────────────
 import { Migration20260802T073547ProductFeedsInit } from '../modules/product_feeds/migrations/20260802T073547_product_feeds_init.js';
@@ -442,6 +443,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── price_lists ─────────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),
   migration('price_lists', Migration20260504T125655PriceListsEngine),
+  migration('price_lists', Migration20260817T055457PriceListsSingleSystemPriceList),
 
   // ── product_feeds ───────────────────────────────────────────────────────────
   migration('product_feeds', Migration20260802T073547ProductFeedsInit),
