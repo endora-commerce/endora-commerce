@@ -6,7 +6,6 @@ import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
-import { MetaCustomEventMapping } from './entities/meta-custom-event-mapping.entity.js';
 import { MetaConfigService } from './services/meta-config.service.js';
 import {
   MetaCustomEventMappingsService,
@@ -42,8 +41,6 @@ import { registerMetaAdsStorefrontRoutes } from './routes.storefront.js';
  * nothing was lost; this is the ninth time in this transition that shape has
  * been removed rather than the ninth incident.
  */
-
-export const entities = [MetaCustomEventMapping];
 
 interface MetaAdsServices {
   readonly revalidator: StorefrontRevalidator;

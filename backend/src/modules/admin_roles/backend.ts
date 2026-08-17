@@ -2,7 +2,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { RegisteredManifestEntry } from '../_lifecycle/registered-manifests.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
-import { AdminRole } from './entities/admin-role.entity.js';
 import { AdminRoleService } from './services/admin-role-service.js';
 import { PermissionCatalogueService } from './services/permission-catalogue.service.js';
 import { PermissionService } from './services/permission-service.js';
@@ -30,8 +29,6 @@ import { PermissionService } from './services/permission-service.js';
  * reason is durable rather than temporary: which modules a deployment ships is
  * exactly the kind of thing a module must not decide for itself.
  */
-
-export const entities = [AdminRole];
 
 export interface AdminRolesCradle {
   readonly emFactory: () => EntityManager;

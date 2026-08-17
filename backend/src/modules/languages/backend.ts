@@ -3,7 +3,6 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { CurrencyService } from '../currencies/services/currency-service.js';
-import { Language } from './entities/language.entity.js';
 import { LanguageService } from './services/language-service.js';
 import { LocaleService } from './services/locale-service.js';
 import { registerI18nRoutes } from './routes.js';
@@ -37,8 +36,6 @@ import { registerI18nRoutes } from './routes.js';
  * `auditLog` stops being optional while we are here: language writes are
  * audited or they are not, and "not" should not be reachable by omission.
  */
-
-export const entities = [Language];
 
 /** Emitted after any language write; the root drops the dictionary caches. */
 export const LANGUAGE_CHANGED_EVENT = 'languages.changed';

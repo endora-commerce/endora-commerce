@@ -3,8 +3,6 @@ import type Redis from 'ioredis';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { CustomFieldDefinition } from './entities/custom-field-definition.entity.js';
-import { CustomFieldOption } from './entities/custom-field-option.entity.js';
 import { CustomFieldDefinitionsCache } from './services/custom-field-definitions-cache.js';
 import { CustomFieldDefinitionService } from './services/custom-field-definition.service.js';
 import { CustomFieldValueService } from './services/custom-field-value.service.js';
@@ -48,8 +46,6 @@ import { registerCustomFieldsAdminRoutes } from './routes.admin.js';
  * placed there would compile, pass every test, and quietly stop dropping
  * definitions on a hard uninstall.
  */
-
-export const entities = [CustomFieldDefinition, CustomFieldOption];
 
 export interface CustomFieldsCradle {
   readonly emFactory: () => EntityManager;

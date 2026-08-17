@@ -19,7 +19,10 @@ import {
   type RegisteredManifestEntry,
 } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
-import { entities as healthCheckEntities } from '../../../src/modules/health_checks/backend.js';
+import {
+  declaredEntityNamesFor,
+  registeredEntityNamesFor,
+} from '../../helpers/entity-registry.js';
 
 /**
  * Removing a module leaves nothing behind (feature 072, US4 / T055).
@@ -343,9 +346,22 @@ describe('T055 — deleting the module directory leaves no dangling reference', 
 
 describe('T055 — the removed module contributes no schema', () => {
   it('owns no entity, so the ORM metadata loses nothing', () => {
-    expect(healthCheckEntities).toEqual([]);
-    const owned = new Set<unknown>(healthCheckEntities);
-    expect(ALL_ENTITIES.filter((entity) => owned.has(entity))).toEqual([]);
+    // Read from the generated registry and from the module's own directory,
+    // because both are the ORM's answer since feature 071's F2. The module's
+    // `backend.ts` used to export an `entities` array and this assertion used
+    // to read it; nothing else did, so it was deleted (issue #73).
+    expect(declaredEntityNamesFor(SUBJECT)).toEqual([]);
+    expect(registeredEntityNamesFor(SUBJECT)).toEqual([]);
+
+    // `blog` is the witness that the two readers above see anything at all —
+    // otherwise a helper that silently found nothing would report every module
+    // entity-free, which is the vacuous pass this file exists to refuse.
+    expect(declaredEntityNamesFor('blog')).toEqual(registeredEntityNamesFor('blog'));
+    expect(registeredEntityNamesFor('blog').length).toBeGreaterThan(0);
+    const registeredNames = new Set(ALL_ENTITIES.map((e) => (e as { name: string }).name));
+    for (const name of registeredEntityNamesFor('blog')) {
+      expect(registeredNames, name).toContain(name);
+    }
   });
 
   it('owns no migration, and the plan computed without it is unchanged', () => {

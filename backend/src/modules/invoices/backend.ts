@@ -5,8 +5,6 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { FastifyRequest } from 'fastify';
-import { Invoice } from './entities/invoice.entity.js';
-import { InvoiceTemplate } from './entities/invoice-template.entity.js';
 import { invoicesModule, type InvoicesModuleOptions, type InvoicesModuleHandle } from './plugin.js';
 import { CorrectiveInvoiceProvider } from './services/corrective-invoice.js';
 import type { InvoiceNumberGenerator } from './services/invoice-number-generator.js';
@@ -37,8 +35,6 @@ import type { EmailDefaultsRegistry } from '../transactional_emails/services/ema
  * co-transactional sink for template writes. An invoice is a legal document, so
  * "issued but unrecorded" is the wrong failure to leave reachable by omission.
  */
-
-export const entities = [Invoice, InvoiceTemplate];
 
 /** How this composition reaches outside the invoices module. */
 export interface InvoicesBridge {

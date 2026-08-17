@@ -2,7 +2,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { ApiKey } from './entities/api-key.entity.js';
 import type { ApiKeyService } from './services/api-key-service.js';
 import { integrationsModule } from './plugin.js';
 
@@ -38,8 +37,6 @@ import { integrationsModule } from './plugin.js';
  * worst version of an audit trail: present enough to be trusted, incomplete
  * enough to mislead.
  */
-
-export const entities = [ApiKey];
 
 export interface ApiKeysCradle {
   readonly emFactory: () => EntityManager;

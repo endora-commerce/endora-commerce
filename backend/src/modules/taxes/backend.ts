@@ -5,7 +5,6 @@ import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { DictionaryValidator } from '@b2b/contracts';
-import { Tax } from './entities/tax.entity.js';
 import { TaxService } from './services/tax-service.js';
 import { registerTaxRoutes } from './routes.js';
 
@@ -27,8 +26,6 @@ import { registerTaxRoutes } from './routes.js';
  * explicit 503 envelope rather than a service that quietly returns no rate —
  * which, on a checkout path, is a discount.
  */
-
-export const entities = [Tax];
 
 export interface TaxesCradle {
   readonly emFactory: () => EntityManager;

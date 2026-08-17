@@ -1,7 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
-import { Currency } from './entities/currency.entity.js';
 import { CurrencyService } from './services/currency-service.js';
 
 /**
@@ -27,8 +26,6 @@ import { CurrencyService } from './services/currency-service.js';
  * lazily is also what a port would do, so nothing here has to change again when
  * `dictionaries` converts.
  */
-
-export const entities = [Currency];
 
 export interface CurrenciesCradle {
   readonly emFactory: () => EntityManager;

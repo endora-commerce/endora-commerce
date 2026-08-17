@@ -17,9 +17,6 @@ import { registerHealthRoutes, type HealthDeps } from './routes.js';
  * roots get the route by composing the module.
  */
 
-/** Every entity this module owns — none. It reads liveness, it stores nothing. */
-export const entities = [] as const;
-
 /** What `health_checks` resolves from the container, and the name it owns. */
 export interface HealthChecksCradle {
   /** Kernel-owned. The probe pings on the shared EM, exactly as the inline plugin did. */

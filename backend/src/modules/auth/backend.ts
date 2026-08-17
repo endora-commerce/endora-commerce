@@ -3,7 +3,6 @@ import type { Redis } from 'ioredis';
 import type { ModuleContext } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { AdminPermissionChecker } from '../../kernel/ports/require-admin.js';
-import { Session } from './entities/session.entity.js';
 import { authPlugin } from './plugin.js';
 import { createRequireAdmin, createRequireAdminAny } from './require-admin.js';
 import { SessionService } from './services/session-service.js';
@@ -33,8 +32,6 @@ import { SessionService } from './services/session-service.js';
  *     manifest declares that dependency (D-32); it is the edge that made `auth`
  *     the first module to need `check:port-dependencies` to pass.
  */
-
-export const entities = [Session];
 
 /** What `auth` resolves: its own registrations, plus what it needs from elsewhere. */
 export interface AuthCradle {

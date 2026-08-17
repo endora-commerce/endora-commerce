@@ -11,7 +11,6 @@ import type { SessionService } from '../auth/services/session-service.js';
 import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
 import { hashPassword } from '../auth/services/password-hasher.js';
 import { CustomerAccount } from './entities/customer-account.entity.js';
-import { PasswordResetToken } from './entities/password-reset-token.entity.js';
 import { CustomerAuthService } from './services/customer-auth-service.js';
 import { PasswordResetService } from './services/password-reset-service.js';
 import { RoleService } from './services/role-service.js';
@@ -62,8 +61,6 @@ import { TotpEnrolmentService } from './services/totp-enrolment-service.js';
  * hashed one fixed string for every auto-created account. One implementation
  * now, and it is this module's, because the table is.
  */
-
-export const entities = [CustomerAccount, PasswordResetToken];
 
 export interface CustomerAccountsCradle {
   readonly emFactory: () => EntityManager;

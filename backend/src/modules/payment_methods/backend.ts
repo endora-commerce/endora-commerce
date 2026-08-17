@@ -4,7 +4,6 @@ import type { ModuleContext } from '../../kernel/index.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
-import { PaymentMethod } from './entities/payment-method.entity.js';
 import {
   registerPaymentMethodsAdminRoutes,
   registerPaymentMethodsPublicRoutes,
@@ -38,8 +37,6 @@ import { paymentAdapterRegistry } from './services/registry-singleton.js';
  * `plugin.ts`, at composition time, where the container is available. The
  * replacement belongs to the wave that converts them.)
  */
-
-export const entities = [PaymentMethod];
 
 export interface PaymentMethodsCradle {
   readonly emFactory: () => EntityManager;

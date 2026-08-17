@@ -7,12 +7,6 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
-import { Promotion } from './entities/promotion.entity.js';
-import { PromotionCoupon } from './entities/promotion-coupon.entity.js';
-import { PromotionRuleEntity } from './entities/promotion-rule.entity.js';
-import { CouponBatch } from './entities/coupon-batch.entity.js';
-import { PromotionUsageCounter } from './entities/promotion-usage-counter.entity.js';
-import { PromotionUsage } from './entities/promotion-usage.entity.js';
 import { PromotionService } from './services/promotion-service.js';
 import { CouponService } from './services/coupon-service.js';
 import { PromotionRuleStore } from './services/promotion-rule-store.js';
@@ -52,15 +46,6 @@ import type { PromotionRuleTargetPorts } from './routes.js';
  * methods to move. That is a refactor of `catalog`'s read surface rather than
  * of this module, so it stays as it is and stays recorded.
  */
-
-export const entities = [
-  Promotion,
-  PromotionRuleEntity,
-  CouponBatch,
-  PromotionCoupon,
-  PromotionUsage,
-  PromotionUsageCounter,
-];
 
 export interface PromotionsCradle {
   readonly emFactory: () => EntityManager;

@@ -3,8 +3,6 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { SeoMetaOverride } from './entities/seo-meta-override.entity.js';
-import { SitemapCache } from './entities/sitemap-cache.entity.js';
 import { MetaTagResolverService } from './services/meta-tag-resolver.service.js';
 import {
   SitemapGeneratorService,
@@ -38,8 +36,6 @@ import { registerSeoRoutes } from './routes.js';
  * `auditLog` stops being optional: SEO overrides are admin writes, and an
  * optional audit sink defaults to not recording.
  */
-
-export const entities = [SeoMetaOverride, SitemapCache];
 
 export interface SeoCradle {
   readonly emFactory: () => EntityManager;

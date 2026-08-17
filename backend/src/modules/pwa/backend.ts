@@ -4,8 +4,6 @@ import type Redis from 'ioredis';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { PushSubscription } from './entities/push-subscription.entity.js';
-import { PushMessage } from './entities/push-message.entity.js';
 import { pwaModule, type PwaModuleOptions, type PwaModuleResult } from './plugin.js';
 
 /**
@@ -40,8 +38,6 @@ import { pwaModule, type PwaModuleOptions, type PwaModuleResult } from './plugin
  * consumers is a deployment decision, and the two deployments here genuinely
  * differ.
  */
-
-export const entities = [PushSubscription, PushMessage];
 
 /**
  * Everything this module reaches outside itself, contributed whole.
