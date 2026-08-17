@@ -245,6 +245,9 @@ import { Migration20260501T123145SearchPhraseRecordsInit } from '../modules/sear
 // ── seo ─────────────────────────────────────────────────────────────────────
 import { Migration20260425T154404SeoInit } from '../modules/seo/migrations/20260425T154404_seo_init.js';
 
+// ── shipments ───────────────────────────────────────────────────────────────
+import { Migration20260817T194652ShipmentsOrderFk } from '../modules/shipments/migrations/20260817T194652_shipments_order_fk.js';
+
 // ── shopping_lists ──────────────────────────────────────────────────────────
 import { Migration20260426T135443ShoppingListsInit } from '../modules/shopping_lists/migrations/20260426T135443_shopping_lists_init.js';
 import { Migration20260611T140418ShoppingListsDefault } from '../modules/shopping_lists/migrations/20260611T140418_shopping_lists_default.js';
@@ -491,6 +494,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── seo ─────────────────────────────────────────────────────────────────────
   migration('seo', Migration20260425T154404SeoInit),
+
+  // ── shipments ───────────────────────────────────────────────────────────────
+  migration('shipments', Migration20260817T194652ShipmentsOrderFk),
 
   // ── shopping_lists ──────────────────────────────────────────────────────────
   migration('shopping_lists', Migration20260426T135443ShoppingListsInit),
