@@ -2,8 +2,10 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   DictionaryReferenceError,
   ERROR_CODES,
+  dispatchValidatorMode,
   type AttributeValueType,
   type CartSnapshot,
+  type CatalogProductReadPort,
   type DictionaryValidator,
   type PromotionAction,
   type PromotionApplication,
@@ -13,12 +15,10 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
 import {
   lineMatchesAllCriteria,
   type PromotionRuleAttributeLookup,
@@ -40,9 +40,11 @@ import {
 import type { CartApplyContext } from '../actions/types.js';
 
 /**
- * Cross-module port for fetching promotion-rule attribute metadata. The
- * `CatalogQueryService` from feature 012 / US8 satisfies this shape;
- * tests + the composition root pass it in through the constructor.
+ * The one question this service asks about promotion-rule attribute metadata.
+ * `catalog`'s `CatalogPromoAttributePort` (feature 075, Phase P) satisfies it,
+ * and `backend.ts` resolves that port by its published contract type; the
+ * narrower shape stays here because a rule evaluation never needs the port's
+ * other method.
  */
 export interface PromotionRuleCatalogPort {
   getAttributeWithOptions(key: string): Promise<{
@@ -97,6 +99,19 @@ export class PromotionService {
     private readonly actionRegistry: PromotionActionRegistry = createPromotionActionRegistry(),
     /** Feature 054 — co-transactional audit sink (audit_log_entries). */
     private readonly auditLog?: AuditLogService,
+    /**
+     * Feature 075 Phase C — `catalogProductReadPort`, owned by `catalog`. It
+     * replaces an `em.find(Product, …)` this module wrote against `catalog`'s
+     * table to hydrate a cart line's attribute values.
+     *
+     * Optional for the same reason `catalogPort` above is, and with the same
+     * consequence: a composition that wires no catalog read cannot evaluate an
+     * attribute criterion, so the line keeps no attribute values and the rule
+     * is skipped and audited, exactly as it already is when the attribute
+     * metadata is unavailable. `backend.ts` always wires it, so the degrade is
+     * a test-construction shape, not a production one.
+     */
+    private readonly productReadPort?: CatalogProductReadPort,
   ) {
     this.usageService = new PromotionUsageService(emFactory);
   }
@@ -581,13 +596,12 @@ export class PromotionService {
           .map((l) => l.productId),
       ),
     ];
-    if (productIds.length === 0) return snapshot;
+    if (productIds.length === 0 || !this.productReadPort) return snapshot;
 
-    const em = this.emFactory();
-    const products = await em.find(Product, { id: { $in: productIds } });
+    const products = await this.productReadPort.findByIds(productIds);
     const valuesByProductId = new Map<string, Record<string, unknown>>();
     for (const p of products) {
-      const values = (p.attributeValues ?? {}) as Record<string, unknown>;
+      const values = p.attributeValues ?? {};
       const subset: Record<string, unknown> = {};
       for (const k of referencedKeys) {
         if (k in values) subset[k] = values[k];

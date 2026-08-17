@@ -35,7 +35,7 @@ import type { Promotion } from './entities/promotion.entity.js';
 import type { PromotionCoupon } from './entities/promotion-coupon.entity.js';
 import type { PromotionRuleEntity } from './entities/promotion-rule.entity.js';
 import { PROMOTION_PERMISSIONS } from './manifest.js';
-import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
+import type { CatalogPromoAttributePort } from '@b2b/contracts';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface PromotionRoutesDeps {
@@ -44,8 +44,12 @@ export interface PromotionRoutesDeps {
   ruleStore: PromotionRuleStore;
   statsService: PromotionStatsService;
   requireAdmin: RequireAdminFactory;
-  /** Feature 012 / US8 — feeds the rule-target picker endpoint. */
-  catalogQueryService?: CatalogQueryService;
+  /**
+   * Feature 012 / US8 — feeds the rule-target picker endpoint. Since feature
+   * 075's Phase C this is `catalogPromoAttributePort`, the two questions this
+   * picker asks, rather than `catalog`'s 1400-line storefront query service.
+   */
+  catalogPromoAttributes?: CatalogPromoAttributePort;
   /** Feature 045 (T033) — list ports for the remaining rule-target pickers. */
   ruleTargets?: PromotionRuleTargetPorts;
 }
@@ -60,7 +64,7 @@ export async function registerPromotionRoutes(
     ruleStore,
     statsService,
     requireAdmin,
-    catalogQueryService,
+    catalogPromoAttributes,
     ruleTargets,
   } = deps;
 
@@ -175,14 +179,14 @@ export async function registerPromotionRoutes(
     '/api/v1/admin/promotions/rule-targets/attributes',
     { preHandler: readGate },
     async (_request, reply) => {
-      if (!catalogQueryService) {
+      if (!catalogPromoAttributes) {
         reply.status(503);
         return { error: { code: 'service_unavailable', message: 'Catalog port not configured.' } };
       }
-      const keys = await catalogQueryService.promoRuleAttributeKeys();
+      const keys = await catalogPromoAttributes.promoRuleAttributeKeys();
       const items = [];
       for (const k of keys) {
-        const meta = await catalogQueryService.getAttributeWithOptions(k);
+        const meta = await catalogPromoAttributes.getAttributeWithOptions(k);
         if (!meta) continue;
         const isSelectStyle =
           meta.valueType === 'select' ||

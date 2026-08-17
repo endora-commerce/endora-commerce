@@ -1,5 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  CatalogProductReadPort,
+  CatalogPromoAttributePort,
   PromotionApplyPort,
   PromotionCodePort,
   DictionaryValidator,
@@ -10,7 +12,6 @@ import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
-import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
 import { PromotionService } from './services/promotion-service.js';
 import { PromotionCodeService } from './services/promotion-code-port.js';
 import { CouponService } from './services/coupon-service.js';
@@ -37,19 +38,18 @@ import type { PromotionRuleTargetPorts } from './routes.js';
  * channel, without the second its language scope validates nothing, without the
  * third the write is unrecorded.
  *
- * **Two bundles stay in the root**, for the reason `megamenu`'s did.
+ * **One bundle stays in the root**, for the reason `megamenu`'s did.
  * `ruleTargets` reads `organizations`, `categories`, `payment_methods` and
- * `delivery_methods` tables directly, and `catalogQueryPort` is `catalog`'s
- * service; both belong to modules that have not converted, and pulling either
- * in would give this module reads of storage it does not own.
+ * `delivery_methods` tables directly; it belongs to modules that have not
+ * converted, and pulling it in would give this module reads of storage it does
+ * not own.
  *
- * `catalogQueryPort` is also the last live instance of the four-per-composition
- * `CatalogQueryService` recorded during wave-2 reconnaissance. Unlike
- * `comparisons`, which discarded it outright, this module genuinely uses two of
- * its methods — but both delegate to the attribute read model, so the honest
- * end state is for it to resolve `catalogAttributeReadPort` and for those two
- * methods to move. That is a refactor of `catalog`'s read surface rather than
- * of this module, so it stays as it is and stays recorded.
+ * `catalogQueryPort` used to be the second, and this comment used to say the
+ * honest end state was for the two methods this module reached on
+ * `CatalogQueryService` to move behind a narrower port. Feature 075's Phase P
+ * did exactly that: `catalogPromoAttributePort` is those two questions, and
+ * `catalogProductReadPort` is the per-line attribute hydration that used to be
+ * an `em.find(Product, …)`. Both are resolved by contract type here.
  */
 
 export interface PromotionsCradle {
@@ -58,8 +58,10 @@ export interface PromotionsCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly salesChannelMembershipPort: SalesChannelMembershipService;
   readonly dictionaryValidator: DictionaryValidator;
-  /** Owned by `catalog`; a root builds it until that module converts. */
-  readonly catalogQueryPort: CatalogQueryService;
+  /** Owned by `catalog`: the two promo-attribute questions the Rule Builder asks. */
+  readonly catalogPromoAttributePort: CatalogPromoAttributePort;
+  /** Owned by `catalog`: the product rows a cart line's attribute values come from. */
+  readonly catalogProductReadPort: CatalogProductReadPort;
   /**
    * The tenancy read port — the gate that keeps a suspended org out (T138).
    * Was `organizationStatusResolver`, a raw `select "status" from
@@ -125,7 +127,7 @@ export function registerModule(ctx: ModuleContext): void {
           new PromotionService(
             emFactory,
             lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
-            lazyPort<CatalogQueryService>(ctx, 'catalogQueryPort'),
+            lazyPort<CatalogPromoAttributePort>(ctx, 'catalogPromoAttributePort'),
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
             undefined, // auditLogger — default console
             async (orgId: string) =>
@@ -136,6 +138,7 @@ export function registerModule(ctx: ModuleContext): void {
               )?.status ?? null,
             undefined, // actionRegistry — default built-ins
             auditLogService,
+            lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
           ),
       )
       .singleton(),
@@ -159,7 +162,10 @@ export function registerModule(ctx: ModuleContext): void {
       ruleStore: promotionRuleStore,
       statsService: promotionStatsService,
       requireAdmin,
-      catalogQueryService: lazyPort<CatalogQueryService>(ctx, 'catalogQueryPort'),
+      catalogPromoAttributes: lazyPort<CatalogPromoAttributePort>(
+        ctx,
+        'catalogPromoAttributePort',
+      ),
       ruleTargets: promotionRuleTargets,
     });
   });
