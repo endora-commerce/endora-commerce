@@ -1,7 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  CustomerAccountReadPort,
+  EmailDefaultsRegistryPort,
   GatewayRefundRegistryPort,
+  OrderReadPort,
+  OrderStatusRegistry,
+  PaymentAdapterRegistryPort,
   PaymentEmailRendererPort,
+  PaymentMethodReadPort,
   PaymentReadPort,
   PaymentReferencePort,
   PaymentRefundPort,
@@ -11,8 +17,6 @@ import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { OrderStatusRegistry } from '../delivery_methods/services/order-status-registry.port.js';
-import type { PaymentAdapterRegistry } from '../payment_methods/services/payment-adapter-registry.js';
 import { builtInPaymentAdapters } from './adapters/built-in-adapters.js';
 import { ReceivePaymentHandler, type PaymentEventBus } from './services/receive-payment-handler.js';
 import { PaymentService } from './services/payment-service.js';
@@ -25,7 +29,6 @@ import { resolvePaymentEmailRenderer } from './services/payment-email-renderer.j
 import type { PaymentEmailNotifierDeps } from './services/payment-email-notifier.js';
 import { registerPaymentsRoutes } from './routes.js';
 import { PAYMENT_STATUS_CHANGED_DEFAULT } from './email-templates/transactional-defaults.js';
-import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 
 /**
  * `payments` — the delivery-side twin of `shipments`, with the same history
@@ -66,7 +69,7 @@ export interface PaymentsCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly paymentOrderStatusRegistry: OrderStatusRegistry;
   /** Owned by `payment_methods`: the table this module's adapters are listed in. */
-  readonly paymentAdapterRegistry: PaymentAdapterRegistry;
+  readonly paymentAdapterRegistry: PaymentAdapterRegistryPort;
   /** Contribution point: absent means a payment-status e-mail is not sent. */
   readonly paymentEmailSender: PaymentEmailNotifierDeps['getTransactionalEmailSender'];
   readonly paymentEmailNotifier: PaymentEmailNotifier;
@@ -113,6 +116,11 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory }: PaymentsCradle) =>
           new PaymentEmailNotifier({
             emFactory,
+            orderRead: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            customerAccountRead: lazyPort<CustomerAccountReadPort>(
+              ctx,
+              'customerAccountReadPort',
+            ),
             // Read per call: a root contributes the sender after
             // `transactional_emails` announces it, which is later than this.
             getTransactionalEmailSender: () =>
@@ -139,7 +147,13 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<PaymentRefundPort>(
     'paymentRefundPort',
     ctx
-      .asFunction(({ emFactory }: PaymentsCradle) => new PaymentRefundProvider(emFactory))
+      .asFunction(
+        () =>
+          new PaymentRefundProvider(
+            lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            lazyPort<PaymentMethodReadPort>(ctx, 'paymentMethodReadPort'),
+          ),
+      )
       .singleton(),
   );
 
@@ -268,7 +282,7 @@ export function registerModule(ctx: ModuleContext): void {
    * built, so this always lands first — by construction, not by ordering luck.
    */
   ctx.onBoot(async () => {
-    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    const defaults = lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort');
     defaults.register('payment_status_changed', PAYMENT_STATUS_CHANGED_DEFAULT, 'payments');
   });
 

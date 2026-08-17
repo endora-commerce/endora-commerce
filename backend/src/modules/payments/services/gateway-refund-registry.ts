@@ -1,7 +1,4 @@
-import type {
-  PaymentRefundInput,
-  PaymentRefundResult,
-} from '../../returns/ports/payment-refund.port.js';
+import type { PaymentRefundInput, PaymentRefundResult } from '@b2b/contracts';
 
 /**
  * GatewayRefundRegistry (feature 049) — the generic seam through which a PSP
@@ -47,13 +44,16 @@ import type {
  *    refunds — the ones with the least information behind them — into a
  *    switched-off gateway.
  *
- * Feature 075's Phase P published a structurally identical `GatewayRefundHandler`
- * in `@b2b/contracts`, and this declaration deliberately stays where it is
- * until Phase C: it is written against the two shapes `returns` declares, and
- * pointing it at the package would remove a cross-module import — which is a
- * cut, and a P-MR that cuts is no longer additive
- * (contracts/port-publication.md §1.6). The gateways satisfy both structurally,
- * so nothing waits on it.
+ * Feature 075's Phase C took the cut Phase P set up: the two shapes `returns`
+ * declares are read from `@b2b/contracts` now, so this file names no other
+ * module. The declaration itself stays here rather than being replaced by the
+ * package's structurally identical `GatewayRefundRegistryPort`, and the reason
+ * is `absentOwnerFor`: the published port is the **contribution** surface the
+ * gateways push into, and it deliberately does not carry the question D-71
+ * added — "which module *would* have handled this, but is switched off". That
+ * question is what keeps a refusal apart from `pending_manual`, and it is asked
+ * by this module's own `PaymentRefundProvider` over this module's own registry,
+ * which is not a cross-module call at all.
  */
 export interface GatewayRefundHandler {
   /** The payment adapter key this handler serves (e.g. `stripe`). */
