@@ -6,10 +6,10 @@ import {
   rejectRevisionSchema,
   resubmitQuoteRequestSchema,
   ERROR_CODES,
+  OrganizationCannotTransactError,
 } from '@b2b/contracts';
 import type { RfqService, CustomerContext } from './services/rfq-service.js';
 import { HttpError } from '../../http/error-envelope.js';
-import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
 
 export type RequireCustomerGuard = (
   req: FastifyRequest,

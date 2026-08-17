@@ -2,7 +2,16 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
-import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
+import type {
+  AdminUserReadPort,
+  CartWritePort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  CustomFieldValuePort,
+  OrderReadPort,
+  OrganizationDetailsPort,
+  SalesRepAssignmentPort,
+} from '@b2b/contracts';
 import { RfqService, type RfqEventBus } from './services/rfq-service.js';
 import { createQuoteRequestBusinessIdGenerator } from './services/quote-request-business-id-generator.js';
 import { RfqAdminService } from './services/rfq-admin-service.js';
@@ -11,7 +20,6 @@ import { RfqRevisionService } from './services/rfq-revision-service.js';
 import { RfqNotificationService } from './services/rfq-notification-service.js';
 import { RfqExpiryWorker } from './services/rfq-expiry-worker.js';
 import { createOrderCompletionReactor } from './services/order-completion-reactor.js';
-import type { SalesRepAssignmentPort } from '../organizations/services/sales-rep-assignment-service.js';
 import {
   registerQuoteRequestsCustomerRoutes,
   type CustomerContextResolver,
@@ -69,7 +77,19 @@ export interface QuoteRequestsModuleOptions {
   /** Feature 054 — audits RFQ lifecycle writes co-transactionally when provided. */
   auditLog?: AuditLogService;
   /** Feature 055 — validates + reads RFQ custom-field values on the admin edit path. */
-  customFieldValues?: CustomFieldValueService;
+  customFieldValues?: CustomFieldValuePort;
+  /**
+   * Feature 075, Phase C — the five owners this module reads, and the one it
+   * writes. Each replaces an `em.find` against another module's table, which
+   * deactivation cannot reach; each owner is a binding dependency of this
+   * manifest, so every one of them fails closed.
+   */
+  catalogProducts: CatalogProductReadPort;
+  customerAccounts: CustomerAccountReadPort;
+  organizations: OrganizationDetailsPort;
+  adminUsers: AdminUserReadPort;
+  orders: OrderReadPort;
+  carts: CartWritePort;
   /**
    * `organizations`' sales-rep assignment port (issue #108).
    *
@@ -120,6 +140,10 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     revisionService,
     notificationService,
     salesRepAssignment,
+    catalogProducts: options.catalogProducts,
+    customerAccounts: options.customerAccounts,
+    adminUsers: options.adminUsers,
+    carts: options.carts,
     businessId: businessIdGenerator,
     resolveTaxRate: options.resolveTaxRate,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
@@ -133,6 +157,10 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     revisionService,
     notificationService,
     salesRepAssignment,
+    catalogProducts: options.catalogProducts,
+    customerAccounts: options.customerAccounts,
+    organizations: options.organizations,
+    adminUsers: options.adminUsers,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
     ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
   });
@@ -143,6 +171,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     eventService,
     notificationService,
     salesRepAssignment,
+    adminUsers: options.adminUsers,
     resolveExpiryDays: options.resolveExpiryDays,
   });
 
@@ -150,6 +179,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
   // `ctx.subscribe`, so a switched-off module completes no quote request.
   const orderCompletionReactor = createOrderCompletionReactor({
     emFactory: options.emFactory,
+    orders: options.orders,
     eventService,
     notificationService,
   });

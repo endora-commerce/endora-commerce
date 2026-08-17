@@ -2,7 +2,16 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { EventBus } from '../../events/bus.js';
-import type { QuoteRequestReadPort, RfqCustomerPort } from '@b2b/contracts';
+import type {
+  AdminUserReadPort,
+  CartWritePort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  OrderReadPort,
+  OrganizationDetailsPort,
+  QuoteRequestReadPort,
+  RfqCustomerPort,
+} from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { QuoteRequestReadService } from './services/quote-request-read-port.js';
 import {
@@ -208,6 +217,18 @@ export function registerModule(ctx: ModuleContext): void {
             ctx,
             'organizationSalesRepScopePort',
           ),
+          // Feature 075, Phase C — the five owners this module read out of
+          // directly, and the one it wrote into. Each was an `em.find` /
+          // `em.create` against another module's table, which no gate can see;
+          // all six are already binding `dependencies` of this manifest, and
+          // `carts.replaceItemsForCustomer` moves the quote-to-cart conversion
+          // inside the module that owns the tables (D-78 rule 1).
+          catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+          customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+          organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+          adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+          orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+          carts: lazyPort<CartWritePort>(ctx, 'cartWritePort'),
           resolveExpiryDays: () =>
             setting(QUOTE_REQUESTS_SETTING_CODES.EXPIRY_DAYS, z.number().int().nonnegative(), 0),
           resolveBoolSetting: (key) =>

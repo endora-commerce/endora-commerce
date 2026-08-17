@@ -1,11 +1,19 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Order } from '../../orders/entities/order.entity.js';
+import type { OrderReadPort } from '@b2b/contracts';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
 
 export interface OrderCompletionReactorDeps {
   emFactory: () => EntityManager;
+  /**
+   * Feature 075, Phase C — the order row the event names, read over `orders`'
+   * published port instead of `em.findOne(Order, …)` against its table.
+   * Deactivation drops no tables, so the reactor kept completing quote requests
+   * from a module an operator had switched off; over the port the read fails
+   * closed, and `orders` is a binding dependency of this manifest.
+   */
+  orders: OrderReadPort;
   eventService: RfqEventService;
   notificationService: RfqNotificationService;
 }
@@ -41,7 +49,7 @@ export function createOrderCompletionReactor(deps: OrderCompletionReactorDeps): 
       // `rfq-notification-service`).
       const em = deps.emFactory();
       const orderId = (payload as { orderId: string }).orderId;
-      const order = await em.findOne(Order, { id: orderId });
+      const order = await deps.orders.findById(orderId);
       if (!order || !order.sourceQuoteRequestId) return;
       const rfq = await em.findOne(QuoteRequest, { id: order.sourceQuoteRequestId });
       if (!rfq || rfq.status === 'Completed') return;
