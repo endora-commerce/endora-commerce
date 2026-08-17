@@ -3,17 +3,20 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
-import { QuoteRequest } from '../../quote_requests/entities/quote-request.entity.js';
-import { QuoteRequestItem } from '../../quote_requests/entities/quote-request-item.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import type { RfqService, CustomerContext as RfqCustomerContext } from '../../quote_requests/services/rfq-service.js';
+import type {
+  CatalogProductReadPort,
+  QuoteRequestReadPort,
+  RfqCustomerContext,
+  RfqCustomerPort,
+} from '@b2b/contracts';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { CartService, CustomerContext as CartCustomerContext } from './cart-service.js';
 
 /**
  * Three conversions around the Cart (feature 027 US3):
  *
  *   - convertToQuoteRequest(cart, ctx, note?)
- *       Reads the cart's lines, hands them to `RfqService.createForCustomer`,
+ *       Reads the cart's lines, hands them to `RfqCustomerPort.createForCustomer`,
  *       flips the source cart's status to `completed` with
  *       `converted_to_quote_request_id` set. The next storefront visit
  *       lazy-creates a fresh `active` cart for the buyer.
@@ -62,7 +65,12 @@ export class CartConversionService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cartService: CartService,
-    private readonly rfqService: RfqService,
+    /** `quote_requests`' customer-facing write surface. */
+    private readonly rfqService: RfqCustomerPort,
+    /** `quote_requests`' row read model — the quote and its lines. */
+    private readonly quoteRequests: QuoteRequestReadPort,
+    /** `catalog`'s product read model — is the quoted product still there? */
+    private readonly catalogProducts: CatalogProductReadPort,
   ) {}
 
   /**
@@ -137,9 +145,7 @@ export class CartConversionService {
     qrId: string,
     ctx: CartCustomerContext,
   ): Promise<CreateCartFromQrResult> {
-    const em = this.emFactory();
-
-    const qr = await em.findOne(QuoteRequest, { id: qrId });
+    const qr = await this.quoteRequests.findById(qrId);
     if (!qr) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'quote_request_not_found');
     }
@@ -150,13 +156,13 @@ export class CartConversionService {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'quote_request_not_found');
     }
 
-    const qrItems = await em.find(QuoteRequestItem, { quoteRequestId: qr.id });
+    const qrItems = await this.quoteRequests.listItems(qr.id);
     if (qrItems.length === 0) {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'quote_request_empty');
     }
 
     const productIds = Array.from(new Set(qrItems.map((it) => it.productId)));
-    const products = await em.find(Product, { id: { $in: productIds } });
+    const products = await this.catalogProducts.findByIds(productIds);
     const productById = new Map(products.map((p) => [p.id, p]));
 
     const droppedLines: CartDroppedLine[] = [];
@@ -185,6 +191,16 @@ export class CartConversionService {
         targetCart = result.cart;
         appendedLineCount += 1;
       } catch (err) {
+        // The tolerance is per line and it is right: one unpriceable product
+        // must not abort a twenty-line conversion, and the buyer is told which
+        // lines were dropped and why.
+        //
+        // `rethrowIfModuleDisabled` is its first line because `addItem` reaches
+        // `catalog`'s and `price_lists`' gated ports, and `ModuleDisabledError`
+        // **is** an `HttpError` — so the `instanceof` test below would let a
+        // switched-off pricing engine through as "no price in your list" for
+        // every line, which is issue #124's defect wearing a per-line report.
+        rethrowIfModuleDisabled(err);
         // CartService throws an HttpError when the product is quote-only
         // (displayMode='none') or no resolver match — both translate to
         // `no_price_in_customer_list` for the storefront banner.

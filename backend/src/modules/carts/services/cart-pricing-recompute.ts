@@ -1,7 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PricingServiceContract } from '../../price_lists/services/pricing-service.interface.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
+import type {
+  CatalogProductReadPort,
+  LinePricePort,
+  OrganizationDetailsPort,
+} from '@b2b/contracts';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { CartRecomputeCache, CachedCartRecompute } from './cart-recompute-cache.js';
 import type { CartItem } from '../entities/cart-item.entity.js';
@@ -48,8 +50,13 @@ export interface CartPricingRecomputeContext {
 export class CartPricingRecompute {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly pricingService: PricingServiceContract,
+    /** `price_lists`' line-resolution slice (feature 075, Phase C). */
+    private readonly pricingService: LinePricePort,
     private readonly cache: CartRecomputeCache,
+    /** `catalog`'s product read model — the two fields the resolver reads. */
+    private readonly catalogProducts: CatalogProductReadPort,
+    /** `organizations`' read model — the buying org and its customer group. */
+    private readonly organizations: OrganizationDetailsPort,
   ) {}
 
   async recompute(
@@ -84,7 +91,7 @@ export class CartPricingRecompute {
     const em = this.emFactory();
     const channel = await this.loadChannel(em, ctx.salesChannelId);
     const organization = ctx.organizationId
-      ? await em.findOne(Organization, { id: ctx.organizationId })
+      ? await this.organizations.findById(ctx.organizationId)
       : null;
 
     if (!channel) {
@@ -92,7 +99,7 @@ export class CartPricingRecompute {
     }
 
     const productIds = Array.from(new Set(lines.map((l) => l.productId)));
-    const products = await em.find(Product, { id: { $in: productIds } });
+    const products = await this.catalogProducts.findByIds(productIds);
     const productById = new Map(products.map((p) => [p.id, p]));
 
     const recomputed: RecomputedLinePrice[] = [];

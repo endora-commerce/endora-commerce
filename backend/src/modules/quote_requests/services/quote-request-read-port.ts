@@ -1,7 +1,12 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { QuoteRequestReadPort, QuoteRequestRecord } from '@b2b/contracts';
+import type {
+  QuoteRequestLineRecord,
+  QuoteRequestReadPort,
+  QuoteRequestRecord,
+} from '@b2b/contracts';
 import { OPEN_QUOTE_REQUEST_STATUSES } from '@b2b/contracts';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
+import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 
 /**
  * The row-level read model `quote_requests` publishes (feature 075, Phase P).
@@ -34,6 +39,31 @@ export class QuoteRequestReadService implements QuoteRequestReadPort {
       status: { $in: [...OPEN_QUOTE_REQUEST_STATUSES] },
     });
     return quotes.map(toQuoteRequestRecord);
+  }
+
+  /**
+   * Added in feature 075's `carts` cut. The quote-to-cart conversion read
+   * `QuoteRequestItem` itself; the money columns are deliberately not on the
+   * record, because that conversion re-resolves every price against the
+   * buyer's current list (FR-017) and a caller that cannot see the quoted
+   * price cannot carry it over by accident.
+   */
+  async listItems(quoteRequestId: string): Promise<QuoteRequestLineRecord[]> {
+    const items = await this.emFactory().find(
+      QuoteRequestItem,
+      { quoteRequestId },
+      { orderBy: { createdAt: 'asc' } },
+    );
+    return items.map((item) => ({
+      id: item.id,
+      quoteRequestId: item.quoteRequestId,
+      productId: item.productId,
+      productName: item.productName,
+      variantId: item.variantId ?? null,
+      quantity: item.quantity,
+      packagingUnitName: item.packagingUnitName ?? null,
+      packagingUnitBaseQuantity: item.packagingUnitBaseQuantity ?? null,
+    }));
   }
 }
 

@@ -7,6 +7,8 @@ import {
   applyCartCouponSchema,
   convertCartToQrSchema,
   ERROR_CODES,
+  OrganizationCannotTransactError,
+  type CatalogProductReadPort,
   type PromotionApplication,
 } from '@b2b/contracts';
 import type { CartService } from './services/cart-service.js';
@@ -17,9 +19,9 @@ import type { CartPricingRecompute } from './services/cart-pricing-recompute.js'
 import { derivePrimaryCta } from './services/cart-state-machine.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Cart } from './entities/cart.entity.js';
-import { Product } from '../catalog/entities/product.entity.js';
+
 import type { CartItem } from './entities/cart-item.entity.js';
-import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
+
 import { HttpError } from '../../http/error-envelope.js';
 import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 
@@ -85,6 +87,13 @@ export interface CartsDeps {
     anonymousToken?: string;
   };
   emFactory: () => EntityManager;
+  /**
+   * `catalog`'s product read model (feature 075, Phase C). The cart
+   * serializer resolves each line's display name, slug and sku from it; it
+   * used to `em.find(Product, …)` against `catalog`'s table, so a switched-off
+   * `catalog` still named the products on a cart it had stopped serving.
+   */
+  catalogProducts: CatalogProductReadPort;
   /**
    * Optional gate — when provided, signed-in customers whose Organization
    * is not `active` (pending_verification / blocked / rejected) cannot add
@@ -174,7 +183,11 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     // cart. Mirrors the recompute/coupon/promotion guards below.
     let productMeta: Map<string, ProductMeta>;
     try {
-      productMeta = await loadProductMeta(em, items.map((it) => it.productId), preferredLanguage);
+      productMeta = await loadProductMeta(
+        deps.catalogProducts,
+        items.map((it) => it.productId),
+        preferredLanguage,
+      );
     } catch (err) {
       request.log.warn({ err, cartId: cart.id }, 'cart product-meta lookup failed; rendering without names');
       productMeta = new Map();
@@ -754,7 +767,7 @@ function resolvePrimaryCta(cart: Cart) {
 /**
  * Resolves the storefront's preferred language from `Accept-Language`.
  * Falls back to undefined when the header is missing — the caller
- * then walks Product.name's locale chain in serializeCart's helper.
+ * then walks the product record's `name` locale chain in serializeCart's helper.
  */
 function parsePreferredLanguage(header: string | string[] | undefined): string | undefined {
   const raw = Array.isArray(header) ? header[0] : header;
@@ -764,27 +777,27 @@ function parsePreferredLanguage(header: string | string[] | undefined): string |
 }
 
 /**
- * Bulk-fetches Product metadata for every productId on the cart and
- * resolves a display name from `Product.name` (per-locale JSONB) using
+ * Bulk-fetches product metadata for every productId on the cart and
+ * resolves a display name from the record's `name` (per-locale JSONB) using
  * the `Accept-Language` tag with a `pl` → `pl-PL` → `en-US` → first
  * available fallback chain. Empty list returns an empty map (the
  * serializer treats `null` name as "unknown" and the storefront falls
  * back to the productId).
  */
 async function loadProductMeta(
-  em: EntityManager,
+  catalogProducts: CatalogProductReadPort,
   productIds: string[],
   preferredLanguage: string | undefined,
 ): Promise<Map<string, ProductMeta>> {
   const meta = new Map<string, ProductMeta>();
   if (productIds.length === 0) return meta;
   const unique = Array.from(new Set(productIds));
-  const products = await em.find(Product, { id: { $in: unique } });
+  const products = await catalogProducts.findByIds(unique);
   for (const p of products) {
     meta.set(p.id, {
-      name: pickLocalized(p.name as Record<string, string>, preferredLanguage),
+      name: pickLocalized(p.name, preferredLanguage),
       slug: p.slug,
-      sku: p.sku ?? null,
+      sku: p.sku,
     });
   }
   return meta;

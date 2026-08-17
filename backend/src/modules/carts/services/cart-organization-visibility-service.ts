@@ -3,12 +3,12 @@ import { ERROR_CODES } from '@b2b/contracts';
 import type {
   CartStatus,
   CartApprovalStatus,
+  CustomerAccountReadPort,
   OrgCartsListResponse,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 
 /**
  * Organization-Administrator visibility surface (feature 027 US4).
@@ -28,7 +28,15 @@ export interface OrgCartsListQuery {
 }
 
 export class CartOrganizationVisibilityService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /**
+     * `customer_accounts`' read model (feature 075, Phase C). The org-admin
+     * cart list renders each cart's owner by e-mail, and it read the account
+     * row itself — out of a table deactivation leaves in place.
+     */
+    private readonly customerAccounts: CustomerAccountReadPort,
+  ) {}
 
   async list(organizationId: string, query: OrgCartsListQuery = {}): Promise<OrgCartsListResponse> {
     const em = this.emFactory();
@@ -50,9 +58,7 @@ export class CartOrganizationVisibilityService {
     const ownerIds = Array.from(
       new Set(rows.map((r) => r.customerAccountId).filter((id): id is string => Boolean(id))),
     );
-    const owners = ownerIds.length > 0
-      ? await em.find(CustomerAccount, { id: { $in: ownerIds } })
-      : [];
+    const owners = await this.customerAccounts.findByIds(ownerIds);
     const ownerById = new Map(owners.map((o) => [o.id, o]));
 
     // Bulk item-count + total resolution.

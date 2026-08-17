@@ -4,8 +4,11 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import type { CartApprovalStatus } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
+import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@b2b/contracts';
+// The one thing this file still names by class. The two `setPolicy*` methods
+// **write** `organizations.requires_cart_approval`, and `organizations`
+// publishes no write port for it — see the ledger shard for the D-78 reading.
 import { Organization } from '../../organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { CartAuditService } from './cart-audit-service.js';
 
 /**
@@ -63,6 +66,10 @@ export class CartApprovalService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cartAuditService: CartAuditService,
+    /** `organizations`' read model — the approval policy and its owner row. */
+    private readonly organizations: OrganizationDetailsPort,
+    /** `customer_accounts`' read model — the submitting buyer's role. */
+    private readonly customerAccounts: CustomerAccountReadPort,
     private readonly emailDispatch?: CartEmailDispatch,
   ) {}
 
@@ -102,12 +109,12 @@ export class CartApprovalService {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'approval_already_initiated');
     }
 
-    const org = await em.findOne(Organization, { id: actor.organizationId });
+    const org = await this.organizations.findById(actor.organizationId);
     if (!org || !org.requiresCartApproval) {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'approval_not_required');
     }
 
-    const buyer = await em.findOne(CustomerAccount, { id: actor.customerAccountId });
+    const buyer = await this.customerAccounts.findById(actor.customerAccountId);
     if (buyer?.role === 'organization_admin') {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'org_admin_self_submit');
     }
