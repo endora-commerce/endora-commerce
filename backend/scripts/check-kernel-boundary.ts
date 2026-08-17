@@ -78,7 +78,11 @@
  *
  * Every shape a specifier can take is seen: `import`, `import type`,
  * `export … from`, dynamic `import()`, `require()` and the inline
- * `import('…').Type` annotation (`ts.ImportTypeNode`).
+ * `import('…').Type` annotation (`ts.ImportTypeNode`). The walker itself lives
+ * in `scripts/lib/specifiers.ts` since feature 075, shared with
+ * `check-module-boundary.ts`, which polices the opposite direction across the
+ * same boundary: two independently written walkers drift, and the shape one
+ * forgets is the shape the next violation uses.
  *
  * **`import type` is a violation, not an exemption.** Three grounds, in
  * increasing order of weight:
@@ -116,6 +120,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
 
 const RELATION_DECORATORS = new Set(['ManyToOne', 'OneToMany', 'OneToOne', 'ManyToMany']);
 
@@ -349,96 +354,29 @@ export function forbiddenOwnerOf(resolvedPath: string): string | null {
   return null;
 }
 
-function importBindings(node: ts.Node): string[] {
-  if (ts.isImportDeclaration(node)) {
-    const clause = node.importClause;
-    if (!clause) return [];
-    const names: string[] = [];
-    if (clause.name) names.push(clause.name.text);
-    const bound = clause.namedBindings;
-    if (bound) {
-      if (ts.isNamespaceImport(bound)) names.push(`* as ${bound.name.text}`);
-      else for (const element of bound.elements) names.push(element.name.text);
-    }
-    return names;
-  }
-  if (ts.isExportDeclaration(node)) {
-    const clause = node.exportClause;
-    if (!clause) return ['*'];
-    if (ts.isNamespaceExport(clause)) return [`* as ${clause.name.text}`];
-    return clause.elements.map((element) => element.name.text);
-  }
-  return [];
-}
-
-/** One specifier as it was written, with everything both rules need of it. */
-interface NamedSpecifier {
-  readonly text: string;
-  readonly kind: ImportKind;
-  readonly bindings: readonly string[];
-  readonly line: number;
-}
-
 /**
- * Every module specifier `source` names, in every shape a specifier can take:
- * `import`, `import type`, `export … from`, dynamic `import()`, `require()` and
- * the inline `import('…').Type` annotation.
+ * The shared walker's eight shapes collapsed onto this script's five.
  *
- * Shared by rules B and C so the two cannot drift on what counts as an import —
- * the drift that would let a shape be caught by one rule and not the other.
+ * Rules B and C report *where* a specifier points and only mention how it was
+ * written, so the four spellings of an import declaration read as one here. The
+ * distinction the shared walker keeps is what `check-module-boundary.ts` needs:
+ * its red proofs assert one shape each, and `import type` versus
+ * `import { type A, B }` is precisely the pair a first-token classifier
+ * confuses.
  */
-function namedSpecifiers(source: string, file: string): NamedSpecifier[] {
-  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const found: NamedSpecifier[] = [];
-
-  const record = (
-    specifier: ts.StringLiteralLike,
-    kind: ImportKind,
-    bindings: readonly string[],
-  ): void => {
-    found.push({
-      text: specifier.text,
-      kind,
-      bindings,
-      line: sf.getLineAndCharacterOfPosition(specifier.getStart(sf)).line + 1,
-    });
-  };
-
-  const visit = (node: ts.Node): void => {
-    if (
-      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
-      node.moduleSpecifier &&
-      ts.isStringLiteral(node.moduleSpecifier)
-    ) {
-      record(
-        node.moduleSpecifier,
-        ts.isImportDeclaration(node) ? 'import' : 'export',
-        importBindings(node),
-      );
-    }
-    if (ts.isCallExpression(node)) {
-      const callee = node.expression;
-      const isDynamicImport = callee.kind === ts.SyntaxKind.ImportKeyword;
-      const isRequire = ts.isIdentifier(callee) && callee.text === 'require';
-      const [first] = node.arguments;
-      if ((isDynamicImport || isRequire) && first && ts.isStringLiteral(first)) {
-        record(first, isDynamicImport ? 'dynamic' : 'require', []);
-      }
-    }
-    // `import('…').Type` — erased by tsc, encouraged by the repo's own ESLint
-    // config (`disallowTypeAnnotations: false`), and invisible to a check that
-    // only walks import declarations.
-    if (ts.isImportTypeNode(node)) {
-      const argument = node.argument;
-      if (ts.isLiteralTypeNode(argument) && ts.isStringLiteral(argument.literal)) {
-        record(argument.literal, 'import-type', node.qualifier ? [node.qualifier.getText(sf)] : []);
-      }
-    }
-    node.forEachChild(visit);
-  };
-
-  sf.forEachChild(visit);
-  return found;
+function reportedKind(kind: SpecifierKind): ImportKind {
+  switch (kind) {
+    case 're-export':
+      return 'export';
+    case 'dynamic-import':
+      return 'dynamic';
+    case 'require-call':
+      return 'require';
+    case 'import-type-node':
+      return 'import-type';
+    default:
+      return 'import';
+  }
 }
 
 /** A relative specifier resolved against the importing file, `.js` swapped for `.ts`. */
@@ -475,7 +413,7 @@ export function analyzePlatformImports(source: string, file: string): PlatformIm
         resolved,
         targetOwner: forbiddenOwnerOf(resolved),
         bindings: specifier.bindings,
-        kind: specifier.kind,
+        kind: reportedKind(specifier.kind),
         line: specifier.line,
       },
     ];
@@ -628,7 +566,7 @@ export function analyzeClosure(input: ClosureInput): ClosureResult {
           resolved,
           targetOwner,
           bindings: specifier.bindings,
-          kind: specifier.kind,
+          kind: reportedKind(specifier.kind),
           line: specifier.line,
         });
         continue;

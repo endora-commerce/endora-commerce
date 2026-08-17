@@ -38,6 +38,11 @@ import {
   isViolation,
   RELATION_DECORATOR_HINT,
 } from '../../../scripts/check-kernel-boundary.js';
+import {
+  analyzeSource as moduleBoundaryAnalyze,
+  checkModuleBoundary,
+  type CrossModuleImportKind,
+} from '../../../scripts/check-module-boundary.js';
 import { compareArtifact } from '../../../scripts/check-overlay-determinism.js';
 import { checkPortCatches } from '../../../scripts/check-port-catches.js';
 import {
@@ -563,6 +568,42 @@ function relationViolations(source: string, file: string): number {
   return boundaryAnalyze(source, file).filter(isViolation).length;
 }
 
+/**
+ * A module importing another module's internals, in one synthetic file.
+ *
+ * The fixture is source text plus a path under `src/`, which is what a real run
+ * reads: the specifier walker, the path normaliser and the surface classifier
+ * all execute. A proof handing the check a resolved `{ owner, target }` pair
+ * would prove the reporter and leave the two parts that can go blind — the
+ * walker and the normaliser — unexercised, and it is the *normaliser* that has
+ * the recorded defect: a prefix match on one nesting depth undercounted the
+ * tree 2.2× (348 against the real 674), which is why both depths below get a
+ * proof of their own rather than one shared one.
+ */
+const ORDER_SERVICE_FILE = 'modules/orders/services/order-service.ts';
+
+function crossModuleKinds(source: string, file: string, kind: CrossModuleImportKind): number {
+  return moduleBoundaryAnalyze(source, file).filter((f) => f.kind === kind).length;
+}
+
+function crossModuleTargets(source: string, file: string, target: string): number {
+  return moduleBoundaryAnalyze(source, file).filter((f) => f.target === target).length;
+}
+
+/** The tree the ledger proofs judge: one module reaching another module's entity. */
+const ORDERS_READS_A_PRODUCT =
+  "import { Product } from '../../catalog/entities/product.entity.js';";
+const ORDERS_READS_NOTHING = 'export class OrderService {}';
+const CROSS_MODULE_KEY = `${ORDER_SERVICE_FILE}:catalog/entities/product.entity`;
+
+function moduleBoundaryTree(source: string): Map<string, string> {
+  return new Map([
+    ['modules/orders/backend.ts', 'export function registerModule(ctx) {}'],
+    ['modules/catalog/backend.ts', 'export function registerModule(ctx) {}'],
+    [ORDER_SERVICE_FILE, source],
+  ]);
+}
+
 const DRIFTED_DOC = [
   '# Doc',
   '',
@@ -1080,6 +1121,120 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // Eight specifier shapes, both nesting depths, the overlay tree and the two
+    // halves of the ledger — thirteen, and the last five are not padding. The
+    // shape count is the reach of the rule: a walker that stops seeing
+    // `import type` loses 43% of the tree's 674 sites, and a normaliser that
+    // sees one nesting depth loses more than half of what is left, silently, in
+    // both cases reporting a smaller number rather than an error.
+    script: 'backend/scripts/check-module-boundary.ts',
+    npmScript: 'check:module-boundary',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-module-boundary.test.ts',
+    vacuousGuard: 'exit-2',
+    red: {
+      'value-import': top(() =>
+        crossModuleKinds(ORDERS_READS_A_PRODUCT, ORDER_SERVICE_FILE, 'value-import'),
+      ),
+      // FR-003: erased at runtime, still an edge — and the shape ESLint's
+      // `prefer: 'type-imports'` rewrites value imports into automatically.
+      'type-only-import': top(() =>
+        crossModuleKinds(
+          "import type { CartService } from '../../carts/services/cart-service.js';",
+          ORDER_SERVICE_FILE,
+          'type-only-import',
+        ),
+      ),
+      // A *value* import whose first specifier is typed: a classifier reading
+      // the first token calls it type-only, one requiring every specifier to be
+      // typed calls it a value import, and the kind records which was taken.
+      'mixed-type-specifier': top(() =>
+        crossModuleKinds(
+          "import { type ProductId, Product } from '../../catalog/entities/product.entity.js';",
+          ORDER_SERVICE_FILE,
+          'mixed-type-specifier',
+        ),
+      ),
+      'dynamic-import': top(() =>
+        crossModuleKinds(
+          'async reserve() { await import("../../inventory/services/reservation.js"); }',
+          ORDER_SERVICE_FILE,
+          'dynamic-import',
+        ),
+      ),
+      're-export': top(() =>
+        crossModuleKinds(
+          "export { Product } from '../../catalog/entities/product.entity.js';",
+          ORDER_SERVICE_FILE,
+          're-export',
+        ),
+      ),
+      'require-call': top(() =>
+        crossModuleKinds(
+          "const { Product } = require('../../catalog/entities/product.entity.js');",
+          ORDER_SERVICE_FILE,
+          'require-call',
+        ),
+      ),
+      'import-type-node': top(() =>
+        crossModuleKinds(
+          "let p: import('../../catalog/entities/product.entity.js').Product;",
+          ORDER_SERVICE_FILE,
+          'import-type-node',
+        ),
+      ),
+      'side-effect-import': top(() =>
+        crossModuleKinds(
+          "import '../../catalog/register.js';",
+          ORDER_SERVICE_FILE,
+          'side-effect-import',
+        ),
+      ),
+      // The two nesting depths, each from the file position that produces it.
+      // A prefix match satisfies one and not the other, and that is the
+      // documented 2.2× undercount.
+      'sibling-depth': top(() =>
+        crossModuleTargets(
+          "import { Product } from '../catalog/entities/product.entity.js';",
+          'modules/blog/plugin.ts',
+          'catalog',
+        ),
+      ),
+      'nested-depth': top(() =>
+        crossModuleTargets(
+          "import { Product } from '../../catalog/entities/product.entity.js';",
+          'modules/blog/services/blog-service.ts',
+          'catalog',
+        ),
+      ),
+      // An overlay module is an ordinary lifecycle participant (feature 057), so
+      // the rule applies to its tree on the same terms.
+      'overlay-module': top(() =>
+        crossModuleTargets(
+          "import { Loyalty } from '../../loyalty/services/loyalty-service.js';",
+          'apps/example/modules/rewards/services/rewards-service.ts',
+          'loyalty',
+        ),
+      ),
+      // The ledger's two directions. Both take the source map *and* the shards,
+      // because the ledger is only meaningful against findings the walk
+      // produced: handing the comparison two ready-made sets would prove the
+      // set difference and nothing above it.
+      'unledgered-violation-fails': top(
+        () =>
+          checkModuleBoundary({ sources: moduleBoundaryTree(ORDERS_READS_A_PRODUCT) }, [
+            { moduleId: 'orders', entries: { 'modules/orders/x.ts:catalog/y': 'another edge' } },
+          ]).violations.length,
+      ),
+      'stale-shard-entry-fails': top(
+        () =>
+          checkModuleBoundary({ sources: moduleBoundaryTree(ORDERS_READS_NOTHING) }, [
+            { moduleId: 'orders', entries: { [CROSS_MODULE_KEY]: 'cut long ago' } },
+          ]).stale.length,
+      ),
+    },
+  },
+  {
     // `compareArtifact` is the top of what this script analyses: the rendering
     // belongs to `generate-composer.ts`, which has its own tests, and the one
     // way a broken generator could reach this check silently — rendering
@@ -1581,6 +1736,7 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-error-translations.ts': 2,
       'backend/scripts/check-harness-teardown.ts': 8,
       'backend/scripts/check-kernel-boundary.ts': 3,
+      'backend/scripts/check-module-boundary.ts': 13,
       'backend/scripts/check-overlay-determinism.ts': 3,
       'backend/scripts/check-port-catches.ts': 3,
       'backend/scripts/check-port-dependencies.ts': 15,

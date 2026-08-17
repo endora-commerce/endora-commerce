@@ -112,6 +112,12 @@ never add a "module options" object for something the module can read itself.
    captured gate keeps answering after its owner is switched off. The name must be a **string
    literal**, or `check-port-dependencies.ts` cannot see the edge (a `port(ctx, name)` helper
    once hid fourteen resolutions, several registered by nobody, while the check read clean).
+   **`T` is a contract type from `packages/contracts/`, never the provider's class** — and not
+   a `Pick<>` / `ReturnType<>` / `InstanceType<>` over it either, since each of those imports
+   the class. A module may not name a file in another module's directory in any specifier
+   shape, `import type` included; `check:module-boundary` is the ratchet, and the 674 edges
+   standing when it landed are ledgered per consumer module under
+   `backend/scripts/ledgers/cross-module-imports/` while feature 075 drains them.
 4. **Declare the edge** — resolving a port owned by `X` puts `X` in your manifest
    `dependencies`. That is what makes the edge real to the lifecycle, the migration order and
    an operator switching `X` off. The port check fails the build without it.
@@ -172,8 +178,8 @@ never add a "module options" object for something the module can read itself.
    — the pattern `ErrorEnvelopeOptions` uses. `src/db`, `src/overlay` and `src/commands` are
    not platform roots.
 11. **CI** — `pnpm --filter backend run check:port-dependencies`, `check:port-catches`,
-   `check:kernel-boundary`, `check:container-imports`, `check:subscribe-seam`,
-   `check:timer-presence`, and
+   `check:kernel-boundary`, `check:module-boundary`, `check:container-imports`,
+   `check:subscribe-seam`, `check:timer-presence`, and
    `pnpm --filter backend exec vitest run test/contract/kernel/harness-parity.test.ts`
    (drift between the two composition roots, as an explicit draining ledger).
 
@@ -452,6 +458,7 @@ of this table: it enumerates every `check-*` script and fails on one it does not
 | `check:error-translations` | `quality` | An operator-visible error code with no sentence in both shipped languages. The envelope replaces the message wholesale, so a missing key renders the raw code and nothing reports it. Ledger may only shrink. |
 | `check:harness-teardown` | `quality` | A test that releases a `setupBackendServer` resource itself instead of calling `teardownBackendServer` (issue #111). A hand-written teardown is a copy of the seam frozen when it was copied, so it cannot learn about the awilix container or the pub/sub Redis client, and both leak for the length of the single-fork run. `HAND_RELEASED_RESOURCES_TO_DRAIN` is an empty two-way ratchet. |
 | `check:kernel-boundary` | `quality` | An ORM relation from a module into another module; a module may relate into the kernel, the kernel into neither (feature 072, D-32). |
+| `check:module-boundary` | `quality` | A module naming an import specifier that resolves into another module's directory (Principle I; feature 075). Every specifier shape, `import type` included — it is 43% of the debt, and ESLint's `prefer: 'type-imports'` would otherwise launder value imports into it. The ledger is **sharded per consumer module** under `backend/scripts/ledgers/cross-module-imports/`, so a cut touches one file; it fails five ways — unledgered import, stale entry, empty shard, orphan shard, entry filed under another module's shard. `ledger-size` is derived and printed, never written down. |
 | `check:port-catches` | `quality` | A `catch` that swallows `ModuleDisabledError` — see composition checklist item 7. |
 | `check:port-dependencies` | `quality` | A cross-module port edge the resolver's manifest does not declare, and an edge with no deactivation-consequence classification — see checklist items 4 and 4a. |
 | `check:subscribe-seam` | `quality` | A bare `eventBus.on` in a module instead of `ctx.subscribe` (issue #107). Empty two-way ledger. |
