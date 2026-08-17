@@ -467,9 +467,14 @@ export async function registerInventoryAdminRoutes(
 
   // ---------------------------------------------------------------------------
   // Foundation 001 backward-compat — single-bucket stock list + write.
-  // Foundation callers (admin import + foundation seed) still hit these
-  // until they migrate to /levels above. Both routes default to the seeded
-  // Default warehouse.
+  // Both routes default to the seeded Default warehouse.
+  //
+  // The two callers this header used to name are gone: the admin import posts to
+  // `/inventory/import` and the catalog seed writes `StockLevel` through the
+  // EntityManager. Nothing in the repository calls either route — no admin
+  // screen, no `@b2b/api-client` method, no seed, no script — and the module's
+  // documentation page lists neither. They are kept for a deployment's own
+  // integration, which is the only caller they can still have (issue #125).
   // ---------------------------------------------------------------------------
 
   app.put(
@@ -503,6 +508,15 @@ export async function registerInventoryAdminRoutes(
       // straight through the EntityManager and recorded nothing, which the
       // coverage scan could not see until it reached route files (issue #122).
       // Same action token, so the two paths land in one audit history.
+      //
+      // Deliberately **not** a Command (issue #125). A Command is what an undo
+      // attaches to, and an on-hand count is not a value an undo may restore:
+      // between the write and the undo, orders reserve and release stock, so
+      // putting back the number that stood before would overwrite movements
+      // nobody asked to reverse. The other two paths that set stock — the
+      // service behind `/levels` and the CSV importer — take the same view.
+      // Nor may this row's action diverge from theirs: an auditor reading a
+      // product's stock history reads one action, not three.
       if (deps.auditLogService && before !== body.onHand) {
         recordAuditFromContext(deps.auditLogService, em, {
           action: 'stock_level.adjust',

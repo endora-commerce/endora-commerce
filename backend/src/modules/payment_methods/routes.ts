@@ -7,8 +7,11 @@ import {
   type PaymentMethodAvailability,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { recordAuditFromContext } from '../../commands/index.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
+import {
+  makeDeletePaymentMethodCommand,
+  makeUpsertPaymentMethodCommand,
+} from './commands/payment-method.commands.js';
 import {
   effectiveState,
   toModulePresenceDto,
@@ -43,26 +46,11 @@ export interface PaymentMethodsPublicDeps {
   eligibility?: PaymentMethodEligibilityService;
 }
 
-/** The audit projection of a payment method — configuration only, no secrets. */
-function auditState(row: PaymentMethod): Record<string, unknown> {
-  return {
-    id: row.id,
-    code: row.code,
-    name: row.name,
-    kind: row.kind,
-    adapter: row.adapter,
-    status: row.status,
-    additionalPrice: row.additionalPrice,
-    statusOnPending: row.statusOnPending,
-    statusOnSuccess: row.statusOnSuccess,
-    statusOnFailure: row.statusOnFailure,
-  };
-}
-
 export interface PaymentMethodsAdminDeps {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
-  auditLogService: AuditLogService;
+  /** Issue #125 — the two admin writes run on the bus (Principle XIII). */
+  commandBus: CommandBus;
   /** Feature 005 / T027b — new payment methods auto-bind to the system default. */
   salesChannelMembership?: SalesChannelMembershipService;
   /** Feature 034 — validates `adapter` against the registered adapters. */
@@ -172,45 +160,24 @@ export async function registerPaymentMethodsAdminRoutes(
         }
       }
 
-      let row = await em.findOne(PaymentMethod, { code: request.params.code });
-      let isNew = false;
-      const before = row === null ? null : auditState(row);
-      if (row) {
-        row.name = body.name;
-        row.kind = body.kind;
-        row.adapter = adapter;
-        if (body.status !== undefined) row.status = body.status;
-        if (body.additionalPrice !== undefined) row.additionalPrice = body.additionalPrice.toFixed(2);
-        if (body.statusOnPending !== undefined) row.statusOnPending = body.statusOnPending;
-        if (body.statusOnSuccess !== undefined) row.statusOnSuccess = body.statusOnSuccess;
-        if (body.statusOnFailure !== undefined) row.statusOnFailure = body.statusOnFailure;
-      } else {
-        row = em.create(PaymentMethod, {
-          code: request.params.code,
-          name: body.name,
-          kind: body.kind,
-          adapter,
-          status: body.status ?? 'active',
-          additionalPrice: (body.additionalPrice ?? 0).toFixed(2),
-          statusOnPending: body.statusOnPending ?? 'new',
-          statusOnSuccess: body.statusOnSuccess ?? 'paid',
-          statusOnFailure: body.statusOnFailure ?? 'cancelled',
-        });
-        isNew = true;
-      }
       // Which methods a shop offers, and which order status each payment result
-      // moves an order to, is operator configuration — and it went unaudited
-      // until the coverage scan reached route files (issue #122).
-      recordAuditFromContext(deps.auditLogService, em, {
-        action: isNew ? 'payment_method.create' : 'payment_method.update',
-        objectType: 'payment_method',
-        objectId: row.id,
-        stateBefore: before,
-        stateAfter: auditState(row),
-      });
-      await em.persistAndFlush(row);
+      // moves an order to, is operator configuration. The read below only tells
+      // the Command whether this call creates or updates — the write itself
+      // happens inside the bus transaction (issue #125).
+      const existing = await em.findOne(PaymentMethod, { code: request.params.code });
+      const { method: row, created } = await deps.commandBus.run(
+        makeUpsertPaymentMethodCommand({
+          code: request.params.code,
+          body,
+          adapter,
+          existingId: existing?.id ?? null,
+        }),
+      );
 
-      if (isNew && deps.salesChannelMembership) {
+      // Channel membership is the sales-channel bridge's own write, on its own
+      // EntityManager, so it stays outside the Command rather than pretending to
+      // share its transaction.
+      if (created && deps.salesChannelMembership) {
         await deps.salesChannelMembership.bindToDefaultIfEmpty('payment-method', row.id);
       }
       // Replace sales-channel membership when an explicit (non-empty) set is given.
@@ -226,28 +193,10 @@ export async function registerPaymentMethodsAdminRoutes(
     '/api/v1/admin/payment-methods/:id',
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
-      const em = deps.emFactory();
-      const row = await em.findOne(PaymentMethod, { id: request.params.id });
-      if (!row) {
-        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Payment method not found.');
-      }
-      // T017b — delete-guard (FR-003): never orphan a Payment's method reference.
-      const referencing = await countPaymentsForMethod(em, row.id);
-      if (referencing > 0) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Cannot delete payment method: ${referencing} payment(s) reference it. Set status to "inactive" instead.`,
-        );
-      }
-      recordAuditFromContext(deps.auditLogService, em, {
-        action: 'payment_method.delete',
-        objectType: 'payment_method',
-        objectId: row.id,
-        stateBefore: auditState(row),
-        stateAfter: null,
-      });
-      await em.removeAndFlush(row);
+      // The 404 and the T017b delete-guard (FR-003) live inside the Command, on
+      // its transaction: the guard's answer and the delete are then the same
+      // moment rather than two.
+      await deps.commandBus.run(makeDeletePaymentMethodCommand(request.params.id));
       return reply.status(204).send();
     },
   );
@@ -262,18 +211,6 @@ function assertValidStatus(registry: OrderStatusRegistry, ref: string): void {
     }
     throw err;
   }
-}
-
-async function countPaymentsForMethod(em: EntityManager, methodId: string): Promise<number> {
-  const rows = await em
-    .getConnection()
-    .execute<Array<{ count: string }>>(
-      `select count(*)::text as count from "payments" where "payment_method_id" = ?`,
-      [methodId],
-      'all',
-      em.getTransactionContext(),
-    );
-  return Number(rows[0]?.count ?? '0');
 }
 
 async function replaceChannelMembership(
