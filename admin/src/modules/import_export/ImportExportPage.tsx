@@ -1,4 +1,4 @@
-import { useCallback, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Download, Upload } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -15,50 +15,72 @@ import {
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
 
+/**
+ * One entity the server offers, as `GET /admin/import-export/entities` answers.
+ *
+ * Feature 075 / D-74 — this list used to be a literal array of five slugs here,
+ * which meant an operator who switched `inventory` off was still shown a Stock
+ * import (Principle XVII rule 5: a module that is off contributes no surface).
+ * The server derives it from the effective state of the modules that own the
+ * rows, and the screen renders whatever comes back.
+ */
 interface EntityConfig {
-  slug: string;
-  labelKey: string;
-  importable: boolean;
-  importHeader?: string;
+  name: string;
+  exportHeader: string[];
+  /** `null` when the entity is export-only. */
+  importHeader: string[] | null;
 }
-
-const ENTITIES: EntityConfig[] = [
-  {
-    slug: 'products',
-    labelKey: 'importExport.entity.products',
-    importable: true,
-    importHeader: 'sku, status, visibility, name_en, description_en',
-  },
-  {
-    slug: 'categories',
-    labelKey: 'importExport.entity.categories',
-    importable: true,
-    importHeader: 'slug, parent_slug, sort_order, name_en',
-  },
-  {
-    slug: 'stock',
-    labelKey: 'importExport.entity.stock',
-    importable: true,
-    importHeader: 'product_sku, variant_id, on_hand',
-  },
-  { slug: 'customers', labelKey: 'importExport.entity.customers', importable: false },
-  { slug: 'orders', labelKey: 'importExport.entity.orders', importable: false },
-];
 
 const apiBaseUrl =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
 
 export function ImportExportPage(): ReactNode {
   const t = useTranslation('core');
+  const [entities, setEntities] = useState<EntityConfig[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const load = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = await apiClient.get<{ data: { entities: EntityConfig[] } }>(
+        '/api/v1/admin/import-export/entities',
+      );
+      setEntities(res.data.entities);
+    } catch (err) {
+      setLoadError(
+        err instanceof ApiError ? err.envelope.error.message : t('importExport.error.load'),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   return (
     <>
       <PageHeader
         title={t('importExport.page.title')}
         description={t('importExport.page.description')}
       />
+      {loadError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{loadError}</AlertDescription>
+        </Alert>
+      ) : null}
+      {loading ? (
+        <p className="text-sm text-muted-foreground">{t('importExport.loading')}</p>
+      ) : null}
+      {!loading && !loadError && entities.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('importExport.empty')}</p>
+      ) : null}
       <div className="space-y-4">
-        {ENTITIES.map((entity) => (
-          <EntityCard key={entity.slug} entity={entity} />
+        {entities.map((entity) => (
+          <EntityCard key={entity.name} entity={entity} />
         ))}
       </div>
     </>
@@ -88,7 +110,7 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
         const csv = await file.text();
         const res = await apiClient.post<{
           data: { imported: number; errors: Array<{ rowNumber: number; reason: string }> };
-        }>(`/api/v1/admin/import/${entity.slug}`, csv, {
+        }>(`/api/v1/admin/import/${entity.name}`, csv, {
           headers: { 'Content-Type': 'text/csv' },
         });
         if (res.data.errors.length === 0) {
@@ -103,15 +125,17 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
         setImporting(false);
       }
     },
-    [entity.slug, t],
+    [entity.name, t],
   );
 
-  const exportHref = `${apiBaseUrl}/api/v1/admin/export/${entity.slug}.csv`;
+  const exportHref = `${apiBaseUrl}/api/v1/admin/export/${entity.name}.csv`;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t(entity.labelKey)}</CardTitle>
+        {/* The label is a translation of the slug the server named; an entity
+            with no key of its own renders the raw key rather than disappearing. */}
+        <CardTitle>{t(`importExport.entity.${entity.name}`)}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -121,7 +145,7 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
               {t('importExport.exportCsv')}
             </a>
           </Button>
-          {entity.importable ? (
+          {entity.importHeader ? (
             <Button
               asChild
               size="sm"
@@ -149,10 +173,13 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
           )}
         </div>
 
-        {entity.importable && entity.importHeader ? (
+        {entity.importHeader ? (
           <p className="text-xs text-muted-foreground">
             {t('importExport.requiredHeader')}{' '}
-            <code className="rounded bg-muted px-1 font-mono">{entity.importHeader}</code>
+            {/* The columns the server requires, not a copy of them kept here. */}
+            <code className="rounded bg-muted px-1 font-mono">
+              {entity.importHeader.join(', ')}
+            </code>
           </p>
         ) : null}
 

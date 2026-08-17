@@ -14,6 +14,8 @@
  * computing it is the spreadsheet reader's business, not the catalogue's.
  */
 
+import { z } from 'zod';
+
 /** One rejected row of a bulk import. `index` is 0-based over the rows the caller passed. */
 export interface BulkImportRowError {
   index: number;
@@ -33,3 +35,27 @@ export interface BulkImportReport {
   imported: number;
   errors: BulkImportRowError[];
 }
+
+/**
+ * One entity the import/export centre offers, as
+ * `GET /api/v1/admin/import-export/entities` answers.
+ *
+ * The list is **presence-derived**: an entity appears only while every module
+ * that owns its rows is effectively present. Until D-74 the admin SPA carried
+ * the five slugs as a literal array, so an operator who switched `inventory`
+ * off was still offered a Stock import — Principle XVII rule 5 in one screen.
+ *
+ * `importHeader` is `null` when import is unsupported for the entity, which is
+ * the same fact the 405 the POST answers with states.
+ */
+export const importExportEntitySchema = z.object({
+  name: z.string(),
+  exportHeader: z.array(z.string()),
+  importHeader: z.array(z.string()).nullable(),
+});
+export type ImportExportEntity = z.infer<typeof importExportEntitySchema>;
+
+export const importExportEntitiesResponseSchema = z.object({
+  data: z.object({ entities: z.array(importExportEntitySchema) }),
+});
+export type ImportExportEntitiesResponse = z.infer<typeof importExportEntitiesResponseSchema>;
