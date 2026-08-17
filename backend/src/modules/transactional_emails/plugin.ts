@@ -2,11 +2,13 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@b2b/contracts';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
-import type { SettingsAdminService } from '../settings/services/settings-admin.service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
-import type { Mailer } from '../email/services/mailer.js';
-import type { EmailDeliveryRecorder } from '@b2b/contracts';
+import type {
+  EmailDeliveryRecorder,
+  EmailMailerPort,
+  SettingsAdminPort,
+} from '@b2b/contracts';
 import { ContentResolver } from './services/content-resolver.js';
 import { BrandingService, type AssetUrlResolver } from './services/branding.service.js';
 import { EmbedResolver } from './services/embed-resolver.js';
@@ -34,7 +36,7 @@ export interface TransactionalEmailsModuleOptions {
   defaultsRegistry: EmailDefaultsRegistry;
   /** Audits the per-email activation flip (issue #89, Principle XIII). */
   commandBus: CommandBus;
-  mailer?: Mailer;
+  mailer?: EmailMailerPort;
   /**
    * Where a message this module suppresses — or cannot render — is recorded
    * (D-59). The transport records the ones it is handed; these never reach it.
@@ -43,7 +45,7 @@ export interface TransactionalEmailsModuleOptions {
   auditLog?: AuditLogService;
   resolveAssetUrl?: AssetUrlResolver;
   /** Settings admin service used to persist branding values (US2). */
-  settingsAdmin?: SettingsAdminService;
+  settingsAdmin?: SettingsAdminPort;
   /** Exposes the sender back to composition so owning modules can send. */
   exposeSender?: (sender: TransactionalEmailService) => void;
   /** Exposes branding so newsletter (and others) can inject logoUrl/accent. */

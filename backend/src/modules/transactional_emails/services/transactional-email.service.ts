@@ -26,8 +26,11 @@ import { renderEmailHtml } from '@b2b/email-components/render/render-email-html'
 import { renderEmailText } from '@b2b/email-components/render/render-email-text';
 import { renderDirectives } from '@b2b/email-components/directives/directive-engine';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { Mailer } from '../../email/services/mailer.js';
-import type { EmailDeliveryRecorder, EmailDeliveryReason } from '@b2b/contracts';
+import type {
+  EmailDeliveryRecorder,
+  EmailDeliveryReason,
+  EmailMailerPort,
+} from '@b2b/contracts';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { TransactionalEmail } from '../entities/transactional-email.entity.js';
 import { TransactionalEmailContent } from '../entities/transactional-email-content.entity.js';
@@ -73,7 +76,14 @@ export interface TransactionalEmailServiceDeps {
    * would refuse it.
    */
   defaults: EmailDefaultsRegistry;
-  mailer?: Mailer;
+  /**
+   * The transport, named by `email`'s published contract since feature 075's
+   * Phase C. `email` registers it ungated and declares itself
+   * non-deactivatable, so this edge has no absent state to fail closed onto —
+   * the `undefined` below is a composition that wired no transport at all,
+   * which `send` reports as `no_transport`.
+   */
+  mailer?: EmailMailerPort;
   /**
    * Where the three outcomes decided **before** the transport are recorded
    * (D-59). Optional: a composition with no recorder loses the row, not the
@@ -89,7 +99,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   private readonly branding: BrandingService;
   private readonly embeds: EmbedResolver;
   private readonly defaults: EmailDefaultsRegistry;
-  private readonly mailer: Mailer | undefined;
+  private readonly mailer: EmailMailerPort | undefined;
   private readonly deliveryRecorder: EmailDeliveryRecorder | undefined;
   private readonly auditLog: AuditLogService | undefined;
 
@@ -156,6 +166,15 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       ...(fallbackLanguage ? { fallbackLanguage } : {}),
     });
 
+    // The transport's own answer (`sent` / `suppressed`, D-59) is deliberately
+    // not carried further, and this is the decision rather than an oversight:
+    // its one suppression reason is `duplicate_message_id`, meaning this exact
+    // message id was already accepted, so the message did go out. What
+    // `TransactionalSendOutcome` exists to tell a caller is whether it may fall
+    // back to its own in-code builder, and neither transport answer permits
+    // that. The row is not lost either — `RecordingMailer` writes the
+    // `suppressed` delivery record before returning. Widening the union here
+    // would publish a distinction no caller can act on.
     await this.mailer.send({
       messageId: input.messageId,
       to: input.to,

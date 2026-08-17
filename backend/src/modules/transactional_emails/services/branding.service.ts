@@ -13,10 +13,7 @@ import {
   SettingOutOfScopeForChannel,
   type SettingsService,
 } from '../../../kernel/settings/settings.service.js';
-import type {
-  AdminAuditContext,
-  SettingsAdminService,
-} from '../../settings/services/settings-admin.service.js';
+import type { SettingsAdminAuditContext, SettingsAdminPort } from '@b2b/contracts';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { TRANSACTIONAL_EMAILS_SETTING_CODES } from '../manifest.js';
 
@@ -34,7 +31,13 @@ export interface ResolvedBranding {
 export type AssetUrlResolver = (assetId: string) => Promise<string | null>;
 
 export interface BrandingWriteDeps {
-  admin: SettingsAdminService;
+  /**
+   * `settingsAdminService`, owned by `settings` and named by its published
+   * contract since feature 075's Phase C. Two writes rather than one with an
+   * optional argument, because a value set for all channels and a value set
+   * for a named subset are different operations (Constitution XII).
+   */
+  admin: SettingsAdminPort;
   emFactory: () => EntityManager;
 }
 
@@ -140,7 +143,7 @@ export class BrandingService {
   async update(
     salesChannelId: string | null,
     patch: BrandingPatch,
-    actor: AdminAuditContext,
+    actor: SettingsAdminAuditContext,
   ): Promise<ResolvedBranding> {
     if (!this.writeDeps) {
       throw new Error('Branding write is not configured.');
