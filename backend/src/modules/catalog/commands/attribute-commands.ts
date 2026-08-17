@@ -1,16 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import {
   ERROR_CODES,
+  isCustomFieldDefinitionFailure,
   type CreateAttributeRequest,
   type CustomFieldOptionDto,
   type UpdateAttributeRequest,
 } from '@b2b/contracts';
 import type { Command } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import {
-  CustomFieldDefinitionError,
-  type CustomFieldDefinitionApplyApi,
-} from '../../custom_fields/services/custom-field-definition.service.js';
+import type { CustomFieldDefinitionApplyApi } from '../../custom_fields/services/custom-field-definition.service.js';
 import type { CachedDefinition } from '../../custom_fields/services/custom-field-definitions-cache.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import {
@@ -40,6 +38,25 @@ import type { CatalogAttributeOptionView } from '../services/catalog-attribute-r
  * research §R10).
  */
 
+/**
+ * The apply seam's type, named **once** in this module (D-77).
+ *
+ * `catalog` reached `custom_fields`' definition service from two files; the
+ * second was `catalog-admin.service.ts`, which extends this interface into
+ * `CatalogCustomFieldsPort`. It names this re-export now, so the permanent
+ * residue is one type in one file rather than one type in two — and the entry
+ * that stays in the boundary ledger is the entry the foreign key actually
+ * entails.
+ *
+ * It is a re-export rather than a local declaration on purpose. `lazyPort<T>`
+ * is an unchecked cast: with the type declared on the consumer's side nothing
+ * would verify that `custom_fields` still satisfies it, and today's
+ * compile-time proof — the provider's class implements the interface the
+ * consumer imports — is what stands between an FK-backed invariant and a
+ * runtime surprise.
+ */
+export type { CustomFieldDefinitionApplyApi };
+
 export interface AttributeCommandDeps {
   /** The custom_fields transactional apply seam (definition/option writes). */
   apply: CustomFieldDefinitionApplyApi;
@@ -55,9 +72,17 @@ export interface AttributeMutationResult {
   isFilterable: boolean;
 }
 
-/** Map an apply-seam failure onto the catalog admin API's legacy HTTP surface. */
+/**
+ * Map an apply-seam failure onto the catalog admin API's legacy HTTP surface.
+ *
+ * D-77's second narrowing: this used to be `err instanceof
+ * CustomFieldDefinitionError`, which imported a constructor out of another
+ * module to read a string field off it. `isCustomFieldDefinitionFailure` is the
+ * published guard over the published code union, so the narrowing is structural
+ * and the class stops crossing the boundary.
+ */
 function toCatalogHttpError(err: unknown, keyForMessage?: string): never {
-  if (err instanceof CustomFieldDefinitionError) {
+  if (isCustomFieldDefinitionFailure(err)) {
     switch (err.code) {
       case 'duplicate_key':
         throw new HttpError(

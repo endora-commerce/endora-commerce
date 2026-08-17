@@ -128,16 +128,75 @@ export type CustomFieldValidationError = z.infer<typeof customFieldValidationErr
 // read it (feature 075, Phase P). Plain TypeScript, not Zod: these describe
 // in-process calls, not an API boundary.
 //
-// **One seam is deliberately not published here.** `CustomFieldDefinitionApplyApi`
-// — the six co-transactional `apply*` methods `catalog`'s attribute Commands
-// call — takes the caller's MikroORM `EntityManager` and returns the two ORM
-// entities. Neither can appear in a `@b2b/contracts` signature (FR-034), and
-// laundering the `EntityManager` behind a type parameter would publish the
-// coupling rather than remove it. It is the one shape in the first Phase-P
-// wave that needs a design conversation rather than a contract, so it is
-// escalated instead of guessed at; `catalog`'s Phase-C merge request is where
-// it comes due.
+// **One seam is deliberately not published here, and D-77 ruled that it stays
+// that way.** `CustomFieldDefinitionApplyApi` — the six co-transactional
+// `apply*` methods `catalog`'s attribute Commands call — takes the caller's
+// MikroORM `EntityManager`, which may not appear in a `@b2b/contracts`
+// signature (FR-034) and which a branded stand-in would publish rather than
+// remove.
+//
+// What holds it there is not a convention but a constraint:
+// `fk_product_attributes_custom_field_definition`, `on delete restrict`, plus a
+// `unique` on the same column. A child insert must see its parent inside one
+// transaction, and a second transaction cannot satisfy a foreign key against a
+// row it cannot see. AGENTS.md § Migrations item 4 tells you to *declare* a
+// cross-module foreign key rather than avoid it; `catalog`'s manifest does.
+// The seam's ledger entry is `permanent: true`, and what retires it is F4's
+// package entry points — not a port, and not a relocation.
+//
+// Two narrowings were taken with that ruling, and both live here. The `apply*`
+// returns are the published records below rather than live managed entities, so
+// a host loses the *ability* to mutate a definition outside the seam; and the
+// failure crossing the boundary is the code union and guard below rather than
+// an imported error class.
 // ---------------------------------------------------------------------------
+
+/**
+ * How a definition or option write can be refused (feature 061).
+ *
+ * Published as a union rather than a class so a host narrows the failure
+ * **structurally**. `catalog` mapped these onto its own HTTP surface by
+ * `err instanceof CustomFieldDefinitionError`, which meant importing a
+ * constructor out of another module to read a string field off it.
+ */
+export const CUSTOM_FIELD_DEFINITION_ERROR_CODES = [
+  'not_found',
+  'duplicate_key',
+  'options_required',
+  'options_forbidden',
+  'entity_type_unknown',
+  'value_type_locked',
+  'option_in_use',
+] as const;
+export type CustomFieldDefinitionErrorCode =
+  (typeof CUSTOM_FIELD_DEFINITION_ERROR_CODES)[number];
+
+/** A refused definition or option write, as a host outside `custom_fields` sees it. */
+export interface CustomFieldDefinitionFailure {
+  readonly name: 'CustomFieldDefinitionError';
+  readonly code: CustomFieldDefinitionErrorCode;
+  readonly message: string;
+}
+
+/**
+ * Whether `error` is a refused definition write, narrowed by shape.
+ *
+ * `name` and `code` together, not `name` alone: the name is what the class sets
+ * on itself and the code is what the caller branches on, so a shape carrying one
+ * without the other is not something a host can act on.
+ */
+export function isCustomFieldDefinitionFailure(
+  error: unknown,
+): error is CustomFieldDefinitionFailure {
+  if (typeof error !== 'object' || error === null) return false;
+  const candidate = error as { name?: unknown; code?: unknown; message?: unknown };
+  return (
+    candidate.name === 'CustomFieldDefinitionError' &&
+    typeof candidate.code === 'string' &&
+    (CUSTOM_FIELD_DEFINITION_ERROR_CODES as readonly string[]).includes(candidate.code) &&
+    typeof candidate.message === 'string'
+  );
+}
 
 /** One custom-field definition, as a module outside `custom_fields` sees it. */
 export interface CustomFieldDefinitionRecord {

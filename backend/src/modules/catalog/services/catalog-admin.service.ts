@@ -37,7 +37,10 @@ import {
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { Command, CommandBus } from '../../../commands/index.js';
-import type { CustomFieldDefinitionApplyApi } from '../../custom_fields/services/custom-field-definition.service.js';
+// D-77 — the apply seam is named once in this module, by `attribute-commands.ts`
+// (see the re-export there for why it is a re-export and not a local
+// declaration). This file extends it into the slice the catalog write path uses.
+import type { CustomFieldDefinitionApplyApi } from '../commands/attribute-commands.js';
 import type { CachedDefinition } from '../../custom_fields/services/custom-field-definitions-cache.js';
 import type {
   CatalogAttributeReadService,

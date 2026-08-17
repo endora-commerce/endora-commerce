@@ -14,7 +14,9 @@
  * is a boundary the repository has decided to keep, and it needs a reason that
  * says so.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   'modules/catalog/backend.ts:assets_library/services/reference-registry':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/backend.ts:prompt_actions/services/bulk-progress-registry':
@@ -26,7 +28,31 @@ export const entries: Readonly<Record<string, string>> = {
   'modules/catalog/backend.ts:prompt_actions/services/tool-registry':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/commands/attribute-commands.ts:custom_fields/services/custom-field-definition.service':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
+    {
+      permanent: true,
+      reason:
+        'D-77 — the apply seam, and the one entry in this shard that is not debt. ' +
+        '`catalog/migrations/20260723T230401_catalog_attributes_on_custom_fields.ts:120-130` adds ' +
+        '`fk_product_attributes_custom_field_definition` (`on delete restrict`) plus a `unique` on ' +
+        '`product_attributes.custom_field_definition_id`, so a `product_attributes` insert must see ' +
+        'its `custom_field_definitions` parent inside ONE transaction — a second transaction cannot ' +
+        'satisfy a foreign key against a row it cannot see, and `attribute-commands.ts` flushes ' +
+        'between the two writes for exactly that reason. No port can carry the caller\'s ' +
+        '`EntityManager` without putting MikroORM into `@b2b/contracts` (FR-034); a branded handle ' +
+        'publishes the coupling without removing it, a token needs a registry with a lifetime, and ' +
+        'an ambient unit of work is refused in writing (D-77 rationale 3) because the ugly ' +
+        'parameter is the deterrent that has kept this at one seam in 65 modules. 061 R4 refused ' +
+        'compensation and nested commands five months earlier, on correctness. `catalog`\'s ' +
+        'manifest declares `custom_fields`, as AGENTS.md § Migrations item 4 requires of a ' +
+        'cross-module foreign key. What crosses is now ONE type, in THIS file: the returns are ' +
+        '`CustomFieldDefinitionRecord` / `CustomFieldOptionRecord`, the failure is the published ' +
+        'code union and guard, and `catalog-admin.service.ts` names the re-export here.',
+      retiredBy:
+        'F4 gives `custom_fields` a package entry point that exports `CustomFieldDefinitionApplyApi` ' +
+        '— then this is a package dependency the manifest already declares, not an import of ' +
+        'internals. Dropping `fk_product_attributes_custom_field_definition` would retire it too, ' +
+        'and would cost the invariant the constraint buys.',
+    },
   'modules/catalog/commands/attribute-commands.ts:custom_fields/services/custom-field-definitions-cache':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/plugin.ts:custom_fields/services/custom-field-value.service':
@@ -88,8 +114,6 @@ export const entries: Readonly<Record<string, string>> = {
   'modules/catalog/services/bulk-operation.service.ts:admin_users/entities/admin-user.entity':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/bulk-operation.service.ts:email/services/mailer':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/services/catalog-admin.service.ts:custom_fields/services/custom-field-definition.service':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
   'modules/catalog/services/catalog-admin.service.ts:custom_fields/services/custom-field-definitions-cache':
     'F3 Phase C — catalog. Retired by the catalog cut merge request.',
