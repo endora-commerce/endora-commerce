@@ -210,8 +210,11 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'degrade, rather than a `catch` deciding it.',
   'modules/product_feeds/backend.ts:run':
     'BOOT HOOK. The `reconcile` helper logs and continues so an unbootable API ' +
-    'never costs more than a drifted schedule the next boot repairs. `runBootHooks` ' +
-    'catches too, which is the kernel making that decision once — and narrowing ' +
+    'never costs more than a drifted schedule the next boot repairs. This entry used ' +
+    'to add "`runBootHooks` catches too, which is the kernel making that decision ' +
+    'once"; it does not catch — it re-throws as `ModuleCompositionError` and ' +
+    '`index.ts` exits (issue #146, D-67), so this `catch` is the only thing standing ' +
+    'between a drifted schedule and a dead boot. Narrowing ' +
     'this `catch` to re-throw was tried and reverted: it changed what the harness ' +
     'boots with, and three `product_feeds` taxonomy contract tests went red. Boot ' +
     'is where a presence answer has no caller to give itself to, so the rule ' +
@@ -220,9 +223,9 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'reconcile target instead of running it and catching.',
   'modules/pim_ergonode/backend.ts:handle':
     'BOOT HOOK. The import twin of the `product_feeds` reconcile above — same ' +
-    'log-and-continue, same kernel-level catch behind it, same retiring question. ' +
-    'They drain together, and re-throwing was measured to be the wrong fix for ' +
-    'both.',
+    'log-and-continue, same absent kernel-level catch behind it, same retiring ' +
+    'question. They drain together, and re-throwing was measured to be the wrong ' +
+    'fix for both.',
   'modules/catalog/routes.public.ts:searchQueryService':
     'DEGRADE THE OWNER SHOULD ANSWER. The Meilisearch path already falls back to ' +
     'Postgres when the backend is unavailable, and the same fallback is the right ' +
