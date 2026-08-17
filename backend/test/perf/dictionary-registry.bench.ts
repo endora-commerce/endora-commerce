@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Knex } from '@mikro-orm/postgresql';
 import type { DictionaryRegistryResponse } from '@b2b/contracts';
 import {
   setupBackendServer,
@@ -19,12 +20,29 @@ import { DictionaryReadService } from '../../src/modules/dictionaries/services/d
  * (issue #140): the registry is reference data supplied by migrations, and a
  * read over three empty tables answers a well-formed, empty and very fast
  * registry. `entriesFor` is what tells "nothing to do" apart from "quick".
+ *
+ * The cold scenario also counts the statements it issued (issue #142). It used
+ * to resolve one label per entry — ~170 sequential round trips for a 72-entry
+ * registry, and growing with the dictionary — which is what put it over its own
+ * 50 ms budget. The build is a constant seven statements now, and the budget is
+ * tightened to the reality that buys: p95 16-21 ms locally, against 86 ms
+ * before. The statement ceiling is the machine-independent half of the
+ * assertion; the p95 is the half an operator feels.
  */
 
 const shouldRun = process.env['PERF_RUN'] === 'true';
 const iterations = Number(process.env['PERF_ITERATIONS'] ?? '100');
 const p95WarmBudget = Number(process.env['PERF_P95_WARM_MS'] ?? '5');
-const p95ColdBudget = Number(process.env['PERF_P95_COLD_MS'] ?? '50');
+const p95ColdBudget = Number(process.env['PERF_P95_COLD_MS'] ?? '30');
+/** Statements one cold build may issue: the channel, four tables, the fallback languages, the translations. */
+const coldStatementCeiling = Number(process.env['PERF_COLD_STATEMENTS'] ?? '7');
+/**
+ * Entries the seeded reference data answers with (70 countries plus the default
+ * channel's one currency and one language). A number under this means the read
+ * was measured over something other than the registry, and neither budget below
+ * says anything about a registry that was not there (issue #140).
+ */
+const seededEntryFloor = 50;
 
 describe.skipIf(!shouldRun)('dictionary registry — p95 latency', () => {
   let h: BackendServerHandle;
@@ -58,26 +76,39 @@ describe.skipIf(!shouldRun)('dictionary registry — p95 latency', () => {
       `[perf dictionary warm] iterations=${iterations} entries=${minEntries} ` +
         `p95=${p95.toFixed(2)}ms (budget ${p95WarmBudget}ms)\n`,
     );
-    expect(minEntries).toBeGreaterThan(0);
+    expect(minEntries).toBeGreaterThanOrEqual(seededEntryFloor);
     expect(p95).toBeLessThan(p95WarmBudget);
   }, 60_000);
 
   it('cold registry path stays under the p95 budget', async () => {
+    const knex: Knex = h.em().getConnection().getKnex();
+    let statements = 0;
+    const countStatement = (): void => {
+      statements += 1;
+    };
+
     const samples: number[] = [];
     let minEntries = Number.POSITIVE_INFINITY;
     for (let i = 0; i < iterations; i++) {
       await cache.invalidateAll();
+      knex.on('query', countStatement);
       const t0 = performance.now();
       const registry = await service.getRegistry({ locale: 'pl-PL' });
       samples.push(performance.now() - t0);
+      knex.off('query', countStatement);
       minEntries = Math.min(minEntries, entriesFor(registry));
     }
+    const perBuild = statements / iterations;
     const p95 = quantile(samples, 0.95);
     process.stdout.write(
       `[perf dictionary cold] iterations=${iterations} entries=${minEntries} ` +
+        `statements/build=${perBuild.toFixed(1)} (ceiling ${coldStatementCeiling}) ` +
         `p95=${p95.toFixed(2)}ms (budget ${p95ColdBudget}ms)\n`,
     );
-    expect(minEntries).toBeGreaterThan(0);
+    expect(minEntries).toBeGreaterThanOrEqual(seededEntryFloor);
+    // Issue #142 — what the build cost, before how long it took. A count that
+    // tracks `minEntries` is the N+1 back, whatever the clock says on the day.
+    expect(perBuild).toBeLessThanOrEqual(coldStatementCeiling);
     expect(p95).toBeLessThan(p95ColdBudget);
   }, 60_000);
 });

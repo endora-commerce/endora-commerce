@@ -12,7 +12,7 @@ import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entit
 import { Country } from '../entities/country.entity.js';
 import { LanguageCountry } from '../entities/language-country.entity.js';
 import { DictionaryCache, GLOBAL_CACHE_KEY_SEGMENT } from './dictionary-cache.js';
-import { LabelResolver } from './label-resolver.js';
+import { LabelResolver, labelKey, type LabelBatchEntry } from './label-resolver.js';
 
 export interface DictionaryRegistryArgs {
   channelCode?: string;
@@ -54,15 +54,23 @@ export class DictionaryReadService {
       : languages;
 
     const countryLinks = groupCountryLinks(links);
-    const [resolvedCountries, resolvedCurrencies, resolvedLanguages] = await Promise.all([
-      Promise.all(
-        countries.map(async (row) => ({
+    // Issue #142 — one batch, not one resolution per entry. The rows above
+    // already carry their canonical labels, so the only thing left to read is
+    // the translation each entry may have in the locale's fallback chain, and
+    // that is one statement for the whole registry however large it grows.
+    const labels = await this.labelResolver.resolveLabels(
+      [
+        ...countries.map((row) => canonical('country', row.code, row.label)),
+        ...scopedCurrencies.map((row) => canonical('currency', row.code, row.label)),
+        ...scopedLanguages.map((row) => canonical('language', row.code, row.label)),
+      ],
+      ctx.locale,
+    );
+    const payload: DictionaryRegistryResponse = {
+      data: {
+        countries: countries.map((row) => ({
           code: row.code,
-          label: await this.labelResolver.resolveLabel({
-            entryType: 'country',
-            entryCode: row.code,
-            locale: ctx.locale,
-          }),
+          label: labels.get(labelKey('country', row.code)) ?? row.label,
           alpha3Code: row.alpha3Code,
           numericCode: row.numericCode,
           region: row.region as DictionaryRegistryResponse['data']['countries'][number]['region'],
@@ -72,42 +80,23 @@ export class DictionaryReadService {
           defaultCurrencyCode: row.defaultCurrencyCode ?? null,
           sortOrder: row.sortOrder,
         })),
-      ),
-      Promise.all(
-        scopedCurrencies.map(async (row) => ({
+        currencies: scopedCurrencies.map((row) => ({
           code: row.code,
-          label: await this.labelResolver.resolveLabel({
-            entryType: 'currency',
-            entryCode: row.code,
-            locale: ctx.locale,
-          }),
+          label: labels.get(labelKey('currency', row.code)) ?? row.label,
           symbol: row.symbol,
           symbolPosition: row.symbolPosition,
           decimalPlaces: row.decimalPlaces,
           sortOrder: row.sortOrder,
         })),
-      ),
-      Promise.all(
-        scopedLanguages.map(async (row) => ({
+        languages: scopedLanguages.map((row) => ({
           code: row.code,
-          label: await this.labelResolver.resolveLabel({
-            entryType: 'language',
-            entryCode: row.code,
-            locale: ctx.locale,
-          }),
+          label: labels.get(labelKey('language', row.code)) ?? row.label,
           nativeLabel: row.nativeLabel || row.label,
           isRtl: row.isRtl,
           fallbackCode: row.fallbackCode ?? null,
           countries: countryLinks.get(row.code) ?? [],
           sortOrder: row.sortOrder,
         })),
-      ),
-    ]);
-    const payload: DictionaryRegistryResponse = {
-      data: {
-        countries: resolvedCountries,
-        currencies: resolvedCurrencies,
-        languages: resolvedLanguages,
         defaults: {
           country: countries.find((row) => row.isDefault)?.code ?? null,
           currency: ctx.channel?.defaultCurrency ?? scopedCurrencies.find((row) => row.isDefault)?.code ?? null,
@@ -241,6 +230,14 @@ export class DictionaryReadService {
     const language = await this.emFactory().findOne(Language, { isDefault: true });
     return language?.code ?? 'en-US';
   }
+}
+
+function canonical(
+  entryType: DictionaryEntryType,
+  entryCode: string,
+  canonicalLabel: string,
+): LabelBatchEntry {
+  return { entryType, entryCode, canonicalLabel };
 }
 
 function groupCountryLinks(links: LanguageCountry[]): Map<string, string[]> {
