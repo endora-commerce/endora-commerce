@@ -1,7 +1,11 @@
-import { ERROR_CODES, type QuickOrderBuildResponse, type QuickOrderTarget } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type CartWritePort,
+  type QuickOrderBuildResponse,
+  type QuickOrderTarget,
+  type RfqCustomerPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { CartService } from '../../carts/services/cart-service.js';
-import type { RfqService } from '../../quote_requests/services/rfq-service.js';
 
 /**
  * Context for a quick-order build. `organizationId` may be null for a no-org
@@ -21,16 +25,16 @@ export interface QuickOrderBuildLineInput {
 
 /**
  * QuickOrderBuildService (feature 039, US1). Turns a confirmed set of
- * recognized lines into either a Cart (via {@link CartService}) or a Quote
- * Request (via {@link RfqService}) — reusing the existing services rather
- * than a parallel ordering path (FR-031). Pricing is owned by those services
- * (the buyer's / organization's current price list), never the import file
- * (FR-007).
+ * recognized lines into either a Cart (via {@link CartWritePort}) or a Quote
+ * Request (via {@link RfqCustomerPort}) — reusing the owning modules' surfaces
+ * rather than a parallel ordering path (FR-031). Pricing is owned by those
+ * modules (the buyer's / organization's current price list), never the import
+ * file (FR-007).
  */
 export class QuickOrderBuildService {
   constructor(
-    private readonly cartService: CartService,
-    private readonly rfqService: RfqService,
+    private readonly cartWrite: CartWritePort,
+    private readonly rfq: RfqCustomerPort,
   ) {}
 
   async build(
@@ -52,9 +56,9 @@ export class QuickOrderBuildService {
     items: QuickOrderBuildLineInput[],
   ): Promise<QuickOrderBuildResponse> {
     const customer = { customerAccountId: ctx.customerAccountId, organizationId: ctx.organizationId };
-    const cart = await this.cartService.getOrCreateForCustomer(customer);
+    const cart = await this.cartWrite.getOrCreateForCustomer(customer);
     for (const item of items) {
-      await this.cartService.addItem(
+      await this.cartWrite.addItem(
         { customer },
         {
           productId: item.productId,
@@ -77,7 +81,7 @@ export class QuickOrderBuildService {
         'A quote request requires an organization.',
       );
     }
-    const rfq = await this.rfqService.createForCustomer(
+    const rfq = await this.rfq.createForCustomer(
       {
         customerAccountId: ctx.customerAccountId,
         organizationId: ctx.organizationId,

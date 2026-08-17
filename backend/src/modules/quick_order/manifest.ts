@@ -69,10 +69,19 @@ export const manifest = defineModuleManifest({
   // `carts`, `catalog`, `orders`, `organizations` and `quote_requests` were all
   // reached before through options the host passed down, which is why none of
   // them appeared here.
+  //
+  // Feature 075, Phase C adds `customer_accounts`: the two preference surfaces
+  // read `CustomerAccount` to work out whose defaults are being managed, out of
+  // a table deactivation leaves in place, so an operator switching accounts off
+  // still got an answer. It fails closed at `customerAccountReadPort` now, and
+  // it belongs in `dependencies` rather than `nonBindingDependencies` — a set
+  // of ordering defaults resolved without knowing whose they are is worse than
+  // no defaults at all.
   dependencies: [
     'addresses',
     'carts',
     'catalog',
+    'customer_accounts',
     'delivery_methods',
     'orders',
     'organizations',

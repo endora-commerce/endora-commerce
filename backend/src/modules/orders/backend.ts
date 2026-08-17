@@ -416,13 +416,19 @@ export function registerModule(ctx: ModuleContext): void {
     'orderPlacementPort',
     ctx
       .asFunction((): OrderPlacementPort => ({
-        placeOrder: async (customerContext, req) =>
-          toOrderRecord(
-            await requireExposed(exposed.orderService, 'order placement').placeOrder(
-              customerContext,
-              req,
-            ),
-          ),
+        // `nextAction` is carried across explicitly. It is a virtual column, so
+        // `toOrderRecord` — which maps a *stored* order — does not and should
+        // not know about it; but it is the whole point of the reply to a
+        // placement, and publishing `OrderRecord` alone would have dropped the
+        // payment redirect from `quick_order`'s one-click response (feature
+        // 075, corrected in the `quick_order` cut).
+        placeOrder: async (customerContext, req) => {
+          const order = await requireExposed(
+            exposed.orderService,
+            'order placement',
+          ).placeOrder(customerContext, req);
+          return { ...toOrderRecord(order), nextAction: order.nextAction ?? null };
+        },
       }))
       .singleton(),
   );

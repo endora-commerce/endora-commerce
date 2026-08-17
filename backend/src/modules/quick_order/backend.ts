@@ -2,7 +2,19 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
-import type { DefaultPreferencePort } from '@b2b/contracts';
+import type {
+  CartWritePort,
+  CatalogAttributeReadPort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  DefaultPreferencePort,
+  OrderPlacementPort,
+  RfqCustomerPort,
+  SalesRepAssignmentPort,
+} from '@b2b/contracts';
+// The one collaborator this module still names by class. `DefaultPreferenceService`
+// is cut in `customers`' merge request, not this one — see the shard.
+import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -11,17 +23,12 @@ import {
   SettingOutOfScopeForChannel,
   type SettingsService,
 } from '../../kernel/settings/settings.service.js';
-import type { CartService } from '../carts/services/cart-service.js';
-import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
-import type { OrderService } from '../orders/services/order-service.js';
-import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
-import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import {
   QUICK_ORDER_SETTING_CODES,
   DEFAULT_IMPORT_MAX_ROWS,
   DEFAULT_ONE_CLICK_BUY_ENABLED,
 } from './manifest.js';
-import { MikroOrmCatalogLookup } from './services/catalog-lookup.js';
+import { CatalogPortLookup } from './services/catalog-lookup.js';
 import { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import { QuickOrderBuildService } from './services/quick-order-build-service.js';
 import { DefaultPreferenceService } from './services/default-preference-service.js';
@@ -60,9 +67,19 @@ import { registerQuickOrderOneClickRoutes } from './routes.one-click.js';
  * groups register unconditionally now, and the module's own activation control
  * is the one intentional gate.
  *
- * The one-click flow reaches `OrderService` through `orderServiceAccessor`,
- * which `orders` provides since T141. It was `oneClickOrderServiceGetter`, a
- * root closure over a root-held variable an `expose…` callback filled in.
+ * **Feature 075, Phase C — every collaborator is a published port now.** The
+ * five type imports this file carried (`CartService`, `CatalogAttributeReadService`,
+ * `OrderService`, `OrganizationRestrictionService`, `RfqService`) named five
+ * other modules' classes; they are `@b2b/contracts` interfaces resolved by
+ * `lazyPort` with a string literal. Six more ports arrive with them, because
+ * the two preference surfaces and the CSV lookup were reading five modules'
+ * entities directly.
+ *
+ * `orderServiceAccessor` is gone with the last of them. The one-click flow
+ * reached `OrderService` through it — a `() => OrderService | null` whose
+ * `null` arm the service turned into a 503 — and `orderPlacementPort` answers
+ * the same 503 at the resolution seam, where a wiring mistake and an absent
+ * module stop being the same value.
  */
 
 /** What `quick_order` resolves from the container, and the names it owns. */
@@ -77,17 +94,6 @@ export interface QuickOrderCradle {
   };
   readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string };
   readonly settingsReadPort: SettingsService;
-  readonly cartService: CartService;
-  readonly rfqService: RfqService;
-  readonly catalogAttributeReadPort: CatalogAttributeReadService;
-  readonly organizationRestrictionPort: OrganizationRestrictionService;
-  /**
-   * `orders`' own accessor (T141). It was `oneClickOrderServiceGetter`, a root
-   * closure over a root-held variable an `expose…` callback filled in; the
-   * module holds that binding itself now. Still an accessor because the timing
-   * is real — the service exists only once `orders` registers its routes.
-   */
-  readonly orderServiceAccessor: () => OrderService | null;
   readonly quickOrderPipeline: QuickOrderImportPipeline;
   readonly quickOrderBuildService: QuickOrderBuildService;
   readonly quickOrderPreferenceService: DefaultPreferenceService;
@@ -137,8 +143,10 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     quickOrderPipeline: ctx
       .asFunction(
-        ({ emFactory }: QuickOrderCradle) =>
-          new QuickOrderImportPipeline(new MikroOrmCatalogLookup(emFactory)),
+        () =>
+          new QuickOrderImportPipeline(
+            new CatalogPortLookup(lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort')),
+          ),
       )
       .singleton(),
 
@@ -149,8 +157,8 @@ export function registerModule(ctx: ModuleContext): void {
             // Both are other modules' gated ports and both are stored by the
             // constructor, so a singleton may not hold them directly — Awilix's
             // strict mode refuses a transient inside a longer-lived object.
-            lazyPort<CartService>(ctx, 'cartService'),
-            lazyPort<RfqService>(ctx, 'rfqService'),
+            lazyPort<CartWritePort>(ctx, 'cartWritePort'),
+            lazyPort<RfqCustomerPort>(ctx, 'rfqService'),
           ),
       )
       .singleton(),
@@ -171,8 +179,8 @@ export function registerModule(ctx: ModuleContext): void {
         ({ quickOrderPreferenceService }: QuickOrderCradle) =>
           new OneClickService(
             quickOrderPreferenceService,
-            lazyPort<CartService>(ctx, 'cartService'),
-            () => cradle().orderServiceAccessor(),
+            lazyPort<CartWritePort>(ctx, 'cartWritePort'),
+            lazyPort<OrderPlacementPort>(ctx, 'orderPlacementPort'),
             // This module's own setting, read here rather than through a
             // resolver a host passes down. The channel comes from the request
             // (`routes.one-click.ts`), so `null` means there was none and the
@@ -274,10 +282,8 @@ export function registerModule(ctx: ModuleContext): void {
       requireCustomer,
       resolveCustomerContext,
       resolveImportMaxRows,
-      catalogAttributeRead: lazyPort<CatalogAttributeReadService>(
-        ctx,
-        'catalogAttributeReadPort',
-      ),
+      catalogAttributeRead: lazyPort<CatalogAttributeReadPort>(ctx, 'catalogAttributeReadPort'),
+      catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
     });
 
     await registerQuickOrderAdminRoutes(app, {
@@ -289,14 +295,15 @@ export function registerModule(ctx: ModuleContext): void {
 
     await registerQuickOrderPreferenceRoutes(app, {
       service: preferenceService,
-      emFactory,
+      customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
       requireCustomer,
       resolveCustomerContext,
     });
 
     await registerQuickOrderPreferenceAdminRoutes(app, {
       service: preferenceService,
-      emFactory,
+      customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+      salesRepScope: lazyPort<SalesRepAssignmentPort>(ctx, 'organizationSalesRepScopePort'),
       requireAdmin,
       resolveAdminContext: (req: FastifyRequest) => cradle().adminContextResolver(req),
     });
