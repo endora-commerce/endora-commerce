@@ -2298,3 +2298,141 @@ export interface CatalogPromoAttributePort {
   promoRuleAttributeKeys(): Promise<string[]>;
   getAttributeWithOptions(key: string): Promise<CatalogAttributeWithOptions | null>;
 }
+
+// --- the sellable-product filter ---------------------------------------------
+//
+// Feature 075. This is the demand the header of this section recorded as
+// deliberately unmet and the `product_feeds` shard escalated back: that module
+// compiles its own selection DSL into a MikroORM `where` object and hands it to
+// `em.find(Product, where as never)`. A port cannot take that argument — a query
+// object is the ORM, not a contract.
+//
+// The answer is a filter that is **narrower than MikroORM on purpose**: six
+// columns, one JSONB bag, twelve operators, two combinators, and nothing else.
+// It expresses every leaf `product_feeds` compiles today and it cannot become a
+// general query surface, because there is no node for a join, a relation, a raw
+// fragment or a column this list does not name.
+//
+// The **eligibility floor and the keyset cursor live inside the port**, not in
+// the caller's conjunction. That is the whole reason the port is shaped this way
+// rather than as "take a predicate, return rows": feature 067's FR-026 makes the
+// floor non-overridable, and a caller-composed `$and` is exactly how it could
+// stop being — the floor's channel membership, a category criterion and the
+// cursor all constrain `id`, one object spread away from being a single
+// surviving key.
+
+/** A scalar a filter condition compares against. */
+export type CatalogProductFilterValue = string | number | boolean | Date | null;
+
+/**
+ * What a condition addresses.
+ *
+ * `column` names one of the six product columns a selection may filter on;
+ * `attribute` addresses one key of `products.attribute_values`, the JSONB bag
+ * that has held product attributes and product custom fields alike since
+ * feature 061.
+ */
+export type CatalogProductFilterField =
+  | { kind: 'column'; column: 'id' | 'sku' | 'type' | 'status' | 'createdAt' | 'updatedAt' }
+  | { kind: 'attribute'; key: string };
+
+/**
+ * The operators a condition may use.
+ *
+ * `contains` and `startsWith` are patterns the **owner** builds, so a caller
+ * never writes SQL `LIKE` syntax and the escaping rule has one home. Both match
+ * case-insensitively, as the queries they replace already did.
+ */
+export type CatalogProductFilterOperator =
+  | 'eq'
+  | 'ne'
+  | 'in'
+  | 'nin'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'contains'
+  | 'startsWith'
+  | 'isNull'
+  | 'isNotNull';
+
+export interface CatalogProductFilterCondition {
+  kind: 'condition';
+  field: CatalogProductFilterField;
+  op: CatalogProductFilterOperator;
+  /**
+   * The comparison values. `in` / `nin` read all of them; a range is expressed
+   * as two conditions under an `and` group; every other operator reads the
+   * first; `isNull` and `isNotNull` read none.
+   */
+  values: readonly CatalogProductFilterValue[];
+}
+
+export interface CatalogProductFilterGroup {
+  kind: 'group';
+  op: 'and' | 'or';
+  children: readonly CatalogProductFilter[];
+}
+
+/**
+ * The two constants a compiler needs and an empty object cannot express.
+ *
+ * `all` constrains nothing; `none` can never be satisfied. They are named
+ * rather than left to `{}`, because inside an `or` branch an empty predicate
+ * collapses the branch instead of matching everything — a superset silently
+ * becoming a subset, which is how a filter drops the rows it was meant to keep.
+ *
+ * Two interfaces rather than one with a two-value `kind`, so `kind` stays a
+ * discriminant a translator can narrow the whole union on.
+ */
+export interface CatalogProductFilterAll {
+  kind: 'all';
+}
+export interface CatalogProductFilterNone {
+  kind: 'none';
+}
+export type CatalogProductFilterConstant = CatalogProductFilterAll | CatalogProductFilterNone;
+
+export type CatalogProductFilter =
+  | CatalogProductFilterCondition
+  | CatalogProductFilterGroup
+  | CatalogProductFilterAll
+  | CatalogProductFilterNone;
+
+/** One keyset page of the products a filter selects. */
+export interface CatalogSellableProductQuery {
+  /**
+   * The only ids the query may consider — for a feed, the sales channel's
+   * membership, resolved by the caller through the sanctioned bridge accessor
+   * (Principle XII). Required, and an empty list selects nothing: this port has
+   * no "every product in the platform" reading.
+   */
+  productIds: readonly string[];
+  filter: CatalogProductFilter;
+  /** Keyset cursor. Only ids strictly greater come back; `null` starts at the first. */
+  afterId?: string | null;
+  /** Page size. Defaults to 500, the size the feed pipeline already walks in. */
+  limit?: number;
+}
+
+/**
+ * Container name: `catalogProductFilterPort`. Owner: `catalog`.
+ *
+ * **Sellable** is this module's floor and this module applies it: `status`
+ * `active`, `visibility` `public`, not archived, not soft-deleted. It is
+ * conjoined *with* the caller's filter here, so no filter a caller can
+ * construct widens past it.
+ *
+ * Rows come back as {@link CatalogProductRecord} in ascending id order, which
+ * is what makes the cursor a keyset rather than an offset: a catalogue that
+ * moves under a long walk cannot make the walk skip a row or repeat one.
+ *
+ * When `catalog` is off both methods fail closed. A feed assembled from a
+ * catalogue the platform is refusing to serve is worse than a run that stops
+ * and says why.
+ */
+export interface CatalogProductFilterPort {
+  listSellable(query: CatalogSellableProductQuery): Promise<CatalogProductRecord[]>;
+  countSellable(query: Omit<CatalogSellableProductQuery, 'afterId' | 'limit'>): Promise<number>;
+}

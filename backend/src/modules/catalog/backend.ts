@@ -13,6 +13,7 @@ import type {
   CatalogCategoryWritePort,
   CatalogGalleryPort,
   CatalogGroupedPort,
+  CatalogProductFilterPort,
   CatalogProductLinkPort,
   CatalogProductReadPort,
   CatalogProductWritePort,
@@ -40,6 +41,7 @@ import { ProductLinkService } from './services/product-link.service.js';
 import { GroupedService } from './services/grouped.service.js';
 import { CatalogAttributeReadService } from './services/catalog-attribute-read.service.js';
 import { CatalogCategoryReadService } from './services/catalog-category-read.service.js';
+import { CatalogProductFilterService } from './services/catalog-product-filter.service.js';
 import { CatalogProductReadService } from './services/catalog-product-read.service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import { CatalogQuickSearchService } from './services/catalog-quick-search.service.js';
@@ -317,11 +319,12 @@ export function registerModule(ctx: ModuleContext): void {
   // `promotions` measurably call — ten of `CatalogAdminService`'s hundred, two
   // of `CatalogQueryService`'s.
   //
-  // `product_feeds`' predicate-driven product scan is deliberately unmet: it
-  // compiles its own selection DSL into a MikroORM `where` and hands it to
-  // `em.find(Product, where as never)`. A port cannot take a query object, and
-  // inverting it means publishing the DSL or teaching this module about feeds.
-  // That is escalated to the `product_feeds` cut rather than guessed at here.
+  // `product_feeds`' predicate-driven product scan was deliberately unmet here
+  // and escalated to the `product_feeds` cut, which ruled it: the module keeps
+  // its selection DSL and compiles it to `CatalogProductFilter` — a grammar
+  // narrower than MikroORM, published in `@b2b/contracts` — and this module
+  // translates and runs it, with the eligibility floor and the keyset cursor
+  // inside `catalogProductFilterPort` rather than in the caller's conjunction.
   // ---------------------------------------------------------------------------
 
   ctx.di.providePort<CatalogProductReadPort>(
@@ -335,6 +338,20 @@ export function registerModule(ctx: ModuleContext): void {
     'catalogCategoryReadPort',
     ctx
       .asFunction(({ emFactory }: CatalogCradle) => new CatalogCategoryReadService(emFactory))
+      .singleton(),
+  );
+
+  /**
+   * The selection scan `product_feeds` walks a channel with. Separate from
+   * `catalogProductReadPort` because it answers a different question: that port
+   * resolves rows a caller can already name, this one *finds* them — and it is
+   * the only place the sellable floor and the keyset cursor are applied, so
+   * neither can be composed away by a caller.
+   */
+  ctx.di.providePort<CatalogProductFilterPort>(
+    'catalogProductFilterPort',
+    ctx
+      .asFunction(({ emFactory }: CatalogCradle) => new CatalogProductFilterService(emFactory))
       .singleton(),
   );
 
