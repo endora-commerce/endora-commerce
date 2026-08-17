@@ -23,6 +23,7 @@ import { ApiKey } from '../../../src/modules/api_keys/entities/api-key.entity.js
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 062 / T020 — `POST /api/v1/external/orders` + the orders half of the
@@ -141,7 +142,7 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
 
     // Org-targeted price list — the intake must charge the ORG price (100),
     // not the channel default (19.99).
-    const priceLists = new PriceListService(() => h.em());
+    const priceLists = new PriceListService(() => h.em(), undefined, undefined, undefined, neighbourReadPorts(() => h.em()));
     const list = await priceLists.create({
       name: 'Org A intake base',
       type: 'base',

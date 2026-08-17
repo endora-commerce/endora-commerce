@@ -2,13 +2,20 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PriceListService } from './services/price-list-service.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
-import { Product } from '../catalog/entities/product.entity.js';
+import type { CatalogProductReadPort } from '@b2b/contracts';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 
 export interface StorefrontPricingRoutesDeps {
   priceListService: PriceListService;
   pricingService: PricingServiceContract;
   emFactory: () => EntityManager;
+  /**
+   * Feature 075 Phase C — the product these two routes price, over `catalog`'s
+   * read port instead of its `Product` entity. It fails closed when `catalog`
+   * is off, which is the answer a storefront price probe should get: quoting a
+   * price for a product the platform will not serve is worse than refusing.
+   */
+  catalogProductRead: CatalogProductReadPort;
 }
 
 /**
@@ -26,13 +33,12 @@ export async function registerStorefrontPricingRoutes(
   app: FastifyInstance,
   deps: StorefrontPricingRoutesDeps,
 ): Promise<void> {
-  const { priceListService, pricingService, emFactory } = deps;
+  const { priceListService, pricingService, catalogProductRead } = deps;
 
   app.get<{ Params: { productId: string } }>(
     '/api/v1/storefront/pricing/display-mode/:productId',
     async (request, reply) => {
-      const em = emFactory();
-      const product = await em.findOne(Product, { id: request.params.productId });
+      const product = await catalogProductRead.findById(request.params.productId);
       if (!product) {
         reply.status(404);
         return { error: { code: 'NOT_FOUND', message: 'Product not found.' } };
@@ -56,8 +62,7 @@ export async function registerStorefrontPricingRoutes(
   }>(
     '/api/v1/storefront/products/:id/resolved-price',
     async (request, reply) => {
-      const em = emFactory();
-      const product = await em.findOne(Product, { id: request.params.id });
+      const product = await catalogProductRead.findById(request.params.id);
       if (!product) {
         reply.status(404);
         return { error: { code: 'NOT_FOUND', message: 'Product not found.' } };

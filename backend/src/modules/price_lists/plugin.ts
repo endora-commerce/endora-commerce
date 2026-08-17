@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { CustomerGroupService } from './services/customer-group-service.js';
 import { PriceListService } from './services/price-list-service.js';
 import { PricingService } from './services/pricing-service.js';
+import type { PriceListTargetReads } from './services/price-list-service.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
 import { PriceListStatusWorker } from './services/price-list-status-worker.js';
 import { PricingCache } from './services/pricing-cache.js';
@@ -64,6 +65,13 @@ export interface PriceListsModuleOptions {
    * Absent ⇒ core, byte-for-byte unchanged for the bare-core build.
    */
   decoratePricingService?: (inner: PricingServiceContract) => PricingServiceContract;
+  /**
+   * Feature 075 Phase C — the neighbour read ports this module resolves instead
+   * of importing `catalog`'s, `organizations`' and `customer_accounts`'
+   * entities. Required: every one of them is a real dependency this module has
+   * always had, and the manifest declares all three.
+   */
+  targetReads: PriceListTargetReads;
 }
 
 export interface PriceListsModuleHandle {
@@ -86,6 +94,7 @@ export function priceListsModule(options: PriceListsModuleOptions): {
     pricingCache,
     options.auditLogService,
     options.commandBus,
+    options.targetReads,
   );
   // Core is always constructed; a deployment override wraps it rather than
   // taking its place (feature 072, D-28). Consumers read
@@ -96,6 +105,7 @@ export function priceListsModule(options: PriceListsModuleOptions): {
     options.emFactory,
     pricingCache,
     options.resolveOrgChain,
+    options.targetReads,
   );
   const pricingService: PricingServiceContract =
     options.decoratePricingService?.(corePricingService) ?? corePricingService;
@@ -110,6 +120,9 @@ export function priceListsModule(options: PriceListsModuleOptions): {
         pricingService,
         emFactory: options.emFactory,
         requireAdmin: options.requireAdmin,
+        catalogProductRead: options.targetReads.catalogProductRead,
+        catalogCategoryRead: options.targetReads.catalogCategoryRead,
+        organizationDetails: options.targetReads.organizationDetails,
         ...(options.resolveAdminAuditContext
           ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
           : {}),
@@ -118,6 +131,7 @@ export function priceListsModule(options: PriceListsModuleOptions): {
         priceListService,
         pricingService,
         emFactory: options.emFactory,
+        catalogProductRead: options.targetReads.catalogProductRead,
       });
 
       if (options.enableStatusSweeper !== false) {

@@ -44,6 +44,12 @@ export const manifest = defineModuleManifest({
   description:
     'Customer-group pricing, brackets, display modes, and rule-based engine.',
   version: '1.0.0',
+  // Feature 075 Phase C left this list as it was, and the one edge it could not
+  // add is the reason: `customer_accounts.customer_group_id` is a foreign key
+  // into this module's `customer_groups`, so `customer_accounts` declares
+  // `price_lists` and the reverse declaration is a cycle
+  // `src/db/migration-order.ts` refuses outright. The admin resolved-price probe
+  // therefore keeps its one entity read, ledgered with that reason.
   dependencies: ['catalog', 'organizations', 'settings'],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base, and one of the

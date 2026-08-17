@@ -18,6 +18,7 @@ import {
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
 import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
 import { OrganizationInheritanceService } from '../../../src/modules/organizations/services/organization-inheritance-service.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 056 US3 — price-list inheritance up the organization tree (T021).
@@ -75,7 +76,12 @@ describe('price-list inheritance up the org tree (US3)', () => {
     h = await setupBackendServer();
     tree = new OrganizationTreeService(h.em);
     const inheritance = new OrganizationInheritanceService(h.em, tree);
-    pricing = new PricingService(h.em, undefined, (orgId) => inheritance.priceListOrgChain(orgId));
+    pricing = new PricingService(
+      h.em,
+      undefined,
+      (orgId) => inheritance.priceListOrgChain(orgId),
+      neighbourReadPorts(h.em),
+    );
   });
 
   afterAll(async () => {
@@ -103,7 +109,13 @@ describe('price-list inheritance up the org tree (US3)', () => {
   });
 
   async function makeOrgList(name: string, orgId: string, pricePln: string): Promise<string> {
-    const svc = new PriceListService(h.em);
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
     const list = await svc.create({
       name,
       type: 'base',
@@ -118,7 +130,13 @@ describe('price-list inheritance up the org tree (US3)', () => {
   }
 
   async function seedDefault(price: string): Promise<void> {
-    const svc = new PriceListService(h.em);
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, product.id, {
       PLN: [{ minQuantity: 1, maxQuantity: null, amount: price }],
@@ -167,7 +185,13 @@ describe('price-list inheritance up the org tree (US3)', () => {
       name: 'IPL Group',
     });
     await h.em().persistAndFlush(cg);
-    const svc = new PriceListService(h.em);
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
     const cgList = await svc.create({
       name: 'CG List',
       type: 'base',

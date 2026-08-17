@@ -23,6 +23,7 @@ import {
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
 import { CreditLimitService } from '../../../src/modules/credit_limits/services/credit-limit-service.js';
 import { EventBus } from '../../../src/events/bus.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 056 — flat-behavior preservation lock (T028, FR-001/FR-013).
@@ -107,7 +108,7 @@ describe('flat-behavior preservation (feature 056, FR-001/FR-013)', () => {
     org.customerGroupId = cg.id;
     await em.flush();
 
-    const svc = new PriceListService(h.em);
+    const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, product.id, {
       PLN: [{ minQuantity: 1, maxQuantity: null, amount: '100' }],
@@ -123,7 +124,7 @@ describe('flat-behavior preservation (feature 056, FR-001/FR-013)', () => {
     });
     await svc.activate(orgList.id);
 
-    const flatPricing = new PricingService(h.em);
+    const flatPricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
     const wiredPricing = new PricingService(h.em, undefined, (id) => inheritance.priceListOrgChain(id));
 
     const flatOut = await flatPricing.resolveEngine({

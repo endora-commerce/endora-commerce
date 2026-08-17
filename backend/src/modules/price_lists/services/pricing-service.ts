@@ -1,7 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DisplayMode, ListingPrice } from '@b2b/contracts';
-import type { Product } from '../../catalog/entities/product.entity.js';
-import type { Organization } from '../../organizations/entities/organization.entity.js';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
 import {
@@ -17,8 +15,11 @@ import {
   type PriceBracketRow,
 } from './price-bracket-resolver.js';
 import { listingPriceFrom } from './listing-price-chain.js';
+import type { PriceListTargetReads } from './price-list-service.js';
 import type {
   ListingPricesInput,
+  PricedProductRef,
+  PricingOrganizationRef,
   PricingServiceContract,
 } from './pricing-service.interface.js';
 
@@ -53,6 +54,13 @@ export class PricingService implements PricingServiceContract {
      * price list. When absent, the chain is `[orgId]` (flat behavior, byte-for-byte).
      */
     private readonly resolveOrgChain?: (orgId: string) => Promise<readonly string[]>,
+    /**
+     * Feature 075 Phase C — forwarded verbatim to the `PriceListService` this
+     * engine builds for the display-mode chain, whose category step reaches
+     * `catalog` over its read port. Absent, that step refuses rather than
+     * treating every category as unknown.
+     */
+    private readonly targetReads?: PriceListTargetReads,
   ) {}
 
   // ---- Engine resolver (US5 / FR-026..FR-032) ------------------------
@@ -77,11 +85,11 @@ export class PricingService implements PricingServiceContract {
    * the response shape is complete.
    */
   async resolveEngine(input: {
-    product: Product;
+    product: PricedProductRef;
     variantId?: string | null;
     context: {
       quantity: number;
-      organization?: Organization | null;
+      organization?: PricingOrganizationRef | null;
       /**
        * Feature 040 — a customer's DIRECT customer-group membership, which
        * overrides the Organization's group when set (R6). Callers that know the
@@ -193,7 +201,13 @@ export class PricingService implements PricingServiceContract {
     // PriceListService into its constructor signature (keeps the existing
     // composition.ts wiring intact).
     const { PriceListService } = await import('./price-list-service.js');
-    const priceListService = new PriceListService(this.emFactory);
+    const priceListService = new PriceListService(
+      this.emFactory,
+      undefined,
+      undefined,
+      undefined,
+      this.targetReads,
+    );
     const displayMode = await priceListService.resolveDisplayMode({
       productId: product.id,
       organizationId: context.organization?.id ?? null,
@@ -235,11 +249,11 @@ export class PricingService implements PricingServiceContract {
    * the Base price; both come from `resolveEngine`.
    */
   async resolveLinePrice(input: {
-    product: Product;
+    product: PricedProductRef;
     variantId?: string | null;
     context: {
       quantity: number;
-      organization?: Organization | null;
+      organization?: PricingOrganizationRef | null;
       /** Feature 040 — customer's direct group overrides the org's (R6). */
       customerGroupId?: string | null;
       /**

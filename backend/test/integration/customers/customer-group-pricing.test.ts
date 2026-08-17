@@ -7,6 +7,7 @@ import { CustomerGroup } from '../../../src/modules/price_lists/entities/custome
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
 import { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
 import { DefaultPriceListMigrator } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 040, US6 / R6 — the customer's DIRECT customer-group overrides the
@@ -57,7 +58,7 @@ describe('Customer-group pricing override (US6)', () => {
     });
     await em.persistAndFlush([channel, group, product]);
 
-    const svc = new PriceListService(() => em);
+    const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
     const list = await svc.create({
       name: 'VIP List',
       type: 'base',
@@ -69,7 +70,7 @@ describe('Customer-group pricing override (US6)', () => {
     });
     await svc.activate(list.id);
 
-    const pricing = new PricingService(() => em);
+    const pricing = new PricingService(() => em, undefined, undefined, neighbourReadPorts(() => em));
 
     // With the customer group present → the VIP list applies.
     const withGroup = await pricing.resolveLinePrice({

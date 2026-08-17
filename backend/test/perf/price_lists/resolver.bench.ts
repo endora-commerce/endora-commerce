@@ -15,6 +15,7 @@ import {
 import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Resolver perf bench (T102).
@@ -75,7 +76,7 @@ describe.skipIf(!shouldRun)('pricing resolver — p95 latency', () => {
       );
     await new DefaultPriceListMigrator(h.em).seedDefault();
 
-    const svc = new PriceListService(h.em);
+    const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
     // Seed the Default list with a bracket so the terminal floor exists.
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID);
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
@@ -121,7 +122,7 @@ describe.skipIf(!shouldRun)('pricing resolver — p95 latency', () => {
     // Build a fresh PricingService with the cache disabled (test-server
     // already constructs one with ttl=0, but we want a clean slate so
     // the bench measures the cold path on every call).
-    const pricing = new PricingService(h.em);
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
 
     // Warm-up — first few calls pay the JIT + connection-pool cost.
     for (let i = 0; i < 10; i++) {

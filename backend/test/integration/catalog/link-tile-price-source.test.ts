@@ -11,6 +11,7 @@ import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Issue #132 — a related / up-sell / cross-sell tile prices through
@@ -82,7 +83,7 @@ describe('product link tile price source (#132)', () => {
       { targetProductId: target.id, kind: 'cross_sell' },
     ]);
     if (listAmount !== null) {
-      const lists = new PriceListService(h.em);
+      const lists = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
       await lists.addProduct(DEFAULT_PRICE_LIST_ID, target.id);
       await lists.replaceBrackets(DEFAULT_PRICE_LIST_ID, target.id, {
         PLN: [{ minQuantity: 1, maxQuantity: null, amount: listAmount }],
