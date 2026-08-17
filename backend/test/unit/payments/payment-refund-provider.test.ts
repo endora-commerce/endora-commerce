@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { ERROR_CODES } from '@b2b/contracts';
+import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { PaymentRefundProvider } from '../../../src/modules/payments/services/payment-refund.js';
 import { gatewayRefundRegistry } from '../../../src/modules/payments/services/registry-singleton.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
@@ -8,14 +10,22 @@ import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered
 
 /**
  * What a return settles into when the PSP module that would refund it is
- * switched off (feature 074, FR-024).
+ * switched off (feature 074 FR-024; outcome ruled by D-71).
  *
- * This is the operator-visible half of the registry's `skip` policy, and the
- * reason the policy is defensible at all: skipping does not drop the
- * obligation, it records it. The refund lands on the `pending_manual` answer
- * the provider has always given a deployment with no PSP integration — and it
- * says *which module* is off, because "no integration" and "the integration is
- * switched off" are two different things for the person settling it.
+ * This is the operator-visible half of the registry's `skip` policy. Skipping
+ * is right — a module that is off must not charge its PSP's API — but the
+ * answer the skip produced was not: `pending_manual` reads as *settled* to
+ * everything above it, so `ReturnSettlementService` resolved the case, wrote
+ * the `Refund` row, issued the corrective invoice and mailed the customer over
+ * money that had not moved, and the admin card said "Settled."
+ *
+ * So a switched-off gateway is a **refusal** — the same `ModuleDisabledError`
+ * envelope any other call into an absent module produces, naming the module,
+ * because switching it back on is the whole remedy. `pending_manual` stays for
+ * the deployment that never had a PSP integration: that one has nothing to
+ * switch on and settles by hand. The two are asserted separately below,
+ * because a single "no handler" answer covering both is exactly the conflation
+ * D-71 unpicked.
  */
 
 const ALL_IDS = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id);
@@ -40,7 +50,7 @@ const input = {
 };
 
 describe('PaymentRefundProvider — a gateway whose module is switched off', () => {
-  it('records the refund for manual settlement and names the module', async () => {
+  it('refuses the refund and names the module', async () => {
     gatewayRefundRegistry.register(
       { adapterKey: 'stripe', refund: async () => ({ state: 'issued' }) },
       'stripe',
@@ -49,11 +59,20 @@ describe('PaymentRefundProvider — a gateway whose module is switched off', () 
     expect(effectiveState.isPresent('stripe')).toBe(false);
 
     try {
-      const result = await new PaymentRefundProvider(emFor('stripe')).refund(input);
+      const thrown = await new PaymentRefundProvider(emFor('stripe'))
+        .refund(input)
+        .then(
+          (result) => result as unknown,
+          (err: unknown) => err,
+        );
 
       // Not `issued`: the switched-off module must not have charged its PSP.
-      expect(result.state).toBe('pending_manual');
-      expect(result.failureReason).toContain('stripe');
+      // Not an outcome either: a returned value is something the caller settles
+      // *on*, and every caller reads anything but `failed` as success.
+      expect(thrown).toBeInstanceOf(ModuleDisabledError);
+      expect((thrown as ModuleDisabledError).moduleId).toBe('stripe');
+      expect((thrown as ModuleDisabledError).statusCode).toBe(503);
+      expect((thrown as ModuleDisabledError).code).toBe(ERROR_CODES.MODULE_DISABLED);
     } finally {
       registryCache.__setEnabledForTesting(ALL_IDS);
       gatewayRefundRegistry.unregister('stripe');

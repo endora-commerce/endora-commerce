@@ -98,7 +98,7 @@ describe('the stated policy — an absent owner is skipped', () => {
     expect(reg.resolve(null)).toBeUndefined();
   });
 
-  it('keeps naming the contributor, so the reason stays visible', () => {
+  it('keeps naming the contributor, so the refusal can say which module', () => {
     const reg = withStripeOff();
     reg.register(handler('stripe'), 'stripe');
 
@@ -107,6 +107,48 @@ describe('the stated policy — an absent owner is skipped', () => {
     // are different sentences on a settlement screen.
     expect(reg.ownerOf('stripe')).toBe('stripe');
     expect(reg.listAll()).toEqual(['stripe']);
+  });
+
+  it('tells a switched-off owner from an adapter nobody ever registered', () => {
+    // D-71 — the two situations behind one empty `resolve()`. The caller has to
+    // refuse the first and record the second, so a single "no handler" answer
+    // is not enough to act on.
+    const reg = withStripeOff();
+    reg.register(handler('stripe'), 'stripe');
+    reg.register(handler('autopay'), 'autopay');
+
+    expect(reg.absentOwnerFor('stripe')).toBe('stripe');
+    // Registered and its owner is on: nothing absent about it.
+    expect(reg.absentOwnerFor('autopay')).toBeNull();
+    // Never registered by anybody: there is no module to switch back on.
+    expect(reg.absentOwnerFor('bank_transfer_psp')).toBeNull();
+  });
+
+  it('answers for the sole registered handler when the order names no adapter', () => {
+    // The arm `resolve()` treats as "the sole registered handler", and point 3
+    // of the class docblock says it is the worst one to get wrong: these are
+    // the refunds with the least information behind them.
+    const reg = withStripeOff();
+    reg.register(handler('stripe'), 'stripe');
+
+    expect(reg.resolve()).toBeUndefined();
+    expect(reg.absentOwnerFor()).toBe('stripe');
+    expect(reg.absentOwnerFor(null)).toBe('stripe');
+  });
+
+  it('answers nothing unkeyed while a handler is still available', () => {
+    // Two registered, one off: `resolve()` still has a sole *available*
+    // handler and uses it, so there is nothing absent to refuse.
+    const reg = withStripeOff();
+    reg.register(handler('stripe'), 'stripe');
+    reg.register(handler('autopay'), 'autopay');
+
+    expect(reg.resolve()?.adapterKey).toBe('autopay');
+    expect(reg.absentOwnerFor()).toBeNull();
+  });
+
+  it('answers nothing unkeyed when nobody registered a handler at all', () => {
+    expect(new GatewayRefundRegistry().absentOwnerFor()).toBeNull();
   });
 
   it('serves the handler again once the module is switched back on', () => {
