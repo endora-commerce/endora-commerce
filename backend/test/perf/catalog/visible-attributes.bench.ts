@@ -24,6 +24,15 @@ import { createAttributeFixture } from '../../helpers/seed-catalog.js';
  *     boolean rendering, scalar coercion, multiselect join).
  *   - 10 Products. Each carries a value for every one of the 50
  *     attributes so each PDP load drives the maximum projection size.
+ *   - A `sales_channel_products` row per product. `getProductByIdOrSlug`
+ *     narrows through `filterByChannel`, which fails closed to the empty
+ *     set (Principle XII) and answers 404 for a product the channel does
+ *     not carry — so without membership this harness measures nothing at
+ *     all. It has thrown since channel scoping landed, unseen because no
+ *     job sets `PERF_RUN` (issue #140).
+ *
+ * The run asserts the projection it built before it asserts how long that
+ * took: every timed read carries a value for every seeded attribute.
  *
  * Tuning knobs (env):
  *   PERF_ATTR_COUNT    — number of attributes (default 50)
@@ -47,6 +56,7 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
   let h: BackendServerHandle;
   let svc: CatalogQueryService;
   const productSlugs: string[] = [];
+  const products: Product[] = [];
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -115,9 +125,19 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
         attributeSetId: DEFAULT_SET_ID,
       });
       productSlugs.push(p.slug);
+      products.push(p);
       em.persist(p);
     }
     await em.flush();
+
+    // Bind the fixture to the channel the timed reads resolve, or every read
+    // is a 404 rather than a projection.
+    const channelId = (await h.salesChannels.resolver.getSystemDefault()).id;
+    await em.getConnection().execute(
+      `insert into sales_channel_products (sales_channel_id, product_id) values ` +
+        products.map(() => '(?,?)').join(','),
+      products.flatMap((p) => [channelId, p.id]),
+    );
   }, 60_000);
 
   afterAll(async () => {
@@ -134,16 +154,24 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
       defaultLanguage: def.defaultLanguage,
     };
     const samples: number[] = [];
+    let minProjected = Number.POSITIVE_INFINITY;
     for (let i = 0; i < iterations; i++) {
       const slug = productSlugs[i % productSlugs.length]!;
       const t0 = performance.now();
-      await svc.getProductByIdOrSlug(slug, { resolvedChannel });
+      const detail = await svc.getProductByIdOrSlug(slug, { resolvedChannel });
       samples.push(performance.now() - t0);
+      minProjected = Math.min(minProjected, detail.visibleAttributes?.length ?? 0);
     }
     samples.sort((a, b) => a - b);
     const p95 = samples[Math.floor(samples.length * 0.95)]!;
     // eslint-disable-next-line no-console
-    console.log(`visible-attributes p95 ms = ${p95.toFixed(2)} (samples=${samples.length})`);
+    console.log(
+      `visible-attributes p95 ms = ${p95.toFixed(2)} (samples=${samples.length}, ` +
+        `projected=${minProjected}/${attrCount})`,
+    );
+    // What was measured, before how long it took: the whole projection, on
+    // every read. A 404 or an empty tab is cheaper than any budget can catch.
+    expect(minProjected).toBe(attrCount);
     expect(p95).toBeLessThan(p95Budget);
   });
 });
