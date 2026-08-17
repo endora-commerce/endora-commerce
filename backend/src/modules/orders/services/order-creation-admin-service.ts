@@ -4,11 +4,10 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { CartService } from '../../carts/services/cart-service.js';
 import type { AddressService } from '../../addresses/services/address-service.js';
-import type { Mailer } from '../../email/services/mailer.js';
 import type { Order } from '../entities/order.entity.js';
 import { OrderComment } from '../entities/order-comment.entity.js';
 import type { OrderService } from './order-service.js';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type { EmailMailerPort, TransactionalEmailSender } from '@b2b/contracts';
 import { buildAdminCreatedOrderEmail } from '../email-templates/admin-created-order.js';
 import {
   orderEmailNotSent,
@@ -57,7 +56,7 @@ export class OrderCreationAdminService {
     private readonly cartService: CartService,
     private readonly orderService: OrderService,
     private readonly addressService: AddressService,
-    private readonly mailer?: Mailer,
+    private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
 

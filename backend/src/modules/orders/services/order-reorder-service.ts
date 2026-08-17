@@ -6,9 +6,8 @@ import { OrderItem } from '../entities/order-item.entity.js';
 import { Cart } from '../../carts/entities/cart.entity.js';
 import { CartItem } from '../../carts/entities/cart-item.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
-import type { Mailer } from '../../email/services/mailer.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type { EmailMailerPort, TransactionalEmailSender } from '@b2b/contracts';
 import { buildReorderCreatedEmail } from '../email-templates/reorder-created.js';
 import {
   orderEmailNotSent,
@@ -47,7 +46,7 @@ export class OrderReorderService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly resolveReorderEnabled?: (salesChannelId: string) => Promise<boolean>,
-    private readonly mailer?: Mailer,
+    private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
 

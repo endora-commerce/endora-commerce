@@ -1,4 +1,4 @@
-import type { MailerSendInput } from '../../email/services/mailer.js';
+import type { EmailMailerSendInput } from '@b2b/contracts';
 
 /**
  * Feature 038 (US5) — email sent to the customer when a sales rep / admin adds
@@ -10,7 +10,7 @@ export function buildOrderCommentNotificationEmail(params: {
   orderId: string;
   businessId: string;
   body: string;
-}): MailerSendInput {
+}): EmailMailerSendInput {
   return {
     messageId: `order_comment:${params.orderId}:${hash(params.body)}`,
     to: params.to,

@@ -4,8 +4,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { OrderComment } from '../entities/order-comment.entity.js';
 import { Order } from '../entities/order.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { Mailer } from '../../email/services/mailer.js';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type { EmailMailerPort, TransactionalEmailSender } from '@b2b/contracts';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 import { buildOrderCommentNotificationEmail } from '../email-templates/order-comment-notification.js';
 import {
@@ -28,7 +27,7 @@ export class OrderCommentService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly graphService: OrderStatusGraphService,
-    private readonly mailer?: Mailer,
+    private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
 

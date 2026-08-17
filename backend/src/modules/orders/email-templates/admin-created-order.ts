@@ -1,4 +1,4 @@
-import type { MailerSendInput } from '../../email/services/mailer.js';
+import type { EmailMailerSendInput } from '@b2b/contracts';
 
 /**
  * Feature 038 (US3) — email to the customer when a sales rep / admin created
@@ -9,7 +9,7 @@ export function buildAdminCreatedOrderEmail(params: {
   to: string;
   businessId: string;
   orderId: string;
-}): MailerSendInput {
+}): EmailMailerSendInput {
   return {
     messageId: `order_created_for_you:${params.orderId}`,
     to: params.to,

@@ -134,6 +134,35 @@ export const manifest = defineModuleManifest({
         'settle. Same ground for keeping it out of `dependencies`.',
     },
     {
+      moduleId: 'payments',
+      name: 'paymentEmailRendererPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'the order confirmation still goes out, with the payment line written from the ' +
+        'method snapshot instead of a gateway’s own wording',
+      reason:
+        'The payment line of the order-confirmation e-mail (feature 034 FR-016/FR-017) is ' +
+        'rendered through the registry `payments` hosts, which an adapter may push a custom ' +
+        'renderer into. `payments` declares this module, so `dependencies` would close a ' +
+        'cycle; and an acknowledged edge keeps the bind, which would make a deactivatable ' +
+        'module undeactivatable for as long as the platform takes orders — a buyer who paid ' +
+        'on invoice must still receive their confirmation. `backend.ts` asks ' +
+        '`effectiveState.isPresent` per send and falls back to this module’s own baseline.',
+    },
+    {
+      moduleId: 'shipments',
+      name: 'shippingEmailRendererPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'the order confirmation still goes out, with the delivery line written from the ' +
+        'method snapshot instead of a carrier’s own wording',
+      reason:
+        'The delivery twin of `payments:paymentEmailRendererPort` (feature 035), and the ' +
+        'same shape: `shipments` declares this module, so the edge cannot go in ' +
+        '`dependencies`, and binding it would stop an operator switching shipments off on a ' +
+        'platform that keeps taking orders. Presence is asked per send in `backend.ts`.',
+    },
+    {
       moduleId: 'delivery_methods',
       name: 'shippingAdapterRegistry',
       kind: 'degrades-without',
