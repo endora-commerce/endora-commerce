@@ -496,6 +496,7 @@
   "errors.EMAIL_ALREADY_REGISTERED": "Błąd: email already registered.",
   "errors.EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION": "Błąd: email belongs to another organization.",
   "errors.FORBIDDEN": "Nie masz uprawnień do wykonania tej akcji.",
+  "errors.FORBIDDEN.organization_cannot_transact": "Twoja organizacja nie może składać zamówień w obecnym statusie. Skontaktuj się ze swoim opiekunem konta, aby przywrócić możliwość zamawiania.",
   "errors.INTERNAL": "Wewnętrzny błąd serwera.",
   "errors.INVALID_CREDENTIALS": "Nieprawidłowy e-mail lub hasło. Spróbuj ponownie.",
   "errors.INVALID_TRANSITION": "Błąd: invalid transition.",

@@ -102,10 +102,31 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
     // with the generic localized string would destroy the token that API
     // consumers (and contract tests) depend on. Leave its message verbatim.
     if (payload.error.code === ERROR_CODES.VALIDATION_FAILED) return payload;
+    // The same phenomenon one code lower, written down somewhere else (issue
+    // #65). A code such as `FORBIDDEN` is shared by every permission failure in
+    // the tree, so its sentence has to be generic — "You do not have permission
+    // to perform this action." A refusal that is *not* about permission carries
+    // a machine-readable token in `details.code` to say so, and the four
+    // transact gates (`orders`, its external intake, `carts`, `quote_requests`)
+    // all publish `organization_cannot_transact` there. Replacing their written
+    // message with the family sentence told a buyer whose Organization was
+    // blocked for a business reason that they lack permission: wrong, and
+    // unactionable — they contact support about access rather than about the
+    // block.
+    //
+    // So the token keys the sentence: `errors.<CODE>.<token>` when the bundle
+    // has one, `errors.<CODE>` when the error carries no token. A token with no
+    // sentence yet resolves to nothing, and both roots' translators answer a
+    // missing key with the original message — which is the right fallback here,
+    // because untranslated prose that is true beats a translated sentence that
+    // is false. Re-routing the family to another module's bundle (issue #106,
+    // the one per-deployment lever there is) keeps working: the module is still
+    // chosen by the injected map, and only the key inside it changes.
+    const token = refusalToken(payload.error.details);
     const language = (await options.resolvePreferredLanguage?.(request)) ?? ADMIN_LANGUAGE_FALLBACK;
     const translated = await options.translateErrorMessage({
       moduleId: target.moduleId,
-      key: target.key,
+      key: token === null ? target.key : `${target.key}.${token}`,
       language,
       originalMessage: payload.error.message,
       request,
@@ -209,6 +230,20 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
     };
     reply.status(404).send(envelope);
   });
+}
+
+/**
+ * The refusal token an error carries, or `null`.
+ *
+ * `details` has two shapes (see `errorEnvelopeSchema`): the Zod-style array of
+ * `{path, issue}` pairs, which carries no token, and the free-form object a
+ * domain error uses for structured metadata. Only the second can name one, and
+ * only a non-empty string counts.
+ */
+function refusalToken(details: ErrorEnvelope['error']['details']): string | null {
+  if (!details || Array.isArray(details)) return null;
+  const code = (details as Record<string, unknown>)['code'];
+  return typeof code === 'string' && code.length > 0 ? code : null;
 }
 
 function isErrorEnvelope(payload: unknown): payload is ErrorEnvelope {

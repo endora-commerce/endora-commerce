@@ -45,9 +45,15 @@ import { ordersPromptTools } from './prompt-tools.js';
  *   - `resolveReorderEnabled` — the reorder surface.
  *
  * All nine are this module's own settings and every closure was identical in
- * the roots that had it, so they are read here now, through the settings port.
- * Both compositions run the same code and the seven behaviours are under test
- * for the first time.
+ * the roots that had it, so they are read here now, through the settings port,
+ * so both compositions run the same code.
+ *
+ * Running the same code is not the same as reading a value back, and this note
+ * used to claim the second (issue #62). `test/integration/orders/channel-settings.test.ts`
+ * is where the seven are exercised: each is written to the channel a request
+ * resolves to, through the admin write seam, and the behaviour observed over
+ * HTTP — because a settings test that asserts a value the harness itself
+ * hard-coded proves the harness rather than the read.
  *
  * **The three `expose…` sinks become ports.** `OrderService`,
  * `OrderListService` and `OrderTransitionService` are constructed inside the
