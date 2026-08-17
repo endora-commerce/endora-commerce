@@ -3,10 +3,11 @@ import {
   mfaVerifyRequestSchema,
   mfaSetupTicketBeginSchema,
   mfaSetupTicketCompleteSchema,
+  SESSION_COOKIE_NAME,
+  ADMIN_SESSION_COOKIE_NAME,
 } from '@b2b/contracts';
+import type { AuthSessionPort } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
-import type { SessionService } from '../auth/services/session-service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { MfaLoginService } from './services/mfa-login-service.js';
 import type { ChallengeStore } from './services/challenge-store.js';
@@ -20,7 +21,7 @@ import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
  */
 export interface MfaPublicDeps {
   loginService: MfaLoginService;
-  sessionService: SessionService;
+  sessionService: AuthSessionPort;
   challengeStore: ChallengeStore;
   enrolmentService: MfaEnrolmentService;
   auditLogService: AuditLogService;

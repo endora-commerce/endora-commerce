@@ -1,9 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
+import type { AuthSessionPort, MfaLoginPort } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
-import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
-import type { SessionService } from '../auth/services/session-service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { ChallengeStore } from './services/challenge-store.js';
 import {
@@ -44,7 +43,7 @@ export interface MfaModuleOptions {
   redis: Redis;
   settingsService: SettingsReader;
   auditLogService: AuditLogService;
-  sessionService: SessionService;
+  sessionService: AuthSessionPort;
   /** Resolves the system-default sales-channel id for global setting reads. */
   resolveDefaultChannelId?: () => Promise<string | null>;
   /** base64 32-byte AES key for TOTP secrets at rest. */

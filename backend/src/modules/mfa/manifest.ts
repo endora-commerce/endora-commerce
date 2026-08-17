@@ -114,9 +114,12 @@ export const manifest = defineModuleManifest({
   description:
     'Two-factor authentication (TOTP + recovery codes) and Google/Microsoft sign-in, with per-scope enablement/enforcement and admin reset.',
   version: '1.0.0',
-  // `auth` owns `sessionService`, `requireAdmin` and the customer guard this
+  // `auth` owns `authSessionPort`, `requireAdmin` and the customer guard this
   // module resolves; feature 072 made those container resolutions rather than
   // constructor arguments, so the edge is real now and has to be declared.
+  // Feature 075 Phase C turned the session edge into the published port: the
+  // second factor mints its session over `authSessionPort`, so no `Session`
+  // entity and no `SessionService` class crosses into this module any more.
   dependencies: ['admin_users', 'customer_accounts', 'organizations', 'settings', 'auth'],
   settings,
   // Feature 074 (Constitution XVII) — a control this module never had, so an

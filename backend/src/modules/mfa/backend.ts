@@ -2,13 +2,12 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import { ERROR_CODES } from '@b2b/contracts';
+import type { AuthSessionPort, MfaLoginPort } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SessionService } from '../auth/services/session-service.js';
-import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
 import type { SettingsReader } from './services/mfa-policy-resolver.js';
 import {
   OpenIdOAuthProvider,
@@ -111,7 +110,7 @@ export interface MfaCradle {
   readonly emFactory: () => EntityManager;
   readonly redis: Redis;
   readonly auditLogService: AuditLogService;
-  readonly sessionService: SessionService;
+  readonly authSessionPort: AuthSessionPort;
   readonly settingsReadPort: SettingsReader;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: (request: FastifyRequest) => Promise<void>;
@@ -220,7 +219,12 @@ export function registerModule(ctx: ModuleContext): void {
                 ctx.cradle<MfaCradle>().settingsReadPort.get(code, salesChannelId, schema),
             },
             auditLogService,
-            sessionService: lazyPort<SessionService>(ctx, 'sessionService'),
+            // Feature 075 Phase C — `auth`'s published session surface, not its
+            // `SessionService` class. The two fields the second factor reads
+            // (the cookie value and its expiry) travel as plain data; the
+            // `Session` entity stays behind the boundary, where its `tokenHash`
+            // belongs.
+            sessionService: lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),
             resolveDefaultChannelId: () => ctx.cradle<MfaCradle>().mfaDefaultChannelIdResolver(),
             ...(secretEncryptionKey === undefined ? {} : { secretEncryptionKey }),
             ...(backendBaseUrl === undefined ? {} : { backendBaseUrl }),
