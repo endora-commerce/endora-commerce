@@ -5,11 +5,20 @@
 // page or block delete endpoints consult their registry, our scanner
 // surfaces megamenu items that hold the reference, so the delete is
 // refused with the merged-holder list.
+//
+// Both shapes are read from `@b2b/contracts` since feature 075's Phase C, so
+// this module no longer names a file in `cms`. The seam itself is unchanged:
+// an ungated registration `cms` enumerates on delete, honoured while `megamenu`
+// is off because the items still hold the reference.
 
-import type { CmsReference, CmsExternalReferenceScanner } from '../../cms/services/cms-reference-registry.js';
+import type { CmsExternalReferenceScanner, CmsReference } from '@b2b/contracts';
 import type { MegamenuReferenceRegistry } from './megamenu-reference-registry.js';
 
 export function registerMegamenuCmsReferences(
+  // `CmsReferenceRegistryPort` is the whole seam; a contributor calls one
+  // method of it, and `cms`' registry spells the other one `externalOwners`.
+  // Naming just `register` keeps this signature what it has always been while
+  // the scanner shape comes from the contract.
   cmsRegistry: { register: (scanner: CmsExternalReferenceScanner) => void },
   megamenuRegistry: MegamenuReferenceRegistry,
 ): void {

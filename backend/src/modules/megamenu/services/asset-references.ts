@@ -3,16 +3,22 @@
 // Scans `megamenu_items.target` for both `assetId` (asset items) and
 // `iconAssetId` (link items with an icon). Both edges block deletion of
 // the upstream Library Asset with a 409.
+//
+// The registry and the descriptor are named by their `@b2b/contracts` shapes
+// since feature 075's Phase C: this file describes what it contributes, and
+// `assets_library` decides what enumerating it means — including the policy
+// that honours this scanner while `megamenu` is switched off, which is why the
+// seam stays an ungated registration rather than becoming a port.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AssetReference } from '@b2b/contracts';
 import type {
+  AssetReference,
   AssetReferenceDescriptor,
-  AssetReferenceRegistry,
-} from '../../assets_library/services/reference-registry.js';
+  AssetReferenceRegistryPort,
+} from '@b2b/contracts';
 
 export function registerMegamenuAssetReferences(
-  registry: AssetReferenceRegistry,
+  registry: AssetReferenceRegistryPort,
   emFactory: () => EntityManager,
 ): void {
   registry.register(megamenuAssetReferenceDescriptor(emFactory));

@@ -1,6 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
-import type { DictionaryValidator } from '@b2b/contracts';
+import type {
+  AssetReferenceRegistryPort,
+  CmsExternalReferenceScanner,
+  DictionaryValidator,
+} from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -14,8 +18,6 @@ import { registerMegamenuAdminRoutes } from './routes.admin.js';
 import { registerMegamenuStorefrontRoutes } from './routes.storefront.js';
 import { registerMegamenuAssetReferences } from './services/asset-references.js';
 import { registerMegamenuCmsReferences } from './services/cms-references.js';
-import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
-import type { CmsExternalReferenceScanner } from '../cms/services/cms-reference-registry.js';
 
 /**
  * `megamenu` — two dependency bundles that stay outside on purpose (feature
@@ -69,9 +71,10 @@ export interface MegamenuCradle {
   readonly megamenuCacheOptions: MegamenuCacheOptions;
   /**
    * Owned by `assets_library`: the registry that refuses to delete an asset a
-   * menu item points at, whether as the item's target or as its icon.
+   * menu item points at, whether as the item's target or as its icon. Named by
+   * its published contract since Phase C, not by that module's class.
    */
-  readonly assetReferenceRegistry: AssetReferenceRegistry;
+  readonly assetReferenceRegistry: AssetReferenceRegistryPort;
   /**
    * Owned by `cms`: the registry that refuses to delete a page or a block a
    * menu item links to. This module contributes the scanner; `cms` calls it.
