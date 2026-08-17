@@ -1,3 +1,4 @@
+import type { EmailDefaults, EmailDefaultsRegistryPort } from '@b2b/contracts';
 /**
  * EmailDefaultsRegistry — feature 047 (R6).
  *
@@ -7,54 +8,20 @@
  * this at boot to seed `transactional_emails.default_*`.
  */
 
-export interface EmailDefaults {
-  /** Per-language subject: { lang: string }. */
-  defaultSubject: Record<string, string>;
-  /** Content envelope: { schema_version, languages: { lang: tree } }. */
-  defaultContent: Record<string, unknown>;
-  /**
-   * Declared exactly when this individual email may never be switched off
-   * (issue #89) — the per-email twin of a manifest's
-   * `activation.nonDeactivatable`, and named after it on purpose.
-   *
-   * It lives **here**, on the contribution the owning module already pushes,
-   * rather than as a list in this module or in the admin app. Only the module
-   * that sends the email knows whether its flow survives silence, and a list
-   * anywhere else is a second source of truth that drifts the first time a
-   * module adds an email. `nonDeactivatableReasonOf` is what the write path and
-   * the admin projection both read, so the two never disagree.
-   *
-   * Presence carries the "true": a shape with a separate boolean and reason has
-   * a state where the two contradict each other, and this one does not.
-   */
-  nonDeactivatable?: { reason: string };
-}
+/**
+ * `EmailDefaults` moved to `@b2b/contracts` in feature 075's Phase P — seven
+ * modules push one from their own boot hook, which makes it a boundary shape
+ * rather than an internal. Re-exported here for the length of Phase P, which
+ * cuts no consumer.
+ */
+export type { EmailDefaults };
 
 /**
- * Enumeration policy: **honoured** while the contributing module is absent
- * (feature 072, D-39).
- *
- * D-39's default is the opposite — an entry belonging to a switched-off module
- * is skipped — and honouring one needs a written reason. This is it.
- *
- * The definition *rows* this registry feeds are created from the **platform**
- * axis: `TransactionalEmailReconciler` walks `resolvedModuleRegistry`, so a row
- * exists because the module is installed, not because an operator activated it.
- * Skipping a deactivated contributor's entry would not remove that row — it
- * would create it with an empty `defaultSubject` and an empty content envelope
- * (`manifest-reconciler.ts:69-81`), so an activation flip would silently rewrite
- * persisted content. Constitution XVII is explicit that off drops no data and no
- * configuration; a policy whose effect is "blank the seeded template" fails that
- * on the one axis it was supposed to protect.
- *
- * The genuine Constitution XVII question here is a different one — whether a
- * switched-off module's email should appear in the admin list at all — and it
- * belongs to the reconciler's *manifest source*, not to this table. Narrowing
- * that source is destructive: the reconciler prunes every row whose code is not
- * currently declared, and the FK cascade takes the admin customizations with it.
- * That is its own change, with its own test, and it is not this one.
+ * `implements` the shape Phase P published, which is what stops the registry
+ * and its contract drifting: seven modules read the published type, and `tsc`
+ * refuses the day a method here stops matching.
  */
-export class EmailDefaultsRegistry {
+export class EmailDefaultsRegistry implements EmailDefaultsRegistryPort {
   private readonly byCode = new Map<string, EmailDefaults>();
   private readonly ownerByCode = new Map<string, string>();
 

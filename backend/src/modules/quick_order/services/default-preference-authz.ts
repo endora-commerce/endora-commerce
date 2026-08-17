@@ -1,3 +1,4 @@
+import type { PreferenceActor } from '@b2b/contracts';
 import type { QuickOrderPreferenceScope } from '@b2b/contracts';
 
 /**
@@ -11,11 +12,13 @@ import type { QuickOrderPreferenceScope } from '@b2b/contracts';
  *   - Salesperson     → assigned organizations + customers within them.
  *   - Platform admin  → any scope.
  */
-export type PreferenceActor =
-  | { kind: 'customer'; customerAccountId: string }
-  | { kind: 'org_admin'; organizationId: string }
-  | { kind: 'salesperson'; assignedOrganizationIds: string[] }
-  | { kind: 'platform_admin' };
+/**
+ * The union moved to `@b2b/contracts` in feature 075's Phase P — `customers`
+ * writes a buyer's defaults through `defaultPreferencePort` and has to name
+ * the actor. Re-exported here for the length of Phase P, which cuts no
+ * consumer.
+ */
+export type { PreferenceActor };
 
 export interface PreferenceTarget {
   scope: QuickOrderPreferenceScope;

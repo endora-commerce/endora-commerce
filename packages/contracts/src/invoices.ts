@@ -206,3 +206,96 @@ export const issueInvoiceResponseSchema = z.object({
   email: issueInvoiceEmailOutcomeSchema,
 });
 export type IssueInvoiceResponse = z.infer<typeof issueInvoiceResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `invoices` publishes to the two modules that read it
+// (feature 075, Phase P) — `orders` and `ksef`.
+// ---------------------------------------------------------------------------
+
+/**
+ * An invoice as it crosses a module boundary — a plain shape, never the ORM
+ * entity (FR-011). Every money column stays a decimal string: these are VAT
+ * documents, and a `number` cannot round-trip one.
+ */
+export interface InvoiceRecord {
+  id: string;
+  orderId: string;
+  salesChannelId: string | null;
+  kind: InvoiceKind;
+  number: string;
+  issuedAt: Date;
+  /** ISO date (no time) — the tax point, which is not the issue timestamp. */
+  saleDate: string | null;
+  paymentDueDate: string | null;
+  paymentMethod: string | null;
+  currency: string;
+  netTotal: string | null;
+  taxTotal: string | null;
+  total: string;
+  paidTotal: string;
+  /** Set on a `correction`: the document this one credits. */
+  originalInvoiceId: string | null;
+  templateId: string | null;
+  ksefReferenceNumber: string | null;
+  ksefProcessedAt: Date | null;
+  issuedBy: string | null;
+  pdfAssetId: string | null;
+  status: InvoiceStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Container name: `invoiceReadPort`. Owner: `invoices`.
+ *
+ * Four inbound sites read the entity: `orders` listing an order's invoices on
+ * the order screen and again at cancellation, and `ksef` resolving the invoice
+ * behind a submission — twice, once from its entity file, where the read is a
+ * `@TransitivelyScoped` tenancy classification rather than a query and needs
+ * its own remedy (R-05).
+ *
+ * The seller and buyer snapshots are deliberately absent. They are the
+ * document's own frozen copy of two other modules' rows; no cross-module
+ * caller reads them, and publishing them would invite one to.
+ */
+export interface InvoiceReadPort {
+  findById(id: string): Promise<InvoiceRecord | null>;
+  findByIds(ids: readonly string[]): Promise<InvoiceRecord[]>;
+  /** An order's invoices, newest first. */
+  listForOrder(orderId: string): Promise<InvoiceRecord[]>;
+  /** Several orders' invoices at once, for a list screen. */
+  listForOrders(orderIds: readonly string[]): Promise<InvoiceRecord[]>;
+}
+
+/** One line of a bulk PDF — enough to identify the document it renders. */
+export interface InvoicePdfLine {
+  invoiceNumber: string;
+  total: string;
+  currency: string;
+}
+
+/**
+ * Container name: `invoicePdfPort`. Owner: `invoices`.
+ *
+ * **A port, although the two builders behind it are pure**, and the exception
+ * is worth stating because FR-013's test does not settle it. "Does switching
+ * the owner off change the answer?" asks whether the *bytes* would differ, and
+ * they would not. The question that decides this one is Constitution XVII's:
+ * should the platform produce an invoice document for a business that has
+ * switched invoicing off? An order screen offering an invoice PDF is a surface
+ * the module owns, and a surface a switched-off module owns must disappear.
+ *
+ * `hashPassword` is the contrast, and it is the right one: it is
+ * platform-generic, reachable from five modules and the dev seed, and nobody
+ * would call hashing "an `auth` surface". A VAT document is an `invoices`
+ * surface.
+ *
+ * Returns `Uint8Array` rather than Node's `Buffer` so this package stays free
+ * of Node types — it is imported by the admin SPA and the storefront too.
+ */
+export interface InvoicePdfPort {
+  renderMinimal(params: { invoiceNumber: string; total: string; currency: string }): Uint8Array;
+  renderBulk(invoices: readonly InvoicePdfLine[]): Uint8Array;
+}

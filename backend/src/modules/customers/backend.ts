@@ -3,6 +3,8 @@ import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
+import type { CustomerAddressReadPort } from '@b2b/contracts';
+import { CustomerAddressReadService } from './services/customer-address-read-port.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
@@ -128,6 +130,22 @@ export function registerModule(ctx: ModuleContext): void {
       return fallback;
     }
   };
+
+  /**
+   * Feature 075, Phase P — the customer's own saved addresses.
+   *
+   * `quick_order` reads one when it fills in a buyer's one-click defaults. The
+   * table is distinct from `addresses`' on purpose and the port keeps them
+   * distinct: this one hangs off a customer account, that one off an
+   * organisation, and a B2C buyer keeps addresses that are theirs rather than
+   * their personal organisation's.
+   */
+  ctx.di.providePort<CustomerAddressReadPort>(
+    'customerAddressReadPort',
+    ctx
+      .asFunction(({ emFactory }: CustomersCradle) => new CustomerAddressReadService(emFactory))
+      .singleton(),
+  );
 
   ctx.di.register({
     // Production contributes nothing and reaches the real registry.

@@ -10,7 +10,7 @@
 // suggest contracts below. US2 / US3 schemas land later.
 
 import { z } from 'zod';
-import { productSummarySchema } from './catalog.js';
+import { productSummarySchema, type ProductSummary } from './catalog.js';
 import { displayModeSchema } from './price-lists.js';
 
 // ---------------------------------------------------------------------------
@@ -184,4 +184,62 @@ export const SearchReindexResponseSchema = z.object({
   documentCount: z.number().int().nonnegative(),
 });
 export type SearchReindexResponse = z.infer<typeof SearchReindexResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `search` publishes to the one module that reads it
+// (feature 075, Phase P): `catalog`'s public product listing hands the query
+// over when `CATALOG_SEARCH_BACKEND=meilisearch`, and serves it from Postgres
+// otherwise.
+// ---------------------------------------------------------------------------
+
+/** The channel a search runs in, resolved before the query is built. */
+export interface ResolvedSearchChannel {
+  id: string;
+  code: string;
+  isPublic: boolean;
+  defaultCurrency: string;
+  defaultLanguage: string;
+}
+
+export interface SearchQueryContext {
+  resolvedChannel: ResolvedSearchChannel;
+  preferredLanguage?: string | undefined;
+}
+
+export interface SearchListProductsParams {
+  q?: string | undefined;
+  limit: number;
+  cursor?: string | undefined;
+  sort?: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+  categorySlug?: string | undefined;
+  attributeFilters?: Record<string, string[]> | undefined;
+}
+
+export interface SearchListResult {
+  data: ProductSummary[];
+  pagination: { cursor: string | null; hasMore: boolean; limit: number };
+}
+
+/**
+ * Container name: `searchQueryPort`. Owner: `search`.
+ *
+ * **The one port in the sweep whose consumer is right to degrade rather than
+ * fail**, and the degrade is already where it belongs: `catalog`'s listing
+ * route checks the backend setting and falls back to its own Postgres query.
+ * That is a `nonBindingDependencies` edge, declared, not a `catch` — a search
+ * index being unavailable must not take the catalogue down with it.
+ *
+ * Note what the fallback is *not* allowed to be: a `try`/`catch` around the
+ * call. Catching here would swallow `ModuleDisabledError` and make a
+ * switched-off `search` look like a slow one, which is the fail-open shape
+ * `check:port-catches` exists for.
+ */
+export interface SearchQueryPort {
+  listProducts(
+    params: SearchListProductsParams,
+    ctx: SearchQueryContext,
+  ): Promise<SearchListResult>;
+}
 

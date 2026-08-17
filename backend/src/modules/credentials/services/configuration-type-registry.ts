@@ -1,4 +1,7 @@
-import type { ConfigurationTypeDescriptor } from '@b2b/contracts';
+import type {
+  ConfigurationTypeDescriptor,
+  ConfigurationTypeRegistryPort,
+} from '@b2b/contracts';
 import { ERROR_CODES } from '@b2b/contracts';
 import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 
@@ -70,7 +73,12 @@ export class ConfigurationTypeUnknown extends Error {
  */
 export type ModulePresenceProbe = (moduleId: string) => boolean | undefined;
 
-export class ConfigurationTypeRegistry {
+/**
+ * `implements` the shape feature 075's Phase P published — the two integration
+ * modules read the published type, and `tsc` refuses the day a method here
+ * stops matching.
+ */
+export class ConfigurationTypeRegistry implements ConfigurationTypeRegistryPort {
   private readonly types = new Map<string, ConfigurationTypeDescriptor>();
 
   /**

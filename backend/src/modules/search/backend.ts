@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ListingPricePort } from '@b2b/contracts';
+import type { SearchQueryPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -110,6 +111,25 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton(),
   });
+
+  /**
+   * Feature 075, Phase P — the storefront product query.
+   *
+   * `catalog`'s public listing hands the query over when
+   * `CATALOG_SEARCH_BACKEND=meilisearch` and serves it from Postgres
+   * otherwise — and today it does so by constructing its **own**
+   * `SearchQueryService` in its plugin body, so a composition holds two
+   * clients and two attribute-read wirings. This port is the instance
+   * `searchModule` already built.
+   *
+   * The Postgres fallback is a declared `nonBindingDependencies` degrade, not
+   * a `catch`: catching here would swallow `ModuleDisabledError` and make a
+   * switched-off `search` look like a slow one.
+   */
+  ctx.di.providePort<SearchQueryPort>(
+    'searchQueryPort',
+    ctx.asFunction(({ search }: SearchCradle) => search.handle.searchQueryService).singleton(),
+  );
 
   ctx.di.providePort(
     'searchHandle',

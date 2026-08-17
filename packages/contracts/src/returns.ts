@@ -496,3 +496,121 @@ export interface PaymentRefundResult {
 export interface PaymentRefundPort {
   refund(input: PaymentRefundInput): Promise<PaymentRefundResult>;
 }
+
+// --- the other three consumer-declared seams ---------------------------------
+//
+// The same move as `PaymentRefundPort` above, and for the same reason: this
+// module states what it needs of a settlement and three other modules
+// implement it. Publishing them keeps that direction (R-03) — a consumer
+// declaring its own requirement is the shape feature 075 wants, and the only
+// thing wrong with it was that the declaration lived in a module directory
+// three other modules had to import from.
+
+/**
+ * A "credit toward future orders" resolution credits the customer's
+ * organisation credit limit, which `credit_limits` already grants and the
+ * checkout credit-check already redeems.
+ *
+ * `applied: false` when the organisation has no credit-limit grant — a
+ * declared outcome, not a failure, so the settlement records the answer rather
+ * than a caller inventing one from a caught error.
+ */
+export interface CreditTopupInput {
+  organizationId: string;
+  amount: number;
+  currency: string;
+  returnCaseId: string;
+}
+
+export interface CreditTopupResult {
+  applied: boolean;
+  availableAmountAfter?: number;
+}
+
+/** Container name: `creditTopupPort`. Owner: `credit_limits`. */
+export interface CreditTopupPort {
+  creditFromReturn(input: CreditTopupInput): Promise<CreditTopupResult>;
+}
+
+export interface OrderReturnContextLine {
+  orderItemId: string;
+  productId: string;
+  name: string;
+  purchasedQty: number;
+  /** Amount paid per unit, including its proportional tax. */
+  paidUnitAmount: number;
+  /** Amount paid for the whole purchased line, including tax. */
+  paidLineAmount: number;
+}
+
+export interface OrderReturnContext {
+  salesChannelId: string;
+  customerAccountId: string;
+  organizationId: string | null;
+  currency: string;
+  /** When the order entered its fulfilment-completing status; null if it has not. */
+  completingStatusEnteredAt: Date | null;
+  lines: OrderReturnContextLine[];
+}
+
+/**
+ * Container name: `orderReturnContextPort`. Owner: `orders`.
+ *
+ * The order facts a return needs — paid-per-line amounts, the
+ * fulfilment-completing timestamp, channel, customer, organisation — without
+ * `returns` reading the orders tables (Principle I).
+ */
+export interface OrderReturnContextPort {
+  getReturnContext(orderId: string): Promise<OrderReturnContext | null>;
+}
+
+export interface CorrectiveInvoiceLine {
+  /**
+   * The order item this line credits. It is the link back to the line of the
+   * original invoice being corrected: issuance snapshots `orderItemId` on every
+   * product line, and a return-case item carries the same order item, so the
+   * corrected line's VAT rate can be mirrored rather than assumed (issue #131).
+   */
+  orderItemId: string;
+  productName: string;
+  quantity: number;
+  /** Credited amount for this line, gross (as paid, including its tax). */
+  amount: number;
+}
+
+export interface CorrectiveInvoiceInput {
+  orderId: string;
+  lines: CorrectiveInvoiceLine[];
+  /** Credited total, gross. */
+  total: number;
+  currency: string;
+}
+
+/** A correction was issued: the document that credits the original invoice. */
+export interface CorrectiveInvoiceIssued {
+  issued: true;
+  invoiceId: string;
+  number: string;
+  status: 'pending' | 'ready' | 'cancelled';
+}
+
+/**
+ * No correction was due, with the reason (issue #135).
+ *
+ * The settlement caller cannot know whether the order was ever invoiced — the
+ * invoices module can, and answers here. `order_not_invoiced` is the only
+ * reason today: with no original there is no VAT document to correct, so a
+ * correction would be a number, a zero rate and an empty seller/buyer snapshot
+ * standing in for a document that never existed.
+ */
+export interface CorrectiveInvoiceNotDue {
+  issued: false;
+  reason: 'order_not_invoiced';
+}
+
+export type CorrectiveInvoiceResult = CorrectiveInvoiceIssued | CorrectiveInvoiceNotDue;
+
+/** Container name: `correctiveInvoicePort`. Owner: `invoices`. */
+export interface CorrectiveInvoicePort {
+  createCorrection(input: CorrectiveInvoiceInput): Promise<CorrectiveInvoiceResult>;
+}

@@ -1,12 +1,18 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { EventBus } from '../../events/bus.js';
+import type {
+  CorrectiveInvoicePort,
+  InvoicePdfPort,
+  InvoiceReadPort,
+} from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { FastifyRequest } from 'fastify';
 import { invoicesModule, type InvoicesModuleOptions, type InvoicesModuleHandle } from './plugin.js';
 import { CorrectiveInvoiceProvider } from './services/corrective-invoice.js';
+import { InvoiceReadService, createInvoicePdfPort } from './services/invoice-read-port.js';
 import type { InvoiceNumberGenerator } from './services/invoice-number-generator.js';
 import { INVOICE_ISSUED_DEFAULT } from './email-templates/invoice-issued.default.js';
 import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
@@ -131,6 +137,26 @@ export function registerModule(ctx: ModuleContext): void {
     'invoiceNumberGenerator',
     ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.numberGenerator).singleton(),
   );
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // Four inbound sites read the `Invoice` entity — `orders` twice, `ksef`
+  // twice. `invoiceReadPort` is that read; `invoicePdfPort` is the document
+  // surface `orders` renders from, and it is a port rather than a relocation
+  // even though the two builders behind it are pure. See its note: the
+  // question a document asks is Constitution XVII's, not FR-013's.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<InvoiceReadPort>(
+    'invoiceReadPort',
+    ctx.asFunction(({ emFactory }: InvoicesCradle) => new InvoiceReadService(emFactory)).singleton(),
+  );
+
+  ctx.di.providePort<InvoicePdfPort>(
+    'invoicePdfPort',
+    ctx.asFunction(() => createInvoicePdfPort()).singleton(),
+  );
+
   ctx.di.providePort(
     'invoicePdfRenderer',
     ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.pdfRenderer).singleton(),
@@ -155,7 +181,7 @@ export function registerModule(ctx: ModuleContext): void {
    * took the backend down for an operator who had switched the module off.
    */
   const numberGenerator = lazyPort<InvoiceNumberGenerator>(ctx, 'invoiceNumberGenerator');
-  ctx.di.providePort(
+  ctx.di.providePort<CorrectiveInvoicePort>(
     'correctiveInvoicePort',
     ctx
       .asFunction(

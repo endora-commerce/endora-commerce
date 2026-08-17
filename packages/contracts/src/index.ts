@@ -99,6 +99,14 @@ export {
   type CmsResolvedTemplate,
   type CmsResolvedPage,
   type CmsResolvedHook,
+  // Feature 075, Phase P — the in-process port surface. Named here like every
+  // other `cms` export because this file re-exports the module explicitly to
+  // resolve name collisions.
+  type CmsReference,
+  type CmsExternalReferenceScanner,
+  type CmsReferenceRegistryPort,
+  type CmsPageRecord,
+  type CmsPageReadPort,
 } from './cms.js';
 export * from './shopping-lists.js';
 export * from './quick-order.js';
@@ -139,3 +147,6 @@ export * from './languages.js';
 export * from './currencies.js';
 export * from './admin-roles.js';
 export * from './admin-users.js';
+export * from './addresses.js';
+export * from './shipments.js';
+export * from './admin-notifications.js';

@@ -3,6 +3,8 @@ import type Redis from 'ioredis';
 import { z } from 'zod';
 import { cmsColorPaletteSchema, type CmsColorPalette } from '@b2b/contracts';
 import { CMS_PAGE_BUILDER_SETTING_CODES } from './manifest.js';
+import type { CmsPageReadPort } from '@b2b/contracts';
+import { CmsPageReadService } from './services/cms-page-read-port.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
@@ -207,6 +209,23 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(({ cms }: CmsCradle) => cms.handle.referenceRegistry)
       .singleton(),
   });
+
+  /**
+   * Feature 075, Phase P — the page read model.
+   *
+   * `seo` reads pages twice: to resolve one page's meta tags, and to enumerate
+   * the published ones for the sitemap. It reaches the `CmsPage` entity for
+   * both today. The record drops `body` and `content` — a sitemap has no use
+   * for a rendered tree, and shipping it would make every sitemap build carry
+   * the whole CMS through memory.
+   *
+   * A port, unlike `cmsReferenceRegistry` above: a scanner is inert until a
+   * delete asks it something, and a read is not.
+   */
+  ctx.di.providePort<CmsPageReadPort>(
+    'cmsPageReadPort',
+    ctx.asFunction(({ emFactory }: CmsCradle) => new CmsPageReadService(emFactory)).singleton(),
+  );
 
   ctx.onBoot(async () => {
     // Presence is decided here — first, and outside anything that could catch it

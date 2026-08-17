@@ -86,3 +86,24 @@ export const resolvedTaxSchema = z.discriminatedUnion('source', [
   z.object({ source: z.literal('none') }),
 ]);
 export type ResolvedTax = z.infer<typeof resolvedTaxSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `taxes` publishes (feature 075, Phase P). One
+// cross-module consumer: `product_feeds` prices a feed line and needs the rate
+// that would apply to it.
+// ---------------------------------------------------------------------------
+
+/**
+ * Container name: `taxService`. Owner: `taxes`.
+ *
+ * `ResolvedTax`'s `none` arm is the reason this shape is a union rather than a
+ * number: "no rule matched" is a real answer with real consequences, and a
+ * caller that read a `rate` off the `none` arm would get `undefined` and quote
+ * zero. Issue #124 was exactly that, in `orders`' closure, and the union is
+ * what makes the compiler refuse it.
+ */
+export interface TaxServicePort {
+  taxRateFor(input: TaxResolutionInput): Promise<ResolvedTax>;
+}

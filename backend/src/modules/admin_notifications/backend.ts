@@ -1,8 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { AdminNotificationRecordPort } from '@b2b/contracts';
 import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { registerAdminNotificationsRoutes } from './routes.admin.js';
 import { AdminNotificationService } from './services/admin-notification-service.js';
+import { createAdminNotificationRecordPort } from './services/admin-notification-port.js';
 
 /**
  * `admin_notifications` — a module four other modules write into (feature 072,
@@ -31,6 +33,26 @@ export interface AdminNotificationsCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  /**
+   * Feature 075, Phase P — the one method the one cross-module consumer calls.
+   *
+   * `organizations` records a notification when a new organisation registers.
+   * The module's other four methods are its own admin surface — listing,
+   * marking read, archiving, counting — and stay unpublished. The adapter
+   * exists because `record` answers with the `AdminNotification` entity, and a
+   * port answers with a record.
+   */
+  ctx.di.providePort<AdminNotificationRecordPort>(
+    'adminNotificationRecordPort',
+    ctx
+      .asFunction(() =>
+        createAdminNotificationRecordPort(
+          () => ctx.cradle<AdminNotificationsCradle>().adminNotificationService,
+        ),
+      )
+      .singleton(),
+  );
+
   ctx.di.providePort(
     'adminNotificationService',
     ctx

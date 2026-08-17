@@ -1,9 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DictionaryValidator } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AddressReadPort, AddressServicePort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { AddressService } from './services/address-service.js';
+import { AddressReadService, createAddressServicePort } from './services/address-ports.js';
 
 /**
  * `addresses` — one service, where there were three (feature 072, wave 1,
@@ -46,6 +48,33 @@ export interface AddressesCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // `addressService` below hands out the class; four of the ten inbound sites
+  // do not want a service at all, they read the `Address` entity to snapshot
+  // one onto an order, serialise one, or resolve a buyer's default. These two
+  // ports are what both halves rewire to, and every read on the first is
+  // scoped by organisation — three of the four direct readers apply that check
+  // in a second statement today, in a tenancy-critical table.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<AddressReadPort>(
+    'addressReadPort',
+    ctx
+      .asFunction(({ emFactory }: AddressesCradle) => new AddressReadService(emFactory))
+      .singleton(),
+  );
+
+  ctx.di.providePort<AddressServicePort>(
+    'addressServicePort',
+    ctx
+      .asFunction(() =>
+        createAddressServicePort(() => ctx.cradle<AddressesCradle>().addressService),
+      )
+      .singleton(),
+  );
+
   ctx.di.providePort(
     'addressService',
     ctx
