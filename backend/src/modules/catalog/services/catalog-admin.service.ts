@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
+  type CatalogAdminAuditContext,
   type CreateAttributeRequest,
   type CreateProductRequest,
   type CreateVariantRequest,
@@ -68,14 +69,14 @@ export interface CatalogCustomFieldsPort extends CustomFieldDefinitionApplyApi {
   getById(id: string): Promise<CachedDefinition | null>;
 }
 
-/** Optional metadata used to attach audit entries to admin mutations. */
-export interface AdminAuditContext {
-  actorAdminUserId: string;
-  impersonatedCustomerAccountId?: string | null;
-  ipAddress?: string | null;
-  userAgent?: string | null;
-  requestId?: string | null;
-}
+/**
+ * Optional metadata used to attach audit entries to admin mutations.
+ *
+ * Published as `CatalogAdminAuditContext` in feature 075's Phase P — the
+ * write port's two audited methods take it — and aliased back here so the two
+ * cannot drift.
+ */
+export type AdminAuditContext = CatalogAdminAuditContext;
 
 /**
  * Virtual attribute-value keys that are NOT bound to any AttributeSet but are

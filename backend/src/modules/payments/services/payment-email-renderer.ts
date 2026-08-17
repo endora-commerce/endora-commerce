@@ -8,14 +8,14 @@
  * E-mail bodies are plain text (see Mailer.MailerSendInput.text), so a renderer
  * is a `(ctx) => string` builder rather than a React component.
  */
-export interface PaymentEmailContext {
-  /** Resolved display name of the payment method. */
-  name: string;
-  kind: string;
-  /** Flat surcharge applied for this method (order currency). */
-  additionalPrice: number;
-  currency: string;
-}
+import type { PaymentEmailContext } from '@b2b/contracts';
+
+/**
+ * `PaymentEmailContext` moved to `@b2b/contracts` in feature 075's Phase P —
+ * `orders` renders the payment line with it. Re-exported here for the length
+ * of Phase P, which cuts no consumer.
+ */
+export type { PaymentEmailContext };
 
 export type PaymentEmailRenderer = (ctx: PaymentEmailContext) => string;
 

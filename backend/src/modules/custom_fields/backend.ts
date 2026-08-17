@@ -1,11 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
+import type { CustomFieldDefinitionReadPort, CustomFieldValuePort } from '@b2b/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { CustomFieldDefinitionsCache } from './services/custom-field-definitions-cache.js';
 import { CustomFieldDefinitionService } from './services/custom-field-definition.service.js';
 import { CustomFieldValueService } from './services/custom-field-value.service.js';
+import { CustomFieldDefinitionReadService } from './services/custom-field-read-port.js';
 import { registerCustomFieldsAdminRoutes } from './routes.admin.js';
 
 /**
@@ -107,10 +109,30 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  ctx.di.providePort(
+  ctx.di.providePort<CustomFieldValuePort>(
     'customFieldValueService',
     ctx
       .asFunction(({ customFieldServices }: CustomFieldsCradle) => customFieldServices.valueService)
+      .singleton(),
+  );
+
+  /**
+   * Feature 075, Phase P — the definition read model, without the two ORM
+   * entities `CachedDefinition` carries.
+   *
+   * `customFieldDefinitionService` above stays: it is the module's own CRUD
+   * surface and its admin routes use it. This is the read seven modules
+   * actually make — `catalog`'s composed attribute read model most of all,
+   * because since feature 061 the definition half of a product attribute *is*
+   * a custom-field definition.
+   */
+  ctx.di.providePort<CustomFieldDefinitionReadPort>(
+    'customFieldDefinitionReadPort',
+    ctx
+      .asFunction(
+        ({ customFieldServices }: CustomFieldsCradle) =>
+          new CustomFieldDefinitionReadService(customFieldServices.definitionService),
+      )
       .singleton(),
   );
 

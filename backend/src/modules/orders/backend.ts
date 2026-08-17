@@ -2,7 +2,16 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import { z } from 'zod';
-import type { ResolvedTax, TransactionalEmailSender } from '@b2b/contracts';
+import type {
+  OrderListPort,
+  OrderPlacementPort,
+  OrderReadPort,
+  OrderStatusAnnouncePort,
+  ResolvedTax,
+  TransactionalEmailSender,
+} from '@b2b/contracts';
+import { ERROR_CODES } from '@b2b/contracts';
+import { HttpError } from '../../http/error-envelope.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
@@ -13,6 +22,8 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import { commerceModule, type OrdersModuleOptions } from './plugin.js';
+import { emitOrderStatusAfter } from './events/order-status-events.js';
+import { OrderReadService, toOrderRecord } from './services/order-read-port.js';
 import { OrderReturnContextProvider } from './services/order-return-context.js';
 import type { OrderService } from './services/order-service.js';
 import type { OrderListService } from './services/order-list-service.js';
@@ -162,6 +173,22 @@ export function registerModule(ctx: ModuleContext): void {
     orderListService: OrderListService | null;
     orderTransitionService: OrderTransitionService | null;
   } = { orderService: null, orderListService: null, orderTransitionService: null };
+
+  /**
+   * A published port answers a caller, so "the plugin has not registered yet"
+   * has to be an error rather than a `null` the caller may forget to test.
+   * 503 is the same status `quick_order` already produces from the null branch,
+   * and the same one the module gate produces when `orders` is switched off —
+   * which is right, because from a caller's side the two are the same fact.
+   * The envelope code follows `quick_order`'s existing spelling rather than
+   * introducing a sixth "unavailable" code for one branch.
+   */
+  const requireExposed = <T>(service: T | null, what: string): T => {
+    if (service === null) {
+      throw new HttpError(503, ERROR_CODES.NOT_FOUND, `Orders: ${what} is unavailable.`);
+    }
+    return service;
+  };
 
   /**
    * One read of one of this module's own settings, scoped to the channel the
@@ -354,6 +381,72 @@ export function registerModule(ctx: ModuleContext): void {
   /** The transition service the assistant's status-change tools call at confirm time. */
   const transitionService = (): OrderTransitionService | null =>
     cradle().orderTransitionServiceAccessor();
+
+  // ---------------------------------------------------------------------------
+  // Feature 075, Phase P — the published surface.
+  //
+  // The three accessors above hand out a *class*, and eleven modules type their
+  // holder with it. The four ports below are what they rewire to: the same
+  // behaviour, expressed in shapes that carry no `Order` entity and no
+  // `EventBus`. The accessors stay for the consumers Phase C has not reached.
+  //
+  // `orderPlacementPort` and `orderListPort` keep the accessors' timing —
+  // both services are constructed inside the plugin body, so a call made
+  // before route registration legitimately has nothing to call. They answer
+  // that with a 503 rather than a `null` a caller has to remember to check;
+  // a `null` accessor is indistinguishable from a wiring mistake, and
+  // `quick_order` already translates it into a 503 by hand.
+  // ---------------------------------------------------------------------------
+
+  ctx.di.providePort<OrderReadPort>(
+    'orderReadPort',
+    ctx.asFunction(({ emFactory }: OrdersCradle) => new OrderReadService(emFactory)).singleton(),
+  );
+
+  ctx.di.providePort<OrderListPort>(
+    'orderListPort',
+    ctx
+      .asFunction((): OrderListPort => ({
+        list: (query, scope) => requireExposed(exposed.orderListService, 'order list').list(query, scope),
+      }))
+      .singleton(),
+  );
+
+  ctx.di.providePort<OrderPlacementPort>(
+    'orderPlacementPort',
+    ctx
+      .asFunction((): OrderPlacementPort => ({
+        placeOrder: async (customerContext, req) =>
+          toOrderRecord(
+            await requireExposed(exposed.orderService, 'order placement').placeOrder(
+              customerContext,
+              req,
+            ),
+          ),
+      }))
+      .singleton(),
+  );
+
+  /**
+   * The templated status-change announcement (feature 038 FR-007).
+   *
+   * `payments` and `shipments` move an order's status inside their own
+   * transaction and then announce it, which they do today by importing this
+   * module's event builder and handing it their own `EventBus`. The four event
+   * names are not known at compile time — the status set is
+   * admin-configurable — so the naming scheme has to live in exactly one
+   * place, and that place is this module.
+   */
+  ctx.di.providePort<OrderStatusAnnouncePort>(
+    'orderStatusAnnouncePort',
+    ctx
+      .asFunction(({ eventBus }: OrdersCradle): OrderStatusAnnouncePort => ({
+        announceStatusChanged: (change) => {
+          emitOrderStatusAfter(eventBus, change);
+        },
+      }))
+      .singleton(),
+  );
 
   /**
    * The order facts a return settlement needs (feature 046 R4), as this

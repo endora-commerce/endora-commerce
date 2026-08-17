@@ -1,4 +1,4 @@
-import type { PaymentAdapter } from '@b2b/contracts';
+import type { PaymentAdapter, PaymentAdapterRegistryPort } from '@b2b/contracts';
 import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /**
@@ -43,7 +43,12 @@ export interface PaymentAdapterEntry {
   readonly module: string;
 }
 
-export class PaymentAdapterRegistry {
+/**
+ * `implements` the shape feature 075's Phase P published, which is what stops
+ * the registry and its contract drifting: the four gateway modules will read
+ * the published type, and `tsc` refuses the day a method here stops matching.
+ */
+export class PaymentAdapterRegistry implements PaymentAdapterRegistryPort {
   private readonly entries = new Map<string, PaymentAdapterEntry>();
 
   /**

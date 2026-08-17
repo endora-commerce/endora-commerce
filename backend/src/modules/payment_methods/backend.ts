@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { PaymentMethodReadPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -10,6 +11,7 @@ import {
 } from './routes.js';
 import { EnumOrderStatusRegistry } from './services/order-status-registry.port.js';
 import { PaymentMethodEligibilityService } from './services/payment-method-eligibility.js';
+import { PaymentMethodReadService } from './services/payment-method-read-port.js';
 import { paymentAdapterRegistry } from './services/registry-singleton.js';
 
 /**
@@ -83,6 +85,26 @@ export function registerModule(ctx: ModuleContext): void {
     paymentOrderStatusRegistry: ctx.asFunction(() => new EnumOrderStatusRegistry()).singleton(),
 
   });
+
+  /**
+   * Feature 075, Phase P — the row-level read model.
+   *
+   * A **port**, unlike the two registrations above. The distinction is the one
+   * the deactivation-consequence ledger draws: the two registries are
+   * contribution seams whose absent-owner policy lives inside them and whose
+   * edges classify as `contributes`, so a gate over the registration would
+   * withdraw the table rather than one contributor's entry. A read of this
+   * module's own table is nothing of the kind — with `payment_methods` off, a
+   * caller asking which methods exist should be told the module is off.
+   */
+  ctx.di.providePort<PaymentMethodReadPort>(
+    'paymentMethodReadPort',
+    ctx
+      .asFunction(
+        ({ emFactory }: PaymentMethodsCradle) => new PaymentMethodReadService(emFactory),
+      )
+      .singleton(),
+  );
 
   ctx.routes(async (app) => {
     const {

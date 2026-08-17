@@ -1,5 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AttributeValueType } from '@b2b/contracts';
+import type {
+  AttributeValueType,
+  CatalogAttributeFlag,
+  CatalogAttributeOptionView,
+  CatalogAttributeView,
+} from '@b2b/contracts';
 import type { DefinitionSource } from '../../custom_fields/services/custom-field-value.service.js';
 import type { CachedDefinition } from '../../custom_fields/services/custom-field-definitions-cache.js';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
@@ -23,60 +28,13 @@ import { cfToLegacyValueType } from './attribute-type-mapping.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export interface CatalogAttributeOptionView {
-  /** custom_field_options id. */
-  id: string;
-  value: string;
-  label: Record<string, string>;
-  labelDefault: string;
-  isDefault: boolean;
-  sortOrder: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface CatalogAttributeView {
-  /** Extension row id — the id the admin API has always exposed. */
-  id: string;
-  /** Backing custom_field_definitions id (host 'product'). */
-  customFieldDefinitionId: string;
-
-  // Generic identity (sourced from the definition).
-  key: string;
-  label: Record<string, string>;
-  labelDefault: string;
-  /** Legacy 8-value form, derived bijectively (research §R7). */
-  valueType: AttributeValueType;
-  isRequired: boolean;
-  options: CatalogAttributeOptionView[];
-
-  // Catalog behavior (sourced from the extension).
-  isSearchable: boolean;
-  isFilterable: boolean;
-  isVariantAxis: boolean;
-  displayAsSlider: boolean;
-  isComparable: boolean;
-  quickSearchable: boolean;
-  isPromoRule: boolean;
-  filterPosition: number;
-  isVisibleOnProductPage: boolean;
-  channelScoped: boolean;
-  languageScoped: boolean;
-  massEditable: boolean;
-
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export type CatalogAttributeFlag =
-  | 'isSearchable'
-  | 'isFilterable'
-  | 'isVariantAxis'
-  | 'isComparable'
-  | 'quickSearchable'
-  | 'isPromoRule'
-  | 'massEditable'
-  | 'isVisibleOnProductPage';
+/**
+ * The three shapes moved to `@b2b/contracts` in feature 075's Phase P — four
+ * modules type themselves against `CatalogAttributeView` today by importing
+ * this file. Re-exported here for the length of Phase P, which cuts no
+ * consumer.
+ */
+export type { CatalogAttributeOptionView, CatalogAttributeView, CatalogAttributeFlag };
 
 /**
  * Raised when the total-1:1 invariant is violated (an extension row without a

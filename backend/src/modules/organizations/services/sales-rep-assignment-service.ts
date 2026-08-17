@@ -3,6 +3,7 @@ import { OrganizationSalesRepAssignment } from '../entities/organization-sales-r
 import { Organization } from '../entities/organization.entity.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ERROR_CODES } from '@b2b/contracts';
+import type { SalesRepAssignmentPort, SalesRepAssignmentRow } from '@b2b/contracts';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { OrganizationTreeService } from './organization-tree-service.js';
@@ -19,15 +20,6 @@ export interface SalesRepSubtreeDeps {
   readonly hasRollupCapability: (adminUserId: string) => Promise<boolean>;
 }
 
-/** One assignment row, as a module outside `organizations` sees it. */
-export interface SalesRepAssignmentRow {
-  readonly id: string;
-  readonly organizationId: string;
-  readonly adminUserId: string;
-  readonly assignedByAdminUserId?: string | null;
-  readonly createdAt: Date;
-}
-
 /**
  * The sales-rep assignment relation as **other modules** see it:
  * `organizations`' `organizationSalesRepScopePort` (T143a, widened for issue
@@ -42,18 +34,12 @@ export interface SalesRepAssignmentRow {
  *
  * Structural rather than the entity type on purpose: a consumer wants the reps,
  * not `organizations`' ORM rows.
+ *
+ * Both declarations moved to `@b2b/contracts` in feature 075's Phase P, so the
+ * two consuming modules can name a package rather than this file. Re-exported
+ * here for the length of Phase P, which cuts no consumer.
  */
-export interface SalesRepAssignmentPort {
-  canSeeOrganization(adminUserId: string, organizationId: string): Promise<boolean>;
-  listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
-  listForOrganization(organizationId: string): Promise<SalesRepAssignmentRow[]>;
-  assign(input: {
-    organizationId: string;
-    adminUserId: string;
-    assignedByAdminUserId?: string | null;
-  }): Promise<SalesRepAssignmentRow>;
-  unassign(input: { organizationId: string; adminUserId: string }): Promise<boolean>;
-}
+export type { SalesRepAssignmentPort, SalesRepAssignmentRow };
 
 /**
  * Centralised visibility predicate for the sales-rep ↔ organization

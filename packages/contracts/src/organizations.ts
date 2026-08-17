@@ -5,7 +5,7 @@ import {
   organizationRoleSchema,
   uuidSchema,
 } from './common.js';
-import { fulfilmentStrategySchema } from './inventory.js';
+import { fulfilmentStrategySchema, type FulfilmentStrategy } from './inventory.js';
 
 /**
  * Organizations, customer accounts, addresses, invitations — Source of truth
@@ -394,3 +394,301 @@ export const salesRepOrganizationSchema = z.object({
   assignedAt: isoDateTimeSchema,
 });
 export type SalesRepOrganization = z.infer<typeof salesRepOrganizationSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `organizations` publishes to the eleven modules that
+// read it (feature 075, Phase P). Plain TypeScript, not Zod: these describe
+// in-process calls, not an API boundary.
+// ---------------------------------------------------------------------------
+
+export type VatValidationProvider = 'vies' | 'mf_pl' | 'format_only';
+
+export type VatValidationOutcome = 'validated' | 'failed' | 'deferred' | 'unverified';
+
+/** The JSONB snapshot the organisation's registered address is stored as. */
+export interface OrganizationRegisteredAddress {
+  street: string;
+  city: string;
+  postalCode: string;
+  country: string;
+}
+
+/**
+ * An organisation as it crosses a module boundary — a plain shape, never the
+ * ORM entity (FR-011). `nameSearch` is absent: it is a derived column the
+ * entity hooks maintain, "never read or written by callers directly", and
+ * publishing it would invite exactly that.
+ */
+export interface OrganizationRecord {
+  id: string;
+  name: string;
+  legalName: string | null;
+  taxId: string;
+  status: OrganizationStatus;
+  vatStatus: VatStatus;
+  isPersonal: boolean;
+  customerGroupId: string | null;
+  registeredAddress: OrganizationRegisteredAddress;
+  orderConfirmationEmails: string[];
+  vatValidatedAt: Date | null;
+  vatValidationProvider: VatValidationProvider | null;
+  vatValidationOutcome: VatValidationOutcome | null;
+  blockedReason: string | null;
+  blockedAt: Date | null;
+  rejectedReason: string | null;
+  rejectedAt: Date | null;
+  approvedAt: Date | null;
+  approvedByAdminUserId: string | null;
+  requiresCartApproval: boolean;
+  fulfilmentStrategy: FulfilmentStrategy | null;
+  fulfilmentStrategyWarehouseOrder: string[] | null;
+  parentId: string | null;
+  /** Materialised ancestor chain `'/<rootId>/…/<thisId>/'`. */
+  path: string;
+  creditInheritanceMode: CreditInheritanceMode | null;
+  customFieldValues: Record<string, unknown>;
+  /** Optimistic-lock token. Pass it back on a versioned write. */
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+/**
+ * Container name: `organizationDetailsPort`. Owner: `organizations`.
+ *
+ * The union of what eleven modules measurably ask for when they read the
+ * organisation row itself: 24 of the 47 inbound sites are `em.findOne` /
+ * `em.find` on the entity, and between them they touch nearly every column.
+ *
+ * **Why this is a second port and not a wider `OrganizationSnapshot`.** The
+ * kernel's `OrganizationReadPort` (`src/kernel/ports/organizations.ts`) is the
+ * *tenancy projection* — `{ id, status }` plus the two questions Principle XI
+ * asks — and D-55 settled it at what its callers use. `organizationTaxProfilePort`
+ * already declined to widen it, in those words, for the same reason: a tax
+ * profile is one consumer's question. So is a name picker, and so is a
+ * fulfilment override. Widening the snapshot to carry them would make the
+ * kernel declare a domain record.
+ *
+ * The name search is here rather than in each caller because it is not a
+ * `LIKE` on `name`: the column that answers it is the diacritic-folded
+ * `nameSearch`, and two of the three existing callers query `name` instead —
+ * so "a search for lodz finds Łódź" holds in one of them and not in the others.
+ *
+ * When `organizations` is off every method fails closed. The module is the
+ * platform's one tenant concept, so in practice the gate cannot close; it is
+ * registered anyway, because an exception carved into the port machinery costs
+ * more than the predicate does.
+ */
+export interface OrganizationDetailsPort {
+  findById(id: string): Promise<OrganizationRecord | null>;
+  findByIds(ids: readonly string[]): Promise<OrganizationRecord[]>;
+  /** How many of these ids exist — the `count === ids.length` existence check. */
+  countByIds(ids: readonly string[]): Promise<number>;
+  /**
+   * Diacritic-insensitive name search over `nameSearch`, ordered by name.
+   * An empty `query` returns the first `limit` organisations.
+   */
+  searchByName(query: string, limit: number): Promise<OrganizationRecord[]>;
+  /** The same search, ids only — for the order list's organisation filter. */
+  searchIdsByName(query: string): Promise<string[]>;
+}
+
+const NON_DECOMPOSING_LATIN: Record<string, string> = {
+  Ł: 'L',
+  ł: 'l',
+  Ø: 'O',
+  ø: 'o',
+  Đ: 'D',
+  đ: 'd',
+  Ð: 'D',
+  ð: 'd',
+  Þ: 'Th',
+  þ: 'th',
+  ß: 'ss',
+  Æ: 'AE',
+  æ: 'ae',
+  Œ: 'OE',
+  œ: 'oe',
+};
+
+/**
+ * Diacritic-insensitive normalisation for the organisation's `name_search`
+ * column and for any query string matched against it.
+ *
+ * Strips every Unicode combining mark using NFD decomposition, then maps the
+ * handful of precomposed Latin letters NFD does not decompose (notably Polish
+ * `ł`/`Ł`, Scandinavian `ø`/`Ø`, Czech `đ`/`Đ`, Icelandic `ð`/`Ð`, `þ`/`Þ`,
+ * German `ß`, ligatures `æ` and `œ`) to their ASCII approximations, lowercases
+ * the result and collapses internal whitespace.
+ *
+ * Published as a **function, not a port** (FR-013): it is pure over its
+ * argument, so switching `organizations` off does not change the answer, and a
+ * gated port answering 503 to "fold these diacritics" would be a bug. The
+ * entity's `@BeforeCreate` / `@BeforeUpdate` hooks and `orders`' list filter
+ * both call it, and they must agree or the filter silently stops matching.
+ *
+ * Node natives only (Principle IV).
+ */
+export function normalizeOrganizationName(input: string): string {
+  const stripped = input.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+  let mapped = '';
+  for (const ch of stripped) {
+    mapped += NON_DECOMPOSING_LATIN[ch] ?? ch;
+  }
+  return mapped.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Thrown when the organisation a read names does not exist. The kernel's
+ * `OrganizationReadPort` has documented it as `assertCanTransact`'s failure
+ * mode since D-32 while the class itself lived in a module, which is the gap
+ * this publication closes.
+ */
+export class OrganizationNotFoundError extends Error {
+  constructor(readonly organizationId: string) {
+    super(`Organization ${organizationId} not found.`);
+    this.name = 'OrganizationNotFoundError';
+  }
+}
+
+/**
+ * Thrown when a write is attempted for an organisation whose status forbids
+ * transacting. Four modules — `carts`, `orders`, `quote_requests` and the
+ * external order intake — catch it by class to turn it into a 409 envelope,
+ * which is why it is published here rather than being a port: an error is a
+ * shape, and `DictionaryReferenceError` in `dictionary.ts` set the precedent.
+ */
+export class OrganizationCannotTransactError extends Error {
+  constructor(
+    readonly organizationId: string,
+    readonly status: Exclude<OrganizationStatus, 'active'>,
+  ) {
+    super(`Organization ${organizationId} cannot transact in status '${status}'.`);
+    this.name = 'OrganizationCannotTransactError';
+  }
+}
+
+/** Where a subtree's credit limit is held, and under which mode. */
+export interface OrganizationCreditOwner {
+  /** Nearest ancestor-or-self holding a `CreditLimit` row, or null when none exists. */
+  readonly ownerOrgId: string | null;
+  /** Effective mode: the owner's per-org column, else the Settings global default. */
+  readonly mode: CreditInheritanceMode;
+}
+
+/**
+ * Container name: `organizationInheritancePort`. Owner: `organizations`.
+ *
+ * `credit_limits` is the only consumer: it asks which organisation in the
+ * hierarchy actually holds the limit that applies here.
+ */
+export interface OrganizationInheritancePort {
+  creditOwner(organizationId: string): Promise<OrganizationCreditOwner>;
+}
+
+/** The three allow-list kinds an organisation can restrict. */
+export type OrganizationAllowListKind =
+  | 'paymentMethodIds'
+  | 'deliveryMethodIds'
+  | 'warehouseIds';
+
+/**
+ * Container name: `organizationRestrictionPort`. Owner: `organizations`.
+ *
+ * `null` means "no restriction configured — everything is allowed", and it is
+ * deliberately part of the return type rather than something a caller infers
+ * from a thrown error. That is the worked example the composition checklist
+ * cites for putting a degrade inside the owner's implementation: a consumer
+ * that caught an exception here would turn a fail-closed edge into a
+ * fail-open one.
+ */
+export interface OrganizationRestrictionPort {
+  allowedIdsFor(
+    organizationId: string,
+    kind: OrganizationAllowListKind,
+  ): Promise<string[] | null>;
+}
+
+/**
+ * Container name: `personalOrganizationPort`. Owner: `organizations`.
+ *
+ * Feature 051 — a B2C customer is backed by a single-member personal
+ * organisation, so ordering, RFQ, credit and invoicing work and the tenant
+ * guard isolates each individual as their own tenant. There is no
+ * "no-organization" path (Principle XI), which is why this is idempotent
+ * rather than a create.
+ *
+ * Takes the account **id**, not the account: the entity that used to cross
+ * here is the shape feature 075 removes, and the second `EntityManager`
+ * argument went with it — the one caller already flushes the account before
+ * calling.
+ */
+export interface PersonalOrganizationPort {
+  ensureForCustomerAccount(customerAccountId: string): Promise<OrganizationRecord>;
+}
+
+/** One sales-rep ↔ organisation assignment row. */
+export interface SalesRepAssignmentRow {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly adminUserId: string;
+  readonly assignedByAdminUserId?: string | null;
+  readonly createdAt: Date;
+}
+
+/**
+ * Container name: `organizationSalesRepScopePort`. Owner: `organizations`.
+ *
+ * The sales-rep assignment relation as other modules see it. `quote_requests`
+ * scopes an admin's RFQ list with it; the admin surfaces read it to decide
+ * whether a rep may see an organisation at all.
+ */
+export interface SalesRepAssignmentPort {
+  canSeeOrganization(adminUserId: string, organizationId: string): Promise<boolean>;
+  listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+  listForOrganization(organizationId: string): Promise<SalesRepAssignmentRow[]>;
+  assign(input: {
+    organizationId: string;
+    adminUserId: string;
+    assignedByAdminUserId?: string | null;
+  }): Promise<SalesRepAssignmentRow>;
+  unassign(input: { organizationId: string; adminUserId: string }): Promise<boolean>;
+}
+
+/** The address a VAT registry hands back when it recognises the tax id. */
+export interface VatReturnedAddress {
+  line1?: string | null;
+  line2?: string | null;
+  postalCode?: string | null;
+  city?: string | null;
+  countryCode?: string | null;
+}
+
+export interface VatValidationResult {
+  outcome: VatValidationOutcome;
+  legalName: string | null;
+  address: VatReturnedAddress | null;
+  errorKind: string | null;
+}
+
+/**
+ * Pluggable VAT-ID validator (feature 026 US7), published so `customers` can
+ * name the shape without naming a file in `organizations`.
+ *
+ * Every adapter MUST degrade safely: a transient network failure or a
+ * provider-side 5xx returns `{ outcome: 'deferred', errorKind: … }` rather
+ * than throwing. A clean "not registered" response returns
+ * `{ outcome: 'failed', errorKind: 'not_found' }`. Only `validated` carries
+ * the optional `legalName` + `address` payloads the auto-fill flow consumes.
+ */
+export interface VatValidator {
+  readonly provider: VatValidationProvider;
+  validate(input: {
+    taxId: string;
+    /** Optional country hint extracted upstream (VIES needs the country split). */
+    countryCode?: string | undefined;
+  }): Promise<VatValidationResult>;
+}

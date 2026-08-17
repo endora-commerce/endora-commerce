@@ -1,6 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { DictionaryValidator, TransactionalEmailSender } from '@b2b/contracts';
+import type {
+  DictionaryValidator,
+  OrganizationDetailsPort,
+  OrganizationInheritancePort,
+  OrganizationRestrictionPort,
+  PersonalOrganizationPort,
+  TransactionalEmailSender,
+} from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
@@ -20,6 +27,11 @@ import {
   notificationRecipientsSchema,
 } from './schemas/settings.js';
 import { OrganizationContextService } from './services/organization-context-service.js';
+import {
+  OrganizationDetailsService,
+  toOrganizationRecord,
+} from './services/organization-details-port.js';
+import { PersonalOrganizationService } from './services/personal-organization-service.js';
 import { OrganizationRestrictionService } from './services/organization-restriction-service.js';
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import { OrganizationInheritanceService } from './services/organization-inheritance-service.js';
@@ -388,7 +400,42 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  ctx.di.providePort(
+  /**
+   * Feature 075, Phase P — the row-level read model.
+   *
+   * A **second** port beside `organizationReadPort` above, not a replacement:
+   * that one is the tenancy projection D-55 settled at `{ id, status }`, and
+   * `organizationTaxProfilePort` already declined to widen it for the same
+   * reason. Eleven modules read the row itself, and between them they touch
+   * nearly every column; that is this port.
+   */
+  ctx.di.providePort<OrganizationDetailsPort>(
+    'organizationDetailsPort',
+    ctx
+      .asFunction(({ emFactory }: OrganizationsCradle) => new OrganizationDetailsService(emFactory))
+      .singleton(),
+  );
+
+  /**
+   * Feature 075, Phase P — the personal-organization provisioner `customers`
+   * calls on registration. It built its own `PersonalOrganizationService` in
+   * `plugin.ts`; this is the one the module owns, and it takes the account id
+   * rather than the entity.
+   */
+  ctx.di.providePort<PersonalOrganizationPort>(
+    'personalOrganizationPort',
+    ctx
+      .asFunction(({ emFactory }: OrganizationsCradle): PersonalOrganizationPort => {
+        const service = new PersonalOrganizationService(emFactory);
+        return {
+          ensureForCustomerAccount: async (customerAccountId) =>
+            toOrganizationRecord(await service.ensureForCustomerAccountId(customerAccountId)),
+        };
+      })
+      .singleton(),
+  );
+
+  ctx.di.providePort<OrganizationRestrictionPort>(
     'organizationRestrictionPort',
     ctx
       .asFunction(
@@ -437,7 +484,7 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  ctx.di.providePort(
+  ctx.di.providePort<OrganizationInheritancePort>(
     'organizationInheritancePort',
     ctx
       .asFunction(
