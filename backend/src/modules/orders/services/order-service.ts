@@ -907,7 +907,10 @@ export class OrderService {
       // Feature 072 (T141) is what made this worth writing down: until then
       // the test harness never wired the route gate, so the suite reached this
       // branch on the ordinary checkout path and it looked like the main
-      // implementation rather than the fallback.
+      // implementation rather than the fallback. It then had no coverage at
+      // all, which is issue #64; the branch is exercised by
+      // `test/contract/quick_order/one-click-place.test.ts`, through the one
+      // caller that can reach it from the storefront.
       if (org.status !== 'active') {
         throw new HttpError(
           423,

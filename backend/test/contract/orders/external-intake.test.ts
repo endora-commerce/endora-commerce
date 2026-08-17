@@ -338,6 +338,12 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
     // requires this to be identical to what the Organization's own buyer gets,
     // and since T141 both paths are fed from the same container binding rather
     // than from two root arguments that happened to agree.
+    //
+    // This is one of the two assertions issue #63 is about — it pinned
+    // `ORGANIZATION_SUSPENDED`, a code production does not emit on a gated
+    // route, and could only pass because the harness had never wired the gate.
+    // Corrected in 633538a9 (072 T141), left here as the record of which code
+    // the surface really answers with.
     const body = res.json() as {
       error: { code: string; details?: { code?: string } };
     };

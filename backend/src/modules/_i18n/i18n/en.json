@@ -496,6 +496,7 @@
   "errors.EMAIL_ALREADY_REGISTERED": "Email Already Registered.",
   "errors.EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION": "Email Belongs To Another Organization.",
   "errors.FORBIDDEN": "You do not have permission to perform this action.",
+  "errors.FORBIDDEN.organization_cannot_transact": "Your organization cannot place orders in its current status. Contact your account manager to restore ordering.",
   "errors.INTERNAL": "Internal server error.",
   "errors.INVALID_CREDENTIALS": "Invalid email or password. Please try again.",
   "errors.INVALID_TRANSITION": "Invalid Transition.",

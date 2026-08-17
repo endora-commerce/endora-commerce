@@ -203,6 +203,14 @@ describe('external order intake — org capability envelope (062 / T022)', () =>
     // below just records which code the pair settled on. Since feature 072 T141
     // both paths resolve the same `organizationReadPort` from the container, so
     // parity is structural rather than two root arguments that agreed.
+    //
+    // The second of the two assertions issue #63 is about: it pinned
+    // `ORGANIZATION_SUSPENDED` until 633538a9 (072 T141), and passed only
+    // because the harness had never wired the route gate that both surfaces run
+    // in production. `ORGANIZATION_SUSPENDED` is still real — it is what
+    // `OrderService`'s service seam answers to a caller that passed no route
+    // gate, which is one-click buy, covered by
+    // `test/contract/quick_order/one-click-place.test.ts`.
     expect(keyCode).toBe(customerCode);
     expect(keyCode).toBe(ERROR_CODES.FORBIDDEN);
   });

@@ -67,4 +67,55 @@ describe('registered module i18n bundles — real filesystem shape', () => {
     }
     expect(missing).toEqual([]);
   });
+
+  /**
+   * Issue #65 — refusal-token sentences (`errors.<CODE>.<token>`).
+   *
+   * `check:error-translations` walks `ERROR_TRANSLATION_KEYS`, so it sees
+   * `errors.<CODE>` and nothing below it. A token key is therefore invisible to
+   * that ratchet, and a token that ships in one language only degrades quietly:
+   * the missing side falls back to the route's written English message instead
+   * of rendering a raw code, which is safe enough that nobody would notice.
+   * Both directions, so a stray PL sentence with no EN twin fails too.
+   */
+  it('every refusal-token sentence ships in both languages', () => {
+    const tokenKeys = (entries: Record<string, string>): string[] =>
+      Object.keys(entries).filter((key) => /^errors\.[A-Z0-9_]+\.[a-z0-9_]+$/.test(key));
+    const asymmetric: string[] = [];
+    for (const entry of withBundles) {
+      const loaded = loadModuleBundles(
+        entry.manifest.id,
+        dirname(entry.filePath),
+        entry.manifest.i18n!.bundlesDir,
+      );
+      const en = loaded.byLanguage.get('en');
+      const pl = loaded.byLanguage.get('pl');
+      if (!en || !pl) continue;
+      for (const key of tokenKeys(en)) {
+        if (!(key in pl)) asymmetric.push(`${entry.manifest.id}/pl.json → ${key}`);
+      }
+      for (const key of tokenKeys(pl)) {
+        if (!(key in en)) asymmetric.push(`${entry.manifest.id}/en.json → ${key}`);
+      }
+    }
+    expect(asymmetric).toEqual([]);
+  });
+
+  it('the transact-gate refusal keeps a sentence of its own', () => {
+    // Named rather than left to the parity rule above, which passes on zero
+    // token keys: deleting both sides of this one would otherwise be silent,
+    // and it is what four surfaces show a blocked Organization's buyer.
+    const i18n = withBundles.find((e) => e.manifest.id === '_i18n');
+    expect(i18n).toBeDefined();
+    const loaded = loadModuleBundles(
+      '_i18n',
+      dirname(i18n!.filePath),
+      i18n!.manifest.i18n!.bundlesDir,
+    );
+    for (const language of ['en', 'pl'] as const) {
+      expect(
+        loaded.byLanguage.get(language)?.['errors.FORBIDDEN.organization_cannot_transact'],
+      ).toBeTypeOf('string');
+    }
+  });
 });
