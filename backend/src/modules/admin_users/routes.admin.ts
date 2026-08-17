@@ -4,13 +4,13 @@ import {
   updateAdminUserRequestSchema,
   updateAdminUserSelfRequestSchema,
   upsertAdminRoleRequestSchema,
+  type AdminRolePort,
+  type AdminRoleRecord,
+  type PermissionCataloguePort,
+  type PermissionReadPort,
 } from '@b2b/contracts';
 import type { AdminUserService } from './services/admin-user-service.js';
-import type { AdminRoleService } from '../admin_roles/services/admin-role-service.js';
-import type { PermissionService } from '../admin_roles/services/permission-service.js';
-import type { PermissionCatalogueService } from '../admin_roles/services/permission-catalogue.service.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
-import type { AdminRole } from '../admin_roles/entities/admin-role.entity.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
@@ -21,9 +21,9 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface AdminUsersAdminDeps {
   adminUserService: AdminUserService;
-  adminRoleService: AdminRoleService;
-  permissionCatalogueService: PermissionCatalogueService;
-  permissionService: PermissionService;
+  adminRolePort: AdminRolePort;
+  permissionCataloguePort: PermissionCataloguePort;
+  permissionService: PermissionReadPort;
   requireAdmin: RequireAdminFactory;
   /** Resolves the current admin's id — reads `request.actor` in production
    *  and `request.testActor` under the test harness. */
@@ -36,8 +36,8 @@ export async function registerAdminUsersAdminRoutes(
 ): Promise<void> {
   const {
     adminUserService,
-    adminRoleService,
-    permissionCatalogueService,
+    adminRolePort,
+    permissionCataloguePort,
     permissionService,
     requireAdmin,
     resolveAdminContext,
@@ -51,8 +51,15 @@ export async function registerAdminUsersAdminRoutes(
       const ctx = resolveAdminContext(request);
       const adminUser = await adminUserService.getById(ctx.adminUserId);
       const permissions = await permissionService.listPermissions(adminUser.id);
+      // No `.catch(() => null)` around the port call (feature 075, Phase C,
+      // FR-032): it would swallow `ModuleDisabledError` and answer "this admin
+      // has no role" for "`admin_roles` is not here", which is the fail-open
+      // the gate exists to prevent. Nothing is lost by dropping it —
+      // `admin_users_admin_role_fk` is `on delete restrict`
+      // (`migrations/20260425T053028_admin_users_init.ts:41`), so a non-null
+      // `adminRoleId` always names a live role.
       const role = adminUser.adminRoleId
-        ? await adminRoleService.getById(adminUser.adminRoleId).catch(() => null)
+        ? await adminRolePort.getById(adminUser.adminRoleId)
         : null;
       return {
         data: {
@@ -90,7 +97,7 @@ export async function registerAdminUsersAdminRoutes(
   app.get(
     '/api/v1/admin/permissions',
     { preHandler: requireAdmin('admin_users:manage') },
-    async () => ({ data: permissionCatalogueService.listAssignable() }),
+    async () => ({ data: permissionCataloguePort.listAssignable() }),
   );
 
   // --- Admin users -----------------------------------------------------------
@@ -171,7 +178,7 @@ export async function registerAdminUsersAdminRoutes(
     '/api/v1/admin/admin-roles',
     { preHandler: requireAdmin('admin_users:manage') },
     async () => {
-      const rows = await adminRoleService.list();
+      const rows = await adminRolePort.list();
       return { data: rows.map(serializeAdminRole) };
     },
   );
@@ -184,7 +191,7 @@ export async function registerAdminUsersAdminRoutes(
     },
     async (request) => {
       const body = upsertAdminRoleRequestSchema.parse(request.body);
-      const role = await adminRoleService.upsertByCode({
+      const role = await adminRolePort.upsertByCode({
         code: request.params.code,
         name: body.name,
         permissions: body.permissions,
@@ -200,7 +207,7 @@ export async function registerAdminUsersAdminRoutes(
     '/api/v1/admin/admin-roles/:id',
     { preHandler: requireAdmin('admin_users:manage') },
     async (request, reply) => {
-      await adminRoleService.remove(request.params.id);
+      await adminRolePort.remove(request.params.id);
       return reply.status(204).send();
     },
   );
@@ -224,7 +231,7 @@ function serializeAdminUser(u: AdminUser) {
   };
 }
 
-function serializeAdminRole(r: AdminRole) {
+function serializeAdminRole(r: AdminRoleRecord) {
   return {
     id: r.id,
     code: r.code,

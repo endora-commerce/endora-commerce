@@ -24,7 +24,7 @@
 import { initOrm, closeOrm } from '../../../db/index.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import { AdminRole } from '../../admin_roles/entities/admin-role.entity.js';
-import { hashPassword } from '../../auth/services/password-hasher.js';
+import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
 import { enterSystemScope } from '../../../kernel/scope.js';
 
 interface ParsedArgs {

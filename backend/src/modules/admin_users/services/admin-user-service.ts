@@ -1,10 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type AdminRolePort } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { hashPassword } from '../../auth/services/password-hasher.js';
+import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
-import { AdminRole } from '../../admin_roles/entities/admin-role.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
@@ -56,6 +55,12 @@ export interface ListAdminUsersResult {
 export class AdminUserService {
   constructor(
     private readonly emFactory: () => EntityManager,
+    /**
+     * `admin_roles`' published role surface (feature 075, Phase C). The role
+     * a user is assigned to belongs to that module, so "does this role exist?"
+     * is its question and not a second `em.findOne` against its table.
+     */
+    private readonly adminRoles: AdminRolePort,
     private readonly auditLog?: AuditLogService,
   ) {}
 
@@ -161,7 +166,7 @@ export class AdminUserService {
 
   async create(input: CreateAdminUserInput): Promise<AdminUser> {
     const em = this.emFactory();
-    if (input.adminRoleId) await this.#assertRoleExists(em, input.adminRoleId);
+    if (input.adminRoleId) await this.#assertRoleExists(input.adminRoleId);
     const passwordHash = await hashPassword(input.password);
     const user = em.create(AdminUser, {
       email: input.email.toLowerCase(),
@@ -191,7 +196,7 @@ export class AdminUserService {
     const em = this.emFactory();
     const user = await this.#getByIdOn(em, id);
     if (input.adminRoleId !== undefined) {
-      if (input.adminRoleId !== null) await this.#assertRoleExists(em, input.adminRoleId);
+      if (input.adminRoleId !== null) await this.#assertRoleExists(input.adminRoleId);
       user.adminRoleId = input.adminRoleId;
     }
     if (input.firstName !== undefined) user.firstName = input.firstName;
@@ -240,10 +245,12 @@ export class AdminUserService {
     return row;
   }
 
-  async #assertRoleExists(em: EntityManager, id: string): Promise<void> {
-    const role = await em.findOne(AdminRole, { id });
-    if (!role) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin role not found.');
-    }
+  /**
+   * `getById` raises the same 404 `Admin role not found.` this method used to
+   * raise itself, so no `catch` is wanted and none is written: an absent
+   * `admin_roles` must refuse the assignment, not let it through unvalidated.
+   */
+  async #assertRoleExists(id: string): Promise<void> {
+    await this.adminRoles.getById(id);
   }
 }

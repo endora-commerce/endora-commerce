@@ -1,8 +1,12 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { ERROR_CODES, impersonationRequestSchema } from '@b2b/contracts';
+import {
+  ADMIN_SESSION_COOKIE_NAME,
+  ERROR_CODES,
+  SESSION_COOKIE_NAME,
+  impersonationRequestSchema,
+} from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { TestActorCarrier } from '../../http/test-actor-carrier.js';
-import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { ImpersonationService } from './services/impersonation-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
