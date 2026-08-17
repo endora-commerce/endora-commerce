@@ -100,14 +100,55 @@ export const manifest = defineModuleManifest({
   // `permissionService` directly now, rather than through a root-built bundle.
   // It was already satisfied transitively via `auth`; the edge is declared
   // because a manifest is what an operator reads.
+  // Feature 075, Phase C — `admin_users` and `customer_accounts` join the seven
+  // that were already here. Both are ordinary declarations: neither reaches
+  // back to this module, so the edges close no cycle. `carts` and `orders` do
+  // reach back and are acknowledged below.
   dependencies: [
     'admin_roles',
+    'admin_users',
     'auth',
     'catalog',
     'custom_fields',
+    'customer_accounts',
     'organizations',
     'settings',
     'taxes',
+  ],
+  /**
+   * Feature 075, Phase C — the two edges this module genuinely has and cannot
+   * declare above, because `carts/manifest.ts` declares **this** module and
+   * `orders` declares `carts`. An ordinary declaration would close a cycle,
+   * which `backend/src/db/migration-order.ts` refuses outright.
+   *
+   * Neither is a schema edge, so nothing is lost by keeping them out of the
+   * install and migration order: `cartWritePort` is the quote-to-cart
+   * conversion (the write that used to be `em.create(Cart, …)` from inside this
+   * module), and `orderReadPort` is the `order.created.v1` reactor reading the
+   * order that names the quote request it completes. Both fail closed, and both
+   * owners are the ones that would have to be off for the path to be reachable
+   * at all — a conversion with no cart module has nowhere to convert to.
+   */
+  acknowledgedDependencies: [
+    {
+      moduleId: 'carts',
+      port: 'cartWritePort',
+      reason:
+        'Converting an approved quote seeds the customer’s active cart at the agreed unit ' +
+        'prices, which is a write into carts’ own tables and belongs to carts. Declaring it ' +
+        'as a dependency closes a cycle, because carts declares this module for the ' +
+        '"add to quote" surface. The seam fails closed: a conversion that cannot reach the ' +
+        'cart must refuse rather than report a checkout URL for a cart nobody wrote.',
+    },
+    {
+      moduleId: 'orders',
+      port: 'orderReadPort',
+      reason:
+        'The order.created.v1 reactor reads the order that names the quote request it ' +
+        'completes. Declaring it closes a cycle through carts. The seam fails closed, and ' +
+        'the event that triggers it cannot be emitted by an absent orders module, so the ' +
+        'acknowledged edge adds no refusal that was reachable before.',
+    },
   ],
   settings,
   // Feature 073 (Constitution XVII) — the operator's activation control.

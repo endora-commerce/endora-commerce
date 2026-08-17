@@ -10,6 +10,7 @@ import { RfqEventService } from '../../../src/modules/quote_requests/services/rf
 import { RfqNotificationService } from '../../../src/modules/quote_requests/services/rfq-notification-service.js';
 import { SalesRepAssignmentService } from '../../../src/modules/organizations/services/sales-rep-assignment-service.js';
 import { EventBus } from '../../../src/events/bus.js';
+import type { AdminUserReadPort } from '@b2b/contracts';
 
 /**
  * T074 — Expiry worker honours `quote_requests.expiryDays`.
@@ -36,6 +37,10 @@ describe('RfqExpiryWorker (US7 / T074)', () => {
       eventService: new RfqEventService(() => h.em()),
       notificationService: new RfqNotificationService(() => h.em()),
       salesRepAssignment: new SalesRepAssignmentService(() => h.em()),
+      // Feature 075, Phase C — the unassigned-organisation fan-out reads
+      // `admin_users`' published port instead of `em.find(AdminUser, {})`.
+      adminUsers: (h.container.cradle as never as { adminUserReadPort: AdminUserReadPort })
+        .adminUserReadPort,
       resolveExpiryDays,
     } as never);
   }

@@ -121,6 +121,35 @@ export const customFieldValidationErrorSchema = z.object({
 });
 export type CustomFieldValidationError = z.infer<typeof customFieldValidationErrorSchema>;
 
+/**
+ * What `CustomFieldValuePort.validateAndMerge` throws, as a **shape** rather
+ * than a constructor (feature 075, Phase C).
+ *
+ * Five host modules catch it to turn it into the 422 envelope, and each of them
+ * did it with `err instanceof CustomFieldValidationError` — which imports
+ * `custom_fields`' class and is the last thing several of their cuts would
+ * otherwise be left holding. This is D-77's remedy for
+ * `CustomFieldDefinitionError` applied to its sibling: narrow structurally, so
+ * the host names a published shape instead of a foreign constructor.
+ *
+ * The guard tests `name` and the `errors` array rather than the prototype
+ * chain, which is also what makes it survive the error crossing a package
+ * boundary once each module is its own npm package (F4).
+ */
+export interface CustomFieldValidationFailure extends Error {
+  readonly errors: readonly CustomFieldValidationError[];
+}
+
+export function isCustomFieldValidationFailure(
+  error: unknown,
+): error is CustomFieldValidationFailure {
+  return (
+    error instanceof Error &&
+    error.name === 'CustomFieldValidationError' &&
+    Array.isArray((error as { errors?: unknown }).errors)
+  );
+}
+
 // ---------------------------------------------------------------------------
 // --- ports -----------------------------------------------------------------
 //

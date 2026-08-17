@@ -15,44 +15,33 @@
  * says so.
  */
 export const entries: Readonly<Record<string, string>> = {
-  'modules/quote_requests/plugin.ts:custom_fields/services/custom-field-value.service':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
+  // The `quote_requests` cut retired nineteen of the twenty. This one is not a
+  // read of another module's data and no port can express it: it is a **route
+  // file** — `organizations/routes.sales-reps.ts`, which `organizations` owns
+  // and this module *mounts*, through a dynamic `import()` inside its own
+  // `register`. FR-015 names the remedy ("a contribution point the host owns"),
+  // and the honest version of it here is simply that **`organizations` should
+  // register its own routes from its own `backend.ts`** — the file already
+  // lives there, is named after that module and reads that module's tables.
+  //
+  // It is escalated rather than done because the move is not behaviour-neutral
+  // and the decision is not this module's to take. Today the four
+  // `/api/v1/admin/organizations/:id/sales-reps` endpoints are inside
+  // `quote_requests`' `ctx.routes`, so they are gated by **this** module's
+  // effective state: switch quote requests off and sales-rep assignment
+  // disappears with them. Registered by their owner they would be gated by
+  // `organizations`, which is non-deactivatable — so the screen would never go
+  // away. Both are defensible (they are permissioned `rfqs:handle`, which
+  // argues for the first; they qualify an organisation, which is why
+  // `organizations` owns the file and argues for the second) and picking one
+  // changes an operator-visible surface.
+  //
+  // Retired by: the ruling on which module's activation hides the sales-rep
+  // assignment screen, and the one-line move in `organizations/backend.ts` that
+  // follows from it. Most naturally taken in the `organizations` cut (C-W4),
+  // which touches that file anyway.
   'modules/quote_requests/plugin.ts:organizations/routes.sales-reps':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/plugin.ts:organizations/services/sales-rep-assignment-service':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/routes.customer.ts:organizations/services/organization-context-service':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/order-completion-reactor.ts:orders/entities/order.entity':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-admin-service.ts:catalog/entities/product.entity':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-admin-service.ts:custom_fields/services/custom-field-value.service':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-admin-service.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-admin-service.ts:organizations/entities/organization.entity':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-admin-service.ts:organizations/services/sales-rep-assignment-service':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-expiry-worker.ts:admin_users/entities/admin-user.entity':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-expiry-worker.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-expiry-worker.ts:organizations/services/sales-rep-assignment-service':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-service.ts:admin_users/entities/admin-user.entity':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-service.ts:carts/entities/cart-item.entity':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-service.ts:carts/entities/cart.entity':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-service.ts:catalog/entities/product.entity':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-service.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-service.ts:organizations/entities/organization-sales-rep-assignment.entity':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
-  'modules/quote_requests/services/rfq-service.ts:organizations/services/sales-rep-assignment-service':
-    'F3 Phase C — quote_requests. Retired by the quote_requests cut merge request.',
+    'F3 Phase C — quote_requests, escalated. This module mounts a route file `organizations` ' +
+    'owns; moving the registration to its owner changes which module\'s activation hides the ' +
+    'screen. Retired by that ruling — see the note above.',
 };
