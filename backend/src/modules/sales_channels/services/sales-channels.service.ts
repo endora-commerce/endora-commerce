@@ -4,12 +4,12 @@ import {
   DictionaryReferenceError,
   ERROR_CODES,
   SALES_CHANNEL_AUDIT_ACTIONS,
+  dispatchValidatorMode,
   type DictionaryValidator,
   type SalesChannelCreateBody,
   type SalesChannelUpdateBody,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../../commands/command-bus.js';
 import type { EventBus } from '../../../events/bus.js';
