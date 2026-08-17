@@ -1,11 +1,11 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { healthResponseSchema } from '../../../src/modules/health_checks/routes.js';
-import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import { withModuleOff } from '../../helpers/off-state.js';
 
 /**
  * Contract — `/api/v1/_health` (feature 072, T080; FR-130).
@@ -69,37 +69,38 @@ describe('health_checks — GET /api/v1/_health', () => {
    * on a part of the platform without becoming circular.
    */
   describe('while the module is absent', () => {
-    // Captured in a hook, not in the describe body. A describe body runs at
-    // collection time — before the outer `beforeAll` boots the harness, and
-    // therefore before presence is loaded. Since D-38 a read taken there throws
-    // `ModulePresenceNotLoadedError` rather than answering "not installed", so
-    // the whole file failed to collect and reported no tests at all.
-    let enabled: readonly string[];
-
-    beforeAll(() => {
-      enabled = registryCache.enabledIds();
-    });
-
-    afterEach(() => {
-      registryCache.__setEnabledForTesting([...enabled]);
-    });
+    // Issue #141 — an exemption test asserts the *same* outcome in both states
+    // by construction, so on its own it cannot tell "the gate is correctly not
+    // applied" from "the off state never took". `withModuleOff` supplies the
+    // missing half: it asserts the module really is absent before the probe
+    // runs, so a flip that stops working turns this red instead of silently
+    // measuring a fully present module.
+    //
+    // The flip itself lives inside the helper, which reads the current enabled
+    // set at call time. That matters here: a describe body runs at collection
+    // time — before the outer `beforeAll` boots the harness — and since D-38 a
+    // presence read taken there throws `ModulePresenceNotLoadedError` rather
+    // than answering "not installed", which once made the whole file fail to
+    // collect and report no tests at all.
 
     it('still answers the health envelope when the operator deactivated it', async () => {
-      registryCache.__setEnabledForTesting(enabled, { deactivated: ['health_checks'] });
-      const res = await h.app.inject({ method: 'GET', url: '/api/v1/_health' });
-      expect(healthResponseSchema.safeParse(res.json()).success, JSON.stringify(res.json())).toBe(
-        true,
-      );
+      await withModuleOff('health_checks', 'deactivated', async () => {
+        const res = await h.app.inject({ method: 'GET', url: '/api/v1/_health' });
+        expect(healthResponseSchema.safeParse(res.json()).success, JSON.stringify(res.json())).toBe(
+          true,
+        );
+      });
     });
 
     it('still answers when the module is not available on this platform', async () => {
-      registryCache.__setEnabledForTesting(enabled.filter((id) => id !== 'health_checks'));
-      const res = await h.app.inject({ method: 'GET', url: '/api/v1/_health' });
-      const body = healthResponseSchema.safeParse(res.json());
-      expect(body.success, JSON.stringify(res.json())).toBe(true);
-      // Never the gate's answer: that 503 carries `Retry-After` and a
-      // MODULE_DISABLED envelope, which an orchestrator reads as "kill me".
-      expect(res.headers['retry-after']).toBeUndefined();
+      await withModuleOff('health_checks', 'platform-unavailable', async () => {
+        const res = await h.app.inject({ method: 'GET', url: '/api/v1/_health' });
+        const body = healthResponseSchema.safeParse(res.json());
+        expect(body.success, JSON.stringify(res.json())).toBe(true);
+        // Never the gate's answer: that 503 carries `Retry-After` and a
+        // MODULE_DISABLED envelope, which an orchestrator reads as "kill me".
+        expect(res.headers['retry-after']).toBeUndefined();
+      });
     });
   });
 });

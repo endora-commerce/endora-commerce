@@ -7,7 +7,8 @@ import {
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { defineModuleRoutes } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { expectModuleAbsent } from '../../helpers/off-state.js';
+import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
+import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
 import { activationDeclarationsFrom } from '../../../src/kernel/lifecycle/activation-resolver.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
@@ -145,5 +146,84 @@ describe('expectModuleAbsent', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/admin/fixture-gated/ping' });
     expect(res.statusCode).toBe(503);
     expect(registryCache.isEnabled(GATED)).toBe(true);
+  });
+});
+
+/**
+ * Issue #141 — the seeded off state has to be shown to have taken.
+ *
+ * Every case below is about the same defect from a different side: a test can
+ * ask for an off state, be given none, and still go green. `withModuleOff` is
+ * where that stops, so its own red proofs live here.
+ */
+describe('withModuleOff', () => {
+  const CORE = 'fixture_non_deactivatable';
+
+  afterEach(() => {
+    registryCache.setActivationDeclarations([]);
+    registryCache.__setEnabledForTesting([]);
+  });
+
+  function declareNonDeactivatable(): void {
+    registryCache.setActivationDeclarations([
+      {
+        moduleId: CORE,
+        settingCode: null,
+        default: true,
+        nonDeactivatableReason: 'the platform cannot run without it',
+      },
+    ]);
+  }
+
+  it('leaves a non-deactivatable module present when the operator axis is seeded off', () => {
+    // The defect itself, stated as a fact about the platform rather than about
+    // any one test: `{ deactivated: [id] }` writes a value that
+    // `ModuleEffectiveState` does not read for such a module.
+    declareNonDeactivatable();
+    registryCache.__setEnabledForTesting([CORE], { deactivated: [CORE] });
+    expect(effectiveState.isPresent(CORE)).toBe(true);
+  });
+
+  it('refuses the operator axis for it, naming the axis that does work', async () => {
+    declareNonDeactivatable();
+    registryCache.__setEnabledForTesting([CORE]);
+    await expect(withModuleOff(CORE, 'deactivated', () => undefined)).rejects.toThrow(
+      /non-deactivatable[\s\S]*platform-unavailable/,
+    );
+  });
+
+  it('takes the same module off on the platform axis', async () => {
+    declareNonDeactivatable();
+    registryCache.__setEnabledForTesting([CORE]);
+    await withModuleOff(CORE, 'platform-unavailable', () => {
+      expect(effectiveState.isPresent(CORE)).toBe(false);
+    });
+    expect(effectiveState.isPresent(CORE)).toBe(true);
+  });
+
+  it('keeps the platform axis untouched while driving the operator one', async () => {
+    registryCache.__setEnabledForTesting([GATED, UNGATED]);
+    await withModuleOff(GATED, 'deactivated', () => {
+      expect(registryCache.isEnabled(GATED), 'the platform axis moved too').toBe(true);
+      expect(effectiveState.isPresent(GATED)).toBe(false);
+    });
+  });
+
+  it('restores the baseline even when the body throws', async () => {
+    registryCache.__setEnabledForTesting([GATED, UNGATED]);
+    await expect(
+      withModuleOff(GATED, 'deactivated', () => {
+        throw new Error('the body failed');
+      }),
+    ).rejects.toThrow('the body failed');
+    expect(registryCache.enabledIds()).toEqual([GATED, UNGATED]);
+    expect(effectiveState.isPresent(GATED)).toBe(true);
+  });
+
+  it('refuses to run against a module that was never on', async () => {
+    registryCache.__setEnabledForTesting([]);
+    await expect(withModuleOff(GATED, 'deactivated', () => undefined)).rejects.toThrow(
+      /not enabled before the test runs/,
+    );
   });
 });

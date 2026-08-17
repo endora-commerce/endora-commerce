@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { expectModuleAbsent } from '../../helpers/off-state.js';
+import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
 
 /**
  * Feature 073, Amendment A1 — the off-state obligation that comes with dropping
@@ -87,8 +87,7 @@ describe('admin_actions — off state [integration]', () => {
     // ground the amendment released the flag on, so it gets asserted rather
     // than assumed. The sidebar navigates through ordinary module routes, and
     // those keep answering while the palette is off.
-    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['admin_actions'] });
-    try {
+    await withModuleOff('admin_actions', 'deactivated', async () => {
       const palette = await h.app.inject({
         method: 'GET',
         url: '/api/v1/admin/admin-actions?language=en',
@@ -104,9 +103,7 @@ describe('admin_actions — off state [integration]', () => {
         const res = await h.app.inject({ method: 'GET', url, cookies: ADMIN });
         expect(res.statusCode, `${url} must keep answering while the palette is off`).toBe(200);
       }
-    } finally {
-      registryCache.__setEnabledForTesting(ALL_IDS);
-    }
+    });
   });
 
   it('can still be switched back on from the surface that switched it off', async () => {
@@ -114,8 +111,19 @@ describe('admin_actions — off state [integration]', () => {
     // activation write lives on `_lifecycle`'s `ungatedRoutes`, so switching
     // the palette off is reversible; if it ever moved behind a gate, an
     // operator would lose ⌘K permanently on the first flip.
-    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['admin_actions'] });
-    try {
+    //
+    // Issue #141 — a 200 is what this route answers with the palette *on* as
+    // well, so the flip having taken is the whole content of the case.
+    // `withModuleOff` asserts that before the write, and the gated palette
+    // route below is the same fact seen from the module's own surface.
+    await withModuleOff('admin_actions', 'deactivated', async () => {
+      const gated = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/admin/admin-actions?language=en',
+        cookies: ADMIN,
+      });
+      expect(gated.statusCode, 'the palette is not off, so the write proves nothing').toBe(503);
+
       const res = await h.app.inject({
         method: 'POST',
         url: '/api/v1/admin/modules/admin_actions/activation',
@@ -127,9 +135,7 @@ describe('admin_actions — off state [integration]', () => {
         'the activation write must not refuse for the module it is switching on',
       ).toBe(200);
       expect(res.json()).toMatchObject({ module: { id: 'admin_actions', activated: true } });
-    } finally {
-      registryCache.__setEnabledForTesting(ALL_IDS);
-    }
+    });
   });
 });
 
