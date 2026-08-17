@@ -1,7 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { TaxonomyProviderCode } from '@b2b/contracts';
+import type {
+  CatalogCategoryReadPort,
+  CatalogCategoryRecord,
+  TaxonomyProviderCode,
+} from '@b2b/contracts';
 import type { CommandBus } from '../../../commands/index.js';
-import { Category } from '../../catalog/entities/category.entity.js';
 import { FeedTaxonomy } from '../entities/feed-taxonomy.entity.js';
 import { FeedTaxonomyMapping } from '../entities/feed-taxonomy-mapping.entity.js';
 import { FeedTaxonomyNode } from '../entities/feed-taxonomy-node.entity.js';
@@ -33,6 +36,13 @@ const NODE_SEARCH_LIMIT = 50;
 export interface TaxonomyMappingServiceDeps {
   emFactory: () => EntityManager;
   commandBus: CommandBus;
+  /**
+   * Feature 075, Phase C — the category tree a mapping screen and a generation
+   * run are both built over. It was `em.find(Category, …)` against `catalog`'s
+   * table, which no gate can see; `catalog` is a binding dependency of this
+   * manifest, so the read now fails closed with it.
+   */
+  catalogCategories: CatalogCategoryReadPort;
 }
 
 export interface MappingRowView extends EffectiveCategoryMapping {
@@ -133,7 +143,7 @@ export class TaxonomyMappingService {
     offset?: number;
   }): Promise<{ rows: MappingRowView[]; total: number }> {
     const em = this.deps.emFactory();
-    const categories = await em.find(Category, { deletedAt: null }, { orderBy: { sortOrder: 'asc', id: 'asc' } });
+    const categories = orderedTree(await this.deps.catalogCategories.listAll({ liveOnly: true }));
     const mappings = await em.find(FeedTaxonomyMapping, {
       taxonomyProviderCode: input.providerCode,
     });
@@ -176,7 +186,7 @@ export class TaxonomyMappingService {
     if (!taxonomy) return null;
 
     const em = this.deps.emFactory();
-    const categories = await em.find(Category, { deletedAt: null });
+    const categories = await this.deps.catalogCategories.listAll({ liveOnly: true });
     const mappings = await em.find(FeedTaxonomyMapping, {
       taxonomyProviderCode: providerCode,
     });
@@ -223,9 +233,7 @@ export class TaxonomyMappingService {
     });
     if (stale.length === 0) return [];
 
-    const categories = await em.find(Category, {
-      id: { $in: stale.map((m) => m.categoryId) },
-    });
+    const categories = await this.deps.catalogCategories.findByIds(stale.map((m) => m.categoryId));
     const nameById = new Map(
       categories.map((c) => [c.id, localized(c.name as Record<string, string>, language)]),
     );
@@ -273,7 +281,7 @@ export class TaxonomyMappingService {
   }> {
     const em = this.deps.emFactory();
     const [categories, mappings] = await Promise.all([
-      em.find(Category, { deletedAt: null }),
+      this.deps.catalogCategories.listAll({ liveOnly: true }),
       em.find(FeedTaxonomyMapping, { taxonomyProviderCode: providerCode }),
     ]);
     return {
@@ -313,7 +321,19 @@ export function localized(map: Record<string, string>, language: string): string
   return Object.values(map).find((v) => typeof v === 'string' && v !== '') ?? '';
 }
 
-function toCategoryMap(categories: Category[]): Map<string, TaxonomyCategoryNode> {
+/**
+ * Sort order then **id**, which is the order the mapping screen has always
+ * paged in. `CatalogCategoryReadPort.listAll` breaks ties on `slug` instead —
+ * a better key, but a different one, and a boundary cut is not the place to
+ * change what row an operator sees on page 2 (feature 075, Phase C).
+ */
+function orderedTree(categories: CatalogCategoryRecord[]): CatalogCategoryRecord[] {
+  return [...categories].sort(
+    (a, b) => a.sortOrder - b.sortOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
+}
+
+function toCategoryMap(categories: CatalogCategoryRecord[]): Map<string, TaxonomyCategoryNode> {
   return new Map(
     categories.map((c) => [
       c.id,

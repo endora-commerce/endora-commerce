@@ -4,12 +4,12 @@ import {
   PRODUCT_FEED_ERROR_CODES,
   type CreateProductFeedRequest,
   type DuplicateProductFeedRequest,
+  type LanguageReadPort,
+  type PriceListReadPort,
   type UpdateProductFeedRequest,
 } from '@b2b/contracts';
 import type { CommandBus } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import { Language } from '../../languages/entities/language.entity.js';
-import { PriceList } from '../../price_lists/entities/price-list.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { FeedArtefact } from '../entities/feed-artefact.entity.js';
 import { FeedRun } from '../entities/feed-run.entity.js';
@@ -57,6 +57,16 @@ export interface ProductFeedServiceDeps {
    * once and masked afterwards.
    */
   tokenEncryptionKey?: string | undefined;
+  /**
+   * Feature 075, Phase C — the two rows feed validation checks and neither of
+   * which this module owns. They were `em.findOne(Language, …)` and
+   * `em.findOne(PriceList, …)`, which answered out of tables deactivation does
+   * not drop: a feed could be saved against a language or a price list the
+   * platform was no longer serving. Both owners are binding `dependencies` of
+   * this manifest, so the check fails closed rather than skipping.
+   */
+  languages: LanguageReadPort;
+  priceLists: PriceListReadPort;
 }
 
 /** Thrown as `400 VALIDATION_FAILED`, naming the offending field (contract §2). */
@@ -124,7 +134,7 @@ export class ProductFeedService {
     }
 
     if (values.languageCode !== undefined) {
-      const language = await em.findOne(Language, { code: values.languageCode });
+      const language = await this.deps.languages.findByCode(values.languageCode);
       if (!language || !language.isActive) {
         throw fieldError('languageCode', 'is not an active language on this installation');
       }
@@ -142,7 +152,7 @@ export class ProductFeedService {
     }
 
     if (values.priceListId) {
-      const list = await em.findOne(PriceList, { id: values.priceListId });
+      const list = await this.deps.priceLists.findById(values.priceListId);
       if (!list) throw fieldError('priceListId', 'no such price list');
     }
 

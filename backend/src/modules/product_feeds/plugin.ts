@@ -2,16 +2,22 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import { z } from 'zod';
-import { FEED_DELIVERY_LIMITS, PRODUCT_FEED_SETTING_CODES } from '@b2b/contracts';
+import {
+  FEED_DELIVERY_LIMITS,
+  PRODUCT_FEED_SETTING_CODES,
+  type CatalogCategoryReadPort,
+  type CatalogProductReadPort,
+  type CatalogProductRecord,
+  type CredentialsPort,
+  type CustomFieldDefinitionReadPort,
+  type LanguageReadPort,
+  type PriceListReadPort,
+  type TaxServicePort,
+} from '@b2b/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModulePlugin } from '../../http/server.js';
-import type { CustomFieldDefinitionService } from '../custom_fields/services/custom-field-definition.service.js';
-import { Product } from '../catalog/entities/product.entity.js';
 import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
-import type { LanguageService } from '../languages/services/language-service.js';
-import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
-import type { TaxService } from '../taxes/services/tax-service.js';
 import {
   ArtefactStore,
   type ArtefactStorageAdapterProvider,
@@ -29,7 +35,10 @@ import {
   type PublicImageUrlResolver,
 } from './services/feed-generation.service.js';
 import { FeedRunService } from './services/feed-run.service.js';
-import { createNamedListPriceResolver } from './services/named-list-price-resolver.js';
+import {
+  createNamedListPriceResolver,
+  type NamedListPricePort,
+} from './services/named-list-price-resolver.js';
 import { ItemFieldResolver } from './services/item-field-resolver.js';
 import type { ItemFieldResolverPort } from './services/item-field-resolver.interface.js';
 import { FeedTemplateService } from './services/feed-template.service.js';
@@ -80,7 +89,6 @@ import {
   registerProductFeedsAdminRoutes,
 } from './routes.admin.js';
 import { registerProductFeedsDeliveryRoutes } from './routes.delivery.js';
-import type { CredentialsService } from '../credentials/services/credentials.service.js';
 import { DeliveryConfigService } from './services/delivery/delivery-config.service.js';
 import { DeliveryService } from './services/delivery/delivery.service.js';
 import type { FeedDeliveryAdapter } from './services/delivery/delivery-adapter.interface.js';
@@ -186,6 +194,34 @@ function warn(message: string, detail: Record<string, unknown>): void {
 // Module wiring
 // ---------------------------------------------------------------------------
 
+/**
+ * The slice of `price_lists`' `pricingService` a feed run resolves — feature
+ * 075, Phase C.
+ *
+ * Declared here as a shape rather than imported, in the idiom
+ * `NamedListPricePort` above it already uses. `PricingServiceContract` stays in
+ * `price_lists/services/pricing-service.interface.ts` on purpose — it is the
+ * target of the feature-057 overlay decoration and moving it would move the
+ * contract gate (`packages/contracts/src/price-lists.ts:332-335`) — so a
+ * consumer that only needs two of its five methods names those two.
+ *
+ * `product` is `CatalogProductRecord`, which is what the engine reads off it:
+ * `id` and `attributeValues`, and nothing else.
+ */
+export interface FeedPricingPort extends NamedListPricePort {
+  resolveLinePrice(input: {
+    product: CatalogProductRecord;
+    variantId?: string | null;
+    context: {
+      quantity: number;
+      organization?: null;
+      customerGroupId?: string | null;
+      salesChannel: { id: string; defaultCurrency: string };
+      currencyCode?: string;
+    };
+  }): Promise<{ amount: string; isSale: boolean } | null>;
+}
+
 export interface ProductFeedsModuleOptions {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
@@ -195,8 +231,20 @@ export interface ProductFeedsModuleOptions {
   storageAdapters: ArtefactStorageAdapterProvider;
   /** The ONE sanctioned channel accessor (Principle XII). */
   salesChannelMembership: SalesChannelMembershipService;
-  pricingService: PricingServiceContract;
-  taxService: TaxService;
+  pricingService: FeedPricingPort;
+  taxService: TaxServicePort;
+  /**
+   * Feature 075, Phase C — the product rows a feed line is built from. They
+   * used to be `em.find(Product, …)` against `catalog`'s table, which
+   * deactivation cannot reach: a run kept publishing a catalogue the operator
+   * had switched off. `catalog` is a binding dependency of this manifest, so
+   * the port fails closed and the run records the failure.
+   */
+  catalogProducts: CatalogProductReadPort;
+  /** The category tree the taxonomy screens and a run's provider mapping read. */
+  catalogCategories: CatalogCategoryReadPort;
+  /** Feed validation refuses a price list that no longer exists (FR-021). */
+  priceLists: PriceListReadPort;
   resolveAvailability: FeedAvailabilityResolver;
   /** Category-subtree expansion for the criteria compiler (FR-025). */
   expandCategoryProductIds: FeedCategoryExpander;
@@ -207,8 +255,8 @@ export interface ProductFeedsModuleOptions {
    */
   resolvePublicImageUrls: PublicImageUrlResolver;
   /** Product-host attributes and custom fields — one registry since feature 061. */
-  customFieldDefinitions: CustomFieldDefinitionService;
-  languageService: LanguageService;
+  customFieldDefinitions: CustomFieldDefinitionReadPort;
+  languageService: LanguageReadPort;
   /**
    * Operator notification on a failed run (FR-056). Optional because the
    * notifying path itself lands with US6 (T106); declaring it here keeps the
@@ -243,7 +291,7 @@ export interface ProductFeedsModuleOptions {
    * it did before delivery existed — no delivery routes, no delivery worker,
    * and a feed that is fetched rather than pushed.
    */
-  credentials?: CredentialsService;
+  credentials?: CredentialsPort;
   /**
    * The delivery transports. Defaults to the three shipped adapters; an overlay
    * replaces or extends the map to speak a partner's bespoke protocol with
@@ -394,7 +442,7 @@ export function productFeedsModule(
   /** The anonymous storefront resolution: no organization, no customer group (R12). */
   const resolveAnonymousPrice: AnonymousPriceResolver = async (input) => {
     const resolved = await options.pricingService.resolveLinePrice({
-      product: input.product as Product,
+      product: input.product,
       variantId: input.variantId,
       context: {
         quantity: 1,
@@ -434,7 +482,7 @@ export function productFeedsModule(
     if (!channel) return out;
     // The ids come from the channel-scoped selection; the channel is bound above
     // so the scoping is visible here too (`no-unscoped-channel-query`).
-    const products = await em.find(Product, { id: { $in: input.productIds } });
+    const products = await options.catalogProducts.findByIds(input.productIds);
     for (const product of products) {
       const resolved = await resolveAnonymousPrice({
         product,
@@ -528,6 +576,8 @@ export function productFeedsModule(
 
   const generation = new FeedGenerationService({
     emFactory: options.emFactory,
+    catalogProducts: options.catalogProducts,
+    catalogCategories: options.catalogCategories,
     selection,
     runs,
     artefactStore,
@@ -606,6 +656,7 @@ export function productFeedsModule(
   const taxonomies = new TaxonomyMappingService({
     emFactory: options.emFactory,
     commandBus: options.commandBus,
+    catalogCategories: options.catalogCategories,
   });
 
   // -------------------------------------------------------------------------
@@ -667,6 +718,8 @@ export function productFeedsModule(
     commandBus: options.commandBus,
     publicBaseUrl: options.publicBaseUrl,
     tokenEncryptionKey: options.tokenEncryptionKey,
+    languages: options.languageService,
+    priceLists: options.priceLists,
   });
 
   /**
@@ -702,6 +755,7 @@ export function productFeedsModule(
 
   const templatePreview = new TemplatePreviewService({
     emFactory: options.emFactory,
+    catalogProducts: options.catalogProducts,
     generation,
     resolver: options.itemFieldResolver ?? new ItemFieldResolver(),
     listProductFieldKeys,
@@ -766,6 +820,7 @@ export function productFeedsModule(
   const taxonomyRevisions = new TaxonomyRevisionService({
     emFactory: options.emFactory,
     commandBus: options.commandBus,
+    catalogCategories: options.catalogCategories,
     reconciler: taxonomyReconciler,
     refresh: taxonomyRefresh,
     fetchEnabled: taxonomyFetchEnabled,
