@@ -3,8 +3,10 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { EventBus } from '../../events/bus.js';
 import type {
   CorrectiveInvoicePort,
+  EmailDefaultsRegistryPort,
   InvoicePdfPort,
   InvoiceReadPort,
+  OrderReadPort,
 } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -15,7 +17,6 @@ import { CorrectiveInvoiceProvider } from './services/corrective-invoice.js';
 import { InvoiceReadService, createInvoicePdfPort } from './services/invoice-read-port.js';
 import type { InvoiceNumberGenerator } from './services/invoice-number-generator.js';
 import { INVOICE_ISSUED_DEFAULT } from './email-templates/invoice-issued.default.js';
-import type { EmailDefaultsRegistry } from '../transactional_emails/services/email-defaults-registry.js';
 
 /**
  * `invoices` — a document module with a late-bound verifier (feature 072,
@@ -91,6 +92,13 @@ export function registerModule(ctx: ModuleContext): void {
         const bridge = (): InvoicesBridge => ctx.cradle<InvoicesCradle>().invoicesBridge;
         const result = invoicesModule({
           emFactory,
+          // Feature 075, Phase C — `orders`' published read model, resolved per
+          // call. The five reads it replaces were `em.findOne(Order, …)` /
+          // `em.find(OrderItem, …)` in this module's own services and routes:
+          // deactivation drops no tables, so they kept answering out of an
+          // `orders` an operator had switched off. `orders` is already a
+          // binding dependency of this manifest and the edge stays fail-closed.
+          orderReadPort: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
           eventBus,
           audit: auditLogService,
           auditLog: auditLogService,
@@ -232,7 +240,12 @@ export function registerModule(ctx: ModuleContext): void {
    * built, so this always lands first — by construction, not by ordering luck.
    */
   ctx.onBoot(async () => {
-    const defaults = lazyPort<EmailDefaultsRegistry>(ctx, 'emailDefaultsPort');
+    // Feature 075, Phase C — the registry's published shape. Still a
+    // **contribution**, not a call: the classification in the
+    // deactivation-consequence ledger is unchanged, and must be — the host
+    // filters by contributor at enumeration, so this must not become an edge
+    // that fails closed.
+    const defaults = lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort');
     defaults.register('invoice_issued', INVOICE_ISSUED_DEFAULT, 'invoices');
   });
 

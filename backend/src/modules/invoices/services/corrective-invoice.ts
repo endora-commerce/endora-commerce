@@ -6,11 +6,14 @@ import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { InvoiceAuditRecorder, InvoiceDomainEventEmitter } from './invoice-service.js';
+// Feature 075, Phase C — `returns` states this shape and `invoices` satisfies
+// it. Naming it from `@b2b/contracts` keeps that direction while removing the
+// import: the implementor no longer depends on the declarer's directory.
 import type {
   CorrectiveInvoiceInput,
   CorrectiveInvoicePort,
   CorrectiveInvoiceResult,
-} from '../../returns/ports/corrective-invoice.port.js';
+} from '@b2b/contracts';
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;

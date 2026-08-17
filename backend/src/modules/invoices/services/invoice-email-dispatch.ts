@@ -1,12 +1,15 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import type { InvoiceEmailNotSentReason, TransactionalEmailSender } from '@b2b/contracts';
+import type {
+  InvoiceEmailNotSentReason,
+  OrderReadPort,
+  OrderRecord,
+  TransactionalEmailSender,
+} from '@b2b/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
 } from '../../../kernel/settings/settings.service.js';
-import { Order } from '../../orders/entities/order.entity.js';
 import type { InvoiceService } from './invoice-service.js';
 import type { InvoicePdfRenderer } from './invoice-pdf-renderer.js';
 import type { SettingsReader } from './seller-settings.js';
@@ -38,12 +41,18 @@ export type InvoiceEmailDispatchResult =
 export type InvoiceEmailLog = (message: string, context: Record<string, unknown>) => void;
 
 export interface InvoiceEmailDispatchDeps {
-  emFactory: () => EntityManager;
+  /**
+   * `orders`' published read model (feature 075, Phase C), which replaced this
+   * dispatcher's `emFactory` outright: the only thing it ever asked an
+   * `EntityManager` for was `em.findOne(Order, …)`, a query against another
+   * module's table.
+   */
+  orderReadPort: OrderReadPort;
   invoiceService: InvoiceService;
   pdfRenderer: InvoicePdfRenderer;
   settingsService: SettingsReader;
   getSender: () => TransactionalEmailSender | undefined;
-  resolveRecipientEmail: (order: Order) => Promise<string | null>;
+  resolveRecipientEmail: (order: OrderRecord) => Promise<string | null>;
   resolveLanguage: (salesChannelId: string | null) => Promise<string>;
   log?: InvoiceEmailLog;
 }
@@ -80,8 +89,7 @@ export class InvoiceEmailDispatcher {
       if (!sender) return this.notSent(invoiceId, 'no_sender');
 
       const detail = await this.deps.invoiceService.buildDetail(invoiceId);
-      const em = this.deps.emFactory();
-      const order = await em.findOne(Order, { id: detail.orderId });
+      const order = await this.deps.orderReadPort.findById(detail.orderId);
       if (!order) return this.notSent(invoiceId, 'invoice_not_found');
       const to = await this.deps.resolveRecipientEmail(order);
       if (!to) return this.notSent(invoiceId, 'no_recipient');

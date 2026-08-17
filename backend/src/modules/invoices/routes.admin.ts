@@ -4,6 +4,7 @@ import {
   issueInvoiceRequestSchema,
   sendInvoiceEmailRequestSchema,
   type IssueInvoiceEmailOutcome,
+  type OrderReadPort,
 } from '@b2b/contracts';
 import { Invoice } from './entities/invoice.entity.js';
 import { Order } from '../orders/entities/order.entity.js';
@@ -34,6 +35,8 @@ export interface InvoiceEmailDispatcher {
  */
 export interface InvoicesAdminDeps {
   emFactory: () => EntityManager;
+  /** `orders`' published read model (feature 075, Phase C). */
+  orderReadPort: OrderReadPort;
   requireAdmin: RequireAdminFactory;
   invoiceService: InvoiceService;
   pdfRenderer: InvoicePdfRenderer;
@@ -48,7 +51,8 @@ export async function registerInvoicesAdminRoutes(
   app: FastifyInstance,
   deps: InvoicesAdminDeps,
 ): Promise<void> {
-  const { emFactory, requireAdmin, invoiceService, pdfRenderer, templateService } = deps;
+  const { emFactory, orderReadPort, requireAdmin, invoiceService, pdfRenderer, templateService } =
+    deps;
 
   // List ------------------------------------------------------------------
   app.get(
@@ -92,9 +96,9 @@ export async function registerInvoicesAdminRoutes(
       const limit = Math.min(Math.max(Number.parseInt(q['limit'] ?? '50', 10), 1), 200);
       const rows = await em.find(Invoice, where, { orderBy: { issuedAt: 'desc' }, limit });
       const orderIds = [...new Set(rows.map((r) => r.orderId))];
-      const orders = orderIds.length
-        ? await em.find(Order, { id: { $in: orderIds } }, { fields: ['id', 'businessId', 'organizationId'] })
-        : [];
+      // Feature 075, Phase C — the order number and the owning organisation are
+      // `orders`' fields, read over its port rather than out of its table.
+      const orders = await orderReadPort.findByIds(orderIds);
       const byOrder = new Map(orders.map((o) => [o.id, o.businessId]));
       const orgByOrder = new Map(orders.map((o) => [o.id, o.organizationId]));
       // Feature 050 — Invoice is transitively scoped via its Order's org; hide

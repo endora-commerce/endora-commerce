@@ -1,8 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type { OrderReadPort, OrderRecord, TransactionalEmailSender } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
-import type { Order } from '../orders/entities/order.entity.js';
 import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
@@ -28,6 +27,15 @@ export interface InvoicesEventBus {
 
 export interface InvoicesModuleOptions {
   emFactory: () => EntityManager;
+  /**
+   * `orders`' published read model (feature 075, Phase C). Not optional: an
+   * invoice is a document *about an order*, so a module that cannot read one
+   * has nothing to issue. Every read of the order rows used to be
+   * `em.findOne(Order, …)` from inside this module — a query no gate can see,
+   * so an invoice went on being issued against a module an operator had
+   * switched off.
+   */
+  orderReadPort: OrderReadPort;
   requireAdmin: RequireAdminFactory;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   settingsService: SettingsReader;
@@ -36,7 +44,7 @@ export interface InvoicesModuleOptions {
   /** US5 — transactional email sender (late-bound). */
   getTransactionalEmailSender?: () => TransactionalEmailSender | undefined;
   /** US5 — recipient email for an order (customer account email). */
-  resolveRecipientEmail?: (order: Order) => Promise<string | null>;
+  resolveRecipientEmail?: (order: OrderRecord) => Promise<string | null>;
   /** US5 — channel default language (BCP-47). */
   resolveLanguage?: (salesChannelId: string | null) => Promise<string>;
   /** Feature 059 — emits `invoice.issued.v1` / `invoice.corrected.v1`. */
@@ -72,6 +80,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
   const sellerSettings = new SellerSettingsResolver(options.settingsService);
   const invoiceService = new InvoiceService(
     options.emFactory,
+    options.orderReadPort,
     numberGenerator,
     sellerSettings,
     options.audit,
@@ -90,7 +99,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
   let emailDispatcher: InvoiceEmailDispatcher | undefined;
   if (options.getTransactionalEmailSender && options.resolveRecipientEmail && options.resolveLanguage) {
     emailDispatcher = new InvoiceEmailDispatcher({
-      emFactory: options.emFactory,
+      orderReadPort: options.orderReadPort,
       invoiceService,
       pdfRenderer,
       settingsService: options.settingsService,
@@ -123,6 +132,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     await templateService.ensureGenericSeed().catch(() => undefined);
     await registerInvoicesAdminRoutes(app, {
       emFactory: options.emFactory,
+      orderReadPort: options.orderReadPort,
       requireAdmin: options.requireAdmin,
       invoiceService,
       pdfRenderer,
@@ -133,6 +143,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     if (options.resolveCustomerContext) {
       await registerInvoicesCustomerRoutes(app, {
         emFactory: options.emFactory,
+        orderReadPort: options.orderReadPort,
         requireCustomer: options.requireCustomer,
         resolveCustomerContext: options.resolveCustomerContext,
         invoiceService,
