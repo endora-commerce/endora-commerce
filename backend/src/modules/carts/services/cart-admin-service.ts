@@ -5,15 +5,16 @@ import type {
   AdminCartsListResponse,
   AdminCartDetailResponse,
   AdminCartAuditResponse,
+  CatalogProductReadPort,
+  CatalogProductRecord,
+  CustomerAccountReadPort,
+  OrganizationDetailsPort,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { CartAuditEntry } from '../entities/cart-audit-entry.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartSnapshot, PromotionApplication } from '@b2b/contracts';
 
@@ -42,6 +43,16 @@ export class CartAdminService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cartAuditService: CartAuditService,
+    /**
+     * The three read models this surface renders names from (feature 075,
+     * Phase C). Every one of them was an `em.find` against another module's
+     * table, so an operator who switched `catalog` off still saw product
+     * names on the admin cart detail — out of rows deactivation leaves in
+     * place. `SalesChannel` is the kernel's and stays a direct read.
+     */
+    private readonly customerAccounts: CustomerAccountReadPort,
+    private readonly organizations: OrganizationDetailsPort,
+    private readonly catalogProducts: CatalogProductReadPort,
     /** Feature 045 (T043) — when wired, the detail shows the real discount. */
     private readonly promotion?: AdminCartPromotionPort,
   ) {}
@@ -86,12 +97,8 @@ export class CartAdminService {
     );
 
     const [customers, organizations, channels, itemCounts] = await Promise.all([
-      customerIds.length > 0
-        ? em.find(CustomerAccount, { id: { $in: customerIds } })
-        : Promise.resolve([]),
-      orgIds.length > 0
-        ? em.find(Organization, { id: { $in: orgIds } })
-        : Promise.resolve([]),
+      this.customerAccounts.findByIds(customerIds),
+      this.organizations.findByIds(orgIds),
       channelIds.length > 0
         ? em.find(SalesChannel, { id: { $in: channelIds } })
         : Promise.resolve([]),
@@ -137,19 +144,17 @@ export class CartAdminService {
     }
     const items = await em.find(CartItem, { cartId });
     const cust = cart.customerAccountId
-      ? await em.findOne(CustomerAccount, { id: cart.customerAccountId })
+      ? await this.customerAccounts.findById(cart.customerAccountId)
       : null;
     const org = cart.organizationId
-      ? await em.findOne(Organization, { id: cart.organizationId })
+      ? await this.organizations.findById(cart.organizationId)
       : null;
     const channel = cart.salesChannelId
       ? await em.findOne(SalesChannel, { id: cart.salesChannelId })
       : null;
 
     const productIds = Array.from(new Set(items.map((it) => it.productId)));
-    const products = productIds.length > 0
-      ? await em.find(Product, { id: { $in: productIds } })
-      : [];
+    const products = await this.catalogProducts.findByIds(productIds);
     const productById = new Map(products.map((p) => [p.id, p]));
 
     const subtotal = items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0);
@@ -248,9 +253,7 @@ export class CartAdminService {
     const actorIds = Array.from(
       new Set(rows.map((r) => r.actorId).filter((id): id is string => Boolean(id))),
     );
-    const actors = actorIds.length > 0
-      ? await em.find(CustomerAccount, { id: { $in: actorIds } })
-      : [];
+    const actors = await this.customerAccounts.findByIds(actorIds);
     const actorById = new Map(actors.map((a) => [a.id, a]));
 
     return {
@@ -345,7 +348,7 @@ export class CartAdminService {
   }
 }
 
-function anyLocaleName(product: Product): string {
+function anyLocaleName(product: CatalogProductRecord): string {
   if (!product.name || typeof product.name !== 'object') return product.id;
   const en = product.name['en-US'] ?? product.name['en'];
   if (typeof en === 'string' && en.length > 0) return en;

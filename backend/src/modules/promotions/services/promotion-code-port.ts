@@ -13,8 +13,11 @@ import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
  * those filters are this module's business, and reproducing them in `carts`
  * meant reproducing them correctly.
  *
- * The answer is four fields rather than the thirty-column row, because four is
- * what the question needs.
+ * The answer is eight fields rather than the thirty-column row, because eight
+ * is what the question needs: which promotion, and — when the buyer may not
+ * use it — why not. The four eligibility fields joined the record in feature
+ * 075's `carts` cut; without them the caller could only answer `invalid_code`
+ * where it answers `expired`, `wrong_organization` and `below_min_spend`.
  */
 export class PromotionCodeService implements PromotionCodePort {
   constructor(private readonly emFactory: () => EntityManager) {}
@@ -24,9 +27,7 @@ export class PromotionCodeService implements PromotionCodePort {
 
     // Legacy inline code on the promotion itself.
     const legacy = await em.findOne(Promotion, { code, isActive: true });
-    if (legacy) {
-      return { promotionId: legacy.id, couponId: null, name: legacy.name, isActive: true };
-    }
+    if (legacy) return toResolvedCode(legacy, null);
 
     const coupon = await em.findOne(PromotionCoupon, { code, isActive: true });
     if (!coupon) return null;
@@ -36,11 +37,19 @@ export class PromotionCodeService implements PromotionCodePort {
     const promotion = await em.findOne(Promotion, { id: coupon.promotionId, isActive: true });
     if (!promotion) return null;
 
-    return {
-      promotionId: promotion.id,
-      couponId: coupon.id,
-      name: promotion.name,
-      isActive: true,
-    };
+    return toResolvedCode(promotion, coupon.id);
   }
+}
+
+function toResolvedCode(promotion: Promotion, couponId: string | null): ResolvedPromotionCode {
+  return {
+    promotionId: promotion.id,
+    couponId,
+    name: promotion.name,
+    isActive: true,
+    validFrom: promotion.validFrom ?? null,
+    validUntil: promotion.validUntil ?? null,
+    organizationId: promotion.organizationId ?? null,
+    minCartSubtotal: promotion.minCartSubtotal ?? null,
+  };
 }

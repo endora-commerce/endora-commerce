@@ -3,7 +3,19 @@ import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { ERROR_CODES } from '@b2b/contracts';
-import type { CartQueryPort, CartReadPort, CartWritePort } from '@b2b/contracts';
+import type {
+  CartQueryPort,
+  CartReadPort,
+  CartWritePort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  LinePricePort,
+  OrganizationDetailsPort,
+  PromotionApplyPort,
+  PromotionCodePort,
+  QuoteRequestReadPort,
+  RfqCustomerPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -87,9 +99,20 @@ export interface CartsCradle {
   readonly redis: Redis;
   readonly requireAdmin: RequireAdminFactory;
   readonly settingsReadPort: SettingsService;
-  readonly pricingService: ConstructorParameters<typeof CartService>[1];
-  readonly promotionService: ConstructorParameters<typeof CartCouponService>[1];
-  readonly rfqService: ConstructorParameters<typeof CartConversionService>[2];
+  /**
+   * Feature 075, Phase C — the six ports every service here used to reach by
+   * importing another module's class or entity. Each is a contract type from
+   * `@b2b/contracts`, never the provider's class, and each is resolved lazily
+   * by a string literal so a switched-off owner answers at the call.
+   */
+  readonly pricingService: LinePricePort;
+  readonly promotionService: PromotionApplyPort;
+  readonly promotionCodePort: PromotionCodePort;
+  readonly rfqService: RfqCustomerPort;
+  readonly quoteRequestReadPort: QuoteRequestReadPort;
+  readonly catalogProductReadPort: CatalogProductReadPort;
+  readonly customerAccountReadPort: CustomerAccountReadPort;
+  readonly organizationDetailsPort: OrganizationDetailsPort;
   /** Root-shaped: production reads `request.actor`, the harness `request.testActor`. */
   readonly cartActorResolver: CartsDeps['resolveCartActor'];
   /**
@@ -154,7 +177,12 @@ export function registerModule(ctx: ModuleContext): void {
     cartApprovalService: ctx
       .asFunction(
         ({ emFactory, cartAuditService }: CartsCradle) =>
-          new CartApprovalService(emFactory, cartAuditService),
+          new CartApprovalService(
+            emFactory,
+            cartAuditService,
+            lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+          ),
       )
       .singleton(),
 
@@ -193,7 +221,9 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory, cartApprovalService, cartAuditService, cartRecomputeCache }: CartsCradle) =>
           new CartService(
             emFactory,
-            lazyPort<CartsCradle['pricingService'] & object>(ctx, 'pricingService'),
+            lazyPort<LinePricePort>(ctx, 'pricingService'),
+            lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
             cartApprovalService,
             cartAuditService,
             cartRecomputeCache,
@@ -249,21 +279,30 @@ export function registerModule(ctx: ModuleContext): void {
       emFactory,
       resolveCartActor,
       cartService,
-      cartUpsellService: new CartUpsellService(emFactory),
+      catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+      cartUpsellService: new CartUpsellService(
+        emFactory,
+        lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+      ),
       cartCouponService: new CartCouponService(
         emFactory,
-        lazyPort<CartsCradle['promotionService'] & object>(ctx, 'promotionService'),
+        lazyPort<PromotionApplyPort>(ctx, 'promotionService'),
+        lazyPort<PromotionCodePort>(ctx, 'promotionCodePort'),
         cradle.cartApprovalService,
       ),
       cartConversionService: new CartConversionService(
         emFactory,
         cartService,
-        lazyPort<CartsCradle['rfqService'] & object>(ctx, 'rfqService'),
+        lazyPort<RfqCustomerPort>(ctx, 'rfqService'),
+        lazyPort<QuoteRequestReadPort>(ctx, 'quoteRequestReadPort'),
+        lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
       ),
       cartPricingRecompute: new CartPricingRecompute(
         emFactory,
-        lazyPort<CartsCradle['pricingService'] & object>(ctx, 'pricingService'),
+        lazyPort<LinePricePort>(ctx, 'pricingService'),
         cradle.cartRecomputeCache,
+        lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+        lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
       ),
       assertOrganizationCanTransact: async (organizationId) => {
         await ctx.cradle<CartsCradle>().organizationReadPort.assertCanTransact(organizationId);
@@ -283,7 +322,11 @@ export function registerModule(ctx: ModuleContext): void {
       resolveCartActor,
       cartService,
       cartApprovalService: cradle.cartApprovalService,
-      visibilityService: new CartOrganizationVisibilityService(emFactory),
+      customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+      visibilityService: new CartOrganizationVisibilityService(
+        emFactory,
+        lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+      ),
     });
 
     await registerCartsAdminRoutes(app, {
@@ -291,7 +334,10 @@ export function registerModule(ctx: ModuleContext): void {
       cartAdminService: new CartAdminService(
         emFactory,
         cradle.cartAuditService,
-        lazyPort<CartsCradle['promotionService'] & object>(ctx, 'promotionService'),
+        lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+        lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+        lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+        lazyPort<PromotionApplyPort>(ctx, 'promotionService'),
       ),
       cartApprovalService: cradle.cartApprovalService,
       resolveAdminUserId: (req: FastifyRequest): string | null => {

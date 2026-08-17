@@ -316,6 +316,62 @@ export interface ListingPricePort {
   }): Promise<Map<string, ListingPrice>>;
 }
 
+/**
+ * The buying organisation, as a line resolution reads it: the id, which is a
+ * rule dimension and part of the cache key, and the group it belongs to, which
+ * a customer's own group overrides. The same two fields the engine's own
+ * `PricingOrganizationRef` names.
+ */
+export interface LinePriceOrganization {
+  id: string;
+  customerGroupId?: string | null;
+}
+
+/** What a resolved line price is, once the whole chain has run. */
+export interface LinePriceResult {
+  /** Decimal string — it lands verbatim on the cart line and then the order. */
+  amount: string;
+  currency: string;
+  priceListId: string;
+  isSale: boolean;
+  bracketStartQuantity: number;
+  displayMode: DisplayMode;
+}
+
+/**
+ * The slice of the `pricingService` port a **line** resolution asks for —
+ * `ListingPricePort`'s sibling, and declared here for the same reasons: one
+ * wording for every caller, and a *shape* rather than an import of
+ * `price_lists/services/pricing-service.interface.ts`, so a consumer does not
+ * reach into the owning module (Principle I). The owner's
+ * `PricingServiceContract` is a superset and satisfies it structurally.
+ *
+ * The difference from the listing slice is the *quantity* and the *buyer*: a
+ * cart line is priced at its own quantity, against the buying organisation's
+ * resolved list, so both are in the context and neither is optional in the way
+ * an anonymous catalogue card's are.
+ *
+ * `null` is the resolver's own documented answer for "nothing applies", and it
+ * is not the same thing as an absent `price_lists`. With the module off the
+ * gate throws `ModuleDisabledError` — issue #124: a cart must refuse rather
+ * than invent a figure, and the absent arm of {@link ListingPrice} carries no
+ * `amount` for exactly the same reason.
+ */
+export interface LinePricePort {
+  resolveLinePrice(input: {
+    product: ListingPriceProduct;
+    variantId?: string | null;
+    context: {
+      quantity: number;
+      organization?: LinePriceOrganization | null;
+      /** Feature 040 — a customer's direct group overrides the org's. */
+      customerGroupId?: string | null;
+      salesChannel: { id: string; defaultCurrency: string };
+      currencyCode?: string;
+    };
+  }): Promise<LinePriceResult | null>;
+}
+
 // --- Settings keys (also exposed via the settings manifest) -----------------
 
 export const PRICING_SETTING_CODES = {

@@ -62,7 +62,17 @@ export const manifest = defineModuleManifest({
   name: 'Carts',
   description: 'Shopping cart aggregation, pricing, lifecycle, and approval gate.',
   version: '2.0.0',
+  // Feature 075, Phase C adds `catalog`. Six files read the `Product`,
+  // `ProductPackagingUnit` and `ProductLink` entities directly — the cart line,
+  // the cart serializer, the admin detail, the up-sell strip, the pricing
+  // recompute and the quote-to-cart conversion — so an operator who switched
+  // `catalog` off still had carts naming, pricing and accepting products the
+  // platform had stopped serving, out of tables deactivation leaves in place.
+  // Binding rather than non-binding: a basket that cannot resolve what is in it
+  // must refuse, not quote a figure it cannot justify (issue #124's rule, which
+  // `price_lists` already stands on here).
   dependencies: [
+    'catalog',
     'customer_accounts',
     'organizations',
     'price_lists',

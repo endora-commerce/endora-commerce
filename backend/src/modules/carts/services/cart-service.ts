@@ -4,11 +4,14 @@ import { ERROR_CODES, type CartMergeOutcome } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { ProductPackagingUnit } from '../../catalog/entities/product-packaging-unit.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
+import type {
+  CatalogPackagingUnitRecord,
+  CatalogProductReadPort,
+  CatalogProductRecord,
+  LinePricePort,
+  OrganizationDetailsPort,
+} from '@b2b/contracts';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { PricingServiceContract } from '../../price_lists/services/pricing-service.interface.js';
 import type { CartApprovalService } from './cart-approval-service.js';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartRecomputeCache } from './cart-recompute-cache.js';
@@ -75,7 +78,12 @@ export class CartService {
    */
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly pricingService: PricingServiceContract,
+    /** `price_lists`' line-resolution slice (feature 075, Phase C). */
+    private readonly pricingService: LinePricePort,
+    /** `catalog`'s product read model — products, variants, packaging units. */
+    private readonly catalogProducts: CatalogProductReadPort,
+    /** `organizations`' read model — the buying org the price resolves against. */
+    private readonly organizations: OrganizationDetailsPort,
     private readonly approvalService?: CartApprovalService,
     private readonly auditService?: CartAuditService,
     private readonly recomputeCache?: CartRecomputeCache,
@@ -163,7 +171,7 @@ export class CartService {
     if (input.quantity <= 0) {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Quantity must be > 0.');
     }
-    const product = await em.findOne(Product, { id: input.productId });
+    const product = await this.catalogProducts.findById(input.productId);
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
@@ -171,12 +179,16 @@ export class CartService {
     // Feature 043 — ordering by a packaging unit (e.g. a pallet): the line is
     // measured in base pieces (`baseQuantity × units`) and snapshots the unit
     // name so the cart/order/RFQ can append it to the product name.
-    let packagingUnit: ProductPackagingUnit | null = null;
+    //
+    // `findPackagingUnitInProduct` is the two-argument form of the same read:
+    // the "does this unit belong to this product?" test was the second half of
+    // the `where` clause and stays inside one query.
+    let packagingUnit: CatalogPackagingUnitRecord | null = null;
     if (input.packagingUnitId) {
-      packagingUnit = await em.findOne(ProductPackagingUnit, {
-        id: input.packagingUnitId,
-        productId: product.id,
-      });
+      packagingUnit = await this.catalogProducts.findPackagingUnitInProduct(
+        product.id,
+        input.packagingUnitId,
+      );
       if (!packagingUnit) {
         throw new HttpError(
           404,
@@ -300,7 +312,7 @@ export class CartService {
   async #resolveLineUnitPrice(
     em: EntityManager,
     input: {
-      product: Product;
+      product: CatalogProductRecord;
       organizationId: string | null;
       quantity: number;
       variantId: string | null;
@@ -314,7 +326,7 @@ export class CartService {
     const channel = await em.findOne(SalesChannel, { systemDefault: true });
     if (!channel) return null;
     const organization = input.organizationId
-      ? await em.findOne(Organization, { id: input.organizationId })
+      ? await this.organizations.findById(input.organizationId)
       : null;
     const resolved = await this.pricingService.resolveLinePrice({
       product: input.product,

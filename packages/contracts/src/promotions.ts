@@ -583,11 +583,18 @@ export type PromotionRuleAttributesResponse = z.infer<
  * What a presented coupon code resolved to.
  *
  * Deliberately **not** the `Promotion` row. `carts` reaches both entities for
- * exactly one question — "is this code live, and which promotion is it?" —
- * across a three-step lookup: the legacy `promotions.code` column first, then
- * the `promotion_coupons` table, then the promotion behind the coupon, each
- * filtered on `isActive`. Publishing the row would publish thirty columns to
- * answer a question about one.
+ * one question in two parts — "is this code live, and if the buyer cannot use
+ * it, *why* not?" — across a three-step lookup: the legacy `promotions.code`
+ * column first, then the `promotion_coupons` table, then the promotion behind
+ * the coupon, each filtered on `isActive`. Publishing the row would publish
+ * thirty columns to answer a question about eight.
+ *
+ * The four eligibility fields were missing when this shape was first published
+ * and were added in `carts`' cut. Its coupon service does not merely accept or
+ * reject a code: it answers `expired`, `wrong_organization` or
+ * `below_min_spend`, and the storefront renders that sentence. Without them the
+ * cut would have collapsed three explanations into `invalid_code`, which is a
+ * product change wearing a refactor.
  */
 export interface ResolvedPromotionCode {
   promotionId: string;
@@ -595,6 +602,13 @@ export interface ResolvedPromotionCode {
   couponId: string | null;
   name: string;
   isActive: boolean;
+  /** Window bounds; `null` means unbounded on that side. */
+  validFrom: Date | null;
+  validUntil: Date | null;
+  /** When set, only carts of that organisation may use the code. */
+  organizationId: string | null;
+  /** Decimal string, or `null` for no minimum. Compared against the subtotal. */
+  minCartSubtotal: string | null;
 }
 
 /**

@@ -423,6 +423,27 @@ export interface QuoteRequestRecord {
 }
 
 /**
+ * One quote-request line, as the module that converts one back into a cart
+ * reads it (feature 075, `carts`' cut).
+ *
+ * Narrower than the row on purpose: the conversion re-resolves every price
+ * against the buyer's current price list (FR-017), so the money columns are
+ * deliberately absent — a caller that cannot see `desiredUnitPrice` cannot
+ * accidentally carry it over, which is the rule the conversion exists to obey.
+ * `productName` travels because a dropped line is reported by name.
+ */
+export interface QuoteRequestLineRecord {
+  id: string;
+  quoteRequestId: string;
+  productId: string;
+  productName: string;
+  variantId: string | null;
+  quantity: number;
+  packagingUnitName: string | null;
+  packagingUnitBaseQuantity: number | null;
+}
+
+/**
  * Container name: `quoteRequestReadPort`. Owner: `quote_requests`.
  *
  * Two consumers, two questions. `carts` resolves the quote a cart was
@@ -441,6 +462,13 @@ export interface QuoteRequestReadPort {
   listOpenForOrganizations(
     organizationIds: readonly string[],
   ): Promise<QuoteRequestRecord[]>;
+  /**
+   * The quote's lines, in insertion order. Added in `carts`' cut: the
+   * quote-to-cart conversion read `QuoteRequestItem` directly, so it kept
+   * re-stocking a cart from quotes belonging to a module an operator had
+   * switched off.
+   */
+  listItems(quoteRequestId: string): Promise<QuoteRequestLineRecord[]>;
 }
 
 /** Who is asking, on a customer-facing quote path. */
