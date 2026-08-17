@@ -1,7 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import { z } from 'zod';
-import { cmsColorPaletteSchema, type CmsColorPalette } from '@b2b/contracts';
+import {
+  cmsColorPaletteSchema,
+  type AssetReferenceRegistryPort,
+  type CmsColorPalette,
+} from '@b2b/contracts';
 import { CMS_PAGE_BUILDER_SETTING_CODES } from './manifest.js';
 import type { CmsPageReadPort } from '@b2b/contracts';
 import { CmsPageReadService } from './services/cms-page-read-port.js';
@@ -12,7 +16,6 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { cmsModule } from './plugin.js';
 import type { CmsAssetResolver } from './services/storefront-resolver.js';
 import { registerCmsAssetReferences } from './services/asset-references.js';
-import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
 
 /**
  * `cms` — the endpoint that only worked in production (feature 072, wave 1,
@@ -88,9 +91,11 @@ export interface CmsCradle {
   readonly cmsAssetResolver: CmsAssetResolver | undefined;
   /**
    * Owned by `assets_library`: the registry that refuses to delete an asset a
-   * page, block or template embeds.
+   * page, block or template embeds. Typed by the contract shape rather than by
+   * the owner's class (feature 075, Phase C) — this module contributes a
+   * descriptor and never touches anything else the class has.
    */
-  readonly assetReferenceRegistry: AssetReferenceRegistry;
+  readonly assetReferenceRegistry: AssetReferenceRegistryPort;
   readonly cms: CmsResult;
   readonly cmsReferenceRegistry: CmsResult['handle']['referenceRegistry'];
 }

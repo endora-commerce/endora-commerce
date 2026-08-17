@@ -16,14 +16,14 @@
 // under MikroORM in some cases (carried over from feature 013).
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AssetReference } from '@b2b/contracts';
 import type {
+  AssetReference,
   AssetReferenceDescriptor,
-  AssetReferenceRegistry,
-} from '../../assets_library/services/reference-registry.js';
+  AssetReferenceRegistryPort,
+} from '@b2b/contracts';
 
 export function registerCmsAssetReferences(
-  registry: AssetReferenceRegistry,
+  registry: AssetReferenceRegistryPort,
   emFactory: () => EntityManager,
 ): void {
   registry.register(cmsAssetReferenceDescriptor(emFactory));
