@@ -1,12 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
+import type { AdminI18nTranslatePort, PermissionReadPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { LoadedManifestRegistry } from '../_lifecycle/services/manifest-loader.js';
-import type { I18nService } from '../_i18n/services/i18n-service.js';
-import type { PermissionService } from '../admin_roles/services/permission-service.js';
-import { adminActionsModule, type AdminActionsModuleHandle } from './plugin.js';
+import {
+  adminActionsModule,
+  type AdminActionsManifestRegistryView,
+  type AdminActionsModuleHandle,
+} from './plugin.js';
 
 /**
  * `admin_actions` — the second module whose reconcile must not move (feature
@@ -44,10 +46,10 @@ export interface AdminActionsCradle {
   readonly redisSubscriber: import('ioredis').Redis;
   readonly requireAdmin: RequireAdminFactory;
   readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string };
-  readonly adminI18nService: I18nService;
-  readonly permissionService: PermissionService;
+  readonly adminI18nService: AdminI18nTranslatePort;
+  readonly permissionService: PermissionReadPort;
   /** Reads the lifecycle registry lazily; `undefined` until `_lifecycle` exists. */
-  readonly lifecycleManifestRegistry: () => LoadedManifestRegistry | undefined;
+  readonly lifecycleManifestRegistry: () => AdminActionsManifestRegistryView | undefined;
   /** The operator presence axis, so the palette hides a deactivated module. */
   readonly moduleActivationProbe: (moduleId: string) => boolean;
   readonly adminActions: { handle: AdminActionsModuleHandle; plugin: unknown };
@@ -62,11 +64,16 @@ export function registerModule(ctx: ModuleContext): void {
           orm,
           emFactory,
           redisSubscriber,
-          permissionService: lazyPort<PermissionService>(ctx, 'permissionService'),
+          // Feature 075, Phase C — `admin_roles`' published permission read,
+          // resolved per call so a switched-off `admin_roles` answers 503 at
+          // the call rather than through a gate frozen at composition time.
+          permissionService: lazyPort<PermissionReadPort>(ctx, 'permissionService'),
           // The registry accessor, threaded straight through: the module's own
           // reconcile reads it at plugin attach, which is the whole point.
           registry: () => ctx.cradle<AdminActionsCradle>().lifecycleManifestRegistry(),
-          i18nService: lazyPort<I18nService>(ctx, 'adminI18nService'),
+          // Feature 075, Phase C — `_i18n`'s published resolver. One method of
+          // it: the palette renders a label and a description per action.
+          i18nService: lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService'),
           requireAdmin: (permission) => async (req, reply) =>
             ctx.cradle<AdminActionsCradle>().requireAdmin(permission)(req, reply),
           resolveAdminContext: (req) =>

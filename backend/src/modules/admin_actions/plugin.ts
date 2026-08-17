@@ -1,9 +1,11 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
+import type {
+  AdminI18nTranslatePort,
+  ModuleAction,
+  PermissionReadPort,
+} from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
-import type { LoadedManifestRegistry } from '../_lifecycle/services/manifest-loader.js';
-import type { I18nService } from '../_i18n/services/i18n-service.js';
-import type { PermissionService } from '../admin_roles/services/permission-service.js';
 import { AdminActionsReconciler } from './services/admin-actions-reconciler.js';
 import { AdminActionsService } from './services/admin-actions-service.js';
 import {
@@ -28,13 +30,36 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
  *   4. Register the admin HTTP route.
  */
 
+/**
+ * One module's manifest, as the palette reconcile reads it: the id the
+ * `module_actions` rows are keyed by, and the actions the manifest declares.
+ *
+ * Stated here rather than imported from `_lifecycle` (feature 075, Phase C),
+ * for the reason `_i18n`'s `I18nManifestRegistryView` records. Which modules a
+ * deployment ships is a **composition root's** input — `lifecycleManifestRegistry`
+ * is a name a root supplies, not a port a module resolves — and `_lifecycle`'s
+ * own `LoadedManifestRegistry` additionally carries a dependency graph and each
+ * module's install hooks, none of which a palette reconcile has any business
+ * seeing. Stating the demand is what keeps the two apart.
+ */
+export interface AdminActionsReconcileEntry {
+  manifest: { id: string; actions?: readonly ModuleAction[] | undefined };
+}
+
+/** The slice of the lifecycle registry the palette reconcile walks. */
+export interface AdminActionsManifestRegistryView {
+  modules: { values(): Iterable<AdminActionsReconcileEntry> };
+}
+
 export interface AdminActionsModuleDeps {
   orm: MikroORM;
   emFactory: () => EntityManager;
   /** Lazy accessor — same chicken-and-egg pattern feature 019 uses. */
-  registry?: LoadedManifestRegistry | (() => LoadedManifestRegistry | undefined);
-  i18nService: I18nService;
-  permissionService: PermissionService;
+  registry?:
+    | AdminActionsManifestRegistryView
+    | (() => AdminActionsManifestRegistryView | undefined);
+  i18nService: AdminI18nTranslatePort;
+  permissionService: PermissionReadPort;
   redisSubscriber: Redis;
   requireAdmin: RequireAdminFactory;
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
@@ -56,7 +81,7 @@ export interface AdminActionsModuleHandle {
   reconciler: {
     install(args: {
       moduleId: string;
-      actions: readonly import('@b2b/contracts').ModuleAction[];
+      actions: readonly ModuleAction[];
     }): Promise<{ upserted: number; pruned: number }>;
     remove(moduleId: string): Promise<{ removed: number }>;
   };
@@ -111,7 +136,7 @@ export function adminActionsModule(deps: AdminActionsModuleDeps): AdminActionsMo
  * Errors on a single module are logged but do NOT abort boot.
  */
 async function reconcileActions(
-  registry: LoadedManifestRegistry,
+  registry: AdminActionsManifestRegistryView,
   reconciler: AdminActionsReconciler,
   log: { info(msg: string): void; warn(msg: string): void },
 ): Promise<void> {

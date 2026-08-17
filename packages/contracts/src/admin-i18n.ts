@@ -87,3 +87,31 @@ export const I18nCoverageQuerySchema = z.object({
   includeKeys: z.enum(['missing', 'all']).default('missing').optional(),
 });
 export type I18nCoverageQuery = z.infer<typeof I18nCoverageQuerySchema>;
+
+// --- ports -------------------------------------------------------------------
+
+/**
+ * Container name: `adminI18nService`. Owner: `_i18n`.
+ *
+ * The backend-side string resolver: a module id, a key inside that module's
+ * bundle and the operator's language in, the rendered sentence out. The
+ * resolver falls back to English and, failing that, returns `moduleId.key`
+ * verbatim — a caller that wants to detect a missing key compares against that
+ * placeholder rather than against `null`.
+ *
+ * This is the one method the resolver's cross-module callers use. The bundle
+ * install, removal and coverage surfaces of `_i18n`'s service stay inside
+ * `_i18n`: they are the reconciler's business, not a consumer's.
+ *
+ * When `_i18n` is off the port fails closed. That is the right answer for a
+ * caller rendering an operator-facing string: a screen labelled with raw keys
+ * is worse than a screen that says the platform will not answer.
+ */
+export interface AdminI18nTranslatePort {
+  translate(
+    moduleId: string,
+    key: string,
+    language: SupportedAdminLanguage,
+    params?: Record<string, string | number>,
+  ): Promise<string>;
+}
