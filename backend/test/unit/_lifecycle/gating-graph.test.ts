@@ -31,18 +31,30 @@ const onlyPresent =
     ids.includes(id);
 
 describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests', () => {
-  it('reads the ten real edges the manifests deliberately keep out of `dependencies`', () => {
+  it('reads the fifteen real edges the manifests deliberately keep out of `dependencies`', () => {
     // Two arrived with issue #90, when `check-port-dependencies` learned to
     // follow a module-local cradle alias and two edges that had always been
     // resolved through one became visible: the lifecycle admin surfaces
     // reaching for `requireAdmin`, and the request hook resolving a signed-in
     // customer's Organization.
     //
-    // The last two are feature 075's, and they are the same shape seen from
-    // both ends of one pair: `admin_roles` reads the admin row its permission
-    // answer starts from, and `admin_users` reads the customer account an
-    // impersonation is started against. Both owners are non-deactivatable, so
-    // neither acknowledged edge adds a refusal that was not already there.
+    // The rest are feature 075's, and they arrived as Phase C cut consumer
+    // after consumer onto published ports. Each one is a read that genuinely
+    // binds and could not be declared in `dependencies` without closing a
+    // cycle `src/db/migration-order.ts` refuses outright — `organizations` and
+    // `customer_accounts` declare each other's neighbourhood, and
+    // `quote_requests` reaches `carts` and `orders`, both of which reach back.
+    //
+    // Two of them replaced entries rather than adding: `customerAuthService`
+    // and `customerRoleService` became `customerAuthPort` and
+    // `customerRolePort` when the `organizations` cut moved from the
+    // entity-returning services to their record-returning siblings.
+    //
+    // Every owner named here is non-deactivatable, so no acknowledged edge
+    // adds a refusal that was not already there. That is what makes the
+    // acknowledgement honest rather than a way of hiding a live dependency:
+    // the declaration the graph cannot carry would not have changed what an
+    // operator can switch off.
     const keys = acknowledgedPortEdgesFrom(MANIFESTS)
       .map((edge) => `${edge.moduleId}:${edge.port}`)
       .sort();
@@ -53,10 +65,15 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'auth:customerOrgResolver',
       'catalog:pricingService',
       'organizations:addressService',
-      'organizations:customerAuthService',
-      'organizations:customerRoleService',
+      'organizations:customerAccountMemberWritePort',
+      'organizations:customerAccountReadPort',
+      'organizations:customerAuthPort',
+      'organizations:customerRolePort',
       'organizations:passwordResetService',
+      'organizations:priceListReadPort',
       'organizations:totpEnrolmentService',
+      'quote_requests:cartWritePort',
+      'quote_requests:orderReadPort',
     ]);
   });
 
