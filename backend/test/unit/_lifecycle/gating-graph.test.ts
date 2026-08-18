@@ -31,7 +31,7 @@ const onlyPresent =
     ids.includes(id);
 
 describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests', () => {
-  it('reads the fifteen real edges the manifests deliberately keep out of `dependencies`', () => {
+  it('reads the sixteen real edges the manifests deliberately keep out of `dependencies`', () => {
     // Two arrived with issue #90, when `check-port-dependencies` learned to
     // follow a module-local cradle alias and two edges that had always been
     // resolved through one became visible: the lifecycle admin surfaces
@@ -44,6 +44,12 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
     // cycle `src/db/migration-order.ts` refuses outright — `organizations` and
     // `customer_accounts` declare each other's neighbourhood, and
     // `quote_requests` reaches `carts` and `orders`, both of which reach back.
+    //
+    // The sixteenth is `catalog:organizationDetailsPort`, and it is the same
+    // shape as `catalog:pricingService` one line above it: the external
+    // catalog namespace decorates a bound caller's prices with their
+    // organisation's effective tiers, `organizations` declares `catalog`, and
+    // declaring it back closes a cycle.
     //
     // Two of them replaced entries rather than adding: `customerAuthService`
     // and `customerRoleService` became `customerAuthPort` and
@@ -63,6 +69,7 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'admin_roles:adminUserReadPort',
       'admin_users:customerAccountReadPort',
       'auth:customerOrgResolver',
+      'catalog:organizationDetailsPort',
       'catalog:pricingService',
       'organizations:addressService',
       'organizations:customerAccountMemberWritePort',
@@ -137,7 +144,10 @@ describe('dependencies — the activation direction', () => {
     expect(graph.absentDependenciesOf('catalog', onlyPresent())).not.toContain(
       'price_lists',
     );
-    expect(graph.acknowledgedDependenciesOf('catalog')).toEqual(['price_lists']);
+    expect(graph.acknowledgedDependenciesOf('catalog')).toEqual([
+      'organizations',
+      'price_lists',
+    ]);
   });
 
   it('names the declared dependencies that are absent', () => {
