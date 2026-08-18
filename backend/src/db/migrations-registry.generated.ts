@@ -112,6 +112,7 @@ import { Migration20260721T011509CredentialsInit } from '../modules/credentials/
 
 // ── credit_limits ───────────────────────────────────────────────────────────
 import { Migration20260425T063333CreditLimitsInit } from '../modules/credit_limits/migrations/20260425T063333_credit_limits_init.js';
+import { Migration20260817T201111CreditLimitsReturnTopups } from '../modules/credit_limits/migrations/20260817T201111_credit_limits_return_topups.js';
 
 // ── custom_fields ───────────────────────────────────────────────────────────
 import { Migration20260718T200338CustomFieldsInit } from '../modules/custom_fields/migrations/20260718T200338_custom_fields_init.js';
@@ -147,6 +148,7 @@ import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from 
 // ── invoices ────────────────────────────────────────────────────────────────
 import { Migration20260629T125121InvoicesModule } from '../modules/invoices/migrations/20260629T125121_invoices_module.js';
 import { Migration20260801T111000InvoicesGenericTemplateReseed } from '../modules/invoices/migrations/20260801T111000_invoices_generic_template_reseed.js';
+import { Migration20260817T201110InvoicesCorrectionIdempotencyKey } from '../modules/invoices/migrations/20260817T201110_invoices_correction_idempotency_key.js';
 
 // ── ksef ────────────────────────────────────────────────────────────────────
 import { Migration20260722T224358KsefInit } from '../modules/ksef/migrations/20260722T224358_ksef_init.js';
@@ -362,6 +364,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── credit_limits ───────────────────────────────────────────────────────────
   migration('credit_limits', Migration20260425T063333CreditLimitsInit),
+  migration('credit_limits', Migration20260817T201111CreditLimitsReturnTopups),
 
   // ── custom_fields ───────────────────────────────────────────────────────────
   migration('custom_fields', Migration20260718T200338CustomFieldsInit),
@@ -397,6 +400,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── invoices ────────────────────────────────────────────────────────────────
   migration('invoices', Migration20260629T125121InvoicesModule),
   migration('invoices', Migration20260801T111000InvoicesGenericTemplateReseed),
+  migration('invoices', Migration20260817T201110InvoicesCorrectionIdempotencyKey),
 
   // ── ksef ────────────────────────────────────────────────────────────────────
   migration('ksef', Migration20260722T224358KsefInit),

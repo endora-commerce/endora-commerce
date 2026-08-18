@@ -5,7 +5,8 @@ import type { EventBase, EventBus } from '../../../events/bus.js';
 import type { Command, CommandBus } from '../../../commands/index.js';
 import { CreditLimit } from '../entities/credit-limit.entity.js';
 import { CreditLimitReservation } from '../entities/credit-limit-reservation.entity.js';
-import type { OrganizationInheritancePort } from '@b2b/contracts';
+import { CreditLimitReturnTopup } from '../entities/credit-limit-return-topup.entity.js';
+import type { CreditTopupResult, OrganizationInheritancePort } from '@b2b/contracts';
 
 /**
  * CreditLimitService (T214) — implements the contract documented in
@@ -53,6 +54,19 @@ export type ReleaseResult =
 export type AdjustResult =
   | { ok: true; limit: CreditLimit }
   | { ok: false; code: 'ADJUSTMENT_BELOW_ACTIVE' };
+
+/**
+ * What `creditFromReturn` answers (D-91).
+ *
+ * `CreditTopupResult` — the shape `returns` states and this module satisfies —
+ * plus the one fact the port does not carry: whether this call is the one that
+ * moved the grant. A retried settlement is `applied: true, alreadyApplied:
+ * true`, which is what keeps the audit row and the domain event to one per
+ * return case while the caller still sees a credited return.
+ */
+export interface CreditFromReturnResult extends CreditTopupResult {
+  alreadyApplied: boolean;
+}
 
 export class CreditLimitService {
   constructor(
@@ -261,6 +275,148 @@ export class CreditLimitService {
     limit.grantedAmount = input.grantedAmount.toFixed(2);
     const after = { organizationId: input.organizationId, grantedAmount: limit.grantedAmount };
     return { result: { ok: true, limit }, before, after };
+  }
+
+  /**
+   * Credit an organization's grant for a settled return, **once per return
+   * case** (D-91).
+   *
+   * The settlement ordering law attempts every external effect before it writes
+   * any state, so a refusal from a later step leaves a case an admin can settle
+   * again — and the retry arrives here with the same `returnCaseId`. Until D-91
+   * this method's caller read the grant and added to it, ignoring the
+   * `returnCaseId` it was already being handed, so the second attempt credited
+   * the organization a second time.
+   *
+   * The credit and the `credit_limit_return_topups` row are written by one
+   * Command, so they commit together: the fact that a case was credited cannot
+   * outlive the credit, and the credit cannot outlive the fact. The unique
+   * index on `return_case_id` settles two concurrent retries.
+   */
+  async creditFromReturn(input: {
+    organizationId: string;
+    amount: number;
+    currency: string;
+    returnCaseId: string;
+  }): Promise<CreditFromReturnResult> {
+    if (this.commandBus) {
+      return this.commandBus.run(this.#creditFromReturnCommand(input));
+    }
+    // Legacy fallback (no bus injected — e.g. unit tests): the same write,
+    // unaudited, in the same single transaction.
+    const em = this.emFactory();
+    return em.transactional(async (tx) => {
+      const applied = await this.#applyCreditFromReturn(tx, input);
+      if (applied.result.applied && !applied.result.alreadyApplied) {
+        this.#emitAdjusted({
+          organizationId: input.organizationId,
+          grantedAmount: applied.result.availableAmountAfter ?? 0,
+        });
+      }
+      return applied.result;
+    });
+  }
+
+  /** The `creditFromReturn` write expressed as a Command (audited via the bus). */
+  #creditFromReturnCommand(input: {
+    organizationId: string;
+    amount: number;
+    currency: string;
+    returnCaseId: string;
+  }): Command<CreditFromReturnResult> {
+    return {
+      action: 'credit_limit.credit_from_return',
+      objectType: 'credit_limit',
+      objectId: input.organizationId,
+      run: async ({ em }) => {
+        const applied = await this.#applyCreditFromReturn(em, input);
+        // Nothing moved: the organization has no grant, or this case was
+        // already credited. Commit without an audit row, as `adjust` does.
+        if (!applied.result.applied || applied.result.alreadyApplied) {
+          return { result: applied.result, skipAudit: true };
+        }
+        return {
+          result: applied.result,
+          before: applied.before ?? null,
+          after: applied.after ?? null,
+        };
+      },
+      event: (result) =>
+        result.applied && !result.alreadyApplied
+          ? {
+              eventName: 'credit_limit.adjusted.v1',
+              payload: {
+                eventId: randomUUID(),
+                occurredAt: new Date().toISOString(),
+                organizationId: input.organizationId,
+                amount: result.availableAmountAfter ?? 0,
+              },
+            }
+          : undefined,
+    };
+  }
+
+  /**
+   * Pure credit-from-return write on the given em — no audit, no event.
+   *
+   * The marker row is read first: an organization that has already been
+   * credited for this case is answered with the grant as it stands, so a retry
+   * is a no-op rather than a second credit. The grant itself is read under the
+   * same pessimistic lock `adjust` uses, and the over-allocation guard does not
+   * apply — a credit raises the grant, so it can never fall below what is
+   * already reserved.
+   */
+  async #applyCreditFromReturn(
+    em: EntityManager,
+    input: { organizationId: string; amount: number; currency: string; returnCaseId: string },
+  ): Promise<{
+    result: CreditFromReturnResult;
+    before?: Record<string, unknown>;
+    after?: Record<string, unknown>;
+  }> {
+    const alreadyCredited = await em.findOne(CreditLimitReturnTopup, {
+      returnCaseId: input.returnCaseId,
+    });
+    if (alreadyCredited) {
+      const limit = await em.findOne(CreditLimit, { organizationId: input.organizationId });
+      return {
+        result: {
+          applied: true,
+          alreadyApplied: true,
+          ...(limit ? { availableAmountAfter: Number(limit.grantedAmount) } : {}),
+        },
+      };
+    }
+
+    const limit = await em.findOne(
+      CreditLimit,
+      { organizationId: input.organizationId },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    );
+    // No grant to credit. A declared outcome, not a failure: the settlement
+    // records `pending_manual` and an operator settles it out of band.
+    if (!limit) return { result: { applied: false, alreadyApplied: false } };
+
+    const before = { organizationId: input.organizationId, grantedAmount: limit.grantedAmount };
+    const newAmount = this.#round2(Number(limit.grantedAmount) + input.amount);
+    limit.grantedAmount = newAmount.toFixed(2);
+    em.persist(
+      em.create(CreditLimitReturnTopup, {
+        returnCaseId: input.returnCaseId,
+        organizationId: input.organizationId,
+        amount: input.amount.toFixed(2),
+        currency: input.currency,
+      }),
+    );
+    return {
+      result: { applied: true, alreadyApplied: false, availableAmountAfter: newAmount },
+      before,
+      after: {
+        organizationId: input.organizationId,
+        grantedAmount: limit.grantedAmount,
+        returnCaseId: input.returnCaseId,
+      },
+    };
   }
 
   #emitAdjusted(input: { organizationId: string; grantedAmount: number }): void {
@@ -477,6 +633,11 @@ export class CreditLimitService {
         availableAmountAfter: granted - reservedSum,
       };
     });
+  }
+
+  /** Two-decimal rounding for a money amount held as a JS number. */
+  #round2(n: number): number {
+    return Math.round((n + Number.EPSILON) * 100) / 100;
   }
 
   async #sumActiveReservations(em: EntityManager, creditLimitId: string): Promise<number> {

@@ -25,6 +25,13 @@ export const COMMAND_REGISTRY = {
   // Commands add the missing co-transactional audit entry.
   'credit_limit.grant': { reversible: false, description: 'Grant an organization credit limit' },
   'credit_limit.adjust': { reversible: false, description: 'Adjust an organization credit limit' },
+  // D-91 — the return-settlement credit, separate from `adjust` because it is
+  // keyed by the return case and applies once per case however often the
+  // settlement is retried.
+  'credit_limit.credit_from_return': {
+    reversible: false,
+    description: 'Credit an organization credit limit for a settled return',
+  },
   // Price-list writes (US1).
   'price_list.create': { reversible: false, description: 'Create a price list' },
   'price_list.update': { reversible: false, description: 'Update a price list' },

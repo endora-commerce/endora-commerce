@@ -584,6 +584,20 @@ export interface CorrectiveInvoiceInput {
   /** Credited total, gross. */
   total: number;
   currency: string;
+  /**
+   * The caller's key for this correction — the return case id (D-91).
+   *
+   * A settlement attempts every external effect **before** it writes any state,
+   * so a refusal from a later step leaves a retryable case behind and the retry
+   * asks for the same correction again. With a key, the second call returns the
+   * document the first one issued; without it, the order carries two corrections
+   * for one return.
+   *
+   * It keys the **return case**, not the order: a second partial return against
+   * the same order is a different case and legitimately gets its own correction.
+   * Omitted, no deduplication is attempted and every call issues a document.
+   */
+  idempotencyKey?: string;
 }
 
 /** A correction was issued: the document that credits the original invoice. */

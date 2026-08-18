@@ -85,6 +85,28 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
 
   async createCorrection(input: CorrectiveInvoiceInput): Promise<CorrectiveInvoiceResult> {
     const em = this.emFactory();
+
+    // The same correction, asked for twice (D-91). A settlement attempts every
+    // external effect before it writes any state, so a refusal from a later
+    // step leaves a retryable case and the retry arrives here with the key of
+    // the correction this call already issued. Answering with that document is
+    // what keeps one return case to one credit note; the partial unique index
+    // on the column is what keeps two concurrent retries to one as well.
+    if (input.idempotencyKey) {
+      const already = await em.findOne(Invoice, {
+        correctionIdempotencyKey: input.idempotencyKey,
+        kind: 'correction',
+      });
+      if (already) {
+        return {
+          issued: true,
+          invoiceId: already.id,
+          number: already.number,
+          status: already.status,
+        };
+      }
+    }
+
     const original = await em.findOne(Invoice, { orderId: input.orderId, kind: 'invoice' });
     // No original, no correction (#135). The caller records the refund on the
     // return case and the payment; only the VAT document is skipped, and the
@@ -188,6 +210,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
         total: credited.toFixed(2),
         paidTotal: '0',
         originalInvoiceId: original.id,
+        ...(input.idempotencyKey ? { correctionIdempotencyKey: input.idempotencyKey } : {}),
         ...(original.buyerSnapshot ? { buyerSnapshot: original.buyerSnapshot } : {}),
         ...(original.sellerSnapshot ? { sellerSnapshot: original.sellerSnapshot } : {}),
         issuedBy: 'system',

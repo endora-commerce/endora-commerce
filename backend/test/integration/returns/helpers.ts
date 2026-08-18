@@ -61,12 +61,16 @@ export interface SeededOrder {
  */
 export async function seedReturnableOrder(
   em: EntityManager,
-  opts: { status?: string } = {},
+  opts: { status?: string; salesChannelId?: string } = {},
 ): Promise<SeededOrder> {
   const order = em.create(Order, {
     organizationId: TEST_ORGANIZATION_ID,
     placedByCustomerAccountId: TEST_CUSTOMER_ID,
-    salesChannelId: randomUUID(),
+    // A caller that issues invoices passes one channel for the whole file: the
+    // invoice number counter is per (channel, kind, year) while `number` is
+    // globally unique, so two orders on two fresh channels both draw seq 1 and
+    // the second issuance dies on the unique index.
+    salesChannelId: opts.salesChannelId ?? randomUUID(),
     status: opts.status ?? 'completed',
     deliveryAddress: { recipientName: 'A', street: 'S', city: 'C', postalCode: '00-000', country: 'PL' },
     billingAddress: { recipientName: 'A', street: 'S', city: 'C', postalCode: '00-000', country: 'PL' },
