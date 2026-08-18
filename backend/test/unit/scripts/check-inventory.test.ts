@@ -959,6 +959,30 @@ function sqlOnlyTheControl(source: string, file: string = BLOG_SERVICE_FILE): nu
 
 const SQL_CONTROL = 'await conn.execute(`select id from products where status = ?`, [s]);';
 
+/**
+ * The knex builder's fixtures (issue #187) — the same schema, the same entry
+ * point, and a `syntax` assertion on every one.
+ *
+ * A builder names its table as an argument to a call, so a proof that only
+ * checked the table would be satisfied by the statement path it is not testing.
+ * {@link sqlBuilderFindings} therefore keeps only the builder findings, and the
+ * discriminations below keep the builder control in the same fixture, so "no
+ * finding" cannot go green on its own.
+ */
+const KNEX_BINDING = 'const knex = em.getKnex();';
+const BUILDER_CONTROL = "await knex('products').where('status', s);";
+
+function sqlBuilderFindings(source: string, file: string = BLOG_SERVICE_FILE) {
+  return sqlBoundaryFindings(source, file).filter((f) => f.syntax === 'builder');
+}
+
+function sqlBuilderOnlyTheControl(source: string, file: string = BLOG_SERVICE_FILE): number {
+  const found = sqlBoundaryFindings(source, file);
+  return found.length === 1 && found[0]?.table === 'products' && found[0]?.syntax === 'builder'
+    ? 1
+    : 0;
+}
+
 const DRIFTED_DOC = [
   '# Doc',
   '',
@@ -1904,6 +1928,65 @@ const CHECKS: readonly CheckEntry[] = [
           `${SQL_CONTROL}\nawait conn.execute(\`select 1 from a_table_nobody_owns\`);`,
         ),
       ),
+
+      // --- the knex builder (issue #187) -----------------------------------
+      //
+      // A builder names its table as an argument to a call, so the statement
+      // path has no statement to anchor on and the import predicate has no
+      // specifier: seven cross-module accesses in five files stood outside a
+      // `sql=111` that read as the whole coupling, which is the "violations=0
+      // licenses a package split the tree has not earned" failure D-87 exists
+      // to end. Six proofs, four positive and two discriminations, and every
+      // one of them asserts `syntax: 'builder'` — a proof that only named the
+      // table would go green off the statement path it is not testing (issue
+      // #130). All six enter as source text, schema included.
+      'sql-builder-knex-callable': top(
+        () =>
+          sqlBuilderFindings(`${KNEX_BINDING}\nawait knex('products').select('id');`).filter(
+            (f) => f.table === 'products' && f.target === 'catalog',
+          ).length,
+      ),
+      'sql-builder-from-literal': top(
+        () =>
+          sqlBuilderFindings("await em.getKnex().from('products').where('status', s);").filter(
+            (f) => f.table === 'products' && f.target === 'catalog',
+          ).length,
+      ),
+      'sql-builder-join-literal': top(
+        () =>
+          sqlBuilderFindings(
+            `${KNEX_BINDING}\nawait knex('blog_posts as b').join('assets as a', 'a.id', 'b.cover_id');`,
+          ).filter((f) => f.table === 'assets' && f.target === 'assets_library').length,
+      ),
+      // The bridge cluster, reached the second way. No entity class declares
+      // `sales_channel_products`, so this is simultaneously the migration pass
+      // of the owner map and the builder path — either going blind reads 0.
+      'sql-builder-bridge-table-owned-by-a-migration': top(
+        () =>
+          sqlBuilderFindings(
+            `${KNEX_BINDING}\nawait knex('sales_channel_products').where('sales_channel_id', id);`,
+            'modules/catalog/services/catalog-query.service.ts',
+          ).filter((f) => f.table === 'sales_channel_products' && f.target === 'kernel').length,
+      ),
+      // The two discriminations, each carrying the builder control in the same
+      // fixture so it cannot pass by seeing nothing. The first is why the
+      // method list is enumerated: `where`/`select`/`orderBy` take columns, and
+      // a column spelled like another module's table is not a reach into it.
+      'sql-builder-column-argument-is-not-a-finding': top(() =>
+        sqlBuilderOnlyTheControl(
+          `${KNEX_BINDING}\n${BUILDER_CONTROL}\n` +
+            "await knex('blog_posts').select('cms_blocks').where('assets', true).orderBy('products');",
+        ),
+      ),
+      // The flooding shape, measured: `isPresent('inventory')`,
+      // `defineModuleManifest('catalog')` and `@Entity({ tableName: 'products' })`
+      // put a table-shaped literal in 270 argument positions no builder reaches.
+      'sql-builder-non-builder-call-is-not-a-finding': top(() =>
+        sqlBuilderOnlyTheControl(
+          `${KNEX_BINDING}\n${BUILDER_CONTROL}\n` +
+            "if (!effectiveState.isPresent('assets')) return;\nconst label = translate('cms_blocks');",
+        ),
+      ),
     },
   },
   {
@@ -2577,8 +2660,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // unjustified one would let the residue be lowered by declaration. Plus
       // D-87's nine for the second predicate — five shapes it must see and four
       // it must not, the four proven as discriminations because "no finding"
-      // cannot go red on its own.
-      'backend/scripts/check-module-boundary.ts': 25,
+      // cannot go red on its own. Plus issue #187's six for the builder path,
+      // every one of them asserting `syntax: 'builder'`, because a proof that
+      // only named the table would go green off the statement path it is not
+      // testing.
+      'backend/scripts/check-module-boundary.ts': 31,
       'backend/scripts/check-overlay-determinism.ts': 3,
       // Five, plus D-88's four: two shapes the backward hop now refuses and two
       // it must not follow. The last two are the limit — a free function in

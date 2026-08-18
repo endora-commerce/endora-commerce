@@ -43,6 +43,23 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
         'internals. Dropping `fk_product_attributes_custom_field_definition` would retire it too, ' +
         'and would cost the invariant the constraint buys.',
     },
+  'modules/catalog/services/catalog-admin.service.ts:sql:carts/cart_items':
+    'Issue #187 seed — `assertProductDeletable` refuses a product delete that would ' +
+    'orphan a cart line, and it asks with `knex(\'cart_items\').where({ product_id }).' +
+    'count()`. A knex builder names its table as a call argument, so this crossed the ' +
+    'boundary while naming no import specifier and no SQL statement. Note the direction ' +
+    'the remedy cannot take: `carts` already declares `catalog`, so `catalog` declaring ' +
+    '`carts` would close a cycle `migration-order.ts` fails on. Retired by: `carts` ' +
+    'answering "does anything of mine reference this product?" itself — either a veto on ' +
+    'a `product.delete.requested` event, or the acknowledged reverse port edge D-94.3 ' +
+    'establishes for exactly this shape.',
+  'modules/catalog/services/catalog-admin.service.ts:sql:orders/order_items':
+    'Issue #187 seed — the twin of the `cart_items` entry above, in the same method: ' +
+    '`assertProductDeletable` counts `orders`\' `order_items` with a knex builder before ' +
+    'letting a product go. `orders` already declares `catalog`, so the same cycle rules ' +
+    'out the obvious dependency direction. Retired by: `orders` answering the reference ' +
+    'question itself, through the same veto or acknowledged reverse edge the `carts` half ' +
+    'takes — the two are one decision and should be cut together.',
   'modules/catalog/services/catalog-admin.service.ts:sql:inventory/product_warehouse_low_stock_thresholds':
     'D-87 seed — `catalog` writes `inventory`\'s `product_warehouse_low_stock_thresholds` ' +
     'table in raw SQL. The statement names no import specifier, so the boundary it ' +
