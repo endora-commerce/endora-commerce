@@ -420,7 +420,25 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
       const body = applyCartCouponSchema.parse(request.body);
       const result = await deps.cartCouponService.apply(cart, body.code);
       if (result.outcome === 'dropped') {
-        const detailsBody: Record<string, unknown> = { reason: result.reason };
+        // Issue #231 — the discriminator goes in **both** fields, and the
+        // duplication is the point.
+        //
+        // `reason` is what the published contract carries
+        // (`couponFailureBodySchema` in `packages/contracts/src/carts.ts`) and
+        // what the storefront branches on. `code` is what the envelope's
+        // `refusalToken` reads (`src/http/error-envelope.ts`) to build
+        // `errors.CART_COUPON_REJECTED.<token>` — the keys this module's bundle
+        // files the seven written reason sentences under. Spelling the
+        // discriminator only `reason` is why every one of them was dead: a
+        // buyer under the minimum spend was shown the generic refusal while a
+        // translated sentence telling them what to do about it sat unread.
+        //
+        // Additive on purpose. Renaming `reason` to `code` would be one field
+        // instead of two and would break a shape two schemas already publish.
+        const detailsBody: Record<string, unknown> = {
+          code: result.reason,
+          reason: result.reason,
+        };
         if ('shortfall' in result && result.shortfall) {
           detailsBody['shortfall'] = result.shortfall;
         }

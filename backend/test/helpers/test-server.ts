@@ -657,12 +657,23 @@ function harnessManifestRegistry(): LoadedManifestRegistry {
  * The error code this harness proves the translation path with, and why it is a
  * constant rather than "any key that happens to be there".
  *
- * `CART_EMPTY` routes to `core` in `ERROR_TRANSLATION_KEYS` and `_i18n` ships a
- * sentence for it in both languages, so resolving it walks the whole path the
- * envelope walks on a real refusal: the merged bundle for the language, the
- * `_i18n` → `core` namespace rename, and the `errors.<CODE>` key inside it.
+ * `VERSION_CONFLICT` routes to `core` in `ERROR_TRANSLATION_KEYS` and `_i18n`
+ * ships a sentence for it in both languages, so resolving it walks the whole
+ * path the envelope walks on a real refusal: the merged bundle for the
+ * language, the `_i18n` → `core` namespace rename, and the `errors.<CODE>` key
+ * inside it.
+ *
+ * Three further properties are what make it a defensible pick, and the third is
+ * the one the constant it replaces failed. It reaches `core` by **explicit
+ * membership** of `GENERIC_ERROR_CODES`, so no future `startsWith` family rule
+ * can capture it; it is a platform mechanism eighteen modules throw, so no
+ * module can claim ownership of the noun; and its sentence exists in **no other
+ * bundle**, so nothing can strand it. `CART_EMPTY` had none of the three: issue
+ * #231 routed the `CART_*` family to `carts` — where the better sentence had
+ * been written all along — and this proof would have started failing on a
+ * correct tree, reporting a broken harness where there was none.
  */
-const TRANSLATION_PROOF = { moduleId: 'core', key: 'errors.CART_EMPTY' } as const;
+const TRANSLATION_PROOF = { moduleId: 'core', key: 'errors.VERSION_CONFLICT' } as const;
 
 /**
  * Refuse to hand back a server whose error messages cannot be translated

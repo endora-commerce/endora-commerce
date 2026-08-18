@@ -494,7 +494,6 @@
   "errors.CANNOT_DEMOTE_LAST_ADMIN": "Cannot Demote Last Admin.",
   "errors.CANNOT_REMOVE_LAST_ADMIN": "Cannot Remove Last Admin.",
   "errors.CANNOT_REVOKE_LAST_ADMIN_INVITE": "Cannot Revoke Last Admin Invite.",
-  "errors.CART_EMPTY": "Cart Empty.",
   "errors.CREDIT_LIMIT_ALREADY_GRANTED": "Credit Limit Already Granted.",
   "errors.CREDIT_LIMIT_NOT_GRANTED": "Credit Limit Not Granted.",
   "errors.CURRENCY_MISMATCH": "Currency Mismatch.",
