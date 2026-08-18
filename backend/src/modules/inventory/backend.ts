@@ -12,6 +12,7 @@ import type {
   EmailDefaultsRegistryPort,
   EmailMailerPort,
   InventoryFulfilmentPlanningPort,
+  InventoryProductThresholdWritePort,
   InventoryStockImportPort,
   InventoryStockReadPort,
   PromptActionToolRegistryPort,
@@ -29,6 +30,7 @@ import type { SettingsValueChangedPayload } from './services/threshold-settings-
 import { StockLevelService } from './services/stock-level-service.js';
 import { InventoryStockReadService } from './services/inventory-read-port.js';
 import { InventoryStockImportService } from './services/stock-import.service.js';
+import { InventoryProductThresholdWriteService } from './services/product-threshold-write.service.js';
 import { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import { WarehouseChannelReconciler } from './services/warehouse-channel-reconciler.js';
 import { AVAILABILITY_BACK_IN_STOCK_DEFAULT, LOW_STOCK_ALERT_DEFAULT } from './email-templates/transactional-defaults.js';
@@ -239,6 +241,31 @@ export function registerModule(ctx: ModuleContext): void {
             commandBus,
             lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
           ),
+      )
+      .singleton(),
+  );
+
+  /**
+   * Issue #185 — the per-warehouse threshold copy, published.
+   *
+   * `catalog`'s product duplication wrote these rows itself, with an
+   * `insert … select` naming this module's table. It named no import specifier,
+   * so `check:module-boundary`'s specifier pass could not see it; it asked no
+   * gate, so it kept writing with this module switched off; and it left no
+   * audit row here, so the rows arrived with nothing on this side having decided
+   * they should. The port is the whole remedy: one Command, one audit row, and
+   * the gate `providePort` wraps it in.
+   *
+   * `catalog` declares this name `degrades-without` and decides presence in
+   * front of the gate, so the duplication itself never meets a 503 — see the
+   * contract's note on why the copy owns its own transaction.
+   */
+  ctx.di.providePort<InventoryProductThresholdWritePort>(
+    'inventoryProductThresholdWritePort',
+    ctx
+      .asFunction(
+        ({ commandBus }: InventoryCradle) =>
+          new InventoryProductThresholdWriteService(commandBus),
       )
       .singleton(),
   );

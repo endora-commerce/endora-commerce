@@ -59,6 +59,7 @@ describe('expandCategoryProductIds — cyclic category data', () => {
       undefined,
       undefined,
       h.assetRead,
+      h.salesChannels.membershipService,
     );
 
     // The assertion that matters is that this resolves at all. A hang fails
@@ -80,6 +81,7 @@ describe('expandCategoryProductIds — cyclic category data', () => {
       undefined,
       undefined,
       h.assetRead,
+      h.salesChannels.membershipService,
     );
     const missing = randomUUID();
 

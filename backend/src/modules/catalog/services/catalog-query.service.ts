@@ -32,6 +32,7 @@ import {
   type ProductSummary,
   type ProductVariant as VariantDto,
 } from '@b2b/contracts';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { encodeCursor, decodeCursor } from '../../../http/cursor.js';
 
@@ -150,7 +151,30 @@ export class CatalogQueryService {
      * finds it unwired fails loudly rather than silently dropping every image.
      */
     private readonly assets?: AssetReadPort,
+    /**
+     * Issue #185 — the kernel's channel-membership accessor, where the
+     * hand-written `select product_id from sales_channel_products …` in
+     * {@link filterByChannel} used to be. Constitution XII says the
+     * `sales_channel_*` bridges are read and written only through this service;
+     * the query here named the table itself, which crosses the boundary while
+     * naming no import specifier.
+     *
+     * Optional only in the signature, and unwiring it is not a fallback: the
+     * channel filter fails loudly rather than quietly answering the full
+     * cross-channel set, which is the one degrade Principle XII rules out.
+     */
+    private readonly channelMembership?: SalesChannelMembershipPort,
   ) {}
+
+  #requireChannelMembership(): SalesChannelMembershipPort {
+    if (!this.channelMembership) {
+      throw new Error(
+        'CatalogQueryService: the channel-membership port is not wired — a channel-scoped ' +
+          'listing cannot be answered without leaking the cross-channel set.',
+      );
+    }
+    return this.channelMembership;
+  }
 
   #requireAssets(): AssetReadPort {
     if (!this.assets) {
@@ -310,7 +334,6 @@ export class CatalogQueryService {
     // Sales Channel visibility — only products associated with the channel
     // are returned. If no channel, everything public-visibility.
     const visibleIds = await this.filterByChannel(
-      em,
       page.map((p) => p.id),
       channel,
     );
@@ -362,7 +385,7 @@ export class CatalogQueryService {
 
     // Visibility — if the product is not associated with the requested channel,
     // behave like it doesn't exist. Avoids exposing non-public catalogue.
-    const visibleIds = await this.filterByChannel(em, [product.id], channel);
+    const visibleIds = await this.filterByChannel([product.id], channel);
     if (!visibleIds.has(product.id)) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
@@ -818,7 +841,7 @@ export class CatalogQueryService {
 
     // Build option / range facets by scanning Products in the channel.
     const products = await em.find(Product, { status: 'active', deletedAt: null });
-    const visibleIds = await this.filterByChannel(em, products.map((p) => p.id), channel);
+    const visibleIds = await this.filterByChannel(products.map((p) => p.id), channel);
     const visible = products.filter((p) => visibleIds.has(p.id));
 
     const definitions = attrs.map((a) => {
@@ -1155,19 +1178,22 @@ export class CatalogQueryService {
   }
 
   private async filterByChannel(
-    em: EntityManager,
     productIds: string[],
     channel: CatalogResolvedChannel,
   ): Promise<Set<string>> {
     if (productIds.length === 0) return new Set();
     // Feature 053 / Principle XII: a channel is ALWAYS resolved, so the catalog
-    // constrains to the resolved channel's `sales_channel_products` membership
-    // and fails closed to an empty set — never the full cross-channel set.
-    const rows = await em.getConnection().execute<{ product_id: string }[]>(
-      `select product_id from sales_channel_products where sales_channel_id = ? and product_id in (${productIds.map(() => '?').join(',')})`,
-      [channel.id, ...productIds],
+    // constrains to the resolved channel's membership and fails closed to an
+    // empty set — never the full cross-channel set. Through the kernel's
+    // accessor since issue #185; this was a `select … from
+    // sales_channel_products` written here, which is the clause's own
+    // counter-example.
+    const visible = await this.#requireChannelMembership().filterEntityIdsInChannel(
+      channel.id,
+      'product',
+      productIds,
     );
-    return new Set(rows.map((r) => r.product_id));
+    return new Set(visible);
   }
 
   /**
@@ -1304,7 +1330,6 @@ export class CatalogQueryService {
 
     // Filter by visibility.
     const visibleIds = await this.filterByChannel(
-      em,
       base.map((r) => r.product_id),
       channel,
     );

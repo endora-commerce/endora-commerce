@@ -9,6 +9,7 @@ import type {
   ProductPriceTier,
   ProductSummary,
 } from '@b2b/contracts';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { Product } from '../entities/product.entity.js';
 
 
@@ -62,6 +63,13 @@ export interface CatalogOrgPriceDecoratorDeps {
   organizations: OrganizationDetailsPort;
   /** Optional inventory port — when absent, `availability` is omitted. */
   resolveAvailability?: ResolveAvailabilityPort;
+  /**
+   * Issue #185 — the kernel's channel-membership accessor. The published
+   * assortment check below asked `sales_channel_products` directly, which is
+   * the bridge Constitution XII reserves to this service and a cross-module
+   * read no import specifier could reveal.
+   */
+  channelMembership: SalesChannelMembershipPort;
 }
 
 export class CatalogOrgPriceDecorator {
@@ -159,7 +167,6 @@ export class CatalogOrgPriceDecorator {
     });
     const productBySku = new Map(products.map((p) => [p.sku, p]));
     const assortment = await this.#filterByChannel(
-      em,
       products.map((p) => p.id),
       context.salesChannel.id,
     );
@@ -270,22 +277,24 @@ export class CatalogOrgPriceDecorator {
   }
 
   /**
-   * Published-assortment check — the same `sales_channel_products` bridge
-   * read `CatalogQueryService.filterByChannel` performs (catalog owns this
-   * bridge's read side; Principle XII fail-closed to the empty set).
+   * Published-assortment check — the same question
+   * `CatalogQueryService.filterByChannel` asks, through the same accessor since
+   * issue #185. This was a hand-written `select product_id from
+   * sales_channel_products`, which is precisely the read Principle XII reserves
+   * to the channel-membership service; it fails closed to the empty set either
+   * way.
    */
   async #filterByChannel(
-    em: EntityManager,
     productIds: string[],
     salesChannelId: string,
   ): Promise<Set<string>> {
     if (productIds.length === 0) return new Set();
-    const rows = await em
-      .getConnection()
-      .execute<Array<{ product_id: string }>>(
-        `select product_id from sales_channel_products where sales_channel_id = ? and product_id in (${productIds.map(() => '?').join(',')})`,
-        [salesChannelId, ...productIds],
-      );
-    return new Set(rows.map((r) => r.product_id));
+    return new Set(
+      await this.deps.channelMembership.filterEntityIdsInChannel(
+        salesChannelId,
+        'product',
+        productIds,
+      ),
+    );
   }
 }

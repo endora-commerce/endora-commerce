@@ -258,6 +258,90 @@ export class SalesChannelMembershipService {
     return { changed: true };
   }
 
+  /**
+   * Give `targetEntityId` every channel `sourceEntityId` belongs to (issue #185).
+   *
+   * `catalog` duplicates a product and copies the source's whole channel
+   * assortment. It did that with one `insert … select` against
+   * `sales_channel_products` — Principle XII's accessor clause and Principle
+   * XIII in a single statement, because the bridge was written directly and not
+   * one of the memberships it created was audited.
+   *
+   * Implemented over {@link addToChannel} rather than as a set-based insert on
+   * purpose: that is what makes each new membership carry its audit row and its
+   * `sales_channel_membership_changed` event, which is the entire reason the
+   * copy moved here. An assortment is tens of channels at the very most, so the
+   * per-row round trip costs nothing worth the divergence.
+   *
+   * Memberships the target already holds are skipped by `addToChannel`'s own
+   * idempotency and are not counted.
+   */
+  async copyMemberships(
+    entityType: ChannelMemberEntityType,
+    sourceEntityId: string,
+    targetEntityId: string,
+    options: MembershipMutationOptions = {},
+  ): Promise<{ copied: number }> {
+    const bridge = BRIDGE_TABLES[entityType];
+    const em = this.emFactory();
+    const rows = await em
+      .getConnection()
+      .execute<Array<{ sales_channel_id: string }>>(
+        `select "sales_channel_id" from "${bridge.table}" where "${bridge.entityIdColumn}" = ?`,
+        [sourceEntityId],
+        'all',
+        em.getTransactionContext(),
+      );
+
+    let copied = 0;
+    for (const row of rows) {
+      const result = await this.addToChannel(
+        row.sales_channel_id,
+        entityType,
+        targetEntityId,
+        options,
+      );
+      if (result.changed) copied += 1;
+    }
+    return { copied };
+  }
+
+  /**
+   * Narrow a **known** set of entity ids to those bound to `channelId`
+   * (issue #185).
+   *
+   * The read half of the same finding. Three `catalog` services asked
+   * `select <entity>_id from sales_channel_<type> where sales_channel_id = ?
+   * and <entity>_id in (…)` by hand, one per channel-scoped listing, and every
+   * one of them fails closed to the empty set — which is the right behaviour
+   * and the wrong place to spell it.
+   *
+   * Not {@link listEntityIdsForChannel}: that one enumerates a channel's whole
+   * membership a page at a time, and a caller holding a page of ids wants the
+   * intersection rather than the enumeration. Using it here would mean pulling
+   * every product in the channel to filter twenty.
+   */
+  async filterEntityIdsInChannel(
+    channelId: string,
+    entityType: ChannelMemberEntityType,
+    entityIds: readonly string[],
+  ): Promise<string[]> {
+    if (entityIds.length === 0) return [];
+    const bridge = BRIDGE_TABLES[entityType];
+    const em = this.emFactory();
+    const placeholders = entityIds.map(() => '?').join(',');
+    const rows = await em
+      .getConnection()
+      .execute<Array<Record<string, string>>>(
+        `select "${bridge.entityIdColumn}" from "${bridge.table}" ` +
+          `where "sales_channel_id" = ? and "${bridge.entityIdColumn}" in (${placeholders})`,
+        [channelId, ...entityIds],
+        'all',
+        em.getTransactionContext(),
+      );
+    return rows.map((row) => row[bridge.entityIdColumn]!);
+  }
+
   /** Channels an entity currently belongs to. */
   async listChannelsForEntity(
     entityType: ChannelMemberEntityType,
