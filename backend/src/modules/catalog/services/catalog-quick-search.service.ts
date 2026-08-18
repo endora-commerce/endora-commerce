@@ -27,18 +27,26 @@ import type {
  * `CatalogQueryService.filterByChannel` applies to the public listing and the
  * product detail, and it fails closed the same way: no membership row, no hit.
  *
- * ## What is deliberately *not* filtered
+ * ## Why `visibility` and `allowed_organization_ids` are filtered here
  *
- * `visibility` and `allowed_organization_ids` are not applied here, and that is
- * not an oversight. Neither is enforced on any read path in this module today —
- * the public listing, the product detail and the external namespace all ignore
- * both — so enforcing them in this one port would give the platform two
- * different answers to "can this buyer see this product" depending on which
- * surface asked. That gap is platform-wide and belongs to its own change;
- * closing it here would hide it. `deleted_at is null` *is* applied, because
- * every other customer-facing read in this module applies it and the knex query
- * not doing so was a plain defect: a soft-deleted product whose `status` was
- * still `active` came back.
+ * The first pass at this port left both columns unfiltered, on the ground that
+ * no read path in this module enforces either and that enforcing them in one
+ * port would give the platform two answers to "can this buyer see this
+ * product". The gap is real and is still platform-wide, but it does not make
+ * this the surface to leave open: the endpoint requires a signed-in buyer,
+ * discloses SKU, slug and name for every hit, and returns an id that
+ * `POST /quick-order/build` accepts, so a restriction the operator set on the
+ * product was bypassed by typing three characters into the type-ahead.
+ *
+ * The reading is the restrictive one, spelled out on
+ * {@link CatalogQuickSearchPort}: the buyer's organisation on the allow-list,
+ * or an empty allow-list on a row that is not `organization_restricted`. The
+ * two rows a looser reading would disclose are a non-empty allow-list under a
+ * `public` visibility, and `organization_restricted` with an empty allow-list.
+ *
+ * `deleted_at is null` is applied for a plainer reason: every other
+ * customer-facing read in this module applies it, and the knex query not doing
+ * so returned soft-deleted products whose `status` was still `active`.
  */
 export class CatalogQuickSearchService implements CatalogQuickSearchPort {
   constructor(
@@ -82,6 +90,13 @@ export class CatalogQuickSearchService implements CatalogQuickSearchPort {
           and p.status = 'active'
           and p.deleted_at is null
           and (
+            p.allowed_organization_ids @> ?::jsonb
+            or (
+              jsonb_array_length(p.allowed_organization_ids) = 0
+              and p.visibility <> 'organization_restricted'
+            )
+          )
+          and (
             p.sku ILIKE ?
             or p.slug ILIKE ?
             or p.name::text ILIKE ?
@@ -89,7 +104,17 @@ export class CatalogQuickSearchService implements CatalogQuickSearchPort {
           )
         order by p.sku asc
         limit ?`,
-      [params.salesChannelId, like, like, like, ...attributeBindings, params.limit],
+      [
+        params.salesChannelId,
+        // `@>` containment over the JSONB array, so the buyer's id has to be
+        // one of the elements rather than a substring of the serialised bag.
+        JSON.stringify([params.organizationId]),
+        like,
+        like,
+        like,
+        ...attributeBindings,
+        params.limit,
+      ],
     );
 
     const lowered = needle.toLowerCase();
