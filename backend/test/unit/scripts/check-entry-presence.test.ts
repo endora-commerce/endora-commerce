@@ -396,15 +396,23 @@ describe('checkEntryPresence — the two-way ratchet', () => {
     expect(result.stale).toEqual([bootKey]);
   });
 
-  it('merges both ledgers, and the boot-hook one is empty on this tree', () => {
+  it('merges both ledgers, and names what the boot-hook one holds today', () => {
     expect(ENTRY_PRESENCE_LEDGER).toEqual({
       ...TIMERS_WITHOUT_PRESENCE,
       ...BOOT_HOOKS_WITHOUT_PRESENCE,
     });
     // Not a rule — a measurement. `BOOT_HOOKS_WITHOUT_PRESENCE` is allowed to
-    // hold entries; it holds none because every working hook in the tree is
-    // either probed or owned by a non-deactivatable module.
-    expect(Object.keys(BOOT_HOOKS_WITHOUT_PRESENCE)).toEqual([]);
+    // hold entries; every other working hook in the tree is either probed or
+    // owned by a non-deactivatable module. The one entry is feature 078's
+    // numbering pin (D-95.3): a one-time configuration migration, where probing
+    // would leave a deployment that had `invoices` off during the upgrade with
+    // invoice numbers of a different shape.
+    expect(Object.keys(BOOT_HOOKS_WITHOUT_PRESENCE)).toEqual([
+      'modules/invoices/backend.ts:onBoot#3:ctx.onBoot',
+    ]);
+    for (const reason of Object.values(BOOT_HOOKS_WITHOUT_PRESENCE)) {
+      expect(reason.length).toBeGreaterThan(80);
+    }
   });
 });
 

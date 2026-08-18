@@ -1,5 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, valueSchemaForType, type SettingValueType } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  valueSchemaForType,
+  type SettingValueType,
+  type SettingWriteChannelProjection,
+  type SettingWriteValidatorRegistryPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EventBus } from '../../../events/bus.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
@@ -118,6 +124,13 @@ export class SettingsAdminService {
      * resolve at all.
      */
     private readonly presence?: ModulePresencePort,
+    /**
+     * Feature 078, D-95.2. Absent in a composition that registers no registry:
+     * every write is then accepted on shape alone, which is the pre-078
+     * behaviour. Present, it is where the module that declared the setting gets
+     * to refuse a value `settings` cannot judge.
+     */
+    private readonly writeValidators?: SettingWriteValidatorRegistryPort,
   ) {}
 
   // ------------------------------------------------------------------------
@@ -362,6 +375,15 @@ export class SettingsAdminService {
       }
     }
 
+    // Feature 078, D-95.2 — the owning module's own refusal, step 4.
+    //
+    // After shape and enum validation, so a validator never has to defend
+    // itself against a value of the wrong type; before persistence, so a
+    // refusal writes nothing. Before `assertVersion` is a judgement call and it
+    // is deliberate: a stale-version write that is *also* illegal should say
+    // so, because the operator will refetch and re-submit the same value.
+    await this.runWriteValidators(em, setting, parsed.data, target);
+
     // Secret settings (feature 043, FR-021): persist a ciphertext envelope,
     // never the plaintext. An empty string clears the value (stored as '' so
     // the redacted DTO reports isSet=false). No silent plaintext fallback —
@@ -514,6 +536,70 @@ export class SettingsAdminService {
     } as never);
 
     return { setting, affectedChannelIds, newVersion };
+  }
+
+  /**
+   * Hand every channel's **post-write** value to the validators the owning
+   * module contributed, and let their throw reach the caller unchanged.
+   *
+   * `settings` computes the projection because it owns three-tier resolution
+   * (per-channel row → globalValue → manifest defaultValue); a validator that
+   * re-derived it would drift from it. The extra `SalesChannel` read only
+   * happens when a validator is actually registered for the code.
+   */
+  private async runWriteValidators(
+    em: EntityManager,
+    setting: Setting,
+    proposed: unknown,
+    target: { scope: 'all' } | { scope: 'subset'; channelCodes: string[] },
+  ): Promise<void> {
+    const validators = this.writeValidators?.forCode(setting.code) ?? [];
+    if (validators.length === 0) return;
+
+    const channels = await em.find(SalesChannel, {});
+    const currentValues = await em.find(
+      SettingValue,
+      { setting },
+      { populate: ['salesChannel'] },
+    );
+    const currentByChannelId = new Map(
+      currentValues.map((value) => [value.salesChannel.id, value.value]),
+    );
+    const targetedCodes = new Set(target.scope === 'subset' ? target.channelCodes : []);
+    const targetedChannelIds = channels
+      .filter((channel) => targetedCodes.has(channel.code))
+      .map((channel) => channel.id);
+    const targetedIds = new Set(targetedChannelIds);
+    const inherited = (channelId: string): unknown =>
+      currentByChannelId.has(channelId)
+        ? currentByChannelId.get(channelId)
+        : setting.globalValue ?? setting.defaultValue;
+
+    const projection: SettingWriteChannelProjection[] = channels.map((channel) => ({
+      salesChannelId: channel.id,
+      salesChannelCode: channel.code,
+      salesChannelName: channelDisplayName(channel),
+      // A per-channel row always beats a platform-wide write, so an `all` write
+      // does not reach a channel that carries its own value — which is exactly
+      // the fact a collision predicate has to see.
+      value:
+        target.scope === 'subset'
+          ? targetedIds.has(channel.id)
+            ? proposed
+            : inherited(channel.id)
+          : currentByChannelId.has(channel.id)
+            ? currentByChannelId.get(channel.id)
+            : proposed,
+    }));
+
+    for (const validator of validators) {
+      await validator.validate({
+        code: setting.code,
+        ownerModuleId: setting.ownerModule,
+        projection,
+        targetedChannelIds,
+      });
+    }
   }
 
   async resetValues(
@@ -853,4 +939,14 @@ export class SettingsAdminService {
       );
     }
   }
+}
+
+/**
+ * A channel's display name for a message. `SalesChannel.name` is a per-language
+ * map, so a caller that needs one string picks English, then whatever is there,
+ * then the code — which is never empty.
+ */
+function channelDisplayName(channel: SalesChannel): string {
+  const names = channel.name ?? {};
+  return names['en'] ?? Object.values(names)[0] ?? channel.code;
 }

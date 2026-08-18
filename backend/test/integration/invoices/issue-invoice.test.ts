@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -29,17 +30,26 @@ interface IssueResponse {
 
 // A single fixed channel + a file-unique numbering prefix keeps issued numbers
 // globally unique (FR-011) across the shared test DB and other invoice test files.
-const CH = 'aaaaaaaa-0000-4000-8000-000000000001';
+// Feature 078, D-95: `{channel}` is rendered from the `sales_channels`
+// row, so this file's channel has to be one. The per-file code keeps this
+// file's numbers distinct in the shared test database, which is what the
+// fabricated id used to be for.
+let CH: string;
 
 describe('invoices — issue + download (US1)', () => {
   let h: BackendServerHandle;
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    CH = await ensureSalesChannelId(h.em(), 'inv-issue');
     await setSellerSettings(h);
-    await h.settings.adminService.setValueForAllChannels('invoices.numbering.invoice.pattern', 'FVISS {seq}/{YYYY}', null, {
-      actorAdminUserId: '00000000-0000-0000-0000-000000000000',
-    });
+    await h.settings.adminService.setValueForSubset(
+      'invoices.numbering.invoice.pattern',
+      ['inv-issue'],
+      'FVISS {seq}/{YYYY}',
+      null,
+      { actorAdminUserId: '00000000-0000-0000-0000-000000000000' },
+    );
   });
   afterAll(async () => {
     await teardownBackendServer(h);

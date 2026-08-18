@@ -5,8 +5,12 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from '../../integration/invoices/helpers.js';
+import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 
-const CH = 'aaaaaaaa-0000-4000-8000-0000000000c0';
+// Feature 078, D-95: `{channel}` is rendered from the `sales_channels` row, so
+// this file's channel has to be one.
+let CH: string;
+const CH_CODE = 'inv-contract';
 
 interface IssueResp {
   data: { id: string; number: string; status: string };
@@ -17,10 +21,15 @@ describe('invoices admin API (US1 contract)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    CH = await ensureSalesChannelId(h.em(), CH_CODE);
     await setSellerSettings(h);
-    await h.settings.adminService.setValueForAllChannels('invoices.numbering.invoice.pattern', 'FVCON {seq}/{YYYY}', null, {
-      actorAdminUserId: '00000000-0000-0000-0000-000000000000',
-    });
+    await h.settings.adminService.setValueForSubset(
+      'invoices.numbering.invoice.pattern',
+      ['inv-contract'],
+      'FVCON {seq}/{YYYY}',
+      null,
+      { actorAdminUserId: '00000000-0000-0000-0000-000000000000' },
+    );
   });
   afterAll(async () => {
     await teardownBackendServer(h);

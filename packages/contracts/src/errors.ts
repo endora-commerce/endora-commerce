@@ -128,6 +128,13 @@ export const ERROR_CODES = {
   ORDER_NOT_FOUND: 'ORDER_NOT_FOUND',
   ORDER_NOT_CANCELLABLE: 'ORDER_NOT_CANCELLABLE',
   INVOICE_NOT_READY: 'INVOICE_NOT_READY',
+  // Invoices — number uniqueness (feature 078, D-95). The numbering series is
+  // per (sales channel, kind, year) while `invoices.number` is unique across
+  // the whole platform, so two channels whose patterns can render one string
+  // are a duplicate waiting to happen. The first code refuses the
+  // configuration, the second refuses the document.
+  INVOICE_NUMBER_PATTERN_COLLIDES: 'INVOICE_NUMBER_PATTERN_COLLIDES',
+  INVOICE_NUMBER_ALREADY_ISSUED: 'INVOICE_NUMBER_ALREADY_ISSUED',
   INVALID_TRANSITION: 'INVALID_TRANSITION',
 
   // Credit Limit

@@ -81,30 +81,48 @@ export const invoicesSettingsManifest = defineModuleSettingsManifest({
       defaultValue: 'attachment',
       enumOptions: ['attachment', 'link'],
     },
+    // Feature 078, D-95.3 — the three numbering defaults carry `{channel}`.
+    //
+    // Every channel used to resolve one and the same default, so *creating a
+    // sales channel* armed a duplicate: two channels drew sequence 1 in the
+    // same year, rendered one string, and the second issuance died on
+    // `invoices_number_unique`. The operator never had to open this screen for
+    // that to happen, which is why the fix is in the default rather than only
+    // in the write refusal.
+    //
+    // `previousDefaultValues` names the pre-D-95 string so `ManifestReconciler`
+    // migrates a deployment that never overrode it instead of refusing to boot.
+    // The system-default channel is pinned back to the old pattern by this
+    // module's boot hook, so no existing series changes shape.
     {
       code: INVOICES_SETTING_CODES.NUMBERING_INVOICE_PATTERN,
       name: 'Invoice numbering pattern',
       description:
-        'Format for VAT invoice numbers. Tokens: {seq}, {seq:N} (zero-padded), {YYYY}, {YY}, {MM}. The sequence resets yearly, per channel.',
+        'Format for VAT invoice numbers. Tokens: {seq}, {seq:N} (zero-padded), {channel} (the sales channel code), {YYYY}, {YY}, {MM}. The sequence resets yearly, per channel, while the number itself must be unique across the whole platform — so a pattern shared by two channels needs {channel} in it.',
       groupCode: 'invoices',
       valueType: 'string',
-      defaultValue: 'FV {seq}/{YYYY}',
+      defaultValue: 'FV {seq}/{channel}/{YYYY}',
+      previousDefaultValues: ['FV {seq}/{YYYY}'],
     },
     {
       code: INVOICES_SETTING_CODES.NUMBERING_PROFORMA_PATTERN,
       name: 'Proforma numbering pattern',
-      description: 'Format for proforma numbers. Same tokens as the invoice pattern.',
+      description:
+        'Format for proforma numbers. Tokens: {seq}, {seq:N} (zero-padded), {channel} (the sales channel code), {YYYY}, {YY}, {MM}. The sequence resets yearly, per channel, while the number itself must be unique across the whole platform — so a pattern shared by two channels needs {channel} in it.',
       groupCode: 'invoices',
       valueType: 'string',
-      defaultValue: 'PRO {seq}/{YYYY}',
+      defaultValue: 'PRO {seq}/{channel}/{YYYY}',
+      previousDefaultValues: ['PRO {seq}/{YYYY}'],
     },
     {
       code: INVOICES_SETTING_CODES.NUMBERING_CORRECTION_PATTERN,
       name: 'Correction numbering pattern',
-      description: 'Format for corrective-invoice numbers. Same tokens as the invoice pattern.',
+      description:
+        'Format for corrective-invoice numbers. Tokens: {seq}, {seq:N} (zero-padded), {channel} (the sales channel code), {YYYY}, {YY}, {MM}. The sequence resets yearly, per channel, while the number itself must be unique across the whole platform — so a pattern shared by two channels needs {channel} in it.',
       groupCode: 'invoices',
       valueType: 'string',
-      defaultValue: 'KOR {seq}/{YYYY}',
+      defaultValue: 'KOR {seq}/{channel}/{YYYY}',
+      previousDefaultValues: ['KOR {seq}/{YYYY}'],
     },
     {
       code: INVOICES_SETTING_CODES.STOREFRONT_BASE_URL,

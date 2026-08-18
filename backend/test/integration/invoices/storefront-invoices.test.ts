@@ -8,18 +8,32 @@ import {
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
+import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 
-const CH = 'ffffffff-0000-4000-8000-000000000001';
+// Feature 078, D-95: `{channel}` is rendered from the `sales_channels`
+
+// row, so this file's channel has to be one. The per-file code keeps this
+
+// file's numbers distinct in the shared test database, which is what the
+
+// fabricated id used to be for.
+
+let CH: string;
 
 describe('invoices — storefront customer download (US4)', () => {
   let h: BackendServerHandle;
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    CH = await ensureSalesChannelId(h.em(), 'inv-storefront');
     await setSellerSettings(h);
-    await h.settings.adminService.setValueForAllChannels('invoices.numbering.invoice.pattern', 'FVSF {seq}/{YYYY}', null, {
-      actorAdminUserId: '00000000-0000-0000-0000-000000000000',
-    });
+    await h.settings.adminService.setValueForSubset(
+      'invoices.numbering.invoice.pattern',
+      ['inv-storefront'],
+      'FVSF {seq}/{YYYY}',
+      null,
+      { actorAdminUserId: '00000000-0000-0000-0000-000000000000' },
+    );
   });
   afterAll(async () => {
     await teardownBackendServer(h);

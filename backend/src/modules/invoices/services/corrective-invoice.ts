@@ -6,6 +6,8 @@ import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { InvoiceAuditRecorder, InvoiceDomainEventEmitter } from './invoice-service.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
+import { refuseDuplicateInvoiceNumber } from './duplicate-number-refusal.js';
 // Feature 075, Phase C — `returns` states this shape and `invoices` satisfies
 // it. Naming it from `@b2b/contracts` keeps that direction while removing the
 // import: the implementor no longer depends on the declarer's directory.
@@ -183,7 +185,9 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
     const netTotal = round2(credited - taxTotal);
 
     const issuedAt = new Date();
-    const invoice = await em.transactional(async (tx) => {
+    // Captured out of the transaction: see the same note in `InvoiceService`.
+    let drawnNumber: string | null = null;
+    const runCorrection = async (tx: EntityManager): Promise<Invoice> => {
       // Draw from the correction counter (a real numbering series to continue)
       // whenever a generator and a channel are known.
       let number: string;
@@ -192,6 +196,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
       } else {
         number = `KOR-${randomUUID().slice(0, 8).toUpperCase()}`;
       }
+      drawnNumber = number;
       const inv = tx.create(Invoice, {
         orderId: input.orderId,
         salesChannelId,
@@ -237,7 +242,26 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
       }
       await tx.flush();
       return inv;
-    });
+    };
+
+    // Feature 078, D-95.2 — a correction draws from the same platform-wide
+    // number space, so it is refused the same way. `rethrowIfModuleDisabled` is
+    // the **first** line: `ModuleDisabledError` is an `HttpError`, so any other
+    // test lets it through by accident rather than by decision, and the
+    // callback reaches this module's own gated number generator.
+    let invoice: Invoice;
+    try {
+      invoice = await em.transactional(runCorrection);
+    } catch (err) {
+      rethrowIfModuleDisabled(err);
+      await refuseDuplicateInvoiceNumber({
+        error: err,
+        drawnNumber,
+        salesChannelId,
+        emFactory: this.emFactory,
+      });
+      throw err;
+    }
 
     if (this.audit) {
       await this.audit

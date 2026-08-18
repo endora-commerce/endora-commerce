@@ -4,6 +4,7 @@ import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import type { BackendServerHandle } from '../../helpers/test-server.js';
+import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 
 export const CUSTOMER_COOKIE = { b2b_session: 'stub-customer-session' };
 export const ADMIN_COOKIE = { b2b_admin_session: 'stub-admin-session' };
@@ -38,7 +39,10 @@ export async function seedInvoiceableOrder(
     packagingUnitName?: string;
   } = {},
 ): Promise<SeededInvoiceOrder> {
-  const salesChannelId = opts.salesChannelId ?? randomUUID();
+  // Feature 078, D-95: `{channel}` renders the `sales_channels` row, so an
+  // order has to be seeded on a channel that exists. See
+  // `systemDefaultSalesChannelId` for why this is not a fallback.
+  const salesChannelId = opts.salesChannelId ?? (await systemDefaultSalesChannelId(em));
   const deliveryTotal = opts.deliveryTotal ?? 0;
   const discountTotal = opts.discountTotal ?? 0;
   const lineTaxRate = opts.lineTaxRate ?? 0.23;

@@ -6,8 +6,17 @@ import {
 } from '../../helpers/test-server.js';
 import { InvoiceTemplateService } from '../../../src/modules/invoices/services/invoice-template-service.js';
 import { ADMIN_COOKIE } from './helpers.js';
+import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 
-const CH = '99999999-0000-4000-8000-000000000001';
+// Feature 078, D-95: `{channel}` is rendered from the `sales_channels`
+
+// row, so this file's channel has to be one. The per-file code keeps this
+
+// file's numbers distinct in the shared test database, which is what the
+
+// fabricated id used to be for.
+
+let CH: string;
 
 interface TemplateRow {
   id: string;
@@ -24,6 +33,7 @@ describe('invoices — templates (US6)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    CH = await ensureSalesChannelId(h.em(), 'inv-templates');
   });
   afterAll(async () => {
     await teardownBackendServer(h);

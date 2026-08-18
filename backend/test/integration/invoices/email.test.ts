@@ -24,8 +24,17 @@ import { SellerSettingsResolver } from '../../../src/modules/invoices/services/s
 import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 
-const CH = 'eeeeeeee-0000-4000-8000-000000000001';
+// Feature 078, D-95: `{channel}` is rendered from the `sales_channels`
+
+// row, so this file's channel has to be one. The per-file code keeps this
+
+// file's numbers distinct in the shared test database, which is what the
+
+// fabricated id used to be for.
+
+let CH: string;
 
 class CapturingSender implements TransactionalEmailSender {
   readonly sent: TransactionalEmailSendInput[] = [];
@@ -42,9 +51,15 @@ describe('invoices — invoice email dispatch (US5)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    CH = await ensureSalesChannelId(h.em(), 'inv-email');
     await setSellerSettings(h);
     const audit = { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
-    await h.settings.adminService.setValueForAllChannels('invoices.numbering.invoice.pattern', 'FVEM {seq}/{YYYY}', null, audit);
+    await h.settings.adminService.setValueForSubset(
+      'invoices.numbering.invoice.pattern',
+      ['inv-email'],
+      'FVEM {seq}/{YYYY}',
+      null,
+audit);
     await h.settings.adminService.setValueForAllChannels('invoices.storefront_base_url', 'https://shop.example.com', null, audit);
 
     sender = new CapturingSender();
