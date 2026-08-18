@@ -12,7 +12,7 @@ import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';
 import { ProductAttachment } from '../entities/product-attachment.entity.js';
 import { AttachmentType } from '../entities/attachment-type.entity.js';
 import type { ProductLinkService } from './product-link.service.js';
-import type { DefinitionSource } from '../../custom_fields/services/custom-field-value.service.js';
+
 import { GroupedItem } from '../entities/grouped-item.entity.js';
 import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.js';
 import { BundleSlot } from '../entities/bundle-slot.entity.js';
@@ -24,6 +24,7 @@ import {
   type AssetReadPort,
   type AssetRecord,
   type CategoryNode,
+  type CustomFieldDefinitionReadPort,
   type FilterDefinition,
   type ListingPrice,
   type ListingPricePort,
@@ -118,7 +119,7 @@ export class CatalogQueryService {
      * the storefront filter set. The catalog interprets the opaque `config` here;
      * the custom-fields core stays unaware of catalog (Principle XIV / FR-006).
      */
-    private readonly customFieldDefinitions?: DefinitionSource,
+    private readonly customFieldDefinitions?: CustomFieldDefinitionReadPort,
     /**
      * Feature 061 — composed attribute read model. Required for every
      * attribute-metadata read (filters, PDP visible attributes, promo-rule and

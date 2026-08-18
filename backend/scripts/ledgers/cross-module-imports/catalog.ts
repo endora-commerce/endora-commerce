@@ -43,18 +43,4 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
         'internals. Dropping `fk_product_attributes_custom_field_definition` would retire it too, ' +
         'and would cost the invariant the constraint buys.',
     },
-  'modules/catalog/commands/attribute-commands.ts:custom_fields/services/custom-field-definitions-cache':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/plugin.ts:custom_fields/services/custom-field-value.service':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/services/catalog-admin.service.ts:custom_fields/services/custom-field-definitions-cache':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/services/catalog-attribute-read.service.ts:custom_fields/services/custom-field-definitions-cache':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/services/catalog-attribute-read.service.ts:custom_fields/services/custom-field-value.service':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/services/catalog-query.service.ts:custom_fields/services/custom-field-value.service':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
-  'modules/catalog/services/category-admin.service.ts:custom_fields/services/custom-field-value.service':
-    'F3 Phase C — catalog. Retired by the catalog cut merge request.',
 };

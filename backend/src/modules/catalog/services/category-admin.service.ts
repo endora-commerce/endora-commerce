@@ -3,17 +3,15 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
+  isCustomFieldValidationFailure,
   type CreateCategoryRequest,
+  type CustomFieldValuePort,
   type UpdateCategoryInput,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import type { CommandBus, CommandEvent } from '../../../commands/index.js';
 import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
-import {
-  CustomFieldValidationError,
-  type CustomFieldValueService,
-} from '../../custom_fields/services/custom-field-value.service.js';
 import { Category } from '../entities/category.entity.js';
 
 /** Result of a category write closure: the entity + its audit snapshot. */
@@ -90,7 +88,7 @@ export class CategoryAdminService {
     /** Feature 054 — audits category writes co-transactionally when provided. */
     private readonly commandBus?: CommandBus,
     /** Feature 055 — validates + merges custom-field values on category write. */
-    private readonly customFieldValues?: CustomFieldValueService,
+    private readonly customFieldValues?: CustomFieldValuePort,
     /**
      * Feature 068 — publishes `category.updated.v1`. Only consulted on the
      * bus-less fallback path: when a Command Bus is injected it dispatches the
@@ -108,7 +106,12 @@ export class CategoryAdminService {
     try {
       return await this.customFieldValues.validateAndMerge('category', current ?? {}, patch);
     } catch (err) {
-      if (err instanceof CustomFieldValidationError) {
+      // Feature 075 — narrowed structurally, not by `instanceof` on
+      // `custom_fields`' class. The guard tests `name` and the `errors`
+      // array, which is what still works once each module is its own npm
+      // package; and the re-throw below stays unconditional, so a
+      // `ModuleDisabledError` from the port leaves through it.
+      if (isCustomFieldValidationFailure(err)) {
         throw new HttpError(
           422,
           ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
