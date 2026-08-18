@@ -6,7 +6,9 @@ import {
   getMfaStatus,
   regenerateMfaRecoveryCodes,
   startMfaSetup,
+  unlinkMfaSocialIdentity,
 } from '../../../lib/api/mfa';
+import { SocialLinksPanel } from '../../../components/account/SocialLinksPanel';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { getServerContext } from '../../../lib/server-context';
 import {
@@ -37,7 +39,7 @@ export default async function SecurityPage({
   // "Enable 2FA" for a capability that was switched off, and every server
   // action below answered 503 on the click. Absence is projected rather than
   // inferred from that 503: the page is not rendered at all.
-  const { modules } = await getServerContext();
+  const { modules, locale } = await getServerContext();
   if (!modules.isPresent('mfa')) notFound();
 
   const params = await searchParams;
@@ -59,6 +61,14 @@ export default async function SecurityPage({
       ) : (
         <StartPanel />
       )}
+
+      {/* Issue #194 — the identities that can sign into this account. The
+          server sends them; the panel renders nothing when there are none. */}
+      <SocialLinksPanel
+        links={status.socialLinks}
+        locale={locale}
+        unlinkAction={unlinkSocialAction}
+      />
     </div>
   );
 }
@@ -203,6 +213,22 @@ async function regenerateAction(formData: FormData): Promise<void> {
     const { recoveryCodes } = await regenerateMfaRecoveryCodes(session, code);
     await setMfaRecoveryFlash(recoveryCodes);
   } catch (err) {
+    redirect(`/account/security?error=${encodeURIComponent(errMsg(err))}`);
+  }
+  redirect('/account/security');
+}
+
+async function unlinkSocialAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login?next=/account/security');
+  const provider = (formData.get('provider') as string) ?? '';
+  if (provider !== 'google' && provider !== 'microsoft') redirect('/account/security');
+  try {
+    await unlinkMfaSocialIdentity(session, provider);
+  } catch (err) {
+    // The refusal lands here too — the backend has the last word on whether an
+    // account may lose a link, and its sentence is already localized.
     redirect(`/account/security?error=${encodeURIComponent(errMsg(err))}`);
   }
   redirect('/account/security');

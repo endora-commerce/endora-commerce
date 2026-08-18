@@ -202,7 +202,14 @@ export type MessageKey =
   | 'auth.federated.groupLabel'
   | 'auth.federated.divider'
   | 'auth.federated.google'
-  | 'auth.federated.microsoft';
+  | 'auth.federated.microsoft'
+  // Issue #194 — the linked-identities panel on the account security page.
+  | 'account.socialLinks.heading'
+  | 'account.socialLinks.intro'
+  | 'account.socialLinks.linkedOn'
+  | 'account.socialLinks.remove'
+  | 'account.socialLinks.lastCredential'
+  | 'account.socialLinks.setPassword';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -418,6 +425,15 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'auth.federated.divider': 'or',
     'auth.federated.google': 'Continue with Google',
     'auth.federated.microsoft': 'Continue with Microsoft',
+    // Issue #194 — linked identities.
+    'account.socialLinks.heading': 'Linked accounts',
+    'account.socialLinks.intro':
+      'These external accounts can sign you in. Removing one does not delete your account.',
+    'account.socialLinks.linkedOn': 'Linked on',
+    'account.socialLinks.remove': 'Remove',
+    'account.socialLinks.lastCredential':
+      'This is the only sign-in identity linked to your account. Set a password for the account first, then you can remove it.',
+    'account.socialLinks.setPassword': 'Set a password',
   },
   'pl-PL': {
     'nav.home': 'Strona glowna',
@@ -632,6 +648,15 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'auth.federated.divider': 'lub',
     'auth.federated.google': 'Kontynuuj przez Google',
     'auth.federated.microsoft': 'Kontynuuj przez Microsoft',
+    // Issue #194 — linked identities.
+    'account.socialLinks.heading': 'Powiązane konta',
+    'account.socialLinks.intro':
+      'Za pomocą tych zewnętrznych kont możesz się logować. Usunięcie powiązania nie usuwa Twojego konta.',
+    'account.socialLinks.linkedOn': 'Powiązano',
+    'account.socialLinks.remove': 'Usuń',
+    'account.socialLinks.lastCredential':
+      'To jedyna tożsamość logowania powiązana z Twoim kontem. Najpierw ustaw hasło do konta — wtedy usunięcie będzie możliwe.',
+    'account.socialLinks.setPassword': 'Ustaw hasło',
   },
 };
 

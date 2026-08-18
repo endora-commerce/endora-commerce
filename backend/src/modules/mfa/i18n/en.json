@@ -1,4 +1,5 @@
 {
   "adminRoles.permission.mfa:reset": "Reset a user's 2FA",
-  "adminRoles.permission.mfa:manage": "Manage 2FA policies and organization enforcement"
+  "adminRoles.permission.mfa:manage": "Manage 2FA policies and organization enforcement",
+  "errors.MFA_SOCIAL_LAST_CREDENTIAL": "This is the only sign-in identity linked to your account. Set a password for the account first, then you can remove it."
 }

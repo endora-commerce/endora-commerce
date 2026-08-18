@@ -4,6 +4,7 @@ import type Redis from 'ioredis';
 import type { AuthSessionPort, MfaLoginPort } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
 import { ChallengeStore } from './services/challenge-store.js';
 import {
   MfaPolicyResolver,
@@ -16,6 +17,7 @@ import {
   SocialIdentityService,
   type SocialIdentityDeps,
 } from './services/social-identity-service.js';
+import { SocialLinkService } from './services/social-link-service.js';
 import type { OAuthProviderPort } from './services/oauth-provider-service.js';
 import { SecretCipher } from './services/secret-cipher.js';
 import { registerMfaPublicRoutes } from './routes.public.js';
@@ -43,6 +45,8 @@ export interface MfaModuleOptions {
   redis: Redis;
   settingsService: SettingsReader;
   auditLogService: AuditLogService;
+  /** Constitution XIII — the unlink is a security-relevant, audited write. */
+  commandBus: CommandBus;
   sessionService: AuthSessionPort;
   /** Resolves the system-default sales-channel id for global setting reads. */
   resolveDefaultChannelId?: () => Promise<string | null>;
@@ -112,6 +116,10 @@ export function mfaModule(options: MfaModuleOptions): {
     enrolmentService ?? undefined,
   );
   const orgPolicyService = new MfaOrgPolicyService(options.emFactory, options.auditLogService);
+  // Deliberately not behind the `oauthProvider` check below: the links an
+  // account already holds stay listable and severable after an operator turns
+  // a provider off, which is precisely when somebody goes looking for them.
+  const socialLinkService = new SocialLinkService(options.emFactory, options.commandBus);
 
   const plugin: ModulePlugin = async (app) => {
     if (!enrolmentService) return; // enrolment disabled without an encryption key
@@ -138,6 +146,7 @@ export function mfaModule(options: MfaModuleOptions): {
       resolveOrganizationId: (req) => options.resolveCustomerActor(req).organizationId,
       enrolmentService,
       policyResolver,
+      socialLinkService,
       auditLogService: options.auditLogService,
       ...emailOpt,
       ...pwdOpt,
@@ -180,6 +189,7 @@ export function mfaModule(options: MfaModuleOptions): {
         resolveSubjectId: (req) => resolveAdminActor(req).adminUserId,
         enrolmentService,
         policyResolver,
+        socialLinkService,
         auditLogService: options.auditLogService,
         ...emailOpt,
         ...pwdOpt,

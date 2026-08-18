@@ -5,6 +5,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import type { AuthSessionPort, MfaEnrolmentCountPort, MfaLoginPort } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -111,6 +112,7 @@ export interface MfaCradle {
   readonly emFactory: () => EntityManager;
   readonly redis: Redis;
   readonly auditLogService: AuditLogService;
+  readonly commandBus: CommandBus;
   readonly authSessionPort: AuthSessionPort;
   readonly settingsReadPort: SettingsReader;
   readonly requireAdmin: RequireAdminFactory;
@@ -194,7 +196,7 @@ export function registerModule(ctx: ModuleContext): void {
 
     mfa: ctx
       .asFunction(
-        ({ emFactory, redis, auditLogService }: MfaCradle) => {
+        ({ emFactory, redis, auditLogService, commandBus }: MfaCradle) => {
           const secretEncryptionKey = process.env['MFA_SECRET_ENCRYPTION_KEY'];
           const {
             backend: backendBaseUrl,
@@ -221,6 +223,7 @@ export function registerModule(ctx: ModuleContext): void {
                 ctx.cradle<MfaCradle>().settingsReadPort.get(code, salesChannelId, schema),
             },
             auditLogService,
+            commandBus,
             // Feature 075 Phase C — `auth`'s published session surface, not its
             // `SessionService` class. The two fields the second factor reads
             // (the cookie value and its expiry) travel as plain data; the

@@ -122,6 +122,12 @@ function moduleIdForErrorCode(code: ErrorCode): string {
   // prefix, so it keeps routing to core. Only the credential-configuration
   // family lands here.
   if (code.startsWith('CREDENTIAL_')) return 'credentials';
+  // Issue #194 — `MFA_*` routed to `core` by falling off the end of this
+  // function, which is where its sentences would have gone missing unnoticed
+  // (see `check-error-translations.ts`). The family belongs to the module that
+  // owns it; the codes already ledgered as untranslated stay untranslated,
+  // they simply look for their sentence in the right bundle now.
+  if (code.startsWith('MFA_')) return 'mfa';
   if (code.startsWith('MODULE_')) return 'core';
   return 'core';
 }
