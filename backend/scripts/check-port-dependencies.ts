@@ -2157,6 +2157,14 @@ async function main(): Promise<void> {
     declaredDependencies: dependencies,
     nonBinding: nonBindingEdges,
     neverAbsentOwners,
+    // D-101 §5 — the acknowledged edges into locked owners are in the
+    // population now. The lock binds the flip, not the shipping set: a
+    // deployment may omit the module, and since D-101 only by declaring it, so
+    // these rows are what that declaration is read against.
+    acknowledged: acknowledgedPortEdgesFrom(manifests).map((edge) => ({
+      moduleId: edge.moduleId,
+      name: edge.port,
+    })),
     contributionPolicies: CONTRIBUTION_POLICY_STATED,
     excludedNames: new Set([...Object.keys(HOST_REGISTERED_PORTS), ...PLATFORM_OWNED_NAMES]),
   });

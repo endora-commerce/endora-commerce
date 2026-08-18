@@ -75,10 +75,13 @@
  * ledger small, since ~20 of the tree's 27 hooks are contributions.
  *
  * A module whose manifest declares `activation.nonDeactivatable` is out of the
- * population: there is no state in which its hooks would be running while it is
- * absent. That derivation is shared with `check-port-catches`' `OWNER LOCKED`
- * through `lib/switchable-modules.ts`, so withdrawing a lock re-reds both checks
- * in the same run.
+ * population: no **undeclared** absence puts its hooks in a deployment that does
+ * not have it — the orchestrator refuses every withdrawal, and a composition
+ * that omits the module refuses to boot (D-101). A deployment that declared the
+ * omission ships neither the module nor its hooks, so there is still nothing
+ * here to run. That derivation is shared with `check-port-catches`' `OWNER
+ * LOCKED` through `lib/switchable-modules.ts`, so withdrawing a lock re-reds
+ * both checks in the same run.
  *
  * ## What it cannot see, deliberately
  *
@@ -242,8 +245,9 @@ export interface EntryPresenceInput {
   readonly sources: ReadonlyMap<string, string>;
   /**
    * Modules whose manifest declares `activation.nonDeactivatable`, from
-   * `lib/switchable-modules.ts`. Their boot hooks are out of the population:
-   * there is no state in which one runs while the module is absent. Timers stay
+   * `lib/switchable-modules.ts`. Their boot hooks are out of the population: no
+   * undeclared absence lets one run while the module is absent, and a declared
+   * one ships neither the hook nor the module (D-101). Timers stay
    * in — `_lifecycle`'s lease heartbeat is ledgered rather than exempted, and
    * that entry is what documents the circularity behind it.
    *

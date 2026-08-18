@@ -49,6 +49,11 @@ function constructedNames(source: string): Set<string> {
   return names;
 }
 
+/** Source with comments removed — a mention of a call is not a call. */
+function codeOnly(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 /** `fooModule(` calls — the hand-wired module factories. */
 function moduleFactories(source: string): Set<string> {
   const names = new Set<string>();
@@ -213,6 +218,48 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
       .sort();
 
     expect(missing).toEqual(Object.keys(PRODUCTION_ONLY_MODULES).sort());
+  });
+
+  /**
+   * Boot steps production performs and the harness does not — D-101's own entry.
+   *
+   * The other two ledgers above are computed from `new X(` and `xModule(`, so a
+   * divergence that is neither cannot appear in them. This one is: production
+   * calls `loadModulePresence()` before the first module registers, and the
+   * harness seeds the registry cache directly instead. That is a deliberate
+   * decision recorded in `test-server.ts` — the harness has no database state to
+   * reconcile and wants the two axes set by hand — and it has a consequence that
+   * has to be written down rather than discovered: **every refusal, reconcile
+   * and derivation inside that boot step is exercised by nothing in the suite.**
+   *
+   * D-101's boot refusal is the newest thing behind it, which is exactly why the
+   * decision put the analysis in a pure function (`assertLockedModulesPresent`)
+   * and left only the call in the boot step. `test/unit/_lifecycle/locked-modules-present.test.ts`
+   * is its proof, and it runs because it needs no composition at all.
+   */
+  const PRODUCTION_ONLY_BOOT_STEPS: Readonly<Record<string, string>> = {
+    loadModulePresence:
+      'The harness seeds the registry cache by hand, so the reconciler, the gating-graph ' +
+      'install and D-101’s two refusals never run in a test composition. Each is proved by a ' +
+      'unit test over its pure half instead; a boot-level assertion here would be green for ' +
+      'the wrong reason. It drains when the harness composes presence the way production ' +
+      'does, which is T073’s open half.',
+  };
+
+  it('lists every boot step production runs and the harness does not', () => {
+    // Comments are stripped first, and that is not a detail: `test-server.ts`
+    // *names* `loadModulePresence()` in the comment explaining why it seeds the
+    // cache instead of calling it. A ledger that read the mention as a call
+    // would report the divergence closed by the very sentence documenting it.
+    const productionCode = codeOnly(production);
+    const harnessCode = codeOnly(harness);
+    for (const [step, cost] of Object.entries(PRODUCTION_ONLY_BOOT_STEPS)) {
+      expect(productionCode, `production does not run ${step}`).toContain(`${step}(`);
+      expect(harnessCode, `the harness runs ${step} after all — remove the entry`).not.toContain(
+        `${step}(`,
+      );
+      expect(cost.length, `${step} has no recorded cost`).toBeGreaterThan(20);
+    }
   });
 
   it('every ledger entry carries what the gap costs, not just a name', () => {

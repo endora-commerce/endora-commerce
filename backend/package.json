@@ -44,6 +44,7 @@
     "module:enable": "tsx --env-file-if-exists=.env src/modules/_lifecycle/scripts/enable.ts",
     "module:disable": "tsx --env-file-if-exists=.env src/modules/_lifecycle/scripts/disable.ts",
     "module:status": "tsx --env-file-if-exists=.env src/modules/_lifecycle/scripts/status.ts",
+    "audit:read": "tsx --env-file-if-exists=.env src/modules/audit_logs/scripts/read.ts",
     "i18n:coverage": "tsx --env-file-if-exists=.env src/modules/_i18n/scripts/coverage.ts",
     "i18n:reload": "tsx --env-file-if-exists=.env src/modules/_i18n/scripts/reload.ts",
     "i18n:hardcoded": "tsx scripts/i18n-hardcoded-strings.ts",

@@ -23,10 +23,13 @@ export const manifest = defineModuleManifest({
    * `acknowledgedDependencies` exists for, and the same one `auth` records
    * against `customer_accounts`.
    *
-   * It costs nothing on the refusal axis: `admin_users` is itself
-   * `nonDeactivatable`, for the reason its own manifest gives — switched off,
-   * nobody could sign in to switch it back on — so there is no flip for the
-   * acknowledged edge to have refused.
+   * With `admin_users` absent the seam fails closed: the port is gated, so the
+   * permission check refuses rather than answering from an admin row nobody
+   * read. That is the same answer every `requireAdmin` route on such a
+   * deployment gives, and it is why the edge is safe to withhold from
+   * `dependencies` — not a claim about which flips the orchestrator refuses,
+   * which is derived from the manifests on every run and copied here by nobody
+   * (D-100).
    */
   acknowledgedDependencies: [
     {
@@ -35,9 +38,9 @@ export const manifest = defineModuleManifest({
       reason:
         'Answering "may this admin do this?" starts from the admin row — its role assignment ' +
         'and whether it is still live — and that row belongs to admin_users, which declares ' +
-        'this module for the catalogue it reads back. Declaring it here closes a cycle. The ' +
-        'owner is non-deactivatable, so the acknowledged edge adds no refusal that was not ' +
-        'there.',
+        'this module for the catalogue it reads back. Declaring it here closes a cycle. With ' +
+        'admin_users absent the seam fails closed: the port is gated, so the permission check ' +
+        'refuses rather than answering from an admin row nobody read.',
     },
   ],
   // Feature 072/073 (Constitution XVII) — `admin_roles` answers "may this admin

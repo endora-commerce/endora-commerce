@@ -172,6 +172,32 @@ export type ModuleNonBindingDependency = z.infer<
   typeof ModuleNonBindingDependencySchema
 >;
 
+/**
+ * One module a deployment knowingly does not ship — D-101's declared escape.
+ *
+ * A deployment may compose fewer modules than its manifests declare; what it may
+ * not do is arrive there silently, so the omission is declared in a committed,
+ * reviewed file (`backend/src/apps/<deployment>/reduced-deployment.ts`) and the
+ * boot refuses an omission that is not in it — or an entry for a module the
+ * deployment does ship, which is the same ledger read the other way.
+ *
+ * The shape lives here rather than in `_lifecycle` because the file that carries
+ * it belongs to a **deployment**, and a deployment naming a module's internals is
+ * the coupling that outlives the module.
+ */
+export const ReducedDeploymentDeclarationSchema = z.object({
+  /** The module this deployment does not ship. */
+  moduleId: z.string().regex(moduleIdRe),
+  /**
+   * Why — in prose, and long enough to be an argument. "We do not need it" is
+   * not a reason; what the deployment does instead of the capability is.
+   */
+  reason: z.string().min(20).max(800),
+});
+export type ReducedDeploymentDeclaration = z.infer<
+  typeof ReducedDeploymentDeclarationSchema
+>;
+
 export const ModuleManifestSchema = z.object({
   id: z.string().regex(moduleIdRe),
   name: z.string().min(1).max(120),

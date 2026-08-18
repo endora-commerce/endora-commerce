@@ -142,6 +142,24 @@ export interface LedgerInput {
    */
   readonly neverAbsentOwners: ReadonlySet<string>;
   /**
+   * The `acknowledgedDependencies` edges, as `<dependent>` + `<name>` — D-101 §5.
+   *
+   * They are the one exception to the line above, and the exception is about
+   * *states* rather than flips. `nonDeactivatable` binds the transition: an
+   * operator cannot switch the owner off, and no `--force` exists. It does not
+   * bind the **initial state** — a deployment may omit the module outright, and
+   * since D-101 it may do so only by declaring the omission in a committed
+   * per-deployment ledger. The consequence rows are what that declaration is
+   * read against: the difference between "we shipped without `admin_users`" and
+   * "we shipped without `admin_users`, and here are the seams that now fail
+   * closed."
+   *
+   * Only the acknowledged edges, because they are the ones a reader checking
+   * what a deployment loses would otherwise never see — an edge deliberately
+   * withheld from `dependencies` shows up in no array they would think to read.
+   */
+  readonly acknowledged: readonly { readonly moduleId: string; readonly name: string }[];
+  /**
    * `<owner>:<name>` → what the host does with an entry whose owner is absent.
    * `skip` answers as if the entry were not registered; `honour` returns it
    * anyway, deliberately and with a reason written at the class.
@@ -187,9 +205,17 @@ export function buildDeactivationLedger(input: LedgerInput): DeactivationLedger 
 
   /** One group per (dependent, owner, name); a name read from six files is one edge. */
   const groups = new Map<string, { read: CrossModuleRead; sites: Set<string>; captured: boolean }>();
+  const acknowledged = new Set(
+    input.acknowledged.map((edge) => keyOf(edge.moduleId, edge.name)),
+  );
   for (const read of input.reads) {
     if (read.moduleId === read.dependsOn) continue;
-    if (input.neverAbsentOwners.has(read.dependsOn)) continue;
+    if (
+      input.neverAbsentOwners.has(read.dependsOn) &&
+      !acknowledged.has(keyOf(read.moduleId, read.name))
+    ) {
+      continue;
+    }
     if (input.excludedNames.has(read.name)) {
       excluded += 1;
       continue;
