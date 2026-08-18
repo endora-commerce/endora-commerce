@@ -53,6 +53,7 @@ import {
   registerValues,
   type KernelContainer,
 } from '../../src/kernel/index.js';
+import type { DecorationRecord } from '../../src/kernel/compose.js';
 import {
   resolveTenantContext,
   systemTenantContext,
@@ -66,7 +67,11 @@ import type { PermissionService } from '../../src/modules/admin_roles/services/p
 import type { PermissionCatalogueService } from '../../src/modules/admin_roles/services/permission-catalogue.service.js';
 import type { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
 import type { AuthCradle } from '../../src/modules/auth/backend.js';
-import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
+import {
+  REGISTERED_MANIFESTS,
+  resolvedManifestEntries,
+} from '../../src/modules/_lifecycle/registered-manifests.js';
+import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
 import { buildStaticRegistry } from '../../src/modules/_lifecycle/services/static-registry.js';
 import type { LoadedManifestRegistry } from '../../src/modules/_lifecycle/services/manifest-loader.js';
 import { ERROR_CODES, type ProductAvailability } from '@b2b/contracts';
@@ -253,6 +258,23 @@ export interface BackendServerOptions {
    * interceptors against real module endpoints.
    */
   configureInterceptors?: (registry: ApiInterceptorRegistry) => void;
+  /**
+   * Feature 057 / D-104 — compose this deployment's overlay modules as well as
+   * core, exactly as a `DEPLOYMENT=<name>` build does.
+   *
+   * It is an option rather than the ambient `DEPLOYMENT` variable because a
+   * suite has to be able to compose **both**: the same run proves that the
+   * deployment's module is present with it selected and absent without it, and
+   * an environment variable read at import time cannot answer both questions in
+   * one process. Unset means bare core, which is what every other test gets.
+   *
+   * This is testable at all only because a deployment's modules are discovered
+   * at runtime (D-104). Under the previous shape a test of overlay composition
+   * had to regenerate `composition.generated.ts` with `DEPLOYMENT` set — that
+   * is, mutate a committed core artefact — before it could run, which is why
+   * nobody wrote one.
+   */
+  deployment?: string;
 }
 
 export interface BackendServerHandle {
@@ -340,6 +362,15 @@ export interface BackendServerHandle {
   };
   /** Feature 072 — the composed kernel container, disposed at teardown. */
   container: KernelContainer;
+  /**
+   * Feature 072 (T065) — the override report: every decoration this composition
+   * applied, in application order, innermost first.
+   *
+   * Exposed so a test can assert that a deployment's overlay module wrapped the
+   * core registration it names. Empty means a bare-core build, and it means it
+   * explicitly — which is the assertion the bare-core half needs.
+   */
+  composedDecorations: readonly DecorationRecord[];
   /** Feature 017 — Dictionary module handle (cache + future validator). */
   dictionaries: {
     validator: DictionariesCradle['dictionaryValidator'];
@@ -836,10 +867,19 @@ export async function setupBackendServer(
   // `requireAdmin` turned it into `ModuleDisabledError: Module 'auth' is
   // currently disabled` on a platform where nothing was disabled. The ordering
   // was always wrong; nothing had asked the question early enough to show it.
+  // D-104 — the deployment-resolved set, from the one implementation of it.
+  // Bare core when no deployment is selected, which is every test but the
+  // overlay ones.
+  const overlayEnv = (
+    options.deployment === undefined ? {} : { DEPLOYMENT: options.deployment }
+  ) as NodeJS.ProcessEnv;
+  const resolvedRegistry = await resolvedManifestEntries(overlayEnv);
+  const overlayModuleEntries = await loadOverlayModuleEntries(overlayEnv);
+
   registryCache.setActivationDeclarations(
-    activationDeclarationsFrom(REGISTERED_MANIFESTS.map((e) => e.manifest)),
+    activationDeclarationsFrom(resolvedRegistry.map((e) => e.manifest)),
   );
-  registryCache.__setEnabledForTesting(REGISTERED_MANIFESTS.map((e) => e.manifest.id));
+  registryCache.__setEnabledForTesting(resolvedRegistry.map((e) => e.manifest.id));
 
   // Mirrors `composition.ts`: the **host values** this root owns outright. No
   // module registers a default for any of them, so they have no contribution
@@ -875,7 +915,7 @@ export async function setupBackendServer(
     commandBus,
     // Mirrors `composition.ts`: the resolved registry the permission catalogue
     // is built from, and the kernel's audit writer.
-    resolvedModuleRegistry: REGISTERED_MANIFESTS,
+    resolvedModuleRegistry: resolvedRegistry,
     auditLogService,
     // Feature 072 (T138) — mirrors `composition.ts`, reading this harness's own
     // actor property. Soft by contract: `null` for anonymous traffic and for a
@@ -919,7 +959,10 @@ export async function setupBackendServer(
   // Feature 072 — the generated module list, composed in one pass at the same
   // point in the boot order `composition.ts` composes it. Its boot hooks run
   // once, at the bottom of this function, after every contribution below.
-  const composedModules = composeModules(MODULES, {
+  // D-103/D-104 — mirrors `composition.ts`: the deployment's overlay modules
+  // are appended to this one list rather than composed by a second path, so
+  // "overlay last" is structural and D-45's single pass is preserved.
+  const composedModules = composeModules([...MODULES, ...overlayModuleEntries], {
     container,
     eventBus,
     log: { info: () => {}, warn: () => {}, error: () => {} },
@@ -2539,6 +2582,7 @@ export async function setupBackendServer(
       storefrontResolver: blogCradle.blogStorefrontResolver,
     },
     container,
+    composedDecorations: composedModules.decorations,
     dictionaries: {
       validator: dictionariesCradle.dictionaryValidator,
       cache: dictionariesCradle.dictionaryCache,

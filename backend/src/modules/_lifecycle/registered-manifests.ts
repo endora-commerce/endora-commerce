@@ -16,7 +16,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
-import { overlayModulesRootFor, selectedDeployment } from '../../overlay/overlay-roots.js';
+import { discoverOverlayModuleManifests } from '../../overlay/overlay-runtime.js';
 import {
   DISCOVERED_MANIFESTS,
   type DiscoveredManifestEntry,
@@ -63,57 +63,54 @@ function entryFor(
 }
 
 /**
- * The core registry: every discovered module that is not a deployment's, with
- * its directory derived from its id.
+ * The core registry: every discovered module, with its directory derived from
+ * its id.
  *
- * Overlay modules are left out here rather than filtered by their consumers,
- * because the core registry is what the shared build ships — it stays free of
- * per-deployment entries whichever deployment the generator ran for (FR-004).
+ * The index has no deployment entry to filter out any more (D-104). It is a
+ * walk of the shared core tree and nothing else, whatever `DEPLOYMENT` is set
+ * to when it is generated — which is what makes the committed artefact mean the
+ * same thing in every environment, and what makes a stale one detectable
+ * (FR-004, issue #120).
  */
 export function coreManifestEntries(
   discovered: ReadonlyArray<DiscoveredManifestEntry>,
 ): RegisteredManifestEntry[] {
-  return discovered
-    .filter((entry) => entry.overlay !== true)
-    .map((entry) => entryFor(entry, pathFor(entry.id)));
-}
-
-/**
- * The **deployment-resolved** manifest set = the core registry PLUS any overlay
- * module the index discovered for the active deployment (feature 057).
- *
- * This stays a runtime merge on purpose: an overlay module's `filePath` resolves
- * against the deployment root, and the answer depends on which deployment the
- * process runs as — not on which tree the index was generated from. For a
- * bare-core build (`DEPLOYMENT` unset) the index carries no overlay entry, so
- * this returns the core registry unchanged (FR-008).
- */
-export function mergeOverlayManifestEntries(
-  core: ReadonlyArray<RegisteredManifestEntry>,
-  discovered: ReadonlyArray<DiscoveredManifestEntry>,
-  deployment: string | null,
-): RegisteredManifestEntry[] {
-  const byId = new Map<string, RegisteredManifestEntry>(
-    core.map((entry) => [entry.manifest.id, entry]),
-  );
-  for (const entry of discovered) {
-    if (byId.has(entry.id)) continue; // already in the core registry
-    const filePath =
-      deployment === null
-        ? pathFor(entry.id)
-        : join(overlayModulesRootFor(deployment), entry.id, 'manifest.ts');
-    byId.set(entry.id, entryFor(entry, filePath));
-  }
-  return [...byId.values()];
+  return discovered.map((entry) => entryFor(entry, pathFor(entry.id)));
 }
 
 export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> =
   coreManifestEntries(DISCOVERED_MANIFESTS);
 
-export function resolvedManifestEntries(): RegisteredManifestEntry[] {
-  return mergeOverlayManifestEntries(
-    REGISTERED_MANIFESTS,
-    DISCOVERED_MANIFESTS,
-    selectedDeployment(),
+/**
+ * The **deployment-resolved** manifest set = the core registry PLUS every
+ * overlay module the active deployment ships (feature 057, D-104).
+ *
+ * The overlay half is discovered at runtime, by the one implementation that
+ * discovers it (`discoverOverlayModuleManifests`). There used to be two: this
+ * function merged the generated index's overlay entries, `composition.ts`
+ * merged the runtime scan's, and the one under test was not the one that ran.
+ *
+ * Runtime discovery is not an optimisation here, it is the only correct answer:
+ * an overlay module's `filePath` resolves against the deployment root, and
+ * which deployment that is depends on the process, not on the tree a generator
+ * was run against. For a bare-core build (`DEPLOYMENT` unset) there is nothing
+ * to discover and this returns the core registry unchanged (FR-008).
+ */
+export async function resolvedManifestEntries(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<RegisteredManifestEntry[]> {
+  const overlay = await discoverOverlayModuleManifests(env);
+  const byId = new Map<string, RegisteredManifestEntry>(
+    REGISTERED_MANIFESTS.map((entry) => [entry.manifest.id, entry]),
   );
+  for (const found of overlay) {
+    if (byId.has(found.id)) continue; // core owns the id; an overlay may not shadow it here
+    byId.set(found.id, {
+      manifest: found.manifest,
+      filePath: found.filePath,
+      ...(found.installHook ? { installHook: found.installHook } : {}),
+      ...(found.uninstallHook ? { uninstallHook: found.uninstallHook } : {}),
+    });
+  }
+  return [...byId.values()];
 }

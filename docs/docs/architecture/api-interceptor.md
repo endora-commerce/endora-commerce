@@ -45,9 +45,13 @@ Endpoints with no registered interceptors pay one `Map` lookup — nothing else.
 
 ## Anatomy of a registration
 
-The registry handle arrives through the module's plugin factory options (core
-modules) or through `OverlayModuleContext.apiInterceptors` (overlay modules) —
-never by importing another module's internals. Registration happens during
+A module registers its interceptors through `ctx.interceptors(...)`, which stamps
+`module` from the module's own id — never by importing another module's
+internals, and never with a hand-written module name. That is the same seam for a
+core module and for a per-deployment overlay module: since D-103 an overlay
+module is composed by the kernel container exactly as a core module is, so the
+`OverlayModuleContext.apiInterceptors` handle this page used to describe no
+longer exists. Registration happens during
 composition, in the contributing module's own code:
 
 ```ts

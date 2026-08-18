@@ -7,11 +7,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
  * Generates the four files that name every module by hand today:
  *
  *   - `backend/src/composition.generated.ts` — the list a composition root
- *     walks: one `{ id, version, registerModule }` entry per converted module,
- *     in the order it must be composed.
+ *     walks: one `{ id, version, registerModule }` entry per converted **core**
+ *     module, in the order it must be composed.
  *   - `backend/src/modules/_lifecycle/manifest-index.generated.ts` — the one
- *     manifest registry: every module's manifest, plus the install hooks it
- *     exports and whether it came from a deployment's overlay tree.
+ *     manifest registry: every core module's manifest, plus the install hooks
+ *     it exports.
  *   - `backend/src/db/entities-registry.generated.ts` — the explicit entity
  *     class list MikroORM discovers through.
  *   - `backend/src/db/migrations-registry.generated.ts` — every migration in
@@ -100,8 +100,6 @@ export interface ComposerNode {
   readonly id: string;
   /** `manifest.dependencies`, verbatim. Edges to unconverted modules are ignored. */
   readonly dependencies: readonly string[];
-  /** A per-deployment overlay module (feature 057) — composed after core. */
-  readonly isOverlay: boolean;
   readonly backendImportPath: string;
   readonly manifestImportPath: string;
 }
@@ -131,16 +129,8 @@ function directoriesIn(root: string): string[] {
     .filter((name) => !name.startsWith('.') && statSync(join(root, name)).isDirectory());
 }
 
-function overlayRoot(): { deployment: string; root: string } | null {
-  const deployment = process.env['DEPLOYMENT']?.trim();
-  if (!deployment) return null;
-  const root = resolve(srcRoot, 'apps', deployment, 'modules');
-  return existsSync(root) ? { deployment, root } : null;
-}
-
 interface DiscoveredConverted {
   id: string;
-  isOverlay: boolean;
   /** Absolute path to the module's directory — read for `manifest.dependencies`. */
   dir: string;
   backendImportPath: string;
@@ -148,9 +138,21 @@ interface DiscoveredConverted {
 }
 
 /**
- * Every converted module: core first, then the active deployment's overlay. An
- * overlay module with a core module's id shadows it, exactly as the manifest
- * index resolves it.
+ * Every converted **core** module.
+ *
+ * Core only, and `DEPLOYMENT`-independent (D-104). A deployment's overlay
+ * modules used to be discovered here and emitted into this shared artefact,
+ * which made the committed file correct for exactly one value of an environment
+ * variable — so a run with the variable set reported it stale on every
+ * invocation, and a run without it never looked at the deployment at all. That
+ * is the defect issue #120 ruled on for the override manifests, in the family it
+ * was not applied to: an artefact that is always stale for a deployment is one
+ * nobody can use to detect a genuinely stale one.
+ *
+ * A deployment's converted modules are discovered at **runtime** instead, by
+ * `loadOverlayModuleEntries` in `src/overlay/overlay-runtime.ts` — the way its
+ * manifests already were, and for the same reason: which deployment a build is
+ * depends on the process, not on the tree a generator was run against.
  */
 function discoverConverted(): DiscoveredConverted[] {
   const byId = new Map<string, DiscoveredConverted>();
@@ -160,26 +162,10 @@ function discoverConverted(): DiscoveredConverted[] {
     exposesRegisterModule(backend);
     byId.set(id, {
       id,
-      isOverlay: false,
       dir: join(modulesRoot, id),
       backendImportPath: `./modules/${id}/backend.js`,
       manifestImportPath: `./modules/${id}/manifest.js`,
     });
-  }
-  const overlay = overlayRoot();
-  if (overlay) {
-    for (const id of directoriesIn(overlay.root)) {
-      const backend = join(overlay.root, id, 'backend.ts');
-      if (!existsSync(backend)) continue;
-      exposesRegisterModule(backend);
-      byId.set(id, {
-        id,
-        isOverlay: true,
-        dir: join(overlay.root, id),
-        backendImportPath: `./apps/${overlay.deployment}/modules/${id}/backend.js`,
-        manifestImportPath: `./apps/${overlay.deployment}/modules/${id}/manifest.js`,
-      });
-    }
   }
   return [...byId.values()];
 }
@@ -240,10 +226,12 @@ export class MissingModuleDependencyError extends Error {
 /**
  * Every declared dependency names a module that exists (T056).
  *
- * Scope is deliberately **every present module**, including overlay ones the
- * emitted list does not order: a dangling declaration is wrong wherever it is
- * declared, and the generator is the only place in the build that already has
- * the whole manifest set in front of it.
+ * Scope is the **shared core tree**: this is the guard that a declaration names
+ * a module still in the repository, and the repository is the same whichever
+ * deployment a build composes. A deployment that ships a *reduced* set is a
+ * different question and cannot be answered here — a split is assembled without
+ * regenerating anything, so a guard that only fires when a generator runs is one
+ * the failure routes around.
  */
 export function assertDependenciesPresent(modules: readonly PresentModule[]): void {
   const present = new Set(modules.map((module) => module.id));
@@ -259,33 +247,29 @@ export function assertDependenciesPresent(modules: readonly PresentModule[]): vo
   if (missing.size > 0) throw new MissingModuleDependencyError(missing);
 }
 
-/**
- * Every module in the tree that ships a lifecycle-shape manifest — core plus
- * the active deployment's overlay, an overlay id shadowing the core one.
- */
+/** Every core module that ships a lifecycle-shape manifest (D-104: core only). */
 async function discoverPresentModules(): Promise<PresentModule[]> {
   const byId = new Map<string, PresentModule>();
-  const collect = async (root: string): Promise<void> => {
-    for (const id of directoriesIn(root)) {
-      const manifestPath = join(root, id, 'manifest.ts');
-      if (!existsSync(manifestPath)) continue;
-      if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(readFileSync(manifestPath, 'utf8'))) {
-        continue;
-      }
-      byId.set(id, await loadManifest(join(root, id)));
+  for (const id of directoriesIn(modulesRoot)) {
+    const manifestPath = join(modulesRoot, id, 'manifest.ts');
+    if (!existsSync(manifestPath)) continue;
+    if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(readFileSync(manifestPath, 'utf8'))) {
+      continue;
     }
-  };
-  await collect(modulesRoot);
-  const overlay = overlayRoot();
-  if (overlay) await collect(overlay.root);
+    byId.set(id, await loadManifest(join(modulesRoot, id)));
+  }
   return [...byId.values()];
 }
 
 /**
  * Registration order (FR-034): dependencies before dependents, the pinned
- * exception ahead of everything it does not itself depend on, overlay modules
- * last so a deployment's decoration wins, ties broken alphabetically so the
- * emitted file is a function of the tree and nothing else.
+ * exception ahead of everything it does not itself depend on, ties broken
+ * alphabetically so the emitted file is a function of the tree and nothing else.
+ *
+ * "Overlay modules last" is no longer a rank in this sort. It is structural
+ * (D-104): a composition root appends the deployment's entries to this frozen
+ * core list, so a deployment's decoration always wraps a core registration that
+ * is already there, whatever this function does.
  *
  * Kahn's algorithm over the subgraph induced by the modules actually in the
  * list: a declared dependency on a module absent from it constrains nothing
@@ -297,10 +281,7 @@ export function orderModules(nodes: readonly ComposerNode[]): ComposerNode[] {
     nodes.map((n) => [n.id, new Set(n.dependencies.filter((d) => byId.has(d) && d !== n.id))]),
   );
 
-  const rank = (node: ComposerNode): number => {
-    if (PINNED_FIRST.includes(node.id)) return 0;
-    return node.isOverlay ? 2 : 1;
-  };
+  const rank = (node: ComposerNode): number => (PINNED_FIRST.includes(node.id) ? 0 : 1);
   const readyOrder = (a: ComposerNode, b: ComposerNode): number =>
     rank(a) - rank(b) || a.id.localeCompare(b.id);
 
@@ -335,10 +316,14 @@ const HEADER = (script: string): string =>
   `// \`pnpm --filter backend run overlay:check\` fails on the drift.\n`;
 
 /**
- * Pure render of the composer array. Exported so the one fact the kernel's
- * ownership guard depends on — that a deployment's module is emitted as
- * `overlay: true` — is proved here, at the place that decides it, rather than
- * by a test that sets the flag by hand (issue #203).
+ * Pure render of the composer array.
+ *
+ * Exported so a test can drive it on synthetic nodes. It emits **no** overlay
+ * marker, under any input: since D-104 nothing a deployment ships reaches this
+ * file, and `ModuleEntry.overlay` — the flag the kernel's decoration exemption
+ * reads — is set by `loadOverlayModuleEntries` from the root the module was
+ * discovered under. The proof that the flag is derived from a location and not
+ * from a module's own claim moved there with it (issue #203).
  */
 export function emitComposer(nodes: readonly ComposerNode[]): string {
   // camelCase aliases: the emitted file is linted like any other source file.
@@ -351,17 +336,15 @@ export function emitComposer(nodes: readonly ComposerNode[]): string {
     .join('\n');
 
   const entries = nodes
-    .map((n, i) => {
-      // `overlay` is emitted only where it is true, so the bare-core artefact
-      // is unchanged and a core entry has no field for a reader to mistake.
-      const overlay = n.isOverlay ? 'overlay: true, ' : '';
-      return `  { id: '${n.id}', version: manifest${i}.version, ${overlay}registerModule: module${i}.registerModule },`;
-    })
+    .map(
+      (n, i) =>
+        `  { id: '${n.id}', version: manifest${i}.version, registerModule: module${i}.registerModule },`,
+    )
     .join('\n');
 
   return `${HEADER('generate-composer.ts')}//
-// Every module that ships a \`backend.ts\` exporting \`registerModule\`, in the
-// order a composition root must compose them:
+// Every **core** module that ships a \`backend.ts\` exporting \`registerModule\`,
+// in the order a composition root must compose them:
 //
 //   1. \`${PINNED_FIRST.join('\`, \`')}\` first — a **construction** dependency, not a manifest one:
 //      the API-key authenticator is injected into the auth plugin, and
@@ -369,10 +352,14 @@ export function emitComposer(nodes: readonly ComposerNode[]): string {
 //      open, until F3 fixes the declaration.
 //   2. then a topological order over \`manifest.dependencies\`, ties broken
 //      alphabetically so this file is a function of the tree and nothing else.
-//   3. overlay modules (feature 057) last, so a deployment's \`di.decorate\`
-//      wins over the core registration it decorates. They carry
-//      \`overlay: true\`, which is what exempts them from the kernel's rule
-//      that a module may decorate only what it registered (issue #203).
+//
+// This list is bare core under every value of \`DEPLOYMENT\` (D-104). A
+// deployment's overlay modules are discovered at runtime by
+// \`loadOverlayModuleEntries\` (\`src/overlay/overlay-runtime.ts\`) and **appended**
+// to this list in the one \`composeModules\` call, which is what makes "overlay
+// last, so a deployment's \`di.decorate\` wins" structural rather than a property
+// of this generator's sort — and what keeps this committed artefact meaning the
+// same thing in every environment.
 //
 // A module missing from this list is a module the tree walk found no
 // \`backend.ts\` for. Every core module exports \`registerModule\` today, so an
@@ -408,7 +395,6 @@ export async function renderComposer(): Promise<{ outputPath: string; content: s
     nodes.push({
       id: entry.id,
       dependencies: manifest.dependencies,
-      isOverlay: entry.isOverlay,
       backendImportPath: entry.backendImportPath,
       manifestImportPath: entry.manifestImportPath,
     });
@@ -420,8 +406,6 @@ interface DiscoveredManifest {
   id: string;
   /** Import specifier from the emitted index to the module's `manifest.ts`. */
   importPath: string;
-  /** Discovered under the active deployment's overlay tree (feature 057). */
-  isOverlay: boolean;
   hasInstallHook: boolean;
   hasUninstallHook: boolean;
 }
@@ -460,38 +444,30 @@ export function detectHookExport(name: string, source: string, moduleId: string)
 }
 
 /**
- * Every module with a lifecycle-shape manifest: core first, then the active
- * deployment's overlay tree (feature 057). An overlay manifest for a core id
- * shadows the core one, so the index imports exactly one manifest per id — the
- * property `resolvedManifestEntries()` relies on when it merges.
+ * Every **core** module with a lifecycle-shape manifest.
  *
- * The overlay half is why `DEPLOYMENT` changes the output: the committed
- * artefact is the bare-core render, and a per-deployment build runs this same
- * generator with `DEPLOYMENT=<name>` set.
+ * Core only, and `DEPLOYMENT`-independent (D-104), for the reason spelled out
+ * over {@link discoverConverted}: an artefact whose correctness depends on an
+ * environment variable cannot be committed once. A deployment's manifests are
+ * discovered at runtime by `discoverOverlayModuleManifests`, which
+ * `resolvedManifestEntries()` now merges on top of this index — one
+ * implementation of "the deployment-resolved manifest set" rather than two, of
+ * which the one under test was not the one that ran.
  */
 function discoverManifests(): DiscoveredManifest[] {
   const byId = new Map<string, DiscoveredManifest>();
-  const collect = (root: string, importPathFor: (id: string) => string, isOverlay: boolean): void => {
-    for (const id of directoriesIn(root)) {
-      const manifestPath = join(root, id, 'manifest.ts');
-      if (!existsSync(manifestPath)) continue;
-      const source = readFileSync(manifestPath, 'utf8');
-      if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(source)) continue;
-      byId.set(id, {
-        id,
-        importPath: importPathFor(id),
-        isOverlay,
-        hasInstallHook: detectHookExport('installHook', source, id),
-        hasUninstallHook: detectHookExport('uninstallHook', source, id),
-      });
-    }
-  };
-  // The index lives in `_lifecycle/`, so a core manifest is one folder up and a
-  // deployment's is two, through `apps/<deployment>/modules/`.
-  collect(modulesRoot, (id) => `../${id}/manifest.js`, false);
-  const overlay = overlayRoot();
-  if (overlay) {
-    collect(overlay.root, (id) => `../../apps/${overlay.deployment}/modules/${id}/manifest.js`, true);
+  // The index lives in `_lifecycle/`, so a core manifest is one folder up.
+  for (const id of directoriesIn(modulesRoot)) {
+    const manifestPath = join(modulesRoot, id, 'manifest.ts');
+    if (!existsSync(manifestPath)) continue;
+    const source = readFileSync(manifestPath, 'utf8');
+    if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(source)) continue;
+    byId.set(id, {
+      id,
+      importPath: `../${id}/manifest.js`,
+      hasInstallHook: detectHookExport('installHook', source, id),
+      hasUninstallHook: detectHookExport('uninstallHook', source, id),
+    });
   }
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -509,7 +485,6 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
   const entries = manifests
     .map((m, i) => {
       const fields = [`id: '${m.id}'`, `manifest: manifest${i}`];
-      if (m.isOverlay) fields.push('overlay: true');
       if (m.hasInstallHook) fields.push(`installHook: installHook${i}`);
       if (m.hasUninstallHook) fields.push(`uninstallHook: uninstallHook${i}`);
       return `  { ${fields.join(', ')} },`;
@@ -517,10 +492,14 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
     .join('\n');
 
   return `${HEADER('generate-composer.ts')}//
-// The manifest registry — the **only** file that imports a module's manifest.
-// Every module that ships a lifecycle-shape \`manifest.ts\` is here, with the
-// install hooks it exports and, for a per-deployment build, the overlay modules
-// of the selected deployment.
+// The manifest registry — the **only** file that imports a **core** module's
+// manifest. Every core module that ships a lifecycle-shape \`manifest.ts\` is
+// here, with the install hooks it exports.
+//
+// Bare core under every value of \`DEPLOYMENT\` (D-104). A deployment's overlay
+// manifests are discovered at runtime and merged on top of this index by
+// \`resolvedManifestEntries()\`, because which deployment a build is depends on
+// the process rather than on the tree this file was generated from.
 //
 // It used to have a twin (\`registered-manifests.ts\`) importing the same
 // manifests behind a second command, which is a drift waiting to happen; that
@@ -538,13 +517,6 @@ ${imports}
 export interface DiscoveredManifestEntry {
   id: string;
   manifest: ModuleManifest;
-  /**
-   * Present only for a module found under the active deployment's overlay tree.
-   * It is what keeps the core registry deployment-free (feature 057, FR-004)
-   * and what tells the runtime merge to resolve the module's directory under
-   * \`apps/<deployment>/modules/\` rather than under the core modules root.
-   */
-  overlay?: true;
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
 }
@@ -641,10 +613,16 @@ export function collectEntities(sources: SourceTree): DiscoveredEntity[] {
     }
     if (file.startsWith('apps/')) {
       throw new Error(
-        `[composer] ${file} declares an entity under a deployment overlay. The entity and ` +
-          `migration registries are core-only: an overlay module cannot ship a migration ` +
-          `today, so an overlay entity would be ORM metadata for a table nothing creates. ` +
-          `Ship the schema from a core module, or make overlay migrations run first.`,
+        `[composer] ${file} declares an @Entity() class under a deployment overlay. ` +
+          `Out-of-core code contributes registrations, routes, decorations, interceptors, ` +
+          `permissions, i18n and a manifest — and no schema (D-105). That is not a v1 ` +
+          `limitation: the migration registry is a committed, ordered artefact whose ` +
+          `execution order is computed from timestamps and then corrected by the module ` +
+          `dependency graph, and that correction is only meaningful over a fixed set. A set ` +
+          `that varies per deployment has no single correct order to commit, and a ` +
+          `per-deployment order is a per-deployment schema history. Delete this file's ` +
+          `directory and ship the table from a core module; the overlay module keeps its ` +
+          `services, routes and decorations and reads the core module's port.`,
       );
     }
     let cursor = source.indexOf('@Entity(');
@@ -687,9 +665,9 @@ function emitEntitiesHeader(): string {
 // here, in path order. Detection is by that decorator, not by the
 // \`.entity.ts\` suffix, because nothing enforces the suffix — and the decorator
 // is deliberately not spelled out in this comment, so that a walk looking for
-// it does not find its own output. The walk is core-only: an overlay module cannot
-// ship a migration today, so an overlay entity is refused by the generator
-// rather than registered for a table nothing creates.
+// it does not find its own output. The walk is core-only: out-of-core code
+// contributes no schema (D-105), so an entity under \`src/apps/\` is refused by
+// the generator rather than registered for a table nothing creates.
 `;
 }
 
@@ -776,10 +754,14 @@ export function collectMigrations(sources: SourceTree): DiscoveredMigration[] {
   for (const [file, source] of [...sources].sort(([a], [b]) => a.localeCompare(b))) {
     if (OVERLAY_MIGRATION_RE.test(file)) {
       throw new Error(
-        `[composer] ${file} is a migration under a deployment overlay. The migration ` +
-          `registry is core-only, so an overlay migration is never executed — registering ` +
-          `it here would be a new capability, not a side effect of generating the list. ` +
-          `Move the schema into a core module.`,
+        `[composer] ${file} is a migration under a deployment overlay. Out-of-core code ` +
+          `contributes registrations, routes, decorations, interceptors, permissions, i18n ` +
+          `and a manifest — and no schema (D-105). The migration registry is a committed, ` +
+          `ordered artefact whose execution order is corrected by the module dependency ` +
+          `graph, and that correction is only meaningful over a fixed set; a set that varies ` +
+          `per deployment has no single correct order to commit. Registering this file here ` +
+          `would be a new capability, not a side effect of generating the list. Move the ` +
+          `schema into a core module.`,
       );
     }
     const core = CORE_MIGRATION_RE.exec(file);

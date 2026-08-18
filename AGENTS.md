@@ -271,12 +271,12 @@ Commands, the orchestrator and the `module:*` CLI scripts.
 
 **You almost never call those wrappers yourself.** All 65 core modules are composed through
 the kernel container (feature 072), and `ctx.routes` / `ctx.worker` / `ctx.subscribe` apply
-the wrappers for you — see the composition checklist above. Call them directly only where
-there is no `ModuleContext`: a CLI entry point, or an overlay module under
-`backend/src/apps/<deployment>/modules/`, which is still composed through the feature-057
-`overlayModule` factory. Four core modules (`newsletter`, `product_feeds`, `pim_ergonode`,
-`ksef`) still wrap a second time inside their `plugin.ts`; that is conversion residue, not a
-pattern to copy.
+the wrappers for you — see the composition checklist above. **A per-deployment overlay module
+under `backend/src/apps/<deployment>/modules/` is composed the same way** (D-103): it ships
+`backend.ts`, gets an ordinary `ModuleContext`, and calls the same seams. Call the wrappers
+directly only where there is no `ModuleContext` — a CLI entry point. Four core modules
+(`newsletter`, `product_feeds`, `pim_ergonode`, `ksef`) still wrap a second time inside their
+`plugin.ts`; that is conversion residue, not a pattern to copy.
 
 1. **Routes** — wrap the module's route registration in `defineModuleRoutes('<id>', …)` so
    gating holds at the registration seam for every route the module owns, including later
@@ -531,10 +531,23 @@ one a composition root registered, which no module owns — because decoration r
 every consumer of that name resolves, and a core module wrapping `commandBus`,
 `auditLogService` or another module's read port is a coupling nothing declares. Ask the owner
 for a seam instead (a port, a contribution point, an event). An overlay module is exempt, and
-the exemption is structural: the generated composer marks an entry `overlay: true` from the
-root it was discovered under, so core cannot assert it.
-Never override a core entity or migration (schema overrides are out of v1) —
-ship new schema as tables owned by the overlay module. See
+the exemption is structural: `loadOverlayModuleEntries` marks an entry `overlay: true` from
+the root it was discovered under, so core cannot assert it.
+**An overlay module ships `backend.ts`, not `plugin.ts`** (D-103). It is composed by the
+kernel container exactly as a core module is — appended to the core list in the one
+`composeModules` call — and uses `ctx.routes` / `ctx.worker` / `ctx.subscribe` /
+`ctx.interceptors` / `ctx.di.decorate`. The second path is gone: it could gate no route, and
+the one reference overlay module in the tree shipped an ungated one for as long as it existed.
+A deployment's modules are **discovered at runtime**, so `composition.generated.ts` and
+`manifest-index.generated.ts` are bare core under every value of `DEPLOYMENT` (D-104).
+**Out-of-core code contributes no schema** (D-105): a per-deployment overlay module or an
+extension package contributes registrations, routes, decorations, interceptors, permissions,
+i18n bundles and a manifest, and **no `@Entity()` class and no migration**. That is not a v1
+limitation — the migration registry is a committed, ordered artefact whose execution order is
+corrected by the module dependency graph, and that correction is only meaningful over a fixed
+set; a set that varies per deployment has no single correct order to commit. Ship new schema
+from a core module. The generator refuses both (`generate-composer.ts`), which is the same
+rule the Migrations section above states. See
 `docs/docs/architecture/overlay-pattern.md` and `specs/057-overlay-pattern-multideploy/`.
 
 ## Working agreement

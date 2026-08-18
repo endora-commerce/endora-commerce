@@ -4,6 +4,13 @@ import { fileURLToPath } from 'node:url';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { describe, expect, it } from 'vitest';
 import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registered-manifests.js';
+
+/**
+ * Deployment-resolved at module scope, with a top-level `await` — since D-104
+ * the deployment half of the manifest set is a runtime discovery (see
+ * `permission-inventory.test.ts` for the same note).
+ */
+const RESOLVED_MANIFESTS = await resolvedManifestEntries();
 import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
 import type { PromptActionTool } from '@b2b/contracts';
 import {
@@ -87,7 +94,7 @@ export function toolsWithUngrantablePermission(
 }
 
 describe('prompt-action tool permissions (#112)', () => {
-  const assignable = new Set(listAssignablePermissionCodes(resolvedManifestEntries()));
+  const assignable = new Set(listAssignablePermissionCodes(RESOLVED_MANIFESTS));
   const tools = Object.values(CONTRIBUTED).flatMap((build) => build());
 
   it('names every module that contributes tools', () => {

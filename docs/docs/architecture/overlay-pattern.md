@@ -36,8 +36,30 @@ core stays deployment-agnostic and the bare-core build keeps working unchanged.
 | Service | ✅ | By **decoration**, not by shadowing a file — see below. |
 | Route / plugin | ✅ | Same route mechanism as core. |
 | Config / manifest | ✅ | |
-| Whole new module | ✅ | Registered without editing the core registry. |
-| Entity / migration | ❌ | Schema overrides are out of v1 — ship new schema as a client-only overlay module that owns its own tables. |
+| Whole new module | ✅ (no schema — see below) | Registered without editing the core registry. Ships `backend.ts`, never `plugin.ts`. |
+| Entity / migration | ❌ | Out-of-core code contributes no schema — see below. Ship new schema from a **core** module. |
+
+## Out-of-core code contributes no schema
+
+Code composed into the platform from outside the core module tree — a
+per-deployment overlay module or an extension package — contributes
+registrations, routes, decorations, interceptors, permissions, i18n bundles and a
+manifest. It contributes **no schema**: no `@Entity()` class and no migration.
+
+This page used to say the opposite ("ship new schema as a client-only overlay
+module that owns its own tables"), and the generator has refused it the whole
+time. The reason is not v1 scope. The migration registry is a committed, ordered
+artifact whose execution order is computed from timestamps and then corrected by
+the module-manifest dependency graph, and that correction is only meaningful over
+a **fixed** set. A set that varies per deployment or per installed package has no
+single correct order to commit — and a per-deployment order is a per-deployment
+schema history, which is the thing "one codebase, many installations" exists to
+avoid. One sentence covers both out-of-core paths because one fact causes both.
+
+So a deployment that wants client-specific tables ships them from a core module
+and reads them from the overlay module through that module's port. The overlay
+module keeps everything else: its own services, its routes, its decorations and
+its permissions.
 
 ## Service overrides are decorations
 

@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { ModuleManifest } from '@b2b/contracts';
 import type { DiscoveredManifestEntry } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
 import {
+  REGISTERED_MANIFESTS,
   coreManifestEntries,
-  mergeOverlayManifestEntries,
+  resolvedManifestEntries,
 } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
 /**
@@ -15,13 +16,17 @@ import {
  * module directory the other had already lost. The two facts the second file
  * carried are derivable: a core module's `filePath` is its id under the modules
  * root, and its install hooks are exports of the manifest the index already
- * imports. What is *not* derivable is an overlay module's `filePath`, because it
- * depends on the deployment the process runs as; that stays a runtime merge.
+ * imports.
  *
- * These run on synthetic entries rather than the real index: the real tree has
- * one hook on one module and no overlay module in the committed (bare-core)
- * index, so a test reading it could not tell a working derivation from one that
- * dropped hooks and overlay modules entirely.
+ * Since D-104 the index is **bare core under every value of `DEPLOYMENT`**, so
+ * there is no overlay entry in it to filter and no per-deployment `filePath` to
+ * reconstruct from it. The deployment half is a runtime discovery, and
+ * `resolvedManifestEntries()` is the one implementation of it — there used to be
+ * two, and the one under test was not the one that ran.
+ *
+ * The derivation cases run on synthetic entries rather than the real index: the
+ * real tree has few hooks, so a test reading it could not tell a working
+ * derivation from one that dropped hooks entirely.
  */
 
 const manifestOf = (id: string): ModuleManifest => ({
@@ -39,12 +44,6 @@ const HOOKED: DiscoveredManifestEntry = {
   id: 'custom_fields',
   manifest: manifestOf('custom_fields'),
   installHook: noop,
-  uninstallHook: noop,
-};
-const OVERLAY_ONLY: DiscoveredManifestEntry = {
-  id: 'example_overlay',
-  manifest: manifestOf('example_overlay'),
-  overlay: true,
   uninstallHook: noop,
 };
 
@@ -70,49 +69,49 @@ describe('coreManifestEntries — the core registry, derived', () => {
     expect(entry && 'installHook' in entry).toBe(false);
     expect(entry && 'uninstallHook' in entry).toBe(false);
   });
+});
 
-  it('leaves overlay modules out, so the core registry stays deployment-free (FR-004)', () => {
-    const entries = coreManifestEntries([BLOG, OVERLAY_ONLY]);
-    expect(entries.map((e) => e.manifest.id)).toEqual(['blog']);
+describe('the committed index is bare core, whatever DEPLOYMENT was set to (D-104)', () => {
+  it('holds no deployment’s module', () => {
+    // FR-004 by construction rather than by filtering: the generator no longer
+    // has an overlay branch to walk, so there is nothing here to leave out.
+    expect(REGISTERED_MANIFESTS.map((e) => e.manifest.id)).not.toContain('example_overlay');
   });
 });
 
-describe('mergeOverlayManifestEntries — the deployment-resolved set', () => {
-  const discovered = [BLOG, OVERLAY_ONLY];
-  const coreEntries = coreManifestEntries(discovered);
-
-  it('adds the overlay module, resolving its filePath under the deployment root', () => {
-    const resolved = mergeOverlayManifestEntries(coreEntries, discovered, 'example');
+describe('resolvedManifestEntries — the deployment-resolved set, discovered at runtime', () => {
+  it('adds the deployment’s overlay module, with its filePath under the deployment root', async () => {
+    const resolved = await resolvedManifestEntries({ DEPLOYMENT: 'example' } as NodeJS.ProcessEnv);
     const entry = resolved.find((e) => e.manifest.id === 'example_overlay');
+    expect(entry).toBeDefined();
     expect(entry?.filePath).toMatch(
       /backend[/\\]src[/\\]apps[/\\]example[/\\]modules[/\\]example_overlay[/\\]manifest\.ts$/,
     );
   });
 
-  it('carries an overlay module hook too', () => {
-    const resolved = mergeOverlayManifestEntries(coreEntries, discovered, 'example');
-    expect(resolved.find((e) => e.manifest.id === 'example_overlay')?.uninstallHook).toBe(noop);
+  it('keeps every core entry exactly once, and appends the deployment’s', async () => {
+    const resolved = await resolvedManifestEntries({ DEPLOYMENT: 'example' } as NodeJS.ProcessEnv);
+    const ids = resolved.map((e) => e.manifest.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.slice(0, REGISTERED_MANIFESTS.length)).toEqual(
+      REGISTERED_MANIFESTS.map((e) => e.manifest.id),
+    );
+    expect(ids).toContain('example_overlay');
   });
 
-  it('keeps every core entry exactly once', () => {
-    const resolved = mergeOverlayManifestEntries(coreEntries, discovered, 'example');
-    expect(resolved.map((e) => e.manifest.id)).toEqual(['blog', 'example_overlay']);
+  it('returns the core registry unchanged for a bare-core build (FR-008)', async () => {
+    const resolved = await resolvedManifestEntries({} as NodeJS.ProcessEnv);
+    expect(resolved).toEqual([...REGISTERED_MANIFESTS]);
   });
 
-  it('returns the core entries unchanged for a bare-core build', () => {
-    const bareCore = [BLOG, CMS];
-    const entries = coreManifestEntries(bareCore);
-    expect(mergeOverlayManifestEntries(entries, bareCore, null)).toEqual(entries);
-  });
-
-  it('does not let an overlay of a core id arrive twice through the merge', () => {
-    // The index imports one manifest per id, so a shadowing overlay never
-    // duplicates an entry: whatever it carries for an id the core registry
-    // already holds is skipped.
-    const shadowing: DiscoveredManifestEntry[] = [BLOG, { ...BLOG, overlay: true }];
-    const entries = coreManifestEntries(shadowing);
-    const resolved = mergeOverlayManifestEntries(entries, shadowing, 'example');
-    expect(resolved).toHaveLength(1);
-    expect(resolved[0]?.filePath).toMatch(/src[/\\]modules[/\\]blog[/\\]manifest\.ts$/);
+  it('reads the deployment from its argument, so one process can resolve both', async () => {
+    // The property the harness depends on: a suite proves the module present
+    // with the deployment selected and absent without it, in one run. An
+    // ambient `DEPLOYMENT` read at import time could answer only one of them.
+    const withDeployment = await resolvedManifestEntries({
+      DEPLOYMENT: 'example',
+    } as NodeJS.ProcessEnv);
+    const bareCore = await resolvedManifestEntries({} as NodeJS.ProcessEnv);
+    expect(withDeployment.length).toBe(bareCore.length + 1);
   });
 });
