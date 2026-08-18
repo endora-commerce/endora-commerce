@@ -283,6 +283,8 @@ export interface ListingPriceProduct {
 }
 
 /**
+ * Container name: `pricingService`. Owner: `price_lists`.
+ *
  * The slice of the `pricingService` port a catalogue listing path resolves.
  *
  * Declared here rather than in each consumer so the catalogue, search,
@@ -295,6 +297,11 @@ export interface ListingPriceProduct {
  * public catalogue routes resolve a sales channel and no customer — so a
  * listing quotes the channel's anonymous price, which is the same resolution
  * the storefront's own `getResolvedPrice` performs from a server component.
+ *
+ * **Owner off:** the seam fails closed — resolving the port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`. A listing
+ * that invented a figure would be worse than one that refuses, which is the
+ * same reasoning {@link LinePricePort} states for a cart line.
  */
 export interface ListingPricePort {
   resolveListingPrices(input: {
@@ -329,6 +336,8 @@ export interface LinePriceResult {
 }
 
 /**
+ * Container name: `pricingService`. Owner: `price_lists`.
+ *
  * The slice of the `pricingService` port a **line** resolution asks for —
  * `ListingPricePort`'s sibling, and declared here for the same reasons: one
  * wording for every caller, and a *shape* rather than an import of
@@ -363,9 +372,12 @@ export interface LinePricePort {
 }
 
 /**
+ * Container name: `pricingService`. Owner: `price_lists`.
+ *
  * `LinePricePort` plus the bracket ladder — the surface `catalog`'s external
- * namespace prices a bound organisation's request with. Same container name
- * (`pricingService`), same owner, one method more.
+ * namespace prices a bound organisation's request with. Same container name,
+ * same owner, one method more, and the same fail-closed answer when the owner
+ * is off.
  *
  * **An extension rather than two more methods on `LinePricePort`**, and that is
  * the whole design decision here. Every consumer of a published port types a

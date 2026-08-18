@@ -1,10 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type AuthSessionPort } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword } from '../../auth/services/password-hasher.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import type { SessionService } from '../../auth/services/session-service.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { PersonalOrganizationService } from '../../organizations/services/personal-organization-service.js';
 
@@ -22,7 +21,14 @@ import type { PersonalOrganizationService } from '../../organizations/services/p
  */
 export interface CustomerRegistrationDeps {
   emFactory: () => EntityManager;
-  sessionService: SessionService;
+  /**
+   * `auth`'s published session port (D-98.2), not the `SessionService` class
+   * this used to import: the only method reached here is `createSession`, the
+   * port declares it, and `authSessionPort` is the name the contract
+   * publishes. Resolving the class name instead was the leak issue #196 is
+   * about — the same shape D-98.1 repaired for `addressService`.
+   */
+  sessionService: AuthSessionPort;
   /** Reads `customers.allow_registration_without_organization` (the per-channel B2C gate). */
   resolveAllowRegistrationWithoutOrganization: () => Promise<boolean>;
   /** Feature 051 — provisions a single-member personal organization for a B2C customer. */

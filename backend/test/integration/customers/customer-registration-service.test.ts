@@ -3,6 +3,7 @@ import Redis from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { SessionService } from '../../../src/modules/auth/services/session-service.js';
+import { createAuthSessionPort } from '../../../src/modules/auth/services/session-port.js';
 import { CustomerRegistrationService } from '../../../src/modules/customers/services/customer-registration-service.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
@@ -43,7 +44,11 @@ describe('CustomerRegistrationService.registerStandalone', () => {
   const makeService = (allow: boolean): CustomerRegistrationService =>
     new CustomerRegistrationService({
       emFactory: () => em,
-      sessionService: sessions,
+      // D-98.2 — the service takes `auth`'s published `AuthSessionPort` now,
+      // not the `SessionService` class. The adapter is what the container
+      // hands out under `authSessionPort`, and it is what makes the session
+      // cross as a record rather than as the `Session` entity.
+      sessionService: createAuthSessionPort(sessions),
       resolveAllowRegistrationWithoutOrganization: async () => allow,
       personalOrganizationService: new PersonalOrganizationService(() => em),
     });

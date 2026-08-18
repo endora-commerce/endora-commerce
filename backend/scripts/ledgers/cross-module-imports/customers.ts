@@ -17,8 +17,6 @@
 export const entries: Readonly<Record<string, string>> = {
   'modules/customers/plugin.ts:admin_users/services/impersonation-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/plugin.ts:auth/services/session-service':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:carts/services/cart-query-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:custom_fields/services/custom-field-value.service':
@@ -94,8 +92,6 @@ export const entries: Readonly<Record<string, string>> = {
   'modules/customers/services/customer-presence-service.ts:customer_accounts/entities/customer-account.entity':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/services/customer-registration-service.ts:auth/services/password-hasher':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-registration-service.ts:auth/services/session-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/services/customer-registration-service.ts:customer_accounts/entities/customer-account.entity':
     'F3 Phase C — customers. Retired by the customers cut merge request.',

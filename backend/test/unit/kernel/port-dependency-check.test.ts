@@ -275,6 +275,10 @@ describe('findViolations', () => {
     line: 1,
     kind,
     site,
+    // These fixtures exercise the ownership and capture rules, which read the
+    // name and not the seam it was written into. `cradle` is the shape those
+    // rules were written against.
+    via: 'cradle',
   });
 
   it('accepts a platform name with nothing declared', () => {
@@ -663,6 +667,7 @@ describe('ALIAS_HIDDEN_RESOLUTIONS — the issue #90 debt', () => {
     line: 1,
     kind: 'captured',
     site: 'call',
+    via: 'cradle',
   });
 
   it('is empty — the four `orders` captures drained with the accessor change', () => {
@@ -1091,6 +1096,7 @@ describe('resolvedNames — lazyPort', () => {
           line: 3,
           kind: 'deferred',
           site: 'call',
+          via: 'lazyPort',
         },
       ],
       owners: new Map(),
@@ -1138,6 +1144,7 @@ describe('nonBindingPortEdges — the third declaration array', () => {
     line: 1,
     kind: 'deferred',
     site,
+    via: 'cradle',
   });
 
   it('keys an edge the way the acknowledged lookup is keyed', () => {
@@ -1216,6 +1223,7 @@ describe('findNonBindingIssues — the guard-rails on `contributes-to`', () => {
     file: '/repo/backend/src/modules/shop/backend.ts',
     line: 1,
     kind: 'deferred',
+    via: 'cradle',
     site: 'boot',
   };
 
@@ -1463,6 +1471,7 @@ describe('ledgerReads — the same capture test the violation rule applies', () 
     line: 1,
     kind: 'captured',
     site: 'call',
+    via: 'cradle',
     ...over,
   });
   const owners = new Map([

@@ -341,6 +341,15 @@ export interface PaymentAdapterRegistryPort {
 
 /**
  * Container name: `paymentOrderStatusRegistry`. Owner: `payment_methods`.
+ * Container name: `shippingOrderStatusRegistry`. Owner: `delivery_methods`.
+ *
+ * **One shape, two providers, and that is why the type is declared once.** Both
+ * modules map an outcome onto an order status, and each registers its own
+ * `EnumOrderStatusRegistry` under its own container name; the interface was
+ * declared twice, in the same words, until feature 075's Phase P moved it here.
+ * A consumer resolves whichever of the two names belongs to the outcome it is
+ * mapping — `payments` the payment one, `shipments` the shipping one — and
+ * neither name is a substitute for the other.
  *
  * `statusOnPending` / `statusOnSuccess` / `statusOnFailure` on a payment method
  * reference *order statuses*. This port answers which codes are nameable, and
@@ -357,7 +366,10 @@ export interface PaymentAdapterRegistryPort {
  * order into the status a settled payment names, so a skip would silently
  * leave a paid order in its old status and a throw would make a PSP webhook
  * retry forever. A status a live order is in has to stay nameable while the
- * module holding the table is off.
+ * module holding the table is off. `shipments` reads the shipping name the
+ * same way and for the same reason, which is why **both** registrations are
+ * ordinary `ctx.di.register` calls rather than gated ports: publication says
+ * what the name promises, not whether a gate stands in front of it.
  */
 export interface OrderStatusRegistry {
   /** The selectable order-status options (code + human label). */
