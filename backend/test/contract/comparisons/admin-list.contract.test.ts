@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
@@ -10,8 +10,6 @@ import {
   SEED_PRODUCT_102_ID,
 } from '../../helpers/seed-catalog.js';
 import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
-import { Comparison } from '../../../src/modules/comparisons/entities/comparison.entity.js';
-import { ComparisonProduct } from '../../../src/modules/comparisons/entities/comparison-product.entity.js';
 
 /**
  * T061 — Contract test for the admin overview endpoints
@@ -39,11 +37,13 @@ describe('admin/comparisons — feature 007 / US5', () => {
     await teardownBackendServer(h);
   });
 
-  beforeEach(async () => {
-    const em = h.em();
-    await em.nativeDelete(ComparisonProduct, {});
-    await em.nativeDelete(Comparison, {});
-  });
+  // No `beforeEach` cleanup (issue #166). The admin list is the one surface
+  // here that reads every comparison there is, so it used to be made
+  // deterministic by emptying the table first — which is what let the
+  // assertions below be written as `toHaveLength(1)`, a claim about the
+  // platform rather than about this test. Each case now mints its own
+  // comparison and reads it back through the endpoint's own `createdAfter`
+  // filter, keyed on the id it was handed.
 
   it('GET /admin/comparisons returns 403 for an admin without comparisons:read', async () => {
     const res = await h.app.inject({
@@ -56,11 +56,12 @@ describe('admin/comparisons — feature 007 / US5', () => {
   });
 
   it('GET /admin/comparisons returns the list with pagination metadata', async () => {
-    await mintComparison(h);
+    const since = new Date();
+    const { id } = await mintComparison(h);
 
     const res = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/admin/comparisons',
+      url: listUrl({ createdAfter: since }),
       headers: { ...SALES_CHANNEL_HEADER, cookie: ADMIN_COOKIE },
     });
     expect(res.statusCode).toBe(200);
@@ -73,42 +74,42 @@ describe('admin/comparisons — feature 007 / US5', () => {
       }>;
       meta: { limit: number; nextCursor: string | null };
     };
-    expect(body.data).toHaveLength(1);
-    expect(body.data[0]!.owner.kind).toBe('anonymous');
-    expect(body.data[0]!.productCount).toBe(2);
-    expect(body.data[0]!.salesChannel.code).toBe('pl_retail');
+    const row = body.data.find((r) => r.id === id);
+    expect(row, 'the comparison this test created is missing from the list').toBeDefined();
+    expect(row!.owner.kind).toBe('anonymous');
+    expect(row!.productCount).toBe(2);
+    expect(row!.salesChannel.code).toBe('pl_retail');
     expect(body.meta.limit).toBe(25);
-    expect(body.meta.nextCursor).toBeNull();
+    // The cursor is a statement about the page, not about the table: a page
+    // that did not fill is the last one. Asserting `null` outright would be
+    // asserting that nothing else in the suite has ever created a comparison.
+    if (body.data.length < body.meta.limit) {
+      expect(body.meta.nextCursor).toBeNull();
+    } else {
+      expect(typeof body.meta.nextCursor).toBe('string');
+    }
   });
 
   it('GET /admin/comparisons honours ownerType filter', async () => {
-    await mintComparison(h);
+    const since = new Date();
+    const { id } = await mintComparison(h);
 
     const anonOnly = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/admin/comparisons?ownerType=anonymous',
+      url: listUrl({ createdAfter: since, ownerType: 'anonymous' }),
       headers: { ...SALES_CHANNEL_HEADER, cookie: ADMIN_COOKIE },
     });
     const customerOnly = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/admin/comparisons?ownerType=customer',
+      url: listUrl({ createdAfter: since, ownerType: 'customer' }),
       headers: { ...SALES_CHANNEL_HEADER, cookie: ADMIN_COOKIE },
     });
-    const anonBody = anonOnly.json() as { data: unknown[] };
-    const customerBody = customerOnly.json() as { data: unknown[] };
-    expect(anonBody.data).toHaveLength(1);
-    expect(customerBody.data).toHaveLength(0);
+    expect(idsOf(anonOnly)).toContain(id);
+    expect(idsOf(customerOnly)).not.toContain(id);
   });
 
   it('GET /admin/comparisons/:id returns the detail projection', async () => {
-    await mintComparison(h);
-
-    const list = await h.app.inject({
-      method: 'GET',
-      url: '/api/v1/admin/comparisons',
-      headers: { ...SALES_CHANNEL_HEADER, cookie: ADMIN_COOKIE },
-    });
-    const id = (list.json() as { data: Array<{ id: string }> }).data[0]!.id;
+    const { id } = await mintComparison(h);
 
     const detail = await h.app.inject({
       method: 'GET',
@@ -137,14 +138,15 @@ describe('admin/comparisons — feature 007 / US5', () => {
   });
 
   it('row disappears from list after the storefront customer deletes it (T062 cascade)', async () => {
-    const cookie = await mintComparison(h);
+    const since = new Date();
+    const { cookie, id } = await mintComparison(h);
 
     const before = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/admin/comparisons',
+      url: listUrl({ createdAfter: since }),
       headers: { ...SALES_CHANNEL_HEADER, cookie: ADMIN_COOKIE },
     });
-    expect((before.json() as { data: unknown[] }).data).toHaveLength(1);
+    expect(idsOf(before)).toContain(id);
 
     const del = await h.app.inject({
       method: 'DELETE',
@@ -155,28 +157,57 @@ describe('admin/comparisons — feature 007 / US5', () => {
 
     const after = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/admin/comparisons',
+      url: listUrl({ createdAfter: since }),
       headers: { ...SALES_CHANNEL_HEADER, cookie: ADMIN_COOKIE },
     });
-    expect((after.json() as { data: unknown[] }).data).toHaveLength(0);
+    expect(idsOf(after)).not.toContain(id);
   });
 });
 
 // ---------------------------------------------------------------------------
 
-async function mintComparison(h: BackendServerHandle): Promise<string> {
+/**
+ * The admin list, filtered to what this test created.
+ *
+ * `createdAfter` is the endpoint's own filter, so scoping a case to a timestamp
+ * it took itself exercises the contract rather than working around it.
+ */
+function listUrl(filters: {
+  createdAfter: Date;
+  ownerType?: 'anonymous' | 'customer';
+}): string {
+  const params = new URLSearchParams({ createdAfter: filters.createdAfter.toISOString() });
+  if (filters.ownerType) params.set('ownerType', filters.ownerType);
+  return `/api/v1/admin/comparisons?${params.toString()}`;
+}
+
+/** The ids a list response carries, so a case can name its own row in it. */
+function idsOf(response: { json(): unknown }): string[] {
+  return (response.json() as { data: Array<{ id: string }> }).data.map((row) => row.id);
+}
+
+/**
+ * A comparison owned by this test alone: the server mints the `compare_token`,
+ * and the id it answers with is what every assertion below keys on.
+ */
+async function mintComparison(
+  h: BackendServerHandle,
+): Promise<{ cookie: string; id: string }> {
   const first = await h.app.inject({
     method: 'POST',
     url: '/api/v1/comparisons/me/products',
     headers: { ...SALES_CHANNEL_HEADER, 'content-type': 'application/json' },
     payload: { productId: SEED_PRODUCT_101_ID },
   });
+  if (first.statusCode !== 200) {
+    throw new Error(`mint failed: ${first.statusCode} ${first.body}`);
+  }
   const cookie =
     (Array.isArray(first.headers['set-cookie'])
       ? first.headers['set-cookie'][0]
       : first.headers['set-cookie']
     )?.split(';')[0] ?? '';
-  await h.app.inject({
+  const second = await h.app.inject({
     method: 'POST',
     url: '/api/v1/comparisons/me/products',
     headers: {
@@ -186,5 +217,6 @@ async function mintComparison(h: BackendServerHandle): Promise<string> {
     },
     payload: { productId: SEED_PRODUCT_102_ID },
   });
-  return cookie;
+  const { id } = (second.json() as { data: { id: string } }).data;
+  return { cookie, id };
 }
