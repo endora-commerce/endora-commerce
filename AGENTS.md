@@ -547,7 +547,13 @@ limitation — the migration registry is a committed, ordered artefact whose exe
 corrected by the module dependency graph, and that correction is only meaningful over a fixed
 set; a set that varies per deployment has no single correct order to commit. Ship new schema
 from a core module. The generator refuses both (`generate-composer.ts`), which is the same
-rule the Migrations section above states. See
+rule the Migrations section above states.
+**Superseded in part — do not cite the rationale above.** D-106
+(`specs/080-f4-real-scope/README.md` §2) keeps the rule for **overlay modules** on a different
+ground and **overrules it for extension packages**, by an owner ruling: a package may ship its
+own entities and migrations. The "fixed set" reasoning was measured false. This paragraph is
+rewritten by task T001 of `specs/080-f4-real-scope/tasks.md`; until then, read it as applying to
+`backend/src/apps/` only. See
 `docs/docs/architecture/overlay-pattern.md` and `specs/057-overlay-pattern-multideploy/`.
 
 ## Working agreement
