@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
@@ -10,8 +10,11 @@ import {
   SEED_PRODUCT_102_ID,
 } from '../../helpers/seed-catalog.js';
 import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
+import {
+  freshCompareToken,
+  freshShareToken,
+} from '../../helpers/comparison-fixtures.js';
 import { Comparison } from '../../../src/modules/comparisons/entities/comparison.entity.js';
-import { ComparisonProduct } from '../../../src/modules/comparisons/entities/comparison-product.entity.js';
 
 /**
  * T052 — Contract test for `GET /api/v1/comparisons/me/pdf`
@@ -37,17 +40,18 @@ describe('GET /api/v1/comparisons/me/pdf — feature 007 / US4', () => {
     await teardownBackendServer(h);
   });
 
-  beforeEach(async () => {
-    const em = h.em();
-    await em.nativeDelete(ComparisonProduct, {});
-    await em.nativeDelete(Comparison, {});
-  });
+  // No `beforeEach` cleanup (issue #166): every case below carries an owner
+  // token minted for it, so "this caller has no comparison" is a statement
+  // about that token rather than about the table being empty.
 
   it('returns 404 COMPARISON_NOT_FOUND when caller has no comparison', async () => {
     const res = await h.app.inject({
       method: 'GET',
       url: '/api/v1/comparisons/me/pdf',
-      headers: SALES_CHANNEL_HEADER,
+      headers: {
+        ...SALES_CHANNEL_HEADER,
+        cookie: `compare_token=${freshCompareToken()}`,
+      },
     });
     expect(res.statusCode).toBe(404);
     expect(res.json()).toMatchObject({
@@ -83,9 +87,10 @@ describe('GET /api/v1/comparisons/me/pdf — feature 007 / US4', () => {
       { code: 'pl_retail' },
     );
     if (!channel) throw new Error('expected pl_retail seed channel');
+    const ownerToken = freshCompareToken();
     const c = em.create(Comparison, {
-      shareToken: 'TEST_EMPTY_PDF_TOKEN_____',
-      anonymousToken: 'TEST_EMPTY_PDF_OWNER_____',
+      shareToken: freshShareToken(),
+      anonymousToken: ownerToken,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       salesChannelId: (channel as any).id,
       displayMode: 'all',
@@ -97,7 +102,7 @@ describe('GET /api/v1/comparisons/me/pdf — feature 007 / US4', () => {
       url: '/api/v1/comparisons/me/pdf',
       headers: {
         ...SALES_CHANNEL_HEADER,
-        cookie: 'compare_token=TEST_EMPTY_PDF_OWNER_____',
+        cookie: `compare_token=${ownerToken}`,
       },
     });
     expect(res.statusCode).toBe(409);

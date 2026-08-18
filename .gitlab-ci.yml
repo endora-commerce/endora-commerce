@@ -155,6 +155,15 @@ quality:
     # they keep the absence in the type. `DEFAULTED_FIXTURE_READS` is two-way and
     # is not expected to empty — an entry says why the fallback is right.
     - pnpm --filter backend run check:fixture-substitution
+    # Issue #166 — the same defect pointing the other way: a test that *empties*
+    # a shared table instead of reading one another file seeded. Eight comparison
+    # files ran `nativeDelete(Comparison, {})` in a `beforeEach`, which is what
+    # let four of them assert `toHaveLength(1)` over the whole table — a claim
+    # about the platform rather than about the row the test created.
+    # `UNSCOPED_WIPES_BASELINE` is a per-file two-way ratchet over the 197 wipes
+    # that stood when it landed: a new one fails, and so does a number left
+    # standing after the deletes under it were scoped.
+    - pnpm --filter backend run check:shared-table-wipes
     # Documentation code blocks are quotations, not paraphrases. The quickstarts
     # are copied by every module conversion, so a stale snippet is a defect
     # scheduled for mass production — six were found across three batches before

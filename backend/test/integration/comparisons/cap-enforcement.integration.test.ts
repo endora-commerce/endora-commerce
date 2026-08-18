@@ -10,9 +10,9 @@ import {
   SEED_PRODUCT_102_ID,
   SEED_PRODUCT_103_ID,
 } from '../../helpers/seed-catalog.js';
-import { Comparison } from '../../../src/modules/comparisons/entities/comparison.entity.js';
 import { ComparisonProduct } from '../../../src/modules/comparisons/entities/comparison-product.entity.js';
 import { COMPARE_SETTING_CODES } from '../../../src/modules/comparisons/manifest.js';
+import { freshCompareCookie } from '../../helpers/comparison-fixtures.js';
 
 /**
  * T019 — Integration test: `compare.max_products` cap enforcement
@@ -38,9 +38,11 @@ describe('Compare module — compare.max_products cap (US1)', () => {
   });
 
   beforeEach(async () => {
-    const em = h.em();
-    await em.nativeDelete(ComparisonProduct, {});
-    await em.nativeDelete(Comparison, {});
+    // No table cleanup (issue #166): each case starts from a
+    // `freshCompareCookie()` — an owner token nobody else holds, whose
+    // comparison the first add creates — so it sees exactly the products it
+    // added. The cookie used to be minted by posting a product and then
+    // deleting every comparison in the database, cookie kept.
     // Pin the cap back to 4 so cleanup between tests is consistent. The
     // tests that need a different value override per test below.
     await h.settings.adminService.setValueForAllChannels(
@@ -60,7 +62,7 @@ describe('Compare module — compare.max_products cap (US1)', () => {
       { actorAdminUserId: '00000000-0000-0000-0000-000000000000' },
     );
 
-    const cookie = await mintCookie(h);
+    const cookie = freshCompareCookie();
 
     const a = await addProduct(h, cookie, SEED_PRODUCT_101_ID);
     expect(a.statusCode).toBe(200);
@@ -72,9 +74,16 @@ describe('Compare module — compare.max_products cap (US1)', () => {
     expect(c.statusCode).toBe(409);
     expect(c.json()).toMatchObject({ error: { code: ERROR_CODES.COMPARISON_FULL } });
 
-    // The existing rows are untouched.
+    // The existing rows are untouched — this comparison's rows, read back by
+    // the id the refused add did not change.
+    const owned = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/comparisons/me',
+      headers: { ...SALES_CHANNEL_HEADER, cookie },
+    });
+    const comparisonId = (owned.json() as { data: { id: string } }).data.id;
     const em = h.em();
-    const rows = await em.find(ComparisonProduct, {});
+    const rows = await em.find(ComparisonProduct, { comparisonId });
     expect(rows).toHaveLength(2);
   });
 
@@ -86,7 +95,7 @@ describe('Compare module — compare.max_products cap (US1)', () => {
       { actorAdminUserId: '00000000-0000-0000-0000-000000000000' },
     );
 
-    const cookie = await mintCookie(h);
+    const cookie = freshCompareCookie();
     expect((await addProduct(h, cookie, SEED_PRODUCT_101_ID)).statusCode).toBe(200);
     expect((await addProduct(h, cookie, SEED_PRODUCT_102_ID)).statusCode).toBe(200);
     expect((await addProduct(h, cookie, SEED_PRODUCT_103_ID)).statusCode).toBe(200);
@@ -104,28 +113,6 @@ describe('Compare module — compare.max_products cap (US1)', () => {
 // Local helpers (kept tiny — not promoted to test-server because they're
 // US1-shaped and not generally useful elsewhere yet).
 // ---------------------------------------------------------------------------
-
-async function mintCookie(h: BackendServerHandle): Promise<string> {
-  // Mint by triggering the cookie-set path with the first add; a fresh
-  // beforeEach has wiped the comparisons table.
-  const res = await h.app.inject({
-    method: 'POST',
-    url: '/api/v1/comparisons/me/products',
-    headers: { ...SALES_CHANNEL_HEADER, 'content-type': 'application/json' },
-    payload: { productId: SEED_PRODUCT_101_ID },
-  });
-  if (res.statusCode !== 200) {
-    throw new Error(`mint failed: ${res.statusCode} ${res.body}`);
-  }
-  const setCookie = res.headers['set-cookie'];
-  const raw = Array.isArray(setCookie) ? setCookie[0] : setCookie;
-  if (!raw) throw new Error('no compare_token cookie set on first POST');
-  // Wipe the comparison so caller starts from a clean cookie + empty set.
-  const em = h.em();
-  await em.nativeDelete(ComparisonProduct, {});
-  await em.nativeDelete(Comparison, {});
-  return raw.split(';')[0] ?? '';
-}
 
 async function addProduct(
   h: BackendServerHandle,

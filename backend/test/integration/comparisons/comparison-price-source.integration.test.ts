@@ -5,8 +5,6 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { Comparison } from '../../../src/modules/comparisons/entities/comparison.entity.js';
-import { ComparisonProduct } from '../../../src/modules/comparisons/entities/comparison-product.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
 import {
@@ -42,9 +40,13 @@ describe('comparison price source (#132)', () => {
   });
 
   beforeEach(async () => {
+    // The comparisons this file creates are not cleaned up and do not need to
+    // be (issue #166): `comparedPrice()` posts without a cookie, so every call
+    // gets an owner token of its own and reads back the row it just created.
+    // The price lists below are a different matter — `seedDefaultListWithBracket`
+    // rebuilds the platform's single default list, so the previous case's has
+    // to go first.
     const em = h.em();
-    await em.nativeDelete(ComparisonProduct, {});
-    await em.nativeDelete(Comparison, {});
     await em
       .getConnection()
       .execute(

@@ -30,6 +30,11 @@ import {
 } from '../../../scripts/check-entry-scope.js';
 import { findUntranslatedErrorCodes } from '../../../scripts/check-error-translations.js';
 import { checkFixtureSubstitution } from '../../../scripts/check-fixture-substitution.js';
+import {
+  checkSharedTableWipes,
+  findUnscopedWipes,
+  type WipeKind,
+} from '../../../scripts/check-shared-table-wipes.js';
 import { checkHarnessTeardown } from '../../../scripts/check-harness-teardown.js';
 import {
   analyzeClosure,
@@ -1077,6 +1082,20 @@ function defaultedReads(file: string, source: string): number {
   return checkFixtureSubstitution({ sources: new Map([[file, source]]) }, {}).violations.length;
 }
 
+/**
+ * `check-shared-table-wipes`' analysis, entered where a real run enters it: one
+ * test file's source text and an empty baseline, findings out.
+ *
+ * Filtered by the finding's `kind`, so the three spellings prove themselves
+ * separately — an ORM-only detector reports zero over a `truncate`, and zero is
+ * what a drained tree looks like.
+ */
+function tableWipes(file: string, source: string, kind: WipeKind): number {
+  const sources = new Map([[file, source]]);
+  const over = checkSharedTableWipes({ sources }, {}).regressions.length;
+  return over === 0 ? 0 : findUnscopedWipes({ sources }).filter((w) => w.kind === kind).length;
+}
+
 function handReleases(file: string, source: string, resource: string): number {
   return checkHarnessTeardown({ sources: new Map([[file, source]]) }, {}).violations.filter(
     (v) => v.resource === resource,
@@ -1571,6 +1590,71 @@ const CHECKS: readonly CheckEntry[] = [
             'const reservedBefore = stockBefore?.reserved ?? 0;',
           ].join('\n'),
         ),
+      ),
+    },
+  },
+  {
+    // Three spellings of one act, and each is a separate detector: the ORM
+    // filter left empty, a `truncate`, and a `delete from` with no `where`. A
+    // proof per spelling, because a check that kept seeing `nativeDelete(X, {})`
+    // after its SQL reader broke would report the 26 ORM sites and none of the
+    // 171 others — and would still print a number. The fourth proof is the
+    // ratchet's second direction, which is the half a baseline check loses
+    // silently: a file whose deletes were scoped keeps its number and the debt
+    // stops describing anything.
+    //
+    // The negatives — a filtered delete, a `where`, the harness's own truncate —
+    // are the companion test's; an inventory entry proves a check can go red.
+    script: 'backend/scripts/check-shared-table-wipes.ts',
+    npmScript: 'check:shared-table-wipes',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-shared-table-wipes.test.ts',
+    vacuousGuard: 'exit-2',
+    red: {
+      // The block all eight comparison files carried (issue #166).
+      'orm-empty-filter': top(() =>
+        tableWipes(
+          'contract/comparisons/public-pdf.contract.test.ts',
+          [
+            'beforeEach(async () => {',
+            '  const em = h.em();',
+            '  await em.nativeDelete(ComparisonProduct, {});',
+            '  await em.nativeDelete(Comparison, {});',
+            '});',
+          ].join('\n'),
+          'orm',
+        ),
+      ),
+      'sql-truncate': top(() =>
+        tableWipes(
+          'integration/promotions/stats.test.ts',
+          [
+            'beforeEach(async () => {',
+            "  await h.em().getConnection().execute('truncate table promotions cascade');",
+            '});',
+          ].join('\n'),
+          'sql-truncate',
+        ),
+      ),
+      'sql-delete-without-where': top(() =>
+        tableWipes(
+          'unit/dictionaries/label-resolver.test.ts',
+          [
+            'beforeAll(async () => {',
+            '  await conn.execute(`delete from "dictionary_translations"`);',
+            '});',
+          ].join('\n'),
+          'sql-delete',
+        ),
+      ),
+      // The second direction: a baseline standing over a file that no longer
+      // wipes anything is a debt already paid, and nothing else would say so.
+      'baseline-drained': top(
+        () =>
+          checkSharedTableWipes(
+            { sources: new Map([['integration/x.test.ts', 'const a = 1;']]) },
+            { 'integration/x.test.ts': 1 },
+          ).drained.length,
       ),
     },
   },
@@ -2672,6 +2756,9 @@ describe('every red proof enters at the top of the analysis', () => {
       // a limit nothing proves is a limit that quietly moves.
       'backend/scripts/check-port-catches.ts': 9,
       'backend/scripts/check-port-dependencies.ts': 19,
+      // Three spellings of a whole-table wipe, plus the baseline's second
+      // direction.
+      'backend/scripts/check-shared-table-wipes.ts': 4,
       'backend/scripts/check-subscribe-seam.ts': 3,
       'backend/scripts/i18n-hardcoded-strings.ts': 2,
       'scripts/check-naming.sh': 4,
