@@ -890,11 +890,10 @@ export async function setupBackendServer(
     };
   } => container.cradle as never;
 
-  // Mirrors `composition.ts` (D-45): the sales-channel cache invalidator
-  // subscribes to the EventBus and is composed **before** the modules, so no
-  // module's `ctx.subscribe` handler can be ahead of it. `EventBus.dispatch`
-  // awaits its handlers in registration order. The settings cache no longer
-  // needs that (issue #45) — its drop is part of the write.
+  // Mirrors `composition.ts`. Neither cache depends on where this call sits any
+  // more: the settings drop stopped being a subscription under issue #45 and
+  // the sales-channel drop under D-93, so both are part of the write and no
+  // `ctx.subscribe` handler can be ahead of either.
   const salesChannels = composeSalesChannelsKernel({
     emFactory: em,
     eventBus,

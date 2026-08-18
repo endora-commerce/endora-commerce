@@ -79,11 +79,8 @@ export {
   SALES_CHANNELS_CACHE_NAMESPACE,
   SALES_CHANNELS_LRU_TTL_MS,
   type CachedChannel,
+  type SalesChannelsCacheInvalidation,
 } from './sales-channels/sales-channels-cache.js';
-export {
-  attachSalesChannelsCacheInvalidator,
-  type SalesChannelsCacheInvalidatorHandle,
-} from './sales-channels/sales-channels-cache-invalidator.js';
 export {
   SalesChannelResolverService,
   parseHostMap,

@@ -14,19 +14,21 @@ import type { SalesChannel } from './sales-channel.entity.js';
  *   2. Redis (`sales-channels:v2:<code>`, TTL {@link TTL_SECONDS}) —
  *      cross-process consistency in multi-instance deployments.
  *
- * Invalidation flows write → drop in Redis → drop in LRU → notify this
- * process's subscriber. It is the same two-layer shape as `SettingsCache` and
- * carries the same two obligations, for the same reasons (see
- * {@link SharedDropMarks} and the TTL note there):
+ * Invalidation flows write → drop in Redis → drop in LRU → announce. It is the
+ * same two-layer shape as `SettingsCache` and carries the same **three**
+ * obligations, for the same reasons (see {@link SharedDropMarks} and the TTL
+ * note there; the third is {@link SalesChannelsCacheInvalidation}, which D-93
+ * finally gave it):
  *
  *   - the shared layer is dropped **first** and the prefix stays marked for
  *     the whole operation, so a read that lands mid-invalidation cannot
  *     re-pin the pre-drop value from Redis into the LRU, and a failed shared
  *     drop leaves reads failing closed to PostgreSQL rather than to a value
  *     the invalidation was supposed to remove;
- *   - the local layer expires, because the notification is in-process: a
- *     second instance that missed it would otherwise serve the pre-change
- *     channel until capacity evicted it.
+ *   - the local layer expires, because a drop is in-process: a second instance
+ *     that never ran it would otherwise serve the pre-change channel until
+ *     capacity evicted it;
+ *   - the drop is part of the **write**, not of the announcement.
  *
  * Cache values are JSON-serialised. The `null` sentinel is reserved
  * for "no such channel"; absence of a key means "cache miss".
@@ -89,7 +91,53 @@ interface LruEntry {
   readonly storedAt: number;
 }
 
-export class SalesChannelsCache {
+/**
+ * The invalidating half of the cache, as the **write seam** sees it (D-93,
+ * issue #160). The third obligation this cache's header already claimed from
+ * `SettingsCache` and had not been given.
+ *
+ * `SalesChannelsService` — the one place a channel's identity or lifecycle
+ * changes — takes this and awaits it before it emits, and `set-default` does
+ * the same after its Command commits. That is what makes the drop a property of
+ * the write instead of a property of the dispatch order: a caller that writes
+ * and reads back in the same tick, in the same `EventBus.run` scope, or with
+ * any number of module subscribers on the bus, cannot observe the pre-write
+ * channel.
+ *
+ * Both hazards were live here. `dictionaries` subscribes to the same two event
+ * names and rebuilds its own cache on receipt, so a handler ahead of the drop
+ * is the ordinary case rather than a thought experiment; and `set-default` is a
+ * Command, so its event rides the `event:` slot and dispatches only when
+ * `CommandBus.run`'s scope ends — after every read-back inside it.
+ *
+ * Narrow on purpose. The reader (`SalesChannelResolverService`) holds the whole
+ * {@link SalesChannelsCache}; the writer needs only these two, and a module that
+ * can only invalidate cannot accidentally seed the cache from the write path.
+ */
+export interface SalesChannelsCacheInvalidation {
+  /**
+   * Drop one channel's cached entry, on behalf of a write that has **already
+   * committed**.
+   *
+   * Returns the number of shared keys deleted, or `null` when the shared layer
+   * could not be reached. The degrade lives here rather than in a `catch` at
+   * the call site, and it is in the return type on purpose: the row is written
+   * and audited, so a Redis blip must not fail the operator's request or make
+   * them retry a write that succeeded. Correctness does not rest on the number
+   * — {@link SharedDropMarks} has marked the prefix failed, so this process
+   * bypasses both layers for those keys and retries the drop on the next read.
+   */
+  invalidateAfterWrite(code: string): Promise<number | null>;
+  /**
+   * The same contract for a change that can move more than one channel's cached
+   * state: a delete that rebinds orphans, or the `system_default` flag moving,
+   * where the demoted channel's entry is stale too because `systemDefault`
+   * lives inside the cached value.
+   */
+  invalidateAllAfterWrite(): Promise<number | null>;
+}
+
+export class SalesChannelsCache implements SalesChannelsCacheInvalidation {
   private readonly lru = new Map<string, LruEntry>();
   private readonly marks = new SharedDropMarks();
 
@@ -171,6 +219,33 @@ export class SalesChannelsCache {
    */
   async invalidateAll(): Promise<number> {
     return this.drop(KEY_PREFIX, false);
+  }
+
+  /** {@inheritDoc SalesChannelsCacheInvalidation.invalidateAfterWrite} */
+  async invalidateAfterWrite(code: string): Promise<number | null> {
+    return this.afterWrite(() => this.invalidate(code));
+  }
+
+  /** {@inheritDoc SalesChannelsCacheInvalidation.invalidateAllAfterWrite} */
+  async invalidateAllAfterWrite(): Promise<number | null> {
+    return this.afterWrite(() => this.invalidateAll());
+  }
+
+  /**
+   * The one place the write seam's tolerance is written down.
+   *
+   * `drop` has already marked the prefix failed by the time it re-throws, so
+   * every read in this process bypasses both layers for those keys and retries
+   * the drop until Redis answers — the invariant is intact and the answer is
+   * "slower but correct". What is left of the throw is a report, and a report
+   * must not undo the write that produced it.
+   */
+  private async afterWrite(drop: () => Promise<number>): Promise<number | null> {
+    try {
+      return await drop();
+    } catch {
+      return null;
+    }
   }
 
   /**
