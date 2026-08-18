@@ -37,8 +37,9 @@
  * untyped registration compares nothing, here or in `tsc`.
  *
  * `PORTS_WITHOUT_A_REGISTRATION` is the ledger for the first shape, two-way and
- * one entry long. It is not a debt list to grow — an entry says why a published
- * interface with no provider is standing, and the check refuses a stale one.
+ * empty since D-98.5. It is not a debt list to grow — an entry says why a
+ * published interface with no provider is standing, and the check refuses a
+ * stale one.
  *
  * ## Signal 1 — why the optional-method rule is a type rule and not advice
  *
@@ -175,17 +176,14 @@ export interface PortNameFinding {
  * port nobody provides is what `@b2b/contracts` would publish to the outside
  * world at F4, so an entry is a decision that has been taken and recorded, not
  * one deferred.
+ *
+ * **Empty, which is the state this ledger should be in.** Its one entry was
+ * `ModuleManifestReadPort`, standing unprovided while Q2 of the Phase-P
+ * unreached-port audit was open; D-98.5 answered it — module manifests are
+ * platform-owned and the interface is deleted — by the retirement condition
+ * that entry itself named.
  */
-export const PORTS_WITHOUT_A_REGISTRATION: Readonly<Record<string, string>> = {
-  ModuleManifestReadPort:
-    'Phase-P unreached-port audit A4, Q2 unresolved. The four modules that read ' +
-    'the manifests read `resolvedModuleRegistry`, a composition-root ' +
-    'contribution on `PLATFORM_OWNED_NAMES` — "which modules a deployment ships ' +
-    'is not something a module may decide". Registering `moduleManifestReadPort` ' +
-    'would move a platform-owned input into a module-owned registration against ' +
-    'that ruling, so the interface stands unprovided until Q2 answers whether it ' +
-    'is implemented or deleted. Retired by either.',
-};
+export const PORTS_WITHOUT_A_REGISTRATION: Readonly<Record<string, string>> = {};
 
 export interface PortShapeInput {
   /** Contract sources, keyed however the caller likes (the key is reported). */

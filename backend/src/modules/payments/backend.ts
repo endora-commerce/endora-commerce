@@ -90,14 +90,16 @@ export function registerModule(ctx: ModuleContext): void {
      * twin of `payment_methods`' `paymentAdapterRegistry`, and registered the
      * same way and for the same reason (feature 075, Phase P).
      *
-     * **Ungated, unlike `gatewayRefundRegistryPort` above it.** The two names
-     * are the two directions of one seam and they need opposite treatment. A
-     * *pull* — "which handler settles this refund" — is a question about this
-     * module and answers 503 while it is off, which is the port. A *push* is
-     * not: the four gateways contribute their handler from a boot hook, and a
-     * gate there would refuse the contribution rather than defer it, so a
-     * gateway would silently stay unregistered until the next restart after an
-     * operator switched `payments` back on. The absent-owner policy sits inside
+     * **Ungated, and the only name over this registry** (D-99.7). It used to
+     * have a gated twin, `gatewayRefundRegistryPort`, for the *pull* direction —
+     * "which handler settles this refund" — but that question is asked inside
+     * this module, by `PaymentRefundProvider`, and no module ever resolved the
+     * port. A *push* must not be gated: the four gateways contribute their
+     * handler from a boot hook, and a gate there would refuse the contribution
+     * rather than defer it, so a gateway would silently stay unregistered until
+     * the next restart after an operator switched `payments` back on. That
+     * asymmetry is now stated in the contract rather than only here, because a
+     * rule in a comment ships in no package. The absent-owner policy sits inside
      * the registry, where the whole design puts it: a handler whose module is
      * off is skipped at enumeration and the obligation lands on
      * `pending_manual` (D-71), which a gate over the push would drop instead of
@@ -161,27 +163,23 @@ export function registerModule(ctx: ModuleContext): void {
   // Feature 075, Phase P — the published surface.
   //
   // `paymentReadPort` replaces sixteen hand-written `em.findOne(Payment, …)`
-  // calls in the four gateways; `receivePaymentPort` is the ingress they already
-  // share, now expressed without the `Payment` entity in its result type; and
-  // `gatewayRefundRegistryPort` is the contribution seam the gateways push into,
-  // which they reach today by importing the process singleton directly.
+  // calls in the four gateways, and `receivePaymentPort` is the ingress they
+  // already share, now expressed without the `Payment` entity in its result
+  // type.
   //
-  // The registry stays a **contribution** seam and its edges stay classified
-  // `contributes` — the port is the same instance, not a gated copy of it. Its
-  // absent-owner policy is inside the registry, where it belongs: a handler
-  // whose module is off is skipped at enumeration and the obligation lands on
-  // `pending_manual`. A gate over the registry itself would drop the
-  // obligation instead of recording it.
+  // **The refund registry is published under its push name only** (D-99.7). It
+  // once had a second, gated registration here — `gatewayRefundRegistryPort`,
+  // over the same instance — which nothing ever resolved, while the doc block in
+  // `@b2b/contracts` described the *push* seam above it. An out-of-tree gateway
+  // reading only the published contracts would have resolved the gate from its
+  // boot hook and exited 1. The contract now names `gatewayRefundRegistry`, the
+  // ungated registration above, and says why it is ungated; the pull is
+  // intra-module and unpublished.
   // ---------------------------------------------------------------------------
 
   ctx.di.providePort<PaymentReadPort>(
     'paymentReadPort',
     ctx.asFunction(({ emFactory }: PaymentsCradle) => new PaymentReadService(emFactory)).singleton(),
-  );
-
-  ctx.di.providePort<GatewayRefundRegistryPort>(
-    'gatewayRefundRegistryPort',
-    ctx.asFunction(() => gatewayRefundRegistry).singleton(),
   );
 
   /**
