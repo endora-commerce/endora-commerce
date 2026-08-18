@@ -2451,8 +2451,10 @@ const CHECKS: readonly CheckEntry[] = [
     // stopped telling a plain registration from a gated one.
     //
     // The fifth is the ledger's second direction. `PORTS_WITHOUT_A_REGISTRATION`
-    // is one entry long and is not a queue; a two-way ratchet whose stale half
-    // nothing proves is a list that quietly outlives its reason.
+    // is empty since D-98.5 and is not a queue; a two-way ratchet whose stale
+    // half nothing proves is a list that quietly outlives its reason, and an
+    // empty ledger is exactly where that goes unnoticed — the proof hands the
+    // check a ledger of its own rather than the shipped one.
     //
     // Each fixture enters as source text — a pre-parsed member list, or a
     // registration map handed in already built, would prove the reporter and not

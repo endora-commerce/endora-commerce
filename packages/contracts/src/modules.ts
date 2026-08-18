@@ -644,61 +644,25 @@ export const apiInterceptorListSchema = z.object({
 export type ApiInterceptorList = z.infer<typeof apiInterceptorListSchema>;
 
 // ---------------------------------------------------------------------------
-// --- ports -----------------------------------------------------------------
+// --- no port over the module manifests -------------------------------------
 //
-// The in-process surface `_lifecycle` publishes to the four modules that read
-// its registry (feature 075, Phase P) — `_i18n`, `admin_actions`,
-// `admin_roles` and `settings`.
+// **Which modules a deployment ships is a composition-root input, not a
+// module's port** (D-98.5). `ModuleManifestReadPort` stood here unprovided and
+// is deleted: the root builds the resolved registry and passes it *into* the
+// lifecycle orchestrator, so a `_lifecycle`-owned port over that value would
+// make the orchestrator's own input come out of the orchestrator. `_lifecycle`
+// owns what it adds — the dependency graph, the install hooks, the registry
+// rows, the operator surface — not the list. The gate could not close either:
+// `_lifecycle` is non-deactivatable, and a `providePort`'s one distinguishing
+// property over a plain registration is the 503 at the seam.
 //
-// **What is published is the manifests, not the registry.** `_lifecycle`'s own
-// `LoadedManifestRegistry` carries a `ModuleDepGraph` and a map of entries
-// holding `installHook` / `uninstallHook`, whose context takes an
-// `EntityManager` — none of which can appear in a signature here (FR-034), and
-// none of which any consumer reads. All four want the same thing: the
-// manifests, by module id. `_i18n` reconciles i18n bundles from them,
-// `admin_actions` builds the palette, `admin_roles` collects permission codes,
-// `settings` derives the settings catalogue.
-//
-// The graph and the hooks stay internal, which is where they belong: they are
-// how the lifecycle installs and orders modules, and a module reading either
-// would be a module reasoning about its own installation.
+// The four modules that read manifests — `_i18n`, `admin_actions`,
+// `admin_roles`, `settings` — take `resolvedModuleRegistry` as a root-supplied
+// value and each declares the narrow view it needs. That is the rule this
+// settles: **aggregate reads build catalogues; targeted reads are refused.** A
+// `get(moduleId)` would let any module read any other module's permissions,
+// settings, palette actions and `activation` declaration and branch on them —
+// a question with no declared edge, no gate and no ledger row. Presence
+// questions go through `effectiveState`; capability questions go through a
+// port the neighbour publishes.
 // ---------------------------------------------------------------------------
-
-/** One registered module's manifest, with the id it is registered under. */
-export interface RegisteredModuleManifest {
-  moduleId: string;
-  manifest: ModuleManifest;
-}
-
-/**
- * Container name: `moduleManifestReadPort`. Owner: `_lifecycle`.
- *
- * **Nothing registers that name today, and a consumer must not resolve it.** The
- * four modules that read the manifests read `resolvedModuleRegistry`, a
- * composition-root contribution on `PLATFORM_OWNED_NAMES`
- * (`backend/scripts/check-port-dependencies.ts`), whose reason is that "which
- * modules a deployment ships is not something a module may decide". So this
- * interface proposes moving a platform-owned input into a module-owned
- * registration, against a standing ruling; whether it is implemented or deleted
- * is Q2 of the Phase-P unreached-port audit
- * (`specs/075-cross-module-decoupling-sweep/unreached-port-audit.md`, A4) and is
- * not answered here. `check:port-shape` carries it as the single entry of
- * `PORTS_WITHOUT_A_REGISTRATION`, so the debt is loud and cannot go stale
- * quietly — a registration appearing under this name fails the check as a stale
- * entry.
- *
- * Reads the **resolved** registry — core manifests plus the active
- * deployment's overlay modules — so an overlay module's permissions, palette
- * actions, settings and i18n bundles are seen exactly as a core module's are.
- *
- * Deliberately **not** filtered by effective state. Every consumer here is
- * building a catalogue that must list a switched-off module in order to
- * describe it: `/platform/modules` renders the activation control of a module
- * that is off, and `/admin-roles` must keep granting a permission whose module
- * an operator may switch back on. Filtering here would make a deactivation
- * look like an uninstall, which Constitution XVII says it is not.
- */
-export interface ModuleManifestReadPort {
-  list(): readonly RegisteredModuleManifest[];
-  get(moduleId: string): ModuleManifest | undefined;
-}

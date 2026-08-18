@@ -234,7 +234,7 @@ export interface GatewayRefundHandler {
 }
 
 /**
- * Container name: `gatewayRefundRegistryPort`. Owner: `payments`.
+ * Container name: `gatewayRefundRegistry`. Owner: `payments`.
  *
  * A **contribution seam**, not a call seam: the gateways push into it at boot
  * and the host filters at enumeration, keyed on the module recorded with each
@@ -243,10 +243,32 @@ export interface GatewayRefundHandler {
  * turned these into `fails-closed` would change the sentence the operator's
  * confirmation dialog renders (contracts/port-publication.md §1.4).
  *
+ * **The name above is the ungated one, and that is the whole instruction to an
+ * implementer** (D-99.7). `gatewayRefundRegistry` is a plain `di.register`: a
+ * gateway resolves it and calls `register` from its `ctx.onBoot` hook, exactly
+ * as `stripe`, `payu`, `tpay` and `autopay` do. It is ungated **because a gate
+ * on a push refuses the contribution rather than deferring it** — a gateway
+ * that booted while `payments` was off would stay silently unregistered until
+ * the next restart after an operator switched `payments` back on.
+ *
+ * A gated twin, `gatewayRefundRegistryPort`, used to be published over this
+ * same interface and was resolved by nobody. It is gone: an author following it
+ * would resolve a gated registration from a boot hook, and a `ModuleDisabledError`
+ * raised during composition is re-thrown as `ModuleCompositionError` and ends
+ * in `process.exit(1)`. The pull direction is real but intra-module —
+ * `payments`' own refund provider asks this registry which handler settles a
+ * refund — and it is not published.
+ *
  * `register` therefore names its contributor. That argument is the whole
  * mechanism: without it the registry records no owner, states no policy, and a
  * switched-off gateway goes on refunding through its own PSP API — which is
  * what D-44 §7 recorded as the one live instance of that gap.
+ *
+ * **What an implementer inherits while their own module is off:** the handler
+ * is *skipped* at enumeration, not dropped. The refund does not silently fail —
+ * `payments` records a `pending_manual` obligation naming the absent module, so
+ * a person settles it, which is what a deployment that never installed the
+ * gateway already gets (D-71).
  *
  * **Do not "complete" this interface.** `GatewayRefundRegistry` also has
  * `entry`, `ownerOf`, `listAll` and `absentOwnerFor`, and the omission is the

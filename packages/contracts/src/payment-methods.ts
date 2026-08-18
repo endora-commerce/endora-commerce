@@ -297,23 +297,31 @@ export interface PaymentMethodReadPort {
  * it classifies as `contributes`, and publishing the shape must not change
  * that.
  *
- * `register` names its contributor, and `isAvailable` / `get` / `resolve` /
- * `list` filter on that name's effective state, while `ownerOf` and `listAll`
- * deliberately do not — an admin screen has to keep showing a method *and* the
- * reason it is unavailable. (`entry` is on the class and **not** on this
- * interface; the prose used to name it here, which is how a reader learned
- * about a method the contract does not publish.)
+ * **Three members, which is the measured cross-module demand** (D-98.4).
+ * `register` names its contributor and is the extension point: a deployment's
+ * own gateway module contributes exactly as `tpay`, `stripe`, `payu`, `autopay`
+ * and `payments`' built-ins do. `get` and `ownerOf` are the two reads `orders`
+ * makes. `get` filters on the contributor's effective state and **returns
+ * `undefined` when the key is unregistered or its owner is absent** — one
+ * answer for both, which is what a cross-module caller has to handle — while
+ * `ownerOf` deliberately does not filter, because an admin screen has to keep
+ * showing a method *and* the reason it is unavailable. That sentence is why
+ * `ownerOf` is published at all.
  *
- * **The published surface against the measured demand** (issue #192), because
- * §1.1 asks for the union of what consumers use rather than the class:
- * `register` has five contributors — `tpay`, `stripe`, `payu`, `autopay` and
- * `payments`' own built-ins — and `get` and `ownerOf` are read by `orders`
- * (`orders/services/order-service.ts:433,511,630,639,1590`). `isRegistered` is
- * `payment_methods`' own route guard and `listAll` is reached only by the
- * gateway off-state tests. `unregister`, `isAvailable`, `resolve` and `list`
- * have no caller on this registry at all — they are published ahead of a
- * reader, and are named here rather than quietly dropped because narrowing the
- * interface is a surface decision this comment may not take on its own.
+ * **The enumeration and throwing-resolution halves are the owner's own**, and
+ * this says so rather than leaving them to be restored as an oversight.
+ * `list` and `isAvailable` are how the catalogue decides what a buyer may pick;
+ * `listAll` is how the admin screen shows a method whose gateway is off;
+ * `isRegistered` is `payment_methods`' own route guard; `resolve` is the
+ * throwing twin `get` exists to avoid across a boundary. They are correct
+ * methods on a correct class — which keeps all nine and keeps `implements` —
+ * and a cross-module caller gets `get` and handles `undefined`. `unregister` is
+ * the same and stronger: withdrawing another module's contribution is the
+ * deactivation axis wearing a method name. (`entry` is on the class too and
+ * never was on this interface.)
+ *
+ * A member returns here when a cross-module caller can be quoted for it with
+ * `file:line` — the standard D-98.4 sets for every widening, not just this one.
  *
  * **Owner off:** nothing throws here. This is a **contribution seam**, a plain
  * `di.register` rather than a `providePort`, so a push still lands and
@@ -323,20 +331,10 @@ export interface PaymentMethodReadPort {
  * sentence the operator's confirmation dialog renders.
  */
 export interface PaymentAdapterRegistryPort {
+  /** Contribute an adapter, naming the module it belongs to. */
   register(adapter: PaymentAdapter, module: string): void;
-  unregister(adapterKey: string): void;
-  /** Registered at all, presence-blind. */
-  isRegistered(adapterKey: string): boolean;
-  /** Registered **and** its owning module effectively present. */
-  isAvailable(adapterKey: string): boolean;
   /** The adapter, or `undefined` when unregistered or its owner is absent. */
   get(adapterKey: string): PaymentAdapter | undefined;
-  /** Like {@link get}, but throws rather than answering `undefined`. */
-  resolve(adapterKey: string): PaymentAdapter;
-  /** Adapter keys whose owner is present, in registration order. */
-  list(): string[];
-  /** Every registered adapter key, presence-blind. */
-  listAll(): string[];
   /** Which module contributed the key, or `null` when nobody did. */
   ownerOf(adapterKey: string): string | null;
 }

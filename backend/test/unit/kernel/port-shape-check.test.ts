@@ -401,10 +401,16 @@ describe('check:port-shape — it cannot report a vacuous pass', () => {
 });
 
 describe('the ledger the tree ships', () => {
-  it('is one entry, and each says what retires it', () => {
-    const entries = Object.entries(PORTS_WITHOUT_A_REGISTRATION);
-    expect(entries).toHaveLength(1);
-    for (const [portName, reason] of entries) {
+  it('is empty: its one entry was answered by D-98.5, not carried forward', () => {
+    // `ModuleManifestReadPort` stood unprovided while the audit's Q2 was open.
+    // Q2 answered platform-owned, the interface is deleted, and the entry
+    // retired by the condition it named. Nothing has taken its place, which is
+    // the state a ledger of this kind should be in.
+    expect(Object.entries(PORTS_WITHOUT_A_REGISTRATION)).toHaveLength(0);
+  });
+
+  it('still requires a reason and a retirement condition of any entry added', () => {
+    for (const [portName, reason] of Object.entries(PORTS_WITHOUT_A_REGISTRATION)) {
       expect(reason.length, `${portName} has no reason`).toBeGreaterThan(60);
       expect(reason, `${portName} does not say what retires it`).toMatch(/Retired by/i);
     }

@@ -241,8 +241,14 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // module's bundles and palette actions. It is an accessor rather than the
   // registry because `_lifecycle`'s orchestrator is built after both of them, so
   // the value does not exist at the moment either module registers; a root
-  // supplies the closure that will read it later. The entry goes when
-  // `_lifecycle` provides the accessor as a port of its own.
+  // supplies the closure that will read it later.
+  //
+  // This comment used to predict that the entry goes "when `_lifecycle`
+  // provides the accessor as a port of its own". **D-98.5 ruled the other way**:
+  // which modules a deployment ships is a composition-root input, so there is no
+  // manifest port to come. The entry retires when both consumers read
+  // `resolvedModuleRegistry` — whose entries already carry `filePath` — and the
+  // accessor with the chicken-and-egg it exists to break both go away.
   lifecycleManifestRegistry: '_lifecycle',
   // `requireCustomer` is gone from here too (issue #43): `auth` provides it
   // beside the two admin guards, the roots declare none, and the 16 consumers
