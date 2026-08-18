@@ -31,7 +31,7 @@ const onlyPresent =
     ids.includes(id);
 
 describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests', () => {
-  it('reads the sixteen real edges the manifests deliberately keep out of `dependencies`', () => {
+  it('reads the twenty-three real edges the manifests deliberately keep out of `dependencies`', () => {
     // Two arrived with issue #90, when `check-port-dependencies` learned to
     // follow a module-local cradle alias and two edges that had always been
     // resolved through one became visible: the lifecycle admin surfaces
@@ -56,8 +56,28 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
     // `customerRolePort` when the `organizations` cut moved from the
     // entity-returning services to their record-returning siblings.
     //
-    // Every owner named here is non-deactivatable, so no acknowledged edge
-    // adds a refusal that was not already there. That is what makes the
+    // Seven arrived with D-94.3, and they are the first ones that did not come
+    // from a cut. Four sites of the co-transactional family gained the foreign
+    // key that was always missing (`stock_allocations_order_item_fk`,
+    // `promotion_usages_order_fk`, `credit_limit_reservations_order_fk`,
+    // `carts_completed_order_fk`), and three of the four oblige a module to
+    // declare `orders` — which makes the *reverse* `dependencies` entry, the
+    // one claiming `orders` installs first, false. So `orders` re-expresses
+    // `cartWritePort`, `creditLimitService`, `promotionService` and
+    // `promotionUsageFinalizer` here, `carts` re-expresses `promotionService`
+    // and `promotionCodePort`, and `orders` names `rfqService` for the first
+    // time — that last edge was reaching `quote_requests` through `carts`'
+    // closure, which the same ruling removed.
+    //
+    // Note what does **not** change with them: an acknowledged edge is in the
+    // refusal graph exactly as a declared one is, so `promotions`,
+    // `credit_limits` and `quote_requests` stay precisely as (un)deactivatable
+    // as they were the day before. The ruling withdraws the ordering claim the
+    // constraints contradict and withdraws nothing else — which is why it is
+    // not a way of quietly demoting a live dependency.
+    //
+    // Every other owner named here is non-deactivatable, so no acknowledged
+    // edge adds a refusal that was not already there. That is what makes the
     // acknowledgement honest rather than a way of hiding a live dependency:
     // the declaration the graph cannot carry would not have changed what an
     // operator can switch off.
@@ -69,8 +89,15 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'admin_roles:adminUserReadPort',
       'admin_users:customerAccountReadPort',
       'auth:customerOrgResolver',
+      'carts:promotionCodePort',
+      'carts:promotionService',
       'catalog:organizationDetailsPort',
       'catalog:pricingService',
+      'orders:cartWritePort',
+      'orders:creditLimitService',
+      'orders:promotionService',
+      'orders:promotionUsageFinalizer',
+      'orders:rfqService',
       'organizations:addressService',
       'organizations:customerAccountMemberWritePort',
       'organizations:customerAccountReadPort',

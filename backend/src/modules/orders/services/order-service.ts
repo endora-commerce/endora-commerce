@@ -5,9 +5,12 @@ import {
   ERROR_CODES,
   type CartSnapshot,
   type FulfilmentStrategy,
+  type InventoryFulfilmentPlanningPort,
+  type InventoryStockReadPort,
   type NextAction,
   type PlaceOrderRequest,
   type PromotionApplication,
+  type PromotionApplyPort,
   type StartPaymentResult,
 } from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
@@ -23,34 +26,6 @@ import {
   type OrderEmailResult,
 } from './transactional-email-helper.js';
 
-/**
- * Feature 036 (US3) — narrow port over the promotion engine, consumed to
- * recompute the cart's coupon discount at placement and stamp it on the
- * Order. `PromotionService.applyToCart` satisfies this structurally; injecting
- * a port (not the service) keeps the modular boundary (Principle I).
- */
-export interface PromotionPort {
-  applyToCart(snapshot: CartSnapshot): Promise<PromotionApplication>;
-  /**
-   * Feature 045 (US5) — finalize usage atomically inside the placement
-   * transaction. Optional so legacy compositions still satisfy the port.
-   */
-  finalizeUsage?(
-    em: EntityManager,
-    input: {
-      orderId: string;
-      currency: string;
-      ctx: {
-        organizationId: string | null;
-        customerAccountId: string | null;
-        customerGroupId: string | null;
-        /** The channel the order records; always resolved (D-48). */
-        salesChannelId: string;
-      };
-      applied: Array<{ promotionId: string; couponId: string | null; amount: number }>;
-    },
-  ): Promise<void>;
-}
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { actorFromContext } from '../../../commands/index.js';
 import { getTenantContext } from '../../../tenancy/index.js';
@@ -74,6 +49,51 @@ import { OrderAppliedPromotion } from '../entities/order-applied-promotion.entit
  */
 import { Payment } from '../../payments/entities/payment.entity.js';
 import { Invoice } from '../../invoices/entities/invoice.entity.js';
+/**
+ * The stock reservation, and the two `inventory` classes it writes on the
+ * placement `EntityManager` (D-94.1 / D-94.4).
+ *
+ * `stock_allocations_order_item_fk` (`stock_allocations.order_item_id` ->
+ * `order_items.id`, `on delete restrict`) means an allocation row cannot exist
+ * before its order item does, and the order items are not committed until
+ * placement returns. The `PESSIMISTIC_WRITE` on `stock_levels` is the other
+ * half of the same fact: it has to be held by the transaction that writes the
+ * order, or two placements allocate the same unit
+ * (`test/contract/orders/place-stock-race.test.ts`), and a `reserved`
+ * increment committed separately would survive a placement that then rolled
+ * back. So this is D-78 point 2 — a co-transactional write the database holds
+ * together — and the two ledger entries are `permanent: true` naming the
+ * constraint.
+ *
+ * They were `await import(…)` inside the method body until D-94.4: a dynamic
+ * import is invisible to a reviewer scanning this block, which is exactly the
+ * property a permanent boundary exception must not have. Everything else the
+ * reservation used to reach into this module for — the channel → warehouse
+ * binding, the default-warehouse fallback and both strategy resolvers — is
+ * gone, published as `inventoryStockReadPort.listChannelWarehouses` and
+ * `inventoryFulfilmentPlanningPort`.
+ */
+import { StockLevel } from '../../inventory/entities/stock-level.entity.js';
+import { StockAllocation } from '../../inventory/entities/stock-allocation.entity.js';
+/**
+ * The two em-carrying interfaces their owners write (D-94.5).
+ *
+ * Both name a MikroORM `EntityManager`, so neither can live in
+ * `@b2b/contracts` (FR-034) — and both are held co-transactional by a foreign
+ * key into `orders` (`promotion_usages_order_fk`,
+ * `credit_limit_reservations_order_fk`). `orders` declared both itself until
+ * D-94.5, which meant `lazyPort<T>`'s unchecked cast had nothing to check the
+ * provider against. Each file states its own constraint.
+ */
+import type { CreditLimitPort } from '../../credit_limits/services/credit-limit-port.js';
+import type { PromotionUsageFinalizer } from '../../promotions/services/promotion-usage-finalizer.js';
+/**
+ * Re-exported so `plugin.ts` names its own module for the same two types.
+ * One seam, one ledger entry each: a second import specifier in the plugin
+ * would be a second crossing of a boundary that has exactly one reason to be
+ * crossed, and the reason is stated above and in each owner's file.
+ */
+export type { CreditLimitPort, PromotionUsageFinalizer };
 import { OrderAccessService } from './order-access-service.js';
 import type {
   AddressReadPort,
@@ -101,29 +121,6 @@ import {
   noGatewayPaymentLineRenderer,
 } from '../email-templates/adapter-line-baselines.js';
 
-/**
- * Narrow port consumed by the order-placement transaction. The credit_limits
- * module wires its CreditLimitService here; a no-op fallback short-circuits
- * the flow when the payment method is not credit_limit.
- */
-export interface CreditLimitPort {
-  reserve(input: {
-    organizationId: string;
-    orderId: string;
-    amount: number;
-    currency: string;
-    tx: EntityManager;
-  }): Promise<
-    | { ok: true; reservationId: string; availableAmountAfter: number }
-    | { ok: false; code: 'LIMIT_INSUFFICIENT'; availableAmount: number }
-    | { ok: false; code: 'CREDIT_LIMIT_NOT_GRANTED' }
-    | { ok: false; code: 'CURRENCY_MISMATCH' }
-  >;
-  releaseByOrder(input: {
-    orderId: string;
-    reason: 'invoice_paid' | 'order_cancelled' | 'admin_revocation';
-  }): Promise<unknown>;
-}
 
 export interface OrderEvents extends Record<string, EventBase> {
   'order.created.v1': EventBase & { orderId: string; organizationId: string };
@@ -209,6 +206,20 @@ export interface OrderServiceNeighbourPorts {
   readonly paymentMethodRead: () => PaymentMethodReadPort | null;
   /** `null` ⇒ `delivery_methods` is not effectively present. */
   readonly deliveryMethodRead: () => DeliveryMethodReadPort | null;
+  /**
+   * The two `inventory` ports placement reserves through — `null` when that
+   * module is not effectively present (D-94.4, issue #188).
+   *
+   * One accessor for both, because there is one presence question and one
+   * answer to it: with `inventory` off the reservation block is skipped whole,
+   * and an order is placed without reserving stock — which is exactly what
+   * this module's `degrades-without` entry for it declares. Two accessors
+   * would have let half the block run.
+   */
+  readonly inventory: () => {
+    readonly stockRead: InventoryStockReadPort;
+    readonly planning: InventoryFulfilmentPlanningPort;
+  } | null;
 }
 
 export class OrderService {
@@ -244,8 +255,23 @@ export class OrderService {
   private readonly confirmationRenderers: (() => OrderConfirmationRenderers) | undefined;
   /** Feature 036 — generates the customer-facing business Order ID. */
   private readonly businessId: BusinessIdGenerator | undefined;
-  /** Feature 036 (US3) — recomputes the cart's coupon discount at placement. */
-  private readonly promotion: PromotionPort | undefined;
+  /**
+   * Feature 036 (US3) — recomputes the cart's coupon discount at placement.
+   *
+   * `PromotionApplyPort` since D-94.5: the read half of the seam is a contract
+   * `promotions` publishes and `carts` already resolves under the same
+   * container name, so the near-identical interface this file used to declare
+   * was a second copy of it that nothing checked against the provider.
+   */
+  private readonly promotion: PromotionApplyPort | undefined;
+  /**
+   * The redemption row, written on the placement `EntityManager` (D-94.5).
+   *
+   * A separate name from `promotion` because it is a separate port: the
+   * em-carrying half cannot live in `@b2b/contracts` (FR-034), so `promotions`
+   * declares it beside its implementation and this module imports the type.
+   */
+  private readonly promotionUsageFinalizer: PromotionUsageFinalizer | undefined;
   /**
    * Feature 038 (US4) — resolves the additional confirmation recipients (per-org
    * + Settings-scoped) for an order. Optional; omit ⇒ only the customer is sent.
@@ -277,7 +303,8 @@ export class OrderService {
       confirmationRenderers?: () => OrderConfirmationRenderers;
       neighbours: OrderServiceNeighbourPorts;
       businessId?: BusinessIdGenerator;
-      promotion?: PromotionPort;
+      promotion?: PromotionApplyPort;
+      promotionUsageFinalizer?: PromotionUsageFinalizer;
       confirmationRecipients?: (input: {
         organizationId: string;
         salesChannelId: string;
@@ -324,6 +351,7 @@ export class OrderService {
     this.confirmationRenderers = paymentDeps?.confirmationRenderers;
     this.businessId = paymentDeps?.businessId;
     this.promotion = paymentDeps?.promotion;
+    this.promotionUsageFinalizer = paymentDeps?.promotionUsageFinalizer;
     this.confirmationRecipients = paymentDeps?.confirmationRecipients;
     this.getTransactionalEmailSender = paymentDeps?.getTransactionalEmailSender;
     this.resolveMinOrderValue = paymentDeps?.resolveMinOrderValue;
@@ -1117,33 +1145,6 @@ export class OrderService {
       // Feature 035 (FR-014/FR-015) — same re-validation for the shipping method.
       await this.assertShippingMethodUsable(ctx, deliveryMethod, req.salesChannelId ?? null);
 
-      // Reserve stock — feature 010 / US7 strategy-driven multi-warehouse
-      // allocation (T079). Replaces the foundation 001 single-bucket
-      // reserve.
-      //
-      // Pipeline per line:
-      //   1. Resolve effective fulfilment strategy: product override
-      //      (`product.fulfilmentStrategy`) wins over the global
-      //      default. The global default falls back to `default_first`
-      //      when no SettingsService is wired (kept dependency-light).
-      //   2. Snapshot `available = onHand - reserved` for every
-      //      candidate warehouse for the channel under PESSIMISTIC_WRITE
-      //      so concurrent placers can't double-allocate.
-      //   3. Run `FulfilmentStrategyResolver.resolveAllocations(...)`.
-      //   4. If `ok=false`, raise 409 STOCK_UNAVAILABLE unless the
-      //      product allows backorder.
-      //   5. Increment `reserved` per allocation and stash the plan;
-      //      `stock_allocations` rows are written after order items
-      //      are persisted (StockAllocation FK = order_items.id).
-      const { StockLevel } = await import('../../inventory/entities/stock-level.entity.js');
-      const { DEFAULT_WAREHOUSE_ID } = await import('../../inventory/entities/warehouse.entity.js');
-      const { resolveAllocations } = await import(
-        '../../inventory/services/fulfilment-strategy-resolver.js'
-      );
-      const { resolveEffectiveFulfilmentStrategy } = await import(
-        '../../inventory/services/effective-fulfilment-strategy.js'
-      );
-
       // Resolve the order's sales channel once. Prefer the channel carried on
       // the request (Checkout / admin create); otherwise the platform's
       // **system-default** channel. Used for candidate warehouses, the
@@ -1168,186 +1169,208 @@ export class OrderService {
       // invariant says this cannot happen after boot — so say so, rather than
       // persisting the `randomUUID()` that used to stand here (issue #85).
       if (orderChannel === null) throw new NoSystemDefaultChannel();
-      const channelForStock = orderChannel;
-      const knexForStock = tx.getKnex();
 
-      // Sales-channel + platform-default layer of the fulfilment-strategy
-      // precedence chain, resolved once (org + product layers are applied
-      // per-line below). Resolver failures degrade to the manifest default.
-      const channelStrategyId = channelForStock.id;
-      const channelDefault = {
-        strategy: this.resolveChannelFulfilmentStrategy
-          ? await this.resolveChannelFulfilmentStrategy(channelStrategyId).catch(
-              () => 'default_first' as FulfilmentStrategy,
-            )
-          : ('default_first' as FulfilmentStrategy),
-        warehouseOrder: this.resolveChannelFulfilmentWarehouseOrder
-          ? await this.resolveChannelFulfilmentWarehouseOrder(channelStrategyId).catch(() => [])
-          : [],
-      };
+      // Reserve stock — feature 010 / US7 strategy-driven multi-warehouse
+      // allocation (T079). Replaces the foundation 001 single-bucket
+      // reserve.
+      //
+      // Pipeline per line:
+      //   1. Resolve the effective fulfilment strategy through
+      //      `inventoryFulfilmentPlanningPort`: product override
+      //      (`product.fulfilmentStrategy`) wins over the organization's,
+      //      which wins over the channel setting and the platform default.
+      //   2. Snapshot `available = onHand - reserved` for every
+      //      candidate warehouse for the channel under PESSIMISTIC_WRITE
+      //      so concurrent placers can't double-allocate.
+      //   3. Ask the same port for the allocation plan.
+      //   4. If `ok=false`, raise 409 STOCK_UNAVAILABLE unless the
+      //      product allows backorder.
+      //   5. Increment `reserved` per allocation and stash the plan;
+      //      `stock_allocations` rows are written after order items
+      //      are persisted (stock_allocations_order_item_fk).
+      //
+      // **Presence is decided here, once, and the block is skipped whole**
+      // (D-94.4, issue #188). `inventory` is declared `degrades-without` with
+      // `whenAbsent: 'orders are placed without reserving stock'`, and this is
+      // the check that declaration obliges. Until it existed, `inventory`
+      // appeared nowhere in this module's manifest while every placement
+      // locked `stock_levels`, incremented `reserved` and inserted
+      // `stock_allocations` rows — so an operator who switched the module off
+      // lost the stock screens and the storefront figure and kept every write
+      // underneath them. Asked at the placement rather than at composition,
+      // because an operator may flip the module between two orders.
+      const inventory = this.neighbours.inventory();
 
-      // Global backorder gate (inventory.allow_negative_stock). When off, a
-      // product's per-product backorder flag is ignored below. Resolver
-      // failures degrade to off (safest: never silently oversell).
-      const allowNegativeStock = this.resolveChannelAllowNegativeStock
-        ? await this.resolveChannelAllowNegativeStock(channelStrategyId).catch(() => false)
-        : false;
-
-      // Candidate warehouses for the channel — joined with the warehouses
-      // table so we can carry the code (used by lex tie-breaks in the
-      // resolver) and the isDefault flag.
-      const candidateRows = (await knexForStock('warehouse_channel_assignments as a')
-        .join('warehouses as w', 'w.id', 'a.warehouse_id')
-        .where('a.sales_channel_id', channelForStock.id)
-        .where('w.active', true)
-        .orderBy('a.is_default', 'desc')
-        .orderBy('a.sort_order', 'asc')
-        .orderBy('a.created_at', 'asc')
-        .select('a.warehouse_id', 'w.code as warehouse_code', 'a.is_default')) as Array<{
-        warehouse_id: string;
-        warehouse_code: string;
-        is_default: boolean;
-      }>;
-      const candidateWarehouseIds = candidateRows.map((r) => r.warehouse_id);
-      // Fallback when the channel has no warehouses bound — the
-      // boot-time WarehouseChannelReconciler keeps this case from
-      // happening in production but we keep a safe path for tests
-      // and seed-skipped environments.
-      const fallbackWarehouseIds =
-        candidateWarehouseIds.length === 0 ? [DEFAULT_WAREHOUSE_ID] : candidateWarehouseIds;
-
-      // Load product flags + strategy overrides.
-      const orderProductIds = Array.from(new Set(items.map((i) => i.productId)));
-      const orderProducts = orderProductIds.length
-        ? await this.neighbours.catalogProductRead.findByIds(orderProductIds)
-        : [];
-      const productFlagsById = new Map(
-        orderProducts.map((p) => [
-          p.id,
-          {
-            manageStock: p.manageStock ?? true,
-            backorderEnabled: p.backorderEnabled ?? false,
-            fulfilmentStrategy: p.fulfilmentStrategy ?? null,
-            fulfilmentStrategyWarehouseOrder: p.fulfilmentStrategyWarehouseOrder ?? null,
-          },
-        ]),
-      );
-
-      // Allocation plan — one entry per item index, lining up with the
-      // OrderItems array we'll create later. `null` means the item is
-      // unmanaged and skips the stock_allocations write entirely.
+      // One entry per item index, lining up with the OrderItems array created
+      // below. `null` means the item is unmanaged and skips the
+      // `stock_allocations` write entirely; a **short** array — which is what
+      // an absent `inventory` leaves — means no line reserves anything, and
+      // the write loop below reads `undefined` for every index and skips.
       const allocationPlan: Array<
         | null
         | Array<{ warehouseId: string; quantity: number; isBackorder: boolean }>
       > = [];
 
-      for (const item of items) {
-        const flags = productFlagsById.get(item.productId);
-        if (flags && !flags.manageStock) {
-          // FR-022 — unmanaged stock: never reserve, never reject.
-          allocationPlan.push(null);
-          continue;
-        }
+      if (inventory !== null) {
+        const channelForStock = orderChannel;
 
-        // Snapshot per-candidate availability under a write lock. We
-        // load each (product, variant, warehouse) row individually so
-        // the lock is fine-grained.
-        const candidates: Array<{
-          warehouseId: string;
-          warehouseCode: string;
-          isDefault: boolean;
-          available: number;
-          stockRow: typeof StockLevel.prototype | null;
-        }> = [];
-        for (const row of candidateRows.length > 0
-          ? candidateRows
-          : fallbackWarehouseIds.map((id) => ({
-              warehouse_id: id,
-              warehouse_code: id === DEFAULT_WAREHOUSE_ID ? 'default' : id,
-              is_default: id === DEFAULT_WAREHOUSE_ID,
-            }))) {
-          const stock = await tx.findOne(
-            StockLevel,
-            {
-              productId: item.productId,
-              variantId: item.variantId ?? null,
-              warehouseId: row.warehouse_id,
-            },
-            { lockMode: LockMode.PESSIMISTIC_WRITE },
-          );
-          candidates.push({
-            warehouseId: row.warehouse_id,
-            warehouseCode: row.warehouse_code,
-            isDefault: row.is_default,
-            available: stock ? stock.onHand - stock.reserved : 0,
-            stockRow: stock,
-          });
-        }
+        // Sales-channel + platform-default layer of the fulfilment-strategy
+        // precedence chain, resolved once (org + product layers are applied
+        // per-line below). Resolver failures degrade to the manifest default.
+        const channelStrategyId = channelForStock.id;
+        const channelDefault = {
+          strategy: this.resolveChannelFulfilmentStrategy
+            ? await this.resolveChannelFulfilmentStrategy(channelStrategyId).catch(
+                () => 'default_first' as FulfilmentStrategy,
+              )
+            : ('default_first' as FulfilmentStrategy),
+          warehouseOrder: this.resolveChannelFulfilmentWarehouseOrder
+            ? await this.resolveChannelFulfilmentWarehouseOrder(channelStrategyId).catch(() => [])
+            : [],
+        };
 
-        // Precedence: Product → Organization → Sales Channel → platform default.
-        const { strategy, warehouseOrder } = resolveEffectiveFulfilmentStrategy(
-          {
-            strategy: flags?.fulfilmentStrategy ?? null,
-            warehouseOrder: flags?.fulfilmentStrategyWarehouseOrder ?? null,
-          },
-          {
-            strategy: org.fulfilmentStrategy ?? null,
-            warehouseOrder: org.fulfilmentStrategyWarehouseOrder ?? null,
-          },
-          channelDefault,
+        // Global backorder gate (inventory.allow_negative_stock). When off, a
+        // product's per-product backorder flag is ignored below. Resolver
+        // failures degrade to off (safest: never silently oversell).
+        const allowNegativeStock = this.resolveChannelAllowNegativeStock
+          ? await this.resolveChannelAllowNegativeStock(channelStrategyId).catch(() => false)
+          : false;
+
+        // Candidate warehouses for the channel, from their owner (D-94.4).
+        // This was a knex join over `warehouse_channel_assignments` and
+        // `warehouses` written here, plus a default-warehouse fallback spelled
+        // out of a UUID constant imported from `inventory`'s entity file. Both
+        // are inside `listChannelWarehouses` now, where the tables live.
+        //
+        // Note which port method this is **not**: `candidatesFor` answers the
+        // richer question, and answers it through `inventory`'s own
+        // `EntityManager` — so it neither takes nor holds the
+        // `PESSIMISTIC_WRITE` below, which is the whole reason the reservation
+        // stays here (test/contract/orders/place-stock-race.test.ts).
+        const candidateWarehouses = await inventory.stockRead.listChannelWarehouses(
+          channelForStock.id,
         );
 
-        const outcome = resolveAllocations({
-          quantity: item.quantity,
-          candidateWarehouses: candidates.map((c) => ({
-            warehouseId: c.warehouseId,
-            warehouseCode: c.warehouseCode,
-            available: c.available,
-            isDefault: c.isDefault,
-          })),
-          strategy,
-          warehouseOrder,
-          backorderEnabled: allowNegativeStock && (flags?.backorderEnabled ?? false),
-        });
+        // Load product flags + strategy overrides.
+        const orderProductIds = Array.from(new Set(items.map((i) => i.productId)));
+        const orderProducts = orderProductIds.length
+          ? await this.neighbours.catalogProductRead.findByIds(orderProductIds)
+          : [];
+        const productFlagsById = new Map(
+          orderProducts.map((p) => [
+            p.id,
+            {
+              manageStock: p.manageStock ?? true,
+              backorderEnabled: p.backorderEnabled ?? false,
+              fulfilmentStrategy: p.fulfilmentStrategy ?? null,
+              fulfilmentStrategyWarehouseOrder: p.fulfilmentStrategyWarehouseOrder ?? null,
+            },
+          ]),
+        );
 
-        if (!outcome.ok) {
-          throw new HttpError(
-            409,
-            ERROR_CODES.STOCK_UNAVAILABLE,
-            `Insufficient stock for product ${item.productId}.`,
-          );
-        }
-
-        // Apply the plan: increment reserved per warehouse. If a row
-        // didn't exist, create it inline so the reserved counter has
-        // somewhere to live (still no on-hand).
-        const allocationsForLine: Array<{
-          warehouseId: string;
-          quantity: number;
-          isBackorder: boolean;
-        }> = [];
-        for (const allocation of outcome.allocations) {
-          const candidate = candidates.find((c) => c.warehouseId === allocation.warehouseId);
-          if (!candidate) continue;
-          if (candidate.stockRow) {
-            candidate.stockRow.reserved += allocation.quantity;
-          } else {
-            const fresh = tx.create(StockLevel, {
-              productId: item.productId,
-              ...(item.variantId ? { variantId: item.variantId } : {}),
-              warehouseId: candidate.warehouseId,
-              onHand: 0,
-              reserved: allocation.quantity,
-            });
-            tx.persist(fresh);
+        for (const item of items) {
+          const flags = productFlagsById.get(item.productId);
+          if (flags && !flags.manageStock) {
+            // FR-022 — unmanaged stock: never reserve, never reject.
+            allocationPlan.push(null);
+            continue;
           }
-          allocationsForLine.push({
-            warehouseId: allocation.warehouseId,
-            quantity: allocation.quantity,
-            isBackorder: allocation.isBackorder,
+
+          // Snapshot per-candidate availability under a write lock. We
+          // load each (product, variant, warehouse) row individually so
+          // the lock is fine-grained — and on `tx`, so it is held until the
+          // order commits.
+          const candidates: Array<{
+            warehouseId: string;
+            warehouseCode: string;
+            isDefault: boolean;
+            available: number;
+            stockRow: StockLevel | null;
+          }> = [];
+          for (const row of candidateWarehouses) {
+            const stock = await tx.findOne(
+              StockLevel,
+              {
+                productId: item.productId,
+                variantId: item.variantId ?? null,
+                warehouseId: row.warehouseId,
+              },
+              { lockMode: LockMode.PESSIMISTIC_WRITE },
+            );
+            candidates.push({
+              warehouseId: row.warehouseId,
+              warehouseCode: row.warehouseCode,
+              isDefault: row.isDefault,
+              available: stock ? stock.onHand - stock.reserved : 0,
+              stockRow: stock,
+            });
+          }
+
+          // Precedence: Product → Organization → Sales Channel → platform default.
+          const { strategy, warehouseOrder } = inventory.planning.resolveEffectiveStrategy(
+            {
+              strategy: flags?.fulfilmentStrategy ?? null,
+              warehouseOrder: flags?.fulfilmentStrategyWarehouseOrder ?? null,
+            },
+            {
+              strategy: org.fulfilmentStrategy ?? null,
+              warehouseOrder: org.fulfilmentStrategyWarehouseOrder ?? null,
+            },
+            channelDefault,
+          );
+
+          const outcome = inventory.planning.planAllocations({
+            quantity: item.quantity,
+            candidateWarehouses: candidates.map((c) => ({
+              warehouseId: c.warehouseId,
+              warehouseCode: c.warehouseCode,
+              available: c.available,
+              isDefault: c.isDefault,
+            })),
+            strategy,
+            warehouseOrder,
+            backorderEnabled: allowNegativeStock && (flags?.backorderEnabled ?? false),
           });
+
+          if (!outcome.ok) {
+            throw new HttpError(
+              409,
+              ERROR_CODES.STOCK_UNAVAILABLE,
+              `Insufficient stock for product ${item.productId}.`,
+            );
+          }
+
+          // Apply the plan: increment reserved per warehouse. If a row
+          // didn't exist, create it inline so the reserved counter has
+          // somewhere to live (still no on-hand).
+          const allocationsForLine: Array<{
+            warehouseId: string;
+            quantity: number;
+            isBackorder: boolean;
+          }> = [];
+          for (const allocation of outcome.allocations) {
+            const candidate = candidates.find((c) => c.warehouseId === allocation.warehouseId);
+            if (!candidate) continue;
+            if (candidate.stockRow) {
+              candidate.stockRow.reserved += allocation.quantity;
+            } else {
+              const fresh = tx.create(StockLevel, {
+                productId: item.productId,
+                ...(item.variantId ? { variantId: item.variantId } : {}),
+                warehouseId: candidate.warehouseId,
+                onHand: 0,
+                reserved: allocation.quantity,
+              });
+              tx.persist(fresh);
+            }
+            allocationsForLine.push({
+              warehouseId: allocation.warehouseId,
+              quantity: allocation.quantity,
+              isBackorder: allocation.isBackorder,
+            });
+          }
+          allocationPlan.push(allocationsForLine);
         }
-        allocationPlan.push(allocationsForLine);
       }
 
       const productIds = items.map((i) => i.productId);
@@ -1481,8 +1504,8 @@ export class OrderService {
 
       // Feature 045 (US5) — atomically finalize usage inside this tx; a cap hit
       // throws 409 and rolls the whole placement back (race-safe, SC-005).
-      if (this.promotion?.finalizeUsage && appliedPromotions.length > 0) {
-        await this.promotion.finalizeUsage(tx, {
+      if (this.promotionUsageFinalizer && appliedPromotions.length > 0) {
+        await this.promotionUsageFinalizer.finalizeUsage(tx, {
           orderId: order.id,
           currency,
           ctx: {
@@ -1538,14 +1561,17 @@ export class OrderService {
       await tx.persistAndFlush(orderItems);
 
       // US7 / T079 — persist one stock_allocations row per
-      // (orderItem, warehouse) pair from the strategy resolver's plan
-      // so admins can trace fulfilment provenance and cancellation
-      // releases reservations cleanly. Splits a single line across
-      // warehouses when the plan emits multiple allocations (only the
-      // `default_first` strategy does this today).
-      const { StockAllocation } = await import(
-        '../../inventory/entities/stock-allocation.entity.js'
-      );
+      // (orderItem, warehouse) pair from the plan `inventory` returned, so
+      // admins can trace fulfilment provenance and cancellation releases
+      // reservations cleanly. Splits a single line across warehouses when the
+      // plan emits multiple allocations (only the `default_first` strategy
+      // does this today).
+      //
+      // After `persistAndFlush(orderItems)` and required to be:
+      // `stock_allocations_order_item_fk` (`on delete restrict`) means this
+      // row cannot exist before its order item does. See the import.
+      // `allocationPlan` is empty when `inventory` is not effectively present,
+      // so this loop reads `undefined` at every index and writes nothing.
       for (let i = 0; i < orderItems.length; i++) {
         const plan = allocationPlan[i];
         if (!plan) continue;
@@ -1689,6 +1715,16 @@ export class OrderService {
       // still carries the token).
       await tx.nativeDelete(CartItem, { cartId: cart.id });
       cart.status = 'completed';
+      // Which order emptied this cart (D-94.1). Written here rather than by a
+      // `cartWritePort` call, and held by `carts_completed_order_fk`
+      // (`carts.completed_order_id` -> `orders.id`, `on delete set null`): the
+      // pointer cannot be written before the order exists, and a second
+      // transaction would commit the completion for a placement that then
+      // failed — which is the property
+      // `test/integration/orders/place-order-failure-preserves-cart.test.ts`
+      // asserts. The cart-side column is the direction that forces that;
+      // `orders.cart_id` would have been satisfiable by a split.
+      cart.completedOrderId = order.id;
       cart.anonymousCartToken = null;
       await tx.flush();
 

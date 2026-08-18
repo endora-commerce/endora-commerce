@@ -14,59 +14,110 @@
  * is a boundary the repository has decided to keep, and it needs a reason that
  * says so.
  *
- * **Nothing left here carries that sentence.** The `orders` cut drained 64 of
- * this module's 73 entries across five merge requests. What remains is eleven
- * entries of three kinds, and none is "not yet done":
+ * **Nothing left here carries that sentence, and since D-94 nothing here is
+ * draining either.** The `orders` cut drained 64 of this module's 73 entries
+ * across five merge requests; D-94 settled the nine that were left. All eight
+ * remaining entries are `permanent: true`, which is the correct end state for
+ * this module: everything standing is a row the placement transaction opens in
+ * a neighbour's table, held by a foreign key, with a doc comment on both sides
+ * naming the transaction it runs in.
  *
- *  - **two `permanent: true`** — the `payments` and `invoices` rows placement
- *    opens, held co-transactional by `payments_order_fk` and
- *    `invoices_order_fk` (D-78 point 2). Each names its constraint and what
- *    would retire it.
- *  - **seven escalated** — the stock reservation (five) and the cart
- *    completion (two). Both are co-transactional with placement and neither
- *    has a foreign key to justify it, so they are D-78 point 3: a boundary
- *    error raised for a design decision rather than solved inside a cut. Each
- *    entry states the analysis, including why moving the operation into the
- *    owner does not work and which test asserts the property that stops it.
- *  - **two `sql:` reaches seen only since issue #187** — the channel→warehouse
- *    knex join inside the placement transaction. Not a new coupling: a knex
- *    builder names its table as a call argument, so both predicates were blind
- *    to it while the other nine entries were being drained. D-94.4 has already
- *    ruled how they go.
+ *  - **six rows placement opens** — `payments` and `invoices` (D-78 point 2,
+ *    settled when the entries were written) plus `carts` (two entries),
+ *    `stock_allocations` and `stock_levels`, which were escalated under D-78
+ *    point 3 for one reason: the constraint that would have justified them did
+ *    not exist. D-94.1 adds all four — `carts_completed_order_fk`,
+ *    `stock_allocations_order_item_fk` and, on the two sides that declare
+ *    `orders` rather than being imported here,
+ *    `promotion_usages_order_fk` and `credit_limit_reservations_order_fk`.
+ *  - **two interfaces their owners write** — `CreditLimitPort` and
+ *    `PromotionUsageFinalizer` (D-94.5). Each names the caller's
+ *    `EntityManager`, so FR-034 keeps it out of `@b2b/contracts`; declaring it
+ *    on the consumer's side, which is what this module used to do, left
+ *    `lazyPort<T>`'s unchecked cast with nothing to check.
+ *
+ * Five entries left with D-94.4 rather than being settled: the
+ * `warehouse.entity` fallback and both fulfilment resolvers are now
+ * `inventoryStockReadPort.listChannelWarehouses` and
+ * `inventoryFulfilmentPlanningPort`, and the two `sql:` reaches — the
+ * channel→warehouse knex join issue #187 first made visible — went with them.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/orders/services/order-service.ts:carts/entities/cart-item.entity':
-    'F3 Phase C — orders. **Escalated, not deferred.** Placement ends by clearing the buyer`s cart and marking it `completed`, inside the placement transaction and on the same `Cart` object the totals were read from. There is no foreign key between `carts` and `orders` in either direction, so D-78 point 2 does not apply; and D-78 point 1 does not either, because a `cartWritePort` call would commit the cart completion in its own transaction and leave a buyer with an emptied cart and no order whenever placement then fails (test/integration/orders/place-order-failure-preserves-cart.test.ts asserts the opposite). So it is D-78 point 3, and it is raised rather than solved. The reorder path`s cart write was a different question and is already cut, through `cartWritePort.replaceItemsForCustomer`.',
-  'modules/orders/services/order-service.ts:carts/entities/cart.entity':
-    'F3 Phase C — orders. **Escalated, not deferred.** Placement ends by clearing the buyer`s cart and marking it `completed`, inside the placement transaction and on the same `Cart` object the totals were read from. There is no foreign key between `carts` and `orders` in either direction, so D-78 point 2 does not apply; and D-78 point 1 does not either, because a `cartWritePort` call would commit the cart completion in its own transaction and leave a buyer with an emptied cart and no order whenever placement then fails (test/integration/orders/place-order-failure-preserves-cart.test.ts asserts the opposite). So it is D-78 point 3, and it is raised rather than solved. The reorder path`s cart write was a different question and is already cut, through `cartWritePort.replaceItemsForCustomer`.',
-  'modules/orders/services/order-service.ts:inventory/entities/stock-allocation.entity':
-    'F3 Phase C — orders. **Escalated, not deferred.** The stock reservation is co-transactional with placement and has no foreign key to justify it under D-78 point 2: `stock_allocations.order_item_id` is `uuid not null` with no `references "order_items"` (inventory/migrations/20260503T182812_inventory_workflow.ts:199-211) — the same shape D-90 has just repaired for `shipments.order_id`. D-78 point 1 does not apply either: `reserve` cannot move inside `inventory` and keep its guarantee, because the `PESSIMISTIC_WRITE` lock on `stock_levels` has to be held until the order commits (test/contract/orders/place-stock-race.test.ts is the race it stops), and a separate transaction would leave `reserved` incremented for a placement that then rolls back. So it is D-78 point 3, and it is raised rather than solved.',
-  'modules/orders/services/order-service.ts:inventory/entities/stock-level.entity':
-    'F3 Phase C — orders. **Escalated, not deferred.** The stock reservation is co-transactional with placement and has no foreign key to justify it under D-78 point 2: `stock_allocations.order_item_id` is `uuid not null` with no `references "order_items"` (inventory/migrations/20260503T182812_inventory_workflow.ts:199-211) — the same shape D-90 has just repaired for `shipments.order_id`. D-78 point 1 does not apply either: `reserve` cannot move inside `inventory` and keep its guarantee, because the `PESSIMISTIC_WRITE` lock on `stock_levels` has to be held until the order commits (test/contract/orders/place-stock-race.test.ts is the race it stops), and a separate transaction would leave `reserved` incremented for a placement that then rolls back. So it is D-78 point 3, and it is raised rather than solved.',
-  'modules/orders/services/order-service.ts:inventory/entities/warehouse.entity':
-    'F3 Phase C — orders. **Escalated, not deferred.** The stock reservation is co-transactional with placement and has no foreign key to justify it under D-78 point 2: `stock_allocations.order_item_id` is `uuid not null` with no `references "order_items"` (inventory/migrations/20260503T182812_inventory_workflow.ts:199-211) — the same shape D-90 has just repaired for `shipments.order_id`. D-78 point 1 does not apply either: `reserve` cannot move inside `inventory` and keep its guarantee, because the `PESSIMISTIC_WRITE` lock on `stock_levels` has to be held until the order commits (test/contract/orders/place-stock-race.test.ts is the race it stops), and a separate transaction would leave `reserved` incremented for a placement that then rolls back. So it is D-78 point 3, and it is raised rather than solved.',
-  'modules/orders/services/order-service.ts:inventory/services/effective-fulfilment-strategy':
-    'F3 Phase C — orders. **Escalated, not deferred.** The stock reservation is co-transactional with placement and has no foreign key to justify it under D-78 point 2: `stock_allocations.order_item_id` is `uuid not null` with no `references "order_items"` (inventory/migrations/20260503T182812_inventory_workflow.ts:199-211) — the same shape D-90 has just repaired for `shipments.order_id`. D-78 point 1 does not apply either: `reserve` cannot move inside `inventory` and keep its guarantee, because the `PESSIMISTIC_WRITE` lock on `stock_levels` has to be held until the order commits (test/contract/orders/place-stock-race.test.ts is the race it stops), and a separate transaction would leave `reserved` incremented for a placement that then rolls back. So it is D-78 point 3, and it is raised rather than solved.',
-  'modules/orders/services/order-service.ts:inventory/services/fulfilment-strategy-resolver':
-    'F3 Phase C — orders. **Escalated, not deferred.** The stock reservation is co-transactional with placement and has no foreign key to justify it under D-78 point 2: `stock_allocations.order_item_id` is `uuid not null` with no `references "order_items"` (inventory/migrations/20260503T182812_inventory_workflow.ts:199-211) — the same shape D-90 has just repaired for `shipments.order_id`. D-78 point 1 does not apply either: `reserve` cannot move inside `inventory` and keep its guarantee, because the `PESSIMISTIC_WRITE` lock on `stock_levels` has to be held until the order commits (test/contract/orders/place-stock-race.test.ts is the race it stops), and a separate transaction would leave `reserved` incremented for a placement that then rolls back. So it is D-78 point 3, and it is raised rather than solved.',
-  'modules/orders/services/order-service.ts:sql:inventory/warehouse_channel_assignments':
-    'Issue #187 seed, ruled by D-94.4 — placement resolves channel → warehouse with ' +
-    '`knexForStock(\'warehouse_channel_assignments as a\').join(\'warehouses as w\', …)`, ' +
-    'two of `inventory`\'s tables joined by hand inside the placement transaction. Both ' +
-    'predicates were blind to it: a builder names no import specifier and no SQL ' +
-    'statement, which is why it stood while this shard was drained from 73 entries to ' +
-    'nine. Retired by: `InventoryStockReadPort.listChannelWarehouses(salesChannelId)` — ' +
-    '`listChannelAssignments` already exists and is one field (`warehouse.code`), one ' +
-    'filter (`w.active`) and one ordering short of this query. `candidatesFor` must NOT ' +
-    'be used for it: it reads through the owner\'s own `EntityManager`, so it neither ' +
-    'takes nor holds the `PESSIMISTIC_WRITE` the placement race depends on.',
-  'modules/orders/services/order-service.ts:sql:inventory/warehouses':
-    'Issue #187 seed, ruled by D-94.4 — the second table of the same knex join described ' +
-    'in the `warehouse_channel_assignments` entry above: `warehouses` supplies the code ' +
-    'and the `active` filter the candidate ordering needs. One key per table, so the two ' +
-    'retire together when `listChannelWarehouses` replaces the join.',
+  'modules/orders/services/order-service.ts:carts/entities/cart-item.entity': {
+    permanent: true,
+    reason:
+      'D-78 point 2, settled by D-94.1 — a co-transactional write the database holds together. Placement ends by deleting the cart`s items, marking it `completed` and stamping `completed_order_id`, inside the placement transaction and on the same `Cart` object the totals were read from. Until D-94 there was no foreign key in either direction, which is why this entry was escalated rather than settled; `carts/migrations/20260818T081253_carts_cart_completed_order_fk.ts` adds `carts_completed_order_fk` (`carts.completed_order_id` -> `orders.id`, `on delete set null`), so the pointer cannot be written before the order exists and the order does not commit until placement returns. The **cart-side** column is what forces that: an `orders.cart_id` would have been satisfiable by completing the cart in a second transaction, because the cart is already committed when the order row is written. A `cartWritePort` call is still refused for the same reason it always was — it would leave a buyer with an emptied cart and no order whenever placement then fails (test/integration/orders/place-order-failure-preserves-cart.test.ts asserts the opposite). `carts` declares `orders` for the constraint, so the manifest edge is carried on that side; this module acknowledges `cartWritePort` rather than declaring `carts`, which would close a cycle. The reorder path`s cart write was a different question and is already cut, through `cartWritePort.replaceItemsForCustomer`.',
+    retiredBy:
+      'F4 gives `carts` a package entry point that exports the completion the placement transaction performs — then this is a package dependency, not an import of internals. Moving the completion out of the placement transaction would retire it too, and would cost the property test/integration/orders/place-order-failure-preserves-cart.test.ts asserts: a placement that fails leaves the basket exactly as the buyer left it.',
+  },
+  'modules/orders/services/order-service.ts:carts/entities/cart.entity': {
+    permanent: true,
+    reason:
+      'D-78 point 2, settled by D-94.1 — a co-transactional write the database holds together. Placement ends by deleting the cart`s items, marking it `completed` and stamping `completed_order_id`, inside the placement transaction and on the same `Cart` object the totals were read from. Until D-94 there was no foreign key in either direction, which is why this entry was escalated rather than settled; `carts/migrations/20260818T081253_carts_cart_completed_order_fk.ts` adds `carts_completed_order_fk` (`carts.completed_order_id` -> `orders.id`, `on delete set null`), so the pointer cannot be written before the order exists and the order does not commit until placement returns. The **cart-side** column is what forces that: an `orders.cart_id` would have been satisfiable by completing the cart in a second transaction, because the cart is already committed when the order row is written. A `cartWritePort` call is still refused for the same reason it always was — it would leave a buyer with an emptied cart and no order whenever placement then fails (test/integration/orders/place-order-failure-preserves-cart.test.ts asserts the opposite). `carts` declares `orders` for the constraint, so the manifest edge is carried on that side; this module acknowledges `cartWritePort` rather than declaring `carts`, which would close a cycle. The reorder path`s cart write was a different question and is already cut, through `cartWritePort.replaceItemsForCustomer`.',
+    retiredBy:
+      'F4 gives `carts` a package entry point that exports the completion the placement transaction performs — then this is a package dependency, not an import of internals. Moving the completion out of the placement transaction would retire it too, and would cost the property test/integration/orders/place-order-failure-preserves-cart.test.ts asserts: a placement that fails leaves the basket exactly as the buyer left it.',
+  },
+  'modules/orders/services/order-service.ts:inventory/entities/stock-allocation.entity': {
+    permanent: true,
+    reason:
+      'D-78 point 2, settled by D-94.1 — a co-transactional write the database holds together. `inventory/migrations/20260818T081243_inventory_stock_allocation_order_item_fk.ts` adds `stock_allocations_order_item_fk` (`stock_allocations.order_item_id` -> `order_items.id`, `on delete restrict`), so an allocation row cannot exist before its order item does and the order items are not committed until placement returns. Until D-94 the column was `uuid not null` with no constraint at all — the same statement that created it constrains `warehouse_id` and left this one bare, so the omission tracked the module boundary rather than a decision, and this entry was escalated for exactly that. D-78 point 1 still does not apply: `reserve` cannot move inside `inventory` and keep its guarantee, because the `PESSIMISTIC_WRITE` on `stock_levels` has to be held until the order commits (test/contract/orders/place-stock-race.test.ts is the race it stops). `inventory` declares `orders` for the constraint — the one edge of the family that closes no cycle; this module declares `inventory` `degrades-without` and skips the reservation whole when it is switched off.',
+    retiredBy:
+      'F4 gives `inventory` a package entry point that exports the reservation placement performs — then this is a package dependency, not an import of internals. Moving the reservation out of the placement transaction would retire it too, and would cost the `PESSIMISTIC_WRITE` on `stock_levels` that stops two placements allocating the same unit (test/contract/orders/place-stock-race.test.ts).',
+  },
+  'modules/orders/services/order-service.ts:inventory/entities/stock-level.entity': {
+    permanent: true,
+    reason:
+      'D-78 point 2, settled by D-94.1, on the module-level reading of it — and the entry has to say so, because the constraint is on `stock_allocations` rather than on this table. The `PESSIMISTIC_WRITE` lock this class is loaded under, and the `reserved` increment it carries, are one operation with the allocation insert beside them: it is the allocation`s foreign key (`stock_allocations_order_item_fk`, `on delete restrict`) that pins the whole operation to the placement transaction, and splitting the lock off from the insert it protects would lose the race test/contract/orders/place-stock-race.test.ts asserts. Everything else the reservation used to reach into `inventory` for is gone (D-94.4): the channel -> warehouse binding and the default-warehouse fallback are `inventoryStockReadPort.listChannelWarehouses`, and both strategy resolvers are `inventoryFulfilmentPlanningPort`.',
+    retiredBy:
+      'F4 gives `inventory` a package entry point that exports the reservation placement performs — then this is a package dependency, not an import of internals. Moving the reservation out of the placement transaction would retire it too, and would cost the `PESSIMISTIC_WRITE` on `stock_levels` that stops two placements allocating the same unit (test/contract/orders/place-stock-race.test.ts).',
+  },
+  'modules/orders/services/order-service.ts:credit_limits/services/credit-limit-port': {
+    permanent: true,
+    reason:
+      'D-94.5 — the interface `credit_limits` writes for the method placement calls, imported '
+      + 'as a type and re-exported to `plugin.ts` so this is the one crossing. It is here '
+      + 'because of what it names: `reserve` takes the caller`s `EntityManager`, and FR-034 '
+      + 'keeps a MikroORM type out of `@b2b/contracts`, so the declaration cannot live in the '
+      + 'contracts package. It has to live on the **owner`s** side all the same — '
+      + '`lazyPort<T>` is an unchecked cast, so while this module declared the interface '
+      + 'itself (as `CreditLimitPort` in `order-service.ts`) nothing verified that '
+      + '`CreditLimitService` still satisfied it. The seam it describes is held by '
+      + '`credit_limit_reservations_order_fk` (`credit_limit_reservations.order_id` -> '
+      + '`orders.id`, `on delete restrict`): the reservation row cannot exist before the '
+      + 'order does, and the `PESSIMISTIC_WRITE` on the organization`s credit row must be '
+      + 'held until placement commits. `credit_limits` declares `orders` for the constraint; '
+      + 'this module acknowledges `creditLimitService` rather than declaring it back, which '
+      + 'would close a cycle.',
+    retiredBy:
+      'F4 gives `credit_limits` a package entry point that exports this interface — then it '
+      + 'is a package dependency, not an import of internals. Moving the reservation out of '
+      + 'the placement transaction would retire it too, and would cost the guarantee that a '
+      + 'rolled-back placement consumes no credit.',
+  },
+  'modules/orders/services/order-service.ts:promotions/services/promotion-usage-finalizer': {
+    permanent: true,
+    reason:
+      'D-94.5 — the twin of the `credit_limits` entry above, and the same shape. '
+      + '`PromotionUsageFinalizer.finalizeUsage` takes the placement `EntityManager`, so '
+      + 'FR-034 keeps it out of `@b2b/contracts`; `promotions` declares it beside its '
+      + 'implementation and this module imports the type, which is what gives `tsc` something '
+      + 'to check both ends against. The read half is NOT here: `applyToCart` is '
+      + '`PromotionApplyPort` in the contracts package, resolved under the same container '
+      + 'name `carts` already uses, and the consumer-declared duplicate of it was deleted '
+      + 'with `PromotionPort`. The seam is held by `promotion_usages_order_fk` '
+      + '(`promotion_usages.order_id` -> `orders.id`, `on delete restrict`): the redemption '
+      + 'row cannot exist before the order does, and a cap hit at the last moment has to roll '
+      + 'the placement back with it. `promotions` declares `orders` for the constraint; this '
+      + 'module acknowledges `promotionService` and `promotionUsageFinalizer` rather than '
+      + 'declaring it back, which would close a cycle.',
+    retiredBy:
+      'F4 gives `promotions` a package entry point that exports this interface — then it is a '
+      + 'package dependency, not an import of internals. Moving usage finalization out of the '
+      + 'placement transaction would retire it too, and would cost SC-005: two carts racing '
+      + 'for a coupon`s final use could both succeed.',
+  },
   'modules/orders/services/order-service.ts:invoices/entities/invoice.entity': {
     permanent: true,
     reason:

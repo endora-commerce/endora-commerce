@@ -11,6 +11,8 @@ import type {
   CustomerAccountReadPort,
   DeliveryMethodReadPort,
   EmailDefaultsRegistryPort,
+  InventoryFulfilmentPlanningPort,
+  InventoryStockReadPort,
   InvoicePdfPort,
   InvoiceReadPort,
   OrderListPort,
@@ -134,6 +136,7 @@ export interface OrdersCradle {
   readonly creditLimitService: NonNullable<OrdersModuleOptions['creditLimit']>;
   readonly pricingService: NonNullable<OrdersModuleOptions['pricingService']>;
   readonly promotionService: NonNullable<OrdersModuleOptions['promotionService']>;
+  readonly promotionUsageFinalizer: NonNullable<OrdersModuleOptions['promotionUsageFinalizer']>;
   readonly rfqService: NonNullable<ReturnType<NonNullable<OrdersModuleOptions['getRfqService']>>>;
   /**
    * `ResolvedTax` rather than `{ rate: number }` (issue #124): the narrower
@@ -245,6 +248,34 @@ export function registerModule(ctx: ModuleContext): void {
    * declaration obliges. It is asked at the send rather than at composition,
    * because an operator may flip either module between two orders.
    */
+  /**
+   * The two `inventory` ports the stock reservation runs on (D-94.4, issue
+   * #188), as one accessor over one presence question.
+   *
+   * `inventory` is declared `degrades-without` in this module's manifest —
+   * `stock_allocations_order_item_fk` obliges `inventory` to declare `orders`,
+   * so the edge cannot be declared back, and an acknowledged edge would keep
+   * the bind and make `inventory.enabled` a control no operator could use,
+   * because this module is non-deactivatable. So presence is asked here, per
+   * placement, and `order-service.ts` skips the reservation block whole on
+   * `null`. Before D-94.4 there was no port and no question: four dynamic
+   * imports and a knex join meant every placement wrote `inventory`'s tables
+   * whatever the operator had chosen.
+   */
+  const inventoryPorts = (): {
+    readonly stockRead: InventoryStockReadPort;
+    readonly planning: InventoryFulfilmentPlanningPort;
+  } | null =>
+    effectiveState.isPresent('inventory')
+      ? {
+          stockRead: lazyPort<InventoryStockReadPort>(ctx, 'inventoryStockReadPort'),
+          planning: lazyPort<InventoryFulfilmentPlanningPort>(
+            ctx,
+            'inventoryFulfilmentPlanningPort',
+          ),
+        }
+      : null;
+
   const confirmationRenderers = (): OrderConfirmationRenderers => ({
     payment: effectiveState.isPresent('payments')
       ? lazyPort<PaymentEmailRendererPort>(ctx, 'paymentEmailRendererPort')
@@ -296,6 +327,11 @@ export function registerModule(ctx: ModuleContext): void {
             creditLimit: lazyPort<OrdersCradle['creditLimitService']>(ctx, 'creditLimitService'),
             pricingService: lazyPort<OrdersCradle['pricingService']>(ctx, 'pricingService'),
             promotionService: lazyPort<OrdersCradle['promotionService']>(ctx, 'promotionService'),
+            promotionUsageFinalizer: lazyPort<OrdersCradle['promotionUsageFinalizer']>(
+              ctx,
+              'promotionUsageFinalizer',
+            ),
+            inventory: inventoryPorts,
             salesChannelMembership: lazyPort<OrdersCradle['salesChannelMembershipPort']>(
               ctx,
               'salesChannelMembershipPort',

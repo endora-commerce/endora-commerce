@@ -13,6 +13,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import { PromotionService } from './services/promotion-service.js';
+import type { PromotionUsageFinalizer } from './services/promotion-usage-finalizer.js';
 import { PromotionCodeService } from './services/promotion-code-port.js';
 import { CouponService } from './services/coupon-service.js';
 import { PromotionRuleStore } from './services/promotion-rule-store.js';
@@ -116,6 +117,34 @@ export function registerModule(ctx: ModuleContext): void {
     'promotionCodePort',
     ctx
       .asFunction(({ emFactory }: PromotionsCradle) => new PromotionCodeService(emFactory))
+      .singleton(),
+  );
+
+  /**
+   * D-94.5 — the co-transactional half of the promotion seam, as its own
+   * gated port.
+   *
+   * `orders` used to reach `finalizeUsage` through `promotionService`, typed
+   * by an interface `orders` wrote itself: `lazyPort<T>` is an unchecked cast,
+   * so with `T` on the consumer's side nothing verified that this module still
+   * satisfied it. The interface is `PromotionUsageFinalizer`, declared beside
+   * the implementation, and `orders` imports the type — a permanent
+   * cross-module ledger entry naming `promotion_usages_order_fk`, because the
+   * signature carries the caller's `EntityManager` and FR-034 keeps a MikroORM
+   * type out of `@b2b/contracts`.
+   */
+  ctx.di.providePort<PromotionUsageFinalizer>(
+    'promotionUsageFinalizer',
+    ctx
+      .asFunction((): PromotionUsageFinalizer => {
+        // Lazily, even though this module owns the name: `providePort` gates
+        // on the effective state, and a singleton that captured its own gate
+        // would answer after an operator switched this module off.
+        const service = lazyPort<PromotionService>(ctx, 'promotionService');
+        return {
+          finalizeUsage: (em, input) => service.finalizeUsage(em, input),
+        };
+      })
       .singleton(),
   );
 

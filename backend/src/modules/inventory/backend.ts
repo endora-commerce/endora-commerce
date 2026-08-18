@@ -11,10 +11,12 @@ import type {
   CustomerAccountReadPort,
   EmailDefaultsRegistryPort,
   EmailMailerPort,
+  InventoryFulfilmentPlanningPort,
   InventoryStockImportPort,
   InventoryStockReadPort,
   PromptActionToolRegistryPort,
 } from '@b2b/contracts';
+import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
@@ -189,6 +191,34 @@ export function registerModule(ctx: ModuleContext): void {
     'inventoryStockReadPort',
     ctx
       .asFunction(({ emFactory }: InventoryCradle) => new InventoryStockReadService(emFactory))
+      .singleton(),
+  );
+
+  /**
+   * D-94.4 — the warehouse-picking policy, published.
+   *
+   * `orders` reached both functions through `await import(
+   * '../../inventory/services/…')` inside the placement method body. They are
+   * pure over their arguments, so nothing here reads a table and nothing takes
+   * an `EntityManager`; what the port buys is that the policy is asked of its
+   * owner rather than re-implemented by whoever edits the import next.
+   *
+   * A separate port from `inventoryStockReadPort` on purpose: a read port that
+   * also decides policy makes its own name a lie.
+   *
+   * The gate `providePort` wraps this in is real but never reached from
+   * placement: `orders` declares this name `degrades-without` and asks
+   * `effectiveState.isPresent('inventory')` before the reservation block, so
+   * with this module off there is no plan to compute rather than a 503 in the
+   * middle of one.
+   */
+  ctx.di.providePort<InventoryFulfilmentPlanningPort>(
+    'inventoryFulfilmentPlanningPort',
+    ctx
+      .asFunction((): InventoryFulfilmentPlanningPort => ({
+        resolveEffectiveStrategy: resolveEffectiveFulfilmentStrategy,
+        planAllocations: resolveAllocations,
+      }))
       .singleton(),
   );
 

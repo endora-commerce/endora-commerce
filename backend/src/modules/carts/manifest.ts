@@ -71,15 +71,58 @@ export const manifest = defineModuleManifest({
   // Binding rather than non-binding: a basket that cannot resolve what is in it
   // must refuse, not quote a figure it cannot justify (issue #124's rule, which
   // `price_lists` already stands on here).
+  //
+  // D-94.1 adds `orders`, for the foreign key `carts_completed_order_fk`
+  // (`carts.completed_order_id` -> `orders.id`, `on delete set null`) — the
+  // pointer this table has always had for its *other* terminal transition
+  // (`carts_converted_to_qr_fk`) and never for this one. AGENTS.md
+  // § Migrations item 4: a cross-module foreign key is declared here or the
+  // build fails.
+  //
+  // D-94.3 moves `promotions` out, to `acknowledgedDependencies` below. The
+  // edge is unchanged and still binds — what is withdrawn is the install
+  // ordering, which `promotion_usages_order_fk` now says runs the other way:
+  // `promotions` declares `orders`, `orders` is declared here, so keeping
+  // `promotions` in `dependencies` would close `carts -> promotions -> orders
+  // -> carts`.
   dependencies: [
     'catalog',
     'customer_accounts',
+    'orders',
     'organizations',
     'price_lists',
-    'promotions',
     'quote_requests',
     'sales_channels',
     'settings',
+  ],
+  // Feature 073, Amendment A1 — a real port edge whose `dependencies` entry
+  // would close a cycle. Read by the flip-time refusals and by
+  // `check-port-dependencies`; read by neither the install order nor the
+  // migration order.
+  acknowledgedDependencies: [
+    {
+      moduleId: 'promotions',
+      port: 'promotionService',
+      reason:
+        'The basket prices through `PromotionApplyPort.applyToCart`, which is a real bind: a ' +
+        'cart that cannot resolve its discount must not quote a figure it cannot justify. ' +
+        'The edge cannot go in `dependencies` since D-94.1, because ' +
+        '`promotion_usages_order_fk` obliges `promotions` to declare `orders`, this module ' +
+        'declares `orders` for `carts_completed_order_fk`, and the three together close ' +
+        '`carts -> promotions -> orders -> carts`. Acknowledging it withdraws the install ' +
+        'ordering the constraint says is backwards and withdraws nothing else — `promotions` ' +
+        'stays exactly as (un)deactivatable under this module as it was.',
+    },
+    {
+      moduleId: 'promotions',
+      port: 'promotionCodePort',
+      reason:
+        'The coupon a buyer typed, resolved through the three-step lookup `promotions` owns — ' +
+        'the legacy inline code, then the coupon table, then the promotion behind it, each ' +
+        'filtered on `isActive`. It shares the cycle of `promotionService` above and is ' +
+        'acknowledged for the same reason and with the same effect: the bind is kept, the ' +
+        'ordering claim the foreign key contradicts is dropped.',
+    },
   ],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base. This reverses

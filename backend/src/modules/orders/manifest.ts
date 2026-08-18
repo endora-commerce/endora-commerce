@@ -90,21 +90,134 @@ export const manifest = defineModuleManifest({
   // through published ports instead of their entity classes. All three are
   // non-deactivatable and none of them declares this module, so the edge binds
   // nothing an operator could otherwise have flipped and closes no cycle.
+  // D-94.3 — three edges leave for `acknowledgedDependencies` and three
+  // arrive, and the two halves are one change.
+  //
+  // `carts`, `credit_limits` and `promotions` leave because each of them now
+  // declares **this** module, for the foreign key its own table carries
+  // against `orders` (`carts_completed_order_fk`,
+  // `credit_limit_reservations_order_fk`, `promotion_usages_order_fk`). The
+  // port edges in the other direction are all real and all still bind; what
+  // the constraints make false is the *install ordering* a `dependencies`
+  // entry claims, and `acknowledgedDependencies` withdraws exactly that.
+  //
+  // `price_lists` and `taxes` arrive because this module resolves
+  // `pricingService` and `taxService` and has never declared either: both were
+  // satisfied through `carts`' transitive closure, which is legal and brittle
+  // — `carts` dropping `price_lists` would have made two unrelated port edges
+  // undeclared in a module nobody was editing. Neither declares `orders`, so
+  // neither is mutual and neither needs acknowledging.
   dependencies: [
     'addresses',
     'api_keys',
     'assets_library',
-    'carts',
     'catalog',
-    'credit_limits',
     'customer_accounts',
     'organizations',
-    'promotions',
+    'price_lists',
     'settings',
+    'taxes',
     'transactional_emails',
+  ],
+  /**
+   * Feature 073, Amendment A1 — real port edges whose `dependencies` entry
+   * would close a cycle `src/db/migration-order.ts` fails on. Read by the
+   * flip-time refusals and by `check-port-dependencies`; read by neither the
+   * install order nor the migration order.
+   *
+   * All four pairs below are mutual by construction, which is the standard the
+   * check's own header sets: this module reads the neighbour during placement,
+   * and the neighbour records a row against the order. Since D-94.1 three of
+   * those rows are held by a foreign key, so the ordering claim runs the other
+   * way and is withdrawn here rather than left standing and false.
+   */
+  acknowledgedDependencies: [
+    {
+      moduleId: 'carts',
+      port: 'cartWritePort',
+      reason:
+        'Placement reads the basket it is turning into an order and the reorder path replaces ' +
+        'its lines, both through the port `carts` publishes. `carts_completed_order_fk` ' +
+        '(`carts.completed_order_id` -> `orders.id`) obliges `carts` to declare this module, ' +
+        'so a `dependencies` entry here would close `orders -> carts -> orders`. Both modules ' +
+        'are non-deactivatable, so acknowledging withdraws the ordering claim and changes ' +
+        'nothing an operator can reach.',
+    },
+    {
+      moduleId: 'credit_limits',
+      port: 'creditLimitService',
+      reason:
+        'Placement reserves against the organization`s limit inside its own transaction, so ' +
+        'the `PESSIMISTIC_WRITE` on the credit row is held until the order commits. ' +
+        '`credit_limit_reservations_order_fk` obliges `credit_limits` to declare this module, ' +
+        'so a `dependencies` entry here would close `orders -> credit_limits -> orders`. The ' +
+        'bind is kept: this module is non-deactivatable, so `credit_limits` stays exactly as ' +
+        '(un)deactivatable under it as it was before the constraint.',
+    },
+    {
+      moduleId: 'promotions',
+      port: 'promotionService',
+      reason:
+        'The coupon discount is recomputed at placement through ' +
+        '`PromotionApplyPort.applyToCart`, so the figure stamped on the order is the engine`s ' +
+        'and not the basket`s copy of it. `promotion_usages_order_fk` obliges `promotions` to ' +
+        'declare this module, so a `dependencies` entry here would close `orders -> ' +
+        'promotions -> orders`. Acknowledging drops the ordering claim the constraint ' +
+        'contradicts and keeps the bind.',
+    },
+    {
+      moduleId: 'promotions',
+      port: 'promotionUsageFinalizer',
+      reason:
+        'The redemption row itself, written on the placement `EntityManager` so a cap hit at ' +
+        'the last moment rolls the order back with it — the write ' +
+        '`promotion_usages_order_fk` holds. It shares the cycle of `promotionService` above ' +
+        'and is acknowledged for the same reason; it is a separate name because D-94.5 split ' +
+        'the em-carrying half off the read half so its owner writes the interface.',
+    },
+    {
+      moduleId: 'quote_requests',
+      port: 'rfqService',
+      reason:
+        'An order placed from an accepted quote marks that quote converted, and the admin ' +
+        'order screen shows which quote it came from. This module has never declared the ' +
+        'edge — it was satisfied through `carts`` closure, which D-94.3 removes — and it is ' +
+        'acknowledged rather than declared because the edge **is** mutual: ' +
+        '`quote_requests.converted_order_id` is the mirror of `carts.completed_order_id`, so ' +
+        'a `dependencies` entry here would pre-empt the constraint that column will want.',
+    },
   ],
   // D-44 — real to the container, binding on no operator.
   nonBindingDependencies: [
+    {
+      moduleId: 'inventory',
+      name: 'inventoryStockReadPort',
+      kind: 'degrades-without',
+      whenAbsent: 'orders are placed without reserving stock',
+      reason:
+        'The channel → warehouse binding placement allocates against, read through the port ' +
+        'that module publishes. Until D-94.4 it was a knex join over two of `inventory`s ' +
+        'tables, so `inventory` appeared nowhere in this manifest while every placement ' +
+        'locked `stock_levels`, incremented `reserved` and inserted `stock_allocations` rows ' +
+        '— a module writing its own tables with an operator having switched it off (issue ' +
+        '#188). `degrades-without` rather than `dependencies`: ' +
+        '`stock_allocations_order_item_fk` obliges `inventory` to declare this module, so ' +
+        'the edge cannot be declared here; and an acknowledged edge would keep the bind and ' +
+        'make `inventory.enabled` unusable, because this module is non-deactivatable. ' +
+        '`order-service.ts` asks `effectiveState.isPresent` before the reservation block.',
+    },
+    {
+      moduleId: 'inventory',
+      name: 'inventoryFulfilmentPlanningPort',
+      kind: 'degrades-without',
+      whenAbsent: 'orders are placed without reserving stock',
+      reason:
+        'The warehouse-picking policy — the effective fulfilment strategy for a line and the ' +
+        'allocation plan that follows from it. Both are pure over their arguments, and both ' +
+        'were reached by importing `inventory/services/` files from inside the placement ' +
+        'method body. They share the presence decision above because they share its cause: ' +
+        'with the reservation block skipped there is no plan to compute.',
+    },
     {
       moduleId: 'prompt_actions',
       name: 'promptActionToolRegistry',

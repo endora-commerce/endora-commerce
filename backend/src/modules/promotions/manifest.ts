@@ -17,12 +17,23 @@ export const manifest = defineModuleManifest({
   name: 'Promotions',
   description: 'Promotion rules engine: rule builder, actions, coupons, limits, statistics.',
   version: '1.0.0',
-  // `carts` and `orders` are deliberately NOT declared, despite the rule
-  // builder reading both at runtime: carts applies promotions through
-  // PromotionService.applyToCart(CartSnapshot) — a value object — and orders
-  // snapshots the applied promotions, so both edges run the other way. The
-  // reverse declaration would cycle: promotions → carts → promotions and
-  // promotions → orders → promotions.
+  // `carts` is deliberately NOT declared, despite the rule builder reading it
+  // at runtime: carts applies promotions through
+  // PromotionService.applyToCart(CartSnapshot) — a value object — so that edge
+  // runs the other way.
+  //
+  // `orders` used to sit beside it under the same sentence, and D-94.1 moves
+  // it: `promotion_usages_order_fk` (`promotion_usages.order_id` ->
+  // `orders.id`, `on delete restrict`) is a cross-module foreign key, and
+  // AGENTS.md § Migrations item 4 says such an edge is declared here or the
+  // build fails — an `acknowledgedDependencies` entry does not satisfy it. The
+  // edge is mutual: `placeOrder` calls `finalizeUsage(tx, …)` on this module's
+  // finalizer and this module writes a redemption row against the order. The
+  // cycle that closes (`promotions -> orders -> carts -> promotions`) is
+  // broken on the other side — `orders` **and** `carts` re-express
+  // `promotionService` as an acknowledged edge, which drops the install
+  // ordering the constraint says is backwards and keeps the bind (D-94.3).
+  //
   // The remaining former declarations (organizations, price_lists,
   // payment_methods, delivery_methods, dictionaries) are rule *dimensions* the
   // builder offers, not install-time necessities: a promotion module with no
@@ -32,7 +43,14 @@ export const manifest = defineModuleManifest({
   // validator; `organizations` owns the status gate that keeps a suspended
   // organization from collecting org-targeted discounts. Feature 072 made all
   // three container resolutions rather than optional arguments.
-  dependencies: ['catalog', 'sales_channels', 'auth', 'dictionaries', 'organizations'],
+  dependencies: [
+    'catalog',
+    'sales_channels',
+    'auth',
+    'dictionaries',
+    'orders',
+    'organizations',
+  ],
   settings: {
     moduleCode: 'promotions',
     groups: [{ code: 'promotions', name: 'Promotions' }],
