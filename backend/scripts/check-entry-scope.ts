@@ -47,6 +47,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hasRepeatingTimer } from './lib/repeating-timers.js';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -157,13 +158,18 @@ export function staleAllowances(entries: readonly EntryPoint[]): string[] {
   return [...NO_SCOPE_NEEDED.keys()].filter((path) => !unscoped.has(path));
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   const files = walk(SRC_ROOT);
-  if (files.length === 0) {
-    console.error('[entry-scope] no sources under src/ — refusing to report a vacuous pass');
-    process.exit(2);
-  }
+  // Every CLI script, worker and sweep this check classifies is a module's, and
+  // its exemptions are keyed by `src/modules/**` paths — so a walk over the
+  // residue left when the module tree moves recognises almost no entry point at
+  // all and still clears the `entries.length === 0` floor (issue #215).
+  await refuseVacuousModulePopulation({
+    prefix: '[entry-scope]',
+    srcRoot: SRC_ROOT,
+    files,
+  });
   const entries = files
     .map((f) => analyzeSource(f, readFileSync(f, 'utf8')))
     .filter((e): e is EntryPoint => e !== null);
@@ -220,5 +226,5 @@ function main(): void {
 // Run as CLI only — importing this module (e.g. from a unit test) must not
 // trigger the full scan + process.exit.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }

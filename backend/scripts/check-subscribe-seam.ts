@@ -52,6 +52,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { moduleOf } from './check-port-dependencies.js';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -214,18 +215,24 @@ export function checkSubscribeSeam(
   };
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   const files = walk(SRC_ROOT);
-  if (files.length === 0) {
-    console.error('[subscribe-seam] no sources under src/ — refusing to report a vacuous pass');
-    process.exit(2);
-  }
 
   const sources = new Map<string, string>();
   for (const file of files) {
     sources.set(relative(SRC_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
   }
+
+  // The population is `src/modules`, and the rest of `src/` is 7% of it: a walk
+  // that reads only the remainder finds no `eventBus.on` and says so, which is
+  // the same green as a clean tree (issue #215). Derived from the manifest
+  // index, so nothing here is a number anybody chose.
+  await refuseVacuousModulePopulation({
+    prefix: '[subscribe-seam]',
+    srcRoot: SRC_ROOT,
+    files: [...sources.keys()],
+  });
 
   const result = checkSubscribeSeam({ sources });
 
@@ -269,5 +276,5 @@ function main(): void {
 
 // CLI only — importing this module (the unit self-test does) must not scan.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }

@@ -111,6 +111,22 @@ describe('check-naming.sh', () => {
     expect(result.status).toBe(2);
     expect(result.output).toContain('needs git');
   });
+
+  it('exits 2 when the module tree is gone but the listing is not (issue #215)', () => {
+    // Two of the four rules read `backend/src/modules` off the filesystem
+    // rather than off the listing, so a moved module tree left them iterating
+    // nothing while the other two reported on the residue — and the script
+    // printed "✓ Naming conventions OK (full mode)". Measured on the real tree:
+    // with `src/modules` moved out of `src`, it exited 0.
+    //
+    // The listing is deliberately non-empty here, so the empty-listing guard
+    // above cannot be what fires.
+    fixture.removeModuleTree();
+    fixture.lists(['backend/src/kernel/thing.ts']);
+    const result = fixture.run('check-naming.sh');
+    expect(result.status, result.output).toBe(2);
+    expect(result.output).toContain('no module under backend/src/modules');
+  });
 });
 
 describe('check-language.sh', () => {

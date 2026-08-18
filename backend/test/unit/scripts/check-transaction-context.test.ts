@@ -164,9 +164,16 @@ describe('check-transaction-context over the tree', () => {
   });
 
   it('names its vacuous-pass guard and exits 2 rather than 0 on an unread tree', () => {
+    // The guard is now `scripts/lib/module-population.ts`, which loads the
+    // manifest index, compares it with the walk and exits 2 when a registered
+    // module contributed nothing (issue #215). Emptiness was the wrong
+    // predicate: `src/` minus `src/modules` is 105 files, and this check read
+    // them and reported `violations=0`. The *behaviour* is asserted by spawning
+    // the script over a moved tree in
+    // `test/unit/scripts/moved-module-tree.test.ts`; what is asserted here is
+    // that this script is one of the callers.
     const script = readFileSync(join(BACKEND_ROOT, 'scripts/check-transaction-context.ts'), 'utf8');
-    expect(script).toMatch(/vacuous/);
-    expect(script).toMatch(/process\.exit\(2\)/);
+    expect(script).toMatch(/refuseVacuousModulePopulation/);
   });
 });
 

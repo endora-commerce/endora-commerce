@@ -65,6 +65,7 @@ import {
   nonBindingPortEdgesFrom,
   type NonBindingPortEdge,
 } from '../src/modules/_lifecycle/services/gating-graph.js';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -2068,10 +2069,16 @@ export async function overlayManifestEntries(): Promise<
 
 async function main(): Promise<void> {
   const files = [...walk(join(SRC_ROOT, 'modules')), ...walk(join(SRC_ROOT, 'apps'))];
-  if (files.length === 0) {
-    console.error('[port-deps] no module sources under src/ — refusing to report a vacuous pass');
-    process.exit(2);
-  }
+  // Emptiness is only the total loss (issue #215). `src/apps` is a scan root of
+  // its own, and `resolutions.length === 0` below is satisfied by a single
+  // surviving `lazyPort` — so a **partial** move, which is what a package split
+  // performs, leaves both guards green over a fraction of the edges. The floor
+  // is one source per registered module, derived from the manifest index.
+  await refuseVacuousModulePopulation({
+    prefix: '[port-deps]',
+    srcRoot: SRC_ROOT,
+    files,
+  });
 
   // The third supply source (D-73). Read before anything else so its own
   // vacuous guard fires before the platform sweep can turn an unreadable kernel

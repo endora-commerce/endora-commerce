@@ -75,6 +75,7 @@ import { readdirSync, statSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 
 /**
  * The whole of `src/` is scanned, not `modules/` plus `kernel/`.
@@ -414,22 +415,28 @@ export function analyzeSource(source: string, relPath: string): Violation[] {
   return violations;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const enforce = process.argv.includes('--enforce');
   const listMode = process.argv.includes('--list');
   const files = walk(SRC_ROOT);
-  if (files.length === 0) {
-    console.error(
-      '[channel-resolution] no sources under src/ — refusing to report a vacuous pass',
-    );
-    process.exit(2);
-  }
 
   const all: Violation[] = [];
+  const scanned: string[] = [];
   for (const file of files) {
     const relPath = relative(SRC_ROOT, file).split('\\').join('/');
+    scanned.push(relPath);
     all.push(...analyzeSource(readFileSync(file, 'utf8'), relPath));
   }
+
+  // Scanning the whole of `src/` is deliberate (see the header) — but it made
+  // the emptiness guard blind, because `src/` minus `src/modules` is still 105
+  // files and a scan of those reports `violations=0` (issue #215). The floor is
+  // per registered module, derived from the manifest index.
+  await refuseVacuousModulePopulation({
+    prefix: '[channel-resolution]',
+    srcRoot: SRC_ROOT,
+    files: scanned,
+  });
 
   const offendingFiles = new Set(all.map((v) => v.file));
   const blocking = all.filter((v) => !ALLOW_LIST.has(v.file));
@@ -469,5 +476,5 @@ function main(): void {
 // Run as CLI only — importing this module (e.g. from a unit test) must not
 // trigger the scan + process.exit.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }

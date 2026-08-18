@@ -65,6 +65,11 @@ export interface ShellCheckFixture {
   write: (path: string, content: string) => void;
   /** What the faked `git ls-files` answers for the source scan and the docs scan. */
   lists: (sources: readonly string[], docs?: readonly string[]) => void;
+  /**
+   * Deletes `backend/src/modules`, leaving the rest of the fixture standing —
+   * the module tree having moved, with the residue behind it (issue #215).
+   */
+  removeModuleTree: () => void;
   run: (
     script: string,
     args?: readonly string[],
@@ -131,6 +136,7 @@ export function createShellCheckFixture(): ShellCheckFixture {
     root,
     write,
     lists,
+    removeModuleTree: () => rmSync(join(root, 'backend/src/modules'), { recursive: true, force: true }),
     installPdfmake,
     run: (script, args = [], env = {}) => {
       const result = spawnSync('bash', [join(root, 'scripts', script), ...args], {
