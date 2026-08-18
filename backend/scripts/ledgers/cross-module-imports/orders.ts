@@ -15,10 +15,6 @@
  * says so.
  */
 export const entries: Readonly<Record<string, string>> = {
-  'modules/orders/plugin.ts:addresses/services/address-service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/plugin.ts:carts/services/cart-service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/plugin.ts:custom_fields/services/custom-field-value.service':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/plugin.ts:delivery_methods/services/shipping-adapter-registry':
@@ -35,53 +31,11 @@ export const entries: Readonly<Record<string, string>> = {
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/plugin.ts:quote_requests/services/rfq-service':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/prompt-tools.test.ts:prompt_actions/services/tool-registry':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/routes.external.ts:organizations/services/organization-context-service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/routes.ts:assets_library/entities/asset.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/routes.ts:catalog/entities/product.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/routes.ts:custom_fields/services/custom-field-value.service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/routes.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/routes.ts:delivery_methods/entities/delivery-method.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/routes.ts:invoices/entities/invoice.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/routes.ts:invoices/services/invoice-pdf':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/routes.ts:organizations/entities/organization.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/routes.ts:organizations/services/organization-context-service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/routes.ts:payment_methods/entities/payment-method.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/routes.ts:price_lists/services/pricing-service.interface':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-access-service.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/services/order-api-intake-service.ts:addresses/services/address-service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/services/order-api-intake-service.ts:carts/services/cart-service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/services/order-api-intake-service.ts:catalog/entities/product.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/services/order-api-intake-service.ts:organizations/entities/organization.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/services/order-api-intake-service.ts:price_lists/services/pricing-service.interface':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-clone-to-quote-service.ts:quote_requests/services/rfq-service':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-comment-service.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/services/order-creation-admin-service.ts:addresses/services/address-service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/services/order-creation-admin-service.ts:carts/services/cart-service':
-    'F3 Phase C — orders. Retired by the orders cut merge request.',
-  'modules/orders/services/order-creation-admin-service.ts:customer_accounts/entities/customer-account.entity':
     'F3 Phase C — orders. Retired by the orders cut merge request.',
   'modules/orders/services/order-list-service.ts:customer_accounts/entities/customer-account.entity':
     'F3 Phase C — orders. Retired by the orders cut merge request.',

@@ -1,15 +1,20 @@
 import { createHash } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
-import { ERROR_CODES, type ApiPlaceOrderRequest } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type AddressServicePort,
+  type ApiPlaceOrderRequest,
+  type CartWritePort,
+  type CatalogProductReadPort,
+  type CatalogProductRecord,
+  type LinePricePort,
+  type OrganizationDetailsPort,
+  type OrganizationRecord,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
-import type { PricingServiceContract } from '../../price_lists/services/pricing-service.interface.js';
-import type { CartService } from '../../carts/services/cart-service.js';
-import type { AddressService } from '../../addresses/services/address-service.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderPlacementIntent } from '../entities/order-placement-intent.entity.js';
@@ -38,9 +43,13 @@ export interface ApiKeyOrderBinding {
 
 export interface OrderApiIntakeDeps {
   emFactory: () => EntityManager;
-  cartService: CartService;
+  cartService: CartWritePort;
   orderService: OrderService;
-  addressService: AddressService;
+  addressService: AddressServicePort;
+  /** `catalog`'s product read model — the SKU → product resolution below. */
+  catalogProductRead: CatalogProductReadPort;
+  /** `organizations`' row, for the pricing context of the price probe. */
+  organizationDetails: OrganizationDetailsPort;
   /**
    * Sanctioned bridge accessor (feature 052 pattern) — the bound channel's
    * published assortment gate. Absent (legacy rigs) ⇒ fail closed: every SKU
@@ -55,7 +64,7 @@ export interface OrderApiIntakeDeps {
    * catalogue attribute whenever the pricing engine was not wired — including
    * with `price_lists` switched off, which is exactly when nobody was watching.
    */
-  pricingService: PricingServiceContract;
+  pricingService: LinePricePort;
   /** Per-key intake lock (research §R8 step 2). Absent ⇒ no serialization. */
   redis?: Redis | undefined;
   /**
@@ -160,7 +169,7 @@ export class OrderApiIntakeService {
   async #placeGuarded(binding: ApiKeyOrderBinding, body: ApiPlaceOrderRequest): Promise<Order> {
     const em = this.deps.emFactory();
     const channel = await em.findOne(SalesChannel, { id: binding.salesChannelId });
-    const organization = await em.findOne(Organization, { id: binding.organizationId });
+    const organization = await this.deps.organizationDetails.findById(binding.organizationId);
 
     // FR-021 — the org's method allow-lists (feature 026 US4). The customer
     // flow never offers a disallowed method; this surface refuses it with the
@@ -194,10 +203,9 @@ export class OrderApiIntakeService {
     // Step 4 — SKU → product + bound-channel assortment + resolvable price.
     // Refusals are whole-order 422 with per-line issues; nothing persists.
     const skus = Array.from(new Set(body.lines.map((l) => l.sku)));
-    const products = await em.find(Product, {
-      sku: { $in: skus },
-      deletedAt: null,
-      status: 'active',
+    const products = await this.deps.catalogProductRead.findBySkus(skus, {
+      liveOnly: true,
+      activeOnly: true,
     });
     const productBySku = new Map(products.map((p) => [p.sku, p]));
     const inChannel = new Set<string>();
@@ -328,8 +336,8 @@ export class OrderApiIntakeService {
    * the org's own buyer can put in a cart is never refused here.
    */
   async #hasResolvablePrice(
-    product: Product,
-    organization: Organization | null,
+    product: CatalogProductRecord,
+    organization: OrganizationRecord | null,
     channel: SalesChannel | null,
     quantity: number,
   ): Promise<boolean> {

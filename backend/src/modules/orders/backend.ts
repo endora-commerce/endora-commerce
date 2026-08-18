@@ -3,13 +3,23 @@ import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import { z } from 'zod';
 import type {
+  AddressServicePort,
+  AssetReadPort,
+  CartWritePort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  DeliveryMethodReadPort,
   EmailDefaultsRegistryPort,
+  InvoicePdfPort,
+  InvoiceReadPort,
   OrderListPort,
   OrderPlacementPort,
   OrderReadPort,
   OrderStatusAnnouncePort,
+  OrganizationDetailsPort,
   OrganizationRestrictionPort,
   PaymentEmailRendererPort,
+  PaymentMethodReadPort,
   PromptActionToolRegistryPort,
   ResolvedTax,
   ShippingEmailRendererPort,
@@ -117,7 +127,7 @@ export interface OrdersCradle {
   readonly requireCustomer: OrdersModuleOptions['requireCustomer'];
   readonly customerContextResolver: OrdersModuleOptions['resolveCustomerContext'];
   readonly customerOrganizationIdResolver: (req: FastifyRequest) => string | null;
-  readonly cartService: OrdersModuleOptions['cartService'];
+  readonly cartWritePort: OrdersModuleOptions['cartWritePort'];
   readonly addressService: OrdersModuleOptions['addressService'];
   readonly customFieldValueService: NonNullable<OrdersModuleOptions['customFieldValues']>;
   readonly creditLimitService: NonNullable<OrdersModuleOptions['creditLimit']>;
@@ -255,8 +265,28 @@ export function registerModule(ctx: ModuleContext): void {
             redis,
             // Ports, every one of them read lazily: this registration is a
             // singleton and a gate may not be frozen inside one.
-            cartService: lazyPort<OrdersCradle['cartService']>(ctx, 'cartService'),
-            addressService: lazyPort<OrdersCradle['addressService']>(ctx, 'addressService'),
+            cartWritePort: lazyPort<CartWritePort>(ctx, 'cartWritePort'),
+            catalogProductRead: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            customerAccountRead: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+            organizationDetails: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            deliveryMethodRead: () =>
+              effectiveState.isPresent('delivery_methods')
+                ? lazyPort<DeliveryMethodReadPort>(ctx, 'deliveryMethodReadPort')
+                : null,
+            paymentMethodRead: () =>
+              effectiveState.isPresent('payment_methods')
+                ? lazyPort<PaymentMethodReadPort>(ctx, 'paymentMethodReadPort')
+                : null,
+            assetRead: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+            invoiceRead: () =>
+              effectiveState.isPresent('invoices')
+                ? lazyPort<InvoiceReadPort>(ctx, 'invoiceReadPort')
+                : null,
+            invoicePdf: () =>
+              effectiveState.isPresent('invoices')
+                ? lazyPort<InvoicePdfPort>(ctx, 'invoicePdfPort')
+                : null,
+            addressService: lazyPort<AddressServicePort>(ctx, 'addressService'),
             customFieldValues: lazyPort<OrdersCradle['customFieldValueService']>(
               ctx,
               'customFieldValueService',

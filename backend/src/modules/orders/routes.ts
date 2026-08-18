@@ -13,20 +13,30 @@ import {
   customFieldValuesSchema,
   customerAddOrderCommentRequestSchema,
   ERROR_CODES,
+  isCustomFieldValidationFailure,
+  OrganizationCannotTransactError,
   orderPreviewTotalRequestSchema,
   placeOrderRequestSchema,
   setOrderTransitionsRequestSchema,
   updateOrderSavedViewRequestSchema,
   updateOrderStatusRequestSchema,
 } from '@b2b/contracts';
+import type {
+  AssetReadPort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  CustomFieldValuePort,
+  DeliveryMethodReadPort,
+  InvoicePdfPort,
+  InvoiceReadPort,
+  LinePricePort,
+  OrganizationDetailsPort,
+  PaymentMethodReadPort,
+} from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
 import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { Command, CommandBus } from '../../commands/index.js';
-import {
-  CustomFieldValidationError,
-  type CustomFieldValueService,
-} from '../custom_fields/services/custom-field-value.service.js';
 import type { OrderService } from './services/order-service.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderStatus } from './entities/order-status.entity.js';
@@ -42,17 +52,7 @@ import type { OrderCreationAdminService } from './services/order-creation-admin-
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { OrderAppliedPromotion } from './entities/order-applied-promotion.entity.js';
-import { Invoice } from '../invoices/entities/invoice.entity.js';
-import { Asset } from '../assets_library/entities/asset.entity.js';
-import { buildBulkInvoicesPdf, buildMinimalInvoicePdf } from '../invoices/services/invoice-pdf.js';
-import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
-import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
-import { Product } from '../catalog/entities/product.entity.js';
-import { Organization } from '../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
-import { DeliveryMethod } from '../delivery_methods/entities/delivery-method.entity.js';
-import { PaymentMethod } from '../payment_methods/entities/payment-method.entity.js';
-import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface OrdersDeps {
@@ -80,7 +80,7 @@ export interface OrdersDeps {
    * the catalogue's legacy `defaultPrice` attribute", which is a price no price
    * list supports, on the form an operator is about to turn into an order.
    */
-  pricingService: PricingServiceContract;
+  pricingService: LinePricePort;
   /**
    * The same VAT authority `placeOrder` uses (issue #124). The preview used to
    * apply a hard-coded 23% — so it disagreed with the order it claims to mirror
@@ -114,8 +114,36 @@ export interface OrdersDeps {
     | { allowAll: true }
     | { allowAll: false; allowedOrganizationIds: string[] }
   >;
+  /**
+   * The read models this surface resolves from the modules that own the rows
+   * (feature 075). Each is a `lazyPort` handed down by `backend.ts`, so a
+   * disabled owner answers 503 `MODULE_DISABLED` at the call rather than
+   * returning rows from tables deactivation does not drop.
+   */
+  catalogProductRead: CatalogProductReadPort;
+  customerAccountRead: CustomerAccountReadPort;
+  organizationDetails: OrganizationDetailsPort;
+  /**
+   * The two method catalogues, as accessors. Both owners are deactivatable and
+   * this module declares them `degrades-without` rather than as dependencies —
+   * see `manifest.ts` — so presence is decided per request and `null` means
+   * "there is no such catalogue here", which the preview quotes as no delivery
+   * cost and no payment surcharge, the same figures it quotes for a request
+   * that names neither.
+   */
+  deliveryMethodRead: () => DeliveryMethodReadPort | null;
+  paymentMethodRead: () => PaymentMethodReadPort | null;
+  /**
+   * The invoice document behind an order. Both are accessors: `invoices` is
+   * deactivatable and declares this module, so the edge is `degrades-without`
+   * and presence is decided per request — `null` ⇒ no invoice surface.
+   */
+  invoiceRead: () => InvoiceReadPort | null;
+  invoicePdf: () => InvoicePdfPort | null;
+  /** `assets_library`, for the stored invoice PDF asset. */
+  assetRead: AssetReadPort;
   /** Feature 055 — validates + persists Order custom-field values (via the Command Bus). */
-  customFieldValues?: CustomFieldValueService;
+  customFieldValues?: CustomFieldValuePort;
   /** Feature 055 — audits the custom-field write co-transactionally when provided. */
   commandBus?: CommandBus;
 }
@@ -163,7 +191,7 @@ export async function registerOrderRoutes(
           const order = await commandBus.run(command);
           return { data: await serializeOrder(emFactory(), order) };
         } catch (err) {
-          if (err instanceof CustomFieldValidationError) {
+          if (isCustomFieldValidationFailure(err)) {
             throw new HttpError(
               422,
               ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
@@ -246,9 +274,14 @@ export async function registerOrderRoutes(
     async (request, reply) => {
       const ctx = resolveCustomerContext(request);
       const order = await orderService.getById(request.params.id, ctx);
-      const em = emFactory();
-      const invoice = await em.findOne(Invoice, { orderId: order.id }, { orderBy: { createdAt: 'desc' } });
-      if (!invoice || invoice.status !== 'ready') {
+      // `invoices` is deactivatable and declares this module, so the edge is
+      // `degrades-without`: with the module absent there is no invoice document
+      // and the answer is the same one an order that has not been invoiced yet
+      // already gets.
+      const invoiceRead = deps.invoiceRead();
+      const invoicePdf = deps.invoicePdf();
+      const invoice = invoiceRead ? (await invoiceRead.listForOrder(order.id))[0] : undefined;
+      if (!invoice || invoice.status !== 'ready' || !invoicePdf) {
         throw new HttpError(
           404,
           ERROR_CODES.INVOICE_NOT_READY,
@@ -257,7 +290,7 @@ export async function registerOrderRoutes(
       }
       let pdfBytes: Buffer | null = null;
       if (invoice.pdfAssetId) {
-        const asset = await em.findOne(Asset, { id: invoice.pdfAssetId });
+        const asset = await deps.assetRead.findById(invoice.pdfAssetId);
         if (asset?.storageUrl.startsWith('data:application/pdf;base64,')) {
           pdfBytes = Buffer.from(
             asset.storageUrl.slice('data:application/pdf;base64,'.length),
@@ -266,11 +299,13 @@ export async function registerOrderRoutes(
         }
       }
       if (!pdfBytes) {
-        pdfBytes = buildMinimalInvoicePdf({
-          invoiceNumber: invoice.number,
-          total: invoice.total,
-          currency: invoice.currency,
-        });
+        pdfBytes = Buffer.from(
+          invoicePdf.renderMinimal({
+            invoiceNumber: invoice.number,
+            total: invoice.total,
+            currency: invoice.currency,
+          }),
+        );
       }
       reply.header('content-type', 'application/pdf');
       reply.header(
@@ -361,10 +396,18 @@ export async function registerOrderRoutes(
     },
     async (request, reply) => {
       const body = bulkPrintInvoicesRequestSchema.parse(request.body);
-      const em = emFactory();
-      const invoices = await em.find(Invoice, { orderId: { $in: body.orderIds } });
-      const pdf = buildBulkInvoicesPdf(
-        invoices.map((i) => ({ invoiceNumber: i.number, total: i.total, currency: i.currency })),
+      const invoiceRead = deps.invoiceRead();
+      const invoicePdf = deps.invoicePdf();
+      if (!invoiceRead || !invoicePdf) {
+        // Same `degrades-without` answer as the customer download: with
+        // `invoices` absent there are no documents to print.
+        throw new HttpError(404, ERROR_CODES.INVOICE_NOT_READY, 'Invoice is not ready yet.');
+      }
+      const invoices = await invoiceRead.listForOrders(body.orderIds);
+      const pdf = Buffer.from(
+        invoicePdf.renderBulk(
+          invoices.map((i) => ({ invoiceNumber: i.number, total: i.total, currency: i.currency })),
+        ),
       );
       reply.header('content-type', 'application/pdf');
       reply.header('content-disposition', 'attachment; filename="invoices.pdf"');
@@ -456,7 +499,7 @@ export async function registerOrderRoutes(
       const body = adminOrderPreviewRequestSchema.parse(request.body);
       const em = emFactory();
 
-      const customer = await em.findOne(CustomerAccount, { id: body.customerAccountId });
+      const customer = await deps.customerAccountRead.findById(body.customerAccountId);
       if (!customer) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
       if (!customer.organizationId) {
         throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Customer has no organization.');
@@ -468,13 +511,17 @@ export async function registerOrderRoutes(
         (await em.findOne(SalesChannel, { id: body.salesChannelId })) ??
         (await em.findOne(SalesChannel, { status: 'active' }));
       if (!salesChannel) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sales channel not found.');
-      const organization = await em.findOne(Organization, { id: customer.organizationId });
-      const deliveryMethod = body.deliveryMethodId
-        ? await em.findOne(DeliveryMethod, { id: body.deliveryMethodId })
-        : null;
-      const paymentMethod = body.paymentMethodId
-        ? await em.findOne(PaymentMethod, { id: body.paymentMethodId })
-        : null;
+      const organization = await deps.organizationDetails.findById(customer.organizationId);
+      const deliveryMethodRead = deps.deliveryMethodRead();
+      const paymentMethodRead = deps.paymentMethodRead();
+      const deliveryMethod =
+        body.deliveryMethodId && deliveryMethodRead
+          ? await deliveryMethodRead.findById(body.deliveryMethodId)
+          : null;
+      const paymentMethod =
+        body.paymentMethodId && paymentMethodRead
+          ? await paymentMethodRead.findById(body.paymentMethodId)
+          : null;
 
       const currency = deliveryMethod?.currency ?? salesChannel.defaultCurrency;
       const customerGroupId = customer.customerGroupId ?? organization?.customerGroupId ?? null;
@@ -494,7 +541,7 @@ export async function registerOrderRoutes(
       const taxableByProductType = new Map<string, number>();
 
       for (const it of body.items) {
-        const product = await em.findOne(Product, { id: it.productId });
+        const product = await deps.catalogProductRead.findById(it.productId);
         if (!product) {
           messages.push({ productId: it.productId, code: 'PRODUCT_NOT_FOUND' });
           lines.push({
@@ -618,8 +665,8 @@ export async function registerOrderRoutes(
       // Admin detail view: enrich with the linked organization + customer basics
       // so operators can handle the order without leaving the page.
       const [organization, customer] = await Promise.all([
-        em.findOne(Organization, { id: order.organizationId }),
-        em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId }),
+        deps.organizationDetails.findById(order.organizationId),
+        deps.customerAccountRead.findById(order.placedByCustomerAccountId),
       ]);
       return {
         data: {

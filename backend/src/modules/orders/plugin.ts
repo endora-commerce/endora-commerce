@@ -8,9 +8,7 @@ import type { SalesChannelMembershipService } from '../../kernel/sales-channels/
 import type { PaymentAdapterRegistry } from '../payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from '../payment_methods/services/order-status-registry.port.js';
 import type { ShippingAdapterRegistry } from '../delivery_methods/services/shipping-adapter-registry.js';
-import type { CartService } from '../carts/services/cart-service.js';
 import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
-import type { AddressService } from '../addresses/services/address-service.js';
 import type { PromotionService } from '../promotions/services/promotion-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type Redis from 'ioredis';
@@ -33,7 +31,19 @@ import { OrderCreationAdminService } from './services/order-creation-admin-servi
 import { OrderApiIntakeService } from './services/order-api-intake-service.js';
 import { registerOrdersExternalRoutes } from './routes.external.js';
 import type { OrganizationConfirmationEmailsPort } from './ports/organization-confirmation-emails.port.js';
-import type { FulfilmentStrategy } from '@b2b/contracts';
+import type {
+  AddressServicePort,
+  AssetReadPort,
+  CartWritePort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  DeliveryMethodReadPort,
+  FulfilmentStrategy,
+  InvoicePdfPort,
+  InvoiceReadPort,
+  OrganizationDetailsPort,
+  PaymentMethodReadPort,
+} from '@b2b/contracts';
 import { Organization } from '../organizations/entities/organization.entity.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerOrderRoutes } from './routes.js';
@@ -99,23 +109,44 @@ export interface OrdersModuleOptions {
    */
   pricingService: PricingServiceContract;
   /**
-   * Feature 038 (US3) — org address book service. Used by the admin
-   * create-order flow to persist (and clean up) addresses typed inline on the
-   * form. Optional so foundation tests that never create inline addresses can
-   * omit it.
-   */
-  /**
+   * Feature 038 (US3) — the org address book. The admin create-order flow and
+   * the external intake persist (and clean up) addresses typed inline on the
+   * form through it.
+   *
    * Required since feature 072 (T090). It used to fall back to a bare
    * `AddressService` built from `emFactory` alone — no dictionary validator and
    * no audit writer — so a caller that forgot the option got silently
    * unvalidated, unaudited address writes on the checkout path.
+   *
+   * `AddressServicePort` since feature 075: it is `addresses`' published write
+   * surface, and the one-default-per-kind invariant and the country-code
+   * validation stay on that side of it, where they already are.
    */
-  addressService: AddressService;
+  addressService: AddressServicePort;
   /**
-   * Feature 072 (T136) — `carts` owns and registers its services; `orders`
-   * consumes exactly one of them, for admin order creation and the API intake.
+   * `carts`' published write surface. **`cartWritePort`, not `cartService`**:
+   * `carts/backend.ts` registers both, and the second hands out the class,
+   * which still passes `Cart` and `CartItem` entities across the boundary.
+   * The admin create-order path and the external intake seed a cart with it.
    */
-  cartService: CartService;
+  cartWritePort: CartWritePort;
+  /**
+   * The read models the route surface, the external intake and the admin
+   * create path resolve from the modules that own the rows (feature 075).
+   */
+  catalogProductRead: CatalogProductReadPort;
+  customerAccountRead: CustomerAccountReadPort;
+  organizationDetails: OrganizationDetailsPort;
+  /** Accessors: both owners are deactivatable `degrades-without` edges. */
+  deliveryMethodRead: () => DeliveryMethodReadPort | null;
+  paymentMethodRead: () => PaymentMethodReadPort | null;
+  assetRead: AssetReadPort;
+  /**
+   * `invoices` is deactivatable and declares this module, so its two ports are
+   * accessors and the edge is `degrades-without`: `null` ⇒ no invoice surface.
+   */
+  invoiceRead: () => InvoiceReadPort | null;
+  invoicePdf: () => InvoicePdfPort | null;
   /**
    * The two method modules' registries and the delivery-eligibility service.
    * `orders` reads them for placement dispatch and for the `statusOn*`
@@ -267,7 +298,6 @@ export function commerceModule(options: OrdersModuleOptions) {
     // `auditLogService` silently removed the organization approval routes and a
     // missing `redis` silently stopped prices being re-resolved. `orders` reads
     // the one service it genuinely consumes as a required option.
-    const cartService = options.cartService;
     // Feature 072 (T095/T097) — the two method modules own their registries,
     // their eligibility services and their routes now. `orders` still reads
     // them for placement and for the order-status references, so it takes them
@@ -386,12 +416,12 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.emFactory,
       () => options.getRfqService?.() ?? null,
     );
-    const addressService = options.addressService;
     const orderCreationAdminService = new OrderCreationAdminService(
       options.emFactory,
-      cartService,
+      options.cartWritePort,
       orderService,
-      addressService,
+      options.addressService,
+      options.customerAccountRead,
       options.mailer,
       options.getTransactionalEmailSender,
     );
@@ -415,6 +445,14 @@ export function commerceModule(options: OrdersModuleOptions) {
       resolveCustomerContext: options.resolveCustomerContext,
       pricingService: options.pricingService,
       resolveTaxRate: options.resolveTaxRate,
+      catalogProductRead: options.catalogProductRead,
+      customerAccountRead: options.customerAccountRead,
+      organizationDetails: options.organizationDetails,
+      deliveryMethodRead: options.deliveryMethodRead,
+      paymentMethodRead: options.paymentMethodRead,
+      invoiceRead: options.invoiceRead,
+      invoicePdf: options.invoicePdf,
+      assetRead: options.assetRead,
       ...(options.assertOrganizationCanTransact
         ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
         : {}),
@@ -430,9 +468,11 @@ export function commerceModule(options: OrdersModuleOptions) {
     if (options.requireBoundApiKey) {
       const orderApiIntakeService = new OrderApiIntakeService({
         emFactory: options.emFactory,
-        cartService,
+        cartService: options.cartWritePort,
         orderService,
-        addressService,
+        addressService: options.addressService,
+        catalogProductRead: options.catalogProductRead,
+        organizationDetails: options.organizationDetails,
         salesChannelMembership: options.salesChannelMembership,
         pricingService: options.pricingService,
         redis: options.redis,
