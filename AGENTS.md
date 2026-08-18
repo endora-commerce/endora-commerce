@@ -43,12 +43,29 @@ is already in the stack.
 ```bash
 pnpm -r run typecheck                    # or: pnpm --filter <app> run typecheck
 pnpm -r run lint
-pnpm --filter backend run test           # vitest run; :unit / :contract / :integration variants
+pnpm --filter backend run test:unit:fast # FAST: test/unit minus its 16 service-dependent
+                                         # files, plus the co-located src unit tests —
+                                         # no Postgres, no Redis, no Meilisearch
 pnpm --filter backend exec vitest run <path>   # targeted run — prefer this while iterating
+pnpm --filter backend run test           # COMPLETE (~1 h): unit + contract + integration,
+                                         # needs all three services running
 pnpm run dev                             # full dev stack; pnpm run dev:infra for docker services
 pnpm --filter backend run db:fresh       # rebuild the schema from migrations
 pnpm run check:naming && pnpm run check:language
 ```
+
+**Which backend test command to use.** `test:unit:fast` (config: `backend/vitest.unit.config.ts`)
+is the one to run while you iterate and the one CI runs on every backend MR as `test:backend:unit`,
+with no service containers: 324 files in 96 s, against 316 files in 252 s for `test/unit` alone
+under the complete config. It skips the 16 unit files that genuinely talk to a live Postgres or Redis —
+each named with a reason in `backend/test/service-dependent-unit-tests.ts`, each still run by the
+complete suite, and `test/unit/harness/service-dependent-ledger.test.ts` fails if that list drifts
+in either direction. Choosing that config **is** the run's declaration that it has no services
+(`BACKEND_TEST_SERVICES=none`); the declaration is never inferred from a connection that failed,
+and a test that needs a service stops the run with a sentence naming the ledger. The remaining
+`test:unit` / `test:contract` / `test:integration` scripts, and `test` itself, are the complete
+side and need the services; `test:backend` in CI shards them five ways and still takes the better
+part of an hour.
 
 ## Binding principles
 

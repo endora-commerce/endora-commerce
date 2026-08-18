@@ -2,6 +2,9 @@
  * Vitest globalSetup — runs once per test invocation (parent process), before
  * any worker fork. Responsibilities:
  *
+ *   0. Apply the deterministic cipher keys every run needs, database or not.
+ *      A run that declares `BACKEND_TEST_SERVICES=none` (issue #211) stops
+ *      here, after pointing every service URL at an unreachable port.
  *   1. Force DATABASE_URL to a dedicated test database so `test-server.ts`
  *      cannot truncate the dev/prod DB by accident.
  *   2. Refuse to run if the resolved URL does not look like a test DB (must
@@ -20,6 +23,11 @@
 
 import { Client } from 'pg';
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
+import {
+  declaredServices,
+  SERVICES_DECLARATION_ENV,
+  UNREACHABLE_SERVICE_URLS,
+} from './declared-services.js';
 
 const DEFAULT_TEST_DATABASE_URL = 'postgresql://b2b:b2b@localhost:5432/b2b_test';
 
@@ -125,9 +133,13 @@ async function establishPlatformInvariants(orm: MikroORM): Promise<void> {
   }
 }
 
-export default async function globalSetup(): Promise<void> {
-  const testUrl = resolveTestDatabaseUrl();
-  process.env['DATABASE_URL'] = testUrl;
+/**
+ * The env every backend test run gets, database or not: deterministic keys for
+ * the two ciphers that refuse to construct without one. They are not database
+ * state, so they are applied before the run branches — a fast unit run that
+ * constructs `HmacSigner.fromEnv()` must see the same key the complete run does.
+ */
+function applyDeterministicTestEnv(): void {
   // Feature 013 — the Assets Library's HMAC signer demands an env key. Tests
   // do not load backend/.env; supply a deterministic key so signing tests
   // stay reproducible and routes that touch the signer work.
@@ -142,6 +154,34 @@ export default async function globalSetup(): Promise<void> {
     process.env['MFA_SECRET_ENCRYPTION_KEY'] =
       'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
   }
+}
+
+export default async function globalSetup(): Promise<void> {
+  applyDeterministicTestEnv();
+
+  // Issue #211 — the run may declare that it has no services, and then this
+  // setup has no database to create or migrate. The declaration is read from
+  // the environment (`vitest.unit.config.ts` sets it), never from a failed
+  // connection: a globalSetup that skipped itself when Postgres was down would
+  // hand back a suite that is green because it never ran. See
+  // `declared-services.ts`.
+  //
+  // Skipping is not enough on its own. An unset DATABASE_URL falls back to the
+  // *dev* database, so the run leaves here pointed at unreachable stand-ins
+  // instead — and both harness seams refuse before they dial them.
+  if (declaredServices() === 'none') {
+    for (const [name, url] of Object.entries(UNREACHABLE_SERVICE_URLS)) {
+      process.env[name] = url;
+    }
+    process.stdout.write(
+      `[test-setup] ${SERVICES_DECLARATION_ENV}=none — no database created, no migrations ` +
+        `applied, service URLs pointed at an unreachable port.\n`,
+    );
+    return;
+  }
+
+  const testUrl = resolveTestDatabaseUrl();
+  process.env['DATABASE_URL'] = testUrl;
   await ensureDatabaseExists(testUrl);
   await applyMigrations();
 }

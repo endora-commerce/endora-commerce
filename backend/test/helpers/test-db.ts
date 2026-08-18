@@ -1,6 +1,7 @@
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../src/db/mikro-orm.config.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
+import { assertServicesAvailable } from '../declared-services.js';
 
 /**
  * Transaction-rollback fixture pattern (R-03):
@@ -56,6 +57,8 @@ export interface TestDb {
 }
 
 export async function setupTestDb(): Promise<TestDb> {
+  // Issue #211 — see the note in `setupBackendServer`; same seam, same reason.
+  assertServicesAvailable('setupTestDb');
   const orm = await MikroORM.init(mikroOrmConfig);
   let activeEm: EntityManager | undefined;
 

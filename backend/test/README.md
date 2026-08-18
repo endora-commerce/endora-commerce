@@ -74,3 +74,41 @@ to a `BackendServerHandle`.
 Tests run against a dedicated `b2b_test` database, not the dev `b2b`. The vitest globalSetup (`test/global-setup.ts`) forces `DATABASE_URL` to `postgresql://b2b:b2b@localhost:5432/b2b_test`, auto-creates the DB on first run, and applies migrations. Override with `TEST_DATABASE_URL=…` (must contain `_test` in the database name, or set `ALLOW_NON_TEST_DATABASE_URL=1`).
 
 This isolation is what protects dev data — `helpers/test-server.ts` truncates tables on every test run, including `admin_users` and `admin_roles`.
+
+## The two ways to run this suite
+
+`test/unit` is 315 files and 16 of them talk to a live Postgres or Redis, so the whole
+directory used to be gated behind a globalSetup that creates and migrates a database
+(issue #211). It no longer is:
+
+| Command | Covers | Needs | Measured |
+| --- | --- | --- | --- |
+| `pnpm --filter backend run test:unit:fast` | `test/unit` minus those 16, plus the 24 unit tests co-located under `src/` | nothing | 324 files, 96 s, 1.5 GB peak |
+| `pnpm --filter backend run test` | everything, the 16 included | Postgres + Redis + Meilisearch | `test/unit` alone: 316 files, 252 s |
+
+The fast run uses `backend/vitest.unit.config.ts`, and choosing that config **is** the
+declaration that the run has no services: it sets `BACKEND_TEST_SERVICES=none`,
+`global-setup.ts` reads it and skips the database entirely, and every service URL is pointed
+at an unreachable port so nothing can silently fall back to the dev database. The condition
+is a declaration and never a probe — a setup that skipped itself because Postgres was
+unreachable would hand back a suite that is green because it never ran. See
+`test/declared-services.ts`.
+
+The fast config differs from the complete one in exactly one setting: `singleFork` is off.
+`singleFork` exists there because contract and integration files share one database and would
+race on truncate+seed; nothing in the fast run has a database to race on, and one process is
+not merely slower — 299 files in it reach the 4 GB V8 default and die around file 232 with
+`Ineffective mark-compacts near heap limit`, which is the per-file retention `test:backend`
+pays for with five shards and a heap cap. Four forks peak at 1.5 GB together.
+
+The 16 exclusions are named individually, with a reason each, in
+`test/service-dependent-unit-tests.ts`; they are unit-scope tests that use a real database
+rather than a double because the thing under test is a query or a reconciler. They still run
+in the complete suite, so this splits jobs, not coverage.
+`test/unit/harness/service-dependent-ledger.test.ts` sweeps that list both ways: an
+unlisted file that opens a connection fails, and so does a listed file that has stopped
+needing one — the second is the direction nothing else would notice.
+
+A service-dependent test that lands in the fast run does not pass quietly. Both harness
+seams call `assertServicesAvailable` before they dial anything, so the run stops with a
+sentence naming the ledger it is missing from.

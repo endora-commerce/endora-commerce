@@ -23,6 +23,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run test/unit",
+    "test:unit:fast": "vitest run --config vitest.unit.config.ts",
     "test:contract": "vitest run test/contract",
     "test:integration": "vitest run test/integration",
     "test:perf": "PERF_RUN=true vitest run test/perf",

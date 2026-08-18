@@ -273,11 +273,54 @@ quality:static:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 # ---------------------------------------------------------------------------
-# Test — split into the DB-backed backend suite (sharded) and the fast,
-# service-less frontend/contract suites, to keep MR wall-clock low while staying
-# a required gate. This is now the only CI that runs the suite: the GitHub
+# Test — split three ways, to keep MR wall-clock low while staying a required
+# gate: the DB-backed backend suite (sharded, `test:backend`), the service-less
+# backend unit run (`test:backend:unit`, issue #211) and the frontend/contract
+# suites. This is now the only CI that runs the suite: the GitHub
 # Actions workflows were removed (the project delivers through GitLab MRs).
 # ---------------------------------------------------------------------------
+
+# When a change needs the backend suite run against it — shared by both backend
+# test jobs, because two copies of this ladder would drift.
+#
+# The rungs are evaluated in order and the first match decides. The ladder is
+# built so that the ONLY way to skip is a diff that is *provably* documentation.
+# A diff the matcher does not recognise runs the tests; that is rung 3, and it
+# is what stops a future refactor of rung 1 from turning "the matcher broke"
+# into "nothing needed testing".
+.backend-test-rules:
+  rules:
+    # 1 — something that can affect the backend changed. On the default branch
+    #     this is what gets deployed; on an MR it is the merge gate.
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - backend/**/*
+        - packages/**/*
+        - pnpm-lock.yaml
+        - tsconfig.base.json
+        - .gitlab-ci.yml
+    # 2 — nothing on that list changed and the diff IS documentation. Ten of the
+    #     last sixty merges to master touched nothing outside `docs/`, `specs/`
+    #     and `*.md`, and each one ran the whole backend suite. This skips them
+    #     because they were classified, not because no pattern happened to hit.
+    #     A `*.md` under a code path (e.g. `backend/src/modules/*/README.md`)
+    #     never reaches this rung — rung 1 already matched it.
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - docs/**/*
+        - specs/**/*
+        - '**/*.md'
+      when: never
+    # 3 — the default branch with a diff neither list recognises: a new
+    #     top-level directory, or a push GitLab could not diff. Run.
+    #
+    #     There is deliberately no rung 3 for merge requests: an MR that touches
+    #     only `admin/` or `storefront/` has never run the backend suite, and
+    #     making it do so would add ~25 minutes to the commonest kind of
+    #     frontend MR. That case is still "skipped because nothing matched"
+    #     rather than "skipped because classified" — narrowing it is a separate
+    #     change with its own cost, not a side effect of the docs filter.
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 # Overlay per-deployment coverage (feature 057, FR-010; issue #210).
 #
@@ -355,6 +398,7 @@ test:backend:deployment:
 # The fast `overlay:check` (determinism + resolver guards) also runs for every
 # push in the `quality` stage above, bare core.
 #
+#
 # Backend: ~2000 DB-backed tests, run SERIALLY per process (vitest singleFork).
 # Sharded across `parallel` job instances — each instance gets its OWN
 # postgres/redis/meilisearch services, and `vitest --shard` splits the test files
@@ -425,17 +469,39 @@ test:backend:
         - pnpm-lock.yaml
     paths:
       - .pnpm-store
-  rules:
-    # On the default branch always run — this is what gets deployed.
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-    # On MRs, only when something that can affect the backend changed.
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      changes:
-        - backend/**/*
-        - packages/**/*
+  rules: !reference [.backend-test-rules, rules]
+
+# The fast half of the backend suite (issue #211). `test/unit` is 315 files and
+# only 16 of them talk to a live service, yet the whole directory used to be
+# gated behind a globalSetup that creates and migrates a database — so the other
+# 299 could not run without three service containers.
+#
+# `vitest.unit.config.ts` excludes those 16 (named with a reason each in
+# `backend/test/service-dependent-unit-tests.ts`) and declares
+# BACKEND_TEST_SERVICES=none, which is why this job has NO `services:` block.
+# That absence is the point: if a service-dependent test ever lands in this run,
+# the harness refuses at its seam with a sentence naming the ledger, rather than
+# quietly passing against nothing.
+#
+# The 16 excluded files still run in `test:backend` above, so this is a split of
+# jobs, not of coverage. `needs: []` starts the job at pipeline creation instead
+# of after the `quality` stage — the whole value here is an answer in minutes.
+test:backend:unit:
+  stage: test
+  image: node:22.17-slim
+  needs: []
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm --filter backend run test:unit:fast
+  cache:
+    key:
+      files:
         - pnpm-lock.yaml
-        - tsconfig.base.json
-        - .gitlab-ci.yml
+    paths:
+      - .pnpm-store
+  rules: !reference [.backend-test-rules, rules]
 
 # Frontend + contracts: jsdom / pure-node, no external services. Cheap enough to
 # run on every pipeline without sharding or scoping.

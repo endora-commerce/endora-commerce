@@ -59,6 +59,7 @@ import {
   systemTenantContext,
 } from '../../src/tenancy/resolve-tenant-context.js';
 import { initOrm, closeOrm } from '../../src/db/index.js';
+import { assertServicesAvailable } from '../declared-services.js';
 import { EventBus } from '../../src/events/bus.js';
 import { CommandBus } from '../../src/commands/index.js';
 import type { SessionService } from '../../src/modules/auth/services/session-service.js';
@@ -726,6 +727,10 @@ async function dropStaleCaches(redis: Redis): Promise<void> {
 export async function setupBackendServer(
   options: BackendServerOptions = {},
 ): Promise<BackendServerHandle> {
+  // Issue #211 — before anything dials Postgres or Redis. A run that declared
+  // it has no services gets one sentence naming the ledger it is missing from,
+  // not an ECONNREFUSED against the unreachable stand-in URL.
+  assertServicesAvailable('setupBackendServer');
   const orm = await initOrm();
   // Feature 050 — mirror the production seam: forks stamp tenant filter params
   // from the ambient TenantContext (established per request by the hook below).
