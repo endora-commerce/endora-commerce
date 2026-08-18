@@ -737,8 +737,16 @@ export interface VatValidationResult {
 }
 
 /**
+ * Container name: `vatValidatorPort`. Owner: `organizations`.
+ *
  * Pluggable VAT-ID validator (feature 026 US7), published so `customers` can
  * name the shape without naming a file in `organizations`.
+ *
+ * **Owner off:** the seam fails closed — resolving the port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`. That is
+ * not the same thing as the `deferred` outcome below: `deferred` is the
+ * *registry* being unreachable, which the caller may retry, while a refused
+ * resolution says the platform is not offering the check at all.
  *
  * Every adapter MUST degrade safely: a transient network failure or a
  * provider-side 5xx returns `{ outcome: 'deferred', errorKind: … }` rather

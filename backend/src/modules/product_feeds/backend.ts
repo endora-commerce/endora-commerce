@@ -7,18 +7,17 @@ import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type {
+  AdminNotificationRecordPort,
   CatalogCategoryReadPort,
   CatalogProductFilterPort,
   CatalogProductReadPort,
   ConfigurationTypeRegistryPort,
+  CustomFieldDefinitionReadPort,
   PriceListReadPort,
 } from '@b2b/contracts';
 import { productFeedsModule, type ProductFeedsModuleOptions } from './plugin.js';
 import { feedDeliveryConfigurationType } from './services/delivery/delivery-credential.type.js';
-import {
-  presenceAwareRecorder,
-  type AdminNotificationPort,
-} from './services/failed-run-notifier.js';
+import { presenceAwareRecorder } from './services/failed-run-notifier.js';
 import {
   FEED_CACHE_INVALIDATION_EVENTS,
   invalidateFeedTokenCache,
@@ -74,10 +73,14 @@ export interface ProductFeedsCradle {
   readonly pricingService: NonNullable<ProductFeedsModuleOptions['pricingService']>;
   readonly taxService: NonNullable<ProductFeedsModuleOptions['taxService']>;
   readonly credentialsService: NonNullable<ProductFeedsModuleOptions['credentials']>;
-  readonly customFieldDefinitionService: NonNullable<ProductFeedsModuleOptions['customFieldDefinitions']>;
+  readonly customFieldDefinitionReadPort: NonNullable<ProductFeedsModuleOptions['customFieldDefinitions']>;
   readonly languageService: NonNullable<ProductFeedsModuleOptions['languageService']>;
-  /** `admin_notifications`' gated port — wrapped below, never handed on raw. */
-  readonly adminNotificationService: AdminNotificationPort;
+  /**
+   * `admin_notifications`' gated port — wrapped below, never handed on raw.
+   * The name is `adminNotificationRecordPort` since D-98.2: the container
+   * name a contract publishes, rather than the owner's class registration.
+   */
+  readonly adminNotificationRecordPort: AdminNotificationRecordPort;
   readonly settingsReadPort: NonNullable<ProductFeedsModuleOptions['settings']>;
   readonly moduleQueueRedis: Redis | undefined;
   /** Root-supplied (Principle X): the harness runs no generation or reaper consumer. */
@@ -154,9 +157,14 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'credentialsService',
             ),
-            customFieldDefinitions: lazyPort<
-              ProductFeedsCradle['customFieldDefinitionService']
-            >(ctx, 'customFieldDefinitionService'),
+            // D-98.2 / issue #196 — the read port `custom_fields` publishes.
+            // `customFieldDefinitionService` is that module's own CRUD surface,
+            // deliberately unpublished; the two calls this module makes are both
+            // `listForEntity('product')`, which is what the read port is for.
+            customFieldDefinitions: lazyPort<CustomFieldDefinitionReadPort>(
+              ctx,
+              'customFieldDefinitionReadPort',
+            ),
             // Feature 075, Phase C — `languageReadPort`, not `languageService`.
             // The four calls this module makes are all reads, and the read port
             // is the shape `languages` published for exactly them.
@@ -192,7 +200,11 @@ export function registerModule(ctx: ModuleContext): void {
             // A `catch` at the call site fused "the operator switched
             // notifications off" with "the write failed" into one `false`.
             adminNotificationService: presenceAwareRecorder(
-              lazyPort<AdminNotificationPort>(ctx, 'adminNotificationService'),
+              // D-98.2 / issue #196 — `adminNotificationRecordPort` is the name
+              // the contract publishes and the one that answers with a record;
+              // `adminNotificationService` is the class registration, whose
+              // `record` hands back the `AdminNotification` entity.
+              lazyPort<AdminNotificationRecordPort>(ctx, 'adminNotificationRecordPort'),
             ),
             settings: lazyPort<ProductFeedsCradle['settingsReadPort']>(ctx, 'settingsReadPort'),
             // Forwarded per call so a root may contribute the bridge at any

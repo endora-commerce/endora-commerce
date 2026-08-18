@@ -2437,7 +2437,7 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
-    // Two signals, five shapes.
+    // Three signals, eight shapes.
     //
     // Signal 1 (D-97.3) bites in two places and only one of them was ever hit:
     // the published port, and an interface a consumer widens it with.
@@ -2455,6 +2455,20 @@ const CHECKS: readonly CheckEntry[] = [
     // half nothing proves is a list that quietly outlives its reason, and an
     // empty ledger is exactly where that goes unnoticed — the proof hands the
     // check a ledger of its own rather than the shipped one.
+    //
+    // Signal 3 (issue #196, D-98.2) is the **other direction** of signal 2's
+    // edge — consumer resolution → publication rather than doc → registration —
+    // and it needs three proofs because two of the three things it does are
+    // discriminations rather than findings. `resolution-of-unpublished-name` is
+    // the finding. `resolution-discrimination` is the one that keeps the signal
+    // honest: it hands the check a **cradle** read and a `lazyPort` literal over
+    // the same unpublished name in the same source and asserts exactly one
+    // finding, so the check cannot pass by declining both — four of the five
+    // names the two population methods disagree on are cradle reads, and
+    // excluding that path silently is how a signal goes half-missing. And
+    // `stale-unpublished-resolution` is the resolution ledger's second
+    // direction, handed a ledger of its own for the same reason the fifth proof
+    // is.
     //
     // Each fixture enters as source text — a pre-parsed member list, or a
     // registration map handed in already built, would prove the reporter and not
@@ -2555,6 +2569,76 @@ const CHECKS: readonly CheckEntry[] = [
             ]),
             unregisteredLedger: { PublishedPort: 'no provider, pending a ruling' },
           }).staleLedgerEntries.length,
+      ),
+      'resolution-of-unpublished-name': top(
+        () =>
+          checkPortShape({
+            contracts: new Map([
+              ['contracts/admin-notifications.ts', PORT_DOC('adminNotificationRecordPort')],
+            ]),
+            modules: new Map([
+              [
+                'modules/admin_notifications/backend.ts',
+                "ctx.di.providePort('adminNotificationService', ctx.asFunction(f).singleton());",
+              ],
+              [
+                'modules/product_feeds/backend.ts',
+                "const bell = lazyPort<Port>(ctx, 'adminNotificationService');",
+              ],
+            ]),
+            unregisteredLedger: {},
+            unpublishedResolutionLedger: {},
+          }).unpublishedResolutions.filter((f) => f.kind === 'resolution-of-unpublished-name')
+            .length,
+      ),
+      // The discrimination, counted as a finding so it can go red on its own:
+      // one source, one name, both shapes. A check that stopped telling a
+      // cradle read from a `lazyPort` literal reports 2 here and fails, and one
+      // that stopped seeing `lazyPort` at all reports 0 and fails too.
+      'resolution-discrimination': top(() => {
+        const findings = checkPortShape({
+          contracts: new Map([
+            ['contracts/admin-notifications.ts', PORT_DOC('adminNotificationRecordPort')],
+          ]),
+          modules: new Map([
+            [
+              'modules/admin_notifications/backend.ts',
+              "ctx.di.providePort('adminNotificationService', ctx.asFunction(f).singleton());",
+            ],
+            [
+              'modules/product_feeds/backend.ts',
+              [
+                'const { adminNotificationService } = ctx.cradle<ProductFeedsCradle>();',
+                "const copied = lazyPort<Port>(ctx, 'adminNotificationService');",
+              ].join('\n'),
+            ],
+          ]),
+          unregisteredLedger: {},
+          unpublishedResolutionLedger: {},
+        }).unpublishedResolutions;
+        return findings.length === 1 && findings[0]?.line === 2 ? 1 : 0;
+      }),
+      'stale-unpublished-resolution': top(
+        () =>
+          checkPortShape({
+            contracts: new Map([
+              ['contracts/admin-notifications.ts', PORT_DOC('adminNotificationRecordPort')],
+            ]),
+            modules: new Map([
+              [
+                'modules/admin_notifications/backend.ts',
+                "ctx.di.providePort('adminNotificationService', ctx.asFunction(f).singleton());",
+              ],
+              [
+                'modules/product_feeds/backend.ts',
+                "const bell = lazyPort<Port>(ctx, 'adminNotificationRecordPort');",
+              ],
+            ]),
+            unregisteredLedger: {},
+            unpublishedResolutionLedger: {
+              'product_feeds:adminNotificationService': 'deferred, pending the cut',
+            },
+          }).staleUnpublishedResolutions.length,
       ),
     },
   },
@@ -3102,7 +3186,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // contract points at an ungated registration" is the defect, and a proof
       // that dropped that field would go green on a check that had stopped
       // telling plain from gated.
-      'backend/scripts/check-port-shape.ts': 5,
+      // Five, plus D-98.2's three: the finding, the cradle-versus-`lazyPort`
+      // discrimination — counted as a proof of its own because a signal that
+      // reported the contribution seams would be turned off within a week, and
+      // one that saw neither shape would read identically green — and the
+      // resolution ledger's stale direction.
+      'backend/scripts/check-port-shape.ts': 8,
       // Three spellings of a whole-table wipe, plus the baseline's second
       // direction.
       'backend/scripts/check-shared-table-wipes.ts': 4,

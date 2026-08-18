@@ -331,9 +331,24 @@ export type DictionaryByCodeResponse = z.infer<typeof dictionaryByCodeResponseSc
 export type DictionaryWriteMode = 'create-or-change' | 'unchanged';
 
 /**
- * Service port consumed by every module that accepts a country/currency/language
- * reference on a write path. Wired via the composition root — consumer modules
- * accept this port via plugin options, never importing dictionaries internals.
+ * Container name: `dictionaryValidator`. Owner: `dictionaries`.
+ *
+ * Consumed by every module that accepts a country/currency/language reference
+ * on a write path — nine of them today, which is why the shape is declared
+ * here rather than in each of them: a consumer names this type and the
+ * container, never a file under `dictionaries` (Principle I).
+ *
+ * The wording used to say "wired via the composition root — consumer modules
+ * accept this port via plugin options". That stopped being true when the
+ * modules were composed by the kernel container (feature 072): the owner
+ * registers the name with `ctx.di.providePort` and each consumer resolves it
+ * with `lazyPort`.
+ *
+ * **Owner off:** the seam fails closed — resolving the port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so a write
+ * that cannot have its country code checked is refused rather than accepted
+ * unchecked. Whether `dictionaries` has an off state at all is its manifest's
+ * `activation` to say, not this line's.
  */
 export interface DictionaryValidator {
   validateCountryCode(code: string, mode: DictionaryWriteMode): Promise<void>;

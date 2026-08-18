@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PORTS_WITHOUT_A_REGISTRATION,
+  RESOLUTIONS_OF_UNPUBLISHED_NAMES,
   checkPortShape,
   type PortShapeInput,
 } from '../../../scripts/check-port-shape.js';
@@ -413,6 +414,272 @@ describe('the ledger the tree ships', () => {
     for (const [portName, reason] of Object.entries(PORTS_WITHOUT_A_REGISTRATION)) {
       expect(reason.length, `${portName} has no reason`).toBeGreaterThan(60);
       expect(reason, `${portName} does not say what retires it`).toMatch(/Retired by/i);
+    }
+  });
+});
+
+/**
+ * **Signal 3 (issue #196, D-98.2)** — the other direction of the same edge.
+ *
+ * Signal 2 above reads *contract doc → registration*. This reads *consumer
+ * resolution → publication*, and the reason both exist is measured rather than
+ * theoretical: !698 corrected eight doc blocks and the three consumers that
+ * were resolving the wrong name stayed wrong, invisible to every check running.
+ *
+ * The discriminations carry as much of the rule as the finding does. Four of
+ * the five names the two population methods disagree on are reached by a
+ * **cradle** read rather than a `lazyPort` literal, and those are contribution
+ * seams where a cradle read is correct — so the case below proves the signal
+ * declines them while reporting a `lazyPort` over the very same name in the
+ * very same fixture. A path excluded silently is a path nobody can check.
+ */
+describe('check:port-shape — signal 3, resolving a name nothing publishes', () => {
+  /** A published port and its gated registration, so signals 1 and 2 stay quiet. */
+  const PUBLISHED = new Map([
+    [
+      'contracts/admin-notifications.ts',
+      `
+/**
+ * Container name: \`adminNotificationRecordPort\`. Owner: \`admin_notifications\`.
+ */
+export interface AdminNotificationRecordPort {
+  record(input: RecordAdminNotificationInput): Promise<AdminNotificationRecord>;
+}
+`,
+    ],
+  ]);
+
+  /**
+   * The owner registers both: the published port, and the class the port was
+   * published to replace. That second registration is what a consumer copies.
+   */
+  const OWNER = [
+    'modules/admin_notifications/backend.ts',
+    [
+      "ctx.di.providePort<AdminNotificationRecordPort>('adminNotificationRecordPort', ctx.asFunction(f).singleton());",
+      "ctx.di.providePort('adminNotificationService', ctx.asFunction(g).singleton());",
+    ].join('\n'),
+  ] as const;
+
+  function scenario(
+    consumers: ReadonlyArray<readonly [string, string]>,
+    ledger: Readonly<Record<string, string>> = {},
+  ): PortShapeInput {
+    return {
+      contracts: PUBLISHED,
+      modules: new Map([OWNER, ...consumers]),
+      unregisteredLedger: {},
+      unpublishedResolutionLedger: ledger,
+    };
+  }
+
+  it('refuses a cross-module resolution of a registered, unpublished name', () => {
+    const result = checkPortShape(
+      scenario([
+        [
+          'modules/product_feeds/backend.ts',
+          "const bell = lazyPort<AdminNotificationPort>(ctx, 'adminNotificationService');",
+        ],
+      ]),
+    );
+    expect(result.unpublishedResolutions).toHaveLength(1);
+    expect(result.unpublishedResolutions[0]).toMatchObject({
+      kind: 'resolution-of-unpublished-name',
+      moduleId: 'product_feeds',
+      owner: 'admin_notifications',
+      name: 'adminNotificationService',
+      line: 1,
+    });
+  });
+
+  it('is silent when the consumer resolves the published name', () => {
+    const result = checkPortShape(
+      scenario([
+        [
+          'modules/product_feeds/backend.ts',
+          "const bell = lazyPort<AdminNotificationRecordPort>(ctx, 'adminNotificationRecordPort');",
+        ],
+      ]),
+    );
+    expect(result.unpublishedResolutions).toEqual([]);
+  });
+
+  it('is silent for a module resolving its own unpublished registration', () => {
+    // `admin_notifications` resolves `adminNotificationService` from its own
+    // route registrar, lazily and deliberately (D-40). A module naming its own
+    // registration crosses no boundary, so there is nothing for a contract to
+    // publish to it.
+    const result = checkPortShape(
+      scenario([
+        [
+          'modules/admin_notifications/routes.ts',
+          "const own = lazyPort<AdminNotificationService>(ctx, 'adminNotificationService');",
+        ],
+      ]),
+    );
+    expect(result.unpublishedResolutions).toEqual([]);
+  });
+
+  it('discriminates a cradle read from a `lazyPort` literal over the same name', () => {
+    // Both shapes, one fixture, one name. The cradle read is a contribution
+    // seam — a name a composition root or the kernel supplies — and requiring a
+    // published contract for it would be the wrong rule; the `lazyPort` literal
+    // is a developer copying a name out of a doc block, which is exactly what
+    // can be checked against one. The signal must tell them apart, and this is
+    // the case that says it does rather than a path quietly excluded.
+    const result = checkPortShape(
+      scenario([
+        [
+          'modules/product_feeds/backend.ts',
+          [
+            'const { adminNotificationService } = ctx.cradle<ProductFeedsCradle>();',
+            "const also = ctx.cradle<ProductFeedsCradle>().adminNotificationService;",
+            "const copied = lazyPort<Port>(ctx, 'adminNotificationService');",
+          ].join('\n'),
+        ],
+      ]),
+    );
+    expect(result.unpublishedResolutions).toHaveLength(1);
+    expect(result.unpublishedResolutions[0]).toMatchObject({
+      kind: 'resolution-of-unpublished-name',
+      line: 3,
+    });
+  });
+
+  it('refuses a stale ledger entry', () => {
+    const result = checkPortShape(
+      scenario(
+        [
+          [
+            'modules/product_feeds/backend.ts',
+            "const bell = lazyPort<AdminNotificationRecordPort>(ctx, 'adminNotificationRecordPort');",
+          ],
+        ],
+        { 'product_feeds:adminNotificationService': 'deferred, pending the cut' },
+      ),
+    );
+    expect(result.unpublishedResolutions).toEqual([]);
+    expect(result.staleUnpublishedResolutions).toEqual([
+      'product_feeds:adminNotificationService',
+    ]);
+  });
+
+  it('a ledger entry suppresses exactly its own `<consumer>:<name>` pair', () => {
+    const result = checkPortShape(
+      scenario(
+        [
+          [
+            'modules/product_feeds/backend.ts',
+            "const bell = lazyPort<Port>(ctx, 'adminNotificationService');",
+          ],
+          [
+            'modules/pim_ergonode/backend.ts',
+            "const bell = lazyPort<Port>(ctx, 'adminNotificationService');",
+          ],
+        ],
+        { 'product_feeds:adminNotificationService': 'deferred, pending the cut' },
+      ),
+    );
+    expect(result.unpublishedResolutions.map((f) => f.moduleId)).toEqual(['pim_ergonode']);
+    expect(result.staleUnpublishedResolutions).toEqual([]);
+  });
+
+  it('leaves a platform-owned name alone', () => {
+    // `settingsReadPort` is composed by a root and has no owning module, so
+    // there is no contracts file it could be published from.
+    const result = checkPortShape(
+      scenario([
+        [
+          'modules/product_feeds/backend.ts',
+          "const settings = lazyPort<SettingsService>(ctx, 'settingsReadPort');",
+        ],
+      ]),
+    );
+    expect(result.unpublishedResolutions).toEqual([]);
+  });
+
+  it('leaves a name no module registers to `check:port-dependencies`', () => {
+    // That check calls it `unowned-name` and names the file and line. Reporting
+    // it here as well would give one defect two voices and two repairs.
+    const result = checkPortShape(
+      scenario([
+        [
+          'modules/product_feeds/backend.ts',
+          "const nothing = lazyPort<Whatever>(ctx, 'nobodyRegistersThis');",
+        ],
+      ]),
+    );
+    expect(result.unpublishedResolutions).toEqual([]);
+  });
+
+  it('reads both container names when one shape has two providers', () => {
+    // `OrderStatusRegistry` verbatim: one published interface, registered by
+    // `payment_methods` and by `delivery_methods` under different names. A doc
+    // block parsed for only the first name left the second unpublished and
+    // reported `shipments` for resolving it.
+    const result = checkPortShape({
+      contracts: new Map([
+        [
+          'contracts/payment-methods.ts',
+          `
+/**
+ * Container name: \`paymentOrderStatusRegistry\`. Owner: \`payment_methods\`.
+ * Container name: \`shippingOrderStatusRegistry\`. Owner: \`delivery_methods\`.
+ */
+export interface OrderStatusRegistry {
+  has(code: string): boolean;
+}
+`,
+        ],
+      ]),
+      modules: new Map([
+        [
+          'modules/delivery_methods/backend.ts',
+          'ctx.di.register({ shippingOrderStatusRegistry: ctx.asFunction(f).singleton() });',
+        ],
+        [
+          'modules/shipments/backend.ts',
+          "const registry = lazyPort<OrderStatusRegistry>(ctx, 'shippingOrderStatusRegistry');",
+        ],
+      ]),
+      unregisteredLedger: {},
+      unpublishedResolutionLedger: {},
+    });
+    expect(result.unpublishedResolutions).toEqual([]);
+    // And the documented name nothing registers is still a signal-2 finding,
+    // so the widening did not turn the first name off.
+    expect(result.nameFindings).toMatchObject([
+      { kind: 'container-name-unregistered', documented: 'paymentOrderStatusRegistry' },
+    ]);
+  });
+
+  it('counts its two inputs, so neither can be empty behind a green', () => {
+    // The CLI turns each zero into exit 2. An empty published set would report
+    // every cross-module resolution in the tree; an empty resolution set would
+    // report nothing at all, which reads as clean.
+    const withBoth = checkPortShape(
+      scenario([
+        [
+          'modules/product_feeds/backend.ts',
+          "const bell = lazyPort<Port>(ctx, 'adminNotificationRecordPort');",
+        ],
+      ]),
+    );
+    expect(withBoth.publishedContainerCount).toBeGreaterThan(0);
+    expect(withBoth.lazyPortResolutionCount).toBeGreaterThan(0);
+
+    const noContracts = checkPortShape({ ...scenario([]), contracts: new Map() });
+    expect(noContracts.publishedContainerCount).toBe(0);
+    expect(checkPortShape(scenario([])).lazyPortResolutionCount).toBe(0);
+  });
+});
+
+describe('the resolution ledger the tree ships', () => {
+  it('requires a reason and a retirement condition of every entry', () => {
+    for (const [key, reason] of Object.entries(RESOLUTIONS_OF_UNPUBLISHED_NAMES)) {
+      expect(key, `${key} is not keyed <consumer>:<name>`).toMatch(/^[a-z_]+:[A-Za-z]+$/);
+      expect(reason.length, `${key} has no reason`).toBeGreaterThan(80);
+      expect(reason, `${key} does not say what retires it`).toMatch(/retire|Retired|F4|deferred/i);
     }
   });
 });

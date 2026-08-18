@@ -63,6 +63,8 @@ export interface EmailDeliveryRecordInput {
 }
 
 /**
+ * Container name: `emailDeliveryRecorder`. Owner: `email`.
+ *
  * **Never throws.** That is the contract, not an implementation detail: every
  * caller reaches this after a message has already been handed to a transport or
  * already been suppressed, so a failure here can only lose the record — it must
@@ -70,6 +72,14 @@ export interface EmailDeliveryRecordInput {
  * no `catch`, which is also what keeps a bare one from growing around a port.
  *
  * Answers the row id, or `null` when the row could not be written.
+ *
+ * **Owner off:** there is no such state, and that is why the name is an
+ * ordinary `ctx.di.register` rather than a `providePort` — `email` declares
+ * `activation.nonDeactivatable` (074, C3), so a gate over this registration
+ * could never close, and the never-throws promise above would be the first
+ * thing it broke. Publication and gating are separate questions;
+ * `paymentOrderStatusRegistry` is the other name published over a plain
+ * registration for the same kind of reason.
  */
 export interface EmailDeliveryRecorder {
   record(input: EmailDeliveryRecordInput): Promise<string | null>;

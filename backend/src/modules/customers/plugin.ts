@@ -1,6 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModulePlugin } from '../../http/server.js';
-import type { SessionService } from '../auth/services/session-service.js';
 import type { OrderListService } from '../orders/services/order-list-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
@@ -60,7 +59,17 @@ export interface CustomersModuleOptions {
   customerAuthService: CustomerAuthPort;
   passwordResetService: PasswordResetServiceType;
   emFactory: () => EntityManager;
-  sessionService: SessionService;
+  /**
+   * `auth`'s published session port, resolved under the name the contract
+   * publishes (D-98.2 / issue #196). It used to be the `SessionService`
+   * class, resolved as `sessionService`: the three calls this host makes —
+   * `createSession`, `destroyAllForCustomer`, `listRecentlyActiveCustomers`
+   * — are all on {@link AuthSessionPort}, so nothing needed the class.
+   *
+   * Still a second option beside `authSessionPort` below, which is the same
+   * port: merging the two is this module's own Phase-C cut, not a rename.
+   */
+  sessionService: AuthSessionPort;
   /**
    * `auth`'s and `customer_accounts`' published surfaces, needed only by the
    * `ImpersonationService` this host still constructs itself. `admin_users`'

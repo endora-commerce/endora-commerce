@@ -68,7 +68,6 @@ export interface CustomersCradle {
   readonly salesChannelResolutionPort: SalesChannelResolverService;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: CustomersModuleOptions['requireCustomer'];
-  readonly sessionService: CustomersModuleOptions['sessionService'];
   readonly customerAuthService: CustomersModuleOptions['customerAuthService'];
   readonly passwordResetService: CustomersModuleOptions['passwordResetService'];
   readonly customFieldValueService: NonNullable<CustomersModuleOptions['customFieldValues']>;
@@ -170,7 +169,10 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'passwordResetService',
             ),
-            sessionService: lazyPort<CustomersCradle['sessionService']>(ctx, 'sessionService'),
+            // D-98.2 / issue #196 — `authSessionPort` is the name the contract
+            // publishes; `sessionService` is `auth`'s class registration, and
+            // resolving it here was the leak D-98.1 repaired for `addressService`.
+            sessionService: lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),
             // Feature 075 — the two ports the `ImpersonationService` this
             // module still builds itself now takes. See `plugin.ts`.
             authSessionPort: lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),

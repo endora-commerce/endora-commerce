@@ -1,11 +1,36 @@
 /**
  * CI check — a published port's **shape**: it declares no optional method
- * (D-97.3), and the container name in its doc block is the name it is actually
- * registered under (issue #192).
+ * (D-97.3), the container name in its doc block is the name it is actually
+ * registered under (issue #192), and a module resolves, cross-module, only a
+ * name some contract publishes (issue #196, D-98.2).
  *
- * Two signals over one population, because both read the same thing: the doc
- * block that makes an interface a published port, and what `backend/src/modules`
- * does with the name in it.
+ * Three signals over one population, because all three read the same thing: the
+ * doc block that makes an interface a published port, and what
+ * `backend/src/modules` does with the name in it.
+ *
+ * ## Signal 3 — the resolution side of the same name (issue #196)
+ *
+ * Signals 2 and 3 are **complements, not overlaps**, and the tree is the proof.
+ * Signal 2 reads *contract doc → registration*: it starts at a published port's
+ * doc block and asks whether the name it gives is registered and gated. It
+ * found and corrected eight wrong doc lines. The three consumers that were
+ * resolving the wrong name **stayed wrong**, because nothing walked the other
+ * way. Signal 3 is that direction: *consumer resolution → publication*.
+ *
+ * The rule is **on the name, at the resolution site**, and it has to be,
+ * because there is nowhere else it could bite. `lazyPort<T>(ctx, name)` is
+ * `new Proxy({} as T, …)` (`src/kernel/lazy-port.ts`): `T` is a free type
+ * parameter asserted onto an empty object and `name` is a `string`, so nothing
+ * in the language relates the two. `tsc` is not satisfied because the entity
+ * happens to be assignable to the record — `tsc` is satisfied because it was
+ * never asked. That is why D-98.2 rejected branding the record types: a brand
+ * can only bite where the compiler compares a value to the branded type, and
+ * at a resolution it never does. What actually happens is that a **string gets
+ * copied**, so the string is what this checks.
+ *
+ * One shape is refused — `resolution-of-unpublished-name` — over the two-way
+ * {@link RESOLUTIONS_OF_UNPUBLISHED_NAMES} ledger, which states the population
+ * and the two deliberate exclusions in full.
  *
  * ## Signal 2 — the documented container name (issue #192)
  *
@@ -94,20 +119,31 @@
  * affected.
  *
  * Usage: `tsx scripts/check-port-shape.ts [--list]`
- * Exit 0 = clean; exit 1 = at least one finding, of either signal;
- * exit 2 = nothing was read — no sources, no port type in the contracts
- * package, or **no registration in the module scan**, each of which would make a
- * green mean "not looking" (issue #113). The third is the guard signal 2 needs:
- * a registration map that came back empty would report every one of the 97 ports
- * as unregistered, and a reader who "fixed" that by widening the ledger would
- * have turned the whole check off.
+ * Exit 0 = clean; exit 1 = at least one finding, of any signal;
+ * exit 2 = nothing was read. Five conditions, one per input any signal could be
+ * silently missing (issue #113), because a green must never be able to mean
+ * "not looking": no sources; no port type in the contracts package; **no
+ * registration in the module scan** — an empty registration map would report
+ * every published port as unregistered, and a reader who "fixed" that by
+ * widening the ledger would have turned the whole check off; **no published
+ * container name** — signal 3 compares a consumer's literal against that set,
+ * and an empty one makes every cross-module resolution in the tree a finding;
+ * and **no `lazyPort` resolution at all** — signal 3's population, whose
+ * emptiness would otherwise read as a clean bill.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
-import { providedPorts, registeredNames } from './check-port-dependencies.js';
+import {
+  HOST_REGISTERED_PORTS,
+  PLATFORM_OWNED_NAMES,
+  moduleOf,
+  providedPorts,
+  registeredNames,
+  resolvedNames,
+} from './check-port-dependencies.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const BACKEND_SRC = join(HERE, '..', 'src');
@@ -185,6 +221,102 @@ export interface PortNameFinding {
  */
 export const PORTS_WITHOUT_A_REGISTRATION: Readonly<Record<string, string>> = {};
 
+/**
+ * Signal 3 — a cross-module `lazyPort` resolution of a container name **no
+ * contract publishes** (issue #196, D-98.2).
+ */
+export type UnpublishedResolutionKind = 'resolution-of-unpublished-name';
+
+export interface UnpublishedResolutionFinding {
+  /** The resolving module. */
+  readonly moduleId: string;
+  /** The module whose `backend.ts` registers the name. */
+  readonly owner: string;
+  /** The container name, as the literal is written. */
+  readonly name: string;
+  readonly file: string;
+  readonly line: number;
+  readonly kind: UnpublishedResolutionKind;
+}
+
+/**
+ * Cross-module resolutions of a name nothing publishes, keyed
+ * `<consumer>:<name>`, each with the reason it still stands.
+ *
+ * **Two-way and meant to drain.** An unledgered resolution fails the build; an
+ * entry whose site has gone, or now resolves a published name, fails it too.
+ *
+ * The rule the ledger defends: **a module may resolve, cross-module, only a
+ * container name some contract publishes.** Nothing else in the tree can see a
+ * breach of it. `check:port-shape`'s signal 2 reads *contract doc →
+ * registration*, so it catches a doc pointing at the wrong thing; this reads
+ * *consumer resolution → publication*, and catches a consumer pointing at the
+ * wrong thing. MR !698 corrected eight doc blocks and the three consumers that
+ * were resolving the wrong name stayed wrong — that is the existence proof
+ * that one direction does not imply the other.
+ *
+ * It is a rule about the **name**, not about the type. `lazyPort<T>` is
+ * `new Proxy({} as T, …)` (`src/kernel/lazy-port.ts`): `T` is asserted and
+ * `name` is a string, and nothing in the language relates the two. That is why
+ * D-98.2 rejected branded record types — a brand can only bite where the
+ * compiler compares a value to the branded type, and here it never does. What
+ * actually happens is that a string gets copied, so the string is what gets
+ * checked.
+ *
+ * Population, stated so an entry cannot quietly widen it: every
+ * `lazyPort<…>(ctx, '<literal>')` in `src/modules/**` and `src/apps/**` whose
+ * name is registered by a **different** module and is not platform-owned. A
+ * self-resolution is not a finding — a module naming its own registration is
+ * not reaching across a boundary. A **cradle** read is not a finding either,
+ * and that is a decision rather than an omission: a cradle name is a
+ * contribution seam a composition root or the kernel supplies, where "name a
+ * published contract" would be the wrong requirement. `PortResolution.via`
+ * carries the distinction from the one function that decides it.
+ */
+export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> = {
+  // The two D-94.5 ports, and they are one entry written twice: each is an
+  // interface the **owner** declares beside its implementation, deliberately
+  // outside `@b2b/contracts`, because its signature carries the caller's
+  // MikroORM `EntityManager` and FR-034 keeps a MikroORM type out of that
+  // package. Both are held there by a foreign key rather than by a convention
+  // — `credit_limit_reservations_order_fk` and `promotion_usages_order_fk`,
+  // both `on delete restrict` — so the reservation and the usage row must be
+  // written inside the placement's own transaction.
+  //
+  // They are `permanent: true` entries in `orders`' cross-module-imports shard
+  // for exactly that reason, and they retire the same way that shard says they
+  // do: F4 package entry points, not a port and not a doc block. Publishing
+  // either shape today would mean publishing an `EntityManager`.
+  'orders:creditLimitService':
+    'D-94.5 — `CreditLimitPort` is declared by `credit_limits` beside its ' +
+    'implementation and stays out of `@b2b/contracts` because `reserve` takes the ' +
+    "caller's `EntityManager` (FR-034); `credit_limit_reservations_order_fk` is what " +
+    'holds it co-transactional. Retired by F4 package entry points, as the matching ' +
+    "`permanent: true` entry in `orders`' cross-module-imports shard says.",
+  'orders:promotionUsageFinalizer':
+    'D-94.5 — the twin of the entry above and the same shape: `PromotionUsageFinalizer` ' +
+    'is `promotions`\' own interface, kept out of `@b2b/contracts` because ' +
+    '`finalizeUsage` takes the placement transaction, and held there by ' +
+    '`promotion_usages_order_fk`. Retired by F4 package entry points.',
+  // `catalog`'s two edges. Both are repairs rather than doc fixes, and both are
+  // deferred by the concurrency rule rather than by a doubt about the answer.
+  'catalog:customFieldDefinitionService':
+    'Four sites, two answers. `:272` and `:478` read definitions and re-point to ' +
+    '`customFieldDefinitionReadPort`, exactly as `product_feeds` does in this merge ' +
+    'request. `:276` and `:520` are the **apply** seam, which D-77 ruled stays ' +
+    'unpublished: `CustomFieldDefinitionApplyApi` takes the caller\'s `EntityManager` ' +
+    '(FR-034) and `fk_product_attributes_custom_field_definition` holds it ' +
+    'co-transactional. So this key drains to the apply seam and no further, and that ' +
+    'half retires with F4 package entry points. Deferred here because `catalog` is ' +
+    'under concurrent work (issue #185).',
+  'catalog:adminNotificationService':
+    'The same one-line re-point `pim_ergonode` and `product_feeds` take in this merge ' +
+    'request: `adminNotificationRecordPort` is the published name and the one that ' +
+    'answers with a record, while `adminNotificationService` hands back the ' +
+    '`AdminNotification` entity. Deferred only because `catalog` is under concurrent ' +
+    'work (issue #185); it retires with that one-line change.',
+};
+
 export interface PortShapeInput {
   /** Contract sources, keyed however the caller likes (the key is reported). */
   readonly contracts: ReadonlyMap<string, string>;
@@ -192,6 +324,12 @@ export interface PortShapeInput {
   readonly modules: ReadonlyMap<string, string>;
   /** Defaults to {@link PORTS_WITHOUT_A_REGISTRATION}; a fixture overrides it. */
   readonly unregisteredLedger?: Readonly<Record<string, string>>;
+  /**
+   * Defaults to {@link RESOLUTIONS_OF_UNPUBLISHED_NAMES}; a fixture overrides
+   * it, so a red proof over the stale direction does not have to disturb the
+   * real one.
+   */
+  readonly unpublishedResolutionLedger?: Readonly<Record<string, string>>;
 }
 
 export interface PortShapeResult {
@@ -207,23 +345,51 @@ export interface PortShapeResult {
   readonly registeredNameCount: number;
   /** Ledger entries whose port is registered now, or no longer published. */
   readonly staleLedgerEntries: readonly string[];
+  /** Signal 3 — a cross-module resolution of a name no contract publishes. */
+  readonly unpublishedResolutions: readonly UnpublishedResolutionFinding[];
+  /**
+   * How many distinct container names the contract scan found published. Zero
+   * means the doc convention was not read, which the CLI turns into exit 2
+   * rather than into a finding per cross-module resolution in the tree.
+   */
+  readonly publishedContainerCount: number;
+  /**
+   * How many `lazyPort` resolutions the module scan saw, before any filtering.
+   * Zero means the population came back empty, which is "not looking" rather
+   * than "clean" (issue #113).
+   */
+  readonly lazyPortResolutionCount: number;
+  /** `<consumer>:<name>` entries no resolution in the tree answers to. */
+  readonly staleUnpublishedResolutions: readonly string[];
 }
 
 function parse(file: string, text: string): ts.SourceFile {
   return ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
 }
 
-/** What a port's doc block declares. `container` is `null` when it is unparseable. */
+/**
+ * What a port's doc block declares.
+ *
+ * `containers` is **a list**, not one name, because a published shape may have
+ * more than one provider: `OrderStatusRegistry` is registered by
+ * `payment_methods` as `paymentOrderStatusRegistry` and by `delivery_methods`
+ * as `shippingOrderStatusRegistry`, in the same words, and the interface is
+ * declared once precisely so the two cannot drift. A doc block naming only the
+ * first left the second unpublished, and signal 3 below reported the consumer
+ * that resolved it. Empty means the block carries the marker but no parseable
+ * name.
+ */
 interface PortDoc {
-  readonly container: string | null;
+  readonly containers: readonly string[];
 }
 
 /**
  * The declaration's port doc block, or `null` when it has none.
  *
  * The single answer to "is this a published port?" — signal 1 asks it to build
- * the population and signal 2 asks it for the name, so neither can drift into
- * its own idea of what a port is.
+ * the population, signal 2 asks it for the name and signal 3 asks it for the
+ * set of published names, so none of the three can drift into its own idea of
+ * what a port is.
  */
 function portDocOf(node: ts.InterfaceDeclaration, text: string): PortDoc | null {
   const ranges = ts.getLeadingCommentRanges(text, node.pos) ?? [];
@@ -231,8 +397,10 @@ function portDocOf(node: ts.InterfaceDeclaration, text: string): PortDoc | null 
     .map((range) => text.slice(range.pos, range.end))
     .find((comment) => comment.includes(PORT_DOC_MARKER));
   if (block === undefined) return null;
-  const named = /Container name:\s*`([^`]+)`/.exec(block);
-  return { container: named?.[1] ?? null };
+  const containers = [...block.matchAll(/Container name:\s*`([^`]+)`/g)]
+    .map((match) => match[1])
+    .filter((name): name is string => name !== undefined);
+  return { containers };
 }
 
 function interfaces(sf: ts.SourceFile): ts.InterfaceDeclaration[] {
@@ -297,7 +465,7 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
     readonly portName: string;
     readonly file: string;
     readonly line: number;
-    readonly container: string | null;
+    readonly containers: readonly string[];
   }> = [];
 
   for (const [file, text] of input.contracts) {
@@ -311,7 +479,7 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
         portName: node.name.text,
         file,
         line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
-        container: doc.container,
+        containers: doc.containers,
       });
     }
   }
@@ -370,40 +538,50 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
   const nameFindings: PortNameFinding[] = [];
   const ledgerHits = new Set<string>();
 
-  for (const port of published) {
-    if (port.container === null) continue;
-    const registeredKind = gatedNames.has(port.container)
-      ? 'gated'
-      : allNames.has(port.container)
-        ? 'plain'
-        : null;
-    const gatedName = gatedNameOfType.get(port.portName);
+  const registrationKindOf = (container: string): 'gated' | 'plain' | null =>
+    gatedNames.has(container) ? 'gated' : allNames.has(container) ? 'plain' : null;
 
-    if (registeredKind === null) {
+  for (const port of published) {
+    if (port.containers.length === 0) continue;
+    const gatedName = gatedNameOfType.get(port.portName);
+    const unregistered = port.containers.filter((name) => registrationKindOf(name) === null);
+
+    // "No registration behind this published interface at all" is the shape the
+    // ledger answers for, so it is asked once per port and not once per
+    // documented name: a port with two providers where one is missing is a
+    // wrong doc line, not an unprovided port.
+    if (unregistered.length === port.containers.length) {
       if (ledger[port.portName] !== undefined) {
         ledgerHits.add(port.portName);
         continue;
       }
+    }
+
+    for (const documented of unregistered) {
       nameFindings.push({
         file: port.file,
         line: port.line,
         portName: port.portName,
-        documented: port.container,
+        documented,
         registered: gatedName ?? null,
         documentedRegistrationKind: null,
         kind: 'container-name-unregistered',
       });
-      continue;
     }
 
-    if (gatedName !== undefined && gatedName !== port.container) {
+    // The gated-registration shape asks whether the doc names the gate **at
+    // all**. With two providers only one of them can be the typed
+    // `providePort<T>` this map records, so requiring every documented name to
+    // be it would refuse the two-provider shape rather than the defect.
+    if (gatedName !== undefined && !port.containers.includes(gatedName)) {
+      const documented = port.containers[0] as string;
       nameFindings.push({
         file: port.file,
         line: port.line,
         portName: port.portName,
-        documented: port.container,
+        documented,
         registered: gatedName,
-        documentedRegistrationKind: registeredKind,
+        documentedRegistrationKind: registrationKindOf(documented),
         kind: 'container-name-not-the-gated-registration',
       });
     }
@@ -414,12 +592,101 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
     .filter((portName) => !ledgerHits.has(portName))
     .sort();
 
+  // --- signal 3: the resolution side of the same name ------------------------
+  //
+  // Signal 2 above walks contract doc -> registration. This walks consumer
+  // resolution -> publication, which is a different edge in the other
+  // direction, and the one nothing in the tree could see: !698 corrected six
+  // doc blocks while three consumers went on resolving the class name.
+  //
+  // Every predicate it needs already exists. "Which module registers this
+  // name" is `registeredNames` + `moduleOf`; "this is a `lazyPort` resolution"
+  // is `resolvedNames`, through the `via` field it records; "this name is
+  // published" is `portDocOf`, the same parse signals 1 and 2 use. Nothing here
+  // decides any of those a second time.
+  const publishedContainers = new Set<string>();
+  for (const port of published) for (const name of port.containers) publishedContainers.add(name);
+
+  /** Container name -> the module whose sources register it. */
+  const ownerOfName = new Map<string, string>();
+  const lazyResolutions: Array<{
+    readonly moduleId: string;
+    readonly name: string;
+    readonly file: string;
+    readonly line: number;
+  }> = [];
+  for (const [file, text] of input.modules) {
+    // `moduleOf` and `resolvedNames` read the module id out of the path, and
+    // they key on `/src/modules/<id>/` — while this function's inputs are keyed
+    // however the caller likes, which is what lets a fixture enter at the top.
+    // So the path is normalised for them and the caller's own key is what gets
+    // reported. Normalising is not re-deciding: the module id still comes from
+    // the one function that owns that question.
+    const forOwnerLookup = file.includes('/src/') ? file : `/src/${file.replace(/^\/+/, '')}`;
+    const moduleId = moduleOf(forOwnerLookup);
+    if (moduleId === null) continue;
+    for (const name of registeredNames(text, forOwnerLookup)) ownerOfName.set(name, moduleId);
+    for (const resolution of resolvedNames(text, forOwnerLookup)) {
+      if (resolution.via !== 'lazyPort') continue;
+      lazyResolutions.push({
+        moduleId: resolution.moduleId,
+        name: resolution.name,
+        file,
+        line: resolution.line,
+      });
+    }
+  }
+
+  const resolutionLedger =
+    input.unpublishedResolutionLedger ?? RESOLUTIONS_OF_UNPUBLISHED_NAMES;
+  const unpublishedResolutions: UnpublishedResolutionFinding[] = [];
+  const resolutionLedgerHits = new Set<string>();
+
+  for (const resolution of lazyResolutions) {
+    // Platform names are supplied by a composition root or the kernel, neither
+    // of which has a contracts file to publish from; `HOST_REGISTERED_PORTS`
+    // is the same fact for a port a root still bridges on its owner's behalf.
+    if (PLATFORM_OWNED_NAMES.has(resolution.name)) continue;
+    if (HOST_REGISTERED_PORTS[resolution.name] !== undefined) continue;
+    const owner = ownerOfName.get(resolution.name);
+    // A name nothing registers is `check-port-dependencies`' `unowned-name`,
+    // and reporting it here as well would give one defect two voices.
+    if (owner === undefined) continue;
+    // A module naming its own registration crosses no boundary.
+    if (owner === resolution.moduleId) continue;
+    if (publishedContainers.has(resolution.name)) continue;
+    const key = `${resolution.moduleId}:${resolution.name}`;
+    if (resolutionLedger[key] !== undefined) {
+      resolutionLedgerHits.add(key);
+      continue;
+    }
+    unpublishedResolutions.push({
+      moduleId: resolution.moduleId,
+      owner,
+      name: resolution.name,
+      file: resolution.file,
+      line: resolution.line,
+      kind: 'resolution-of-unpublished-name',
+    });
+  }
+
+  unpublishedResolutions.sort((a, b) =>
+    a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file),
+  );
+  const staleUnpublishedResolutions = Object.keys(resolutionLedger)
+    .filter((key) => !resolutionLedgerHits.has(key))
+    .sort();
+
   return {
     portTypes: [...portTypes].sort(),
     findings,
     nameFindings,
     registeredNameCount: allNames.size,
     staleLedgerEntries,
+    unpublishedResolutions,
+    publishedContainerCount: publishedContainers.size,
+    lazyPortResolutionCount: lazyResolutions.length,
+    staleUnpublishedResolutions,
   };
 }
 
@@ -485,18 +752,45 @@ function main(): void {
     process.exit(2);
   }
 
+  if (result.publishedContainerCount === 0) {
+    console.error(
+      `[port-shape] not one of the ${result.portTypes.length} published ports names a ` +
+        `container — the '${PORT_DOC_MARKER}' line is what signal 3 compares a consumer's ` +
+        `\`lazyPort\` literal against, so every cross-module resolution in the tree would ` +
+        `read as unpublished (issue #113)`,
+    );
+    process.exit(2);
+  }
+
+  if (result.lazyPortResolutionCount === 0) {
+    console.error(
+      `[port-shape] the scan of ${moduleFiles.length} module files found no \`lazyPort\` ` +
+        `resolution at all — signal 3's population is empty, which is "not looking" rather ` +
+        `than "clean" (issue #113)`,
+    );
+    process.exit(2);
+  }
+
   if (listMode) {
     for (const name of result.portTypes) console.log(`PORT ${name}`);
     console.log('');
   }
 
   const violations =
-    result.findings.length + result.nameFindings.length + result.staleLedgerEntries.length;
+    result.findings.length +
+    result.nameFindings.length +
+    result.staleLedgerEntries.length +
+    result.unpublishedResolutions.length +
+    result.staleUnpublishedResolutions.length;
   console.log(
     `[port-shape] ports=${result.portTypes.length} ` +
       `contract-files=${contractFiles.length} module-files=${moduleFiles.length} ` +
       `registered-names=${result.registeredNameCount} ` +
+      `published-container-names=${result.publishedContainerCount} ` +
+      `lazy-port-resolutions=${result.lazyPortResolutionCount} ` +
       `ledgered-unregistered=${Object.keys(PORTS_WITHOUT_A_REGISTRATION).length} ` +
+      `ledgered-unpublished-resolutions=` +
+      `${Object.keys(RESOLUTIONS_OF_UNPUBLISHED_NAMES).length} ` +
       `violations=${violations}`,
   );
 
@@ -542,6 +836,36 @@ function main(): void {
           `[${finding.kind}]`,
       );
     }
+  }
+
+  if (result.unpublishedResolutions.length > 0) {
+    console.error(
+      '\nA module resolves, cross-module, a container name **no contract publishes**\n' +
+        '(D-98.2). The name is the whole of the promise a port makes — `lazyPort<T>` is\n' +
+        '`new Proxy({} as T, …)`, so `T` is asserted and nothing compares it to what is\n' +
+        'registered. A consumer that copies the owner\'s *class* registration instead of\n' +
+        'its published port therefore compiles, and receives the entity.\n' +
+        'Either the owner publishes the name — a contract type with a `Container name:`\n' +
+        'doc block — or the consumer resolves the published name instead. Both are\n' +
+        'ordinary repairs; a ledger entry is for a name that cannot be published, and it\n' +
+        'has to say why and what retires it.\n',
+    );
+    for (const finding of result.unpublishedResolutions) {
+      console.error(
+        `  - ${finding.file}:${finding.line}  ${finding.moduleId} resolves ` +
+          `\`${finding.name}\`, registered by \`${finding.owner}\` and published by no ` +
+          `contract [${finding.kind}]`,
+      );
+    }
+  }
+
+  if (result.staleUnpublishedResolutions.length > 0) {
+    console.error(
+      '\nA `RESOLUTIONS_OF_UNPUBLISHED_NAMES` entry no longer describes the tree: the\n' +
+        'site has gone, or the name it resolves is published now. Delete the entry — a\n' +
+        'draining ledger that keeps its drained entries stops being a measurement.\n',
+    );
+    for (const key of result.staleUnpublishedResolutions) console.error(`  - ${key}`);
   }
 
   if (result.staleLedgerEntries.length > 0) {

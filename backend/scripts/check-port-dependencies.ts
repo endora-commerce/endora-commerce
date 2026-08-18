@@ -407,6 +407,28 @@ export interface PortResolution {
   readonly kind: 'captured' | 'deferred';
   /** See {@link ResolutionSite}. */
   readonly site: ResolutionSite;
+  /**
+   * **Which seam the name was written into**, which is a different question
+   * from `kind` and from `site` and is the one `check-port-shape`'s third
+   * signal keys on (issue #196, D-98.2).
+   *
+   *  - `lazyPort` — `lazyPort<T>(ctx, 'name')`, the shape a module uses to
+   *    reach a *published* port. The name is a literal a developer copied out
+   *    of a contract's doc block, which is exactly why it is checkable against
+   *    one.
+   *  - `cradle` — every other shape this function reads: a factory's cradle
+   *    parameter, `ctx.cradle<C>()`, a module-local alias of either. Those are
+   *    **contribution seams**, where a module reads a name a composition root
+   *    or the kernel supplies, and where naming a published contract would be
+   *    the wrong requirement — four of the five names the two populations
+   *    disagree on are of that kind.
+   *
+   * Recorded here rather than re-derived by the consumer so that "this
+   * resolution is a `lazyPort`" is decided in the one place that already
+   * decides it. A predicate that exists twice can go half-missing while the
+   * check still prints `violations=0`.
+   */
+  readonly via: 'lazyPort' | 'cradle';
 }
 
 /**
@@ -1167,6 +1189,7 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
     node: ts.Node,
     kind: PortResolution['kind'],
     site: ResolutionSite = siteAt(node),
+    via: PortResolution['via'] = 'cradle',
   ): void => {
     found.push({
       moduleId,
@@ -1175,6 +1198,7 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
       line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
       kind,
       site,
+      via,
     });
   };
 
@@ -1336,13 +1360,13 @@ export function resolvedNames(source: string, file: string): PortResolution[] {
         const lazySite: ResolutionSite = siteAt(node) === 'boot' ? 'boot' : 'call';
         if (nameArgument !== undefined) {
           if (ts.isStringLiteralLike(nameArgument)) {
-            record(nameArgument.text, nameArgument, 'deferred', lazySite);
+            record(nameArgument.text, nameArgument, 'deferred', lazySite, 'lazyPort');
           } else {
             // A name this check cannot read statically must not pass silently.
             // A generic `port(ctx, name)` helper written during T131 hid twelve
             // resolutions behind a variable; the fix is to refuse the shape,
             // not to guess at it.
-            record(NON_LITERAL_PORT_NAME, nameArgument, 'deferred', lazySite);
+            record(NON_LITERAL_PORT_NAME, nameArgument, 'deferred', lazySite, 'lazyPort');
           }
         }
       }
