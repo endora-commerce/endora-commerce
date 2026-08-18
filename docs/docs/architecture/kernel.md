@@ -346,7 +346,7 @@ orders are already in. The policy is structural rather than promised: the class
 takes no presence input, so no read of it can be made to drop a status without
 changing the policy first. What an operator loses by switching those modules off
 is carried where it belongs — each module closes its own catalogue at its own
-seam, and `orders` declares the sentence the confirmation dialog renders.
+seam, and `orders` declares the sentence the confirmation dialog will render.
 
 ## The deactivation-consequence ledger
 
@@ -377,11 +377,19 @@ module the platform refuses to switch off carry no entry at all — the flip can
 happen, so there is no state to describe.
 
 `deactivationConsequencesFor` projects the same entries into the rows an operator
-sees. The confirmation dialog and the 409 `MODULE_DEACTIVATION_UNCONFIRMED`
-envelope both read that one function over that one ledger, so the two id sets
-cannot drift: they are the same expression, not two lists somebody keeps in step.
-Two independent computations of "what will stop working" would drift, and the CI
-one would be the copy nobody reads.
+sees — and that projection is the half of this that has **not** shipped. Its only
+caller today is `check-port-dependencies.ts`, at build time; the confirmation
+dialog and the 409 `MODULE_DEACTIVATION_UNCONFIRMED` envelope are feature 074's
+later phases (issue #121, in flight), and today's dialog is a bare
+`window.confirm` naming the module and nothing else
+(`admin/src/modules/platform/ModuleActivationControl.tsx`). What is settled ahead
+of them is that there is **one** function for both to call, so that when they land
+the id set in the dialog and the id set in `details.consequences` cannot drift:
+they will be the same expression evaluated twice, not two lists somebody keeps in
+step. Two independent computations of "what will stop working" would drift, and
+the CI one would be the copy nobody reads — which is why classifying an edge is
+not CI bookkeeping even now. Write the entry for the operator who will read it,
+not for the check.
 
 Two tables carry the standing debt, both two-way like every other ledger here.
 `CONTRIBUTION_POLICY_STATED` names the registries whose host has decided, with
