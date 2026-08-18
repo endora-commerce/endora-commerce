@@ -2342,6 +2342,15 @@ export type CatalogProductFilterField =
  * `contains` and `startsWith` are patterns the **owner** builds, so a caller
  * never writes SQL `LIKE` syntax and the escaping rule has one home. Both match
  * case-insensitively, as the queries they replace already did.
+ *
+ * **Their value is matched literally.** `%`, `_` and the escape character are
+ * characters, not wildcards: the owner escapes them before building the
+ * pattern, so `contains "50%"` selects the products whose text carries the
+ * three characters `5`, `0`, `%` and not every product with "50" followed by
+ * anything. That is part of this shape rather than one provider's detail — a
+ * caller passes the value as the operator's user typed it and never
+ * pre-escapes, and any provider of {@link CatalogProductFilterPort} owes the
+ * same semantics.
  */
 export type CatalogProductFilterOperator =
   | 'eq'

@@ -155,6 +155,86 @@ describe('catalogProductFilterPort — the sellable selection scan [integration]
     );
   });
 
+  /**
+   * Issue #181. `contains` and `startsWith` name a **literal**, so `%`, `_` and
+   * the escape character are characters in the value and not wildcards.
+   *
+   * The pattern used to be built as `%${value}%` with nothing escaped, which is
+   * both wider and narrower than the operator says: `contains "50%"` matched
+   * every sku with "50" followed by anything, while `contains "C\\D"` matched
+   * `CD` and missed the sku that actually holds the backslash — PostgreSQL's
+   * default LIKE escape is `\\`, and it degrades an escape sequence it does not
+   * recognise to the plain character.
+   *
+   * Each case seeds the row the operator names **and a decoy** the unescaped
+   * pattern used to pick up, so a regression cannot pass by matching nothing.
+   */
+  describe('matches the value of `contains` and `startsWith` literally', () => {
+    const matchingSkus = async (
+      seeded: Record<string, string>,
+      op: 'contains' | 'startsWith',
+      value: string,
+    ): Promise<string[]> => {
+      const rows = await port.listSellable({
+        productIds: Object.values(seeded),
+        filter: { kind: 'condition', field: { kind: 'column', column: 'sku' }, op, values: [value] },
+      });
+      return rows.map((row) => row.sku).sort();
+    };
+
+    it('treats `%` in the value as a character, not as "anything"', async () => {
+      const seeded = await seedSkus(em, ['LIT-50%-OFF', 'LIT-500-OFF']);
+
+      expect(await matchingSkus(seeded, 'contains', '50%')).toEqual(['LIT-50%-OFF']);
+      expect(await matchingSkus(seeded, 'startsWith', 'LIT-50%')).toEqual(['LIT-50%-OFF']);
+    });
+
+    it('treats `_` in the value as a character, not as "any one character"', async () => {
+      const seeded = await seedSkus(em, ['LIT-A_B', 'LIT-AXB']);
+
+      expect(await matchingSkus(seeded, 'contains', 'A_B')).toEqual(['LIT-A_B']);
+      expect(await matchingSkus(seeded, 'startsWith', 'LIT-A_')).toEqual(['LIT-A_B']);
+    });
+
+    it('treats the escape character in the value as a character, not as an escape', async () => {
+      const seeded = await seedSkus(em, ['LIT-C\\D', 'LIT-CD']);
+
+      expect(await matchingSkus(seeded, 'contains', 'C\\D')).toEqual(['LIT-C\\D']);
+      expect(await matchingSkus(seeded, 'startsWith', 'LIT-C\\')).toEqual(['LIT-C\\D']);
+    });
+
+    it('escapes the value on the attribute bag as well as on a column', async () => {
+      // The JSONB path builds the same pattern, so it is the same defect and
+      // has to be the same fix; a column-only escape leaves half the grammar
+      // matching more than it says.
+      const seeded = await seedSkus(em, ['LIT-ATTR-LITERAL', 'LIT-ATTR-DECOY'], {
+        'LIT-ATTR-LITERAL': { code: '50%' },
+        'LIT-ATTR-DECOY': { code: '500' },
+      });
+
+      const rows = await port.listSellable({
+        productIds: Object.values(seeded),
+        filter: {
+          kind: 'condition',
+          field: { kind: 'attribute', key: 'code' },
+          op: 'contains',
+          values: ['50%'],
+        },
+      });
+      expect(rows.map((row) => row.sku)).toEqual(['LIT-ATTR-LITERAL']);
+    });
+
+    it('still matches an ordinary value exactly as it did before', async () => {
+      const seeded = await seedSkus(em, ['LIT-PLAIN-ONE', 'LIT-PLAIN-TWO', 'LIT-OTHER']);
+
+      expect(await matchingSkus(seeded, 'contains', 'PLAIN')).toEqual([
+        'LIT-PLAIN-ONE',
+        'LIT-PLAIN-TWO',
+      ]);
+      expect(await matchingSkus(seeded, 'startsWith', 'LIT-PLAIN-T')).toEqual(['LIT-PLAIN-TWO']);
+    });
+  });
+
   it('selects nothing for `none`, and nothing for an operator given no value', async () => {
     expect(await port.countSellable({ productIds: all(), filter: { kind: 'none' } })).toBe(0);
 
@@ -231,4 +311,32 @@ async function seedProducts(em: EntityManager): Promise<Record<string, string>> 
   };
   await em.persistAndFlush(Object.values(rows));
   return Object.fromEntries(Object.entries(rows).map(([key, row]) => [key, row.id]));
+}
+
+/**
+ * Extra sellable rows for one test, keyed by sku. They are deliberately not in
+ * the file-level `ids` map: every other test asserts an exact id set over
+ * `all()`, and these rows exist only for the filter the test that seeds them
+ * passes their ids to.
+ */
+async function seedSkus(
+  em: EntityManager,
+  skus: string[],
+  attributeValues: Record<string, Record<string, unknown>> = {},
+): Promise<Record<string, string>> {
+  const rows = skus.map((sku, index) =>
+    em.create(Product, {
+      type: 'simple' as const,
+      description: {},
+      attributeSetId: SET_ID,
+      attributeValues: attributeValues[sku] ?? {},
+      sku,
+      slug: `literal-fixture-${index}`,
+      status: 'active',
+      visibility: 'public',
+      name: { 'en-US': sku },
+    }),
+  );
+  await em.persistAndFlush(rows);
+  return Object.fromEntries(rows.map((row) => [row.sku, row.id]));
 }
