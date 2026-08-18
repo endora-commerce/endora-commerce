@@ -95,12 +95,24 @@ The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
    ```bash
    cd /opt/b2b
    export IMAGE_TAG=<deployed-sha>   # or: latest
-   # demo catalog:
+   # demo catalog — TEST/STAGING HOSTS ONLY, see the warning below:
    docker compose --env-file .env -f compose.prod.yml --profile seed run --rm seed
    # admin user (interactive prompts):
    docker compose --env-file .env -f compose.prod.yml run --rm backend \
      pnpm exec tsx src/modules/admin_users/scripts/create-admin.ts
    ```
+
+   > **Never run the `seed` profile against a client's deployment.** It runs the developer demo
+   > seed, which **truncates the public catalog and business tables**, and the compose service
+   > sets `ALLOW_DEV_SEED_IN_PRODUCTION=true` permanently so the script's own guard does not
+   > stop it. It exists to populate a demo host and is correct for that. Creating the admin user
+   > (the second command) is required everywhere.
+
+4. **For a real client deployment, work through
+   `docs/docs/deployment/first-deployment-checklist.md`.** This file gets the stack running;
+   that one covers what the code cannot decide for the operator — permission grants, module
+   activation, seller identity, gateway environments, backups, and the environment values
+   these templates do not carry (`PUBLIC_API_BASE_URL`, `REVALIDATE_SECRET`, `SMTP_URL`).
 
 Subsequent deploys: just run the `deploy` job. Migrations run before the API
 starts every time; rollback = re-run `deploy` from an older pipeline (its images
