@@ -188,6 +188,10 @@ import {
   type SqlAccessSyntax,
 } from './lib/sql-tables.js';
 import { pluralize } from '../src/db/pluralizing-naming-strategy.js';
+import {
+  loadRegisteredModuleIds,
+  vacuousModulePopulation,
+} from './lib/module-population.js';
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const SRC_ROOT = join(BACKEND_ROOT, 'src');
@@ -771,16 +775,30 @@ export function checkModuleBoundary(
  * looking" (issue #113, FR-021).
  */
 export function vacuousReason(input: {
-  readonly moduleFiles: number;
+  /** Every file the module walk produced, relative to `src/`. */
+  readonly moduleFiles: readonly string[];
+  /** Module ids the generated manifest index registers (issue #215). */
+  readonly registeredModules: readonly string[];
   readonly ledgerDirectoryExists: boolean;
   /** Tables the `@Entity()` pass resolved. */
   readonly entityTables: number;
   /** Tables the `create table` pass resolved — see {@link TableOwnerReport}. */
   readonly migrationTables: number;
 }): string | null {
-  if (input.moduleFiles === 0) {
+  if (input.moduleFiles.length === 0) {
     return 'no module sources under src/ — refusing to report a vacuous pass';
   }
+  // Emptiness is the weaker half of the same question (issue #215). `src/apps`
+  // is the walk's second root, so a moved module tree leaves five overlay files
+  // behind: the walk is non-empty, every shard reads as an orphan, and the day
+  // the ledger finishes draining that red goes away and this reports
+  // `violations=0` over a tree it never opened. The floor is one source per
+  // registered module, and the index it comes from is a path that must resolve.
+  const population = vacuousModulePopulation({
+    registered: input.registeredModules,
+    files: input.moduleFiles,
+  });
+  if (population !== null) return population;
   if (!input.ledgerDirectoryExists) {
     return 'ledger directory missing — refusing to report a vacuous pass';
   }
@@ -1042,8 +1060,21 @@ async function main(): Promise<void> {
   const sources = sourcesOf(files);
   const schema = sourcesOf(collectSchemaFiles());
   const owners = buildTableOwners(schema).report;
+  let registeredModules: readonly string[];
+  try {
+    registeredModules = await loadRegisteredModuleIds(SRC_ROOT);
+  } catch (error: unknown) {
+    console.error(
+      `[module-boundary] the module index under ${SRC_ROOT} could not be read ` +
+        `(${String(error)}) — the expected population is derived from it; ` +
+        'refusing to report a vacuous pass',
+    );
+    process.exit(2);
+    return;
+  }
   const vacuous = vacuousReason({
-    moduleFiles: files.length,
+    moduleFiles: [...sources.keys()],
+    registeredModules,
     ledgerDirectoryExists: existsSync(LEDGER_ROOT),
     entityTables: owners.entityTables,
     migrationTables: owners.migrationTables,

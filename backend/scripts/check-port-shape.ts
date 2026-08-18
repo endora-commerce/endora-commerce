@@ -144,6 +144,7 @@ import {
   registeredNames,
   resolvedNames,
 } from './check-port-dependencies.js';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const BACKEND_SRC = join(HERE, '..', 'src');
@@ -712,7 +713,7 @@ function read(root: string, files: string[], prefix: string): Map<string, string
   return sources;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
 
   const contractFiles = walk(CONTRACTS_SRC);
@@ -720,13 +721,22 @@ function main(): void {
     ...walk(join(BACKEND_SRC, 'modules')),
     ...walk(join(BACKEND_SRC, 'apps')),
   ];
-  if (contractFiles.length === 0 || moduleFiles.length === 0) {
+  if (contractFiles.length === 0) {
     console.error(
-      '[port-shape] no sources under packages/contracts/src or backend/src/modules — ' +
+      '[port-shape] no sources under packages/contracts/src — ' +
         'refusing to report a vacuous pass',
     );
     process.exit(2);
   }
+  // The module half of that pair was an emptiness test, and emptiness is the
+  // one case a moved module tree does not produce (issue #215): `src/apps`
+  // survives it, and the three floors below are each satisfied by a single
+  // surviving registration or resolution. The floor is per registered module.
+  await refuseVacuousModulePopulation({
+    prefix: '[port-shape]',
+    srcRoot: BACKEND_SRC,
+    files: moduleFiles,
+  });
 
   const input: PortShapeInput = {
     contracts: read(CONTRACTS_SRC, contractFiles, 'contracts/'),
@@ -881,5 +891,5 @@ function main(): void {
 
 // CLI only — importing this module (the unit self-test does) must not scan.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }

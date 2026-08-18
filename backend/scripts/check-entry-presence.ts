@@ -130,6 +130,7 @@ import {
   stringLiteralOf,
 } from './lib/repeating-timers.js';
 import { loadLockedOwners } from './lib/switchable-modules.js';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -571,10 +572,15 @@ function walk(dir: string, out: string[] = []): string[] {
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   const files = walk(SRC_ROOT);
-  if (files.length === 0) {
-    console.error('[entry-presence] no sources under src/ — refusing to report a vacuous pass');
-    process.exit(2);
-  }
+  // The locked-owner read below refuses a tree whose index went missing. It
+  // does not refuse a **partial** move — index regenerated, half the modules
+  // elsewhere — where the timers and boot hooks in the modules that left are
+  // simply never classified and the run reports on what stayed (issue #215).
+  await refuseVacuousModulePopulation({
+    prefix: '[entry-presence]',
+    srcRoot: SRC_ROOT,
+    files,
+  });
 
   // Which modules an operator can switch off, read from their manifests at check
   // time (D-63's derivation, shared with `check-port-catches`). An unreadable

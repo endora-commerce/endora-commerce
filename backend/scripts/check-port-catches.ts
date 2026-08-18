@@ -198,6 +198,7 @@ import {
   lockedOwners,
   type ManifestActivationInput,
 } from './lib/switchable-modules.js';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -1201,15 +1202,22 @@ export function checkPortCatches(
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   const files = walk(SRC_ROOT);
-  if (files.length === 0) {
-    console.error('[port-catches] no sources under src/ — refusing to report a vacuous pass');
-    process.exit(2);
-  }
 
   const sources = new Map<string, string>();
   for (const file of files) {
     sources.set(relative(SRC_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
   }
+
+  // The manifest read below refuses a tree whose index went missing, which
+  // covers the module directory disappearing whole. It does not cover a
+  // **partial** move — index regenerated, half the modules elsewhere — where
+  // every remaining `catch` is classified and the count simply drops (issue
+  // #215). That needs a per-module floor, from the same index.
+  await refuseVacuousModulePopulation({
+    prefix: '[port-catches]',
+    srcRoot: SRC_ROOT,
+    files: [...sources.keys()],
+  });
 
   // The locks, read from the manifests rather than listed here (D-63), through
   // the helper `check-entry-presence` reads too (D-68). The same index

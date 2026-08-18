@@ -181,7 +181,7 @@ const sidebars = {
       type: 'category',
       label: 'Deployment',
       link: { type: 'generated-index', title: 'Deployment' },
-      items: [],
+      items: ['deployment/first-deployment-checklist'],
     },
   ],
 };

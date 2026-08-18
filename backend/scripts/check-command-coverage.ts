@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import ts from 'typescript';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 
 /**
  * Command-coverage check — feature 054 (FR-009 / FR-010, Constitution Principle XIII).
@@ -776,6 +777,16 @@ export function isMigratedModulePath(
 export const SCAN_ROOTS: readonly string[] = ['src/modules', 'src/apps'];
 
 /**
+ * Registered modules {@link collectScannedFiles} excludes wholesale, so the
+ * population floor asks for the tree the check actually reads.
+ *
+ * One entry, and it is the argument in the header rather than a convenience:
+ * the audit writer's writes *are* the audit entries. Named here so the walk and
+ * the floor cannot disagree about it.
+ */
+export const EXCLUDED_MODULES: readonly string[] = ['audit_logs'];
+
+/**
  * Every file the check judges, under `root` (`src/modules` or `src/apps`).
  *
  * Exported so the check's own test can assert the **real** tree is clean rather
@@ -798,7 +809,7 @@ export function collectScannedFiles(root: string): string[] {
         full.endsWith('.ts') &&
         !full.endsWith('.d.ts') &&
         !full.endsWith('.test.ts') &&
-        !full.replaceAll('\\', '/').includes('/audit_logs/')
+        !EXCLUDED_MODULES.some((id) => full.replaceAll('\\', '/').includes(`/${id}/`))
       ) {
         files.push(full);
       }
@@ -808,7 +819,7 @@ export function collectScannedFiles(root: string): string[] {
   return files;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const strict = argv.includes('--strict');
   const moduleArgs = argv.reduce<string[]>((acc, arg, i) => {
@@ -819,16 +830,21 @@ function main(): void {
 
   const roots = SCAN_ROOTS.map((r) => join(process.cwd(), r)).filter((r) => existsSync(r));
   const files = roots.flatMap((root) => collectScannedFiles(root));
-  if (files.length === 0) {
-    // Run from the wrong directory, or after a layout change, the walk finds
-    // nothing and every write in the platform passes unexamined. Exit 2: a
-    // green line here would say "no unaudited write", which is not what it
-    // would mean.
-    process.stderr.write(
-      `[command-coverage] no files under ${SCAN_ROOTS.join(', ')} — refusing to report a vacuous pass\n`,
-    );
-    process.exit(2);
-  }
+  // Run from the wrong directory, or after a layout change, the walk finds
+  // nothing and every write in the platform passes unexamined. Exit 2: a green
+  // line here would say "no unaudited write", which is not what it would mean.
+  //
+  // Emptiness is the weaker half of that (issue #215): `src/apps` is a scan
+  // root of its own, so a moved module tree leaves five overlay files behind
+  // and the check reports on those instead. The floor is therefore one file per
+  // registered module — minus the ones this check excludes by argument — and it
+  // is derived from the manifest index rather than counted here.
+  await refuseVacuousModulePopulation({
+    prefix: '[command-coverage]',
+    srcRoot: join(process.cwd(), 'src'),
+    files,
+    excluded: EXCLUDED_MODULES,
+  });
 
   let blocking = 0;
   let reportOnly = 0;
@@ -855,4 +871,4 @@ function main(): void {
 // Run only when invoked directly (not when imported by tests).
 const invokedDirectly =
   process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
-if (invokedDirectly) main();
+if (invokedDirectly) void main();

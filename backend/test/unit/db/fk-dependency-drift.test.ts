@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { dirname, resolve } from 'node:path';
+import { existsSync, readdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deriveFkGraph, KERNEL_OWNER, type FkEdge } from '../../helpers/fk-graph.js';
 import { TABLE_OWNER_OVERRIDES } from './table-owner-overrides.js';
@@ -89,9 +90,44 @@ describe('fk drift — V1 zero violations against the real tree (SC-011)', () =>
     expect(violations, violations.join('\n\n')).toEqual([]);
   });
 
-  it('derives a non-trivial edge set (guards against a silently empty scan)', () => {
-    expect(graph.edges.length).toBeGreaterThan(50);
-    expect(graph.createdTables.size).toBeGreaterThan(150);
+  // The scan is a filesystem walk over `src/modules`, and its two floors used
+  // to be the numbers 50 and 150 (issue #215). A hand-written count is a copy of
+  // a derived fact — it says nothing about *which* modules were read, so a walk
+  // that lost half the tree still cleared it, and D-100 is the standing warning
+  // about exactly that copy. Both floors below are derived from
+  // `DISCOVERED_MANIFESTS`, a committed artefact this file already imports: it
+  // moves when the tree moves, and it names the modules rather than counting
+  // them.
+  const registeredIds = DISCOVERED_MANIFESTS.map((entry) => entry.id);
+
+  const shipsTypeScriptIn = (moduleId: string, folder: string): boolean => {
+    const directory = join(backendSrc, 'modules', moduleId, folder);
+    return existsSync(directory) && readdirSync(directory).some((f) => f.endsWith('.ts'));
+  };
+
+  it('resolves a directory for every registered module (the tree is where it looks)', () => {
+    // A moved module tree makes the walk read a residue and report on it. This
+    // is the "path that must resolve" half: the registry says the module is
+    // there, so a scan that cannot find it is an error, never an empty result.
+    const missing = registeredIds.filter(
+      (id) => !existsSync(join(backendSrc, 'modules', id)),
+    );
+    expect(missing, `registered but absent under src/modules: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('resolves an owner for every registered module that ships entities', () => {
+    // The second half: the directory is there and the entity pass still matched
+    // inside it. A `tableName:` regex that stopped matching would leave every
+    // table unowned and every cross-module edge unattributed, which reads as a
+    // clean tree rather than as a broken scan.
+    const owners = new Set(graph.entityOwners.values());
+    const unread = registeredIds
+      .filter((id) => shipsTypeScriptIn(id, 'entities'))
+      .filter((id) => !owners.has(id));
+    expect(
+      unread,
+      `these modules ship an entities/ directory the scan read no table out of: ${unread.join(', ')}`,
+    ).toEqual([]);
   });
 });
 

@@ -71,6 +71,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { isGetKnexCall, sqlTableAccesses } from './lib/sql-tables.js';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -352,18 +353,24 @@ export function checkTransactionContext(
   };
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   const files = walk(SRC_ROOT);
-  if (files.length === 0) {
-    console.error('[transaction-context] no sources under src/ — refusing to report a vacuous pass');
-    process.exit(2);
-  }
 
   const sources = new Map<string, string>();
   for (const file of files) {
     sources.set(relative(SRC_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
   }
+
+  // Every transaction this check judges is in a module service, and `src/`
+  // without `src/modules` is 7% of the tree: reading the remainder finds no
+  // escape and reports "clean" (issue #215). The floor is the manifest index,
+  // so it tracks the module list rather than restating it.
+  await refuseVacuousModulePopulation({
+    prefix: '[transaction-context]',
+    srcRoot: SRC_ROOT,
+    files: [...sources.keys()],
+  });
 
   const result = checkTransactionContext({ sources });
 
@@ -409,5 +416,5 @@ function main(): void {
 
 // CLI only — importing this module (the unit self-test does) must not scan.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }

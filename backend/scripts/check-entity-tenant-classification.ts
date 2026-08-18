@@ -20,6 +20,7 @@ import { readdirSync, statSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 
 const CLASSIFICATION_DECORATORS = new Set([
   'OrgScoped',
@@ -86,15 +87,19 @@ function analyzeFile(file: string): EntityFinding[] {
   return analyzeSource(readFileSync(file, 'utf8'), file);
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   const files = walk(SRC_ROOT);
-  if (files.length === 0) {
-    console.error(
-      '[tenant-classification] no sources under src/ — refusing to report a vacuous pass',
-    );
-    process.exit(2);
-  }
+  // 216 of the 221 entities in the tree are a module's. `src/` minus
+  // `src/modules` still holds the kernel's five, so an emptiness guard passes
+  // on the residue and the check reports every entity classified — over a tree
+  // it did not read (issue #215). The expectation is per registered module and
+  // comes from the manifest index.
+  await refuseVacuousModulePopulation({
+    prefix: '[tenant-classification]',
+    srcRoot: SRC_ROOT,
+    files,
+  });
   const entityFiles = files.filter((f) => ENTITY_DECORATOR_HINT.test(readFileSync(f, 'utf8')));
   const findings = entityFiles.flatMap(analyzeFile);
   if (findings.length === 0) {
@@ -145,5 +150,5 @@ function main(): void {
 // Run as CLI only — importing this module (e.g. from a unit test) must not
 // trigger the full scan + process.exit.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }
