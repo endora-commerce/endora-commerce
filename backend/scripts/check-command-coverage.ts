@@ -197,6 +197,7 @@ export const MIGRATED_MODULES: readonly string[] = [
   'ksef',
   'product_feeds',
   'pim_ergonode',
+  'pim_pimcore',
 ];
 
 /**

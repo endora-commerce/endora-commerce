@@ -190,6 +190,7 @@ import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/
 import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
+import type { PimPimcoreCradle } from '../../src/modules/pim_pimcore/backend.js';
 import type { PimcoreClientPort } from '../../src/modules/pim_pimcore/services/pimcore-client.port.js';
 import type { PimcoreMediaFetcherPort } from '../../src/modules/pim_pimcore/services/pimcore-media-fetcher.port.js';
 import {
@@ -383,6 +384,8 @@ export interface BackendServerHandle {
   productFeeds: ProductFeedsCradle['productFeeds']['handle'];
   /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
   pimErgonode: PimErgonodeCradle['pimErgonode']['handle'];
+  /** Feature 076 — Pimcore PIM handle (source client seam, inline import). */
+  pimPimcore: PimPimcoreCradle['pimPimcore']['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: PwaCradle['pwa']['handle'];
   /**
@@ -2789,6 +2792,7 @@ export async function setupBackendServer(
     ksef: ksefCradle.ksef.handle,
     productFeeds: (container.cradle as unknown as ProductFeedsCradle).productFeeds.handle,
     pimErgonode: (container.cradle as unknown as PimErgonodeCradle).pimErgonode.handle,
+    pimPimcore: (container.cradle as unknown as PimPimcoreCradle).pimPimcore.handle,
     pwa: pwaCradle.pwa.handle,
     permissionService,
     permissionCatalogueService,
