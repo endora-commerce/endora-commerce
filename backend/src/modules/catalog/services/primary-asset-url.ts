@@ -46,7 +46,7 @@ export async function resolvePrimaryAssetUrls(
   if (productIds.length === 0) return result;
 
   const ids = [...productIds];
-  const galleryRows = await em.getConnection().execute<CandidateRow[]>(
+  const galleryRows = await em.execute<CandidateRow[]>(
     `select gi.product_id::text as product_id,
             gi.asset_id::text as asset_id,
             gil.label
@@ -80,7 +80,7 @@ export async function resolvePrimaryAssetUrls(
   const missing = ids.filter((id) => !galleryByProduct.has(id));
   if (missing.length === 0) return result;
 
-  const legacyRows = await em.getConnection().execute<CandidateRow[]>(
+  const legacyRows = await em.execute<CandidateRow[]>(
     `select pa.product_id::text as product_id, pa.asset_id::text as asset_id, null::text as label
        from product_assets pa
       where pa.product_id in (${missing.map(() => '?').join(',')})

@@ -225,9 +225,14 @@ export class PackagingUnitService {
     for (const o of others) o.isDefault = false;
   }
 
+  /**
+   * `em.execute`, not `em.getConnection().execute`: `create` calls this on the
+   * Command's `em`, so the next free position is computed from the rows that
+   * transaction can see rather than from a pooled connection's older view
+   * (issue #207).
+   */
   async #nextPosition(em: EntityManager, productId: string): Promise<number> {
-    const conn = em.getConnection();
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       `select coalesce(max(position), -1) + 1 as next_position from product_packaging_units where product_id = ?`,
       [productId],
     )) as Array<{ next_position: number }>;

@@ -393,7 +393,7 @@ export class CatalogQueryService {
     const summary = await this.toSummary(em, product, channel, ctx.preferredLanguage);
 
     // Categories
-    const categoryRows = await em.getConnection().execute<{ category_id: string }[]>(
+    const categoryRows = await em.execute<{ category_id: string }[]>(
       `select category_id from product_categories where product_id = ?`,
       [product.id],
     );
@@ -407,7 +407,7 @@ export class CatalogQueryService {
     });
 
     // Assets
-    const assetRows = await em.getConnection().execute<{ asset_id: string; position: number }[]>(
+    const assetRows = await em.execute<{ asset_id: string; position: number }[]>(
       `select asset_id, position from product_assets where product_id = ? order by position asc`,
       [product.id],
     );
@@ -1026,8 +1026,7 @@ export class CatalogQueryService {
     // (membership is definition-keyed since feature 061).
     let positionByKey = new Map<string, number>();
     if (product.attributeSetId) {
-      const conn = em.getConnection();
-      const posRows = (await conn.execute<
+      const posRows = (await em.execute<
         Array<{ custom_field_definition_id: string; position: number }>
       >(
         `select custom_field_definition_id, position
@@ -1258,7 +1257,7 @@ export class CatalogQueryService {
     }
 
     const allIds = [...new Set([...descendants.values()].flat())];
-    const rows = await em.getConnection().execute<{ category_id: string; product_id: string }[]>(
+    const rows = await em.execute<{ category_id: string; product_id: string }[]>(
       `select category_id, product_id from product_categories
         where category_id in (${allIds.map(() => '?').join(',')})`,
       allIds,
@@ -1307,7 +1306,7 @@ export class CatalogQueryService {
       frontier = nextIds;
     }
 
-    const rows = await em.getConnection().execute<{ product_id: string }[]>(
+    const rows = await em.execute<{ product_id: string }[]>(
       `select product_id from product_categories where category_id in (${all.map(() => '?').join(',')})`,
       all,
     );
@@ -1323,7 +1322,7 @@ export class CatalogQueryService {
     em: EntityManager,
     channel: CatalogResolvedChannel,
   ): Promise<Map<string, Set<string>>> {
-    const base = await em.getConnection().execute<{ category_id: string; product_id: string }[]>(
+    const base = await em.execute<{ category_id: string; product_id: string }[]>(
       `select category_id, product_id from product_categories`,
     );
     if (base.length === 0) return new Map();
@@ -1360,7 +1359,7 @@ export class CatalogQueryService {
       null;
 
     // Category slugs
-    const catRows = await em.getConnection().execute<{ slug: string }[]>(
+    const catRows = await em.execute<{ slug: string }[]>(
       `select c.slug from product_categories pc join categories c on c.id = pc.category_id where pc.product_id = ?`,
       [product.id],
     );

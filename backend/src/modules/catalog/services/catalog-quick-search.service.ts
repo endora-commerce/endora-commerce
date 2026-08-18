@@ -65,7 +65,7 @@ export class CatalogQuickSearchService implements CatalogQuickSearchPort {
       .join(' or ');
     const attributeBindings = quickKeys.flatMap((key) => [key, like]);
 
-    const rows = await em.getConnection().execute<
+    const rows = await em.execute<
       Array<{
         id: string;
         sku: string;

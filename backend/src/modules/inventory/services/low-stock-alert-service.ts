@@ -70,11 +70,12 @@ export class LowStockAlertService {
 
   async listLowStock(): Promise<LowStockSummaryRow[]> {
     const em = this.emFactory();
-    const knex = em.getKnex();
-    const rows = (await knex('stock_levels')
-      .select('product_id')
-      .sum({ on_hand: 'on_hand' })
-      .groupBy('product_id')) as Array<{ product_id: string; on_hand: string | null }>;
+    // `em.execute`, not `em.getKnex()`: a knex handle takes its own pooled
+    // connection, so the report would answer from outside a transaction the
+    // caller holds open (issue #207).
+    const rows = (await em.execute(
+      `select product_id, sum(on_hand) as on_hand from stock_levels group by product_id`,
+    )) as Array<{ product_id: string; on_hand: string | null }>;
     if (rows.length === 0) return [];
 
     const productIds = rows.map((r) => r.product_id);
@@ -117,12 +118,12 @@ export class LowStockAlertService {
     // Recompute cumulative across all warehouses (the event payload only
     // carries one warehouse's delta). before/after for the cumulative
     // crossing is `cumulativeBefore = (newCumulative - delta)`.
-    const knex = em.getKnex();
-    const sumRow = await knex('stock_levels')
-      .where('product_id', product.id)
-      .sum<{ on_hand: string | null }[]>('on_hand as on_hand')
-      .first();
-    const cumulativeAfter = Number(sumRow?.on_hand ?? 0);
+    // `em.execute`, not `em.getKnex()` — same reason as the report above.
+    const sumRows = (await em.execute(
+      `select sum(on_hand) as on_hand from stock_levels where product_id = ?`,
+      [product.id],
+    )) as Array<{ on_hand: string | null }>;
+    const cumulativeAfter = Number(sumRows[0]?.on_hand ?? 0);
     const cumulativeBefore = cumulativeAfter - (payload.after - payload.before);
 
     if (cumulativeBefore > threshold && cumulativeAfter <= threshold) {

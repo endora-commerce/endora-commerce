@@ -95,7 +95,13 @@ export class PromotionUsageService {
         p.usageLimitPerCustomer != null,
     );
     if (withLimits.length === 0) return exhausted;
-    const knex = this.emFactory().getKnex();
+    // `em.execute`, not `em.getKnex()`: a knex handle carries no transaction
+    // context, and this soft check is the read half of the counter its own
+    // `finalize` increments inside the placement transaction (D-94). Read on a
+    // pooled connection it cannot see an increment the caller's transaction has
+    // already made, so a limit met earlier in the same order would not exclude
+    // the promotion here (issue #207).
+    const em = this.emFactory();
     for (const p of withLimits) {
       const keys: Array<{ type: string; key: string; limit: number }> = [];
       if (p.usageLimitGlobal != null) keys.push({ type: 'global', key: p.id, limit: p.usageLimitGlobal });
@@ -114,9 +120,12 @@ export class PromotionUsageService {
         });
       }
       for (const k of keys) {
-        const row = (await knex('promotion_usage_counters')
-          .where({ scope_type: k.type, scope_key: k.key })
-          .first()) as { count: number } | undefined;
+        const rows = (await em.execute(
+          `select "count" from "promotion_usage_counters"
+            where "scope_type" = ? and "scope_key" = ?`,
+          [k.type, k.key],
+        )) as Array<{ count: number }>;
+        const row = rows[0];
         if (row && row.count >= k.limit) {
           exhausted.add(p.id);
           break;

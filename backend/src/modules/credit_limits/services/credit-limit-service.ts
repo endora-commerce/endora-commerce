@@ -650,8 +650,21 @@ export class CreditLimitService {
     return Math.round((n + Number.EPSILON) * 100) / 100;
   }
 
+  /**
+   * Σ active reservations against a credit_limits row — transaction-scoped, like
+   * its two feature-056 siblings below.
+   *
+   * `em.execute`, not `em.getConnection().execute`: a connection carries no
+   * transaction context. `releaseByOrder` flips the reservation to `released`
+   * and flushes *inside* its transaction before asking this question, so read on
+   * a pooled connection the sum still counted the reservation it had just
+   * freed — every release understated `availableAmountAfter` by exactly the
+   * amount released (issue #207).
+   * `test/integration/credit_limits/release-reads-its-transaction.test.ts` is
+   * that case.
+   */
   async #sumActiveReservations(em: EntityManager, creditLimitId: string): Promise<number> {
-    const rows = await em.getConnection().execute<{ total: string | number | null }[]>(
+    const rows = await em.execute<{ total: string | number | null }[]>(
       `select coalesce(sum(amount), 0) as total
        from credit_limit_reservations
        where credit_limit_id = ? and status = 'active'`,

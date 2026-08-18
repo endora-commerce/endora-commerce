@@ -980,7 +980,7 @@ export class PriceListService {
     if (productOverride) return productOverride.mode as DisplayMode;
 
     // 2. Category-level override — pick the deepest matching category.
-    const categoryRows = await em.getConnection().execute<
+    const categoryRows = await em.execute<
       Array<{ category_id: string }>
     >(`select category_id from product_categories where product_id = ?`, [input.productId]);
     if (categoryRows.length > 0) {

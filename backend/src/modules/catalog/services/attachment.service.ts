@@ -79,8 +79,7 @@ export class AttachmentService {
 
   async listTypes(): Promise<AttachmentTypeDto[]> {
     const em = this.emFactory();
-    const conn = em.getConnection();
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       `select t.id, t.code, t.name, t.position, t.created_at, t.updated_at,
               (select count(*)::int from product_attachments pa where pa.attachment_type_id = t.id) as usage_count
        from attachment_types t
@@ -339,9 +338,14 @@ export class AttachmentService {
     }
   }
 
+  /**
+   * `em.execute`, not `em.getConnection().execute`: the delete path calls this
+   * on the Command's `em` to refuse a type that is still referenced, so read on
+   * a pooled connection the guard answered from outside the transaction it is
+   * guarding (issue #207).
+   */
   async #computeTypeUsage(em: EntityManager, typeId: string): Promise<number> {
-    const conn = em.getConnection();
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       `select count(*)::int as n from product_attachments where attachment_type_id = ?`,
       [typeId],
     )) as Array<{ n: number }>;
@@ -349,8 +353,7 @@ export class AttachmentService {
   }
 
   async #nextPosition(em: EntityManager, productId: string): Promise<number> {
-    const conn = em.getConnection();
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       `select coalesce(max(position), -1) + 1 as next_position from product_attachments where product_id = ?`,
       [productId],
     )) as Array<{ next_position: number }>;

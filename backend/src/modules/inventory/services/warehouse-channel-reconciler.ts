@@ -23,8 +23,11 @@ export class WarehouseChannelReconciler {
     // command-coverage-ignore: startup reconciler — backfills the default
     // warehouse↔channel assignment for channels missing one, an idempotent
     // system-invariant repair, not an operator-initiated audited write.
-    const knex = this.em.getKnex();
-    const channels = await knex<ChannelRow>('sales_channels').select<ChannelRow[]>('id');
+    // `this.em.execute`, not `this.em.getKnex()`: a knex handle takes its own
+    // pooled connection, so the channel list would be read from outside any
+    // transaction the caller holds open while the assignments below are written
+    // through `this.em` from inside it (issue #207).
+    const channels = (await this.em.execute(`select id from sales_channels`)) as ChannelRow[];
     if (channels.length === 0) return { assignmentsCreated: 0 };
 
     const defaultWarehouse = await this.em.findOne(Warehouse, { id: DEFAULT_WAREHOUSE_ID });

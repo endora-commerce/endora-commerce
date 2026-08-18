@@ -102,12 +102,13 @@ export class OrderStatusGraphService {
 
   private async statusUsageCounts(): Promise<Map<string, number>> {
     const em = this.emFactory();
-    const rows = await em
-      .getKnex()
-      .from('orders')
-      .select('status')
-      .count<{ status: string; count: string }[]>('* as count')
-      .groupBy('status');
+    // `em.execute`, not `em.getKnex()`: a knex handle takes its own pooled
+    // connection, so the in-use counts would be read from outside a transaction
+    // the caller holds open — a status the same transaction has just moved an
+    // order off would still look in use (issue #207).
+    const rows = (await em.execute(
+      `select status, count(*) as count from orders group by status`,
+    )) as Array<{ status: string; count: string }>;
     return new Map(rows.map((r) => [r.status, Number(r.count)]));
   }
 
