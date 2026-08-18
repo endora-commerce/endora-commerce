@@ -23,8 +23,6 @@ export const entries: Readonly<Record<string, string>> = {
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:custom_fields/services/custom-field-value.service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/plugin.ts:customer_accounts/services/customer-auth-service':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:customer_accounts/services/password-reset-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:email/services/mailer':
@@ -60,8 +58,6 @@ export const entries: Readonly<Record<string, string>> = {
   'modules/customers/routes.register.ts:auth/plugin':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/routes.self.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/routes.self.ts:customer_accounts/services/customer-auth-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/routes.self.ts:orders/services/order-list-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',

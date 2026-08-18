@@ -369,13 +369,13 @@ export interface CustomerLoginInput {
 /**
  * Container name: `customerAuthPort`. Owner: `customer_accounts`.
  *
- * (It said `customerAuthService` until issue #192 — the same trap as
- * {@link AddressServicePort}. That name is registered too, for the
- * `CustomerAuthService` **class**, which returns the `CustomerAccount` entity;
- * `customer_accounts/backend.ts` keeps it registered on purpose, "for the
- * consumers Phase C has not reached". `customers/backend.ts` is one of them and
- * resolves it by name today. The record-returning adapter is `customerAuthPort`,
- * and `organizations` already resolves that one.)
+ * (It said `customerAuthService` until issue #192. That name is registered too,
+ * for the `CustomerAuthService` **class**, which returns the `CustomerAccount`
+ * entity; it stays registered because this adapter is built over it. `customers/backend.ts` was the last consumer outside the module
+ * and resolves `customerAuthPort` since issue #195 — which was **not** the
+ * record-over-a-class trap {@link AddressServicePort} describes: it typed that
+ * resolution against a direct class-type import, an ordinary FR-011 edge that
+ * happened to sit on the same container name.)
  *
  * Consumed by `customers` and `organizations`, which own the storefront login,
  * registration and self-service routes over these accounts.

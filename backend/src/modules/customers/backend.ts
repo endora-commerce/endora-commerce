@@ -7,6 +7,7 @@ import type {
   AuthSessionPort,
   CustomerAccountReadPort,
   CustomerAddressReadPort,
+  CustomerAuthPort,
   VatValidator,
 } from '@b2b/contracts';
 import { CustomerAddressReadService } from './services/customer-address-read-port.js';
@@ -159,10 +160,12 @@ export function registerModule(ctx: ModuleContext): void {
             auditLogService,
             // Every one of these is another module's gated port and is stored by
             // the constructor, so a singleton may not hold one directly.
-            customerAuthService: lazyPort<CustomersCradle['customerAuthService']>(
-              ctx,
-              'customerAuthService',
-            ),
+            // Feature 075, Phase C (issue #195) — `customerAuthPort` rather
+            // than the `customerAuthService` class registration. Unlike the
+            // address pair this was never a record type over a class: the
+            // cradle field resolved to a direct class-type import, an ordinary
+            // FR-011 edge that happened to share the container name.
+            customerAuthService: lazyPort<CustomerAuthPort>(ctx, 'customerAuthPort'),
             passwordResetService: lazyPort<CustomersCradle['passwordResetService']>(
               ctx,
               'passwordResetService',

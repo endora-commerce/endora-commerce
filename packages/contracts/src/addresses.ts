@@ -123,11 +123,11 @@ export interface AddressReadPort {
  * consumer copying the old name out of this comment gets entities across the
  * boundary behind a record-shaped type and `tsc` says nothing — the mapping
  * `createAddressServicePort` performs is exactly what it skips. Two consumers
- * followed it: `orders/backend.ts` and `organizations/backend.ts` both resolve
- * `lazyPort<AddressServicePort>(ctx, 'addressService')`. Re-pointing them at
- * `addressServicePort` is a Phase-C change, not a doc change, because it swaps
- * a live entity for a snapshot record; issue #192 reports it and does not make
- * it.)
+ * followed it, `orders/backend.ts` and `organizations/backend.ts`; issue #195
+ * re-pointed both at `addressServicePort` under D-98.1, which ruled the call
+ * site wrong rather than this shape — every one of their six call sites reads
+ * fields or `.id` off the result, so the snapshot record is all any of them
+ * ever needed. The class registration stays for the module's own use.)
  *
  * The write surface `orders` and `organizations` reach. The
  * one-default-per-kind invariant and the country-code validation stay on this

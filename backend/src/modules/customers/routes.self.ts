@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { CustomerAuthPort } from '@b2b/contracts';
 import {
   changePasswordRequestSchema,
   customerAddressInputSchema,
@@ -8,7 +9,6 @@ import {
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
-import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import type { OrderListService } from '../orders/services/order-list-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type { CustomerAddressService } from './services/customer-address-service.js';
@@ -47,7 +47,7 @@ export interface CustomersSelfDeps {
   emFactory: () => EntityManager;
   requireCustomer: RequireCustomerGuard;
   resolveCustomerActor: ResolveCustomerActor;
-  customerAuthService: CustomerAuthService;
+  customerAuthService: CustomerAuthPort;
   /**
    * Lazy getter — OrderListService is built inside the orders plugin's
    * registration, so it is only available once the server has booted. Routes

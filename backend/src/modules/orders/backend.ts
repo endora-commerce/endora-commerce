@@ -318,7 +318,12 @@ export function registerModule(ctx: ModuleContext): void {
               effectiveState.isPresent('invoices')
                 ? lazyPort<InvoicePdfPort>(ctx, 'invoicePdfPort')
                 : null,
-            addressService: lazyPort<AddressServicePort>(ctx, 'addressService'),
+            // Feature 075, Phase C (issue #195) — `addressServicePort`, the
+            // record-mapping adapter, rather than the `addressService` class
+            // registration beside it. The class hands back `addresses`' entity
+            // and `Address` is structurally assignable to `AddressRecord`, so
+            // the old name compiled while the entity crossed the boundary.
+            addressService: lazyPort<AddressServicePort>(ctx, 'addressServicePort'),
             addressRead: lazyPort<AddressReadPort>(ctx, 'addressReadPort'),
             customFieldValues: lazyPort<OrdersCradle['customFieldValueService']>(
               ctx,

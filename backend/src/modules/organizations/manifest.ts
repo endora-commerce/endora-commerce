@@ -115,13 +115,15 @@ export const manifest = defineModuleManifest({
   acknowledgedDependencies: [
     {
       moduleId: 'addresses',
-      port: 'addressService',
+      port: 'addressServicePort',
       reason:
         'Mutual by nature. `addresses` declares this module because every stored ' +
         'address is organization-scoped, and it must install after the tenancy root. ' +
-        'This module resolves `AddressService` because its customer routes expose ' +
-        'address CRUD. Declaring the second direction closes the cycle and makes the ' +
-        'tenancy root uninstallable first, which Rule 3 forbids — the same trade the ' +
+        'This module resolves the published `AddressServicePort` because its customer ' +
+        'routes expose address CRUD — it named the `addressService` class registration ' +
+        'until issue #195, which is how the entity crossed the boundary behind a ' +
+        'record-shaped type. Declaring the second direction closes the cycle and makes ' +
+        'the tenancy root uninstallable first, which Rule 3 forbids — the same trade the ' +
         "manifest's five acknowledged FK edges record. It goes when the address routes " +
         'move to the module that owns the table.',
     },
