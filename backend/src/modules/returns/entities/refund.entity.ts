@@ -21,6 +21,7 @@ export class Refund {
     | 'providerDetails'
     | 'failureReason'
     | 'correctiveInvoiceId'
+    | 'correctiveInvoiceOutcome'
     | 'creditLimitTopupApplied'
     | 'attemptNo'
     | 'createdAt'
@@ -61,6 +62,18 @@ export class Refund {
 
   @Property({ type: 'uuid', nullable: true })
   correctiveInvoiceId?: string | null;
+
+  /**
+   * What became of the corrective invoice (D-92, issue #156).
+   *
+   * `correctiveInvoiceId` alone is a two-way answer to a three-way question —
+   * `null` stood for "not due", "not requested" and "asked for, and we do not
+   * know" at once, and the distinction lived only in the settlement response
+   * and the audit entry, neither of which survives a reload. `issued` is
+   * exactly the case where `correctiveInvoiceId` is set.
+   */
+  @Property({ type: 'string', length: 16 })
+  correctiveInvoiceOutcome: 'issued' | 'not_due' | 'not_requested' = 'not_requested';
 
   @Property({ type: 'boolean' })
   creditLimitTopupApplied: boolean = false;

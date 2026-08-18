@@ -1696,6 +1696,7 @@
   "returns.detail.correctiveInvoice.issued": "Wystawiona",
   "returns.detail.correctiveInvoice.notDue.order_not_invoiced": "Faktura korygująca nie była wymagana: do zamówienia nie wystawiono faktury, więc nie ma czego korygować.",
   "returns.detail.correctiveInvoice.notRequested": "Nie zlecono wystawienia faktury korygującej dla tego rozliczenia.",
+  "returns.detail.correctiveInvoice.open": "Otwórz fakturę korygującą",
   "returns.detail.correctiveInvoice.title": "Faktura korygująca",
   "returns.detail.resolution.credit": "Środki na przyszłe zamówienia",
   "returns.detail.resolution.refund": "Zwrot pieniędzy",

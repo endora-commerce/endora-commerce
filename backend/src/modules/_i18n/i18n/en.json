@@ -1696,6 +1696,7 @@
   "returns.detail.correctiveInvoice.issued": "Issued",
   "returns.detail.correctiveInvoice.notDue.order_not_invoiced": "No corrective invoice was due: the order was never invoiced, so there is no document to correct.",
   "returns.detail.correctiveInvoice.notRequested": "No corrective invoice was requested for this settlement.",
+  "returns.detail.correctiveInvoice.open": "Open the corrective invoice",
   "returns.detail.correctiveInvoice.title": "Corrective invoice",
   "returns.detail.resolution.credit": "Credit toward future orders",
   "returns.detail.resolution.refund": "Refund money",

@@ -240,6 +240,7 @@ import { Migration20260718T200342QuoteRequestsQuoteRequestCustomFieldValues } fr
 
 // ── returns ─────────────────────────────────────────────────────────────────
 import { Migration20260625T144227ReturnsInit } from '../modules/returns/migrations/20260625T144227_returns_init.js';
+import { Migration20260817T203206ReturnsRefundCorrectiveInvoiceOutcome } from '../modules/returns/migrations/20260817T203206_returns_refund_corrective_invoice_outcome.js';
 
 // ── search ──────────────────────────────────────────────────────────────────
 import { Migration20260501T123145SearchPhraseRecordsInit } from '../modules/search/migrations/20260501T123145_search_phrase_records_init.js';
@@ -492,6 +493,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── returns ─────────────────────────────────────────────────────────────────
   migration('returns', Migration20260625T144227ReturnsInit),
+  migration('returns', Migration20260817T203206ReturnsRefundCorrectiveInvoiceOutcome),
 
   // ── search ──────────────────────────────────────────────────────────────────
   migration('search', Migration20260501T123145SearchPhraseRecordsInit),

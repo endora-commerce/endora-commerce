@@ -222,6 +222,12 @@ export class ReturnSettlementService {
           failureReason: null as string | null,
           creditLimitTopupApplied: false,
           correctiveInvoiceId: null as string | null,
+          // D-92 — the three-way answer on the row, so it survives a page
+          // reload. `not_requested` is the default because the caller can
+          // switch the correction off; the two other values are set below,
+          // inside the branch that asked for one.
+          correctiveInvoiceOutcome:
+            'not_requested' as Refund['correctiveInvoiceOutcome'],
         }
       : null;
 
@@ -250,6 +256,7 @@ export class ReturnSettlementService {
         // happened, because a silent absence would read as a lost document.
         if (correction.issued) {
           refundFields.correctiveInvoiceId = correction.invoiceId;
+          refundFields.correctiveInvoiceOutcome = 'issued';
           result.correctiveInvoiceId = correction.invoiceId;
           result.correctiveInvoice = {
             issued: true,
@@ -257,6 +264,7 @@ export class ReturnSettlementService {
             number: correction.number,
           };
         } else {
+          refundFields.correctiveInvoiceOutcome = 'not_due';
           result.correctiveInvoiceId = null;
           result.correctiveInvoice = { issued: false, reason: correction.reason };
         }
