@@ -43,7 +43,7 @@ export class MegamenuReferenceRegistry {
   async findAssetReferences(assetIds: string[]): Promise<MegamenuItemReference[]> {
     if (assetIds.length === 0) return [];
     const placeholders = assetIds.map(() => '?').join(', ');
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       `select mi.id::text     as item_id,
               m.id::text      as menu_id,
               m.name          as menu_name,
@@ -71,7 +71,7 @@ export class MegamenuReferenceRegistry {
     targetField: string,
     value: string,
   ): Promise<MegamenuItemReference[]> {
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       `select mi.id::text as item_id,
               m.id::text  as menu_id,
               m.name      as menu_name

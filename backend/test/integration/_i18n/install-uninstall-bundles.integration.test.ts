@@ -19,11 +19,11 @@ import { TranslationBundle } from '../../../src/modules/_i18n/entities/translati
  * removal drops them. Soft-uninstall is documented as a no-op in the
  * reconciler — `remove()` is only called for hard.
  *
- * Tests do NOT use the begin/rollback fixture pattern: the service's
- * single-statement UPSERT runs through `em.getKnex().raw(...)` which
- * bypasses MikroORM's UnitOfWork transaction. We isolate per test by
- * using a unique `moduleId` and explicitly cleaning rows in
- * before/after hooks instead.
+ * Tests do NOT use the begin/rollback fixture pattern: they isolate per test
+ * with a unique `moduleId` and explicit row cleanup in before/after hooks.
+ * (Until issue #200 they could not have used it — the single-statement UPSERT
+ * ran through `em.getKnex().raw(...)` and ignored the transaction entirely;
+ * the last test in this file is what holds that fixed.)
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -160,5 +160,32 @@ describe('i18n bundle reconciler (integration)', () => {
     const after = await i18n.getMergedBundleForLanguage('pl', em);
     expect(after.bundles[MODULE_ID]?.['actions.save']).toBe('Zapisz');
     expect(after.version).toBeGreaterThan(before.version);
+  });
+
+  /**
+   * Issue #200 — `installBundlesForModule` takes an `em`, so a caller may hand
+   * it a transactional one, and the orchestrator's install path documents the
+   * bundle write as part of the install it can revert. The UPSERT ran through
+   * `em.getKnex().raw(...)`, which carries no transaction context: the rows
+   * committed on their own connection and survived the rollback, while
+   * `removeBundlesForModule` next door (an `em.nativeDelete`) did not.
+   */
+  it('rolls the bundle UPSERT back with the transaction it was handed', async () => {
+    const tx = orm.em.fork() as EntityManager;
+    await expect(
+      tx.transactional(async (txEm) => {
+        await service().installBundlesForModule(
+          MODULE_ID,
+          FIXTURE_MODULE_PATH,
+          'i18n',
+          txEm,
+        );
+        throw new Error('roll this back');
+      }),
+    ).rejects.toThrow('roll this back');
+
+    const fresh = orm.em.fork() as EntityManager;
+    const rows = await fresh.find(TranslationBundle, { moduleId: MODULE_ID });
+    expect(rows.length).toBe(0);
   });
 });

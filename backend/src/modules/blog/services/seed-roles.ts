@@ -63,18 +63,18 @@ export async function seedBlogRoles(
     systemRoleCodes.register(def.code);
   }
 
-  const conn = emFactory().getConnection();
+  const em = emFactory();
   const results: BlogRoleSeedResult[] = [];
 
   for (const def of SEED_DEFINITIONS) {
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       'select id::text as id, permissions from admin_roles where code = ?',
       [def.code],
     )) as Array<{ id: string; permissions: string[] }>;
 
     if (rows.length === 0) {
       const id = randomUUID();
-      await conn.execute(
+      await em.execute(
         `insert into admin_roles (id, code, name, permissions, requires_two_factor, created_at, updated_at)
          values (?, ?, ?, ?::jsonb, false, now(), now())`,
         [id, def.code, def.defaultName, JSON.stringify(def.permissions)],
@@ -90,7 +90,7 @@ export async function seedBlogRoles(
       wantPerms.length !== havePerms.length ||
       wantPerms.some((p, i) => p !== havePerms[i]);
     if (drifted) {
-      await conn.execute(
+      await em.execute(
         `update admin_roles set permissions = ?::jsonb, updated_at = now() where id = ?`,
         [JSON.stringify(def.permissions), existing.id],
       );

@@ -74,14 +74,19 @@ export class I18nService {
   ): Promise<{ installed: SupportedAdminLanguage[] }> {
     const loaded = loadModuleBundles(moduleId, modulePath, bundlesDir);
     const targetEm = em ?? this.em();
-    const knex = targetEm.getKnex();
     const installed: SupportedAdminLanguage[] = [];
     for (const [language, entries] of loaded.byLanguage) {
       // Single-statement UPSERT — INSERT bumps `version` via the column
       // default (nextval); the conflict UPDATE bumps it explicitly so
       // every successful install advances the sequence regardless of
       // whether the row existed (research §R9).
-      await knex.raw(
+      //
+      // Through `targetEm.execute`, not `targetEm.getKnex().raw`: the knex
+      // instance is connection-level and carries no transaction context, so a
+      // caller that passes a transactional `em` — as the signature invites, and
+      // as the install path's revert semantics assume — got rows that outlived
+      // its rollback (issue #200).
+      await targetEm.execute(
         `insert into "translation_bundles" ("module_id", "language_code", "entries", "installed_at", "updated_at") ` +
           `values (?, ?, ?::jsonb, now(), now()) ` +
           `on conflict ("module_id", "language_code") do update set ` +

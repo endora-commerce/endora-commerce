@@ -31,9 +31,9 @@ function megamenuAssetReferenceDescriptor(
     ownerModuleId: 'megamenu',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
-      const conn = emFactory().getConnection();
+      const em = emFactory();
       const placeholders = assetIds.map(() => '?').join(', ');
-      const rows = (await conn.execute(
+      const rows = (await em.execute(
         `select mi.id::text as item_id, m.name as menu_name
            from megamenu_items mi
            join megamenus m on m.id = mi.megamenu_id

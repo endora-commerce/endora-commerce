@@ -11,6 +11,15 @@ import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.enti
  * Principle III bans DB mocking in integration tests, so this is the cheap path
  * to getting isolated tests against a real Postgres.
  *
+ * The isolation only holds for statements that actually run inside the
+ * transaction, which is a property of how they are issued: `em.execute(...)`,
+ * `em.find`, `em.flush` do; `em.getConnection().execute(...)` and
+ * `em.getKnex()` take their own pooled connection and commit past the rollback
+ * (issue #200). Two files' fixtures were written around that — they seeded and
+ * asserted through the connection so that both halves escaped together, and
+ * broke the moment the code under test started honouring the transaction. Use
+ * `db.em().execute(...)` for raw SQL inside a test transaction.
+ *
  * Usage:
  *   const db = await setupTestDb();
  *   beforeEach(() => db.beginTx());

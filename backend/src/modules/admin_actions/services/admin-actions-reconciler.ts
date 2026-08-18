@@ -37,12 +37,16 @@ export class AdminActionsReconciler {
     // command-coverage-ignore: idempotent lifecycle reconciler/seed — a system-
     // invariant repair, not an operator-initiated audited write.
     const targetEm = args.em ?? this.deps.em();
-    const knex = targetEm.getKnex();
     const declaredIds = new Set<string>();
 
     for (const action of args.actions) {
       declaredIds.add(action.id);
-      await knex.raw(
+      // `targetEm.execute`, not `targetEm.getKnex().raw` — the knex instance is
+      // connection-level and carries no transaction context, so the UPSERT
+      // committed on its own connection while the prune below it (an
+      // `em.nativeDelete`) stayed inside the caller's transaction. One method,
+      // two answers to a rollback (issue #200).
+      await targetEm.execute(
         `insert into "module_actions" (` +
           `"module_id", "action_id", "label_key", "description_key", "icon", ` +
           `"target_route", "required_permission", "keywords", "weight", ` +

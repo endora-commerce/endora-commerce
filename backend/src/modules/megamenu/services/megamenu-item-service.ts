@@ -73,13 +73,19 @@ export class MegamenuItemService {
     }
 
     await em.transactional(async (tx) => {
-      await tx.getConnection().execute(
+      // `tx.execute`, not `tx.getConnection().execute`: a connection carries no
+      // transaction context, so this delete used to commit on its own connection
+      // the moment it ran. A re-insert the database then refused — a child item
+      // listed before its parent is enough — rolled a transaction back that had
+      // never held the delete, and the operator's whole menu was gone (issue
+      // #200). `test/integration/megamenu/write-atomicity.test.ts` is that case.
+      await tx.execute(
         `delete from megamenu_items where megamenu_id = ?`,
         [menuId],
       );
       for (const item of normalised) {
         const now = new Date();
-        await tx.getConnection().execute(
+        await tx.execute(
           `insert into megamenu_items
              (id, megamenu_id, parent_id, position, kind, labels, descriptions, target, created_at, updated_at)
            values (?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?)`,
@@ -97,7 +103,7 @@ export class MegamenuItemService {
           ],
         );
       }
-      await tx.getConnection().execute(
+      await tx.execute(
         `update megamenus set version = version + 1, updated_at = now() where id = ?`,
         [menuId],
       );
@@ -189,7 +195,7 @@ export class MegamenuItemService {
   }
 
   private async fetchChannelIdsForMenu(menuId: string): Promise<string[]> {
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       `select distinct sales_channel_id::text as channel_id
          from megamenu_bindings where megamenu_id = ?`,
       [menuId],

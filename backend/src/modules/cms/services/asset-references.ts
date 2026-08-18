@@ -37,13 +37,12 @@ function cmsAssetReferenceDescriptor(
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
       const em = emFactory();
-      const conn = em.getConnection();
       const out: AssetReference[] = [];
       for (const aidRaw of assetIds) {
         const aid = aidRaw.replace(/[^0-9a-fA-F-]/g, '');
         const path = `'$.** ? (@ == "${aid}")'::jsonpath`;
 
-        const rows = (await conn.execute(
+        const rows = (await em.execute(
           `select id::text as id, name, 'cms_page' as kind
            from cms_pages
            where jsonb_path_exists(content, ${path})

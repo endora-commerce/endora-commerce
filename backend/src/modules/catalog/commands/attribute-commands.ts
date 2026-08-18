@@ -391,8 +391,11 @@ export function deleteAttributeCommand(
       if (!ext) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${target.idOrKey}" not found.`);
       }
+      // `em.execute`, not `em.getConnection().execute`: a Command's `run` is
+      // inside `CommandBus.run`'s transaction, and a connection-level execute
+      // takes its own connection — so these reference guards read the state
+      // outside the very transaction whose write they are guarding (issue #200).
       const setRefs = (await em
-        .getConnection()
         .execute<Array<{ attribute_set_id: string }>>(
           `select attribute_set_id from attribute_set_attributes where custom_field_definition_id = ?`,
           [target.definitionId],
@@ -405,7 +408,6 @@ export function deleteAttributeCommand(
         );
       }
       const productRefs = (await em
-        .getConnection()
         .execute<Array<{ count: string }>>(
           `select count(*)::text as count from products where attribute_values \\? ?`,
           [target.key],
@@ -645,8 +647,8 @@ export function deleteAttributeOptionCommand(
       //   object → any language slot equals the value / contains it in-array;
       //   array  → flat multiselect containment;
       //   else   → flat scalar equality.
+      // Inside the Command's transaction — see the note in the delete command.
       const refs = (await em
-        .getConnection()
         .execute<Array<{ count: string }>>(
           `select count(*)::text as count
              from products p
