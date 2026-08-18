@@ -22,9 +22,11 @@ export const manifest = defineModuleManifest({
   /**
    * The customer-organization lookup the request actor is bound with (issue
    * #90). `customer_accounts` owns it and declares `auth`, so declaring it back
-   * closes a cycle — the mutual shape `acknowledgedDependencies` exists for. It
-   * costs nothing on the refusal axis: `customer_accounts` is itself
-   * `nonDeactivatable`, for reasons its own manifest spells out.
+   * closes a cycle — the mutual shape `acknowledgedDependencies` exists for.
+   * With `customer_accounts` absent the resolution fails closed, so a signed-in
+   * customer the platform cannot place in an Organization is refused rather than
+   * bound to none — which is the cost of the edge, and the sort of thing a
+   * reason can state without copying a fact the build re-derives (D-100).
    *
    * The read stayed invisible until `check-port-dependencies` learned to follow
    * a module-local cradle alias, which is how a real port edge in the request
@@ -36,8 +38,9 @@ export const manifest = defineModuleManifest({
       port: 'customerOrgResolver',
       reason:
         'Binding request.actor for a signed-in customer resolves their Organization through ' +
-        'customer_accounts, which declares auth — declaring it back closes a cycle. The owner ' +
-        'is non-deactivatable, so the acknowledged edge adds no refusal that was not there.',
+        'customer_accounts, which declares auth — declaring it back closes a cycle. With ' +
+        'customer_accounts absent the gated port refuses, so actor binding fails closed rather ' +
+        'than treating a signed-in customer as belonging to no Organization.',
     },
   ],
   // D-44 — real to the container, binding on no operator.

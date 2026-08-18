@@ -76,11 +76,14 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
     // constraints contradict and withdraws nothing else — which is why it is
     // not a way of quietly demoting a live dependency.
     //
-    // Every other owner named here is non-deactivatable, so no acknowledged
-    // edge adds a refusal that was not already there. That is what makes the
-    // acknowledgement honest rather than a way of hiding a live dependency:
-    // the declaration the graph cannot carry would not have changed what an
-    // operator can switch off.
+    // What makes the acknowledgement honest is that the edge is in the refusal
+    // graph either way: withholding it from `dependencies` withdraws the
+    // ordering claim and nothing else, so no owner becomes switchable-off
+    // underneath a live resolver by being acknowledged rather than declared.
+    // This comment used to argue that from most owners being non-deactivatable;
+    // D-100 took that argument out of the manifests and it does not belong here
+    // either — the locked set is re-derived on every run, and a sentence about
+    // it in a frozen list is a copy nothing refreshes.
     const keys = acknowledgedPortEdgesFrom(MANIFESTS)
       .map((edge) => `${edge.moduleId}:${edge.port}`)
       .sort();
@@ -98,7 +101,7 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'orders:promotionService',
       'orders:promotionUsageFinalizer',
       'orders:rfqService',
-      'organizations:addressService',
+      'organizations:addressServicePort',
       'organizations:customerAccountMemberWritePort',
       'organizations:customerAccountReadPort',
       'organizations:customerAuthPort',
@@ -123,6 +126,65 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
   it('carries a reason long enough to be an argument rather than a label', () => {
     for (const edge of acknowledgedPortEdgesFrom(MANIFESTS)) {
       expect(edge.reason.length).toBeGreaterThan(30);
+    }
+  });
+
+  /**
+   * D-100 — **a reason may not carry a lock-derived cost claim.**
+   *
+   * Eight of the twenty-three reasons argued from `activation.nonDeactivatable`
+   * that the acknowledged edge cost nothing, four of them with no bound at all
+   * and three of those four byte-identical. The objection is not that the
+   * sentences were false today. It is that
+   * `backend/scripts/lib/switchable-modules.ts` exists precisely so the locked
+   * set is **re-derived on every run** — un-lock a module and ten
+   * `check-port-catches` sites go red in the same pipeline — while a `reason`
+   * string is a copy of that derivation which no run refreshes.
+   *
+   * A reason states the ground a human had to decide: the cycle that keeps the
+   * edge out of `dependencies`, and what the seam does when the owner is not
+   * there. `quote_requests -> orders` is the model — it names the **absence**,
+   * not the lock.
+   *
+   * Two-way, like every other ledger here: a new lock-claiming reason fails, and
+   * so does an entry left standing after its reason stopped claiming.
+   */
+  const LOCK_CLAIMING_REASONS_ALLOWED: Readonly<Record<string, string>> = {
+    'catalog:organizationDetailsPort':
+      'Bounds the claim to what an operator can flip ("nothing an operator can flip depends ' +
+      'on the difference"), which is a true sentence about the axis it names rather than an ' +
+      'unbounded state claim.',
+    'orders:cartWritePort':
+      'Same bound, stated of both ends: it says what the acknowledgement withdraws (the ' +
+      'ordering claim) and that nothing an operator can reach changes with it.',
+    'orders:creditLimitService':
+      'Argues from the **dependent** module\'s lock, not the owner\'s: `credit_limits` stays ' +
+      'exactly as (un)deactivatable under `orders` as it was. A different statement, and one ' +
+      'the shipped graph makes true.',
+  };
+
+  /**
+   * `quote_requests:orderReadPort` is deliberately **not** an entry above, and
+   * the reason is worth writing down: D-100's F1 counted it among the eight
+   * lock-derived claims, and the string does not name the lock at all. It argues
+   * from the **absence** — "the event that triggers it cannot be emitted by an
+   * absent orders module" — which is why the same ruling calls it the model. It
+   * is outside this population by construction, not by allowance, and that is
+   * the difference the ratchet is measuring.
+   */
+
+  it('no reason argues from the lock, except the four that bound the claim', () => {
+    const claiming = acknowledgedPortEdgesFrom(MANIFESTS)
+      .filter((edge) => /non-?deactivatable/i.test(edge.reason))
+      .map((edge) => `${edge.moduleId}:${edge.port}`)
+      .sort();
+
+    expect(claiming).toEqual(Object.keys(LOCK_CLAIMING_REASONS_ALLOWED).sort());
+  });
+
+  it('every allowance says why that claim is bounded, and none is stale', () => {
+    for (const [key, why] of Object.entries(LOCK_CLAIMING_REASONS_ALLOWED)) {
+      expect(why.length, `${key} has no recorded ground`).toBeGreaterThan(40);
     }
   });
 });

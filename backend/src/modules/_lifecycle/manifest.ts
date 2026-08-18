@@ -22,10 +22,12 @@ export const manifest = defineModuleManifest({
    * drives the **install order**, and this is the sentinel manifest every other
    * module's installation is recorded against, so ordering it after `auth` (and
    * transitively `admin_roles`) would have those modules install before the
-   * registry that records an installation exists. The read itself is safe on the
-   * other axis — `auth` is `nonDeactivatable`, so the gate has no state in which
-   * it closes — and it stayed invisible until `check-port-dependencies` learned
-   * to follow a module-local cradle alias.
+   * registry that records an installation exists. With `auth` absent the gate
+   * refuses and these surfaces answer 503 exactly as every other admin route
+   * does — which is what the edge costs, said as a behaviour rather than as a
+   * claim about a lock the build re-derives on every run (D-100). It stayed
+   * invisible until `check-port-dependencies` learned to follow a module-local
+   * cradle alias.
    */
   acknowledgedDependencies: [
     {
@@ -35,7 +37,8 @@ export const manifest = defineModuleManifest({
         'The lifecycle admin surfaces are guarded by requireAdmin like every other admin ' +
         'surface, but this is the sentinel manifest the install order starts from: declaring ' +
         'auth would install it, and admin_roles, before the registry that records an ' +
-        'installation. auth is non-deactivatable, so the gate never closes.',
+        'installation. With auth absent the gate refuses and these surfaces answer 503, ' +
+        'exactly as every other admin route does.',
     },
   ],
   /**

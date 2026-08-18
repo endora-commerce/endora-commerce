@@ -25,11 +25,12 @@ export const manifest = defineModuleManifest({
    * shape `auth` records against `customer_accounts` and `admin_roles` against
    * this module.
    *
-   * It costs nothing on the refusal axis: `customer_accounts` is itself
-   * `nonDeactivatable`, so there is no flip for the acknowledged edge to have
-   * refused. The seam still fails closed — the port is gated, and an
-   * impersonation that cannot identify its target must refuse rather than mint
-   * a session against a customer nobody looked up.
+   * The seam fails closed — the port is gated, and an impersonation that cannot
+   * identify its target must refuse rather than mint a session against a
+   * customer nobody looked up. That is what the edge costs, stated as a
+   * behaviour rather than as a claim about which flips are refused: the locked
+   * set is re-derived on every run, and a sentence here is a copy nothing
+   * refreshes (D-100).
    */
   acknowledgedDependencies: [
     {
@@ -39,8 +40,9 @@ export const manifest = defineModuleManifest({
         'Starting an impersonation reads the target customer account — its organisation ' +
         'membership and whether it is still live — and that row belongs to customer_accounts, ' +
         'which reaches this module transitively through price_lists and catalog. Declaring it ' +
-        'here closes a cycle. The owner is non-deactivatable, so the acknowledged edge adds no ' +
-        'refusal that was not there.',
+        'here closes a cycle. With customer_accounts absent the seam fails closed: an ' +
+        'impersonation that cannot identify its target refuses rather than minting a session ' +
+        'against a customer nobody looked up.',
     },
   ],
   /**
