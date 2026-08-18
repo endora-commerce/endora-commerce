@@ -220,5 +220,5 @@ export class AdminActionsService {
  */
 export function fingerprintPermissions(permissions: readonly string[]): string {
   const sorted = [...permissions].sort();
-  return createHash('sha1').update(sorted.join(' ')).digest('hex').slice(0, 16);
+  return createHash('sha1').update(sorted.join('\0')).digest('hex').slice(0, 16);
 }

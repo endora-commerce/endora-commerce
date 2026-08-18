@@ -164,6 +164,15 @@ quality:
     # that stood when it landed: a new one fails, and so does a number left
     # standing after the deletes under it were scoped.
     - pnpm --filter backend run check:shared-table-wipes
+    # Issues #182 / #190 — no source file carries a raw NUL byte. Git classifies
+    # a blob with a NUL in it as binary, so every diff of that file reads
+    # "Binary files differ": the one artefact that would have caught the byte is
+    # the one the byte switches off, which is how six files kept a raw NUL in a
+    # template literal through every review of every commit that touched them.
+    # Reads the whole file rather than git's own first 8000 bytes — one of the
+    # six sat at byte 8032 and git itself still called it text.
+    # `NUL_BYTES_ALLOWED` is an empty two-way ratchet.
+    - pnpm --filter backend run check:nul-bytes
     # Documentation code blocks are quotations, not paraphrases. The quickstarts
     # are copied by every module conversion, so a stale snippet is a defect
     # scheduled for mass production — six were found across three batches before
