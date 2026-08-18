@@ -93,6 +93,24 @@ export const SKIPPED_DIRECTORIES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Repo-relative directory prefixes that are not this checkout, keyed by prefix
+ * with the reason as the value — the same discipline as `SKIPPED_DIRECTORIES`,
+ * but path-anchored rather than name-anchored.
+ *
+ * `SKIPPED_DIRECTORIES` matches a *name* anywhere in the tree, which is right
+ * for `node_modules` and wrong here: `.claude/` also holds `agents/` and
+ * `skills/`, which are tracked repository source and must stay scanned. Only
+ * the worktree root is excluded.
+ */
+export const SKIPPED_PATH_PREFIXES: Readonly<Record<string, string>> = {
+  '.claude/worktrees':
+    'Nested git worktrees — other commits of this same repository, each a ' +
+    'separate checkout with its own dependencies. Scanning them reports a ' +
+    'file already repaired on this commit, once per worktree, and reports it ' +
+    'against a path no merge request can change.',
+};
+
+/**
  * Extensions whose content is bytes by definition, and why.
  *
  * A file here is out of the population entirely — not exempted from the rule but
@@ -195,6 +213,7 @@ export function isScannablePath(path: string): boolean {
   if (segments.slice(0, -1).some((segment) => SKIPPED_DIRECTORIES[segment] !== undefined)) {
     return false;
   }
+  // MUTATION
   const basename = segments[segments.length - 1] ?? '';
   if (BINARY_FILENAMES[basename] !== undefined) return false;
   return BINARY_EXTENSIONS[extensionOf(path)] === undefined;
@@ -267,11 +286,19 @@ export function checkNulBytes(
   };
 }
 
+/** True unless the repo-relative directory is (or is under) a skipped prefix. */
+function isScannableDirectoryPrefix(relativeDir: string): boolean {
+  return !Object.keys(SKIPPED_PATH_PREFIXES).some(
+    (prefix) => relativeDir === prefix || relativeDir.startsWith(`${prefix}/`),
+  );
+}
+
 function walk(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir)) {
     if (SKIPPED_DIRECTORIES[name] !== undefined) continue;
     const full = join(dir, name);
+    if (!isScannableDirectoryPrefix(relative(REPO_ROOT, full))) continue;
     // A dangling symlink must not abort the walk, hence `throwIfNoEntry`.
     const stat = statSync(full, { throwIfNoEntry: false });
     if (stat === undefined) continue;
