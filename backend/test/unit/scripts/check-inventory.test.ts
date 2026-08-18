@@ -84,6 +84,8 @@ import {
   type EntryConstruct,
   type EntryFinding,
 } from '../../../scripts/check-entry-presence.js';
+import { checkLockClaims } from '../../../scripts/check-lock-claims.js';
+import type { ManifestActivationInput } from '../../../scripts/lib/switchable-modules.js';
 import { analyzeSource as hardcodedAnalyze } from '../../../scripts/i18n-hardcoded-strings.js';
 import {
   lowEntryDrift,
@@ -207,6 +209,29 @@ const PROOFS_ENTERING_BELOW: Readonly<Record<string, string>> = {};
 const top = (prove: () => number): RedProof => ({ enters: 'top', prove });
 
 // --- fixtures the red proofs run on ----------------------------------------
+
+/**
+ * Issue #216 — the manifests a lock claim is judged against.
+ *
+ * The fixture is the *manifest list*, not the locked set: `checkLockClaims`
+ * derives the lock from `activation.nonDeactivatable` inside the analysis, so a
+ * proof handing it a pre-computed set would leave the one derivation the whole
+ * check rests on unproven.
+ */
+const CLAIM_MANIFESTS: readonly ManifestActivationInput[] = [
+  { id: 'fixture_locked', activation: { nonDeactivatable: true, reason: 'core' } },
+  {
+    id: 'fixture_switchable',
+    activation: { settingCode: 'fixture_switchable.enabled', default: true },
+  },
+];
+
+function staleClaims(source: string, kind: 'stale-lock-claim' | 'stale-switchable-claim'): number {
+  return checkLockClaims({
+    sources: new Map([['scripts/ledgers/cross-module-imports/fixture.ts', source]]),
+    manifests: CLAIM_MANIFESTS,
+  }).findings.filter((finding) => finding.kind === kind).length;
+}
 
 const MODULE_FILE = join(BACKEND_ROOT, 'src/modules/blog/backend.ts');
 const SEARCH_ENTITY = join(BACKEND_ROOT, 'src/modules/search/entities/search-phrase-record.entity.ts');
@@ -2892,6 +2917,87 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // Issue #216 — a reason that restates a fact the tree re-derives, and gets
+    // it wrong. Five shapes, and the fifth is the one that matters most: the
+    // classification has to move when the *manifests* move, in the same run,
+    // which is why every proof enters as source text plus a manifest list and
+    // none of them is handed a locked set.
+    script: 'backend/scripts/check-lock-claims.ts',
+    npmScript: 'check:lock-claims',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-lock-claims.test.ts',
+    vacuousGuard: 'exit-2',
+    // Part of the population **is** the module tree: the manifests, where
+    // `nonBindingDependencies` and `acknowledgedDependencies` reasons live and
+    // where D-100's four original stale claims sat. The ledger shards and the
+    // in-script ledgers are under `scripts/`, which a module move leaves alone
+    // — and that is exactly why the check needs the derived floor rather than
+    // an emptiness test. On a partial move ~56 artefacts survive, the
+    // regenerated index still answers for every module so the locked set is
+    // complete, and all three of this check's own vacuity conditions pass while
+    // half the manifests go unread. Every registered module ships a
+    // `manifest.ts` by construction, so the floor is exact and needs no
+    // `excluded` list.
+    residueGuard: 'derived-population',
+    red: {
+      // The identifier spelling, as the withdrawn cut wrote it.
+      'lock-claimed-over-switchable-module': top(() =>
+        staleClaims(
+          "  'Withdrawn: `fixture_switchable` is `nonDeactivatable`, so the ports cannot go in.',",
+          'stale-lock-claim',
+        ),
+      ),
+      // The prose spelling, over the wrapped-string seam a reason is written
+      // on: subject and assertion land on different source lines, so a check
+      // reading line by line sees neither.
+      'lock-claimed-across-a-wrapped-string': top(() =>
+        staleClaims(
+          "  'F3 Phase C. Retired by nothing — `fixture_switchable` ' +\n" +
+            "  'is non-deactivatable and the edge cannot be declared.',",
+          'stale-lock-claim',
+        ),
+      ),
+      // The claim that never writes the word. This was the load-bearing step of
+      // the withdrawal in #216, and a check keyed on `deactivatable` misses it.
+      'lock-claimed-as-always-present': top(() =>
+        staleClaims(
+          "// the orchestrator refuses a needed dependency and `fixture_switchable` is always present",
+          'stale-lock-claim',
+        ),
+      ),
+      // The converse, which goes stale by the same mechanism when a lock is
+      // *added*: `catalog` carried one for `price_lists` for two features.
+      'switchability-claimed-over-locked-module': top(() =>
+        staleClaims(
+          '// `fixture_locked` is deactivatable (`fixture_locked.enabled`), so the flip is refused.',
+          'stale-switchable-claim',
+        ),
+      ),
+      // The derivation itself. The same sentence, judged against manifests in
+      // which the lock has been withdrawn — nothing in the text changed, and a
+      // check that had written the locked set down would still be green.
+      'claim-going-stale-because-a-manifest-moved': top(() => {
+        const source = '// `fixture_locked` is non-deactivatable.';
+        const unlocked: readonly ManifestActivationInput[] = [
+          {
+            id: 'fixture_locked',
+            activation: { settingCode: 'fixture_locked.enabled', default: true },
+          },
+          { id: 'fixture_switchable', activation: { default: true } },
+        ];
+        const before = checkLockClaims({
+          sources: new Map([['scripts/ledgers/x.ts', source]]),
+          manifests: CLAIM_MANIFESTS,
+        }).findings.length;
+        const after = checkLockClaims({
+          sources: new Map([['scripts/ledgers/x.ts', source]]),
+          manifests: unlocked,
+        }).findings.length;
+        return before === 0 ? after : 0;
+      }),
+    },
+  },
+  {
     // The check whose defect its own artefact hides: a NUL makes git call the
     // file binary, so the diff that would show the byte shows nothing at all.
     // Six shapes it must see and two it must not. The two exclusions are proven
@@ -3215,6 +3321,9 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-fixture-substitution.ts': 6,
       'backend/scripts/check-harness-teardown.ts': 8,
       'backend/scripts/check-kernel-boundary.ts': 3,
+      // Two spellings of the lock claim, the one that never writes the word,
+      // the converse, and the derivation that has to move with the manifests.
+      'backend/scripts/check-lock-claims.ts': 5,
       // Thirteen, plus D-77's three permanence shapes: the flag removes an
       // entry from `ledger-size`, so a check that stopped refusing an
       // unjustified one would let the residue be lowered by declaration. Plus

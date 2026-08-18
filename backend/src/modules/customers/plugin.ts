@@ -5,8 +5,6 @@ import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
-import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
-import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
 import { ImpersonationService } from '../admin_users/services/impersonation-service.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
 import { PersonalOrganizationService } from '../organizations/services/personal-organization-service.js';
@@ -29,6 +27,7 @@ import type {
   AuthSessionPort,
   CustomerAccountReadPort,
   CustomerAuthPort,
+  DefaultPreferencePort,
   VatValidator,
 } from '@b2b/contracts';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
@@ -108,8 +107,16 @@ export interface CustomersModuleOptions {
   getOrderListService: () => Pick<OrderListService, 'list'>;
   rfqService: RfqService;
   auditLogService: AuditLogService;
-  /** Org allow-list port for default-preference eligibility (optional). */
-  organizationRestrictionService?: OrganizationRestrictionService;
+  /**
+   * `quick_order`'s ordering defaults, which the customer-detail screen and
+   * self-service profile render and edit (issue #216).
+   *
+   * A **binding** dependency: the port's own contract says the seam fails
+   * closed when `quick_order` is off, and this module used to answer the same
+   * question out of a second instance it constructed itself — which read the
+   * table whether the owner was present or not.
+   */
+  defaultPreferencePort: DefaultPreferencePort;
   requireAdmin: RequireAdminGuard;
   resolveModerationActor: ResolveModerationActor;
   /** VAT/NIP validator port (VIES / Biała lista in production). */
@@ -153,14 +160,9 @@ export function customersModule(options: CustomersModuleOptions): {
     auditLog: options.auditLogService,
   });
   const customerAddressService = new CustomerAddressService(options.emFactory, options.auditLogService);
-  const defaultPreferenceService = new DefaultPreferenceService(
-    options.emFactory,
-    options.auditLogService,
-    options.organizationRestrictionService,
-  );
   const customerDefaultsService = new CustomerDefaultsService(
     options.emFactory,
-    defaultPreferenceService,
+    options.defaultPreferencePort,
     customerAddressService,
   );
   const authorityService = new CustomerAuthorityService(options.salesRepVisibility);

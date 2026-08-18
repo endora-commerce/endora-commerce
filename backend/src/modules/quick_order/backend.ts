@@ -3,20 +3,23 @@ import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type {
+  AddressReadPort,
   CartWritePort,
   CatalogProductReadPort,
   CatalogQuickSearchPort,
   CustomerAccountReadPort,
+  CustomerAddressReadPort,
   DefaultPreferencePort,
+  DeliveryMethodReadPort,
   OrderPlacementPort,
+  OrganizationRestrictionPort,
+  PaymentMethodReadPort,
   RfqCustomerPort,
   SalesRepAssignmentPort,
 } from '@b2b/contracts';
-// The one collaborator this module still names by class. `DefaultPreferenceService`
-// is cut in `customers`' merge request, not this one — see the shard.
-import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import {
   SettingNotRegistered,
@@ -112,6 +115,45 @@ function warnOnce(condition: string, message: string): void {
   console.warn(message);
 }
 
+/**
+ * `customers` absent: the buyer has no personal addresses (issue #216).
+ *
+ * D-44 `degrades-without`, and the degrade is not invented for the occasion.
+ * Principle XVII says a switched-off module behaves as if never installed, and
+ * a platform on which `customers` was never installed has no
+ * `customer_addresses`: only the organisation's shared addresses are eligible
+ * defaults. That is exactly what `resolveForCustomer` already does with a
+ * default it finds ineligible (FR-020) — it drops the field to `null`, and
+ * one-click buy hides itself because not all four defaults resolve. A buyer
+ * whose defaults are org addresses is unaffected.
+ *
+ * Failing closed here instead would 503 the whole preference resolution — and
+ * with it one-click buy for *every* buyer — because the personal-address branch
+ * is probed on every eligibility check. Switching off a CRM surface must not do
+ * that.
+ *
+ * `customerAddressReadPort` is a **gated** port: a closed gate throws rather
+ * than answering `null`, so the presence probe comes *before* the resolution,
+ * and it is per call rather than per composition — the factory below is a
+ * singleton, and an operator flipping `customers` on must not need a restart.
+ */
+const ABSENT_CUSTOMER_ADDRESSES: CustomerAddressReadPort = {
+  findById: async () => null,
+  listForCustomer: async () => [],
+};
+
+export function customerAddressesOrAbsent(
+  port: CustomerAddressReadPort,
+): CustomerAddressReadPort {
+  const pick = (): CustomerAddressReadPort =>
+    effectiveState.isPresent('customers') ? port : ABSENT_CUSTOMER_ADDRESSES;
+  return {
+    findById: (customerAccountId, addressId, options) =>
+      pick().findById(customerAccountId, addressId, options),
+    listForCustomer: (customerAccountId, kind) => pick().listForCustomer(customerAccountId, kind),
+  };
+}
+
 export function registerModule(ctx: ModuleContext): void {
   const cradle = (): QuickOrderCradle => ctx.cradle<QuickOrderCradle>();
 
@@ -166,11 +208,27 @@ export function registerModule(ctx: ModuleContext): void {
     quickOrderPreferenceService: ctx
       .asFunction(
         ({ emFactory, auditLogService }: QuickOrderCradle) =>
-          new DefaultPreferenceService(
-            emFactory,
-            auditLogService,
-            lazyPort<OrganizationRestrictionService>(ctx, 'organizationRestrictionPort'),
-          ),
+          new DefaultPreferenceService(emFactory, auditLogService, {
+            // Five gated ports and one degrade. Every one of these was an
+            // `em.findOne` against another module's entity until issue #216:
+            // deactivation drops no tables, so a stored default kept resolving
+            // out of a switched-off module's rows and one-click buy went on
+            // offering a payment method the platform had stopped serving.
+            //
+            // `payment_methods`, `delivery_methods`, `addresses`,
+            // `customer_accounts` and `organizations` are all binding
+            // dependencies of this module, so their gates fail closed: the
+            // resolution throws `ModuleDisabledError` and the call answers 503
+            // `MODULE_DISABLED` rather than resolving half a set of defaults.
+            customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+            paymentMethods: lazyPort<PaymentMethodReadPort>(ctx, 'paymentMethodReadPort'),
+            deliveryMethods: lazyPort<DeliveryMethodReadPort>(ctx, 'deliveryMethodReadPort'),
+            addresses: lazyPort<AddressReadPort>(ctx, 'addressReadPort'),
+            customerAddresses: customerAddressesOrAbsent(
+              lazyPort<CustomerAddressReadPort>(ctx, 'customerAddressReadPort'),
+            ),
+            restriction: lazyPort<OrganizationRestrictionPort>(ctx, 'organizationRestrictionPort'),
+          }),
       )
       .singleton(),
 

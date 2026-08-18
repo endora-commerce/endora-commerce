@@ -76,12 +76,23 @@ export const manifest = defineModuleManifest({
   // in `customer_accounts`, which is non-deactivatable, so switching this off
   // removes screens and self-service rather than the ability to log in.
   activation: { settingCode: 'customers.enabled', default: true },
+  //
+  // Issue #216 adds `quick_order`: the customer-detail screen and the
+  // self-service profile render and edit a buyer's default payment and
+  // delivery method, and those live in `quick_order`'s preference store. This
+  // module used to build a second instance of that module's service instead of
+  // resolving the port published for it, so the edge existed and was declared
+  // nowhere. Binding rather than `degrades-without`, because that is what
+  // `DefaultPreferencePort`'s contract says its seam does when the owner is
+  // off, and because a half-written set of ordering defaults is worse than a
+  // refusal.
   dependencies: [
     'auth',
     'custom_fields',
     'customer_accounts',
     'email',
     'organizations',
+    'quick_order',
     'quote_requests',
     'settings',
   ],

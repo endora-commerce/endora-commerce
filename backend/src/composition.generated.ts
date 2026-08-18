@@ -134,12 +134,12 @@ import * as module51 from './modules/quote_requests/backend.js';
 import { manifest as manifest51 } from './modules/quote_requests/manifest.js';
 import * as module52 from './modules/carts/backend.js';
 import { manifest as manifest52 } from './modules/carts/manifest.js';
-import * as module53 from './modules/customers/backend.js';
-import { manifest as manifest53 } from './modules/customers/manifest.js';
-import * as module54 from './modules/newsletter/backend.js';
-import { manifest as manifest54 } from './modules/newsletter/manifest.js';
-import * as module55 from './modules/quick_order/backend.js';
-import { manifest as manifest55 } from './modules/quick_order/manifest.js';
+import * as module53 from './modules/quick_order/backend.js';
+import { manifest as manifest53 } from './modules/quick_order/manifest.js';
+import * as module54 from './modules/customers/backend.js';
+import { manifest as manifest54 } from './modules/customers/manifest.js';
+import * as module55 from './modules/newsletter/backend.js';
+import { manifest as manifest55 } from './modules/newsletter/manifest.js';
 import * as module56 from './modules/returns/backend.js';
 import { manifest as manifest56 } from './modules/returns/manifest.js';
 import * as module57 from './modules/autopay/backend.js';
@@ -213,9 +213,9 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'pwa', version: manifest50.version, registerModule: module50.registerModule },
   { id: 'quote_requests', version: manifest51.version, registerModule: module51.registerModule },
   { id: 'carts', version: manifest52.version, registerModule: module52.registerModule },
-  { id: 'customers', version: manifest53.version, registerModule: module53.registerModule },
-  { id: 'newsletter', version: manifest54.version, registerModule: module54.registerModule },
-  { id: 'quick_order', version: manifest55.version, registerModule: module55.registerModule },
+  { id: 'quick_order', version: manifest53.version, registerModule: module53.registerModule },
+  { id: 'customers', version: manifest54.version, registerModule: module54.registerModule },
+  { id: 'newsletter', version: manifest55.version, registerModule: module55.registerModule },
   { id: 'returns', version: manifest56.version, registerModule: module56.registerModule },
   { id: 'autopay', version: manifest57.version, registerModule: module57.registerModule },
   { id: 'payu', version: manifest58.version, registerModule: module58.registerModule },
