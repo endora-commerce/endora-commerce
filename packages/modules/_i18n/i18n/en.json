@@ -88,6 +88,8 @@
   "adminRoles.permission.paypal:write": "Manage PayPal configuration and payment methods",
   "adminRoles.permission.pim_ergonode:read": "View Ergonode integration",
   "adminRoles.permission.pim_ergonode:write": "Manage Ergonode integration",
+  "adminRoles.permission.pim_pimcore:read": "View Pimcore integration",
+  "adminRoles.permission.pim_pimcore:write": "Manage Pimcore integration",
   "adminRoles.permission.platform.modules.activate": "Switch modules on and off",
   "adminRoles.permission.platform.modules.read": "View module lifecycle",
   "adminRoles.permission.price_lists:read": "View price lists and pricing rules",

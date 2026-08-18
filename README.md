@@ -161,6 +161,12 @@ pnpm run dev
 #   mailhog UI  → http://localhost:8025
 ```
 
+**Optional — [Warden](https://docs.warden.dev/)** instead of Compose: one `local`
+environment under `.warden/` gives the same infra plus `*.endora.test` HTTPS via
+Traefik. Apps still run on the host with `pnpm run dev`. Full guide:
+[`docs/docs/operations/warden.md`](./docs/docs/operations/warden.md). Do not run
+Warden and `pnpm run dev:infra` at the same time (port clash).
+
 Or run individually:
 
 ```bash
@@ -245,6 +251,7 @@ b2b-platform/
 │   └── cms-components/ # Page Builder React components shared by admin + storefront
 ├── docs/             # Docusaurus documentation site
 ├── docker-compose.yml
+├── .warden/          # optional Warden local env (see docs/docs/operations/warden.md)
 ├── tsconfig.base.json
 ├── eslint.config.js
 ├── .prettierrc

@@ -1,0 +1,139 @@
+# Warden `local` environment for the Endora Commerce monorepo.
+#
+# Provides the same infrastructure as the root docker-compose.yml
+# (PostgreSQL, Redis, Meilisearch, Mailhog) plus optional Traefik
+# reverse-proxies so host-run Node apps are reachable on *.test HTTPS.
+#
+# Apps (backend / storefront / admin) stay on the host via `pnpm run
+# dev` — that keeps hot reload and debugger attachment simple on
+# Linux/WSL. The nginx_* services only forward Traefik → host ports.
+#
+# Do not run `pnpm run dev:infra` at the same time — both stacks bind
+# the same default host ports.
+
+services:
+  postgres:
+    hostname: '${WARDEN_ENV_NAME}-postgres'
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-b2b}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-b2b}
+      POSTGRES_DB: ${POSTGRES_DB:-b2b}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgresdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-b2b} -d ${POSTGRES_DB:-b2b}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    hostname: '${WARDEN_ENV_NAME}-redis'
+    image: redis:7-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  meilisearch:
+    hostname: '${WARDEN_ENV_NAME}-meilisearch'
+    image: getmeili/meilisearch:v1.11
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-devMasterKeyChangeMe}
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: 'true'
+    ports:
+      - '${MEILISEARCH_PORT:-7700}:7700'
+    volumes:
+      - meilisearchdata:/meili_data
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--spider', 'http://localhost:7700/health']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${WARDEN_ENV_NAME}-meilisearch.tls=true
+      - traefik.http.routers.${WARDEN_ENV_NAME}-meilisearch.rule=Host(`meilisearch.${TRAEFIK_DOMAIN}`)
+      - traefik.http.services.${WARDEN_ENV_NAME}-meilisearch.loadbalancer.server.port=7700
+      - traefik.docker.network=${WARDEN_ENV_NAME}_default
+
+  mailhog:
+    hostname: '${WARDEN_ENV_NAME}-mailhog'
+    image: mailhog/mailhog:latest
+    ports:
+      - '${MAILHOG_SMTP_PORT:-1025}:1025'
+      - '${MAILHOG_UI_PORT:-8025}:8025'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --quiet --spider http://localhost:8025 || exit 1']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${WARDEN_ENV_NAME}-mailhog.tls=true
+      - traefik.http.routers.${WARDEN_ENV_NAME}-mailhog.rule=Host(`mail.${TRAEFIK_DOMAIN}`)
+      - traefik.http.services.${WARDEN_ENV_NAME}-mailhog.loadbalancer.server.port=8025
+      - traefik.docker.network=${WARDEN_ENV_NAME}_default
+
+  # --- Traefik → host Node processes (pnpm run dev) -------------------
+  nginx_api:
+    hostname: '${WARDEN_ENV_NAME}-nginx-api'
+    image: nginx:1.27-alpine
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./.warden/nginx/api.conf:/etc/nginx/conf.d/default.conf:ro
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${WARDEN_ENV_NAME}-api.tls=true
+      - traefik.http.routers.${WARDEN_ENV_NAME}-api.priority=10
+      - traefik.http.routers.${WARDEN_ENV_NAME}-api.rule=Host(`api.${TRAEFIK_DOMAIN}`)
+      - traefik.http.services.${WARDEN_ENV_NAME}-api.loadbalancer.server.port=80
+      - traefik.docker.network=${WARDEN_ENV_NAME}_default
+
+  nginx_storefront:
+    hostname: '${WARDEN_ENV_NAME}-nginx-storefront'
+    image: nginx:1.27-alpine
+    volumes:
+      - ./.warden/nginx/storefront.conf:/etc/nginx/conf.d/default.conf:ro
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${WARDEN_ENV_NAME}-storefront.tls=true
+      - traefik.http.routers.${WARDEN_ENV_NAME}-storefront.priority=10
+      - traefik.http.routers.${WARDEN_ENV_NAME}-storefront.rule=Host(`www.${TRAEFIK_DOMAIN}`) || Host(`${TRAEFIK_DOMAIN}`)
+      - traefik.http.services.${WARDEN_ENV_NAME}-storefront.loadbalancer.server.port=80
+      - traefik.docker.network=${WARDEN_ENV_NAME}_default
+
+  nginx_admin:
+    hostname: '${WARDEN_ENV_NAME}-nginx-admin'
+    image: nginx:1.27-alpine
+    volumes:
+      - ./.warden/nginx/admin.conf:/etc/nginx/conf.d/default.conf:ro
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${WARDEN_ENV_NAME}-admin.tls=true
+      - traefik.http.routers.${WARDEN_ENV_NAME}-admin.priority=10
+      - traefik.http.routers.${WARDEN_ENV_NAME}-admin.rule=Host(`admin.${TRAEFIK_DOMAIN}`)
+      - traefik.http.services.${WARDEN_ENV_NAME}-admin.loadbalancer.server.port=80
+      - traefik.docker.network=${WARDEN_ENV_NAME}_default
+
+volumes:
+  postgresdata: {}
+  redisdata: {}
+  meilisearchdata: {}

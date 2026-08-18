@@ -467,6 +467,24 @@ export const ERROR_CODES = {
   /** A protected field path does not match the grammar (data-model.md §8). */
   PIM_ERGONODE_FIELD_PATH_INVALID: 'PIM_ERGONODE_FIELD_PATH_INVALID',
 
+  // Pimcore PIM integration (feature 076). Transport-level codes for the
+  // module's admin surface — see specs/076-pimcore-pim-sync/contracts/admin-api.md.
+  /** No connection row exists yet, so there is nothing to read or import from. */
+  PIM_PIMCORE_NOT_CONFIGURED: 'PIM_PIMCORE_NOT_CONFIGURED',
+  /** A second *enabled* connection was attempted (FR-004). */
+  PIM_PIMCORE_CONNECTION_EXISTS: 'PIM_PIMCORE_CONNECTION_EXISTS',
+  /** Another PIM module already has an enabled connection (FR-075). */
+  PIM_PIMCORE_OTHER_PIM_ENABLED: 'PIM_PIMCORE_OTHER_PIM_ENABLED',
+  /** Enabling a connection or triggering an import without a category root (FR-043). */
+  PIM_PIMCORE_ROOT_REQUIRED: 'PIM_PIMCORE_ROOT_REQUIRED',
+  /** Enabling a connection without a product folder (FR-093). */
+  PIM_PIMCORE_PRODUCT_FOLDER_REQUIRED: 'PIM_PIMCORE_PRODUCT_FOLDER_REQUIRED',
+  /** Media host allowlist entry failed validation (FR-060). */
+  PIM_PIMCORE_ALLOWLIST_INVALID: 'PIM_PIMCORE_ALLOWLIST_INVALID',
+  /** The overlap claim is held by a run already in flight (FR-006). */
+  PIM_PIMCORE_IMPORT_ALREADY_RUNNING: 'PIM_PIMCORE_IMPORT_ALREADY_RUNNING',
+  PIM_PIMCORE_CONNECTION_DISABLED: 'PIM_PIMCORE_CONNECTION_DISABLED',
+
   // Payments — the buyer's retry refusals (!1159). Three codes and not one,
   // because the money term and the lifecycle term are orthogonal rather than
   // alternative: an order can be unpaid and cancelled, or paid and open, so

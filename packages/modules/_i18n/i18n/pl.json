@@ -88,6 +88,8 @@
   "adminRoles.permission.paypal:write": "Zarządzanie konfiguracją PayPal i metodami płatności",
   "adminRoles.permission.pim_ergonode:read": "Podgląd integracji z Ergonode",
   "adminRoles.permission.pim_ergonode:write": "Zarządzanie integracją z Ergonode",
+  "adminRoles.permission.pim_pimcore:read": "Podgląd integracji z Pimcore",
+  "adminRoles.permission.pim_pimcore:write": "Zarządzanie integracją z Pimcore",
   "adminRoles.permission.platform.modules.activate": "Włączanie i wyłączanie modułów",
   "adminRoles.permission.platform.modules.read": "Wyświetlanie cyklu życia modułów",
   "adminRoles.permission.price_lists:read": "Podgląd cenników i reguł cenowych",
