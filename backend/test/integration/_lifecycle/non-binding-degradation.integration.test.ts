@@ -5,13 +5,15 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
+import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 /**
- * The four `degrades-without` edges, each with the owner switched off — D-44
- * §10, and the risk it names in as many words:
+ * The `degrades-without` edges whose owner an operator can genuinely switch
+ * off, each seen with the owner off — D-44 §10, and the risk it names in as
+ * many words:
  *
  * > a `degrades-without` edge whose degradation is not actually implemented …
  * > the operator gets a crash where the old refusal gave a 409 — a strictly
@@ -208,6 +210,108 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
         method: 'GET',
         url: '/api/v1/external/catalog/products',
         headers: { authorization: `Bearer ${boundToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+    });
+  });
+
+  /**
+   * `catalog` → `search:searchQueryPort`, whenAbsent: *the storefront product
+   * listing is served from PostgreSQL instead of the search index* (issue #153).
+   *
+   * The one edge here whose dependent is a **public** surface, which is what
+   * decides the shape of the degrade: `catalog` is non-deactivatable, Postgres
+   * is the listing's default backend, and refusing a storefront product list
+   * because an optional search module is off would take the shop down for a
+   * capability it never required.
+   *
+   * It is also the edge that had no declaration to test until #153, and the
+   * reason is worth stating where the test is: `catalog` constructed its own
+   * `SearchQueryService` out of `search`'s class, so the container held no edge
+   * between the two, `findNonBindingIssues` would have rejected the declaration
+   * as `nothing-resolves`, and the fallback below — which was already correct —
+   * was a behaviour no operator could be told about.
+   *
+   * The env toggle is what makes the flip load-bearing: with
+   * `CATALOG_SEARCH_BACKEND` unset the listing reads Postgres whatever
+   * `search`'s state is, so the assertion would hold for a route that never
+   * asked. The second case is the other half — the gate really does refuse,
+   * so what keeps the listing serving is the presence probe in front of it and
+   * not the absence of one.
+   */
+  describe('catalog → search:searchQueryPort', () => {
+    let originalBackend: string | undefined;
+
+    beforeAll(() => {
+      originalBackend = process.env['CATALOG_SEARCH_BACKEND'];
+      process.env['CATALOG_SEARCH_BACKEND'] = 'meilisearch';
+    });
+
+    afterAll(() => {
+      if (originalBackend === undefined) delete process.env['CATALOG_SEARCH_BACKEND'];
+      else process.env['CATALOG_SEARCH_BACKEND'] = originalBackend;
+    });
+
+    it('serves the public product listing from Postgres rather than refusing it', async () => {
+      // A precondition, not the assertion: the suite shares one fork and one
+      // database, and a previous file's reseed can leave the channel cache
+      // pointing `pl_retail` at an id that no longer exists — the request then
+      // resolves to the empty default channel and answers an empty page for a
+      // reason that has nothing to do with `search`. Dropping the cache is the
+      // sanctioned seam for that (issue #154's family, and see the stale-id
+      // note in `test-server.ts`).
+      await h.salesChannels.cache.invalidateAll();
+      deactivate('search');
+
+      const res = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/catalog/products?limit=50',
+        headers: { 'x-sales-channel': 'pl_retail' },
+      });
+
+      expect(res.statusCode, 'a public catalogue must degrade, not 503').toBe(200);
+      expect(res.headers['x-search-backend']).toBe('postgres');
+      // Products, not an empty page: "nothing exploded" is also what a broken
+      // listing returns, and the sentence promises a served catalogue.
+      const body = res.json() as { data: Array<{ sku: string }> };
+      expect(body.data.length).toBeGreaterThan(0);
+    });
+
+    it('would have been refused at the gate — the probe is what avoided it', async () => {
+      deactivate('search');
+
+      // Meilisearch is never contacted in this file; what is asserted is that
+      // the port the listing holds is a real gate with a real "no", so the 200
+      // above is a decision rather than an accident of an unreachable index.
+      expect(() => h.container.cradle['searchQueryPort']).toThrow(ModuleDisabledError);
+    });
+
+    it('leaves `search`’s own surface refusing while it is off', async () => {
+      deactivate('search');
+
+      const res = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/search/suggest?q=widget',
+      });
+
+      // The mirror of the "leaves the rest of `catalog` serving" guards above:
+      // the degrade must be the listing changing backend, not `search` having
+      // gone on running.
+      expect(res.statusCode).toBe(503);
+      expect((res.json() as { error: { code: string } }).error.code).toBe('MODULE_DISABLED');
+    });
+
+    it('hands the query back to `search` once the module is switched on again', async () => {
+      // The port resolves again, and the listing still answers. The header is
+      // deliberately not asserted here: with `search` present and no
+      // Meilisearch running, the port reports `index-unavailable` and the route
+      // degrades to Postgres for an entirely different reason — asserting
+      // `meilisearch` would make this case pass or fail on whether docker is up.
+      expect(() => h.container.cradle['searchQueryPort']).not.toThrow();
+
+      const res = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/catalog/products?limit=50',
       });
       expect(res.statusCode).toBe(200);
     });
