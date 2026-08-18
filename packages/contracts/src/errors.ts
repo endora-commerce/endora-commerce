@@ -484,6 +484,15 @@ export const ERROR_CODES = {
   /** The overlap claim is held by a run already in flight (FR-006). */
   PIM_PIMCORE_IMPORT_ALREADY_RUNNING: 'PIM_PIMCORE_IMPORT_ALREADY_RUNNING',
   PIM_PIMCORE_CONNECTION_DISABLED: 'PIM_PIMCORE_CONNECTION_DISABLED',
+  /** The chosen Endora attribute cannot represent that source type; `details[]` lists what can (FR-029). */
+  PIM_PIMCORE_TYPE_INCOMPATIBLE: 'PIM_PIMCORE_TYPE_INCOMPATIBLE',
+  PIM_PIMCORE_TARGET_ATTRIBUTE_NOT_FOUND: 'PIM_PIMCORE_TARGET_ATTRIBUTE_NOT_FOUND',
+  /** Another source field already binds that Endora target. */
+  PIM_PIMCORE_TARGET_ALREADY_MAPPED: 'PIM_PIMCORE_TARGET_ALREADY_MAPPED',
+  /** A price binding named a currency that is not active; `details[]` lists the active codes (FR-072). */
+  PIM_PIMCORE_CURRENCY_INACTIVE: 'PIM_PIMCORE_CURRENCY_INACTIVE',
+  PIM_PIMCORE_ATTRIBUTE_NOT_PRICE_TYPE: 'PIM_PIMCORE_ATTRIBUTE_NOT_PRICE_TYPE',
+  PIM_PIMCORE_BINDING_EXISTS: 'PIM_PIMCORE_BINDING_EXISTS',
 
   // Payments — the buyer's retry refusals (!1159). Three codes and not one,
   // because the money term and the lifecycle term are orthogonal rather than

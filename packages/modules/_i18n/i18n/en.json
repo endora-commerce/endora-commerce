@@ -286,6 +286,7 @@
   "appShell.nav.pimErgonodeRuns": "Import history",
   "appShell.nav.pimPimcore": "Pimcore PIM",
   "appShell.nav.pimPimcoreRuns": "Import history",
+  "appShell.nav.pimPimcoreAttributeMappings": "Attribute mapping",
   "appShell.nav.platformModules": "Modules",
   "appShell.nav.priceLists": "Price lists",
   "appShell.nav.productFeeds": "Product feeds",

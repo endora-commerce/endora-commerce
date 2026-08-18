@@ -99,6 +99,7 @@ import { ErgonodeCategoryMappingPage } from './modules/pim_ergonode/ErgonodeCate
 import { ErgonodeRunsPage } from './modules/pim_ergonode/ErgonodeRunsPage.js';
 import { ErgonodeRunDetailPage } from './modules/pim_ergonode/ErgonodeRunDetailPage.js';
 import { PimcoreConnectionPage } from './modules/pim_pimcore/PimcoreConnectionPage.js';
+import { PimcoreAttributeMappingPage } from './modules/pim_pimcore/PimcoreAttributeMappingPage.js';
 import { PimcoreRunsPage } from './modules/pim_pimcore/PimcoreRunsPage.js';
 import { PimcoreRunDetailPage } from './modules/pim_pimcore/PimcoreRunDetailPage.js';
 import { InvoiceTemplateEditor } from './modules/invoices/templates/InvoiceTemplateEditor.js';
@@ -323,6 +324,10 @@ export function App(): ReactNode {
         {/* Feature 076 — Pimcore PIM. Literal segments first, parametric run
             route last (same ordering rule as Ergonode). */}
         <Route path="/pim-pimcore" element={<PimcoreConnectionPage />} />
+        <Route
+          path="/pim-pimcore/attribute-mappings"
+          element={<PimcoreAttributeMappingPage />}
+        />
         <Route path="/pim-pimcore/runs" element={<PimcoreRunsPage />} />
         <Route path="/pim-pimcore/runs/:runId" element={<PimcoreRunDetailPage />} />
         <Route path="/taxes" element={<TaxesPage />} />
