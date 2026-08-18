@@ -5,6 +5,24 @@ import {
 } from '@b2b/contracts';
 
 /**
+ * Admin permission codes owned by this module (issue #219).
+ *
+ * Before these existed every admin route here was gated by `catalog:write`, so
+ * a role granted catalogue content work could change what customers pay. That
+ * boundary was never chosen — it was the side effect of the module declaring no
+ * codes of its own. Pricing is not catalogue content.
+ *
+ * The split is read/write rather than one code because the two authorities are
+ * genuinely different: reading a price list, its brackets and the rule-target
+ * pickers is what an operator needs to understand a quoted price, while editing
+ * a bracket changes what a customer is charged.
+ */
+export const PRICE_LIST_PERMISSIONS = {
+  READ: 'price_lists:read',
+  WRITE: 'price_lists:write',
+} as const;
+
+/**
  * Settings manifest for the Price Lists module — feature 011.
  *
  * Two settings (FR-037). Setting codes follow the foundation regex
@@ -51,6 +69,10 @@ export const manifest = defineModuleManifest({
   // is binding — pricing for a customer the platform will not identify is worse
   // than refusing the probe.
   dependencies: ['catalog', 'customer_accounts', 'organizations', 'settings'],
+  permissions: [
+    { code: PRICE_LIST_PERMISSIONS.READ, label: 'View price lists and pricing rules' },
+    { code: PRICE_LIST_PERMISSIONS.WRITE, label: 'Edit price lists, brackets and display modes' },
+  ],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base, and one of the
   // escalation answers. B2B *is* contract pricing. The deciding fact is the

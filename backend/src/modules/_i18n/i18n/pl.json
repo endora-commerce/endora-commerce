@@ -78,6 +78,8 @@
   "adminRoles.permission.pim_ergonode:write": "Zarządzanie integracją z Ergonode",
   "adminRoles.permission.platform.modules.activate": "Włączanie i wyłączanie modułów",
   "adminRoles.permission.platform.modules.read": "Wyświetlanie cyklu życia modułów",
+  "adminRoles.permission.price_lists:read": "Podgląd cenników i reguł cenowych",
+  "adminRoles.permission.price_lists:write": "Edycja cenników, progów ilościowych i trybów prezentacji cen",
   "adminRoles.permission.product_feeds:read": "Podgląd feedów produktowych",
   "adminRoles.permission.product_feeds:write": "Zarządzanie feedami produktowymi",
   "adminRoles.permission.promotions:delete": "Usuwanie promocji oraz reguł",

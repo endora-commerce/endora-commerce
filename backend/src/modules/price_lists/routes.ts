@@ -23,6 +23,7 @@ import type {
   OrganizationDetailsPort,
 } from '@b2b/contracts';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { PRICE_LIST_PERMISSIONS } from './manifest.js';
 
 export interface PricingRoutesDeps {
   priceListService: PriceListService;
@@ -110,6 +111,20 @@ export async function registerPricingRoutes(
     customerAccountRead,
   } = deps;
 
+  /**
+   * Issue #219 — this module's own gates. Every route below used to name
+   * `catalog:write`, which bought the ability to change what customers pay with
+   * a permission granted for content work. The split is by what the route does:
+   * a listing or a picker is `price_lists:read`, anything that persists is
+   * `price_lists:write`.
+   *
+   * No compatibility shim: `catalog:write` is refused here now, so a role that
+   * needs pricing is granted a pricing code deliberately. See the first-
+   * deployment checklist item D3.
+   */
+  const readGate = requireAdmin(PRICE_LIST_PERMISSIONS.READ);
+  const writeGate = requireAdmin(PRICE_LIST_PERMISSIONS.WRITE);
+
   // ---- Engine routes (feature 011) -----------------------------------
 
   app.get<{
@@ -120,7 +135,7 @@ export async function registerPricingRoutes(
     };
   }>(
     '/api/v1/admin/price-lists-engine',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async (request) => {
       const status = toArray(request.query.status).filter((s): s is 'draft' | 'active' | 'scheduled' | 'expired' =>
         s === 'draft' || s === 'active' || s === 'scheduled' || s === 'expired',
@@ -142,7 +157,7 @@ export async function registerPricingRoutes(
   app.post(
     '/api/v1/admin/price-lists-engine',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: writeGate,
       schema: { body: createPriceListEngineRequestSchema },
     },
     async (request, reply) => {
@@ -165,7 +180,7 @@ export async function registerPricingRoutes(
   app.patch<{ Params: { id: string } }>(
     '/api/v1/admin/price-lists-engine/:id',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: writeGate,
       schema: { body: patchPriceListEngineRequestSchema },
     },
     async (request) => {
@@ -187,7 +202,7 @@ export async function registerPricingRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/price-lists-engine/:id',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async (request) => {
       const row = await priceListService.getById(request.params.id);
       if (!ruleVisibleForScope(extractRuleOrgTargets(row.applicationRule))) {
@@ -199,7 +214,7 @@ export async function registerPricingRoutes(
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/price-lists-engine/:id/activate',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: writeGate },
     async (request) => {
       const row = await priceListService.activate(
         request.params.id,
@@ -211,7 +226,7 @@ export async function registerPricingRoutes(
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/price-lists-engine/:id/draftify',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: writeGate },
     async (request) => {
       const row = await priceListService.draftify(
         request.params.id,
@@ -223,7 +238,7 @@ export async function registerPricingRoutes(
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/price-lists-engine/:id/duplicate',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: writeGate },
     async (request, reply) => {
       const dup = await priceListService.duplicate(
         request.params.id,
@@ -236,7 +251,7 @@ export async function registerPricingRoutes(
 
   app.delete<{ Params: { id: string } }>(
     '/api/v1/admin/price-lists-engine/:id',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: writeGate },
     async (request, reply) => {
       await priceListService.remove(request.params.id);
       return reply.status(204).send();
@@ -247,7 +262,7 @@ export async function registerPricingRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/price-lists-engine/:id/products',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async (request) => {
       const items = await priceListService.listProducts(request.params.id);
       return { data: { items } };
@@ -257,7 +272,7 @@ export async function registerPricingRoutes(
   app.put<{ Params: { id: string } }>(
     '/api/v1/admin/price-lists-engine/:id/products',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: writeGate,
       schema: { body: replaceProductsRequestSchema },
     },
     async (request) => {
@@ -274,7 +289,7 @@ export async function registerPricingRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/price-lists-engine/:id/products',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: writeGate,
       schema: { body: z.object({ productId: z.string().uuid() }) },
     },
     async (request, reply) => {
@@ -287,7 +302,7 @@ export async function registerPricingRoutes(
 
   app.delete<{ Params: { id: string; productId: string } }>(
     '/api/v1/admin/price-lists-engine/:id/products/:productId',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: writeGate },
     async (request, reply) => {
       await priceListService.removeProduct(request.params.id, request.params.productId);
       return reply.status(204).send();
@@ -296,7 +311,7 @@ export async function registerPricingRoutes(
 
   app.get<{ Params: { id: string; productId: string } }>(
     '/api/v1/admin/price-lists-engine/:id/products/:productId/brackets',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async (request) => {
       const list = await priceListService.listProducts(request.params.id);
       const entry = list.find((e) => e.productId === request.params.productId);
@@ -310,7 +325,7 @@ export async function registerPricingRoutes(
   app.put<{ Params: { id: string; productId: string } }>(
     '/api/v1/admin/price-lists-engine/:id/products/:productId/brackets',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: writeGate,
       schema: { body: replaceBracketsRequestSchema },
     },
     async (request) => {
@@ -328,7 +343,7 @@ export async function registerPricingRoutes(
   app.post<{ Params: { id: string; productId: string } }>(
     '/api/v1/admin/price-lists-engine/:id/products/:productId/brackets/copy',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: writeGate,
       schema: {
         body: z.object({
           fromCurrency: z.string().regex(/^[A-Z]{3}$/),
@@ -357,7 +372,7 @@ export async function registerPricingRoutes(
 
   app.get(
     '/api/v1/admin/pricing/rule-targets/sales-channels',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async () => {
       const em = emFactory();
       const rows = await em.find(SalesChannel, {}, { orderBy: { code: 'asc' } });
@@ -373,9 +388,15 @@ export async function registerPricingRoutes(
     },
   );
 
+  /**
+   * Issue #180 removed `catalog:write` from the canonical customer-group
+   * endpoints and missed this copy — a pricing rule-target picker, not a
+   * catalogue surface. The `promotions` and `pwa` twins have always answered
+   * behind their own module's read code; so does this one now.
+   */
   app.get(
     '/api/v1/admin/pricing/rule-targets/customer-groups',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async () => {
       // Already ordered by code on the owner's side.
       const rows = await customerGroupRead.listAll();
@@ -389,7 +410,7 @@ export async function registerPricingRoutes(
 
   app.get<{ Querystring: { search?: string; limit?: string } }>(
     '/api/v1/admin/pricing/rule-targets/organizations',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async (request) => {
       const limit = Math.min(200, Math.max(1, Number(request.query.limit ?? '50')));
       const search = (request.query.search ?? '').trim();
@@ -408,7 +429,7 @@ export async function registerPricingRoutes(
 
   app.get(
     '/api/v1/admin/pricing/rule-targets/categories',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async () => {
       // The port's `listAll` is already ordered by sort order then slug.
       const rows = await catalogCategoryRead.listAll();
@@ -428,7 +449,7 @@ export async function registerPricingRoutes(
 
   app.get(
     '/api/v1/admin/pricing/rule-targets/currencies',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async () => {
       const em = emFactory();
       const channels = await em.find(SalesChannel, {});
@@ -453,7 +474,7 @@ export async function registerPricingRoutes(
 
   app.get<{ Params: { productId: string } }>(
     '/api/v1/admin/products/:productId/price-lists',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async (request, reply) => {
       const product = await catalogProductRead.findById(request.params.productId);
       if (!product) {
@@ -485,7 +506,7 @@ export async function registerPricingRoutes(
 
   app.get<{ Querystring: { scope?: 'organization' | 'category' | 'product' } }>(
     '/api/v1/admin/pricing/display-mode-overrides',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async (request) => {
       const items = await priceListService.listDisplayModeOverrides(request.query.scope);
       return {
@@ -505,7 +526,7 @@ export async function registerPricingRoutes(
     Params: { scope: 'organization' | 'category' | 'product'; targetId: string };
   }>(
     '/api/v1/admin/pricing/display-mode-overrides/:scope/:targetId',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async (request, reply) => {
       const row = await priceListService.getDisplayModeOverride(
         request.params.scope,
@@ -531,7 +552,7 @@ export async function registerPricingRoutes(
   }>(
     '/api/v1/admin/pricing/display-mode-overrides/:scope/:targetId',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: writeGate,
       schema: {
         body: z.object({
           mode: z.enum(['gross_only', 'net_only', 'both', 'none', 'inherit']),
@@ -570,7 +591,7 @@ export async function registerPricingRoutes(
   // the state machine without waiting for the queue tick.
   app.post(
     '/api/v1/admin/price-lists-engine/internal/sweep',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: writeGate },
     async () => {
       // The worker reads/writes through the same EM as the rest of the
       // module; constructed here so the route doesn't pin the worker to
