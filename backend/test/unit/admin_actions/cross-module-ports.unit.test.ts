@@ -161,16 +161,19 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
 
   it('reconciles from a registry view carrying only manifest id and actions', async () => {
     const upserts: Array<{ moduleId: string; actions: readonly ModuleAction[] }> = [];
+    // `execute`, not `getKnex().raw`: issue #200 moved the UPSERT onto the
+    // EntityManager so it joins the caller's transaction. A mock that still
+    // offers only `getKnex` records nothing and the assertion below reads as a
+    // reconcile that skipped the module — which is what it did here for a day.
     const em = (): EntityManager =>
       ({
-        getKnex: () => ({
-          raw: async (_sql: string, bindings: unknown[]) => {
-            upserts.push({
-              moduleId: String(bindings[0]),
-              actions: [],
-            });
-          },
-        }),
+        execute: async (_sql: string, bindings: unknown[]) => {
+          upserts.push({
+            moduleId: String(bindings[0]),
+            actions: [],
+          });
+          return [];
+        },
         nativeDelete: async () => 0,
       }) as unknown as EntityManager;
 
