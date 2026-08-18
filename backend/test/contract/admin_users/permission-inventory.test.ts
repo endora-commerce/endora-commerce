@@ -34,9 +34,18 @@ function bundleFor(language: string): Record<string, string> {
   return JSON.parse(readFileSync(`${I18N_DIR}${language}.json`, 'utf8')) as Record<string, string>;
 }
 
+/**
+ * Deployment-resolved at module scope, with a top-level `await`: since D-104 the
+ * deployment half of the manifest set is a runtime discovery rather than a
+ * generated artefact's branch, so resolving it is asynchronous. It reads the
+ * ambient `DEPLOYMENT`, which is what makes `DEPLOYMENT=<name>` sweep that
+ * deployment's codes and a bare-core run sweep core's.
+ */
+const RESOLVED_MANIFESTS = await resolvedManifestEntries();
+
 describe('permission inventory (SC-001)', () => {
   const scan = scanEnforcedPermissionGates();
-  const assignable = listAssignablePermissionCodes(resolvedManifestEntries());
+  const assignable = listAssignablePermissionCodes(RESOLVED_MANIFESTS);
   /**
    * The `adminRoles.permission.<code>` keys live in the `core` namespace, and
    * `AdminRolesPage` falls back to the manifest `label` when a key is absent.

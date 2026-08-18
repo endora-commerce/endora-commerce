@@ -279,15 +279,81 @@ quality:static:
 # Actions workflows were removed (the project delivers through GitLab MRs).
 # ---------------------------------------------------------------------------
 
-# Overlay per-deployment matrix (feature 057, FR-010): the bare-core build is
-# the baseline job below (DEPLOYMENT unset). Each client deployment adds a
-# matrix instance that sets `DEPLOYMENT=<name>` so the resolver composes core +
-# that deployment's `backend/src/apps/<name>/` overlay before the suite runs —
-# a red bare-core run blocks everything; a red deployment run blocks only that
-# deployment. No overlay deployments exist yet, so only the bare-core instance
-# runs; add a `parallel: matrix: [{ DEPLOYMENT: [acme, …] }]` entry here when the
-# first `apps/<name>/` overlay lands. The fast `overlay:check` (determinism +
-# resolver guards) already runs for every push in the `quality` stage above.
+# Overlay per-deployment coverage (feature 057, FR-010; issue #210).
+#
+# The bare-core build is the sharded `test:backend` job below (DEPLOYMENT unset)
+# and it stays the baseline: a red bare-core run blocks everything. Each client
+# deployment gets its own instance that sets `DEPLOYMENT=<name>`, so a red
+# deployment run blocks only that deployment.
+#
+# **Until issue #210 no CI job had ever set `DEPLOYMENT`**, which is why a
+# `backend.ts`-only overlay module could crash composition, the one reference
+# overlay module could ship an ungated route, and `manifest-index.generated.ts`
+# could be permanently stale under the variable — all with a green pipeline. The
+# comment that stood here said "No overlay deployments exist yet"; feature 057
+# landed `backend/src/apps/example/` and the sentence was false from that day.
+#
+# It is a **separate job rather than a `parallel: matrix:` entry on the sharded
+# one**, and the choice is a cost decision: a matrix entry multiplies all five
+# shards by every deployment (5 → 10 jobs, ten service containers) on a 4 vCPU /
+# 8 GB runner with concurrent=2, to re-run ~2000 tests that are identical between
+# the two compositions. What a deployment build can break that bare core cannot
+# is the composition itself — discovery, gating, decoration, ownership,
+# permissions — so this job runs the suites that exercise it, unsharded, in one
+# instance. Widen the selection when a deployment ships something core does not.
+test:backend:deployment:
+  stage: test
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  parallel:
+    matrix:
+      - DEPLOYMENT: [example]
+  variables:
+    NODE_OPTIONS: --max-old-space-size=2048
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    TEST_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    # The artefacts must be deterministic with the variable set — that is the
+    # half of issue #120's ruling this family never had.
+    - pnpm --filter backend run overlay:check
+    # The permission inventory is deployment-resolved on both sides, so this
+    # instance sweeps the deployment's codes (feature 057, FR-009).
+    - pnpm --filter backend exec vitest run test/overlay test/integration/overlay test/contract/admin_users/permission-inventory.test.ts
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - backend/**/*
+        - packages/**/*
+        - pnpm-lock.yaml
+        - tsconfig.base.json
+        - .gitlab-ci.yml
+
+# The fast `overlay:check` (determinism + resolver guards) also runs for every
+# push in the `quality` stage above, bare core.
 #
 # Backend: ~2000 DB-backed tests, run SERIALLY per process (vitest singleFork).
 # Sharded across `parallel` job instances — each instance gets its OWN

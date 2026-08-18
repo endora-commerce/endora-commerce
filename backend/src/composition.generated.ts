@@ -3,8 +3,8 @@
 // to refresh. Editing this file by hand is undone by the next build, and
 // `pnpm --filter backend run overlay:check` fails on the drift.
 //
-// Every module that ships a `backend.ts` exporting `registerModule`, in the
-// order a composition root must compose them:
+// Every **core** module that ships a `backend.ts` exporting `registerModule`,
+// in the order a composition root must compose them:
 //
 //   1. `api_keys` first — a **construction** dependency, not a manifest one:
 //      the API-key authenticator is injected into the auth plugin, and
@@ -12,10 +12,14 @@
 //      open, until F3 fixes the declaration.
 //   2. then a topological order over `manifest.dependencies`, ties broken
 //      alphabetically so this file is a function of the tree and nothing else.
-//   3. overlay modules (feature 057) last, so a deployment's `di.decorate`
-//      wins over the core registration it decorates. They carry
-//      `overlay: true`, which is what exempts them from the kernel's rule
-//      that a module may decorate only what it registered (issue #203).
+//
+// This list is bare core under every value of `DEPLOYMENT` (D-104). A
+// deployment's overlay modules are discovered at runtime by
+// `loadOverlayModuleEntries` (`src/overlay/overlay-runtime.ts`) and **appended**
+// to this list in the one `composeModules` call, which is what makes "overlay
+// last, so a deployment's `di.decorate` wins" structural rather than a property
+// of this generator's sort — and what keeps this committed artefact meaning the
+// same thing in every environment.
 //
 // A module missing from this list is a module the tree walk found no
 // `backend.ts` for. Every core module exports `registerModule` today, so an

@@ -7,6 +7,13 @@ import {
 } from '../../helpers/test-server.js';
 import { READ_ONLY_ROLE_ID } from '../../helpers/seed-admins.js';
 import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registered-manifests.js';
+
+/**
+ * Deployment-resolved at module scope, with a top-level `await` — since D-104
+ * the deployment half of the manifest set is a runtime discovery (see
+ * `permission-inventory.test.ts` for the same note).
+ */
+const RESOLVED_MANIFESTS = await resolvedManifestEntries();
 import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
 
 /**
@@ -41,7 +48,7 @@ describe('Admin roles CRUD', () => {
     // Whether each of those codes is enforced, grantable and labelled is
     // `permission-inventory.test.ts`.
     expect([...body.data.map((p) => p.code)].sort()).toEqual(
-      listAssignablePermissionCodes(resolvedManifestEntries()).sort(),
+      listAssignablePermissionCodes(RESOLVED_MANIFESTS).sort(),
     );
     expect(body.data.some((p) => p.code === 'promotions:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'stripe:write')).toBe(true);

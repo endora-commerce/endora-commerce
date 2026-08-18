@@ -52,6 +52,8 @@ import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import type { ModuleManifest } from '@b2b/contracts';
+import { deploymentsOnDisk } from '../src/overlay/overlay-roots.js';
+import { discoverOverlayModuleManifests } from '../src/overlay/overlay-runtime.js';
 import {
   buildDeactivationLedger,
   type CrossModuleRead,
@@ -2022,12 +2024,46 @@ export function describe(violation: PortViolation, srcRoot = SRC_ROOT): string {
       `still bridges this port — declare its owner in HOST_REGISTERED_PORTS in this script.`
     );
   }
+  // The manifest's real path, **derived from the file the resolution was found
+  // in** rather than assumed to be `src/modules/<id>/` (issue #210). A
+  // deployment's overlay module lives under `src/apps/<deployment>/modules/<id>/`,
+  // and a remedy line naming a file that does not exist is how an overlay author
+  // concludes the check is broken rather than that their manifest is.
+  const manifestPath = `${where.slice(0, where.lastIndexOf('/'))}/manifest.ts`;
   return (
     `  - ${resolution.moduleId} resolves '${resolution.name}' (${where}), owned by ` +
     `'${owner}', which it does not declare.\n    Add '${owner}' to \`dependencies\` in ` +
-    `src/modules/${resolution.moduleId}/manifest.ts — or, if declaring it closes a\n` +
+    `${manifestPath} — or, if declaring it closes a\n` +
     `    cycle, to \`acknowledgedDependencies\` there with the cycle spelled out.`
   );
+}
+
+/**
+ * Every deployment's overlay module manifests, with the path each was read from
+ * (issue #210).
+ *
+ * Env-independent: one entry per deployment on disk, not "the deployment
+ * `DEPLOYMENT` names". This check is a whole-tree guard and the tree contains
+ * every deployment; scoping it to a variable would make it a guard no CI run
+ * makes, which is the defect issue #120 ruled on for the override manifests.
+ */
+export async function overlayManifestEntries(): Promise<
+  ReadonlyArray<{ id: string; manifest: ModuleManifest; manifestPath: string }>
+> {
+  const out: Array<{ id: string; manifest: ModuleManifest; manifestPath: string }> = [];
+  for (const deployment of deploymentsOnDisk()) {
+    const found = await discoverOverlayModuleManifests({
+      DEPLOYMENT: deployment,
+    } as NodeJS.ProcessEnv);
+    for (const entry of found) {
+      out.push({
+        id: entry.id,
+        manifest: entry.manifest,
+        manifestPath: `src/apps/${deployment}/modules/${entry.id}/manifest.ts`,
+      });
+    }
+  }
+  return out;
 }
 
 async function main(): Promise<void> {
@@ -2073,10 +2109,33 @@ async function main(): Promise<void> {
   const { DISCOVERED_MANIFESTS } = (await import(
     pathToFileURL(join(SRC_ROOT, 'modules/_lifecycle/manifest-index.generated.ts')).href
   )) as { DISCOVERED_MANIFESTS: ReadonlyArray<{ id: string; manifest: ModuleManifest }> };
+
+  // Every deployment's overlay manifests, merged in — issue #210.
+  //
+  // The walk above reads resolutions from `src/apps/` as well as `src/modules/`,
+  // so an overlay module's port edges are in the population. Its
+  // *declarations* were not: they were read from the generated index, and since
+  // D-104 that index is bare core **by construction**. So an overlay module
+  // could not satisfy this check however its manifest was written — the finding
+  // stood with `dependencies: ['auth']` declared, and the remedy line named a
+  // path (`src/modules/<id>/manifest.ts`) that does not exist for it.
+  //
+  // Before D-103 the gap was unreachable rather than absent: an overlay module
+  // got `requireAdmin` handed to it through `OverlayModuleContext` and resolved
+  // no port at all, so nothing ever asked the question.
+  //
+  // Read env-**in**dependently, one entry per deployment on disk, for the reason
+  // `check-overlay-determinism.ts` gives for the override manifests: a guard
+  // that only looks at the deployment named by an environment variable is a
+  // guard no run makes (issue #120). A whole-tree check reads the whole tree.
+  const overlayManifests = await overlayManifestEntries();
+  const discovered = [...DISCOVERED_MANIFESTS, ...overlayManifests];
+
   const dependencies = new Map<string, readonly string[]>(
-    DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
+    discovered.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
   );
-  const manifests = DISCOVERED_MANIFESTS.map((entry) => entry.manifest);
+  const manifests = discovered.map((entry) => entry.manifest);
+
   // The withheld edges, read from the manifests that withhold them — the same
   // declarations the lifecycle's flip-time refusal reads (feature 073, A1) —
   // merged with the ones that withhold the refusal instead (D-44). The

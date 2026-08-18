@@ -11,24 +11,17 @@
 // (production) we import the compiled `.js`; under tsx/vitest (dev + tests) we
 // import the `.ts` source directly. Detected from `import.meta.url`.
 
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { EntityManager } from '@mikro-orm/postgresql';
-import type { Redis } from 'ioredis';
-import type { ModuleManifest } from '@b2b/contracts';
-import type { ModulePlugin } from '../http/server.js';
-import type { EventBus } from '../events/bus.js';
-import type { CommandBus } from '../commands/index.js';
-import type { AuditLogService } from '../kernel/audit/audit-log-service.js';
-import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
+import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
+import type { ModuleEntry } from '../kernel/compose.js';
 import {
   activeOverlayDecorationsRoot,
   activeOverlayModulesRoot,
   coreModulesRoot,
 } from './overlay-roots.js';
 import { indexCore, scanOverlay } from './resolve-overlay.js';
-import type { RequireAdminFactory } from '../kernel/ports/require-admin.js';
 
 const RUNNING_FROM_DIST = import.meta.url.includes('/dist/');
 
@@ -88,45 +81,34 @@ export async function loadOverlayDecorations(
   return map;
 }
 
-// ---- Overlay-only modules (US2) -------------------------------------------
+// ---- Overlay-only modules (US2, D-103/D-104) -------------------------------
 
-/**
- * Common dependencies handed to an overlay module's plugin factory.
- * Includes the API interceptor registry (feature 060, FR-012) so client-only
- * overlay modules can register pre/post interceptors during composition.
- */
-export interface OverlayModuleContext {
-  emFactory: () => EntityManager;
-  redis: Redis;
-  eventBus: EventBus;
-  commandBus: CommandBus;
-  auditLogService: AuditLogService;
-  requireAdmin: RequireAdminFactory;
-  apiInterceptors: ApiInterceptorRegistry;
-}
-
-/** An overlay module's `plugin.ts` exports this as `overlayModule` (or default). */
-export type OverlayModuleFactory = (ctx: OverlayModuleContext) => ModulePlugin;
-
-/** An overlay module's manifest + on-disk location (no plugin wiring yet). */
+/** An overlay module's manifest + on-disk location (no registration wiring yet). */
 export interface OverlayModuleManifest {
   id: string;
   manifest: ModuleManifest;
   filePath: string;
+  /** Install-time work lives in `manifest.ts` (D-46), overlay modules included. */
+  installHook?: ModuleManifestExports['installHook'];
+  uninstallHook?: ModuleManifestExports['uninstallHook'];
 }
 
 /** Ids of client-only overlay modules for the active deployment (absent from core). */
 function newOverlayModuleIds(env: NodeJS.ProcessEnv): { root: string; ids: string[] } | null {
   const overlayRoot = activeOverlayModulesRoot(env);
   if (overlayRoot === null) return null;
-  const { newModules } = scanOverlay(overlayRoot, indexCore(coreModulesRoot()));
-  return { root: overlayRoot, ids: newModules };
+  return { root: overlayRoot, ids: overlayModuleIdsUnder(overlayRoot) };
+}
+
+/** The module ids under one overlay modules root that core does not already own. */
+function overlayModuleIdsUnder(root: string): string[] {
+  return scanOverlay(root, indexCore(coreModulesRoot())).newModules;
 }
 
 /**
- * Discover overlay MODULE manifests for the active deployment WITHOUT wiring
- * their plugins. Used early in composition to build the deployment-resolved
- * registry the permission catalogue + lifecycle consume (FR-009, FR-012).
+ * Discover overlay MODULE manifests for the active deployment WITHOUT composing
+ * them. Used early in composition to build the deployment-resolved registry the
+ * permission catalogue + lifecycle consume (FR-009, FR-012).
  * Empty for a bare-core build.
  */
 export async function discoverOverlayModuleManifests(
@@ -139,30 +121,110 @@ export async function discoverOverlayModuleManifests(
     const manifestPath = join(found.root, id, 'manifest.ts');
     const mod = (await import(importUrlFor(manifestPath))) as Record<string, unknown>;
     const manifest = mod['manifest'] as ModuleManifest | undefined;
-    if (manifest) out.push({ id, manifest, filePath: manifestPath });
+    if (!manifest) continue;
+    // `exactOptionalPropertyTypes`: an absent key is not `{ hook: undefined }`,
+    // and the lifecycle asks `entry.installHook !== undefined`.
+    const installHook = mod['installHook'] as ModuleManifestExports['installHook'] | undefined;
+    const uninstallHook = mod['uninstallHook'] as
+      | ModuleManifestExports['uninstallHook']
+      | undefined;
+    out.push({
+      id,
+      manifest,
+      filePath: manifestPath,
+      ...(installHook ? { installHook } : {}),
+      ...(uninstallHook ? { uninstallHook } : {}),
+    });
   }
   return out;
 }
 
 /**
- * Load overlay module Fastify PLUGINS for the active deployment, wired with the
- * shared context. Called late in composition once the event/command bus exist.
- * Empty for a bare-core build.
+ * The active deployment's converted overlay modules, as composer entries
+ * (D-103/D-104).
+ *
+ * This is the **one** composition path for an overlay module: a root appends
+ * these to the core list and passes the single array to `composeModules`, so an
+ * overlay module receives an ordinary `ModuleContext` and reaches every seam a
+ * core module reaches — `ctx.routes` and its lifecycle gate, `ctx.worker`,
+ * `ctx.subscribe`, `ctx.interceptors`, `ctx.onBoot`, ports, and the decoration
+ * exemption. The path it replaces handed a frozen seven-field context to a
+ * `plugin.ts` factory and could gate nothing.
+ *
+ * **Discovered at runtime, not baked into a generated core artefact** (D-104).
+ * A deployment's manifests already resolve this way and for the stated reason:
+ * the answer depends on which deployment the *process* runs as, not on which
+ * tree a generator was run against. Registrations have the identical property
+ * and used to be given the opposite treatment, which made
+ * `composition.generated.ts` and `manifest-index.generated.ts` environment-
+ * dependent — an artefact that is always stale for a deployment is one nobody
+ * can use to detect a genuinely stale one (issue #120, applied to the family it
+ * was missed in).
+ *
+ * `overlay: true` is set **from the root the module was found under**, which is
+ * what `ModuleEntry.overlay`'s own contract requires: it exempts the module
+ * from the rule that a module may decorate only what it registered, so it may
+ * never be a claim a module makes about itself.
+ *
+ * Ordering is structural rather than sorted: the entries come back in id order
+ * and a root appends them after a frozen core list, so a deployment's
+ * decoration always wraps a core registration that is already there.
+ *
+ * A module directory with no `backend.ts` is **skipped**, not thrown at — a
+ * deployment may ship an overlay directory that only shadows core files. A
+ * `backend.ts` that exports no `registerModule` is a different thing and is
+ * refused: skipping it would compose nothing, and the first symptom would be a
+ * 404 nobody connects to this file.
  */
-export async function loadOverlayModulePlugins(
-  ctx: OverlayModuleContext,
+export async function loadOverlayModuleEntries(
   env: NodeJS.ProcessEnv = process.env,
-): Promise<ModulePlugin[]> {
-  const found = newOverlayModuleIds(env);
-  if (found === null) return [];
-  const plugins: ModulePlugin[] = [];
-  for (const id of found.ids) {
-    const mod = (await import(importUrlFor(join(found.root, id, 'plugin.ts')))) as Record<
+): Promise<ModuleEntry[]> {
+  const root = activeOverlayModulesRoot(env);
+  if (root === null) return [];
+  return overlayModuleEntriesUnder(root);
+}
+
+/**
+ * {@link loadOverlayModuleEntries} against an explicit root.
+ *
+ * Exported so the loader can be driven over a fixture tree that enters at the
+ * top of the analysis — a directory on disk, scanned and imported by the same
+ * code the deployment path runs — rather than by handing the last function a
+ * pre-built entry (issue #130).
+ */
+export async function overlayModuleEntriesUnder(root: string): Promise<ModuleEntry[]> {
+  const entries: ModuleEntry[] = [];
+  for (const id of overlayModuleIdsUnder(root)) {
+    const backendPath = join(root, id, 'backend.ts');
+    if (!existsSync(backendPath)) continue;
+    const mod = (await import(importUrlFor(backendPath))) as Record<string, unknown>;
+    const registerModule = mod['registerModule'];
+    if (typeof registerModule !== 'function') {
+      throw new Error(
+        `[overlay] ${backendPath} exports no 'registerModule'. A module's backend.ts is its ` +
+          `entry point (see backend/src/apps/example/modules/example_overlay/backend.ts); ` +
+          `rename or remove the file if it is not one. It is not composed as written, and an ` +
+          `overlay module that composes nothing is a 404 with no error behind it.`,
+      );
+    }
+    const manifestMod = (await import(importUrlFor(join(root, id, 'manifest.ts')))) as Record<
       string,
       unknown
     >;
-    const factory = (mod['overlayModule'] ?? mod['default']) as OverlayModuleFactory | undefined;
-    if (typeof factory === 'function') plugins.push(factory(ctx));
+    const manifest = manifestMod['manifest'] as ModuleManifest | undefined;
+    if (!manifest) {
+      throw new Error(
+        `[overlay] ${join(root, id, 'manifest.ts')} exports no lifecycle-shape manifest, so ` +
+          `the module has no id and no version to compose it under.`,
+      );
+    }
+    entries.push({
+      id,
+      version: manifest.version,
+      registerModule: registerModule as ModuleEntry['registerModule'],
+      // From the root, never from the module. See the note above.
+      overlay: true,
+    });
   }
-  return plugins;
+  return entries;
 }

@@ -43,15 +43,10 @@ import {
   registerValues,
 } from './kernel/index.js';
 import { promoteAdminActor } from './modules/auth/plugin.js';
-import type {
-  RequireAdminAnyFactory,
-  RequireAdminFactory,
-} from './kernel/ports/require-admin.js';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
 import type { PermissionService } from './modules/admin_roles/services/permission-service.js';
 import type { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
 import type { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
-import type { AuthCradle } from './modules/auth/backend.js';
 import {
   publishStateChanged,
   registryCache,
@@ -106,13 +101,12 @@ import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js
 import { loadModulePresence } from './modules/_lifecycle/services/presence-load.js';
 import {
   REGISTERED_MANIFESTS,
-  type RegisteredManifestEntry,
+  resolvedManifestEntries,
 } from './modules/_lifecycle/registered-manifests.js';
 // Feature 057 — per-deployment overlay resolution (build/composition-time).
 import {
-  discoverOverlayModuleManifests,
   loadOverlayDecorations,
-  loadOverlayModulePlugins,
+  loadOverlayModuleEntries,
 } from './overlay/overlay-runtime.js';
 import type { PricingServiceContract } from './modules/price_lists/services/pricing-service.interface.js';
 import type { AdminI18nCradle } from './modules/_i18n/backend.js';
@@ -237,11 +231,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const decoratePricingService = overlayDecorations.get('pricingService') as
     | ((inner: PricingServiceContract) => PricingServiceContract)
     | undefined;
-  const overlayModuleManifests = await discoverOverlayModuleManifests();
-  const resolvedRegistry: RegisteredManifestEntry[] = [
-    ...REGISTERED_MANIFESTS,
-    ...overlayModuleManifests.map((m) => ({ manifest: m.manifest, filePath: m.filePath })),
-  ];
+  // D-104 — one implementation of "the deployment-resolved manifest set", and
+  // one of "the deployment's composed modules". Both are runtime discoveries
+  // over the deployment root, because both answers depend on which deployment
+  // this process runs as rather than on the tree a generator was run against.
+  // This root used to merge the manifests itself while `resolvedManifestEntries()`
+  // merged them again from the generated index; the one under test was not the
+  // one that ran.
+  const resolvedRegistry = await resolvedManifestEntries();
+  const overlayModuleEntries = await loadOverlayModuleEntries();
 
   // Feature 072 (D-38) — module presence is a **composition input**, so it is
   // loaded here: before the first module registers, and therefore before any
@@ -388,7 +386,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // deleting it. Registration resolves nothing, so this call has no opinion
   // about the order the composer emitted; the boot hooks it collects run once,
   // at the bottom of this function, after every contribution below.
-  const composedModules = composeModules(MODULES, {
+  //
+  // D-103/D-104 — the deployment's overlay modules are **appended to this one
+  // list**, not composed by a second path. That keeps D-45 exactly as it is
+  // (one registration pass, one contribution slot, one `runBootHooks()`) and
+  // makes "overlay last, so a deployment's decoration wins" structural: the
+  // core list is frozen and the deployment's entries come after it, rather than
+  // the ordering being a property of a generator's sort.
+  const composedModules = composeModules([...MODULES, ...overlayModuleEntries], {
     container,
     eventBus,
     // Composition runs before `buildServer`, so there is no `app.log` yet.
@@ -410,14 +415,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // They are `payments`' classes and it seeds them from its own boot hook; a
   // root doing it made the platform's settleable payment kinds a property of
   // the composition, and kept them registered with `payments` switched off.
-
-  // Feature 072 (T078) — `auth` owns these now. Resolved rather than
-  // constructed, so production and the test harness get the same instances
-  // from the same registration instead of each building their own.
-  const authCradle = container.cradle as unknown as AuthCradle & {
-    requireAdmin: RequireAdminFactory;
-    requireAdminAny: RequireAdminAnyFactory;
-  };
 
   // Feature 072 (wave 1) — `admin_roles` owns these three now.
   const rolesCradle = container.cradle as unknown as {
@@ -451,7 +448,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // none; the harness's `requireTestCustomer()` read `request.testActor` and
   // refused. `auth` provides the one guard, and the 16 route surfaces that take
   // it resolve the name out of the container.
-  const requireAdmin = authCradle.requireAdmin;
+  //
+  // D-103 removed this root's last direct read of `requireAdmin`, and the
+  // `authCradle` alias with it: the overlay module's route guard used to be
+  // handed over through `OverlayModuleContext`, and an overlay module now
+  // resolves `requireAdmin` from the container exactly as a core module does.
 
   /**
    * Resolver for routes that require an authenticated Customer **with** an
@@ -2234,19 +2235,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       orphanCount: m.orphanGroups.length + m.orphanSettings.length,
     } as never);
   }
-
-  // Feature 057 — mount the active deployment's client-only overlay modules.
-  // Empty for a bare-core build, so `modules` is unchanged there.
-  const overlayModulePlugins = await loadOverlayModulePlugins({
-    emFactory: em,
-    redis,
-    eventBus,
-    commandBus,
-    auditLogService,
-    requireAdmin,
-    apiInterceptors,
-  });
-  for (const plugin of overlayModulePlugins) modules.push(plugin);
 
   // The explicit boot phase (FR-021), run **once**, after every registration
   // and every contribution above and before `index.ts` calls `buildServer`

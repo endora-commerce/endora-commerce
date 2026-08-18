@@ -29,8 +29,15 @@ const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
  *     byte-comparing to disk is the same shape `check-overlay-determinism.ts`
  *     already uses, and it works in the CI slim image, which has no git.
  *  2. **The ordering rule is the one the composer documents.** Dependencies
- *     first, the pinned exception ahead of everything, overlay modules last, and
- *     a cycle reported rather than silently linearised.
+ *     first, the pinned exception ahead of everything, and a cycle reported
+ *     rather than silently linearised.
+ *
+ * "Overlay modules last" is no longer among them, and neither is the
+ * `overlay: true` marker. Since D-104 nothing a deployment ships reaches this
+ * generator: its modules are discovered at runtime and **appended** to this
+ * list by the composition root, which makes the ordering structural. Both
+ * properties moved with the code that now decides them, to
+ * `test/overlay/overlay-module-entries.test.ts`.
  */
 
 describe('T046 — the committed artefacts match the generator', () => {
@@ -98,7 +105,7 @@ describe('F2 — a single generated manifest registry', () => {
 
   it('registers exactly the core modules the index discovered', () => {
     expect(REGISTERED_MANIFESTS.map((entry) => entry.manifest.id)).toEqual(
-      DISCOVERED_MANIFESTS.filter((entry) => entry.overlay !== true).map((entry) => entry.id),
+      DISCOVERED_MANIFESTS.map((entry) => entry.id),
     );
   });
 
@@ -135,10 +142,9 @@ describe('T047 — the emitted list', () => {
 });
 
 describe('T047 — ordering', () => {
-  const node = (id: string, dependencies: string[], overlay = false): ComposerNode => ({
+  const node = (id: string, dependencies: string[]): ComposerNode => ({
     id,
     dependencies,
-    isOverlay: overlay,
     backendImportPath: `./modules/${id}/backend.js`,
     manifestImportPath: `./modules/${id}/manifest.js`,
   });
@@ -154,8 +160,8 @@ describe('T047 — ordering', () => {
   });
 
   it('ignores a dependency on a module that is not in the list', () => {
-    // A dependency on a module absent from the list — an overlay module, or a
-    // name no manifest claims — constrains nothing about this list's order.
+    // A dependency on a module absent from the list — a name no manifest
+    // claims — constrains nothing about this list's order.
     const ordered = orderModules([node('blog', ['dictionaries', 'assets_library'])]);
     expect(ordered.map((n) => n.id)).toEqual(['blog']);
   });
@@ -165,52 +171,37 @@ describe('T047 — ordering', () => {
     expect(ordered.map((n) => n.id)).toEqual(['api_keys', 'auth']);
   });
 
-  it('puts overlay modules last so their decorations win', () => {
-    const ordered = orderModules([node('acme_bi', [], true), node('zeta', [])]);
-    expect(ordered.map((n) => n.id)).toEqual(['zeta', 'acme_bi']);
-  });
-
   it('reports a dependency cycle naming the modules, rather than linearising it', () => {
     expect(() => orderModules([node('a', ['b']), node('b', ['a'])])).toThrow(/cycle.*a.*b|a.*b.*cycle/s);
   });
 });
 
-describe('issue #203 — a module entry says whether it is the deployment\'s', () => {
-  const node = (id: string, overlay: boolean): ComposerNode => ({
+describe('D-104 — the emitted list carries no deployment marker at all', () => {
+  const node = (id: string): ComposerNode => ({
     id,
     dependencies: [],
-    isOverlay: overlay,
-    backendImportPath: overlay
-      ? `./apps/acme/modules/${id}/backend.js`
-      : `./modules/${id}/backend.js`,
-    manifestImportPath: overlay
-      ? `./apps/acme/modules/${id}/manifest.js`
-      : `./modules/${id}/manifest.js`,
+    backendImportPath: `./modules/${id}/backend.js`,
+    manifestImportPath: `./modules/${id}/manifest.js`,
   });
 
   /**
-   * `ctx.di.decorate` refuses a module wrapping a registration it does not own,
-   * and exempts a deployment's overlay module — the sanctioned per-deployment
-   * customisation seam. The exemption reaches the kernel as `overlay: true` on
-   * the composed entry, and it is derived here, from the root the module was
-   * discovered under. If the emitter dropped it, the guard would be a flat
-   * refusal that breaks every overlay deployment, and no test that *sets* the
-   * flag by hand could notice.
+   * `ModuleEntry.overlay` is what exempts a module from the rule that it may
+   * decorate only what it registered, so where it comes from is the whole of
+   * its safety. It used to be emitted here, which meant the shared core
+   * artefact carried a deployment's import under one value of an environment
+   * variable and was permanently stale under it.
+   *
+   * It is now set by `loadOverlayModuleEntries` from the root the module was
+   * discovered under, and proved there — over the real deployment tree, not
+   * over a node this test would have had to mark by hand.
    */
-  it('emits `overlay: true` for a module discovered under a deployment root', () => {
-    const content = emitComposer([node('price_lists', false), node('acme_pricing', true)]);
-    expect(content).toContain("{ id: 'acme_pricing', version: manifest1.version, overlay: true,");
-  });
-
-  it('emits no overlay marker for a core module, so core cannot claim the exemption', () => {
-    const content = emitComposer([node('price_lists', false)]);
-    expect(content).toContain(
-      "{ id: 'price_lists', version: manifest0.version, registerModule: module0.registerModule },",
-    );
-    // The entries, not the header — which explains the marker and would match
-    // a substring search whether or not the emitter ever writes one.
+  it('emits no overlay marker, whatever it is given', () => {
+    const content = emitComposer([node('price_lists'), node('acme_pricing')]);
     const entries = content.slice(content.indexOf('export const MODULES'));
     expect(entries).not.toContain('overlay');
+    expect(entries).toContain(
+      "{ id: 'price_lists', version: manifest0.version, registerModule: module0.registerModule },",
+    );
   });
 });
 

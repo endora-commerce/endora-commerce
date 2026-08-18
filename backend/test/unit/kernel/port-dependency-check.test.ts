@@ -14,6 +14,7 @@ import {
   importedContributionSeams,
   ledgerReads,
   nonBindingPortEdges,
+  overlayManifestEntries,
   NON_LITERAL_PORT_NAME,
   providedPortNames,
   registeredNames,
@@ -1573,5 +1574,53 @@ describe('describeUnassignedEdge — the message names the repair', () => {
     });
     expect(message).toContain('CONTRIBUTION_POLICY_STATED');
     expect(message).toContain('REGISTRY_POLICIES_UNSTATED');
+  });
+});
+
+
+describe('a deployment’s overlay module is visible to this check (issue #210)', () => {
+  /**
+   * The check walks `src/apps/` for **resolutions** and used to read
+   * **declarations** from the generated manifest index alone — which D-104
+   * makes bare core by construction. So an overlay module resolving a port
+   * could not clear the finding however its manifest was written, and the
+   * remedy line named `src/modules/<id>/manifest.ts`, a path that does not
+   * exist for it.
+   *
+   * Before D-103 the gap was unreachable rather than absent: an overlay module
+   * was handed `requireAdmin` through `OverlayModuleContext` and resolved no
+   * port at all.
+   */
+  it('reads every deployment’s overlay manifests, not the DEPLOYMENT-named one', async () => {
+    const entries = await overlayManifestEntries();
+    const example = entries.find((e) => e.id === 'example_overlay');
+
+    // Non-vacuity: a reader that found nothing would silently restore the old
+    // blindness, and every assertion below would pass on an empty array.
+    expect(entries.length).toBeGreaterThan(0);
+    expect(example).toBeDefined();
+    expect(example?.manifest.dependencies).toContain('auth');
+    expect(example?.manifestPath).toBe(
+      'src/apps/example/modules/example_overlay/manifest.ts',
+    );
+  });
+
+  it('names the overlay module’s real manifest path in the remedy line', () => {
+    const message = describeViolation(
+      {
+        kind: 'undeclared-dependency',
+        owner: 'auth',
+        resolution: {
+          moduleId: 'example_overlay',
+          name: 'requireAdmin',
+          file: '/repo/backend/src/apps/example/modules/example_overlay/backend.ts',
+          line: 104,
+        } as PortResolution,
+      } as Parameters<typeof describeViolation>[0],
+      '/repo/backend/src',
+    );
+
+    expect(message).toContain('src/apps/example/modules/example_overlay/manifest.ts');
+    expect(message).not.toContain('src/modules/example_overlay/manifest.ts');
   });
 });

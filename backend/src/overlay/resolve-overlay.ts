@@ -112,7 +112,21 @@ export function scanOverlay(
 
   for (const moduleId of listModuleDirs(overlayRoot)) {
     // A module id absent from core is a brand-new client-only overlay module —
-    // it owns all its files (including its own entities/migrations). Additive.
+    // it owns all its files, so nothing here shadows anything and there is no
+    // override to classify. Additive.
+    //
+    // It does **not** own schema: out-of-core code contributes no persisted
+    // entity class and no migration (D-105). The decorator is deliberately not
+    // spelled out in this comment — the entity registry's walk looks for that
+    // token in source text and would collect this sentence as an entity, which
+    // is precisely what it did when this note was first written.
+    //
+    // The rule is not enforced here, deliberately —
+    // this function answers "what does this deployment override?", and an
+    // overlay module overrides nothing. The refusal lives in
+    // `scripts/generate-composer.ts`, which is where the entity and migration
+    // registries are built and therefore the only place that can say the table
+    // would never be created.
     if (!core.moduleIds.has(moduleId)) {
       newModules.push(moduleId);
       continue;

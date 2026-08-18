@@ -3,10 +3,14 @@
 // to refresh. Editing this file by hand is undone by the next build, and
 // `pnpm --filter backend run overlay:check` fails on the drift.
 //
-// The manifest registry — the **only** file that imports a module's manifest.
-// Every module that ships a lifecycle-shape `manifest.ts` is here, with the
-// install hooks it exports and, for a per-deployment build, the overlay modules
-// of the selected deployment.
+// The manifest registry — the **only** file that imports a **core** module's
+// manifest. Every core module that ships a lifecycle-shape `manifest.ts` is
+// here, with the install hooks it exports.
+//
+// Bare core under every value of `DEPLOYMENT` (D-104). A deployment's overlay
+// manifests are discovered at runtime and merged on top of this index by
+// `resolvedManifestEntries()`, because which deployment a build is depends on
+// the process rather than on the tree this file was generated from.
 //
 // It used to have a twin (`registered-manifests.ts`) importing the same
 // manifests behind a second command, which is a drift waiting to happen; that
@@ -88,13 +92,6 @@ import { manifest as manifest64 } from '../webhooks/manifest.js';
 export interface DiscoveredManifestEntry {
   id: string;
   manifest: ModuleManifest;
-  /**
-   * Present only for a module found under the active deployment's overlay tree.
-   * It is what keeps the core registry deployment-free (feature 057, FR-004)
-   * and what tells the runtime merge to resolve the module's directory under
-   * `apps/<deployment>/modules/` rather than under the core modules root.
-   */
-  overlay?: true;
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
 }
