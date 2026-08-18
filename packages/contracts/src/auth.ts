@@ -156,13 +156,28 @@ export type MfaLoginDecision =
 /**
  * Container name: `mfaLoginPort`. Owner: `mfa` (the shape is `auth`'s).
  *
- * When `mfa` is absent the login services skip the second factor entirely —
- * the password-only fallback of feature 042 FR-033. That is a declared
- * `nonBindingDependencies` degrade, not a fail-closed edge, and it must stay
- * one.
+ * One question: *what does the second factor say about this login?* Asked by
+ * `admin_users` and `customer_accounts`, each after the password has verified.
+ *
+ * **The registration is gated and it throws.** `mfa` publishes this name with
+ * `ctx.di.providePort`, so resolving it while the module is not effectively
+ * present raises `ModuleDisabledError`. This port performs no degrade of its
+ * own, and no caller may catch that error.
+ *
+ * **The consumer answers for absence, by not resolving** (D-96). Both login
+ * services probe `effectiveState.isPresent('mfa')` and pass `undefined` into
+ * the `if (mfaPort)` branch they already have, which issues the session on the
+ * password alone — the password-only fallback of feature 042 FR-033, and what
+ * Constitution XVII means by "a module that is off behaves as if never
+ * installed". Each consumer declares the edge in its manifest as
+ * `nonBindingDependencies: [{ moduleId: 'mfa', kind: 'degrades-without' }]`,
+ * whose `whenAbsent` sentence is what the operator reads before flipping the
+ * switch and what the off-state test is held to.
+ *
+ * This doc block used to describe the degrade as something the port would
+ * perform. It never could, and the tree did the opposite: every admin and
+ * customer login answered 503 while `mfa` was switched off.
  */
 export interface MfaLoginPort {
   beginLogin(subject: MfaSubjectRef, ctx: MfaLoginContext): Promise<MfaLoginDecision>;
-  /** Whether the subject currently has an active TOTP enrolment. */
-  isTwoFactorActive(subject: MfaSubjectRef): Promise<boolean>;
 }

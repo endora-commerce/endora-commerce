@@ -121,8 +121,7 @@ import type { PromotionsCradle } from '../../src/modules/promotions/backend.js';
 import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
 import type { SettingsKernel } from '../../src/kernel/settings/compose.js';
 import type { SettingsCradle } from '../../src/modules/settings/backend.js';
-import type { MfaActorBridge, MfaCradle } from '../../src/modules/mfa/backend.js';
-import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
+import type { MfaActorBridge } from '../../src/modules/mfa/backend.js';
 import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
 import { composeSalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
 import type { SalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
@@ -1063,16 +1062,20 @@ export async function setupBackendServer(
     };
   };
 
-  // Feature 042 — late-bound MFA login port (the MFA module is built after
-  // `settings` below; mirrors composition.ts).
-  let testMfaLoginPort: MfaLoginPort | undefined;
-  const getTestMfaLoginPort = (): MfaLoginPort | undefined => testMfaLoginPort;
-
-  // Feature 072 (T094) — contributed to `customer_accounts`, which defaults it
-  // absent. Registered after `composeModules` so it overrides the module's own
-  // default rather than being overwritten by it; the getter is late-bound, so
-  // the order the modules register in is not a race.
-  composedModules.contribute({ mfaLoginPortGetter: getTestMfaLoginPort });
+  // Feature 042 / D-96 — the MFA login port is **not** contributed here any
+  // more, and that removal is the precondition for every `mfa` off-state
+  // assertion in the tree.
+  //
+  // This harness used to resolve `mfaLoginPort` off the cradle once, at
+  // composition, and hand both login consumers a getter returning the captured
+  // value. A captured gate goes on answering after an operator switches the
+  // module off, so the harness failed **open** where production failed closed:
+  // an off-state test written against it passed while measuring a module that
+  // was still running (the shape issue #141 found four times). `admin_users`
+  // and `customer_accounts` resolve the port for themselves now, through
+  // `lazyPort` behind an `effectiveState.isPresent('mfa')` probe, so both
+  // composition roots contribute nothing for this name and the harness observes
+  // exactly what production does.
 
 
   // Feature 056 — organization tree + inheritance resolution, built here for
@@ -1361,8 +1364,8 @@ export async function setupBackendServer(
     },
   });
   // Feature 042 — MFA module (mirrors composition.ts). Built after `settings`
-  // so it can read MFA settings; its login port is bound to the late-bound
-  // `testMfaLoginPort` captured by the auth services above.
+  // so it can read MFA settings; its login port is resolved by the two login
+  // consumers themselves (D-96), so nothing is captured here.
   // Feature 072 (T096) — `mfa` owns its services, routes and configuration.
   // What this harness still owns is the actor shape: it authenticates through
   // `request.testActor` where production uses `request.actor`, which is exactly
@@ -1429,9 +1432,6 @@ export async function setupBackendServer(
       // and the behaviour every MFA test has been written against.
     } satisfies MfaActorBridge,
   });
-  const mfaCradle = container.cradle as unknown as MfaCradle;
-  testMfaLoginPort = mfaCradle.mfaLoginPort;
-
   modules.push(salesChannels.plugin);
 
   // Feature 019 — Admin UI i18n. Feature 072 (T089) — `_i18n` owns its service,
@@ -1712,13 +1712,6 @@ export async function setupBackendServer(
       (await salesChannels.resolver.getSystemDefault()).id,
     blogStorefrontDeps: undefined,
   });
-  // Feature 072 (T121) — `admin_users` owns its services and routes now. The
-  // MFA getter is a contribution the module defaults absent, so it is
-  // registered **after `composeModules`**: earlier and the module's own default
-  // would overwrite it and every admin login would silently go password-only.
-  // The getter is late-bound, so nothing about `mfa` is a race.
-  composedModules.contribute({ adminMfaLoginPortGetter: getTestMfaLoginPort });
-
   // `audit_logs` registers its own empty default for `auditActorResolver`, so a
   // value written before `composeModules` would be overwritten by it (the same
   // trap `prompt_actions` hit).

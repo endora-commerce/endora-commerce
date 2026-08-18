@@ -204,3 +204,38 @@ export const MFA_SETTING_CODES = {
   STOREFRONT_GOOGLE_ENABLED: 'mfa.storefront.google_enabled',
   STOREFRONT_MICROSOFT_ENABLED: 'mfa.storefront.microsoft_enabled',
 } as const;
+
+// ---------------------------------------------------------------------------
+// Ports
+// ---------------------------------------------------------------------------
+
+/** How many subjects hold an active second factor, split by identity store. */
+export const mfaActiveEnrolmentCountsSchema = z.object({
+  admins: z.number().int().nonnegative(),
+  customers: z.number().int().nonnegative(),
+});
+export type MfaActiveEnrolmentCounts = z.infer<typeof mfaActiveEnrolmentCountsSchema>;
+
+/**
+ * Container name: `mfaEnrolmentCountPort`. Owner: `mfa`.
+ *
+ * How many people would lose their second factor. Read by `/platform/modules`
+ * before an operator switches this module off, so the confirmation dialog can
+ * say "14 administrators and 320 customers currently use a second factor"
+ * instead of only naming the capability.
+ *
+ * **It is read while `mfa` is still on**, which is the whole reason it can be a
+ * port at all: the dialog renders before the flip, so the gate on this
+ * registration is open at exactly the moment the question is asked. A count
+ * taken *after* deactivation would be a read of `mfa_enrolments` through a
+ * closed gate, which is why "refuse the login of an enrolled subject while the
+ * module is off" was ruled unimplementable (D-96.7).
+ *
+ * The caller therefore decides presence before it resolves this, and treats a
+ * failed read as "count unavailable" — a number that cannot be fetched must
+ * never stop an operator switching a module off.
+ */
+export interface MfaEnrolmentCountPort {
+  /** Subjects with an `active` (confirmed) TOTP enrolment, right now. */
+  countActiveEnrolments(): Promise<MfaActiveEnrolmentCounts>;
+}

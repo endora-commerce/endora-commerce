@@ -50,23 +50,32 @@ export class CatalogAttributeIntegrityError extends Error {
 }
 
 /**
- * The definition source the read service composes over. `publishInvalidate` is
- * optional — when present (production wiring passes the
- * `CustomFieldDefinitionService`), the service self-heals a stale cache: a
- * just-committed catalog command may dispatch its domain event BEFORE the
- * post-commit cache invalidation runs, so a subscriber reading the view can
- * observe fresh extension rows against a stale definition list. One
- * invalidate-and-reload round separates that benign window from real
- * data corruption.
+ * The stale-definition window this service self-heals, and why the recovery is
+ * one call now (D-97.1).
+ *
+ * A just-committed catalog attribute Command may dispatch its domain event
+ * BEFORE the post-commit cache invalidation runs, so a subscriber reading the
+ * view observes fresh `product_attributes` rows against a stale definition
+ * list, and `composeAll` raises {@link CatalogAttributeIntegrityError}. The
+ * window is benign and converges; the error is loud because the same symptom is
+ * what real corruption looks like. One reload separates the two.
+ *
+ * This module used to reach for the *mechanism* — it widened the published read
+ * port with an optional `publishInvalidate?` and called it when present. Two
+ * things were wrong with that. `lazyPort`'s proxy answers every property with a
+ * function, so `!this.definitions.publishInvalidate` was `false` whatever was
+ * registered, the recovery branch always fired, and the forward threw
+ * `'…publishInvalidate' is not a function` — a benign window turned into a 500
+ * on the attribute screens. And a cache flush is an instruction about another
+ * module's internals: the question this service has is "give me definitions I
+ * can trust", which is what `listForEntityFresh` answers. The cache stays
+ * inside `custom_fields`; only this module can detect the inconsistency, and
+ * only that one can resolve it.
  */
-export interface AttributeDefinitionSource extends CustomFieldDefinitionReadPort {
-  publishInvalidate?(entityType: 'product'): Promise<void>;
-}
-
 export class CatalogAttributeReadService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly definitions: AttributeDefinitionSource,
+    private readonly definitions: CustomFieldDefinitionReadPort,
   ) {}
 
   /** All attributes, definition-composed. Ordered by definition sortOrder, key. */
@@ -76,12 +85,10 @@ export class CatalogAttributeReadService {
     try {
       return this.composeAll(defs, extensions);
     } catch (err) {
-      if (!(err instanceof CatalogAttributeIntegrityError) || !this.definitions.publishInvalidate) {
-        throw err;
-      }
-      // Stale-cache window (see AttributeDefinitionSource) — reload once.
-      await this.definitions.publishInvalidate('product');
-      const freshDefs = await this.definitions.listForEntity('product');
+      if (!(err instanceof CatalogAttributeIntegrityError)) throw err;
+      // Stale-definition window (see the note above) — reload once, past every
+      // process's cache.
+      const freshDefs = await this.definitions.listForEntityFresh('product');
       const freshExtensions = await this.emFactory().find(ProductAttribute, {});
       return this.composeAll(freshDefs, freshExtensions);
     }
@@ -105,8 +112,10 @@ export class CatalogAttributeReadService {
 
   /** Flag-filtered listing (indexed extension columns). Ordered by key ASC. */
   async listByFlag(flag: CatalogAttributeFlag): Promise<CatalogAttributeView[]> {
-    const build = async (): Promise<CatalogAttributeView[]> => {
-      const defs = await this.definitions.listForEntity('product');
+    const build = async (
+      preloaded?: CustomFieldDefinitionWithOptions[],
+    ): Promise<CatalogAttributeView[]> => {
+      const defs = preloaded ?? (await this.definitions.listForEntity('product'));
       const extensions = await this.emFactory().find(
         ProductAttribute,
         { [flag]: true } as Partial<ProductAttribute>,
@@ -125,12 +134,12 @@ export class CatalogAttributeReadService {
       // "custom_fields is off" into a cache reload that reads the same absent
       // port twice.
       rethrowIfModuleDisabled(err);
-      if (!(err instanceof CatalogAttributeIntegrityError) || !this.definitions.publishInvalidate) {
-        throw err;
-      }
-      // Stale-cache window (see AttributeDefinitionSource) — reload once.
-      await this.definitions.publishInvalidate('product');
-      return build();
+      if (!(err instanceof CatalogAttributeIntegrityError)) throw err;
+      // Stale-definition window (see the note above) — reload once, past every
+      // process's cache. `listForEntityFresh` is a gated port call like any
+      // other, so `custom_fields` switched off still reaches the line above
+      // rather than being caught here.
+      return build(await this.definitions.listForEntityFresh('product'));
     }
   }
 

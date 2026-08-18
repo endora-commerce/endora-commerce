@@ -18,6 +18,7 @@ import { recordAuditFromContext } from '../../commands/index.js';
 import { withSystemScope } from '../../tenancy/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 // Feature 075, Phase C — a pure function, so the kernel rather than `auth`.
@@ -60,6 +61,14 @@ import { TotpEnrolmentService } from './services/totp-enrolment-service.js';
  *
  * `PasswordResetService` was doubled the same way, with identical arguments.
  *
+ * **The MFA port is resolved here now, behind a presence probe** (D-96). It was
+ * a contribution both roots filled from one getter — a root resolving a gated
+ * port on this module's behalf, which is composition checklist item 6 — and the
+ * harness captured that gate at compose time, so `mfa` switched off was
+ * unobservable. The edge is declared `degrades-without` in this module's
+ * manifest: `mfa` declares `customer_accounts`, so the ordinary declaration
+ * would close a cycle and would make customer login refuse the operator's flip.
+ *
  * Everything here is a **port**: `organizations` and `customers` resolve these
  * services across a module boundary, so an operator switching customer accounts
  * off should get an explicit 503 rather than a service that half-answers.
@@ -90,8 +99,6 @@ export interface CustomerAccountsCradle {
   readonly commandBus: CommandBus;
   /** `auth`'s admin guard, for the customer-group admin routes. */
   readonly requireAdmin: RequireAdminFactory;
-  /** Late-bound: `mfa` is composed after this module. */
-  readonly mfaLoginPortGetter: (() => MfaLoginPort | undefined) | undefined;
   readonly settingsReadPort: SettingsService;
   /**
    * Which channel a global-scope settings read resolves against — the
@@ -116,6 +123,11 @@ export interface CustomerAccountsCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // D-96 — resolved once, called through on every login. The gate `mfa`'s
+  // `providePort` put on this name is transient, so the proxy asks about the
+  // module's effective state at each call rather than at composition.
+  const mfaLoginPort = lazyPort<MfaLoginPort>(ctx, 'mfaLoginPort');
+
   // ---------------------------------------------------------------------------
   // Feature 075, Phase P — the published surface.
   //
@@ -187,10 +199,14 @@ export function registerModule(ctx: ModuleContext): void {
             // type itself against `auth`'s class. The port hands back a plain
             // cookie payload; the `Session` entity no longer crosses.
             lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),
-            // Read through the cradle at call time, not captured: `mfa` is
-            // composed later, and a captured `undefined` is exactly the
-            // divergence this conversion exists to remove.
-            () => ctx.cradle<CustomerAccountsCradle>().mfaLoginPortGetter?.(),
+            // D-96 — the degrade is performed by **not resolving**. The port's
+            // gate throws `ModuleDisabledError` when `mfa` is absent, and there
+            // is deliberately no `catch` anywhere near this: a caught gate is a
+            // fail-open degrade nobody declared. Deciding presence first is the
+            // `auth`/`api_keys` shape, and `CustomerAuthService`'s
+            // `if (mfaPort)` branch — the password-only fallback of feature 042
+            // FR-033 — is what `undefined` selects.
+            () => (effectiveState.isPresent('mfa') ? mfaLoginPort : undefined),
             auditLogService,
           ),
       )
@@ -378,15 +394,6 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(({ emFactory }: CustomerAccountsCradle) => new CustomerGroupReadService(emFactory))
       .singleton(),
   );
-
-  ctx.di.register({
-    // Contribution point: which module supplies the MFA port is a deployment
-    // question, and a platform without `mfa` resolves it to nothing rather
-    // than failing.
-    mfaLoginPortGetter: ctx
-      .asFunction((): (() => MfaLoginPort | undefined) | undefined => undefined)
-      .singleton(),
-  });
 
   // The module's only routes. They are the customer-group admin surface and
   // nothing else — customer login, registration and self-service stay with

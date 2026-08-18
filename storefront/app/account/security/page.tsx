@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import {
   activateMfa,
@@ -8,6 +8,7 @@ import {
   startMfaSetup,
 } from '../../../lib/api/mfa';
 import { StorefrontApiError } from '../../../lib/api/client';
+import { getServerContext } from '../../../lib/server-context';
 import {
   clearMfaSetupCookie,
   getMfaSetupCookie,
@@ -30,6 +31,15 @@ export default async function SecurityPage({
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
   if (!session) redirect('/login?next=/account/security');
+
+  // Constitution XVII item 5 — this whole page is `mfa`'s contribution to the
+  // storefront, so it goes when the module does. Without this it kept offering
+  // "Enable 2FA" for a capability that was switched off, and every server
+  // action below answered 503 on the click. Absence is projected rather than
+  // inferred from that 503: the page is not rendered at all.
+  const { modules } = await getServerContext();
+  if (!modules.isPresent('mfa')) notFound();
+
   const params = await searchParams;
 
   const status = await getMfaStatus(session);

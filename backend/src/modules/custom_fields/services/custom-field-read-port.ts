@@ -11,6 +11,15 @@ import type { CachedDefinition } from './custom-field-definitions-cache.js';
 import type { DefinitionSource } from './custom-field-value.service.js';
 
 /**
+ * What the read port needs beyond {@link DefinitionSource}: the cache-bypassing
+ * read D-97.1 publishes. `CustomFieldDefinitionService` satisfies both; the
+ * interface stays here so this adapter has no concrete dependency on it.
+ */
+export interface FreshDefinitionSource extends DefinitionSource {
+  listForEntityFresh(entityType: SupportedEntityType): Promise<CachedDefinition[]>;
+}
+
+/**
  * The published face of `custom_fields`' definition read model (feature 075,
  * Phase P).
  *
@@ -26,12 +35,25 @@ import type { DefinitionSource } from './custom-field-value.service.js';
  * the query it replaces in each consumer.
  */
 export class CustomFieldDefinitionReadService implements CustomFieldDefinitionReadPort {
-  constructor(private readonly source: DefinitionSource) {}
+  constructor(private readonly source: FreshDefinitionSource) {}
 
   async listForEntity(
     entityType: SupportedEntityType,
   ): Promise<CustomFieldDefinitionWithOptions[]> {
     return (await this.source.listForEntity(entityType)).map(toDefinitionWithOptions);
+  }
+
+  /**
+   * D-97.1 — the freshness guarantee, expressed as a read.
+   *
+   * The cache, its local drop and its cross-process fan-out never leave this
+   * module: a consumer asks for definitions it can trust, not for somebody
+   * else's cache to be flushed.
+   */
+  async listForEntityFresh(
+    entityType: SupportedEntityType,
+  ): Promise<CustomFieldDefinitionWithOptions[]> {
+    return (await this.source.listForEntityFresh(entityType)).map(toDefinitionWithOptions);
   }
 }
 

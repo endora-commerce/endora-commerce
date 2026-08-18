@@ -1,4 +1,6 @@
+import type { MfaEnrolmentCountPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { ApiInterceptorRegistry } from '../../http/interceptors/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import {
@@ -83,6 +85,12 @@ export function registerModule(ctx: ModuleContext): void {
       registerModulePresenceRoutes(app, {
         requireAdmin: cradle.requireAdmin,
         activation: cradle.lifecycleActivationPropagation,
+        // The one live datum on the deactivation-confirmation screen: how many
+        // people hold a second factor. `mfa` owns `mfa_enrolments`, so it
+        // answers the question rather than this surface querying its table.
+        // The route probes `mfa`'s presence before it calls — the count is read
+        // while the module is still on, which is what the dialog is for.
+        mfaEnrolmentCount: lazyPort<MfaEnrolmentCountPort>(ctx, 'mfaEnrolmentCountPort'),
       });
 
       registerModulePresenceStorefrontRoutes(app);

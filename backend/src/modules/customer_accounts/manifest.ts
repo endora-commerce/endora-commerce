@@ -30,6 +30,36 @@ export const manifest = defineModuleManifest({
   // feature 076 (D-79) it points at `customer_groups`, which this module now
   // owns: the constraint is intra-module and declares nothing.
   dependencies: ['auth', 'organizations'],
+  /**
+   * D-96 — `mfaLoginPort`, the second factor on customer login.
+   *
+   * Real to the container, binding on no operator. `mfa` declares this module
+   * in its own `dependencies`, so the ordinary declaration closes a cycle; and
+   * an acknowledged edge would put customer login among the dependents that
+   * refuse the flip, making a client security policy permanently unswitchable.
+   */
+  nonBindingDependencies: [
+    {
+      moduleId: 'mfa',
+      name: 'mfaLoginPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'Customer sign-in stops asking for a second factor and offers no Google/Microsoft ' +
+        'button. An account created by social sign-in has no known password: its route in is ' +
+        '"forgot password".',
+      reason:
+        'CustomerAuthService verifies the password first and then asks the second factor what ' +
+        'to do. With `mfa` absent it asks nobody: `backend.ts` probes ' +
+        '`effectiveState.isPresent("mfa")` and passes `undefined`, which selects the ' +
+        'password-only branch feature 042 FR-033 requires and this service has always had. ' +
+        'Nothing catches `ModuleDisabledError` — the decision is taken before the port is ' +
+        'resolved. Org-level TOTP enforcement is `mfa`\'s own policy and goes with it. One ' +
+        'edge is not repaired by the degrade and the operator has to know it: an account this ' +
+        'module auto-created from a Google/Microsoft sign-in holds a random password nobody ' +
+        'was ever told, so with the buttons gone its only route back is a password reset, ' +
+        'keyed on the e-mail the provider verified.',
+    },
+  ],
   // Feature 074 (Constitution XVII), test C1 — reachability. The flag used to
   // rest on four port edges another module declares; ruling 2 withdraws that
   // authority, so the ground is now this module's own and it is the stronger

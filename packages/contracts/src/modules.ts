@@ -579,6 +579,44 @@ export const ModuleActivationResponseSchema = z.object({
 });
 export type ModuleActivationResponse = z.infer<typeof ModuleActivationResponseSchema>;
 
+/**
+ * `GET /api/v1/admin/modules/:id/deactivation-impact` — the live half of the
+ * confirmation an operator is shown before switching a module off.
+ *
+ * Feature 074's consequence rows are **static**: one sentence per present
+ * dependent, taken from that dependent's `whenAbsent` declaration, so the
+ * dialog can be rendered from the ledger with no database read. This response
+ * carries the facts that only a live read can answer, and today there is
+ * exactly one — how many people hold a second factor (the owner's ruling on
+ * D-96.5).
+ *
+ * Three properties of the shape, each deliberate:
+ *
+ *  - **Named after the fact, not after the module.** `mfa` owns the table and
+ *    answers the question through a port; the wire shape says what the number
+ *    means. When a second module needs a live datum this becomes a list — one
+ *    entry per fact — which is a change to make when there are two, not now
+ *    (Constitution IV).
+ *  - **Nullable, always.** `null` means "not available", not "zero": the module
+ *    is already off, or the read failed. A count that cannot be fetched must
+ *    never stop an operator switching a module off, so the caller renders the
+ *    rest of the dialog and says the number is unavailable.
+ *  - **Read while the module is still on.** The dialog precedes the flip, so
+ *    the gate on the owning port is open when the question is asked. That is
+ *    what makes a live count implementable at all — see `MfaEnrolmentCountPort`.
+ */
+export const ModuleDeactivationImpactSchema = z.object({
+  moduleId: z.string().regex(moduleIdRe),
+  /** Subjects with an active second factor; `null` when unavailable. */
+  activeSecondFactorUsers: z
+    .object({
+      admins: z.number().int().nonnegative(),
+      customers: z.number().int().nonnegative(),
+    })
+    .nullable(),
+});
+export type ModuleDeactivationImpact = z.infer<typeof ModuleDeactivationImpactSchema>;
+
 // ---- Feature 060 — API interceptor diagnostics (read-only admin) ----------
 
 /**

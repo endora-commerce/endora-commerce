@@ -106,6 +106,15 @@ quality:
     # two-way ratchet: an unledgered bare catch fails, and so does a ledger
     # entry that no longer describes one.
     - pnpm --filter backend run check:port-catches
+    # D-97.3 — a published port may not declare an optional method. Feature
+    # detection through a port is impossible: `lazyPort`'s proxy answers every
+    # property with a function, so `if (port.maybe)` is always true and the
+    # forward throws when the provider has none. `catalog` widened the
+    # custom-field read port with `publishInvalidate?` and turned a benign,
+    # self-healing cache window into a 500 on the attribute screens. No ledger —
+    # the one occurrence is deleted, and an entry would be a licence to re-open
+    # it.
+    - pnpm --filter backend run check:port-shape
     # Issue #107 — a module subscribes to the EventBus through `ctx.subscribe`,
     # never a bare `eventBus.on`. Routes and workers each had a seam check;
     # subscriptions had none, and twenty-two accumulated across nine modules

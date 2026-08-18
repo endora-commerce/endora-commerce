@@ -276,6 +276,28 @@ export interface CustomFieldDefinitionWithOptions {
  */
 export interface CustomFieldDefinitionReadPort {
   listForEntity(entityType: SupportedEntityType): Promise<CustomFieldDefinitionWithOptions[]>;
+  /**
+   * The same list, bypassing the per-entity cache and refreshing it for every
+   * process.
+   *
+   * A consumer composing its own rows against these definitions can observe a
+   * benign inconsistency: a just-committed definition Command may dispatch its
+   * domain event before the post-commit invalidation runs, and the invalidation
+   * is a Redis fan-out with a TTL fallback, so a second process holds a stale
+   * entry no in-process sequencing can reach. Only the consumer can *detect*
+   * that — it is the one that knows what its own rows say — and only this
+   * module may *resolve* it, because the cache is its own. So the port answers
+   * the question the consumer actually has ("give me definitions I can trust")
+   * rather than exposing an instruction about somebody else's internals.
+   *
+   * **Required, not optional**, and D-97.3 makes that a rule for every port:
+   * `lazyPort`'s proxy answers every property with a function, so
+   * `if (port.maybe)` is always true and feature detection through a port is
+   * impossible by construction. The one optional method that existed —
+   * `catalog`'s `publishInvalidate?` widening — fired its recovery branch
+   * unconditionally and turned a self-healing window into a 500.
+   */
+  listForEntityFresh(entityType: SupportedEntityType): Promise<CustomFieldDefinitionWithOptions[]>;
 }
 
 /**

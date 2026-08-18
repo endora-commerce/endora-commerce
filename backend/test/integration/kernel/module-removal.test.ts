@@ -200,13 +200,14 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `kernel → http → mod-i18n → kernel` in F4's package graph. A root naming a
   // module is ordinary; a peer doing it is the defect.
   _i18n: ['src/composition.ts'],
-  // `mfa` (wave 1, T096). `composition.ts` imports the cradle and bridge types
-  // to annotate what it contributes — the actor shape, which is a root's to
-  // know — and the login port it hands `customer_accounts` through
-  // `mfaLoginPortGetter`. Type-only since T143c: the provider class and the
-  // `MFA_OAUTH_*` reader were value imports, because a root decided on this
-  // module's behalf whether it had social sign-in; the module reads its own
-  // environment now.
+  // `mfa` (wave 1, T096). `composition.ts` imports the bridge type to annotate
+  // the one thing it still contributes: the actor shape, which is a root's to
+  // know. Type-only since T143c — the provider class and the `MFA_OAUTH_*`
+  // reader were value imports, because a root decided on this module's behalf
+  // whether it had social sign-in; the module reads its own environment now.
+  // The cradle import went with D-96: contributing somebody's login port is not
+  // a root's job, and while it was, the two roots could disagree about what an
+  // absent `mfa` means — and did.
   mfa: ['src/composition.ts'],
   // `taxes` (wave 2, T119). `composition.ts` imports the cradle type to
   // annotate the `taxService` port it resolves and threads into `orders` and

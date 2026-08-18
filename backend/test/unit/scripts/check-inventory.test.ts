@@ -69,6 +69,7 @@ import {
 } from '../../../scripts/check-port-dependencies.js';
 import { buildDeactivationLedger } from '../../../src/modules/_lifecycle/services/deactivation-ledger.js';
 import { nonBindingPortEdgesFrom } from '../../../src/modules/_lifecycle/services/gating-graph.js';
+import { checkPortShape } from '../../../scripts/check-port-shape.js';
 import { checkSubscribeSeam } from '../../../scripts/check-subscribe-seam.js';
 import {
   checkNulBytes,
@@ -2419,6 +2420,65 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // Two shapes, because the rule bites in two places and only one of them was
+    // ever hit: the published port, and an interface a consumer widens it with.
+    // Each fixture enters as source text — a pre-parsed member list would prove
+    // the reporter and not the sweep that has to find the port in the first
+    // place. No ledger: D-97.1 deleted the single occurrence, so an entry here
+    // could only be a licence to re-open it.
+    script: 'backend/scripts/check-port-shape.ts',
+    npmScript: 'check:port-shape',
+    job: 'quality',
+    companionTest: 'backend/test/unit/kernel/port-shape-check.test.ts',
+    vacuousGuard: 'exit-2',
+    red: {
+      'optional-method-on-port': top(
+        () =>
+          checkPortShape({
+            contracts: new Map([
+              [
+                'contracts/custom-fields.ts',
+                [
+                  '/** Container name: `customFieldDefinitionReadPort`. */',
+                  'export interface CustomFieldDefinitionReadPort {',
+                  '  listForEntity(entityType: string): Promise<unknown[]>;',
+                  '  publishInvalidate?(entityType: string): Promise<void>;',
+                  '}',
+                ].join('\n'),
+              ],
+            ]),
+            modules: new Map(),
+          }).findings.filter((f) => f.kind === 'optional-method-on-port').length,
+      ),
+      'optional-method-on-port-extension': top(
+        () =>
+          checkPortShape({
+            contracts: new Map([
+              [
+                'contracts/custom-fields.ts',
+                [
+                  '/** Container name: `customFieldDefinitionReadPort`. */',
+                  'export interface CustomFieldDefinitionReadPort {',
+                  '  listForEntity(entityType: string): Promise<unknown[]>;',
+                  '}',
+                ].join('\n'),
+              ],
+            ]),
+            modules: new Map([
+              [
+                'modules/catalog/services/catalog-attribute-read.service.ts',
+                [
+                  'export interface AttributeDefinitionSource extends CustomFieldDefinitionReadPort {',
+                  "  publishInvalidate?(entityType: 'product'): Promise<void>;",
+                  '}',
+                ].join('\n'),
+              ],
+            ]),
+          }).findings.filter((f) => f.kind === 'optional-method-on-port-extension').length,
+      ),
+    },
+  },
+  {
     // Three signals, and the fixture for each names only its own: a bus-shaped
     // receiver with an event name no signal 3 would match, a domain event off a
     // receiver no signal 1 would match, and a cast around a bus. Written as one
@@ -2874,6 +2934,9 @@ describe('every red proof enters at the top of the analysis', () => {
       // a limit nothing proves is a limit that quietly moves.
       'backend/scripts/check-port-catches.ts': 9,
       'backend/scripts/check-port-dependencies.ts': 19,
+      // Two: the published port and the interface widening one. The rule bites
+      // in exactly those two places, and only the second has ever been hit.
+      'backend/scripts/check-port-shape.ts': 2,
       // Three spellings of a whole-table wipe, plus the baseline's second
       // direction.
       'backend/scripts/check-shared-table-wipes.ts': 4,

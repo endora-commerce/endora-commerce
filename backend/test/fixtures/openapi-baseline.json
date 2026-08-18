@@ -3013,6 +3013,15 @@
         }
       }
     },
+    "/api/v1/admin/modules/{id}/deactivation-impact": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/newsletter/automations": {
       "get": {
         "responses": {
@@ -5995,6 +6004,15 @@
         }
       }
     },
+    "/api/v1/auth/admin/oauth/providers": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/auth/admin/oauth/{provider}/callback": {
       "get": {
         "responses": {
@@ -6051,6 +6069,15 @@
     },
     "/api/v1/auth/customer/mfa/verify": {
       "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/customer/oauth/providers": {
+      "get": {
         "responses": {
           "200": {
             "description": "OK"
