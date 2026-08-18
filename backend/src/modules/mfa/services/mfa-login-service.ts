@@ -62,6 +62,13 @@ export class MfaLoginService implements MfaLoginPort {
     return { kind: 'proceed' };
   }
 
+  /**
+   * Whether the subject currently has an active TOTP enrolment.
+   *
+   * D-96.4 — no longer part of `MfaLoginPort`: it had no consumer in `src/`,
+   * and the port answers exactly one question now. Kept on the service because
+   * it is a fact about this module's own table.
+   */
   async isTwoFactorActive(subject: MfaSubjectRef): Promise<boolean> {
     return (await this.findActiveEnrolment(subject)) !== null;
   }

@@ -14,6 +14,7 @@ import type {
 } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { adminModule } from './plugin.js';
 import {
@@ -34,13 +35,18 @@ import {
  * have written role changes through a different audit path than the one
  * `/admin-roles` reads.
  *
- * **The MFA port is a contribution, not a dependency.** Absent, admin login is
- * password-only, which is a real deployment rather than a broken one; declaring
- * `mfa` in `dependencies` would make the lifecycle refuse to disable MFA while
- * admin login is on, which is backwards. `customer_accounts` owns the same
- * shape under `mfaLoginPortGetter` (T094) — the name is per-consumer because a
- * contribution point belongs to the module that declares it, and both roots
- * fill the two from the one late-bound getter they already hold.
+ * **The MFA port is a `degrades-without` edge this module resolves itself**
+ * (D-96). Absent, admin login is password-only, which is a real deployment
+ * rather than a broken one; declaring `mfa` in `dependencies` would make the
+ * lifecycle refuse to disable MFA while admin login is on, which is backwards —
+ * and `mfa` declares *this* module, so the ordinary declaration would close a
+ * cycle. The manifest says so in `nonBindingDependencies` instead, and the
+ * probe below is what that declaration is held to.
+ *
+ * It used to be a contribution both roots filled from one getter, which is how
+ * a gated port came to be resolved on this module's behalf (composition
+ * checklist item 6) — and how the harness came to capture the gate at compose
+ * time, so no off-state test could observe `mfa` switched off at all.
  *
  * **`auditActorResolver` stays a root contribution**, against the prediction in
  * `audit_logs/backend.ts` that it would move here. `audit_logs` owns that name
@@ -64,22 +70,17 @@ export interface AdminUsersCradle {
   readonly permissionCataloguePort: PermissionCataloguePort;
   readonly adminRolePort: AdminRolePort;
   readonly customerAccountReadPort: CustomerAccountReadPort;
-  /**
-   * Contribution point: absent means admin login is password-only. Late-bound
-   * because `mfa` composes after this module.
-   */
-  readonly adminMfaLoginPortGetter: (() => MfaLoginPort | undefined) | undefined;
   readonly admin: ReturnType<typeof adminModule>;
   readonly adminUserService: ReturnType<typeof adminModule>['handle']['adminUserService'];
 }
 
 export function registerModule(ctx: ModuleContext): void {
-  ctx.di.register({
-    // Contribution point, absent by default: password-only admin login.
-    adminMfaLoginPortGetter: ctx
-      .asFunction((): AdminUsersCradle['adminMfaLoginPortGetter'] => undefined)
-      .singleton(),
+  // D-96 — resolved once, called through on every login. The gate `mfa`'s
+  // `providePort` put on this name is transient, so the proxy asks about the
+  // module's effective state at each call rather than at composition.
+  const mfaLoginPort = lazyPort<MfaLoginPort>(ctx, 'mfaLoginPort');
 
+  ctx.di.register({
     admin: ctx
       .asFunction(({ emFactory, auditLogService }: AdminUsersCradle) =>
         adminModule({
@@ -102,10 +103,14 @@ export function registerModule(ctx: ModuleContext): void {
           requireAdmin: (permission) => async (req, reply) =>
             ctx.cradle<AdminUsersCradle>().requireAdmin(permission)(req, reply),
           resolveAdminContext: (req) => ctx.cradle<AdminUsersCradle>().adminContextResolver(req),
-          // Read through the cradle at call time, not captured: `mfa` composes
-          // later, and a captured `undefined` would pin every login to
-          // password-only for the life of the process.
-          getMfaLoginPort: () => ctx.cradle<AdminUsersCradle>().adminMfaLoginPortGetter?.(),
+          // D-96 — the degrade is performed by **not resolving**. The port's
+          // gate throws `ModuleDisabledError` when `mfa` is absent, and there
+          // is deliberately no `catch` anywhere near this: a caught gate is a
+          // fail-open degrade nobody declared. Deciding presence first is the
+          // `auth`/`api_keys` shape, and `AdminAuthService`'s `if (mfaPort)`
+          // branch — the password-only fallback of feature 042 FR-033 — is what
+          // `undefined` selects.
+          getMfaLoginPort: () => (effectiveState.isPresent('mfa') ? mfaLoginPort : undefined),
         }),
       )
       .singleton(),

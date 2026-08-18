@@ -3,12 +3,15 @@ import {
   AdminModulePresenceResponseSchema,
   ModuleActivationRequestSchema,
   ModuleActivationResponseSchema,
+  ModuleDeactivationImpactSchema,
   ModuleListQuerySchema,
   ModuleListResponseSchema,
   apiInterceptorListSchema,
   type AdminModulePresenceResponse,
   type ApiInterceptorList,
+  type MfaEnrolmentCountPort,
   type ModuleActivationResponse,
+  type ModuleDeactivationImpact,
   type ModuleListResponse,
 } from '@b2b/contracts';
 import type { CommandBus } from '../../commands/index.js';
@@ -16,6 +19,7 @@ import type { ApiInterceptorRegistry } from '../../http/interceptors/index.js';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModuleLifecycleOrchestrator } from './services/orchestrator.js';
 import { effectiveState, toModulePresenceDto } from '../../kernel/lifecycle/effective-state.js';
+import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 import {
   makeSetActivationCommand,
   propagateActivationChange,
@@ -87,6 +91,12 @@ export interface ModulePresenceAdminDeps {
     commandBus: CommandBus;
     propagation: ActivationPropagation;
   };
+  /**
+   * `mfa`'s live enrolment count, for the deactivation-impact projection.
+   * Resolved lazily by `backend.ts`; this surface decides `mfa`'s presence
+   * before it calls, and treats a failure as "unavailable".
+   */
+  mfaEnrolmentCount: MfaEnrolmentCountPort;
 }
 
 /**
@@ -122,6 +132,61 @@ export function registerModulePresenceRoutes(
       modules: effectiveState.all().map(toPresenceDto),
       degraded: effectiveState.isDegraded(),
     }),
+  );
+
+  /**
+   * The live half of the deactivation confirmation — the owner's ruling on
+   * D-96.5, and the **first live datum** on a screen whose consequence rows are
+   * otherwise static facts about the code (one `whenAbsent` sentence per
+   * present dependent, from a manifest, computed by
+   * `deactivationConsequencesFor`).
+   *
+   * Read here rather than at flip time on purpose: the dialog renders *before*
+   * the operator confirms, while the module is still on, so
+   * `mfaEnrolmentCountPort` is asked through an **open** gate. The same
+   * question after the flip would be a read of `mfa_enrolments` through a
+   * closed one, which is why the "refuse only enrolled subjects" answer was
+   * ruled unimplementable (D-96.7). Nothing is cached, denormalised, or
+   * expected to survive deactivation.
+   *
+   * Two failure modes, one policy: **the number never blocks the flip.** If
+   * `mfa` is already off there is no dialog and no count; if the read fails,
+   * this answers `null` and the dialog renders the rest of the consequences
+   * saying the count is unavailable. The presence decision is taken *before*
+   * the `try`, so an absent module and a broken query are not one silent
+   * `null`, and `rethrowIfModuleDisabled` is the first line of the `catch` so a
+   * flip racing this read still fails closed rather than being laundered into
+   * "unavailable".
+   */
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/modules/:id/deactivation-impact',
+    {
+      preHandler: deps.requireAdmin('platform.modules.activate'),
+      schema: { response: { 200: ModuleDeactivationImpactSchema } },
+    },
+    async (request): Promise<ModuleDeactivationImpact> => {
+      const moduleId = request.params.id;
+      if (moduleId !== 'mfa' || !effectiveState.isPresent('mfa')) {
+        return { moduleId, activeSecondFactorUsers: null };
+      }
+      try {
+        return {
+          moduleId,
+          activeSecondFactorUsers: await deps.mfaEnrolmentCount.countActiveEnrolments(),
+        };
+      } catch (error) {
+        // Narrow tolerance, and the reason is the product's: an operator must
+        // be able to switch a module off when a count cannot be produced.
+        // Everything else in the dialog is still true without it.
+        rethrowIfModuleDisabled(error);
+        request.log.warn(
+          { err: error, moduleId },
+          '[lifecycle] the active-second-factor count could not be read; the deactivation ' +
+            'dialog renders without it',
+        );
+        return { moduleId, activeSecondFactorUsers: null };
+      }
+    },
   );
 
   if (!deps.activation) return;

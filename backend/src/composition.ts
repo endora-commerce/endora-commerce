@@ -77,8 +77,7 @@ import type { InvoicesBridge } from './modules/invoices/backend.js';
 import type { KsefCradle } from './modules/ksef/backend.js';
 import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
-import type { MfaActorBridge, MfaCradle } from './modules/mfa/backend.js';
-import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
+import type { MfaActorBridge } from './modules/mfa/backend.js';
 import { verifyPassword } from './modules/auth/services/password-hasher.js';
 import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
 import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
@@ -540,24 +539,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     for (const plugin of composedModules.sink.rootPlugins) await plugin(app);
   };
 
-  // Feature 042 — the MFA login port, read from the container **on every
-  // login** rather than captured here.
+  // Feature 042 / D-96 — the MFA login port is the consumers' resolution, not
+  // this root's.
   //
-  // `mfaLoginPort` is a gated port, so resolving it is a question about `mfa`'s
-  // effective state and the answer can change while the process runs. Reading
-  // it during composition asked that question once, at the worst possible
-  // moment: a deployment that had switched `mfa` off got `ModuleDisabledError`
-  // out of `composeApp()` and `index.ts` turned it into `process.exit(1)`.
-  // Asking per login also gives the only defensible off-state answer — the
-  // login fails closed rather than quietly skipping somebody's second factor.
-  const getMfaLoginPort = (): MfaLoginPort | undefined =>
-    (container.cradle as unknown as MfaCradle).mfaLoginPort;
-
-  // Feature 072 (T094) — contributed to `customer_accounts`, which defaults it
-  // absent. Registered after `composeModules` so it overrides the module's own
-  // default rather than being overwritten by it; the getter resolves lazily, so
-  // nothing about `mfa` is a race.
-  composedModules.contribute({ mfaLoginPortGetter: getMfaLoginPort });
+  // This root used to read `mfaLoginPort` off the cradle and contribute the
+  // getter to both login consumers. Two things were wrong with that. A root
+  // resolving a gated port on a module's behalf is composition checklist item 6
+  // — the knob drifted between the two roots, and the harness captured what
+  // this one read lazily. And the sentence that stood here said an absent `mfa`
+  // must make the login *fail closed*, which is what actually shipped: a 503 on
+  // every admin and customer login the moment an operator used the activation
+  // switch that promises them nothing is dropped. D-96 ruled the other way, as
+  // FR-033 always required — off means no second factor. `admin_users` and
+  // `customer_accounts` each resolve the port through `lazyPort` behind an
+  // `effectiveState.isPresent('mfa')` probe and declare the edge
+  // `degrades-without`, so neither root binds anything here.
 
 
   // Feature 056 — organization tree + inheritance resolution. Both are
@@ -877,9 +873,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     } satisfies MfaActorBridge,
   });
-  // The login port `getMfaLoginPort` hands to `customer_accounts` is read from
-  // the container per login (see its declaration above); there is nothing to
-  // bind here.
+  // The login port is `customer_accounts`' and `admin_users`' own resolution
+  // (D-96); the actor shape above is the only thing about `mfa` a root knows.
 
   // SEO module — needs the SettingsService port for the per-channel
   // `sales_channels.storefront_url` setting that the sitemap generator
@@ -1330,13 +1325,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // and neither composition root ever passed one.
     blogStorefrontDeps: undefined,
   });
-  // Feature 072 (T121) — `admin_users` owns its services and routes now. The
-  // MFA getter is a contribution the module defaults absent, so it is
-  // registered **after `composeModules`**: earlier and the module's own default
-  // would overwrite it and every admin login would silently go password-only.
-  // The getter is late-bound, so nothing about `mfa` is a race.
-  composedModules.contribute({ adminMfaLoginPortGetter: getMfaLoginPort });
-
   // `audit_logs` registers its own empty default for this name, so a value
   // written before `composeModules` would be overwritten by it (the same trap
   // `prompt_actions` hit).

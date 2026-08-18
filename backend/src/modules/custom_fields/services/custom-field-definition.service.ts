@@ -130,6 +130,26 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
     return this.cache.getForEntity(entityType, () => this.loadForEntity(entityType));
   }
 
+  /**
+   * The same list, past the cache, and every other process's cache with it
+   * (D-97.1).
+   *
+   * A consumer that composes its own rows against these definitions is the only
+   * party that can *detect* a stale entry — it knows what its rows say — and
+   * this module is the only one that may *resolve* it, because the cache is its
+   * own. The invalidation is the same fan-out a committed definition Command
+   * publishes, so the reload converges every process rather than only this one.
+   *
+   * This is what `catalog` used to do by calling `publishInvalidate` through an
+   * optional widening of the read port, which the `lazyPort` proxy made
+   * always-truthy and therefore always wrong when the real provider lacked it.
+   */
+  async listForEntityFresh(entityType: SupportedEntityType): Promise<CachedDefinition[]> {
+    if (!isSupportedEntityType(entityType)) return [];
+    await this.cache.publishInvalidate(entityType);
+    return this.listForEntity(entityType);
+  }
+
   private async loadForEntity(entityType: SupportedEntityType): Promise<CachedDefinition[]> {
     const em = this.emFactory();
     const definitions = await em.find(

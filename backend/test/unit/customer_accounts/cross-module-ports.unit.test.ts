@@ -134,7 +134,6 @@ describe('customer_accounts — sessions over a port, MFA over a contract, crypt
         seen.push({ subjectId: subject.subjectId, organizationId: ctx.organizationId });
         return { kind: 'challenge', challengeId: 'ch-1' };
       },
-      isTwoFactorActive: async () => true,
     };
 
     const service = new CustomerAuthService(em, port, () => mfa);

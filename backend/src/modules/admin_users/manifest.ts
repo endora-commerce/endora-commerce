@@ -43,6 +43,37 @@ export const manifest = defineModuleManifest({
         'refusal that was not there.',
     },
   ],
+  /**
+   * D-96 — `mfaLoginPort`, the second factor on admin login.
+   *
+   * Real to the container, binding on no operator. `mfa` declares this module
+   * in its own `dependencies`, so the ordinary declaration closes a cycle; and
+   * an acknowledged edge would put admin login among the dependents that refuse
+   * the flip, which is the wrong way round — two-factor authentication is a
+   * client security policy, not a platform floor, and feature 074 gave the
+   * operator a switch for exactly that reason.
+   */
+  nonBindingDependencies: [
+    {
+      moduleId: 'mfa',
+      name: 'mfaLoginPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'Admin sign-in stops asking for a second factor and offers no Google/Microsoft button. ' +
+        'Every admin has a password a peer admin can reset, so no admin is locked out.',
+      reason:
+        'AdminAuthService verifies the password first and then asks the second factor what to ' +
+        'do. With `mfa` absent it asks nobody: `backend.ts` probes ' +
+        '`effectiveState.isPresent("mfa")` and passes `undefined`, which selects the ' +
+        'password-only branch feature 042 FR-033 requires and this service has always had. ' +
+        'Nothing catches `ModuleDisabledError` — the decision is taken before the port is ' +
+        'resolved, so the degrade is declared rather than laundered out of a closed gate. ' +
+        'Enrolled secrets, recovery codes and every policy value stay in the database and ' +
+        'apply again on the way back, which is what the activation control promises. Admin ' +
+        'accounts are never auto-created and always carry a human-chosen password a peer ' +
+        'admin can reset, so no admin becomes unreachable while the module is off.',
+    },
+  ],
   // Feature 072/073 (Constitution XVII) — this module owns the admin login
   // route, the admin session and the impersonation flow. Switched off, nobody
   // can sign in to the Admin UI, including to switch it back on: the one

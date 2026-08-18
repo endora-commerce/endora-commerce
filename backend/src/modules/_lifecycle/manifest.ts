@@ -38,6 +38,35 @@ export const manifest = defineModuleManifest({
         'installation. auth is non-deactivatable, so the gate never closes.',
     },
   ],
+  /**
+   * The live datum on the deactivation-confirmation screen (owner ruling on
+   * D-96.5): how many people hold a second factor, read from `mfa` before an
+   * operator switches it off.
+   *
+   * Non-binding, and it has to be: this is the sentinel manifest the install
+   * order starts from, and a module that reports on every module's presence may
+   * not be made to depend on one of them. `mfa` is the most switchable module
+   * in the tree — a client security policy — and the whole point of this read
+   * is to inform the flip, not to refuse it.
+   */
+  nonBindingDependencies: [
+    {
+      moduleId: 'mfa',
+      name: 'mfaEnrolmentCountPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'The deactivation dialog renders every consequence except the number of users who ' +
+        'currently hold a second factor, which is shown as unavailable.',
+      reason:
+        'GET /api/v1/admin/modules/:id/deactivation-impact answers the one question the ' +
+        'consequence rows cannot: how many people this flip affects. The count is a read of ' +
+        '`mfa_enrolments`, which `mfa` owns, so it arrives through a port and never as a ' +
+        'query this module writes. The route decides `mfa`\'s presence before it resolves ' +
+        'anything — an already-off module has no dialog to render — and a read that fails ' +
+        'answers `null` rather than blocking the operator, because a number that could not ' +
+        'be fetched is not a reason to refuse a deactivation.',
+    },
+  ],
   // Feature 074 (Constitution XVII), test C1 — reachability. The ground is the
   // presence machinery itself: this module resolves every other module's two
   // axes, owns the orchestrator that flips them and the Command the activation

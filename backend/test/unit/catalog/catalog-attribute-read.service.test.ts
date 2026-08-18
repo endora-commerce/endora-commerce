@@ -124,6 +124,31 @@ function makeService(defs: StubDef[], exts: StubExt[]): CatalogAttributeReadServ
   } as unknown as EntityManager;
   const definitions = {
     listForEntity: async () => defs.map(makeDefinition),
+    listForEntityFresh: async () => defs.map(makeDefinition),
+  };
+  return new CatalogAttributeReadService(() => fakeEm, definitions);
+}
+
+/**
+ * A definition source whose first read is stale and whose cache-bypassing read
+ * is fresh — the shape the D-97.1 self-heal exists for.
+ */
+function makeHealingService(input: {
+  stale: StubDef[];
+  fresh: StubDef[];
+  exts: StubExt[];
+  onFresh: () => void;
+}): CatalogAttributeReadService {
+  const extensionRows = input.exts.map(makeExtension);
+  const fakeEm = {
+    find: async () => extensionRows,
+  } as unknown as EntityManager;
+  const definitions = {
+    listForEntity: async () => input.stale.map(makeDefinition),
+    listForEntityFresh: async () => {
+      input.onFresh();
+      return input.fresh.map(makeDefinition);
+    },
   };
   return new CatalogAttributeReadService(() => fakeEm, definitions);
 }
@@ -291,5 +316,50 @@ describe('CatalogAttributeReadService (feature 061, T014)', () => {
   it('throws a data-integrity error on a product definition without an extension', async () => {
     const service = makeService(defs.slice(0, 2), [exts[0]!]);
     await expect(service.listAll()).rejects.toThrow(CatalogAttributeIntegrityError);
+  });
+
+  /**
+   * D-97.1 — the self-heal, at the seam that performs it.
+   *
+   * The window is real and not repairable by ordering: the invalidation is a
+   * Redis fan-out with a TTL fallback, so a second process holds a stale
+   * definition list while this one composes fresh `product_attributes` rows
+   * against it. Only this service can detect that; only `custom_fields` may
+   * resolve it. `listForEntityFresh` is that one call.
+   *
+   * The two cases below are the pair that matters. Before D-97.1 the recovery
+   * hung off `publishInvalidate?`, an optional method the `lazyPort` proxy
+   * reported as present whatever was registered — so the branch fired
+   * unconditionally and the forward threw. A required method is why there is no
+   * detection left to get wrong.
+   */
+  describe('stale-definition self-heal (D-97.1)', () => {
+    it('reloads once past the cache and composes the fresh view', async () => {
+      const fresh: string[] = [];
+      const service = makeHealingService({
+        stale: [defs[0]!],
+        fresh: defs.slice(0, 2),
+        exts: exts.slice(0, 2),
+        onFresh: () => fresh.push('product'),
+      });
+
+      const views = await service.listAll();
+      expect(views.map((v) => v.key)).toEqual(['color', 'finish']);
+      // Exactly one reload: a retry loop would hide a genuine inconsistency.
+      expect(fresh).toEqual(['product']);
+    });
+
+    it('still throws when the fresh definitions disagree too', async () => {
+      const fresh: string[] = [];
+      const service = makeHealingService({
+        stale: [defs[0]!],
+        fresh: [defs[0]!],
+        exts: exts.slice(0, 2),
+        onFresh: () => fresh.push('product'),
+      });
+
+      await expect(service.listAll()).rejects.toThrow(CatalogAttributeIntegrityError);
+      expect(fresh).toEqual(['product']);
+    });
   });
 });

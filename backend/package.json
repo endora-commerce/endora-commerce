@@ -62,7 +62,8 @@
     "check:harness-teardown": "tsx scripts/check-harness-teardown.ts",
     "check:fixture-substitution": "tsx scripts/check-fixture-substitution.ts",
     "check:shared-table-wipes": "tsx scripts/check-shared-table-wipes.ts",
-    "check:nul-bytes": "tsx scripts/check-nul-bytes.ts"
+    "check:nul-bytes": "tsx scripts/check-nul-bytes.ts",
+    "check:port-shape": "tsx scripts/check-port-shape.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",

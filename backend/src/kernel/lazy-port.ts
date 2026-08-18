@@ -33,6 +33,28 @@ import type { ModuleContext } from './module-context.js';
  * defer it to. A collaborator exposing data rather than behaviour is not a
  * candidate for this, and should be read from the cradle explicitly where it
  * is used.
+ *
+ * **And therefore: never feature-detect through one** (D-97.3). The `get` trap
+ * below answers *every* non-symbol property with a function, so `x.maybe`,
+ * `!x.maybe` and `typeof x.maybe === 'function'` are all truthy whatever is
+ * registered, and `x.maybe?.()` always calls — into a provider that may not
+ * implement it, where the forward throws "is not a function". This is not a
+ * sharp edge to be careful around, it is impossible by construction, and the
+ * trap **cannot be fixed** to answer honestly: making the property read tell
+ * the truth means resolving the name at access time to look at the real object,
+ * and for a gated port that turns a `typeof` probe into a `ModuleDisabledError`
+ * — a presence check that throws when the module is absent, which is worse than
+ * the hazard it repairs. Deferring resolution to the call is the whole reason
+ * this function exists (items 1 and 2 above).
+ *
+ * So the rule is at the type level instead: **no published port, and no
+ * interface extending one, may declare an optional method.** Optional
+ * parameters and optional data properties on record types are untouched. The
+ * one occurrence in the tree — `catalog` widening the custom-field read port
+ * with `publishInvalidate?` — fired its recovery branch on every integrity
+ * error and turned a self-healing cache window into a 500 on the attribute
+ * screens; D-97.1 replaced it with a required method that answers the
+ * consumer's actual question. `check:port-shape` refuses the shape.
  */
 export function lazyPort<T extends object>(ctx: ModuleContext, name: string): T {
   return new Proxy({} as T, {

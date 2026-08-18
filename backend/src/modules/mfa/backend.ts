@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import { ERROR_CODES } from '@b2b/contracts';
-import type { AuthSessionPort, MfaLoginPort } from '@b2b/contracts';
+import type { AuthSessionPort, MfaEnrolmentCountPort, MfaLoginPort } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
@@ -14,6 +14,7 @@ import {
   readOAuthConfigFromEnv,
   type OAuthProviderPort,
 } from './services/oauth-provider-service.js';
+import { MfaEnrolmentCountService } from './services/mfa-enrolment-count.service.js';
 import type { SocialIdentityDeps } from './services/social-identity-service.js';
 import { mfaModule, type MfaModuleHandle } from './plugin.js';
 
@@ -121,6 +122,7 @@ export interface MfaCradle {
   readonly mfaBaseUrls: MfaBaseUrls;
   readonly mfa: { handle: () => MfaModuleHandle; plugin: unknown };
   readonly mfaLoginPort: MfaLoginPort;
+  readonly mfaEnrolmentCountPort: MfaEnrolmentCountPort;
 }
 
 /**
@@ -274,6 +276,23 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort(
     'mfaLoginPort',
     ctx.asFunction(({ mfa }: MfaCradle) => mfa.handle().mfaLoginPort).singleton(),
+  );
+
+  /**
+   * The live half of the deactivation-confirmation dialog (owner ruling on
+   * D-96.5): how many people currently hold a second factor.
+   *
+   * Gated like every other port, and that is exactly right here — the dialog
+   * renders *before* the flip, while this module is still on, so the question
+   * is asked through an open gate. `/platform/modules` decides presence before
+   * it resolves this and renders "unavailable" rather than blocking the flip if
+   * the read fails.
+   */
+  ctx.di.providePort<MfaEnrolmentCountPort>(
+    'mfaEnrolmentCountPort',
+    ctx
+      .asFunction(({ emFactory }: MfaCradle) => new MfaEnrolmentCountService(emFactory))
+      .singleton(),
   );
 
   ctx.routes(async (app) => {
