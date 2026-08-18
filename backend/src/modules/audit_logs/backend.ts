@@ -23,12 +23,28 @@ import { RecentActivityService } from './services/recent-activity-service.js';
  * **`auditActorResolver` is a contribution, not a dependency**, and the
  * distinction is the whole design of this file. Turning a bare actor id into a
  * name and an e-mail needs `admin_users`, but needing it for a *column* is not
- * the same as needing it to function: an operator investigating an incident
- * wants the record more, not less, when part of the platform is off. So the
- * name is owned and defaulted here, a composition root that ships `admin_users`
- * overrides it, and the manifest declares no edge — because a `dependencies`
- * entry would make the lifecycle refuse to disable `admin_users` while the
- * audit log is on, which is precisely backwards.
+ * the same as needing it to function. So the name is owned and defaulted here,
+ * a composition root that ships `admin_users` overrides it, and the manifest
+ * declares no edge — because a `dependencies` entry would make the lifecycle
+ * refuse to disable `admin_users` while the audit log is on, which is precisely
+ * backwards.
+ *
+ * **What that buys, exactly — D-102.** The enrichment degrades and the *record*
+ * does not: with `admin_users` absent the audit rows still render, with raw
+ * actor ids in the actor column. That is a claim about this module's own
+ * handler and it stops there. The **route** is guarded by `requireAdmin`, whose
+ * permission check reads `adminUserReadPort` since feature 075 Phase C, so on a
+ * deployment that does not ship `admin_users` no admin-authenticated request
+ * reaches this handler at all. Reading the trail when the admin identity
+ * subsystem is itself absent needs a surface that is not an admin-authenticated
+ * HTTP route: `pnpm --filter backend run audit:read`, whose credential is
+ * access to the host rather than a session.
+ *
+ * This paragraph used to say that "an operator investigating an incident wants
+ * the record more, not less, when part of the platform is off". The sentiment
+ * is right and the module could not deliver it over HTTP; the withdrawal is
+ * recorded rather than quietly narrowed, because the interesting content of
+ * that sentence was the part that turned out to be false.
  *
  * The root registers a **gated** resolver, since deciding what "`admin_users`
  * is present" means is a composition-root question, not one this module should
