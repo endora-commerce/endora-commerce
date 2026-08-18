@@ -167,5 +167,13 @@ docker compose --env-file .env -f compose.prod.yml run --rm backend \
   the SPA, storefront's standalone server starts and listens. `docker compose
   -f deploy/compose.prod.yml config` also validates. The CI runner uses BuildKit
   (`docker:dind`); a local legacy builder works too.
+- **Client IP**: the backend trusts `X-Forwarded-For` only from the hop named by
+  `TRUSTED_PROXY_HOPS` (or `TRUSTED_PROXY_ADDRESSES`). `.env.prod.example` ships
+  `TRUSTED_PROXY_HOPS=1`, which is right for this stack — one host nginx in front
+  of the backend. Leave it unset and every request looks like it came from the
+  proxy: the per-IP rate limit becomes a single shared bucket and the security
+  audit rows record the proxy's address instead of the actor's. Raise it by one
+  per extra proxy (a CDN in front of nginx makes it 2); the backend refuses to
+  boot on a value it cannot make sense of, and has no "trust every hop" setting.
 - **Single environment**: this setup targets one test/staging host. For
   staging+prod, parameterise domains/volumes per environment (or use a second VPS).

@@ -5,6 +5,7 @@
 // (`pnpm --filter backend run dev`) and production both go through this.
 
 import { buildServer } from './http/server.js';
+import { parseTrustedProxy, type TrustedProxy } from './http/trusted-proxy.js';
 import { composeApp } from './composition.js';
 
 async function main(): Promise<void> {
@@ -14,6 +15,23 @@ async function main(): Promise<void> {
 
   if (!sessionCookieSecret) {
     console.error('SESSION_COOKIE_SECRET must be set in production');
+    process.exit(1);
+  }
+
+  // Issue #220 — behind a reverse proxy, `request.ip` is the proxy unless this
+  // deployment says which hop it trusts. Parsed here rather than in
+  // http/server.ts because that is a platform root and takes its configuration
+  // by injection (D-52/D-53). Refused early and loudly: a value we cannot make
+  // sense of means the operator believes client IPs are being resolved when
+  // they are not.
+  let trustedProxy: TrustedProxy | undefined;
+  try {
+    trustedProxy = parseTrustedProxy({
+      hops: process.env['TRUSTED_PROXY_HOPS'],
+      addresses: process.env['TRUSTED_PROXY_ADDRESSES'],
+    });
+  } catch (err) {
+    console.error(`[boot] ${(err as Error).message}`);
     process.exit(1);
   }
 
@@ -58,6 +76,7 @@ async function main(): Promise<void> {
       modules: composition.modules,
       errorEnvelope: composition.errorEnvelope,
       apiInterceptors: composition.apiInterceptors,
+      ...(trustedProxy === undefined ? {} : { trustedProxy }),
       ...(disableRateLimit ? { disableRateLimit: true } : {}),
       ...(rateLimitMax && Number.isFinite(rateLimitMax) ? { rateLimitMax } : {}),
     });

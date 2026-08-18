@@ -60,6 +60,11 @@ x-backend-env: &backend-env
   SETTINGS_SECRET_ENCRYPTION_KEY: ${SETTINGS_SECRET_ENCRYPTION_KEY}
   MFA_SECRET_ENCRYPTION_KEY: ${MFA_SECRET_ENCRYPTION_KEY}
   ASSETS_LIBRARY_HMAC_KEY: ${ASSETS_LIBRARY_HMAC_KEY}
+  # Which upstream proxy may be believed about the client address (issue #220).
+  # Unset, the backend trusts none and `request.ip` is this stack's own nginx —
+  # see deploy/.env.prod.example for why 1 is the answer here.
+  TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-}
+  TRUSTED_PROXY_ADDRESSES: ${TRUSTED_PROXY_ADDRESSES:-}
   # Sales channels.
   DEFAULT_SALES_CHANNEL_CODE: ${DEFAULT_SALES_CHANNEL_CODE:-default}
   SALES_CHANNEL_HOST_MAP: ${SALES_CHANNEL_HOST_MAP:-}

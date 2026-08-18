@@ -457,24 +457,40 @@ docker compose --env-file .env -f compose.prod.yml run --rm backend \
 **Verify.** Search for a product you know exists and find it; compare the indexed document count
 against the product count.
 
-### G3. Decide how the client's IP address reaches the application
+### G3. Tell the backend which proxy may name the client's IP address
 
-**Why.** The HTTP server sets `trustProxy: false`
-(`backend/src/http/server.ts:94`) and there is no environment override. Behind the host nginx
-that terminates TLS, `request.ip` is the proxy's address for every request. Three consequences:
-the per-IP rate limit (1000/min) becomes effectively one shared bucket; the IP recorded on
-security-relevant audit rows — MFA events, admin impersonation, prompt-action runs — is the
-proxy, not the actor; and the public product-feed rate-limit key collapses for unauthenticated
-callers. The payment modules already work around it by parsing `X-Forwarded-For` themselves
-(`backend/src/modules/tpay/routes.storefront.ts:61-64`); nothing else does.
+**Why.** The client's address reaches the application only through
+`X-Forwarded-For`, and the backend believes that header only from a hop it has been
+told to trust — otherwise `request.ip` is the host nginx for every request. Three
+consequences: the per-IP rate limit (1000/min) becomes one shared bucket for the whole
+internet; the IP recorded on security-relevant audit rows — MFA events, admin
+impersonation, prompt-action runs — is the proxy, not the actor; and the public
+product-feed rate-limit key collapses for unauthenticated callers. This used to be an
+open question with no answer in the code; since issue #220 the answer is a variable.
 
-**Do (engineer).** Confirm the host nginx sets `X-Forwarded-For` and `X-Forwarded-Proto` (the
-template in `deploy/nginx.example.conf` is the starting point), and raise the trust-proxy gap
-with engineering **before** go-live: either accept it in writing, or ship the configuration
-knob. This is the one item on this page that may need a code change.
+**Do (engineer).** Confirm the host nginx sets `X-Forwarded-For` and `X-Forwarded-Proto`
+(the template in `deploy/nginx.example.conf` already does, with
+`$proxy_add_x_forwarded_for`), then set in `deploy/.env` on the VPS:
 
-**Verify.** Read back one MFA audit row after signing in from a known external address, and
-check whether the address recorded is yours or the proxy's.
+```bash
+TRUSTED_PROXY_HOPS=1
+```
+
+One hop, because exactly one proxy sits between the internet and the backend
+container. Add one per additional proxy — a CDN in front of the host nginx makes it 2 —
+and count it wrong in the *high* direction only at your peril: each extra hop is one
+more `X-Forwarded-For` entry the client itself could have written. Where the proxy's
+address is fixed and known, `TRUSTED_PROXY_ADDRESSES` takes IPs, CIDR ranges or the
+named ranges `loopback` / `linklocal` / `uniquelocal` instead; set one variable or the
+other, never both. There is deliberately no value meaning "trust any hop", and the
+backend refuses to boot on a value it cannot parse rather than falling back to trusting
+nothing — a silent fallback is exactly the state this item exists to end.
+
+**Verify.** After the stack restarts, sign in from a known external address and read back
+the MFA or impersonation audit row: the address recorded must be yours, not the proxy's.
+A quick negative check is `curl -H 'X-Forwarded-For: 1.2.3.4' https://<API_DOMAIN>/...`
+from outside — with one trusted hop, the forged entry is ignored and the address logged is
+still yours, because nginx appends its own view of the peer after it.
 
 ---
 
