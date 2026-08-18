@@ -204,6 +204,12 @@ export interface ReflectRefundInput {
  * failure after `paid` is rejected — no downgrade. It resolves a late event
  * even when the adapter has since been de-registered, because it keys on the
  * persisted payment rather than on the live registry.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `payments` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface ReceivePaymentPort {
   receive(input: ReceivePayment): Promise<ReceivePaymentResult>;
@@ -241,6 +247,16 @@ export interface GatewayRefundHandler {
  * mechanism: without it the registry records no owner, states no policy, and a
  * switched-off gateway goes on refunding through its own PSP API — which is
  * what D-44 §7 recorded as the one live instance of that gap.
+ *
+ * **Do not "complete" this interface.** `GatewayRefundRegistry` also has
+ * `entry`, `ownerOf`, `listAll` and `absentOwnerFor`, and the omission is the
+ * point rather than an oversight: `absentOwnerFor` is what turns a refund
+ * through an absent gateway into a `pending_manual` obligation instead of a
+ * refund that did not happen (D-71), and it is called from exactly one place —
+ * `payments/services/payment-refund.ts` — plus this module's own unit test.
+ * Verified for issue #192: no caller outside `payments`. Publishing it would
+ * offer another module a presence-blind read of the table, which is the one
+ * thing the contribution classification rests on not existing.
  */
 export interface GatewayRefundRegistryPort {
   register(handler: GatewayRefundHandler, module: string): void;
@@ -283,6 +299,12 @@ export interface PaymentEmailContext {
  *
  * Bodies are plain text (see `EmailMailerSendInput.text`), so a renderer is a
  * `(ctx) => string` builder rather than a component.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `payments` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface PaymentEmailRendererPort {
   render(rendererKey: string | null, ctx: PaymentEmailContext): string;

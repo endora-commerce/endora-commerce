@@ -106,6 +106,9 @@ export type I18nCoverageQuery = z.infer<typeof I18nCoverageQuerySchema>;
  * When `_i18n` is off the port fails closed. That is the right answer for a
  * caller rendering an operator-facing string: a screen labelled with raw keys
  * is worse than a screen that says the platform will not answer.
+ *
+ * Whether `_i18n` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface AdminI18nTranslatePort {
   translate(

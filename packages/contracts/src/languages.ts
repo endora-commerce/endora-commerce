@@ -54,6 +54,9 @@ export interface LanguageRecord {
  * When `languages` is off every method fails closed. There is no sensible
  * degrade: a storefront that cannot list its languages would have to invent
  * one, and inventing `'en'` is how a Polish shop renders in English.
+ *
+ * Whether `languages` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface LanguageReadPort {
   list(): Promise<LanguageRecord[]>;

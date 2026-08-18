@@ -75,6 +75,11 @@ export function registerModule(ctx: ModuleContext): void {
    *
    * Whether an entry is honoured while its contributor is absent is answered at
    * enumeration — see `services/reference-registry.ts`.
+   *
+   * `AssetReferenceRegistryPort` is published over this name all the same, which
+   * is not a reason to convert it back (issue #192): a published shape and a
+   * gated registration are different questions, and only the first is what F4
+   * packages.
    */
   ctx.di.register({
     assetReferenceRegistry: ctx

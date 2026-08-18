@@ -744,6 +744,9 @@ export interface OrderItemRecord {
  * When `orders` is off every method fails closed, and that is the answer a
  * gateway callback should get: acknowledging a payment against an order the
  * platform will not read is worse than making the provider retry.
+ *
+ * Whether `orders` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface OrderReadPort {
   findById(id: string): Promise<OrderRecord | null>;
@@ -847,6 +850,12 @@ export interface OrderListResult {
  * `Pick<OrderListService, 'list'>` — a type operator in front of a
  * cross-module import of the class, which is the violation with punctuation on
  * (FR-011). This is the shape that replaces it.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `orders` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface OrderListPort {
   list(query: OrderListQuery, scope?: OrderListScope): Promise<OrderListResult>;
@@ -892,6 +901,12 @@ export interface PlacedOrderRecord extends OrderRecord {
  * answer `null`, which is how it expresses "ordering is unavailable"; the port
  * expresses the same thing as a 503 at the seam, which is stronger — a `null`
  * accessor is indistinguishable from a wiring mistake.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `orders` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface OrderPlacementPort {
   placeOrder(ctx: OrderCustomerContext, req: PlaceOrderRequest): Promise<PlacedOrderRecord>;
@@ -932,6 +947,12 @@ export interface OrderStatusChange {
  * at compile time, because the status set is admin-configurable.
  *
  * A no-op when `from === to`, as the builder already is.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `orders` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface OrderStatusAnnouncePort {
   announceStatusChanged(change: OrderStatusChange): void;

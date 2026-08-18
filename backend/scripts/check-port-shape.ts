@@ -1,7 +1,46 @@
 /**
- * CI check — a published port declares no **optional method** (D-97.3).
+ * CI check — a published port's **shape**: it declares no optional method
+ * (D-97.3), and the container name in its doc block is the name it is actually
+ * registered under (issue #192).
  *
- * ## Why this is a type rule and not advice
+ * Two signals over one population, because both read the same thing: the doc
+ * block that makes an interface a published port, and what `backend/src/modules`
+ * does with the name in it.
+ *
+ * ## Signal 2 — the documented container name (issue #192)
+ *
+ * `port-publication.md` §1.2 makes the container name part of the contract: it
+ * is the literal a consumer copies into `lazyPort<T>(ctx, 'thatName')`. Nothing
+ * checked it, and on the tree this signal was written against it was wrong six
+ * times out of 97 — four naming a container nothing registers, and **two naming
+ * the ungated legacy service the port was published to replace**. That second
+ * pair is why this is a build failure rather than tidiness: a consumer following
+ * `AdminRolePort`'s doc resolved `adminRoleService`, a plain `di.register` with
+ * no presence gate, whose `list()` returns `AdminRole` **entities** — and
+ * `AdminRole` is structurally assignable to `AdminRoleRecord`, so `tsc` said
+ * nothing. A doc that teaches a Principle XVII violation is worse than no doc.
+ *
+ * Two shapes are refused:
+ *
+ *  - **`container-name-unregistered`** — the documented name appears in no
+ *    `di.register` and no `di.providePort` anywhere under `src/modules` or
+ *    `src/apps`. A consumer copying it gets
+ *    `[kernel] '…' is not registered in this composition` at first call.
+ *  - **`container-name-not-the-gated-registration`** — the port type *is*
+ *    registered, by a typed `di.providePort<T>('X', …)`, and the doc names some
+ *    other container. Whatever `Y` is, it is not the gate; where it happens to
+ *    exist it is the ungated twin, which is the fail-open trap above.
+ *
+ * The second shape needs the registration's **type argument**, so it sees only
+ * the 81 of 134 `providePort` calls that carry one. That is not a weakness of
+ * this check but the reason A12 wants `providePort<T>` made non-inferrable: an
+ * untyped registration compares nothing, here or in `tsc`.
+ *
+ * `PORTS_WITHOUT_A_REGISTRATION` is the ledger for the first shape, two-way and
+ * one entry long. It is not a debt list to grow — an entry says why a published
+ * interface with no provider is standing, and the check refuses a stale one.
+ *
+ * ## Signal 1 — why the optional-method rule is a type rule and not advice
  *
  * A consumer that wants to know whether a provider implements something asks
  * the object. Through a port it cannot: `lazyPort` hands back a `Proxy` whose
@@ -34,13 +73,18 @@
  *
  *  1. **Published ports** — an exported `interface` in `packages/contracts/src`
  *     whose doc block carries the `Container name:` line every port in the tree
- *     is introduced by. That sweep is the same one the published-port-vs-provider
- *     check will use; this is its first signal, and the provider-conformance
- *     ones join it here rather than in a second script over the same inputs.
+ *     is introduced by. One parse, `portDocOf`, answers both "is this a port?"
+ *     and "which container does it name?", so the two signals cannot come to
+ *     disagree about the population.
  *  2. **Interfaces extending one** — an `interface X extends <port>` anywhere in
  *     `backend/src/modules` or `backend/src/apps`, or in the contracts package
  *     itself. A widening is the shape that actually happened; refusing it only
  *     at the published type would refuse the tidy half.
+ *  3. **Registrations** — `di.register` keys and `di.providePort` names in the
+ *     same module sources, read through `check-port-dependencies.ts`'s
+ *     `registeredNames` / `providedPorts`. Imported rather than re-derived: a
+ *     second expression of "this call is a registration" is a rule that can go
+ *     half-missing while the check still prints `violations=0`.
  *
  * A member is an optional method when it is a `foo?(…): T` signature **or** a
  * `foo?: (…) => T` property, because those are the same promise written twice.
@@ -49,15 +93,20 @@
  * affected.
  *
  * Usage: `tsx scripts/check-port-shape.ts [--list]`
- * Exit 0 = no optional method on a port; exit 1 = at least one;
- * exit 2 = nothing was read — no sources, or no port type in the contracts
- * package, which would make a green mean "not looking" (issue #113).
+ * Exit 0 = clean; exit 1 = at least one finding, of either signal;
+ * exit 2 = nothing was read — no sources, no port type in the contracts
+ * package, or **no registration in the module scan**, each of which would make a
+ * green mean "not looking" (issue #113). The third is the guard signal 2 needs:
+ * a registration map that came back empty would report every one of the 97 ports
+ * as unregistered, and a reader who "fixed" that by widening the ledger would
+ * have turned the whole check off.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { providedPorts, registeredNames } from './check-port-dependencies.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const BACKEND_SRC = join(HERE, '..', 'src');
@@ -84,27 +133,108 @@ export interface PortShapeFinding {
   readonly kind: PortShapeFindingKind;
 }
 
+export type PortNameFindingKind =
+  /** The documented container name is registered nowhere. */
+  | 'container-name-unregistered'
+  /**
+   * The port type is registered by a typed `providePort<T>`, under a name the
+   * doc block does not give. Where the documented name exists at all it is the
+   * ungated twin, and that is the fail-open half of this signal.
+   */
+  | 'container-name-not-the-gated-registration';
+
+export interface PortNameFinding {
+  /** Contract file, as the caller keyed it. */
+  readonly file: string;
+  readonly line: number;
+  /** The published port type. */
+  readonly portName: string;
+  /** The container name the doc block gives. */
+  readonly documented: string;
+  /**
+   * The name the port is really registered under, for
+   * `container-name-not-the-gated-registration`; `null` for the unregistered
+   * shape, where there is nothing to point at.
+   */
+  readonly registered: string | null;
+  /**
+   * How the documented name *is* registered, when it is: `'plain'` for a
+   * `di.register` key, `'gated'` for a `di.providePort`. `null` when nothing
+   * registers it. A `'plain'` here is the trap — an ungated registration behind
+   * a name the contract advertises.
+   */
+  readonly documentedRegistrationKind: 'plain' | 'gated' | null;
+  readonly kind: PortNameFindingKind;
+}
+
+/**
+ * Published interfaces with no registration behind them, and why each stands.
+ *
+ * **Two-way**: an entry whose port has gained a registration, or whose port no
+ * longer exists, fails the check as stale. This is not a queue to add to — a
+ * port nobody provides is what `@b2b/contracts` would publish to the outside
+ * world at F4, so an entry is a decision that has been taken and recorded, not
+ * one deferred.
+ */
+export const PORTS_WITHOUT_A_REGISTRATION: Readonly<Record<string, string>> = {
+  ModuleManifestReadPort:
+    'Phase-P unreached-port audit A4, Q2 unresolved. The four modules that read ' +
+    'the manifests read `resolvedModuleRegistry`, a composition-root ' +
+    'contribution on `PLATFORM_OWNED_NAMES` — "which modules a deployment ships ' +
+    'is not something a module may decide". Registering `moduleManifestReadPort` ' +
+    'would move a platform-owned input into a module-owned registration against ' +
+    'that ruling, so the interface stands unprovided until Q2 answers whether it ' +
+    'is implemented or deleted. Retired by either.',
+};
+
 export interface PortShapeInput {
   /** Contract sources, keyed however the caller likes (the key is reported). */
   readonly contracts: ReadonlyMap<string, string>;
   /** Module sources — `src/modules/**`, `src/apps/**`. */
   readonly modules: ReadonlyMap<string, string>;
+  /** Defaults to {@link PORTS_WITHOUT_A_REGISTRATION}; a fixture overrides it. */
+  readonly unregisteredLedger?: Readonly<Record<string, string>>;
 }
 
 export interface PortShapeResult {
   /** Every published port type found, by name. Empty means "not looking". */
   readonly portTypes: readonly string[];
   readonly findings: readonly PortShapeFinding[];
+  /** Signal 2 — the documented container name against the registered one. */
+  readonly nameFindings: readonly PortNameFinding[];
+  /**
+   * How many distinct container names the module scan saw. Zero means the scan
+   * read nothing, which the CLI turns into exit 2 rather than into 97 findings.
+   */
+  readonly registeredNameCount: number;
+  /** Ledger entries whose port is registered now, or no longer published. */
+  readonly staleLedgerEntries: readonly string[];
 }
 
 function parse(file: string, text: string): ts.SourceFile {
   return ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
 }
 
-/** Whether the declaration's own doc comment introduces a container name. */
-function hasPortDocBlock(node: ts.InterfaceDeclaration, text: string): boolean {
+/** What a port's doc block declares. `container` is `null` when it is unparseable. */
+interface PortDoc {
+  readonly container: string | null;
+}
+
+/**
+ * The declaration's port doc block, or `null` when it has none.
+ *
+ * The single answer to "is this a published port?" — signal 1 asks it to build
+ * the population and signal 2 asks it for the name, so neither can drift into
+ * its own idea of what a port is.
+ */
+function portDocOf(node: ts.InterfaceDeclaration, text: string): PortDoc | null {
   const ranges = ts.getLeadingCommentRanges(text, node.pos) ?? [];
-  return ranges.some((range) => text.slice(range.pos, range.end).includes(PORT_DOC_MARKER));
+  const block = ranges
+    .map((range) => text.slice(range.pos, range.end))
+    .find((comment) => comment.includes(PORT_DOC_MARKER));
+  if (block === undefined) return null;
+  const named = /Container name:\s*`([^`]+)`/.exec(block);
+  return { container: named?.[1] ?? null };
 }
 
 function interfaces(sf: ts.SourceFile): ts.InterfaceDeclaration[] {
@@ -164,12 +294,27 @@ function memberName(member: ts.TypeElement): string {
 export function checkPortShape(input: PortShapeInput): PortShapeResult {
   const parsedContracts = new Map<string, ts.SourceFile>();
   const portTypes = new Set<string>();
+  /** Every published port, with where it is declared and what it documents. */
+  const published: Array<{
+    readonly portName: string;
+    readonly file: string;
+    readonly line: number;
+    readonly container: string | null;
+  }> = [];
 
   for (const [file, text] of input.contracts) {
     const sf = parse(file, text);
     parsedContracts.set(file, sf);
     for (const node of interfaces(sf)) {
-      if (hasPortDocBlock(node, text)) portTypes.add(node.name.text);
+      const doc = portDocOf(node, text);
+      if (doc === null) continue;
+      portTypes.add(node.name.text);
+      published.push({
+        portName: node.name.text,
+        file,
+        line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+        container: doc.container,
+      });
     }
   }
 
@@ -202,7 +347,82 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
   for (const [file, text] of input.modules) scan(file, parse(file, text));
 
   findings.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
-  return { portTypes: [...portTypes].sort(), findings };
+
+  // --- signal 2: the documented container name -------------------------------
+  //
+  // Both registration readers come from `check-port-dependencies.ts`, which owns
+  // the "this call is a registration" predicate. `registeredNames` already
+  // covers `providePort` names, so `plainNames` is derived by subtraction rather
+  // than by a second parse deciding the same thing differently.
+  const allNames = new Set<string>();
+  const gatedNames = new Set<string>();
+  /** Container name a typed `providePort<T>` gives each port type. */
+  const gatedNameOfType = new Map<string, string>();
+  for (const [file, text] of input.modules) {
+    for (const name of registeredNames(text, file)) allNames.add(name);
+    for (const port of providedPorts(text, file)) {
+      gatedNames.add(port.name);
+      if (port.typeName !== null && !gatedNameOfType.has(port.typeName)) {
+        gatedNameOfType.set(port.typeName, port.name);
+      }
+    }
+  }
+
+  const ledger = input.unregisteredLedger ?? PORTS_WITHOUT_A_REGISTRATION;
+  const nameFindings: PortNameFinding[] = [];
+  const ledgerHits = new Set<string>();
+
+  for (const port of published) {
+    if (port.container === null) continue;
+    const registeredKind = gatedNames.has(port.container)
+      ? 'gated'
+      : allNames.has(port.container)
+        ? 'plain'
+        : null;
+    const gatedName = gatedNameOfType.get(port.portName);
+
+    if (registeredKind === null) {
+      if (ledger[port.portName] !== undefined) {
+        ledgerHits.add(port.portName);
+        continue;
+      }
+      nameFindings.push({
+        file: port.file,
+        line: port.line,
+        portName: port.portName,
+        documented: port.container,
+        registered: gatedName ?? null,
+        documentedRegistrationKind: null,
+        kind: 'container-name-unregistered',
+      });
+      continue;
+    }
+
+    if (gatedName !== undefined && gatedName !== port.container) {
+      nameFindings.push({
+        file: port.file,
+        line: port.line,
+        portName: port.portName,
+        documented: port.container,
+        registered: gatedName,
+        documentedRegistrationKind: registeredKind,
+        kind: 'container-name-not-the-gated-registration',
+      });
+    }
+  }
+
+  nameFindings.sort((a, b) => a.portName.localeCompare(b.portName));
+  const staleLedgerEntries = Object.keys(ledger)
+    .filter((portName) => !ledgerHits.has(portName))
+    .sort();
+
+  return {
+    portTypes: [...portTypes].sort(),
+    findings,
+    nameFindings,
+    registeredNameCount: allNames.size,
+    staleLedgerEntries,
+  };
 }
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -258,15 +478,28 @@ function main(): void {
     process.exit(2);
   }
 
+  if (result.registeredNameCount === 0) {
+    console.error(
+      `[port-shape] the scan of ${moduleFiles.length} module files found no container ` +
+        `registration at all — every published port would read as unregistered, so this ` +
+        `is "not looking" rather than a result (issue #113)`,
+    );
+    process.exit(2);
+  }
+
   if (listMode) {
     for (const name of result.portTypes) console.log(`PORT ${name}`);
     console.log('');
   }
 
+  const violations =
+    result.findings.length + result.nameFindings.length + result.staleLedgerEntries.length;
   console.log(
     `[port-shape] ports=${result.portTypes.length} ` +
       `contract-files=${contractFiles.length} module-files=${moduleFiles.length} ` +
-      `violations=${result.findings.length}`,
+      `registered-names=${result.registeredNameCount} ` +
+      `ledgered-unregistered=${Object.keys(PORTS_WITHOUT_A_REGISTRATION).length} ` +
+      `violations=${violations}`,
   );
 
   if (result.findings.length > 0) {
@@ -286,7 +519,42 @@ function main(): void {
     }
   }
 
-  process.exit(result.findings.length > 0 ? 1 : 0);
+  if (result.nameFindings.length > 0) {
+    console.error(
+      "\nA published port's doc block names a container that is not the registration\n" +
+        '(port-publication.md §1.2). The name is what a consumer copies into\n' +
+        "`lazyPort<T>(ctx, 'thatName')`, and nothing else in the tree checks it: an\n" +
+        'unregistered name fails at first call, and a name that resolves to the ungated\n' +
+        'legacy service does not fail at all — it hands the class across with no\n' +
+        '`MODULE_DISABLED` gate, and `tsc` is satisfied by the structural match.\n' +
+        'Correct the doc block, or register the name it gives.\n',
+    );
+    for (const finding of result.nameFindings) {
+      const target =
+        finding.registered === null
+          ? 'registered by nothing'
+          : `registered as \`${finding.registered}\``;
+      const documented =
+        finding.documentedRegistrationKind === null
+          ? 'nothing registers it'
+          : `that name is a ${finding.documentedRegistrationKind} registration`;
+      console.error(
+        `  - ${finding.file}:${finding.line}  ${finding.portName} documents ` +
+          `\`${finding.documented}\` — ${documented}; the port is ${target} ` +
+          `[${finding.kind}]`,
+      );
+    }
+  }
+
+  if (result.staleLedgerEntries.length > 0) {
+    console.error(
+      '\nA `PORTS_WITHOUT_A_REGISTRATION` entry no longer describes the tree: the port has\n' +
+        'gained a registration, or it is no longer published. Delete the entry.\n',
+    );
+    for (const portName of result.staleLedgerEntries) console.error(`  - ${portName}`);
+  }
+
+  process.exit(violations > 0 ? 1 : 0);
 }
 
 // CLI only — importing this module (the unit self-test does) must not scan.

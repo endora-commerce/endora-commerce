@@ -631,6 +631,12 @@ export interface PromotionCodePort {
  * `carts` and `orders` both call it, and both already pass and receive
  * contract-typed shapes — so this port names what they were importing the
  * class to get.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `promotions` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface PromotionApplyPort {
   applyToCart(snapshot: CartSnapshot): Promise<PromotionApplication>;

@@ -270,6 +270,12 @@ export type PreferenceActor =
  * falling back through the buyer's saved addresses and the platform's methods
  * — rather than the stored row, because the fallback chain is this module's
  * and a caller reproducing it would reproduce it differently.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `quick_order` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface DefaultPreferencePort {
   resolveForCustomer(customerAccountId: string): Promise<QuickOrderResolvedDefaults>;

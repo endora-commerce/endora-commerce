@@ -451,6 +451,12 @@ export interface QuoteRequestLineRecord {
  * `organizations` counts the open quotes per organisation on the sales-rep
  * screen, which is where `OPEN_QUOTE_REQUEST_STATUSES` had been written out by
  * hand.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `quote_requests` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface QuoteRequestReadPort {
   findById(id: string): Promise<QuoteRequestRecord | null>;
@@ -492,6 +498,12 @@ export interface RfqCustomerContext {
  * Both methods already answer with contract DTOs, so this port needed no
  * adapter — only a published name for the shape the five were importing the
  * class to get.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `quote_requests` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface RfqCustomerPort {
   createForCustomer(ctx: RfqCustomerContext, input: CreateQuoteRequest): Promise<QuoteRequest>;

@@ -439,6 +439,12 @@ export interface PriceListRecord {
  * the list a feed prices from. Both read the row; neither should own the
  * question of what "active" means, which is why `listActive` is here rather
  * than a status filter in each caller.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `price_lists` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface PriceListReadPort {
   findById(id: string): Promise<PriceListRecord | null>;
@@ -483,6 +489,12 @@ export interface PriceListBracketSummary {
  * adds the product to it if it is not there, replaces the brackets, and reads
  * back the summary its field-protection rules compare against. That is the
  * whole of what it needs, and publishing more would be publishing the class.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `price_lists` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface PriceListAdminPort {
   getById(id: string): Promise<PriceListRecord>;

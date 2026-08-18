@@ -1713,6 +1713,9 @@ export interface CatalogProductLookupOptions {
  * When `catalog` is off every method fails closed, and that is the answer a
  * cart or an order line should get: pricing a line for a product the platform
  * will not read is worse than refusing the line.
+ *
+ * Whether `catalog` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface CatalogProductReadPort {
   findById(
@@ -1774,6 +1777,12 @@ export interface CatalogProductReadPort {
  * `ancestorsOf` is here rather than in `price_lists` because that module walks
  * the chain with a `findOne` per level today — a loop over the parent pointer
  * whose depth is data, in a module that does not own the table.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CatalogCategoryReadPort {
   findById(id: string, options?: { liveOnly?: boolean }): Promise<CatalogCategoryRecord | null>;
@@ -1850,6 +1859,9 @@ export interface ProductImportRow {
  *
  * With `catalog` off the call answers 503 `MODULE_DISABLED`; the caller is
  * expected to decide presence before offering the surface at all.
+ *
+ * Whether `catalog` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface CatalogBulkImportPort {
   importCategories(rows: readonly CategoryImportRow[]): Promise<BulkImportReport>;
@@ -1928,6 +1940,12 @@ export type CatalogAttributeFlag =
  * Freshness: the definitions half rides the custom-fields cache (invalidated
  * by every committed attribute Command, 5 s TTL fallback); the extension half
  * is a live query, so flag reads are always fresh.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CatalogAttributeReadPort {
   listAll(): Promise<CatalogAttributeView[]>;
@@ -1992,6 +2010,9 @@ export interface CatalogQuickSearchHit {
  * When `catalog` is off the call fails closed: `quick_order` declares `catalog`
  * in `dependencies`, and a type-ahead that cannot ask the catalogue has nothing
  * true to answer.
+ *
+ * Whether `catalog` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface CatalogQuickSearchPort {
   quickSearch(params: CatalogQuickSearchParams): Promise<CatalogQuickSearchHit[]>;
@@ -2098,6 +2119,12 @@ export type CatalogAdminAttributeFlag =
  *
  * `createProduct` and the two variant writes return **records**, where the
  * service returns entities. That substitution is the point of the port.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CatalogProductWritePort {
   createProduct(
@@ -2182,6 +2209,12 @@ export interface CategoryInventoryThresholdPatch {
  * for it. The columns' owner is still the question underneath, and the answer
  * that retires this method is moving them into `inventory_thresholds` with
  * `scopeKind = 'category'`, which is a data migration and not a cut.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CatalogCategoryWritePort {
   listAll(): Promise<CatalogCategoryRecord[]>;
@@ -2196,6 +2229,12 @@ export interface CatalogCategoryWritePort {
  *
  * Already returns contract DTOs, so the port is the four methods
  * `pim_ergonode` calls and nothing else.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CatalogAttributeSetPort {
   listSets(): Promise<AttributeSet[]>;
@@ -2204,7 +2243,15 @@ export interface CatalogAttributeSetPort {
   assignAttributes(id: string, input: AssignAttributesRequest): Promise<AttributeSetDetail>;
 }
 
-/** Container name: `attachmentService`. Owner: `catalog`. */
+/**
+ * Container name: `attachmentService`. Owner: `catalog`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
 export interface CatalogAttachmentPort {
   listTypes(): Promise<AttachmentType[]>;
   createType(req: CreateAttachmentTypeRequest): Promise<AttachmentType>;
@@ -2223,7 +2270,15 @@ export interface CatalogGalleryWriteOptions {
   replaceConflictingLabels: boolean;
 }
 
-/** Container name: `galleryService`. Owner: `catalog`. */
+/**
+ * Container name: `galleryService`. Owner: `catalog`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
 export interface CatalogGalleryPort {
   list(productId: string): Promise<GalleryItem[]>;
   create(
@@ -2244,7 +2299,15 @@ export interface CatalogGroupedItemRow {
   position: number;
 }
 
-/** Container name: `groupedService`. Owner: `catalog`. */
+/**
+ * Container name: `groupedService`. Owner: `catalog`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
 export interface CatalogGroupedPort {
   list(parentProductId: string): Promise<CatalogGroupedItemRow[]>;
   addItem(
@@ -2266,7 +2329,15 @@ export interface CatalogCreateProductLinkInput {
   position?: number | undefined;
 }
 
-/** Container name: `productLinkService`. Owner: `catalog`. */
+/**
+ * Container name: `productLinkService`. Owner: `catalog`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
 export interface CatalogProductLinkPort {
   listForAdmin(sourceProductId: string, kind?: ProductLinkKind): Promise<CatalogProductLinkRow[]>;
   bulkCreate(
@@ -2293,6 +2364,12 @@ export interface CatalogAttributeWithOptions {
  * `promotions` builds its rule editor from these two answers, and reaches
  * `CatalogQueryService` — the storefront query service, 1400 lines — for them.
  * The port is the two questions.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CatalogPromoAttributePort {
   promoRuleAttributeKeys(): Promise<string[]>;
@@ -2440,6 +2517,9 @@ export interface CatalogSellableProductQuery {
  * When `catalog` is off both methods fail closed. A feed assembled from a
  * catalogue the platform is refusing to serve is worse than a run that stops
  * and says why.
+ *
+ * Whether `catalog` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface CatalogProductFilterPort {
   listSellable(query: CatalogSellableProductQuery): Promise<CatalogProductRecord[]>;

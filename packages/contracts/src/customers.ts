@@ -266,6 +266,27 @@ export interface CustomerAddressRecord {
  * `findById` is scoped by customer account for the reason its organisation
  * twin gives: every caller already knows whose address it is asking for, and
  * one query is what stops the ownership check being forgotten.
+ *
+ * **`liveOnly` defaults to `false`: `findById` returns a soft-deleted address.**
+ * Same split as {@link AddressReadPort} — the by-id lookup resolves an id
+ * something else already stored, so it answers with the row it finds;
+ * `listForCustomer` is choosing an address to use *now*, so it filters
+ * `deletedAt: null` unconditionally and takes no flag.
+ *
+ * The intended consumer is `quick_order`'s one-click default eligibility check,
+ * which today spells the rule itself:
+ * `personal != null && !personal.deletedAt && personal.customerAccountId === customerAccountId`
+ * (`quick_order/services/default-preference-service.ts`). Two of those three
+ * conjuncts do become redundant against this port; **`!personal.deletedAt` does
+ * not**. Dropping it with the others makes deleted addresses eligible one-click
+ * shipping defaults, so a cut passes `{ liveOnly: true }` (Phase-P
+ * unreached-port audit, A8).
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customers` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CustomerAddressReadPort {
   findById(

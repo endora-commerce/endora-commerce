@@ -214,6 +214,13 @@ export interface CredentialsPort {
  * admin screen can keep showing a stored configuration *and* the reason its
  * type is unavailable — a credential row outlives the module that described
  * its shape, and hiding the row would look like data loss.
+ *
+ * **Owner off:** nothing throws here. This is a **contribution seam**, a plain
+ * `di.register` rather than a `providePort`, so a push still lands and
+ * `credentials` filters by contributor when it enumerates. Converting it to
+ * `providePort` would move every edge into it from `contributes` to
+ * `fails-closed` in the deactivation-consequence ledger, and change the
+ * sentence the operator's confirmation dialog renders.
  */
 export interface ConfigurationTypeRegistryPort {
   register(descriptor: ConfigurationTypeDescriptor): void;

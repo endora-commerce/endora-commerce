@@ -35,6 +35,12 @@ export interface ShippingEmailContext {
  *
  * Bodies are plain text (see `EmailMailerSendInput.text`), so a renderer is a
  * `(ctx) => string` builder rather than a component.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `shipments` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface ShippingEmailRendererPort {
   render(rendererKey: string | null, ctx: ShippingEmailContext): string;

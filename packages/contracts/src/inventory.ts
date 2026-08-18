@@ -444,6 +444,12 @@ export interface WarehouseChannelAssignmentRecord {
  * warehouses can serve this line on this channel, with how much available,
  * already shaped for {@link resolveAllocations}. Assembling that from three
  * tables is this module's business, and it was being assembled in `orders`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `inventory` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface InventoryStockReadPort {
   listStockForProducts(
