@@ -196,7 +196,13 @@ export type MessageKey =
   | 'quoteRequest.success.nextStepsHint'
   | 'quoteRequest.success.viewRequest'
   | 'quoteRequest.success.allRequests'
-  | 'quoteRequest.success.continueShopping';
+  | 'quoteRequest.success.continueShopping'
+  // Issue #193 — federated sign-in. Rendered only when `mfa` is present and the
+  // provider is configured + enabled, so these never label a dead control.
+  | 'auth.federated.groupLabel'
+  | 'auth.federated.divider'
+  | 'auth.federated.google'
+  | 'auth.federated.microsoft';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -407,6 +413,11 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'quoteRequest.success.viewRequest': 'View quote request',
     'quoteRequest.success.allRequests': 'All quote requests',
     'quoteRequest.success.continueShopping': 'Continue shopping',
+    // Issue #193 — federated sign-in.
+    'auth.federated.groupLabel': 'Other sign-in options',
+    'auth.federated.divider': 'or',
+    'auth.federated.google': 'Continue with Google',
+    'auth.federated.microsoft': 'Continue with Microsoft',
   },
   'pl-PL': {
     'nav.home': 'Strona glowna',
@@ -616,6 +627,11 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'quoteRequest.success.viewRequest': 'Zobacz zapytanie ofertowe',
     'quoteRequest.success.allRequests': 'Wszystkie zapytania ofertowe',
     'quoteRequest.success.continueShopping': 'Kontynuuj zakupy',
+    // Issue #193 — federated sign-in.
+    'auth.federated.groupLabel': 'Inne sposoby logowania',
+    'auth.federated.divider': 'lub',
+    'auth.federated.google': 'Kontynuuj przez Google',
+    'auth.federated.microsoft': 'Kontynuuj przez Microsoft',
   },
 };
 

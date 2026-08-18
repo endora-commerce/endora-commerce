@@ -157,7 +157,9 @@ export function analyzeSource(source: string, filePath: string): Finding[] {
  * Keys are paths relative to `admin/src`. It is meant to reach `{}`.
  */
 export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
-  'components/LoginPage.tsx': 6,
+  // Issue #193 lifted the two federated-provider labels into
+  // `preauth-login-copy.ts`; the four left are the second-step MFA screen.
+  'components/LoginPage.tsx': 4,
   'components/asset-picker/AssetFieldPicker.tsx': 1,
   'components/rule-builder/RuleBuilder.tsx': 6,
   'components/ui/color-picker.tsx': 1,
