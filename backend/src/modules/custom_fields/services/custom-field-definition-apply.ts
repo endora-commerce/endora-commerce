@@ -221,6 +221,12 @@ function createOptionEntity(
   definitionId: string,
   input: CustomFieldOptionDto,
 ): CustomFieldOption {
+  // command-coverage-ignore: apply-seam primitive, exactly like the two exported
+  // functions that call it — the `em.create` queues the row on the invoking
+  // Command's transactional EM and is flushed by that Command, which records the
+  // single audit row co-transactionally. The marker belongs here rather than only
+  // on the callers because this is the function that writes (D-89).
+  // Contract: specs/061-attributes-on-custom-fields/contracts/custom-fields-product-host.md.
   return em.create(CustomFieldOption, {
     definitionId,
     value: input.value,

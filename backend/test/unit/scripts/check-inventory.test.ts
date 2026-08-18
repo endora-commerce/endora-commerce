@@ -219,6 +219,79 @@ const STALE_IGNORE = `
   }`;
 
 /**
+ * `em.create` alone — a write with nothing else in the unit (D-89).
+ *
+ * The entity is managed from that call, so the next `flush` inserts it whoever
+ * calls it. The unit names no `persist` and no `flush`, which is exactly why the
+ * check could not see it, and why a CSV import rewrote catalogue and stock
+ * unaudited for a year. It doubles as the **control** for the three
+ * discriminations below: each of those adds a second unit that must *not* be
+ * flagged, so the proof reads 1 while the narrowing holds and 0 the moment a
+ * second finding appears beside it.
+ */
+const EM_CREATE_WRITE = `
+  export class ThingService {
+    constructor(private em: () => any) {}
+    async rename(id: string) {
+      const em = this.em();
+      em.create(Thing, { id });
+    }
+  }`;
+
+/** `deps.orderService.create(…)` — a call into an audited service, not the ORM. */
+const SERVICE_CREATE_CALL = `
+  export class OtherService {
+    async place(id: string) {
+      await this.deps.orderService.create({ id });
+    }
+  }`;
+
+/** The same `em.create`, inside a unit that runs a Command. */
+const EM_CREATE_UNDER_COMMAND = `
+  export class CoveredService {
+    async place(id: string) {
+      await this.commandBus.run(placeThing(id));
+      this.em().create(Thing, { id });
+    }
+  }`;
+
+/**
+ * A field assignment on a managed entity, and nothing else.
+ *
+ * The header states in writing that a call-shaped check cannot see this. The
+ * proof is here so the limit is asserted rather than discovered: if somebody
+ * teaches the check to read assignments, this goes to 0 and the header sentence
+ * has to be rewritten in the same merge request.
+ */
+const FIELD_ASSIGNMENT_ONLY = `
+  export class AssigningService {
+    async mark(order: any) {
+      order.status = 'paid';
+    }
+  }`;
+
+/**
+ * D-89(c) — two units, the callee marked and writing, the caller marked and not.
+ *
+ * The shape `payments/services/payment-reference-port.ts` carried: an exemption
+ * on two public callers while the private body did the `flush`, and the private
+ * body's own marker added later. The transitive rule counted the callee's write
+ * and kept the caller's marker alive, so nothing could see the redundancy.
+ */
+const MARKED_CALLER_OF_MARKED_UNIT = `
+  export class ThingService {
+    // command-coverage-ignore: bookkeeping, and the write is in stamp().
+    async publish(id: string) {
+      return this.stamp(id);
+    }
+    // command-coverage-ignore: bookkeeping — the entry point both callers use.
+    private async stamp(id: string) {
+      const em = this.em();
+      await em.flush();
+    }
+  }`;
+
+/**
  * A module composing a port, and three modules reading it the three ways that
  * matter. The proofs run the **scanners** (`providedPortNames`, `resolvedNames`)
  * over this source and hand their output to the rules, because that is where the
@@ -1218,6 +1291,54 @@ const CHECKS: readonly CheckEntry[] = [
       // a fixture tree on disk, because that is what a real run reads.
       'scan-walk-population': top(commandCoveragePopulation),
       'module-selection-blocks': top(commandCoverageModuleSelection),
+      // --- `em.create` joins the vocabulary (D-89) --------------------------
+      //
+      // Three for the widening and two for its edges. `create` is the name of
+      // nearly every service method in this tree, so the EntityManager
+      // narrowing is what keeps the widening from manufacturing findings — and
+      // `field-assignment-alone` asserts the limit the header now states in
+      // writing, rather than leaving it to be discovered.
+      'em-create-unaudited': top(
+        () =>
+          commandCoverageAnalyze('src/modules/catalog/services/thing.service.ts', EM_CREATE_WRITE)
+            .filter((f) => f.kind === 'unaudited-sensitive-write').length,
+      ),
+      'service-create-not-flagged': top(() => {
+        const findings = commandCoverageAnalyze(
+          'src/modules/catalog/services/thing.service.ts',
+          `${EM_CREATE_WRITE}\n${SERVICE_CREATE_CALL}`,
+        ).filter((f) => f.kind === 'unaudited-sensitive-write');
+        // The `remove` narrowing's twin: `deps.orderService.create(…)` is a call
+        // into an audited service, not an ORM mutation. Proven against the
+        // control above, because "no finding" cannot go red on its own.
+        return findings.length === 1 && findings[0]?.method === 'rename' ? 1 : 0;
+      }),
+      'create-under-a-command': top(() => {
+        const findings = commandCoverageAnalyze(
+          'src/modules/catalog/services/thing.service.ts',
+          `${EM_CREATE_WRITE}\n${EM_CREATE_UNDER_COMMAND}`,
+        ).filter((f) => f.kind === 'unaudited-sensitive-write');
+        return findings.length === 1 && findings[0]?.method === 'rename' ? 1 : 0;
+      }),
+      'field-assignment-alone': top(() => {
+        const findings = commandCoverageAnalyze(
+          'src/modules/catalog/services/thing.service.ts',
+          `${EM_CREATE_WRITE}\n${FIELD_ASSIGNMENT_ONLY}`,
+        ).filter((f) => f.kind === 'unaudited-sensitive-write');
+        // Not an oversight: the header says a call-shaped check cannot see
+        // `order.status = ref`, and this is the assertion under that sentence.
+        return findings.length === 1 && findings[0]?.method === 'rename' ? 1 : 0;
+      }),
+      // D-89(c) — the mirror image. A marker on a caller whose downstream
+      // carries its own marker is provably guarding nothing, and until now the
+      // transitive rule counted the downstream's write and kept it alive.
+      'marker-on-a-caller-of-a-marked-unit': top(
+        () =>
+          commandCoverageAnalyze(
+            'src/modules/catalog/services/thing.service.ts',
+            MARKED_CALLER_OF_MARKED_UNIT,
+          ).filter((f) => f.kind === 'stale-ignore' && f.method === 'publish').length,
+      ),
     },
   },
   {
@@ -2432,7 +2553,11 @@ describe('every red proof enters at the top of the analysis', () => {
     );
     expect(shapes).toEqual({
       'backend/scripts/check-channel-resolution.ts': 5,
-      'backend/scripts/check-command-coverage.ts': 5,
+      // Five, plus D-89's five: `em.create` joining the vocabulary, the two
+      // narrowings that keep it from manufacturing findings, the field
+      // assignment the header says in writing it cannot see, and the staleness
+      // half's new subtraction.
+      'backend/scripts/check-command-coverage.ts': 10,
       'backend/scripts/check-container-imports.ts': 5,
       'backend/scripts/check-doc-snippets.ts': 4,
       'backend/scripts/check-entity-tenant-classification.ts': 2,

@@ -436,10 +436,13 @@ export class CreditLimitService {
     /** When called inside the order-placement transaction, the caller passes its tx em. */
     tx?: EntityManager;
   }): Promise<ReserveResult> {
-    // command-coverage-ignore: reserve runs inside the caller's order-placement
-    // transaction (accepts `tx`) and is a system operation, not an admin action.
-    // The credit movement is captured by the credit_limit.reserved.v1 event and
-    // the reservation row — not the admin audit log.
+    // `reserve` runs inside the caller's order-placement transaction (accepts
+    // `tx`) and is a system operation, not an admin action; the credit movement
+    // is captured by the credit_limit.reserved.v1 event and the reservation row,
+    // not the admin audit log. The exemption itself sits on `#reserveFlat` and
+    // `#reserveInherited`, which are where the write is — a marker here guarded
+    // nothing, and since D-89(c) the staleness half says so instead of counting
+    // it as a live exemption.
     const run = async (em: EntityManager): Promise<ReserveResult> =>
       this.inheritance ? this.#reserveInherited(em, input) : this.#reserveFlat(em, input);
 

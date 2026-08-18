@@ -51,6 +51,19 @@ import ts from 'typescript';
  * this check cannot itself see is left alone, and only a marker guarding nothing
  * is reported.
  *
+ * **With one subtraction (D-89c): a downstream write that itself carries a
+ * marker does not keep the caller's marker alive.** The transitive rule exists
+ * so a marker over a write this check cannot see is not called stale; when the
+ * write it reaches is *already exempted where it happens*, the caller's marker
+ * is provably guarding nothing and the ratchet has to say so. The worked
+ * example carries the failure and its correction in one file:
+ * `payments/services/payment-reference-port.ts` marked `stampExternalReference`
+ * and `stampExternalReferenceIfAbsent`, neither of which writes, and later
+ * marked the private `stamp` that does the `flush` — with a comment explaining
+ * that the marker had to be repeated there "because the check reads the
+ * function that writes". Both redundant caller markers survived, and nothing
+ * could see them.
+ *
  * ## What "every service" was allowed to mean (issue #122)
  *
  * The walk matched `**​/services/<file>.ts` — **one level, nothing else**. Over
@@ -96,6 +109,26 @@ import ts from 'typescript';
  *      `commandBus.run` anywhere in the file clears every other handler in it —
  *      the masking the per-method rule exists to prevent, one level up. It also
  *      manufactured two `double-audit` reports across handlers that never met.
+ *
+ * ## What this check cannot see, and will not pretend to (D-89b)
+ *
+ * This check reads **call** shapes. A field assignment on a managed entity —
+ * `order.status = ref`, `refund.settlementState = outcome.state` — is a write
+ * the unit of work will flush and this check cannot see it. The unit is judged
+ * by the calls it makes, so an assignment is caught only when the same unit also
+ * calls one of the vocabulary. A unit that assigns and lets its caller flush is
+ * outside the population, **by construction and not by exemption**.
+ *
+ * That is refused deliberately rather than deferred. The shapes are not
+ * separable by a static name test: `x.y = z` is the most common statement form
+ * in the language, `x` is a managed entity only when the type checker says so,
+ * and this check does not build a program. Reading every assignment as a
+ * candidate write would put a finding on most methods in the tree and teach
+ * people to write exemptions; reading none of them keeps the check's green
+ * honest — provided the green is read as what it is. So: a green
+ * `check:command-coverage --strict` means *"no unaudited sensitive write of a
+ * shape this check can see"*, and it does not mean *"every sensitive write is
+ * audited"*. It cannot be made to mean the second at anything like this cost.
  *
  * Scope & staging: build-breaks (exit 1) for **migrated modules**
  * (`MIGRATED_MODULES` below, or `--module`); any other module would be
@@ -180,10 +213,19 @@ const ORM_MUTATIONS = new Set([
  * Mutation names that are also ordinary vocabulary. `remove` is MikroORM's and
  * also every service's, every queue backend's and every transport client's —
  * `deps.countryService.remove(code)`, `scheduler.remove(id)`,
- * `ftpClient.remove(path)`. It counts for the flagging half only off an
- * EntityManager; the staleness half counts it everywhere (see the header).
+ * `ftpClient.remove(path)`. `create` is worse on the same axis: it is the name
+ * of nearly every service method in this tree. Both count for the flagging half
+ * only off an EntityManager; the staleness half counts them everywhere (see the
+ * header).
+ *
+ * `create` joined in D-89. `em.create(Entity, …)` puts a managed entity into the
+ * unit of work — the insert is queued from that moment and the next `flush`
+ * writes it, whoever calls it — so a unit whose only mutation call is an
+ * `em.create` was invisible to this check while being every bit as much a write
+ * as the `persist` next door. That is the hole that let a CSV import rewrite
+ * catalogue and stock unaudited for a year.
  */
-const AMBIGUOUS_MUTATIONS = new Set(['remove']);
+const AMBIGUOUS_MUTATIONS = new Set(['remove', 'create']);
 
 const MUTATION_METHODS = new Set([...ORM_MUTATIONS, ...AMBIGUOUS_MUTATIONS]);
 
@@ -651,13 +693,24 @@ export function analyzeSource(filePath: string, source: string): CoverageFinding
   // `#reserveFlat()`, a reaper delegating to `release()`. Memoised over the
   // recursion so a cycle terminates.
   const byName = new Map(delegates.map((u) => [u.name, u]));
+  /** Does this delegate carry a marker of its own? Helpers never do. */
+  const carriesMarker = (unit: (typeof delegates)[number]): boolean =>
+    'suppressed' in unit && unit.suppressed === true;
   const reachesWrite = (name: string, seen = new Set<string>()): boolean => {
     if (seen.has(name)) return false;
     seen.add(name);
     const unit = byName.get(name);
     if (!unit) return false;
     if (unit.scan.writesAnything) return true;
-    return [...unit.scan.calls].some((callee) => reachesWrite(callee, seen));
+    return [...unit.scan.calls].some((callee) => {
+      // D-89(c) — a downstream that carries its own marker is already exempted
+      // where it writes, so it does not keep this caller's marker alive. Without
+      // this the ratchet cannot see the shape it was written for: a marker on
+      // two public callers of a private body that carries a third.
+      const target = byName.get(callee);
+      if (target !== undefined && carriesMarker(target)) return false;
+      return reachesWrite(callee, seen);
+    });
   };
 
   // A route handler is named `POST /api/…`, a method `rename` — only the latter
