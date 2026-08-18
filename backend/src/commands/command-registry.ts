@@ -183,6 +183,12 @@ export const COMMAND_REGISTRY = {
     reversible: false,
     description: 'Set an organization credit-inheritance mode (platform-admin only)',
   },
+  // Issue #175 — the cart-approval policy, written by its owner. `carts` drives
+  // both surfaces that flip it and used to write the column itself, unaudited.
+  'organization.set_cart_approval_policy': {
+    reversible: false,
+    description: 'Set the per-organization cart-approval policy',
+  },
   // Promotions module (US1).
   'promotion.create': { reversible: false, description: 'Create a promotion' },
   'promotion.update': { reversible: false, description: 'Update a promotion' },
