@@ -7,6 +7,8 @@ import type {
   InvoicePdfPort,
   InvoiceReadPort,
   OrderReadPort,
+  SettingWriteValidatorRegistryPort,
+  SettingsAdminPort,
 } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -16,6 +18,8 @@ import { invoicesModule, type InvoicesModuleOptions, type InvoicesModuleHandle }
 import { CorrectiveInvoiceProvider } from './services/corrective-invoice.js';
 import { InvoiceReadService, createInvoicePdfPort } from './services/invoice-read-port.js';
 import type { InvoiceNumberGenerator } from './services/invoice-number-generator.js';
+import { NumberingConfigurationService } from './services/numbering-configuration.js';
+import { createNumberingPatternValidator } from './services/numbering-write-validator.js';
 import { INVOICE_ISSUED_DEFAULT } from './email-templates/invoice-issued.default.js';
 
 /**
@@ -78,10 +82,26 @@ export interface InvoicesCradle {
   readonly invoiceService: InvoicesModuleHandle['invoiceService'];
   readonly invoiceNumberGenerator: InvoicesModuleHandle['numberGenerator'];
   readonly invoicePdfRenderer: InvoicesModuleHandle['pdfRenderer'];
+  readonly invoicesNumberingConfiguration: NumberingConfigurationService;
 }
 
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
+    /**
+     * Feature 078, D-95.3 / D-95.4 — the boot-time numbering configuration.
+     *
+     * The `settingsAdminService` port is resolved here, inside the factory,
+     * rather than from the boot hook: `settings` is non-deactivatable, so the
+     * gate has no state in which it says no, but keeping the resolution at the
+     * point of use is the rule the rest of the tree follows.
+     */
+    invoicesNumberingConfiguration: ctx
+      .asFunction(({ emFactory }: InvoicesCradle) => {
+        const settingsAdmin = lazyPort<SettingsAdminPort>(ctx, 'settingsAdminService');
+        return new NumberingConfigurationService(emFactory, () => settingsAdmin, ctx.log);
+      })
+      .singleton(),
+
     // Contribution point, absent by default: no KSeF, no verification block.
     ksefVerificationResolver: ctx
       .asFunction((): InvoicesCradle['ksefVerificationResolver'] => undefined)
@@ -247,6 +267,42 @@ export function registerModule(ctx: ModuleContext): void {
     // that fails closed.
     const defaults = lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort');
     defaults.register('invoice_issued', INVOICE_ISSUED_DEFAULT, 'invoices');
+  });
+
+  /**
+   * Feature 078, D-95.2 — the settings-write validator, a **contribution**.
+   *
+   * Deliberately its own hook, and deliberately without a presence probe. The
+   * host filters by contributor at enumeration (`SettingWriteValidatorRegistry`
+   * states the policy at the class), so probing here would make switching
+   * `invoices` back on require a restart before its numbering rule applied
+   * again. It is kept separate from the numbering-configuration hook below
+   * because a hook that both works and contributes is a `mixed-boot-hook`, and
+   * its remedy is to split it — never to probe the top of it.
+   */
+  ctx.onBoot(() => {
+    const validators = lazyPort<SettingWriteValidatorRegistryPort>(
+      ctx,
+      'settingWriteValidatorRegistry',
+    );
+    validators.register(createNumberingPatternValidator());
+  });
+
+  /**
+   * Feature 078, D-95.3 / D-95.4 — the grandfather write and the collision
+   * report. A **working** hook, and it deliberately does not probe presence.
+   *
+   * The write is a one-time migration of this module's own configuration.
+   * Activation is reversible and a migration is not, so gating it on an
+   * operator's activation choice means a deployment that happened to have
+   * `invoices` off during the upgrade gets the new `{channel}` default applied
+   * to its first channel and its invoice numbers change shape. The entry in
+   * `BOOT_HOOKS_WITHOUT_PRESENCE` says the same thing where the ledger is read.
+   * The hook writes at most three rows, once, and does nothing on every later
+   * boot.
+   */
+  ctx.onBoot(async () => {
+    await ctx.cradle<InvoicesCradle>().invoicesNumberingConfiguration.reconcile();
   });
 
 }

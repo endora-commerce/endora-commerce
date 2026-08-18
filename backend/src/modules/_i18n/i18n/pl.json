@@ -505,7 +505,6 @@
   "errors.INTERNAL": "Wewnętrzny błąd serwera.",
   "errors.INVALID_CREDENTIALS": "Nieprawidłowy e-mail lub hasło. Spróbuj ponownie.",
   "errors.INVALID_TRANSITION": "Błąd: invalid transition.",
-  "errors.INVOICE_NOT_READY": "Błąd: invoice not ready.",
   "errors.LIMIT_INSUFFICIENT": "Błąd: limit insufficient.",
   "errors.MODULE_DISABLED": "Moduł \"{module}\" jest wyłączony, więc ta operacja została odrzucona. Sprawdź jego stan na ekranie Moduły.",
   "errors.NOT_FOUND": "Nie znaleziono zasobu.",

@@ -14,6 +14,7 @@ import {
   type AdminAuditContext,
   type ModulePresencePort,
 } from './services/settings-admin.service.js';
+import { SettingWriteValidatorRegistry } from './services/setting-write-validators.js';
 import { CacheAdminService } from './services/cache-admin.service.js';
 import { ShopInfoResolver } from './services/shop-info-resolver.js';
 import { HomepageResolver } from './services/homepage-resolver.js';
@@ -77,6 +78,13 @@ export interface SettingsCradle {
   /** Base64 32-byte key for `secret` values; absent refuses secret writes. */
   readonly settingsSecretEncryptionKey: string | undefined;
   readonly settingsAdminService: SettingsAdminService;
+  /**
+   * Feature 078, D-95.2 — the contribution seam a setting's **owning** module
+   * pushes a validator into. An ordinary registration rather than a port: a
+   * contribution is a push made once from a boot hook, and a gate would make it
+   * a pull with a failure mode.
+   */
+  readonly settingWriteValidatorRegistry: SettingWriteValidatorRegistry;
   readonly settingsCacheAdminService: CacheAdminService;
   readonly settingsShopInfoResolver: ShopInfoResolver;
   readonly settingsHomepageResolver: HomepageResolver;
@@ -86,6 +94,13 @@ export interface SettingsCradle {
 
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
+    settingWriteValidatorRegistry: ctx
+      .asFunction(
+        ({ settingsModulePresence }: SettingsCradle) =>
+          new SettingWriteValidatorRegistry(settingsModulePresence),
+      )
+      .singleton(),
+
     settingsCacheAdminService: ctx
       .asFunction(({ redis }: SettingsCradle) => new CacheAdminService(redis))
       .singleton(),
@@ -158,6 +173,17 @@ export function registerModule(ctx: ModuleContext): void {
             auditLogService,
             settingsSecretEncryptionKey,
             settingsModulePresence,
+            // Read per call for the same reason `settingsCache` is: the
+            // registry is filled from other modules' boot hooks, which run
+            // after this registration is built.
+            {
+              register: (validator) =>
+                ctx
+                  .cradle<SettingsCradle>()
+                  .settingWriteValidatorRegistry.register(validator),
+              forCode: (code) =>
+                ctx.cradle<SettingsCradle>().settingWriteValidatorRegistry.forCode(code),
+            },
           ),
       )
       .singleton(),

@@ -105,6 +105,14 @@ function moduleIdForErrorCode(code: ErrorCode): string {
   ) {
     return 'inventory';
   }
+  // Feature 078, D-95.2 — routing is by **semantic owner**, not by thrower:
+  // `INVOICE_NUMBER_PATTERN_COLLIDES` is thrown inside `settings`' write path
+  // and `INVOICE_NOT_READY` inside `orders`' download route, exactly as
+  // `PRODUCT_*` codes are thrown from modules other than `catalog`. `_i18n`
+  // loads every registered module's bundle regardless of activation, so a
+  // switched-off `invoices` does not cost another module its sentence. Keeping
+  // the family in one bundle is how the next sentence stops going missing.
+  if (code.startsWith('INVOICE_')) return 'invoices';
   if (code.startsWith('ASSET_')) return 'assets_library';
   if (code.startsWith('CMS_')) return 'cms';
   if (code.startsWith('MEGAMENU_')) return 'megamenu';

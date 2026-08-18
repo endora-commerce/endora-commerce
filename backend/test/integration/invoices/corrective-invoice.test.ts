@@ -17,8 +17,17 @@ import type {
   CorrectiveInvoiceIssued,
 } from '../../../src/modules/returns/ports/corrective-invoice.port.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
+import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 
-const CH = 'cccccccc-0000-4000-8000-000000000001';
+// Feature 078, D-95: `{channel}` is rendered from the `sales_channels`
+
+// row, so this file's channel has to be one. The per-file code keeps this
+
+// file's numbers distinct in the shared test database, which is what the
+
+// fabricated id used to be for.
+
+let CH: string;
 
 describe('invoices — corrective invoice from a return (US3)', () => {
   let h: BackendServerHandle;
@@ -26,13 +35,22 @@ describe('invoices — corrective invoice from a return (US3)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    CH = await ensureSalesChannelId(h.em(), 'inv-corrective');
     await setSellerSettings(h);
-    await h.settings.adminService.setValueForAllChannels('invoices.numbering.invoice.pattern', 'FVCOR {seq}/{YYYY}', null, {
-      actorAdminUserId: '00000000-0000-0000-0000-000000000000',
-    });
-    await h.settings.adminService.setValueForAllChannels('invoices.numbering.correction.pattern', 'KOR-T {seq}/{YYYY}', null, {
-      actorAdminUserId: '00000000-0000-0000-0000-000000000000',
-    });
+    await h.settings.adminService.setValueForSubset(
+      'invoices.numbering.invoice.pattern',
+      ['inv-corrective'],
+      'FVCOR {seq}/{YYYY}',
+      null,
+      { actorAdminUserId: '00000000-0000-0000-0000-000000000000' },
+    );
+    await h.settings.adminService.setValueForSubset(
+      'invoices.numbering.correction.pattern',
+      ['inv-corrective'],
+      'KOR-T {seq}/{YYYY}',
+      null,
+      { actorAdminUserId: '00000000-0000-0000-0000-000000000000' },
+    );
     provider = new CorrectiveInvoiceProvider(
       h.em,
       () => new InvoiceNumberGenerator(createSettingsPatternResolver(h.settings.settingsService)),

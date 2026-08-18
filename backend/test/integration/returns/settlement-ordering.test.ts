@@ -49,19 +49,13 @@ describe('returns — the settlement ordering law (D-91)', () => {
     await teardownBackendServer(h);
   });
 
-  /**
-   * One channel for every order this file seeds: the invoice number counter is
-   * per (channel, kind, year) while `invoices.number` is globally unique, so two
-   * orders on two fresh channels both draw sequence 1 and the second issuance
-   * dies on the unique index.
-   */
-  const SALES_CHANNEL_ID = randomUUID();
-
   /** Create a case, authorize it, and move it to `received` so it can settle. */
   async function receivedCase(): Promise<{ id: string; itemId: string; orderId: string }> {
-    const { orderId, itemIds } = await seedReturnableOrder(h.em(), {
-      salesChannelId: SALES_CHANNEL_ID,
-    });
+    // Feature 078, D-95 retired this file's one-channel-per-file workaround: the
+    // seeder resolves the real system-default channel and the numbering pattern
+    // carries the channel, so several corrective invoices in one file no longer
+    // race for the same number.
+    const { orderId, itemIds } = await seedReturnableOrder(h.em());
     const reasonId = await anyReasonId(h.em());
     const created = await h.app.inject({
       method: 'POST',

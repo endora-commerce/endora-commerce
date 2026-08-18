@@ -305,3 +305,53 @@ export interface InvoicePdfPort {
   renderMinimal(params: { invoiceNumber: string; total: string; currency: string }): Uint8Array;
   renderBulk(invoices: readonly InvoicePdfLine[]): Uint8Array;
 }
+
+// ---------------------------------------------------------------------------
+// Numbering — the pattern vocabulary and the collision shapes (feature 078, D-95)
+// ---------------------------------------------------------------------------
+
+/**
+ * The tokens an invoice numbering pattern may contain. Everything else in a
+ * pattern is literal text.
+ *
+ * `{channel}` renders the sales channel's `code`, uppercased and otherwise
+ * verbatim. The code charset is `/^[a-z][a-z0-9_-]*$/`
+ * (`salesChannelCreateBodySchema`), so uppercasing is injective and no two
+ * channels can produce the same discriminator; the code is also immutable
+ * (the update schema accepts it only when it repeats the current value), so a
+ * number already rendered through `{channel}` can never be retroactively
+ * invalidated by a rename.
+ */
+export const INVOICE_NUMBER_TOKENS = [
+  'seq',
+  'seq:N',
+  'channel',
+  'YYYY',
+  'YY',
+  'MM',
+] as const;
+export type InvoiceNumberToken = (typeof INVOICE_NUMBER_TOKENS)[number];
+
+/** One channel's numbering series for one document kind. */
+export interface NumberingSeries {
+  readonly salesChannelId: string;
+  readonly salesChannelCode: string;
+  readonly salesChannelName: string;
+  /** The *effective* pattern: the stored value, or the default when it is blank. */
+  readonly pattern: string;
+}
+
+/** Two series that can render one and the same document number. */
+export interface NumberPatternCollision {
+  readonly a: NumberingSeries;
+  readonly b: NumberingSeries;
+  /** One string both series can render — the proof, for the log and for tests. */
+  readonly example: string;
+}
+
+/**
+ * Why a single pattern cannot number a series on its own. Today there is one
+ * reason: a pattern with no sequence token renders one string for a whole
+ * year, so it collides with itself on the second document.
+ */
+export type NumberPatternSequenceDefect = 'no_sequence_token';

@@ -220,7 +220,17 @@ export const TIMERS_WITHOUT_PRESENCE: Readonly<Record<string, string>> = {
  * mixed hook is a claim that the contribution beside the work is fine to lose
  * while the module is off.
  */
-export const BOOT_HOOKS_WITHOUT_PRESENCE: Readonly<Record<string, string>> = {};
+export const BOOT_HOOKS_WITHOUT_PRESENCE: Readonly<Record<string, string>> = {
+  'modules/invoices/backend.ts:onBoot#3:ctx.onBoot':
+    'Feature 078, D-95.3. The hook pins the system-default sales channel to its pre-D-95 ' +
+    'numbering pattern, once, and then reports colliding patterns. It is a one-time migration ' +
+    "of this module's own configuration, and activation is reversible where a migration is " +
+    'not: probing presence means a deployment that happened to have `invoices` switched off ' +
+    'during the upgrade gets the new `{channel}` default applied to its first channel instead, ' +
+    'and its invoice numbers change shape. The write is idempotent and writes at most three ' +
+    'rows, so a boot with the module off costs nothing and leaves the operator ' +
+    'exactly the numbers they had. Retire this entry if the pin ever stops being one-time.',
+};
 
 /** `<file>:<scheduler>:<construct>` — the ledger key, and the identity of a site. */
 export function keyOf(found: UngatedEntry): string {

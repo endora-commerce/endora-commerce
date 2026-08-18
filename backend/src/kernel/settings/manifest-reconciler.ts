@@ -274,8 +274,24 @@ export class ManifestReconciler {
             valueType,
           );
         }
+        // A **declared** default migration (feature 078, D-95.3 move 4). A
+        // `defaultValue` change is breaking because it silently alters
+        // behaviour for every deployment that never overrode the value — but a
+        // module that names the exact prior value it supersedes has said which
+        // change is intended and how far it reaches. A stored default equal to
+        // one of those is moved forward; anything else, including an operator's
+        // own choice that happens to differ, still throws. Same shape and same
+        // self-healing argument as `isSanctionedSecretUpgrade` above; without
+        // it a shipped default can never change, because no composition root
+        // passes `force` at boot.
+        const isDeclaredDefaultMigration =
+          !isJsonEqual(existing.defaultValue, entry.defaultValue) &&
+          (entry.previousDefaultValues ?? []).some((previous) =>
+            isJsonEqual(existing.defaultValue, previous),
+          );
         if (
           !isJsonEqual(existing.defaultValue, entry.defaultValue) &&
+          !isDeclaredDefaultMigration &&
           !options.force
         ) {
           throw new BreakingChangeRejected(
@@ -286,6 +302,10 @@ export class ManifestReconciler {
           );
         }
         let changed = false;
+        if (isDeclaredDefaultMigration) {
+          existing.defaultValue = entry.defaultValue;
+          changed = true;
+        }
         if (existing.name !== entry.name) {
           existing.name = entry.name;
           changed = true;

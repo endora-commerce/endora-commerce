@@ -17,5 +17,12 @@
   "errors.INVOICE_ALREADY_EXISTS": "An invoice of this kind already exists for the order.",
   "errors.ORDER_NOT_FOUND": "Order not found.",
   "errors.INVOICE_NOT_FOUND": "Invoice not found.",
-  "errors.CORRECTION_CURRENCY_MISMATCH": "A correction must be issued in the corrected invoice's currency ({originalCurrency}); {requestedCurrency} was requested. No conversion is applied."
+  "errors.CORRECTION_CURRENCY_MISMATCH": "A correction must be issued in the corrected invoice's currency ({originalCurrency}); {requestedCurrency} was requested. No conversion is applied.",
+  "errors.INVOICE_NOT_READY": "The invoice for this order is not ready yet. It becomes available once it has been issued.",
+  "errors.INVOICE_NUMBER_PATTERN_COLLIDES": "This numbering pattern can produce the same document number as another sales channel. Invoice numbers must be unique across the whole platform.",
+  "errors.INVOICE_NUMBER_PATTERN_COLLIDES.other_channel": "This numbering pattern can produce the same document number as sales channel \"{channel}\". Invoice numbers are unique across the whole platform, so give this channel a pattern the other one cannot repeat — adding the channel token is the usual way.",
+  "errors.INVOICE_NUMBER_PATTERN_COLLIDES.no_sequence_token": "This numbering pattern has no sequence token, so every document in this channel would be given the same number. The field description lists the tokens you can use.",
+  "errors.INVOICE_NUMBER_ALREADY_ISSUED": "This document number is already in use. Invoice numbers are unique across the whole platform.",
+  "errors.INVOICE_NUMBER_ALREADY_ISSUED.other_channel": "Invoice number {number} is already used by sales channel \"{channel}\". Give this channel its own numbering pattern before issuing again — nothing was issued.",
+  "errors.INVOICE_NUMBER_ALREADY_ISSUED.same_channel": "Invoice number {number} has already been issued in this sales channel, so its numbering pattern is producing repeats — nothing was issued."
 }

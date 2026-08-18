@@ -11,6 +11,8 @@ import {
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
 import { isOrgInScope } from '../../../tenancy/derived-scope.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
+import { refuseDuplicateInvoiceNumber } from './duplicate-number-refusal.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { SellerSettingsResolver } from './seller-settings.js';
 import { buildInvoiceLines, type RawOrderLine } from './invoice-line-builder.js';
@@ -144,8 +146,13 @@ export class InvoiceService {
       country: order.billingAddress.country,
     };
 
-    const invoice = await em.transactional(async (tx) => {
+    // Captured out of the transaction on purpose: the callback's result is lost
+    // when the transaction aborts, and the duplicate-number refusal exists to
+    // name the number that was drawn.
+    let drawnNumber: string | null = null;
+    const invoice = await this.issueInTransaction(em, async (tx) => {
       const number = await this.numbers.next(tx, kind, order.salesChannelId, issuedAt);
+      drawnNumber = number;
       const inv = tx.create(Invoice, {
         orderId,
         salesChannelId: order.salesChannelId,
@@ -184,7 +191,7 @@ export class InvoiceService {
       }
       await tx.flush();
       return inv;
-    });
+    }, () => drawnNumber, order.salesChannelId);
 
     // Audit (FR-035) — best-effort; never fails issuance.
     if (this.audit) {
@@ -216,6 +223,35 @@ export class InvoiceService {
     });
 
     return this.buildDetail(invoice.id);
+  }
+
+  /**
+   * Run the issuing transaction, translating a duplicated invoice number into
+   * `409 INVOICE_NUMBER_ALREADY_ISSUED` (feature 078, D-95.2).
+   *
+   * `rethrowIfModuleDisabled` is the **first** line of the catch, before any
+   * other test. `ModuleDisabledError` is an `HttpError`, so a status-code or
+   * class test would let it through by accident rather than by decision, and
+   * everything inside the callback can reach a port.
+   */
+  private async issueInTransaction(
+    em: EntityManager,
+    work: (tx: EntityManager) => Promise<Invoice>,
+    drawnNumber: () => string | null,
+    salesChannelId: string | null,
+  ): Promise<Invoice> {
+    try {
+      return await em.transactional(work);
+    } catch (err) {
+      rethrowIfModuleDisabled(err);
+      await refuseDuplicateInvoiceNumber({
+        error: err,
+        drawnNumber: drawnNumber(),
+        salesChannelId,
+        emFactory: this.emFactory,
+      });
+      throw err;
+    }
   }
 
   /**
