@@ -6,6 +6,7 @@ import {
   FEED_DELIVERY_LIMITS,
   PRODUCT_FEED_SETTING_CODES,
   type CatalogCategoryReadPort,
+  type CatalogProductFilterPort,
   type CatalogProductReadPort,
   type CatalogProductRecord,
   type CredentialsPort,
@@ -241,6 +242,13 @@ export interface ProductFeedsModuleOptions {
    * the port fails closed and the run records the failure.
    */
   catalogProducts: CatalogProductReadPort;
+  /**
+   * The selection scan (feature 075). The criteria compiler emits `catalog`'s
+   * published filter grammar and this port runs it — with the eligibility floor
+   * and the keyset cursor on the owner's side, where an operator's rule cannot
+   * compose past them.
+   */
+  catalogProductFilter: CatalogProductFilterPort;
   /** The category tree the taxonomy screens and a run's provider mapping read. */
   catalogCategories: CatalogCategoryReadPort;
   /** Feed validation refuses a price list that no longer exists (FR-021). */
@@ -506,9 +514,10 @@ export function productFeedsModule(
   };
 
   const selection = new ProductSelectionService({
-    emFactory: options.emFactory,
     membership: options.salesChannelMembership,
     catalog: catalogSelection,
+    productFilter: options.catalogProductFilter,
+    productReads: options.catalogProducts,
     resolveAvailability: options.resolveAvailability,
     resolvePrices: resolveSelectionPrices,
   });

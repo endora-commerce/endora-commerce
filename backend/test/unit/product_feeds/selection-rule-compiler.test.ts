@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProductSelectionRule } from '@b2b/contracts';
+import type { CatalogProductFilter, ProductSelectionRule } from '@b2b/contracts';
 import {
   collectSelectionCategoryIds,
   compileSelectionRule,
@@ -14,9 +14,17 @@ import {
  * The compiler is deliberately a pure function so the one property that
  * matters can be asserted without a database: **a criterion the compiler does
  * not understand never becomes a no-op**. A rule naming a deleted attribute
- * must fail loudly; a rule the SQL layer cannot express on its own must carry
- * an in-memory evaluator with it, so the SQL superset can never be mistaken
- * for the answer (FR-029).
+ * must fail loudly; a rule the query layer cannot express on its own must carry
+ * an in-memory evaluator with it, so the query-stage superset can never be
+ * mistaken for the answer (FR-029).
+ *
+ * **Feature 075 changed what it emits and not what it means.** Every assertion
+ * below used to name a MikroORM `where` object; the compiler emits
+ * `CatalogProductFilter` now — `catalog`'s published grammar — and this module
+ * no longer knows how a filter becomes SQL. The last case in this file is the
+ * one that is new rather than transcribed: it walks the whole output and
+ * refuses any node the published grammar does not name, so a future edit
+ * cannot smuggle a query object back across the boundary.
  */
 
 const CAT_TOOLS = '00000000-0000-4000-8000-00000000c001';
@@ -31,6 +39,20 @@ function context(over: Partial<SelectionCompileContext> = {}): SelectionCompileC
     ]),
     ...over,
   };
+}
+
+/** One published condition on a product column. */
+function column(
+  name: 'id' | 'sku' | 'type' | 'status' | 'createdAt' | 'updatedAt',
+  op: string,
+  values: unknown[],
+): unknown {
+  return { kind: 'condition', field: { kind: 'column', column: name }, op, values };
+}
+
+/** One published condition on a key of the attribute bag. */
+function attribute(key: string, op: string, values: unknown[]): unknown {
+  return { kind: 'condition', field: { kind: 'attribute', key }, op, values };
 }
 
 function candidate(over: Partial<SelectionCandidate> = {}): SelectionCandidate {
@@ -51,7 +73,7 @@ describe('selection rule compiler [unit]', () => {
   describe('the empty rule', () => {
     it('compiles `all` to an empty predicate and no evaluator', () => {
       const compiled = compileSelectionRule({ kind: 'all' }, context());
-      expect(compiled.predicate).toEqual({});
+      expect(compiled.filter).toEqual({ kind: 'all' });
       expect(compiled.evaluate).toBeNull();
       expect(compiled.needsStock).toBe(false);
       expect(compiled.needsPrice).toBe(false);
@@ -64,7 +86,9 @@ describe('selection rule compiler [unit]', () => {
         { kind: 'condition', field: { kind: 'builtin', key: 'status' }, op: 'eq', values: ['active'] },
         context(),
       );
-      expect(compiled.predicate).toEqual({ status: 'active' });
+      expect(compiled.filter).toEqual(
+        column('status', 'eq', ['active']),
+      );
     });
 
     it('compiles product type onto the `type` column, not a `productType` one', () => {
@@ -77,7 +101,7 @@ describe('selection rule compiler [unit]', () => {
         },
         context(),
       );
-      expect(compiled.predicate).toEqual({ type: { $in: ['simple', 'configurable'] } });
+      expect(compiled.filter).toEqual(column('type', 'in', ['simple', 'configurable']));
     });
 
     it('compiles category membership to the pre-resolved descendant id set', () => {
@@ -90,7 +114,7 @@ describe('selection rule compiler [unit]', () => {
         },
         context(),
       );
-      expect(compiled.predicate).toEqual({ id: { $in: ['p-1', 'p-2'] } });
+      expect(compiled.filter).toEqual(column('id', 'in', ['p-1', 'p-2']));
     });
 
     it('compiles `notIn` on a category to an exclusion, never to a no-op', () => {
@@ -103,7 +127,7 @@ describe('selection rule compiler [unit]', () => {
         },
         context(),
       );
-      expect(compiled.predicate).toEqual({ id: { $nin: ['p-3'] } });
+      expect(compiled.filter).toEqual(column('id', 'nin', ['p-3']));
     });
 
     it('compiles an empty category to an unsatisfiable predicate, not to everything', () => {
@@ -116,7 +140,7 @@ describe('selection rule compiler [unit]', () => {
         },
         context(),
       );
-      expect(compiled.predicate).toEqual({ id: { $in: [] } });
+      expect(compiled.filter).toEqual({ kind: 'none' });
     });
 
     it('compiles brand onto the product attribute bag', () => {
@@ -124,7 +148,7 @@ describe('selection rule compiler [unit]', () => {
         { kind: 'condition', field: { kind: 'builtin', key: 'brand' }, op: 'eq', values: ['Acme'] },
         context(),
       );
-      expect(compiled.predicate).toEqual({ attributeValues: { brand: 'Acme' } });
+      expect(compiled.filter).toEqual(attribute('brand', 'eq', ['Acme']));
     });
 
     it('compiles createdAt / updatedAt as dates, not as strings', () => {
@@ -137,8 +161,12 @@ describe('selection rule compiler [unit]', () => {
         },
         context(),
       );
-      const predicate = compiled.predicate as { createdAt: { $gte: unknown } };
-      expect(predicate.createdAt.$gte).toBeInstanceOf(Date);
+      expect(compiled.filter).toMatchObject({
+        kind: 'condition',
+        field: { kind: 'column', column: 'createdAt' },
+        op: 'gte',
+      });
+      expect((compiled.filter as unknown as { values: unknown[] }).values[0]).toBeInstanceOf(Date);
     });
 
     it('compiles an attribute condition against the JSONB bag', () => {
@@ -151,7 +179,7 @@ describe('selection rule compiler [unit]', () => {
         },
         context(),
       );
-      expect(compiled.predicate).toEqual({ attributeValues: { colour: { $in: ['red', 'blue'] } } });
+      expect(compiled.filter).toEqual(attribute('colour', 'in', ['red', 'blue']));
     });
 
     it('compiles a custom field the same way — one registry since feature 061', () => {
@@ -164,7 +192,7 @@ describe('selection rule compiler [unit]', () => {
         },
         context(),
       );
-      expect(compiled.predicate).toEqual({ attributeValues: { warranty_months: 24 } });
+      expect(compiled.filter).toEqual(attribute('warranty_months', 'eq', [24]));
     });
 
     it('marks stock availability as needing the inventory port', () => {
@@ -239,8 +267,13 @@ describe('selection rule compiler [unit]', () => {
           },
         ],
       };
-      expect(compileSelectionRule(rule, context()).predicate).toEqual({
-        $or: [{ status: 'active' }, { $and: [{ type: 'simple' }] }],
+      expect(compileSelectionRule(rule, context()).filter).toEqual({
+        kind: 'group',
+        op: 'or',
+        children: [
+          column('status', 'eq', ['active']),
+          { kind: 'group', op: 'and', children: [column('type', 'eq', ['simple'])] },
+        ],
       });
     });
 
@@ -259,12 +292,16 @@ describe('selection rule compiler [unit]', () => {
         ],
       };
       const compiled = compileSelectionRule(rule, context());
-      // The SQL side is a deliberate SUPERSET, and the refinement branch has to
-      // say so **explicitly**: an empty object inside `$or` collapses the branch
-      // in the query builder, which would make the SQL stage narrower than the
-      // rule and drop matching products before the evaluator ever sees them.
-      expect(compiled.predicate).toEqual({
-        $or: [{ status: 'inactive' }, { id: { $ne: null } }],
+      // The query side is a deliberate SUPERSET, and the refinement branch has
+      // to say so **explicitly**: an empty predicate inside `$or` collapses the
+      // branch in the query builder, which would make the query stage narrower
+      // than the rule and drop matching products before the evaluator ever sees
+      // them. `all` is the named node that says it, and translating it into a
+      // tautology is `catalog`'s job rather than this module's.
+      expect(compiled.filter).toEqual({
+        kind: 'group',
+        op: 'or',
+        children: [column('status', 'eq', ['inactive']), { kind: 'all' }],
       });
       expect(compiled.evaluate).not.toBeNull();
       expect(compiled.evaluate!(candidate({ status: 'active', inStock: true }))).toBe(true);
@@ -342,16 +379,16 @@ describe('selection rule compiler [unit]', () => {
         },
         context(),
       );
-      expect(compiled.predicate).toEqual({ id: null });
+      expect(compiled.filter).toEqual({ kind: 'none' });
     });
 
-    it('never compiles a condition with no values to an empty predicate', () => {
+    it('never compiles a condition with no values to an unconstrained filter', () => {
       const compiled = compileSelectionRule(
         { kind: 'condition', field: { kind: 'builtin', key: 'status' }, op: 'eq', values: [] },
         context(),
       );
-      expect(compiled.predicate).not.toEqual({});
-      expect(compiled.predicate).toEqual({ id: null });
+      expect(compiled.filter).not.toEqual({ kind: 'all' });
+      expect(compiled.filter).toEqual({ kind: 'none' });
     });
   });
 
@@ -389,4 +426,46 @@ describe('selection rule compiler [unit]', () => {
       expect(collectSelectionCategoryIds({ kind: 'all' })).toEqual([]);
     });
   });
+
+  describe('the published grammar is the only thing that crosses (feature 075)', () => {
+    it('emits no node the contract does not name, for a rule using every field type', () => {
+      // The property this whole cut exists for: until it, this compiler produced
+      // a MikroORM `where` and `product-selection.service.ts` handed it to
+      // `em.find(Product, where as never)` — a query object crossing a module
+      // boundary. Asserting one expected shape per case cannot catch a *new*
+      // leaf that reintroduces one, so this walks the output instead.
+      const rule: ProductSelectionRule = {
+        kind: 'group',
+        op: 'AND',
+        children: [
+          { kind: 'condition', field: { kind: 'builtin', key: 'status' }, op: 'eq', values: ['active'] },
+          { kind: 'condition', field: { kind: 'builtin', key: 'productType' }, op: 'in', values: ['simple'] },
+          { kind: 'condition', field: { kind: 'builtin', key: 'brand' }, op: 'startsWith', values: ['Ac'] },
+          { kind: 'condition', field: { kind: 'builtin', key: 'category' }, op: 'in', values: [CAT_TOOLS] },
+          {
+            kind: 'condition',
+            field: { kind: 'builtin', key: 'createdAt' },
+            op: 'between',
+            values: ['2026-01-01T00:00:00.000Z', '2026-12-31T00:00:00.000Z'],
+          },
+          { kind: 'condition', field: { kind: 'attribute', attributeKey: 'colour' }, op: 'isSet', values: [] },
+          { kind: 'condition', field: { kind: 'builtin', key: 'stockState' }, op: 'eq', values: ['in_stock'] },
+        ],
+      };
+
+      const nodes = flatten(compileSelectionRule(rule, context()).filter);
+      expect(nodes.length).toBeGreaterThan(7);
+      for (const node of nodes) {
+        expect(['all', 'none', 'group', 'condition']).toContain(node.kind);
+        // No `$and`, no `$or`, no `$in`, no `attributeValues` — the four shapes
+        // a MikroORM predicate would have carried across.
+        expect(Object.keys(node).every((key) => !key.startsWith('$'))).toBe(true);
+      }
+    });
+  });
 });
+
+function flatten(filter: CatalogProductFilter): CatalogProductFilter[] {
+  if (filter.kind !== 'group') return [filter];
+  return [filter, ...filter.children.flatMap(flatten)];
+}
