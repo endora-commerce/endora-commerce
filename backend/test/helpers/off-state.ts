@@ -152,6 +152,13 @@ export interface OffStateSurfaces {
   };
 }
 
+/**
+ * The two surfaces the harness reads. `permissionCatalogueService` is optional
+ * only because the harness's own unit test drives a bare `{ app }` fixture;
+ * every real caller passes the `BackendServerHandle`, which carries it, so the
+ * catalogue sweep runs everywhere it can mean something rather than everywhere
+ * somebody remembered to ask for it.
+ */
 interface ServerLike {
   app: {
     inject(opts: InjectOptions): Promise<{
@@ -159,6 +166,10 @@ interface ServerLike {
       headers: Record<string, unknown>;
       json(): { error?: { code?: string } };
     }>;
+  };
+  permissionCatalogueService?: {
+    listAssignable(): ReadonlyArray<{ code: string }>;
+    listOwnedCodes(moduleId: string): string[];
   };
 }
 
@@ -256,6 +267,62 @@ async function expectPresenceReports(
   ).toBe(present);
 }
 
+/**
+ * Constitution XVII item 5, on the surface it had never been checked on: a
+ * module that is off contributes **no permission** to `/admin-roles`.
+ *
+ * This is issue #213's obligation, and it is asserted automatically rather than
+ * declared per module for the reason the whole file exists — an off-state
+ * obligation a caller has to opt into is an off-state obligation half the
+ * callers will not opt into. `listOwnedCodes` is read from the catalogue rather
+ * than from the manifest, because a module's codes are not all in its manifest:
+ * `blog.read`, `orders:write` and thirteen others live in the core
+ * `PERMISSION_CATALOGUE`, and a manifest-only sweep would have measured nothing
+ * for exactly the modules the defect was reported against.
+ *
+ * A **shared** code is excluded while it still has a present owner:
+ * `integrations:manage` gates both `api_keys` and `webhooks`, and switching one
+ * of them off must leave the other's gate grantable. The exclusion is computed
+ * from the live presence set rather than listed, so a second owner added later
+ * is handled without editing this file.
+ *
+ * A module that owns no code of its own is skipped, and that is honest rather
+ * than vacuous: there is nothing for it to contribute either way.
+ */
+function expectPermissionCatalogueReflects(
+  server: ServerLike,
+  moduleId: string,
+  grantable: boolean,
+  phase: string,
+): void {
+  const catalogue = server.permissionCatalogueService;
+  if (!catalogue) return;
+  const ownedByAnotherPresentModule = new Set(
+    registryCache
+      .enabledIds()
+      .filter((id) => id !== moduleId && effectiveState.isPresent(id))
+      .flatMap((id) => catalogue.listOwnedCodes(id)),
+  );
+  const exclusive = catalogue
+    .listOwnedCodes(moduleId)
+    .filter((code) => !ownedByAnotherPresentModule.has(code));
+  if (exclusive.length === 0) return;
+
+  const assignable = new Set(catalogue.listAssignable().map((entry) => entry.code));
+  if (grantable) {
+    expect(
+      exclusive.filter((code) => !assignable.has(code)),
+      `[off-state:${phase}] "${moduleId}" owns these codes but /admin-roles does not offer them`,
+    ).toEqual([]);
+  } else {
+    expect(
+      exclusive.filter((code) => assignable.has(code)),
+      `[off-state:${phase}] "${moduleId}" is off, so /admin-roles must not offer ` +
+        `its permission codes (Constitution XVII item 5)`,
+    ).toEqual([]);
+  }
+}
+
 async function expectSettingWriteRefused(
   server: ServerLike,
   moduleId: string,
@@ -278,6 +345,11 @@ async function expectSettingWriteRefused(
 /**
  * Assert that `moduleId` is absent on every declared surface while it is off —
  * on **each axis independently** — and fully restored afterwards.
+ *
+ * The `/admin-roles` permission catalogue is swept on every call and takes no
+ * declaration: issue #213 found all 65 modules contributing their codes to it
+ * while deactivated, and the reason it went unnoticed is that this harness had
+ * never looked at that surface. See `expectPermissionCatalogueReflects`.
  *
  * ```ts
  * await expectModuleAbsent(server, 'pim_ergonode', {
@@ -313,6 +385,7 @@ export async function expectModuleAbsent(
     // always-broken route would read as a successful absence.
     await expectRoutesAnswering(server, moduleId, surfaces, 'before');
     await expectPresenceReports(server, moduleId, surfaces, true, 'before');
+    expectPermissionCatalogueReflects(server, moduleId, true, 'before');
 
     // Axis 1 — the operator switched it off; the platform still offers it.
     // This is the case Constitution XVII calls out by name.
@@ -331,6 +404,7 @@ export async function expectModuleAbsent(
           `seeded activation value may make it absent`,
       ).toBe(true);
       await expectRoutesAnswering(server, moduleId, surfaces, 'deactivated');
+      expectPermissionCatalogueReflects(server, moduleId, true, 'deactivated');
       registryCache.__setEnabledForTesting(baseline);
     } else {
       // `withModuleOff` asserts the flip actually took before anything observes
@@ -339,6 +413,7 @@ export async function expectModuleAbsent(
         await expectRoutesRefused(server, moduleId, surfaces, 'deactivated');
         await expectPresenceReports(server, moduleId, surfaces, false, 'deactivated');
         await expectSettingWriteRefused(server, moduleId, surfaces, 'deactivated');
+        expectPermissionCatalogueReflects(server, moduleId, false, 'deactivated');
       });
     }
 
@@ -349,6 +424,7 @@ export async function expectModuleAbsent(
       await expectRoutesRefused(server, moduleId, surfaces, 'platform-unavailable');
       await expectPresenceReports(server, moduleId, surfaces, false, 'platform-unavailable');
       await expectSettingWriteRefused(server, moduleId, surfaces, 'platform-unavailable');
+      expectPermissionCatalogueReflects(server, moduleId, false, 'platform-unavailable');
     });
   } finally {
     registryCache.__setEnabledForTesting(baseline);
@@ -357,4 +433,5 @@ export async function expectModuleAbsent(
   // Off is non-destructive and reversible: everything answers again.
   await expectRoutesAnswering(server, moduleId, surfaces, 'restored');
   await expectPresenceReports(server, moduleId, surfaces, true, 'restored');
+  expectPermissionCatalogueReflects(server, moduleId, true, 'restored');
 }

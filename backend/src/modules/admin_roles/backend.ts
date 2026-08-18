@@ -10,6 +10,7 @@ import type {
 } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { AdminRoleService } from './services/admin-role-service.js';
 import { createAdminRolePort, createSystemRoleCodePort } from './services/admin-role-ports.js';
 import { PermissionCatalogueService } from './services/permission-catalogue.service.js';
@@ -74,7 +75,19 @@ export function registerModule(ctx: ModuleContext): void {
     permissionCatalogueService: ctx
       .asFunction(
         ({ resolvedModuleRegistry }: AdminRolesCradle) =>
-          new PermissionCatalogueService({ registryEntries: [...resolvedModuleRegistry] }),
+          new PermissionCatalogueService({
+            registryEntries: [...resolvedModuleRegistry],
+            // Issue #213 — the presence predicate is the module's own to read,
+            // not a knob a root turns on its behalf. Both roots used to wire
+            // `registryCache.enabledIds()` here through a setter, which is
+            // composition-checklist item 6's "a knob a root resolves on the
+            // module's behalf is a knob that drifts between the two roots" —
+            // and it had drifted onto the wrong axis in both copies at once.
+            // `effectiveState` is the kernel's one place where the two axes are
+            // combined, and reading it directly is what the other twenty
+            // modules that need presence already do.
+            isModulePresent: (moduleId) => effectiveState.isPresent(moduleId),
+          }),
       )
       .singleton(),
 

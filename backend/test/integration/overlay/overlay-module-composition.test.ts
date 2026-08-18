@@ -118,47 +118,42 @@ describe('T-C — switching the overlay module off [integration]', () => {
   });
 
   /**
-   * §4's T-C also asks that `example_overlay:manage` leave the grantable set
-   * while the module is deactivated. **It does not, and neither does any core
-   * module's permission** — so this case pins what the platform actually does
-   * and names the gap, rather than asserting a behaviour that does not exist
-   * for anything.
+   * §4's T-C: `example_overlay:manage` must leave the grantable set while the
+   * module is deactivated.
    *
-   * Two separate reasons, both pre-existing and both platform-wide, neither
-   * introduced by D-103:
-   *
-   *  1. `PermissionCatalogueService` filters on `registryCache.enabledIds()`
-   *     (`test-server.ts`, mirroring `composition.ts`), and that set is the
-   *     **platform** axis only — `__setEnabledForTesting(ids, { deactivated })`
-   *     leaves the id in `enabled` and flips `activation`. So an operator
-   *     deactivation never reaches the catalogue for any module.
-   *  2. `listAssignable()` memoises into `this.cached` and nothing invalidates
-   *     it on a state flip, so even a platform-axis change is invisible until
-   *     something calls `invalidate()`.
-   *
-   * Constitution XVII says a module that is off contributes no permission, so
-   * this is a real gap — in `admin_roles`, for all 65 modules. It is reported
-   * rather than fixed here: widening the accessor to the effective state is a
-   * change to every module's catalogue behaviour and belongs with the off-state
-   * harness, which covers routes, admin presence and setting writes and has
-   * never covered the catalogue either.
-   *
-   * The case is two-way on purpose: it goes red the day the gap is closed, and
-   * the fixer deletes it.
+   * This case was written the other way up. When !716 landed, it asserted that
+   * the code **stayed** grantable and named the two reasons — the catalogue
+   * filtered on `registryCache.enabledIds()`, which is the platform axis alone,
+   * and `listAssignable()` memoised into a field nothing dropped on a state
+   * flip — so that the platform-wide gap was pinned rather than hidden behind an
+   * overlay-shaped assertion. Issue #213 closed it: the catalogue reads
+   * `effectiveState.isPresent` and keeps no memo. What is kept from the original
+   * is the shape that made it worth writing — the **core control** below, which
+   * is what tells a defect in `admin_roles` apart from a defect in the overlay
+   * path.
    */
-  it('keeps the permission grantable while deactivated — the platform-wide gap, pinned', async () => {
+  it('takes the permission out of the grantable set while deactivated', async () => {
     const codesWhileOff = await withModuleOff('example_overlay', 'deactivated', () =>
       h.permissionCatalogueService.listAssignable().map((entry) => entry.code),
     );
-    expect(codesWhileOff).toContain('example_overlay:manage');
+    expect(codesWhileOff).not.toContain('example_overlay:manage');
 
-    // The same is true of a core module with an activation control, which is
-    // what makes this a property of the catalogue rather than of the overlay
-    // path. Without this half the case would read as an overlay defect.
+    // The same holds for a core module with an activation control, which is what
+    // makes this a property of the catalogue rather than of the overlay path.
+    // Without this half the case would read as an overlay fix.
     const blogCodesWhileOff = await withModuleOff('blog', 'deactivated', () =>
       h.permissionCatalogueService.listAssignable().map((entry) => entry.code),
     );
-    expect(blogCodesWhileOff.some((code) => code.startsWith('blog.'))).toBe(true);
+    expect(blogCodesWhileOff.some((code) => code.startsWith('blog.'))).toBe(false);
+  });
+
+  it('puts the permission back when the module is switched on again', async () => {
+    // Off is non-destructive and reversible, and the catalogue is where that is
+    // cheapest to get wrong: a memo dropped on the way off and never rebuilt
+    // looks identical to a correct filter until somebody switches back on.
+    const restored = h.permissionCatalogueService.listAssignable().map((e) => e.code);
+    expect(restored).toContain('example_overlay:manage');
+    expect(restored.some((code) => code.startsWith('blog.'))).toBe(true);
   });
 });
 

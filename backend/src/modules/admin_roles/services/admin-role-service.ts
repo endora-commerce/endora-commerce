@@ -217,11 +217,18 @@ export class AdminRoleService {
    * Validate an explicit permission list and collapse the wildcard. A list
    * containing `*` is "full access" — it normalises to exactly `['*']` and the
    * catalogue check is skipped. Otherwise every code must exist in the merged
-   * assignable catalogue, else a 400 VALIDATION_FAILED is raised.
+   * catalogue, else a 400 VALIDATION_FAILED is raised.
+   *
+   * Issue #213 — validated against the **known** vocabulary, not the grantable
+   * set. Since the grantable set became presence-filtered, the two differ
+   * exactly while a module is off, and validating against the narrower one
+   * would refuse to save any role that still holds a switched-off module's
+   * code. Off is non-destructive and reversible; a 400 on an unrelated rename
+   * is neither. See `PermissionCatalogueService.listKnownCodes`.
    */
   #normalizePermissions(permissions: string[]): string[] {
     if (permissions.includes(WILDCARD)) return [WILDCARD];
-    const known = new Set(this.permissionCatalogue.listAssignableCodes());
+    const known = new Set(this.permissionCatalogue.listKnownCodes());
     const invalid = permissions.filter((p) => !known.has(p));
     if (invalid.length > 0) {
       throw new HttpError(

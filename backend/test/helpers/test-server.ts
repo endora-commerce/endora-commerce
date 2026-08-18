@@ -30,11 +30,7 @@ function inertRedisSubscriber(): Redis {
 }
 import { buildServer, type ModulePlugin } from '../../src/http/server.js';
 import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
-import {
-  publishStateChanged,
-  registryCache,
-  STATE_CHANGED_CHANNEL,
-} from '../../src/kernel/lifecycle/registry-cache.js';
+import { publishStateChanged, registryCache } from '../../src/kernel/lifecycle/registry-cache.js';
 import { activationDeclarationsFrom } from '../../src/kernel/lifecycle/activation-resolver.js';
 import { effectiveState } from '../../src/kernel/lifecycle/effective-state.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
@@ -1015,10 +1011,6 @@ export async function setupBackendServer(
   const adminNotificationService = (
     container.cradle as unknown as { adminNotificationService: AdminNotificationService }
   ).adminNotificationService;
-  // The enabled-set accessor is wired here rather than with the seeding above,
-  // because the catalogue it wires is `admin_roles`' registration and does not
-  // exist until `composeModules` has run.
-  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
 
   // The mailer this composition sends through. A test that asserts on sent mail
   // supplies its own; otherwise it is the one the `email` module registered.
@@ -2502,21 +2494,17 @@ export async function setupBackendServer(
   // registers, which is the same order production now runs in: presence is a
   // composition input, and `__setEnabledForTesting` is the load without a
   // database.
-  // Feature 072 (T073) — the other half of the pub/sub path production runs: a
-  // module-state change invalidates the permission catalogue.
+  // Issue #213 — the module-state subscription this harness used to arm is gone,
+  // and so is the one in `composition.ts` it mirrored. Both existed to drop the
+  // permission catalogue's memo on a state change; the memo is gone, because the
+  // catalogue now tracks a Setting an operator flips at runtime and a per-process
+  // cache over that can only ever be stale between the flip and the message. A
+  // read that recomputes has nothing to invalidate and no listener to order.
   //
-  // The **subscribe** matters as much as the listener. Without it this handler
-  // was dead code: production subscribes through the lifecycle module, which
-  // the harness does not boot, so the channel had no subscriber and the
-  // listener never fired once.
-  if (options.exercisePubSub === true) {
-    await redisSubscriber.subscribe(STATE_CHANGED_CHANNEL);
-    redisSubscriber.on('message', (channel) => {
-      if (channel === STATE_CHANGED_CHANNEL) {
-        permissionCatalogueService.invalidate();
-      }
-    });
-  }
+  // `exercisePubSub` still decides whether the real subscriber client or an inert
+  // stand-in is registered, so the one remaining cross-process path
+  // (`custom_fields`, armed from its own boot hook) is live only where a test
+  // asks for it.
   await app.ready();
   // `_i18n` reconciles from its `ctx.routes` callback, so the bundles are on
   // disk-truth by the line above. Prove it before any test observes anything —

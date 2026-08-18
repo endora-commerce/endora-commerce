@@ -321,28 +321,34 @@ describe('T076 — what one composition costs, before the 555× multiplier', () 
 
   it('arms the subscription only where a test asks for it', () => {
     expect(PUBSUB_IS_OPT_IN).toBe(true);
-    // One subscribing site is left in the harness — the module-state channel.
+    // **No** subscribing site is left in the harness, and that is the stronger
+    // form of the property rather than a weakening of it.
+    //
     // The custom-field cache moved into `custom_fields`' own `onBoot` when the
     // module was converted (feature 072, T087), which is where it belongs and
     // which is also why the guard could not follow it: a module must not know
-    // it is being composed by a test harness.
+    // it is being composed by a test harness. So the guard moved to the *input*
+    // instead — the harness registers the real `redisSubscriber` only under
+    // `exercisePubSub` and an inert stand-in otherwise, and the module arms
+    // whichever it is handed.
     //
-    // So the guard moved to the *input* instead. The harness registers the real
-    // `redisSubscriber` only under `exercisePubSub` and an inert stand-in
-    // otherwise, and the module arms whichever it is handed. That keeps the
-    // property this test exists for — a live subscription only where a test
-    // asks for one — without the module carrying a test flag.
+    // The one site that remained was the module-state channel, which dropped
+    // the permission catalogue's memo. Issue #213 deleted the memo (and the
+    // matching listener in `composition.ts`), so both roots subscribe to that
+    // channel in exactly one place now — `registryCache.watch()`, which the
+    // harness deliberately does not arm because it never populates
+    // `module_registrations`.
     //
-    // Three occurrences: the remaining subscribing site, the registration
-    // ternary, and the handle flag that tells teardown whether there is
-    // anything to unsubscribe from. The flag exists because `unsubscribe()` on
-    // a client that never subscribed rejects asynchronously from ioredis's
-    // socket close handler, where no `try` can reach it.
+    // Two occurrences left: the registration ternary and the handle flag that
+    // tells teardown whether there is anything to unsubscribe from. The flag
+    // exists because `unsubscribe()` on a client that never subscribed rejects
+    // asynchronously from ioredis's socket close handler, where no `try` can
+    // reach it.
     const guards = [...harness.matchAll(/options\.exercisePubSub === true/g)].length;
     const subscribes = [...harness.matchAll(/\.(subscribe|start)\(redisSubscriber|redisSubscriber\.subscribe\(/g)]
       .length;
-    expect(guards).toBe(3);
-    expect(subscribes).toBe(1);
+    expect(guards).toBe(2);
+    expect(subscribes).toBe(0);
   });
 
   it('unsubscribes and drops listeners before disconnecting', () => {
