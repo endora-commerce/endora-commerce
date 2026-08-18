@@ -113,7 +113,10 @@ export class OrderCreationAdminService {
       for (const addressId of transientAddressIds) {
         try {
           await this.addressService.deleteAddress(organizationId, addressId);
-        } catch {
+        } catch (error) {
+          // `addresses` being absent is not a cleanup failure — it is the port's
+          // fail-closed answer, and it travels on (issue #197).
+          rethrowIfModuleDisabled(error);
           // best-effort cleanup; a leftover soft-deletable row is harmless.
         }
       }

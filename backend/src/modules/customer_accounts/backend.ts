@@ -139,10 +139,11 @@ export function registerModule(ctx: ModuleContext): void {
   //
   // The other two return the `CustomerAccount` **entity**, and an entity
   // crossing a boundary is the problem this feature exists to remove — so they
-  // get record-returning siblings rather than a rename. `customerAuthService`
-  // and `customerRoleService` stay registered for the consumers Phase C has
-  // not reached; `customerAuthPort` and `customerRolePort` are what those
-  // consumers rewire to.
+  // get record-returning siblings rather than a rename. `customerAuthPort` and
+  // `customerRolePort` are what the consumers rewired to — `customers` was the
+  // last of them, in issue #195 — and `customerAuthService` /
+  // `customerRoleService` stay registered because those two adapters are built
+  // over them.
   // ---------------------------------------------------------------------------
 
   ctx.di.providePort<CustomerAccountReadPort>(

@@ -19,6 +19,7 @@ import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js
 import { Order } from '../entities/order.entity.js';
 import { OrderPlacementIntent } from '../entities/order-placement-intent.entity.js';
 import type { OrderService } from './order-service.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /**
  * OrderApiIntakeService — feature 062 (research §R8, contracts/orders-api-key-intake.md §1).
@@ -284,7 +285,10 @@ export class OrderApiIntakeService {
       for (const addressId of transientAddressIds) {
         try {
           await this.deps.addressService.deleteAddress(binding.organizationId, addressId);
-        } catch {
+        } catch (error) {
+          // `addresses` being absent is not a cleanup failure — it is the port's
+          // fail-closed answer, and it travels on (issue #197).
+          rethrowIfModuleDisabled(error);
           // best-effort cleanup; a leftover soft-deletable row is harmless.
         }
       }

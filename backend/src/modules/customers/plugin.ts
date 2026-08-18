@@ -7,7 +7,6 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
-import type { CustomerAuthService as CustomerAuthServiceType } from '../customer_accounts/services/customer-auth-service.js';
 import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
 import { ImpersonationService } from '../admin_users/services/impersonation-service.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
@@ -27,7 +26,12 @@ import { CartQueryService } from '../carts/services/cart-query-service.js';
 import { AnonymizationSweepWorker } from './workers/anonymization-sweep-worker.js';
 import type { PasswordResetService as PasswordResetServiceType } from '../customer_accounts/services/password-reset-service.js';
 import type { Mailer } from '../email/services/mailer.js';
-import type { AuthSessionPort, CustomerAccountReadPort, VatValidator } from '@b2b/contracts';
+import type {
+  AuthSessionPort,
+  CustomerAccountReadPort,
+  CustomerAuthPort,
+  VatValidator,
+} from '@b2b/contracts';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
 import {
   registerCustomersSelfRoutes,
@@ -53,7 +57,7 @@ export interface CustomersModuleOptions {
    * than built here, because this host and `organizations` each built their own and the
    * MFA argument differed between them.
    */
-  customerAuthService: CustomerAuthServiceType;
+  customerAuthService: CustomerAuthPort;
   passwordResetService: PasswordResetServiceType;
   emFactory: () => EntityManager;
   sessionService: SessionService;

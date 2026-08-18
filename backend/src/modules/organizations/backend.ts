@@ -363,7 +363,12 @@ export function registerModule(ctx: ModuleContext): void {
             eventBus,
             commandBus,
             auditLogService,
-            addressService: lazyPort<AddressServicePort>(ctx, 'addressService'),
+            // Feature 075, Phase C (issue #195) — the record-mapping adapter,
+            // not the `addressService` class registration beside it: `Address`
+            // is structurally assignable to `AddressRecord`, so the old name
+            // compiled while the entity crossed. Same reasoning as the two
+            // `customer_accounts` ports below.
+            addressService: lazyPort<AddressServicePort>(ctx, 'addressServicePort'),
             // Every one of these is another module's **gated** port, and this
             // registration is a singleton: reading one here would put a
             // transient gate inside a longer-lived object, which Awilix's
