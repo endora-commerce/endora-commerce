@@ -1829,15 +1829,19 @@ export class OrderService {
     // transition owns the audit trail (mirrors credit_limits reserve/release).
     const em = this.emFactory();
     return em.transactional(async (tx) => {
-      const knex = tx.getKnex();
-      const itemRows = await knex('order_items')
-        .where('order_id', orderId)
-        .select<Array<{ id: string; product_id: string; variant_id: string | null; quantity: number }>>(
-          'id',
-          'product_id',
-          'variant_id',
-          'quantity',
-        );
+      // `tx.execute`, not `tx.getKnex()`: the knex instance is connection-level
+      // and carries no transaction context, so this read took its own pooled
+      // connection and could not see anything the surrounding transaction had
+      // written (issue #200). Harmless for committed order lines, and the exact
+      // shape that made the promotion-usage writes escape their transaction.
+      const itemRows = await tx.execute<
+        Array<{ id: string; product_id: string; variant_id: string | null; quantity: number }>
+      >(
+        `select "id", "product_id", "variant_id", "quantity"
+           from "order_items"
+          where "order_id" = ?`,
+        [orderId],
+      );
       if (itemRows.length === 0) return { released: 0 };
 
       const { StockAllocation } = await import(

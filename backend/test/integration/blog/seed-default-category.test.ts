@@ -10,8 +10,8 @@ describe('seedDefaultCategory (T022 — idempotent + admin-edit-safe)', () => {
 
   beforeAll(async () => {
     db = await setupTestDb();
-    const conn = db.orm.em.getConnection();
-    await conn.execute(
+    const em = db.orm.em;
+    await em.execute(
       `insert into sales_channels (id, code, name, default_language, default_currency, created_at, updated_at)
        values
          (?, 'seed-default-x', '{"en-US":"X"}'::jsonb, 'en-US', 'USD', now(), now()),
@@ -22,18 +22,18 @@ describe('seedDefaultCategory (T022 — idempotent + admin-edit-safe)', () => {
   });
 
   afterAll(async () => {
-    const conn = db.orm.em.getConnection();
-    await conn.execute(
+    const em = db.orm.em;
+    await em.execute(
       'truncate blog_category_sales_channels, blog_categories cascade',
     );
-    await conn.execute(`delete from sales_channels where id in (?, ?)`, [CHANNEL_X, CHANNEL_Y]);
+    await em.execute(`delete from sales_channels where id in (?, ?)`, [CHANNEL_X, CHANNEL_Y]);
     await db.close();
   });
 
   beforeEach(async () => {
     await db.beginTx();
-    const conn = db.em().getConnection();
-    await conn.execute(
+    const em = db.em();
+    await em.execute(
       'truncate blog_post_related_products, blog_post_related_posts, blog_post_tags, blog_post_categories, blog_post_languages, blog_post_sales_channels, blog_posts, blog_category_languages, blog_category_sales_channels, blog_categories, blog_tags cascade',
     );
   });
@@ -45,7 +45,7 @@ describe('seedDefaultCategory (T022 — idempotent + admin-edit-safe)', () => {
   it('creates the Default category on first run with system flag set', async () => {
     const r = await seedDefaultCategory(() => db.em());
     expect(r.created).toBe(true);
-    const rows = (await db.em().getConnection().execute(
+    const rows = (await db.em().execute(
       'select slug, name, enabled from blog_categories where is_system = true',
     )) as Array<{ slug: string; name: Record<string, string>; enabled: boolean }>;
     expect(rows).toHaveLength(1);
@@ -56,7 +56,7 @@ describe('seedDefaultCategory (T022 — idempotent + admin-edit-safe)', () => {
 
   it('attaches the Default category to every existing Sales Channel', async () => {
     await seedDefaultCategory(() => db.em());
-    const rows = (await db.em().getConnection().execute(
+    const rows = (await db.em().execute(
       'select sales_channel_id::text as id from blog_category_sales_channels order by sales_channel_id',
     )) as Array<{ id: string }>;
     const channelIds = rows.map((r) => r.id);
@@ -73,15 +73,15 @@ describe('seedDefaultCategory (T022 — idempotent + admin-edit-safe)', () => {
 
   it('preserves admin edits to name/slug across reruns', async () => {
     await seedDefaultCategory(() => db.em());
-    const conn = db.em().getConnection();
-    await conn.execute(
+    const em = db.em();
+    await em.execute(
       `update blog_categories
          set name = '{"pl-PL":"Aktualności"}'::jsonb,
              slug = 'aktualnosci'
        where is_system = true`,
     );
     await seedDefaultCategory(() => db.em());
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       'select slug, name from blog_categories where is_system = true',
     )) as Array<{ slug: string; name: Record<string, string> }>;
     expect(rows[0]!.name).toEqual({ 'pl-PL': 'Aktualności' });

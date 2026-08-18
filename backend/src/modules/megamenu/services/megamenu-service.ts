@@ -70,7 +70,7 @@ export class MegamenuService {
   // ────────────────────────────────────────────────────────────────────
 
   async list(): Promise<{ data: MegamenuSummary[]; nextCursor: null }> {
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       `select * from megamenus order by updated_at desc limit 100`,
     )) as MegamenuRow[];
     const data = await Promise.all(rows.map((row) => this.toSummary(row)));
@@ -81,7 +81,7 @@ export class MegamenuService {
     const em = this.emFactory();
     const id = randomUUID();
     const now = new Date();
-    await em.getConnection().execute(
+    await em.execute(
       `insert into megamenus (id, name, description, version, created_at, updated_at)
        values (?, ?, ?, 1, ?, ?)`,
       [id, input.name, input.description ?? null, now, now],
@@ -114,7 +114,7 @@ export class MegamenuService {
       }
       if (sets.length === 0) return;
       params.push(id);
-      await tx.getConnection().execute(
+      await tx.execute(
         `update megamenus
             set ${sets.join(', ')}, version = version + 1, updated_at = now()
           where id = ?`,
@@ -127,7 +127,7 @@ export class MegamenuService {
 
   async delete(id: string): Promise<void> {
     const em = this.emFactory();
-    const activeRows = (await em.getConnection().execute(
+    const activeRows = (await em.execute(
       `select 1 from megamenu_bindings where megamenu_id = ? and active = true limit 1`,
       [id],
     )) as Array<{ '?column?': number }>;
@@ -138,7 +138,7 @@ export class MegamenuService {
         'Megamenu has at least one active binding; deactivate before deleting.',
       );
     }
-    await em.getConnection().execute('delete from megamenus where id = ?', [id]);
+    await em.execute('delete from megamenus where id = ?', [id]);
     if (this.cache) await this.cache.invalidateAll();
   }
 
@@ -148,7 +148,7 @@ export class MegamenuService {
 
   async listBindings(menuId: string): Promise<MegamenuBindingDto[]> {
     await this.assertMenuExists(menuId);
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       `select * from megamenu_bindings where megamenu_id = ? order by created_at asc`,
       [menuId],
     )) as BindingRow[];
@@ -174,7 +174,7 @@ export class MegamenuService {
         `Language "${language}" is not in the channel's configured language set.`,
       );
     }
-    const existing = (await em.getConnection().execute(
+    const existing = (await em.execute(
       `select 1 from megamenu_bindings
         where megamenu_id = ? and sales_channel_id = ? and language = ?`,
       [menuId, salesChannelId, language],
@@ -187,14 +187,14 @@ export class MegamenuService {
       );
     }
     const now = new Date();
-    await em.getConnection().execute(
+    await em.execute(
       `insert into megamenu_bindings
          (megamenu_id, sales_channel_id, language, active, version, created_at, updated_at)
        values (?, ?, ?, false, 1, ?, ?)`,
       [menuId, salesChannelId, language, now, now],
     );
     if (this.cache) await this.cache.invalidateScope(channel.code, language);
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select * from megamenu_bindings
         where megamenu_id = ? and sales_channel_id = ? and language = ?`,
       [menuId, salesChannelId, language],
@@ -225,7 +225,7 @@ export class MegamenuService {
     const em = this.emFactory();
     await this.assertMenuExists(menuId);
     const channel = await this.fetchChannel(em, salesChannelId);
-    await em.getConnection().execute(
+    await em.execute(
       `delete from megamenu_bindings
         where megamenu_id = ? and sales_channel_id = ? and language = ?`,
       [menuId, salesChannelId, language],
@@ -250,7 +250,7 @@ export class MegamenuService {
     let response!: ActivateBindingResponse;
     await em.transactional(async (tx) => {
       // Verify the binding exists.
-      const binding = (await tx.getConnection().execute(
+      const binding = (await tx.execute(
         `select * from megamenu_bindings
           where megamenu_id = ? and sales_channel_id = ? and language = ?`,
         [menuId, salesChannelId, language],
@@ -264,7 +264,7 @@ export class MegamenuService {
       }
 
       // Refuse on empty tree (R10).
-      const items = (await tx.getConnection().execute(
+      const items = (await tx.execute(
         `select 1 from megamenu_items where megamenu_id = ? limit 1`,
         [menuId],
       )) as Array<{ '?column?': number }>;
@@ -277,7 +277,7 @@ export class MegamenuService {
       }
 
       // Identify any prior holder for the (channel, language) pair.
-      const prior = (await tx.getConnection().execute(
+      const prior = (await tx.execute(
         `select b.megamenu_id, m.name
            from megamenu_bindings b
            join megamenus m on m.id = b.megamenu_id
@@ -288,7 +288,7 @@ export class MegamenuService {
       )) as Array<{ megamenu_id: string; name: string }>;
 
       // Deactivate any existing active binding in the scope (this menu or another).
-      await tx.getConnection().execute(
+      await tx.execute(
         `update megamenu_bindings
             set active = false, version = version + 1, updated_at = now()
           where sales_channel_id = ? and language = ? and active = true`,
@@ -296,7 +296,7 @@ export class MegamenuService {
       );
 
       // Activate the requested binding.
-      await tx.getConnection().execute(
+      await tx.execute(
         `update megamenu_bindings
             set active = true, version = version + 1, updated_at = now()
           where megamenu_id = ? and sales_channel_id = ? and language = ?`,
@@ -321,7 +321,7 @@ export class MegamenuService {
 
   async deactivate(menuId: string, salesChannelId: string, language: string): Promise<void> {
     const em = this.emFactory();
-    const existing = (await em.getConnection().execute(
+    const existing = (await em.execute(
       `select 1 from megamenu_bindings
         where megamenu_id = ? and sales_channel_id = ? and language = ? limit 1`,
       [menuId, salesChannelId, language],
@@ -329,7 +329,7 @@ export class MegamenuService {
     if (existing.length === 0) {
       throw new HttpError(404, ERROR_CODES.MEGAMENU_BINDING_NOT_FOUND, 'Binding not found.');
     }
-    await em.getConnection().execute(
+    await em.execute(
       `update megamenu_bindings
           set active = false, version = version + 1, updated_at = now()
         where megamenu_id = ? and sales_channel_id = ? and language = ?`,
@@ -346,8 +346,8 @@ export class MegamenuService {
   // ────────────────────────────────────────────────────────────────────
 
   async findRow(id: string, em?: EntityManager): Promise<MegamenuRow | null> {
-    const conn = (em ?? this.emFactory()).getConnection();
-    const rows = (await conn.execute('select * from megamenus where id = ?', [id])) as MegamenuRow[];
+    const targetEm = (em ?? this.emFactory());
+    const rows = (await targetEm.execute('select * from megamenus where id = ?', [id])) as MegamenuRow[];
     return rows[0] ?? null;
   }
 
@@ -363,7 +363,7 @@ export class MegamenuService {
   }
 
   private async fetchChannel(em: EntityManager, id: string): Promise<ChannelRow | null> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select id::text, code, languages, default_language from sales_channels where id = ? limit 1`,
       [id],
     )) as ChannelRow[];
@@ -371,7 +371,7 @@ export class MegamenuService {
   }
 
   private async fetchItems(menuId: string): Promise<ItemRow[]> {
-    return (await this.emFactory().getConnection().execute(
+    return (await this.emFactory().execute(
       `select * from megamenu_items
         where megamenu_id = ?
         order by parent_id nulls first, position asc, id asc`,
@@ -380,7 +380,7 @@ export class MegamenuService {
   }
 
   private async fetchBindings(menuId: string): Promise<BindingRow[]> {
-    return (await this.emFactory().getConnection().execute(
+    return (await this.emFactory().execute(
       `select * from megamenu_bindings where megamenu_id = ? order by created_at asc`,
       [menuId],
     )) as BindingRow[];

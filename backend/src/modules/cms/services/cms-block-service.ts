@@ -64,7 +64,7 @@ export class CmsBlockService {
       );
     }
 
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       `select b.* from cms_blocks b
        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
        order by b.updated_at desc
@@ -80,7 +80,7 @@ export class CmsBlockService {
     const now = new Date();
     await em.transactional(async (tx) => {
       await this.assertCodeAvailable(tx, input.code, input.salesChannelIds);
-      await tx.getConnection().execute(
+      await tx.execute(
         `insert into cms_blocks
           (id, name, code, active, description, content, languages, version, created_at, updated_at)
          values (?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, 1, ?, ?)`,
@@ -137,7 +137,7 @@ export class CmsBlockService {
 
       if (sets.length > 0) {
         params.push(id);
-        await tx.getConnection().execute(
+        await tx.execute(
           `update cms_blocks
            set ${sets.join(', ')}, version = version + 1, updated_at = now()
            where id = ?`,
@@ -172,7 +172,7 @@ export class CmsBlockService {
         languages: { ...(row.content.languages ?? {}), [language]: data },
       };
       const languages = row.languages.includes(language) ? row.languages : [...row.languages, language];
-      await tx.getConnection().execute(
+      await tx.execute(
         `update cms_blocks
          set content = ?::jsonb, languages = ?::jsonb, version = version + 1, updated_at = now()
          where id = ?`,
@@ -190,12 +190,12 @@ export class CmsBlockService {
     if (refs.length > 0) {
       throw new HttpError(409, ERROR_CODES.CMS_REFERENCED, 'CMS Block is referenced.');
     }
-    await this.emFactory().getConnection().execute('delete from cms_blocks where id = ?', [id]);
+    await this.emFactory().execute('delete from cms_blocks where id = ?', [id]);
     await this.invalidateForBlockCode(row.code);
   }
 
   private async findRow(id: string, em = this.emFactory()): Promise<BlockRow | null> {
-    const rows = (await em.getConnection().execute('select * from cms_blocks where id = ?', [
+    const rows = (await em.execute('select * from cms_blocks where id = ?', [
       id,
     ])) as BlockRow[];
     return rows[0] ?? null;
@@ -209,7 +209,7 @@ export class CmsBlockService {
   ): Promise<void> {
     if (salesChannelIds.length === 0) return;
     const placeholders = salesChannelIds.map(() => '?').join(', ');
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select block_id from cms_block_sales_channels
        where code = ? and sales_channel_id in (${placeholders})
        ${exceptBlockId ? 'and block_id <> ?' : ''}
@@ -227,11 +227,11 @@ export class CmsBlockService {
     salesChannelIds: string[],
     code: string,
   ): Promise<void> {
-    await em.getConnection().execute('delete from cms_block_sales_channels where block_id = ?', [
+    await em.execute('delete from cms_block_sales_channels where block_id = ?', [
       blockId,
     ]);
     for (const salesChannelId of salesChannelIds) {
-      await em.getConnection().execute(
+      await em.execute(
         `insert into cms_block_sales_channels (block_id, sales_channel_id, code)
          values (?, ?, ?)`,
         [blockId, salesChannelId, code],
@@ -240,7 +240,7 @@ export class CmsBlockService {
   }
 
   private async channelIdsFor(blockId: string, em = this.emFactory()): Promise<string[]> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       'select sales_channel_id::text as id from cms_block_sales_channels where block_id = ?',
       [blockId],
     )) as Array<{ id: string }>;

@@ -950,23 +950,28 @@ export class CatalogAdminService {
   }
 
   async assertProductDeletable(em: EntityManager, productId: string): Promise<void> {
-    const knex = em.getKnex();
-    const orderRow = (await knex('order_items')
-      .where({ product_id: productId })
-      .count<{ count: string | number }>('* as count')
-      .first()) as { count: string | number } | undefined;
-    if (Number(orderRow?.count ?? 0) > 0) {
+    // `em.execute`, not `em.getKnex()`: the caller is `product.delete`'s Command
+    // body, so this guard runs inside `CommandBus.run`'s transaction, and a knex
+    // instance is connection-level — it read the state outside the transaction
+    // whose write it is guarding (issue #200). `check:transaction-context`
+    // cannot see this one: it is a method call away from the `run` that carries
+    // the transaction, and following that hop would mean guessing at callers.
+    const orderRows = (await em.execute(
+      `select count(*)::int as count from "order_items" where "product_id" = ?`,
+      [productId],
+    )) as Array<{ count: string | number }>;
+    if (Number(orderRows[0]?.count ?? 0) > 0) {
       throw new HttpError(
         409,
         ERROR_CODES.PRODUCT_DELETE_BLOCKED,
         'Product cannot be deleted because it is referenced by order lines.',
       );
     }
-    const cartRow = (await knex('cart_items')
-      .where({ product_id: productId })
-      .count<{ count: string | number }>('* as count')
-      .first()) as { count: string | number } | undefined;
-    if (Number(cartRow?.count ?? 0) > 0) {
+    const cartRows = (await em.execute(
+      `select count(*)::int as count from "cart_items" where "product_id" = ?`,
+      [productId],
+    )) as Array<{ count: string | number }>;
+    if (Number(cartRows[0]?.count ?? 0) > 0) {
       throw new HttpError(
         409,
         ERROR_CODES.PRODUCT_DELETE_BLOCKED,

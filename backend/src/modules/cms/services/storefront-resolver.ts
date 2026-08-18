@@ -110,7 +110,7 @@ export class StorefrontResolver {
       if (cached) return cached;
     }
 
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select p.*
        from cms_pages p
        join cms_page_sales_channels cpsc on cpsc.page_id = p.id
@@ -172,7 +172,7 @@ export class StorefrontResolver {
       if (cached) return cached;
     }
 
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select b.*
        from cms_blocks b
        join cms_block_sales_channels cbsc on cbsc.block_id = b.id
@@ -216,7 +216,7 @@ export class StorefrontResolver {
       if (cached) return cached;
     }
 
-    const hookRows = (await em.getConnection().execute(
+    const hookRows = (await em.execute(
       `select id::text, code, active
        from cms_hooks
        where code = ?
@@ -231,7 +231,7 @@ export class StorefrontResolver {
       return empty;
     }
 
-    const scopedRows = (await em.getConnection().execute(
+    const scopedRows = (await em.execute(
       `select 1
        from cms_hook_sales_channels
        where hook_id = ? and sales_channel_id = ?
@@ -244,7 +244,7 @@ export class StorefrontResolver {
       return empty;
     }
 
-    const blockRows = (await em.getConnection().execute(
+    const blockRows = (await em.execute(
       `select b.*
        from cms_hook_block_attachments a
        join cms_blocks b on b.id = a.block_id
@@ -363,7 +363,7 @@ export class StorefrontResolver {
   ): Promise<BlockRow[]> {
     if (codes.length === 0) return [];
     const placeholders = codes.map(() => '?').join(', ');
-    return (await em.getConnection().execute(
+    return (await em.execute(
       `select b.*
        from cms_blocks b
        join cms_block_sales_channels cbsc on cbsc.block_id = b.id
@@ -381,7 +381,7 @@ export class StorefrontResolver {
   ): Promise<TemplateRow[]> {
     if (codes.length === 0) return [];
     const placeholders = codes.map(() => '?').join(', ');
-    return (await em.getConnection().execute(
+    return (await em.execute(
       `select t.*
        from cms_templates t
        join cms_template_sales_channels ctsc on ctsc.template_id = t.id

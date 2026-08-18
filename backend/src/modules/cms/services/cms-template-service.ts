@@ -61,7 +61,7 @@ export class CmsTemplateService {
       );
     }
 
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       `select t.* from cms_templates t
        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
        order by t.updated_at desc
@@ -77,7 +77,7 @@ export class CmsTemplateService {
     const now = new Date();
     await em.transactional(async (tx) => {
       await this.assertCodeAvailable(tx, input.code, input.salesChannelIds);
-      await tx.getConnection().execute(
+      await tx.execute(
         `insert into cms_templates
           (id, name, code, description, content, languages, version, created_at, updated_at)
          values (?, ?, ?, ?, ?::jsonb, ?::jsonb, 1, ?, ?)`,
@@ -130,7 +130,7 @@ export class CmsTemplateService {
 
       if (sets.length > 0) {
         params.push(id);
-        await tx.getConnection().execute(
+        await tx.execute(
           `update cms_templates
            set ${sets.join(', ')}, version = version + 1, updated_at = now()
            where id = ?`,
@@ -162,7 +162,7 @@ export class CmsTemplateService {
         languages: { ...(row.content.languages ?? {}), [language]: data },
       };
       const languages = row.languages.includes(language) ? row.languages : [...row.languages, language];
-      await tx.getConnection().execute(
+      await tx.execute(
         `update cms_templates
          set content = ?::jsonb, languages = ?::jsonb, version = version + 1, updated_at = now()
          where id = ?`,
@@ -180,12 +180,12 @@ export class CmsTemplateService {
     if (refs.length > 0) {
       throw new HttpError(409, ERROR_CODES.CMS_REFERENCED, 'CMS Template is referenced.');
     }
-    await this.emFactory().getConnection().execute('delete from cms_templates where id = ?', [id]);
+    await this.emFactory().execute('delete from cms_templates where id = ?', [id]);
     await this.invalidateAll();
   }
 
   private async findRow(id: string, em = this.emFactory()): Promise<TemplateRow | null> {
-    const rows = (await em.getConnection().execute('select * from cms_templates where id = ?', [
+    const rows = (await em.execute('select * from cms_templates where id = ?', [
       id,
     ])) as TemplateRow[];
     return rows[0] ?? null;
@@ -199,7 +199,7 @@ export class CmsTemplateService {
   ): Promise<void> {
     if (salesChannelIds.length === 0) return;
     const placeholders = salesChannelIds.map(() => '?').join(', ');
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select template_id from cms_template_sales_channels
        where code = ? and sales_channel_id in (${placeholders})
        ${exceptTemplateId ? 'and template_id <> ?' : ''}
@@ -217,11 +217,11 @@ export class CmsTemplateService {
     salesChannelIds: string[],
     code: string,
   ): Promise<void> {
-    await em.getConnection().execute('delete from cms_template_sales_channels where template_id = ?', [
+    await em.execute('delete from cms_template_sales_channels where template_id = ?', [
       templateId,
     ]);
     for (const salesChannelId of salesChannelIds) {
-      await em.getConnection().execute(
+      await em.execute(
         `insert into cms_template_sales_channels (template_id, sales_channel_id, code)
          values (?, ?, ?)`,
         [templateId, salesChannelId, code],
@@ -230,7 +230,7 @@ export class CmsTemplateService {
   }
 
   private async channelIdsFor(templateId: string, em = this.emFactory()): Promise<string[]> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       'select sales_channel_id::text as id from cms_template_sales_channels where template_id = ?',
       [templateId],
     )) as Array<{ id: string }>;

@@ -52,7 +52,7 @@ export class CmsReferenceRegistry {
     const out: CmsReference[] = [];
     const em = this.emFactory();
 
-    const pages = (await em.getConnection().execute(
+    const pages = (await em.execute(
       `select id::text, name, content from cms_pages`,
     )) as Array<{ id: string; name: string; content: unknown }>;
     for (const row of pages) {
@@ -61,7 +61,7 @@ export class CmsReferenceRegistry {
       }
     }
 
-    const templates = (await em.getConnection().execute(
+    const templates = (await em.execute(
       `select id::text, name, content from cms_templates`,
     )) as Array<{ id: string; name: string; content: unknown }>;
     for (const row of templates) {
@@ -70,7 +70,7 @@ export class CmsReferenceRegistry {
       }
     }
 
-    const hooks = (await em.getConnection().execute(
+    const hooks = (await em.execute(
       `select h.id::text, h.name
        from cms_hook_block_attachments a
        join cms_hooks h on h.id = a.hook_id
@@ -100,7 +100,7 @@ export class CmsReferenceRegistry {
     const out: CmsReference[] = [];
     const em = this.emFactory();
 
-    const pages = (await em.getConnection().execute(
+    const pages = (await em.execute(
       `select id::text, name, content from cms_pages`,
     )) as Array<{ id: string; name: string; content: unknown }>;
     for (const row of pages) {
@@ -109,7 +109,7 @@ export class CmsReferenceRegistry {
       }
     }
 
-    const blocks = (await em.getConnection().execute(
+    const blocks = (await em.execute(
       `select id::text, name, content from cms_blocks`,
     )) as Array<{ id: string; name: string; content: unknown }>;
     for (const row of blocks) {

@@ -74,14 +74,19 @@ export class I18nService {
   ): Promise<{ installed: SupportedAdminLanguage[] }> {
     const loaded = loadModuleBundles(moduleId, modulePath, bundlesDir);
     const targetEm = em ?? this.em();
-    const knex = targetEm.getKnex();
     const installed: SupportedAdminLanguage[] = [];
     for (const [language, entries] of loaded.byLanguage) {
       // Single-statement UPSERT — INSERT bumps `version` via the column
       // default (nextval); the conflict UPDATE bumps it explicitly so
       // every successful install advances the sequence regardless of
       // whether the row existed (research §R9).
-      await knex.raw(
+      //
+      // Through `targetEm.execute`, not `targetEm.getKnex().raw`: the knex
+      // instance is connection-level and carries no transaction context, so a
+      // caller that passes a transactional `em` — as the signature invites, and
+      // as the install path's revert semantics assume — got rows that outlived
+      // its rollback (issue #200).
+      await targetEm.execute(
         `insert into "translation_bundles" ("module_id", "language_code", "entries", "installed_at", "updated_at") ` +
           `values (?, ?, ?::jsonb, now(), now()) ` +
           `on conflict ("module_id", "language_code") do update set ` +
@@ -232,12 +237,15 @@ export class I18nService {
     em?: EntityManager,
   ): Promise<{ version: number; bundles: Record<string, TranslationBundleEntries> }> {
     const targetEm = em ?? this.em();
-    const knex = targetEm.getKnex();
-    const maxRow = (await knex('translation_bundles')
-      .where('language_code', language)
-      .max('version as max')
-      .first()) as { max: string | number | null } | undefined;
-    const liveMax = maxRow?.max == null ? 0 : Number(maxRow.max);
+    // `targetEm.execute`, not `targetEm.getKnex()`: the rows below are read
+    // through `targetEm`, so a caller holding a transaction open would have had
+    // the freshness probe answer from outside it and the row read from inside —
+    // one method, two views of the same table (issue #200).
+    const maxRows = (await targetEm.execute(
+      `select max("version") as max from "translation_bundles" where "language_code" = ?`,
+      [language],
+    )) as Array<{ max: string | number | null }>;
+    const liveMax = maxRows[0]?.max == null ? 0 : Number(maxRows[0].max);
 
     const cached = this.cache.get(language);
     if (cached && cached.version >= liveMax) {

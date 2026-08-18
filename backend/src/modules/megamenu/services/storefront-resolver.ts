@@ -84,7 +84,7 @@ export class StorefrontResolver {
       if (cached) return cached;
     }
 
-    const menuRows = (await em.getConnection().execute(
+    const menuRows = (await em.execute(
       `select m.id::text as id, m.name as name
          from megamenu_bindings b
          join megamenus m on m.id = b.megamenu_id
@@ -95,7 +95,7 @@ export class StorefrontResolver {
     const active = menuRows[0];
     if (!active) return null;
 
-    const itemRows = (await em.getConnection().execute(
+    const itemRows = (await em.execute(
       `select id::text, parent_id::text, position, kind, labels, descriptions, target
          from megamenu_items
         where megamenu_id = ?

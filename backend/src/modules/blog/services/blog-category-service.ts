@@ -65,8 +65,8 @@ export class BlogCategoryService {
   // ────────────────────────────────────────────────────────────────────
 
   async getTree(): Promise<{ tree: BlogCategoryTreeNode[] }> {
-    const conn = this.emFactory().getConnection();
-    const rows = (await conn.execute(
+    const em = this.emFactory();
+    const rows = (await em.execute(
       `select * from blog_categories where deleted_at is null order by parent_id nulls first, position`,
     )) as CategoryRow[];
 
@@ -131,8 +131,7 @@ export class BlogCategoryService {
       }
 
       // Compute next position for the parent slot.
-      const conn = tx.getConnection();
-      const positionRows = (await conn.execute(
+      const positionRows = (await tx.execute(
         `select coalesce(max(position) + 1, 0) as next_pos
            from blog_categories
           where deleted_at is null and ${input.parentId === null ? 'parent_id is null' : 'parent_id = ?'}`,
@@ -140,7 +139,7 @@ export class BlogCategoryService {
       )) as Array<{ next_pos: number }>;
       const position = Number(positionRows[0]?.next_pos ?? 0);
 
-      await conn.execute(
+      await tx.execute(
         `insert into blog_categories
            (id, parent_id, position, name, slug, enabled, description,
             main_image_asset_id, meta_title, meta_description, meta_keywords,
@@ -163,14 +162,14 @@ export class BlogCategoryService {
       );
 
       for (const channelId of input.salesChannelIds) {
-        await conn.execute(
+        await tx.execute(
           `insert into blog_category_sales_channels (blog_category_id, sales_channel_id, slug)
              values (?, ?, ?)`,
           [id, channelId, input.slug],
         );
       }
       for (const language of input.languages) {
-        await conn.execute(
+        await tx.execute(
           `insert into blog_category_languages (blog_category_id, language) values (?, ?)`,
           [id, language],
         );
@@ -254,16 +253,15 @@ export class BlogCategoryService {
         params.push(input.metaKeywords ? JSON.stringify(input.metaKeywords) : null);
       }
 
-      const conn = tx.getConnection();
       if (sets.length > 2) {
         params.push(id);
-        await conn.execute(
+        await tx.execute(
           `update blog_categories set ${sets.join(', ')} where id = ?`,
           params,
         );
       }
       if (slugChange) {
-        await conn.execute(
+        await tx.execute(
           `update blog_category_sales_channels set slug = ? where blog_category_id = ?`,
           [input.slug, id],
         );
@@ -298,7 +296,7 @@ export class BlogCategoryService {
         );
       }
       this.assertVersion(existing.version, input.version);
-      await tx.getConnection().execute(
+      await tx.execute(
         `update blog_categories
             set description = ?::jsonb,
                 version = version + 1,
@@ -317,10 +315,9 @@ export class BlogCategoryService {
     const em = this.emFactory();
     await em.transactional(async (tx) => {
       // Cycle prevention runs against the post-move state.
-      const conn = tx.getConnection();
       // Load the current parent_id map so we can simulate the moves and
       // refuse the whole batch if any move introduces a cycle.
-      const currentRows = (await conn.execute(
+      const currentRows = (await tx.execute(
         `select id::text as id, parent_id::text as parent_id from blog_categories where deleted_at is null`,
       )) as Array<{ id: string; parent_id: string | null }>;
       const parentMap = new Map<string, string | null>();
@@ -346,7 +343,7 @@ export class BlogCategoryService {
       }
 
       for (const m of moves) {
-        await conn.execute(
+        await tx.execute(
           `update blog_categories
               set parent_id = ?, position = ?, version = version + 1, updated_at = now()
             where id = ? and deleted_at is null`,
@@ -377,10 +374,9 @@ export class BlogCategoryService {
           'The seeded Default category cannot be deleted.',
         );
       }
-      const conn = tx.getConnection();
 
       // Block on referencing Posts.
-      const refRows = (await conn.execute(
+      const refRows = (await tx.execute(
         `select count(*)::int as n from blog_post_categories where blog_category_id = ?`,
         [id],
       )) as Array<{ n: number }>;
@@ -393,7 +389,7 @@ export class BlogCategoryService {
       }
 
       // Block on child Categories.
-      const childRows = (await conn.execute(
+      const childRows = (await tx.execute(
         `select count(*)::int as n from blog_categories where parent_id = ? and deleted_at is null`,
         [id],
       )) as Array<{ n: number }>;
@@ -405,11 +401,11 @@ export class BlogCategoryService {
         );
       }
 
-      await conn.execute(
+      await tx.execute(
         `update blog_categories set deleted_at = now(), updated_at = now() where id = ?`,
         [id],
       );
-      await conn.execute(
+      await tx.execute(
         `update blog_category_sales_channels set deleted_at = now() where blog_category_id = ?`,
         [id],
       );
@@ -422,7 +418,7 @@ export class BlogCategoryService {
   // ────────────────────────────────────────────────────────────────────
 
   private async findRow(em: EntityManager, id: string): Promise<CategoryRow | null> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select * from blog_categories where id = ? and deleted_at is null limit 1`,
       [id],
     )) as CategoryRow[];
@@ -430,7 +426,7 @@ export class BlogCategoryService {
   }
 
   private async assertParentExists(em: EntityManager, parentId: string): Promise<void> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select 1 from blog_categories where id = ? and deleted_at is null limit 1`,
       [parentId],
     )) as Array<unknown>;
@@ -448,8 +444,7 @@ export class BlogCategoryService {
     selfId: string,
     parentId: string,
   ): Promise<void> {
-    const conn = em.getConnection();
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       `select id::text as id, parent_id::text as parent_id from blog_categories where deleted_at is null`,
     )) as Array<{ id: string; parent_id: string | null }>;
     const map = new Map<string, string | null>();
@@ -489,13 +484,12 @@ export class BlogCategoryService {
         'Blog category not found.',
       );
     }
-    const conn = em.getConnection();
     const [channels, languages] = (await Promise.all([
-      conn.execute(
+      em.execute(
         `select sales_channel_id::text as id from blog_category_sales_channels where blog_category_id = ? and deleted_at is null`,
         [id],
       ),
-      conn.execute(
+      em.execute(
         `select language from blog_category_languages where blog_category_id = ?`,
         [id],
       ),
@@ -535,7 +529,7 @@ export class BlogCategoryService {
   }
 
   private async loadChannelIds(em: EntityManager, categoryId: string): Promise<string[]> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select sales_channel_id::text as id from blog_category_sales_channels where blog_category_id = ? and deleted_at is null`,
       [categoryId],
     )) as Array<{ id: string }>;
@@ -543,7 +537,7 @@ export class BlogCategoryService {
   }
 
   private async loadLanguages(em: EntityManager, categoryId: string): Promise<string[]> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select language from blog_category_languages where blog_category_id = ?`,
       [categoryId],
     )) as Array<{ language: string }>;
@@ -582,7 +576,7 @@ export class BlogCategoryService {
     const out = new Map<string, string[]>();
     if (ids.length === 0) return out;
     const placeholders = ids.map(() => '?').join(', ');
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       `select blog_category_id::text as cid, sales_channel_id::text as id
          from blog_category_sales_channels
         where blog_category_id in (${placeholders})
@@ -601,7 +595,7 @@ export class BlogCategoryService {
     const out = new Map<string, string[]>();
     if (ids.length === 0) return out;
     const placeholders = ids.map(() => '?').join(', ');
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       `select blog_category_id::text as cid, language
          from blog_category_languages
         where blog_category_id in (${placeholders})`,
@@ -621,12 +615,11 @@ export class BlogCategoryService {
     channelIds: string[],
     slug: string,
   ): Promise<void> {
-    const conn = em.getConnection();
-    await conn.execute(`delete from blog_category_sales_channels where blog_category_id = ?`, [
+    await em.execute(`delete from blog_category_sales_channels where blog_category_id = ?`, [
       categoryId,
     ]);
     for (const id of channelIds) {
-      await conn.execute(
+      await em.execute(
         `insert into blog_category_sales_channels (blog_category_id, sales_channel_id, slug) values (?, ?, ?)`,
         [categoryId, id, slug],
       );
@@ -638,12 +631,11 @@ export class BlogCategoryService {
     categoryId: string,
     languages: string[],
   ): Promise<void> {
-    const conn = em.getConnection();
-    await conn.execute(`delete from blog_category_languages where blog_category_id = ?`, [
+    await em.execute(`delete from blog_category_languages where blog_category_id = ?`, [
       categoryId,
     ]);
     for (const lang of languages) {
-      await conn.execute(
+      await em.execute(
         `insert into blog_category_languages (blog_category_id, language) values (?, ?)`,
         [categoryId, lang],
       );

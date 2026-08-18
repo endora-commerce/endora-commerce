@@ -63,7 +63,8 @@
     "check:fixture-substitution": "tsx scripts/check-fixture-substitution.ts",
     "check:shared-table-wipes": "tsx scripts/check-shared-table-wipes.ts",
     "check:nul-bytes": "tsx scripts/check-nul-bytes.ts",
-    "check:port-shape": "tsx scripts/check-port-shape.ts"
+    "check:port-shape": "tsx scripts/check-port-shape.ts",
+    "check:transaction-context": "tsx scripts/check-transaction-context.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",

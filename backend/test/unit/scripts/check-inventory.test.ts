@@ -71,6 +71,7 @@ import { buildDeactivationLedger } from '../../../src/modules/_lifecycle/service
 import { nonBindingPortEdgesFrom } from '../../../src/modules/_lifecycle/services/gating-graph.js';
 import { checkPortShape } from '../../../scripts/check-port-shape.js';
 import { checkSubscribeSeam } from '../../../scripts/check-subscribe-seam.js';
+import { checkTransactionContext } from '../../../scripts/check-transaction-context.js';
 import {
   checkNulBytes,
   findNulBytes,
@@ -2612,6 +2613,86 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // Two shapes and two scopes, and each proof names only its own: a knex
+    // instance and a short `getConnection().execute` are different spellings of
+    // the same escape, and a `conn` local is the spelling thirty-nine of the
+    // converted sites were written in — proving the inline form alone would
+    // leave the bound one free to go blind. The fourth proof is the Command
+    // scope, where the transaction comes from `CommandBus.run` rather than from
+    // a `transactional(` in the same file, so a check that only knew the
+    // lexical callback would report zero over three live findings.
+    script: 'backend/scripts/check-transaction-context.ts',
+    npmScript: 'check:transaction-context',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-transaction-context.test.ts',
+    vacuousGuard: 'exit-2',
+    red: {
+      'knex-instance': top(
+        () =>
+          checkTransactionContext(
+            {
+              sources: new Map([
+                [
+                  'modules/orders/services/order-service.ts',
+                  'await em.transactional(async (tx) => {\n  const knex = tx.getKnex();\n});',
+                ],
+              ]),
+            },
+            {},
+          ).violations.length,
+      ),
+      'connection-execute': top(
+        () =>
+          checkTransactionContext(
+            {
+              sources: new Map([
+                [
+                  'modules/cms/services/cms-page-service.ts',
+                  "await em.transactional(async (tx) => {\n  await tx.getConnection().execute('delete from cms_pages where id = ?', [id]);\n});",
+                ],
+              ]),
+            },
+            {},
+          ).violations.length,
+      ),
+      'connection-bound-to-a-local': top(
+        () =>
+          checkTransactionContext(
+            {
+              sources: new Map([
+                [
+                  'modules/blog/services/blog-post-service.ts',
+                  "await em.transactional(async (tx) => {\n  const conn = tx.getConnection();\n  await conn.execute('insert into blog_posts (id) values (?)', [id]);\n});",
+                ],
+              ]),
+            },
+            {},
+          ).violations.length,
+      ),
+      'command-run-scope': top(
+        () =>
+          checkTransactionContext(
+            {
+              sources: new Map([
+                [
+                  'modules/catalog/commands/attribute-commands.ts',
+                  "const cmd = {\n  action: 'catalog.attribute.delete',\n  run: async ({ em }) => {\n    await em.getConnection().execute('select 1 from products', []);\n  },\n};",
+                ],
+              ]),
+            },
+            {},
+          ).violations.length,
+      ),
+      'stale-ledger-entry': top(
+        () =>
+          checkTransactionContext(
+            { sources: new Map([['modules/blog/services/blog-post-service.ts', 'const a = 1;']]) },
+            { 'modules/blog/services/blog-post-service.ts#knex-instance#tx.getKnex()': 'retired' },
+          ).stale.length,
+      ),
+    },
+  },
+  {
     // The four constructs the header says it can see. The second is the shape
     // issue #128 found hiding from the sibling check; the fourth arrived with
     // D-68 and brings three proofs of its own, because a boot hook fails this
@@ -3024,6 +3105,8 @@ describe('every red proof enters at the top of the analysis', () => {
       // direction.
       'backend/scripts/check-shared-table-wipes.ts': 4,
       'backend/scripts/check-subscribe-seam.ts': 3,
+      // Two shapes, two scopes, and the ledger's stale direction.
+      'backend/scripts/check-transaction-context.ts': 5,
       'backend/scripts/i18n-hardcoded-strings.ts': 2,
       'scripts/check-naming.sh': 4,
       'scripts/check-language.sh': 2,

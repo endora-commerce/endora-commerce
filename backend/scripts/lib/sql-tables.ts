@@ -302,8 +302,15 @@ const WRITE_METHODS = new Set([
   'into',
 ]);
 
-/** `em.getKnex()`, `em.getConnection().getKnex()`, `this.emFactory().getKnex()`. */
-function isGetKnexCall(node: ts.Expression): boolean {
+/**
+ * `em.getKnex()`, `em.getConnection().getKnex()`, `this.emFactory().getKnex()`.
+ *
+ * Exported because `check-transaction-context` refuses the same handle for a
+ * different reason (issue #200: it carries no transaction context), and two
+ * copies of "what a knex handle looks like" would drift — the receiver is
+ * spelled at least three ways in this tree already.
+ */
+export function isGetKnexCall(node: ts.Expression): boolean {
   return (
     ts.isCallExpression(node) &&
     ts.isPropertyAccessExpression(node.expression) &&

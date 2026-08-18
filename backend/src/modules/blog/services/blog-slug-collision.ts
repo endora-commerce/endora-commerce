@@ -43,14 +43,13 @@ export async function assertSlugAvailable(
 ): Promise<void> {
   if (input.salesChannelIds.length === 0) return;
 
-  const conn = em.getConnection();
 
   // 1. Take per-(channel, slug) advisory locks so a concurrent transaction
   // cannot squeeze a colliding write between this probe and the upcoming
   // INSERT. The lock is released when the transaction completes.
   for (const channelId of input.salesChannelIds) {
     const lockKey = advisoryLockKeyFor(channelId, input.slug);
-    await conn.execute('select pg_advisory_xact_lock(?)', [lockKey]);
+    await em.execute('select pg_advisory_xact_lock(?)', [lockKey]);
   }
 
   const placeholders = input.salesChannelIds.map(() => '?').join(', ');
@@ -68,7 +67,7 @@ export async function assertSlugAvailable(
     params.push(input.excludeId);
   }
   postSql += ' limit 5';
-  const postRows = (await conn.execute(postSql, params)) as Array<{
+  const postRows = (await em.execute(postSql, params)) as Array<{
     id: string;
     channel_id: string;
   }>;
@@ -86,7 +85,7 @@ export async function assertSlugAvailable(
     catParams.push(input.excludeId);
   }
   categorySql += ' limit 5';
-  const categoryRows = (await conn.execute(categorySql, catParams)) as Array<{
+  const categoryRows = (await em.execute(categorySql, catParams)) as Array<{
     id: string;
     channel_id: string;
   }>;

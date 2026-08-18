@@ -126,8 +126,7 @@ export class BlogStorefrontResolver {
       if (cached) return cached;
     }
 
-    const conn = em.getConnection();
-    const latestRows = (await conn.execute(
+    const latestRows = (await em.execute(
       `select p.*
          from blog_posts p
          join blog_post_sales_channels psc on psc.blog_post_id = p.id
@@ -141,7 +140,7 @@ export class BlogStorefrontResolver {
       [channel.id, settings.latestCount],
     )) as PostRow[];
 
-    const topLevelRows = (await conn.execute(
+    const topLevelRows = (await em.execute(
       `select c.*
          from blog_categories c
          join blog_category_sales_channels csc on csc.blog_category_id = c.id
@@ -182,10 +181,9 @@ export class BlogStorefrontResolver {
     if (!settings.enabled) return null;
     const channelDefault = channel.default_language;
 
-    const conn = em.getConnection();
 
     // Probe the post side first — by-(channel, slug) covered by the partial-unique index.
-    const postRows = (await conn.execute(
+    const postRows = (await em.execute(
       `select p.*
          from blog_posts p
          join blog_post_sales_channels psc on psc.blog_post_id = p.id
@@ -214,7 +212,7 @@ export class BlogStorefrontResolver {
     }
 
     // Probe the category side.
-    const categoryRows = (await conn.execute(
+    const categoryRows = (await em.execute(
       `select c.*
          from blog_categories c
          join blog_category_sales_channels csc on csc.blog_category_id = c.id
@@ -242,7 +240,7 @@ export class BlogStorefrontResolver {
       }
 
       const offset = (page - 1) * settings.postsPerPage;
-      const totalRows = (await conn.execute(
+      const totalRows = (await em.execute(
         `select count(*)::int as n
            from blog_posts p
            join blog_post_categories pc on pc.blog_post_id = p.id
@@ -257,7 +255,7 @@ export class BlogStorefrontResolver {
       )) as Array<{ n: number }>;
       const totalItems = totalRows[0]?.n ?? 0;
 
-      const pageRows = (await conn.execute(
+      const pageRows = (await em.execute(
         `select p.*
            from blog_posts p
            join blog_post_categories pc on pc.blog_post_id = p.id
@@ -273,7 +271,7 @@ export class BlogStorefrontResolver {
         [category.id, channel.id],
       )) as PostRow[];
 
-      const childRows = (await conn.execute(
+      const childRows = (await em.execute(
         `select c.*
            from blog_categories c
            join blog_category_sales_channels csc on csc.blog_category_id = c.id
@@ -337,8 +335,7 @@ export class BlogStorefrontResolver {
     if (!settings.enabled) return null;
     const channelDefault = channel.default_language;
 
-    const conn = em.getConnection();
-    const tagRows = (await conn.execute(
+    const tagRows = (await em.execute(
       `select id::text as id, code, name, description from blog_tags where code = ? and deleted_at is null limit 1`,
       [code],
     )) as Array<{
@@ -363,7 +360,7 @@ export class BlogStorefrontResolver {
     }
 
     const offset = (page - 1) * settings.postsPerPage;
-    const totalRows = (await conn.execute(
+    const totalRows = (await em.execute(
       `select count(*)::int as n
          from blog_posts p
          join blog_post_tags pt on pt.blog_post_id = p.id
@@ -378,7 +375,7 @@ export class BlogStorefrontResolver {
     )) as Array<{ n: number }>;
     const totalItems = totalRows[0]?.n ?? 0;
 
-    const pageRows = (await conn.execute(
+    const pageRows = (await em.execute(
       `select p.*
          from blog_posts p
          join blog_post_tags pt on pt.blog_post_id = p.id
@@ -479,8 +476,7 @@ export class BlogStorefrontResolver {
     channelDefault: string,
   ): Promise<BlogPostCard> {
     // Pull the primary category slug if any (the first one assigned).
-    const conn = em.getConnection();
-    const catRows = (await conn.execute(
+    const catRows = (await em.execute(
       `select c.slug
          from blog_post_categories pc
          join blog_categories c on c.id = pc.blog_category_id
@@ -535,10 +531,9 @@ export class BlogStorefrontResolver {
     // listings, which already surface the post via their own slug fallback.
     const name =
       this.pickName(post.name, language, channelDefault) ?? post.slug;
-    const conn = em.getConnection();
 
     // Tags (ordered).
-    const tagRows = (await conn.execute(
+    const tagRows = (await em.execute(
       `select t.id::text as id, t.code, t.name
          from blog_post_tags pt
          join blog_tags t on t.id = pt.blog_tag_id and t.deleted_at is null
@@ -548,7 +543,7 @@ export class BlogStorefrontResolver {
     )) as Array<{ id: string; code: string; name: Record<string, string> }>;
 
     // Related posts (filtered to available ones in scope).
-    const relatedPostRows = (await conn.execute(
+    const relatedPostRows = (await em.execute(
       `select p.*
          from blog_post_related_posts r
          join blog_posts p on p.id = r.related_post_id
@@ -567,7 +562,7 @@ export class BlogStorefrontResolver {
     );
 
     // Related products via the optional port.
-    const relatedProductIds = (await conn.execute(
+    const relatedProductIds = (await em.execute(
       `select product_id::text as id
          from blog_post_related_products
         where blog_post_id = ?
@@ -583,7 +578,7 @@ export class BlogStorefrontResolver {
     }
 
     // Categories (used in breadcrumb + the resolved-post categories list).
-    const categoryRows = (await conn.execute(
+    const categoryRows = (await em.execute(
       `select c.id::text as id, c.slug, c.name
          from blog_post_categories pc
          join blog_categories c on c.id = pc.blog_category_id and c.deleted_at is null

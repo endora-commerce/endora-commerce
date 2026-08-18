@@ -37,7 +37,7 @@ export class CmsHookService {
 
   private async invalidateForHookId(hookId: string): Promise<void> {
     if (!this.cache) return;
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       'select code from cms_hooks where id = ?',
       [hookId],
     )) as Array<{ code: string }>;
@@ -61,7 +61,7 @@ export class CmsHookService {
       );
     }
 
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       `select h.*,
               (select count(*) from cms_hook_block_attachments a where a.hook_id = h.id) as attachment_count
        from cms_hooks h
@@ -79,7 +79,7 @@ export class CmsHookService {
     const now = new Date();
     await em.transactional(async (tx) => {
       await this.assertCodeAvailable(tx, input.code);
-      await tx.getConnection().execute(
+      await tx.execute(
         `insert into cms_hooks
           (id, name, code, active, description, is_system, version, created_at, updated_at)
          values (?, ?, ?, ?, ?, false, 1, ?, ?)`,
@@ -116,7 +116,7 @@ export class CmsHookService {
 
       if (sets.length > 0) {
         params.push(id);
-        await tx.getConnection().execute(
+        await tx.execute(
           `update cms_hooks
            set ${sets.join(', ')}, version = version + 1, updated_at = now()
            where id = ?`,
@@ -125,7 +125,7 @@ export class CmsHookService {
       }
       if (input.salesChannelIds) {
         await this.replaceChannelScope(tx, id, input.salesChannelIds);
-        await tx.getConnection().execute(
+        await tx.execute(
           `update cms_hooks set version = version + 1, updated_at = now() where id = ?`,
           [id],
         );
@@ -145,7 +145,7 @@ export class CmsHookService {
         'System CMS Hooks cannot be deleted.',
       );
     }
-    await this.emFactory().getConnection().execute('delete from cms_hooks where id = ?', [id]);
+    await this.emFactory().execute('delete from cms_hooks where id = ?', [id]);
     if (this.cache) await this.cache.invalidateHooksByCode([row.code]);
   }
 
@@ -163,7 +163,7 @@ export class CmsHookService {
     await em.transactional(async (tx) => {
       await this.assertExists(hookId, tx);
       await this.assertBlockExists(blockId, tx);
-      await tx.getConnection().execute(
+      await tx.execute(
         `insert into cms_hook_block_attachments (hook_id, block_id, position, created_at)
          values (?, ?, ?, now())`,
         [hookId, blockId, position],
@@ -181,7 +181,7 @@ export class CmsHookService {
     const em = this.emFactory();
     await em.transactional(async (tx) => {
       await this.assertExists(hookId, tx);
-      const result = (await tx.getConnection().execute(
+      const result = (await tx.execute(
         `update cms_hook_block_attachments
          set position = ?
          where hook_id = ? and block_id = ?`,
@@ -197,7 +197,7 @@ export class CmsHookService {
 
   async removeAttachment(hookId: string, blockId: string): Promise<void> {
     await this.assertExists(hookId);
-    await this.emFactory().getConnection().execute(
+    await this.emFactory().execute(
       'delete from cms_hook_block_attachments where hook_id = ? and block_id = ?',
       [hookId, blockId],
     );
@@ -205,7 +205,7 @@ export class CmsHookService {
   }
 
   private async findRow(id: string, em = this.emFactory()): Promise<HookRow | null> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select h.*,
               (select count(*) from cms_hook_block_attachments a where a.hook_id = h.id) as attachment_count
        from cms_hooks h
@@ -222,7 +222,7 @@ export class CmsHookService {
   }
 
   private async assertBlockExists(blockId: string, em: EntityManager): Promise<void> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       'select id from cms_blocks where id = ? limit 1',
       [blockId],
     )) as Array<{ id: string }>;
@@ -232,7 +232,7 @@ export class CmsHookService {
   }
 
   private async assertCodeAvailable(em: EntityManager, code: string): Promise<void> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       'select id from cms_hooks where code = ? limit 1',
       [code],
     )) as Array<{ id: string }>;
@@ -246,11 +246,11 @@ export class CmsHookService {
     hookId: string,
     salesChannelIds: string[],
   ): Promise<void> {
-    await em.getConnection().execute('delete from cms_hook_sales_channels where hook_id = ?', [
+    await em.execute('delete from cms_hook_sales_channels where hook_id = ?', [
       hookId,
     ]);
     for (const salesChannelId of salesChannelIds) {
-      await em.getConnection().execute(
+      await em.execute(
         `insert into cms_hook_sales_channels (hook_id, sales_channel_id)
          values (?, ?)`,
         [hookId, salesChannelId],
@@ -259,7 +259,7 @@ export class CmsHookService {
   }
 
   private async channelIdsFor(hookId: string, em = this.emFactory()): Promise<string[]> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       'select sales_channel_id::text as id from cms_hook_sales_channels where hook_id = ?',
       [hookId],
     )) as Array<{ id: string }>;
@@ -267,7 +267,7 @@ export class CmsHookService {
   }
 
   private async attachmentsFor(hookId: string): Promise<CmsHookDetail['attachments']> {
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       `select a.block_id::text, b.code as block_code, a.position
        from cms_hook_block_attachments a
        join cms_blocks b on b.id = a.block_id

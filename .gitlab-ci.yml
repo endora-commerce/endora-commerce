@@ -127,6 +127,19 @@ quality:
     # bare subscription fails, and so does a ledger entry that no longer
     # describes one.
     - pnpm --filter backend run check:subscribe-seam
+    # Issue #200 — SQL written inside a transaction runs inside that transaction.
+    # `em.getKnex()` is `getConnection().getKnex()` and a connection is not a
+    # transaction: the statement takes its own pooled connection and commits
+    # immediately, so a rollback cannot reach it. `PromotionUsageService.finalize`
+    # incremented usage counters that way and left a redemption row pointing at an
+    # order the rollback had removed (D-94); the sweep found sixty-five more,
+    # fifty-one of them writes, including a megamenu tree that a refused save
+    # deleted outright. Only the
+    # lexically decidable population is read — a `transactional(` callback and a
+    # Command's `run` — because whether an arbitrary method has a transaction open
+    # is a question about its callers. `CONNECTION_LEVEL_SQL_IN_TRANSACTIONS` is an
+    # empty two-way ratchet.
+    - pnpm --filter backend run check:transaction-context
     # Issue #126 / #146 — an entry point nothing can catch a throw from decides
     # presence before it works. Routes, workers and subscribers each have a seam;
     # a timer a module starts in its own plugin body had none, and `price_lists`
