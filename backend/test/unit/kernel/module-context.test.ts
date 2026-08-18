@@ -4,10 +4,12 @@ import type { Worker } from 'bullmq';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { createRootContainer } from '../../../src/kernel/container.js';
+import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
 import {
   createModuleContext,
   createModuleRegistrationSink,
+  createRegistrationOwnership,
+  ForeignDecorationError,
   type ModuleContext,
   type ModuleRegistrationSink,
 } from '../../../src/kernel/module-context.js';
@@ -120,6 +122,140 @@ describe('ModuleContext — decoration (D-28)', () => {
     expect(() => ctx.di.decorate('missingService', (inner) => inner)).toThrow(
       /fixture_kernel_module.*missingService|missingService/,
     );
+  });
+});
+
+/**
+ * Decoration is a write into another module's container entry, so the one
+ * question `decorate` never asked is who owns the entry (issue #203).
+ *
+ * Both values were already in hand at the call site — the decorating module's
+ * id and, from the ownership ledger, the registering module's — and the entry
+ * recorded both while comparing neither. Any module could therefore wrap any
+ * registration: `commandBus` to observe every audited write, `auditLogService`
+ * to change what the audit records, another module's read port to sit between
+ * a consumer and its owner with nothing declared anywhere.
+ *
+ * The rule is ownership, with one exemption that is not a module's to claim:
+ * a module may decorate only what it registered; the **deployment's own**
+ * modules may decorate anything.
+ */
+describe('ModuleContext — decoration is owner-scoped (issue #203)', () => {
+  function composedContext(
+    moduleId: string,
+    extra: { overlay?: boolean } = {},
+  ): { ctx: ModuleContext; container: ReturnType<typeof createRootContainer> } {
+    return contextsSharing(createRootContainer(), createRegistrationOwnership(), moduleId, extra);
+  }
+
+  function contextsSharing(
+    container: ReturnType<typeof createRootContainer>,
+    ownership: ReturnType<typeof createRegistrationOwnership>,
+    moduleId: string,
+    extra: { overlay?: boolean } = {},
+  ): { ctx: ModuleContext; container: ReturnType<typeof createRootContainer> } {
+    const ctx = createModuleContext({
+      module: { id: moduleId, version: '1.0.0' },
+      container,
+      eventBus: new EventBus(),
+      sink: createModuleRegistrationSink(),
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+      ownership,
+      ...(extra.overlay === undefined ? {} : { overlay: extra.overlay }),
+    });
+    return { ctx, container };
+  }
+
+  it('allows a module to decorate its own registration', () => {
+    const { ctx, container } = composedContext('price_lists');
+    ctx.di.register({ pricingService: ctx.asValue('core') });
+    ctx.di.decorate<string>('pricingService', (inner) => `${inner}+own`);
+
+    expect(container.resolve<string>('pricingService')).toBe('core+own');
+  });
+
+  it("refuses a module decorating another module's registration", () => {
+    const container = createRootContainer();
+    const ownership = createRegistrationOwnership();
+    const owner = contextsSharing(container, ownership, 'price_lists').ctx;
+    owner.di.register({ pricingService: owner.asValue('core') });
+
+    const intruder = contextsSharing(container, ownership, 'promotions').ctx;
+
+    let thrown: unknown;
+    try {
+      intruder.di.decorate<string>('pricingService', (inner) => `${inner}+intruder`);
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(ForeignDecorationError);
+    // Both modules and the name: "who is wrapping what, and whose is it" is
+    // three facts, and an error missing one of them sends the reader to grep.
+    expect((thrown as Error).message).toContain('promotions');
+    expect((thrown as Error).message).toContain('price_lists');
+    expect((thrown as Error).message).toContain('pricingService');
+    // Refused before anything is registered, so a rejected decoration leaves
+    // the container as it was rather than half-wrapped.
+    expect(container.resolve<string>('pricingService')).toBe('core');
+  });
+
+  it('refuses a module decorating a name a composition root registered', () => {
+    // `commandBus`, `auditLogService`, `redis`: no module owns them, so an
+    // ownership comparison that read "unowned" as "fair game" would leave the
+    // highest-value targets in the platform undefended.
+    const { ctx, container } = composedContext('promotions');
+    registerValues(container, { commandBus: { run: () => 'audited' } });
+
+    expect(() => ctx.di.decorate('commandBus', (inner) => inner)).toThrow(ForeignDecorationError);
+  });
+
+  it('holds for a context that tracks no ownership ledger', () => {
+    // A hand-built context — every unit-test fixture in the tree — carries no
+    // ownership ledger. If "no ledger" meant "no owner to compare", the rule
+    // would be off by construction for exactly those contexts, and a green
+    // suite would mean the guard was never looked at. The context answers the
+    // question from its own registrations instead.
+    const container = createRootContainer();
+    registerValues(container, { auditLogService: { record: () => undefined } });
+    const ctx = createModuleContext({
+      module: { id: 'promotions', version: '1.0.0' },
+      container,
+      eventBus: new EventBus(),
+      sink: createModuleRegistrationSink(),
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+
+    expect(() => ctx.di.decorate('auditLogService', (inner) => inner)).toThrow(
+      ForeignDecorationError,
+    );
+    // And the same context may still wrap what it registered itself, which is
+    // what distinguishes this from refusing every decoration.
+    ctx.di.register({ own: ctx.asValue('core') });
+    ctx.di.decorate<string>('own', (inner) => `${inner}+own`);
+    expect(container.resolve<string>('own')).toBe('core+own');
+  });
+
+  it("lets a deployment's overlay module decorate a core registration", () => {
+    // The one legitimate cross-owner decoration, and it is not the same act.
+    // A core module wrapping another core module's registration is a coupling
+    // nothing declares; a deployment wrapping core is the sanctioned
+    // per-deployment customisation seam (feature 072 replaced file shadowing
+    // with it), and it is the deployment's own platform to customise.
+    //
+    // The exemption is structural, not a claim: `overlay` is set by the
+    // generated composer from the root the module was discovered under
+    // (`backend/src/apps/<deployment>/modules/`), so a core module has no way
+    // to assert it and `overlay:check` fails on a hand-edited artefact.
+    const container = createRootContainer();
+    const ownership = createRegistrationOwnership();
+    const core = contextsSharing(container, ownership, 'price_lists').ctx;
+    core.di.register({ pricingService: core.asValue('core') });
+
+    const client = contextsSharing(container, ownership, 'acme_pricing', { overlay: true }).ctx;
+    client.di.decorate<string>('pricingService', (inner) => `acme:${inner}`);
+
+    expect(container.resolve<string>('pricingService')).toBe('acme:core');
   });
 });
 

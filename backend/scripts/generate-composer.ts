@@ -334,7 +334,13 @@ const HEADER = (script: string): string =>
   `// to refresh. Editing this file by hand is undone by the next build, and\n` +
   `// \`pnpm --filter backend run overlay:check\` fails on the drift.\n`;
 
-function emitComposer(nodes: readonly ComposerNode[]): string {
+/**
+ * Pure render of the composer array. Exported so the one fact the kernel's
+ * ownership guard depends on — that a deployment's module is emitted as
+ * `overlay: true` — is proved here, at the place that decides it, rather than
+ * by a test that sets the flag by hand (issue #203).
+ */
+export function emitComposer(nodes: readonly ComposerNode[]): string {
   // camelCase aliases: the emitted file is linted like any other source file.
   const imports = nodes
     .map(
@@ -345,10 +351,12 @@ function emitComposer(nodes: readonly ComposerNode[]): string {
     .join('\n');
 
   const entries = nodes
-    .map(
-      (n, i) =>
-        `  { id: '${n.id}', version: manifest${i}.version, registerModule: module${i}.registerModule },`,
-    )
+    .map((n, i) => {
+      // `overlay` is emitted only where it is true, so the bare-core artefact
+      // is unchanged and a core entry has no field for a reader to mistake.
+      const overlay = n.isOverlay ? 'overlay: true, ' : '';
+      return `  { id: '${n.id}', version: manifest${i}.version, ${overlay}registerModule: module${i}.registerModule },`;
+    })
     .join('\n');
 
   return `${HEADER('generate-composer.ts')}//
@@ -362,7 +370,9 @@ function emitComposer(nodes: readonly ComposerNode[]): string {
 //   2. then a topological order over \`manifest.dependencies\`, ties broken
 //      alphabetically so this file is a function of the tree and nothing else.
 //   3. overlay modules (feature 057) last, so a deployment's \`di.decorate\`
-//      wins over the core registration it decorates.
+//      wins over the core registration it decorates. They carry
+//      \`overlay: true\`, which is what exempts them from the kernel's rule
+//      that a module may decorate only what it registered (issue #203).
 //
 // A module missing from this list is a module the tree walk found no
 // \`backend.ts\` for. Every core module exports \`registerModule\` today, so an

@@ -71,6 +71,27 @@ Where two modules decorate the same registration, the wrapping order must be
 declared — composition fails rather than picking by package load order — and
 every applied decoration appears in the composer's override report.
 
+### Decorating across owners is the deployment's, and only the deployment's
+
+`ctx.di.decorate` refuses a module that wraps a registration it did not
+register. The reason is that decoration rewrites what *every* consumer of that
+name resolves: a core module allowed to wrap `commandBus` observes every audited
+write in the platform, one wrapping `auditLogService` changes what the audit
+records, and one wrapping another module's read port sits between a consumer and
+its owner with nothing declared anywhere. A module that needs different
+behaviour from another module asks it for a seam — a port, a contribution point,
+an event — which is a coupling the manifest declares and the checks can see.
+A name a composition root registered is refused on the same rule: no module owns
+it, so no module may wrap it.
+
+An overlay module is the one exemption, because it is a different act. A
+deployment wrapping core is the customisation seam this page describes; core
+wrapping core is a coupling nothing declares. The exemption is not a claim a
+module makes about itself — the generated composer marks an entry `overlay: true`
+from the root the module was discovered under,
+`backend/src/apps/<deployment>/modules/`, so core has no way to assert it and
+`overlay:check` fails on a hand-edited artefact.
+
 Before feature 072 a service override shadowed
 `modules/<id>/services/<name>.ts` and replaced the core class. A `services/`
 file under an overlay is now an **unknown override target**, which is what it
@@ -84,6 +105,7 @@ The build fails — never resolves silently — on:
 - **Unknown target** — an overlay whose core file does not exist (stale/typo).
 - **Schema override** — an overlay under `entities/`/`migrations/` of a core module.
 - **Ambiguous decoration** — two modules decorating one registration with no declared order.
+- **Foreign decoration** — a core module decorating a registration it does not own.
 
 ## Guards still apply
 

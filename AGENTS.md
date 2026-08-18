@@ -524,6 +524,14 @@ implementation and returns one that delegates to it, so core fixes keep flowing.
 contract gate: the decoration is written against the core service's `*.interface.ts` and
 stops being assignable when that interface changes. A `services/` file under an overlay is
 now an **unknown override target** and fails the build.
+**Decorating across owners is the deployment's alone** (issue #203):
+`ctx.di.decorate` refuses a module that wraps a registration it did not register — including
+one a composition root registered, which no module owns — because decoration rewrites what
+every consumer of that name resolves, and a core module wrapping `commandBus`,
+`auditLogService` or another module's read port is a coupling nothing declares. Ask the owner
+for a seam instead (a port, a contribution point, an event). An overlay module is exempt, and
+the exemption is structural: the generated composer marks an entry `overlay: true` from the
+root it was discovered under, so core cannot assert it.
 Never override a core entity or migration (schema overrides are out of v1) —
 ship new schema as tables owned by the overlay module. See
 `docs/docs/architecture/overlay-pattern.md` and `specs/057-overlay-pattern-multideploy/`.

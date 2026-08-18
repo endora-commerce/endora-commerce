@@ -13,7 +13,9 @@
 //   2. then a topological order over `manifest.dependencies`, ties broken
 //      alphabetically so this file is a function of the tree and nothing else.
 //   3. overlay modules (feature 057) last, so a deployment's `di.decorate`
-//      wins over the core registration it decorates.
+//      wins over the core registration it decorates. They carry
+//      `overlay: true`, which is what exempts them from the kernel's rule
+//      that a module may decorate only what it registered (issue #203).
 //
 // A module missing from this list is a module the tree walk found no
 // `backend.ts` for. Every core module exports `registerModule` today, so an

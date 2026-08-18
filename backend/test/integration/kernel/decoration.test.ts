@@ -3,6 +3,7 @@ import type { ListingPrice } from '@b2b/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import {
   AmbiguousDecorationError,
+  ForeignDecorationError,
   composeModules,
   type ModuleEntry,
 } from '../../../src/kernel/compose.js';
@@ -129,10 +130,18 @@ function coreModule(): ModuleEntry {
   };
 }
 
+/**
+ * A client override, and therefore a **deployment's** overlay module: it lives
+ * under `backend/src/apps/<deployment>/modules/`, which is what `overlay: true`
+ * says here (issue #203). Decorating across owners is the deployment's
+ * prerogative alone — a core module wrapping another core module's
+ * registration is refused, and `refuses a core module...` below is the proof.
+ */
 function decoratingModule(id: string, tag: string): ModuleEntry {
   return {
     id,
     version: '1.0.0',
+    overlay: true,
     registerModule: (ctx: ModuleContext) => {
       ctx.di.decorate<PricingServiceContract>(
         'pricingService',
@@ -253,6 +262,7 @@ describe('T064 — two modules decorating one name must declare their order', ()
       {
         id: 'acme_pricing',
         version: '1.0.0',
+        overlay: true,
         registerModule: (ctx) => {
           ctx.di.decorate<PricingServiceContract>(
             'pricingService',
@@ -315,5 +325,82 @@ describe('T065 — the override report', () => {
     // first sends the reader back to grep for the second.
     const { composed } = compose([coreModule(), decoratingModule('acme_pricing', 'acme')]);
     expect(composed.decorations[0]?.owner).toBe('price_lists');
+  });
+});
+
+describe('issue #203 — decoration is the owner\'s, and the deployment\'s', () => {
+  it("refuses a core module decorating another core module's registration", () => {
+    // The hole this closes. `decorate` checked only that *something* was
+    // registered under the name, so any module could wrap any entry in the
+    // container — `commandBus` to observe every audited write,
+    // `auditLogService` to change what the audit records, a read port to sit
+    // between a consumer and its owner with nothing declared anywhere. The
+    // owner was already recorded on every decoration record and compared to
+    // nothing.
+    let thrown: unknown;
+    try {
+      compose([
+        coreModule(),
+        {
+          id: 'promotions',
+          version: '1.0.0',
+          registerModule: (ctx) => {
+            ctx.di.decorate<PricingServiceContract>(
+              'pricingService',
+              (inner) => new TaggingPricingService(inner, 'promotions'),
+            );
+          },
+        },
+      ]);
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(ForeignDecorationError);
+    expect((thrown as Error).message).toContain('promotions');
+    expect((thrown as Error).message).toContain('price_lists');
+    expect((thrown as Error).message).toContain('pricingService');
+  });
+
+  it('leaves the core registration untouched when it refuses', () => {
+    const container = createRootContainer();
+    expect(() =>
+      composeModules(
+        [
+          coreModule(),
+          {
+            id: 'promotions',
+            version: '1.0.0',
+            registerModule: (ctx) => {
+              ctx.di.decorate<PricingServiceContract>(
+                'pricingService',
+                (inner) => new TaggingPricingService(inner, 'promotions'),
+              );
+            },
+          },
+        ],
+        { container, eventBus: new EventBus(), log },
+      ),
+    ).toThrow(ForeignDecorationError);
+
+    // A half-wrapped container is worse than a refused one: the inner resolver
+    // would already be parked under its private name with nothing pointing at
+    // it. Composition aborts here anyway, but the property is the reason the
+    // check runs before the first `container.register`.
+    expect(container.cradle['pricingService']).toBeInstanceOf(CorePricingService);
+  });
+
+  it("still allows a deployment's overlay module to wrap core", () => {
+    // Stated separately from the T062 cases above because it is the reason a
+    // flat refusal was not an option: overlay decorations are the sanctioned
+    // per-deployment customisation seam that feature 072 put in place of file
+    // shadowing. Without this case the guard looks correct and quietly breaks
+    // every client deployment — a failure nothing else in the suite would
+    // catch until one failed to compose.
+    const { container } = compose([coreModule(), decoratingModule('acme_pricing', 'acme')]);
+
+    return expect(
+      (container.cradle['pricingService'] as PricingServiceContract).resolveLinePrice(INPUT),
+    ).resolves.toMatchObject({ priceListId: 'acme:core' });
   });
 });
