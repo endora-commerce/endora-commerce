@@ -2,21 +2,15 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { CommandBus } from '../../commands/index.js';
-import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
-import type { PaymentAdapterRegistry } from '../payment_methods/services/payment-adapter-registry.js';
-import type { OrderStatusRegistry } from '../payment_methods/services/order-status-registry.port.js';
-import type { ShippingAdapterRegistry } from '../delivery_methods/services/shipping-adapter-registry.js';
-import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
-import type { PromotionService } from '../promotions/services/promotion-service.js';
-import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type Redis from 'ioredis';
 import type { EmailMailerPort } from '@b2b/contracts';
 import {
   OrderService,
   type CreditLimitPort,
   type OrderEventBus,
+  type PromotionPort,
 } from './services/order-service.js';
 import { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderTransitionService } from './services/order-transition-service.js';
@@ -35,6 +29,7 @@ import type {
   AddressReadPort,
   AddressServicePort,
   AssetReadPort,
+  CustomFieldValuePort,
   CartWritePort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
@@ -42,10 +37,14 @@ import type {
   FulfilmentStrategy,
   InvoicePdfPort,
   InvoiceReadPort,
+  LinePricePort,
+  OrderStatusRegistry,
   OrganizationDetailsPort,
+  PaymentAdapterRegistryPort,
   PaymentMethodReadPort,
+  RfqCustomerPort,
+  ShippingAdapterRegistryPort,
 } from '@b2b/contracts';
-import { Organization } from '../organizations/entities/organization.entity.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerOrderRoutes } from './routes.js';
 import type { OrderConfirmationRenderers } from './email-templates/order-confirmation.js';
@@ -73,7 +72,7 @@ export interface OrdersModuleOptions {
   /** Audit-log writer; OrderService stamps order.place_on_behalf rows on impersonated checkouts. */
   auditLogService?: AuditLogService;
   /** Feature 055 — validates + persists Order custom-field values on the admin edit path. */
-  customFieldValues?: CustomFieldValueService;
+  customFieldValues?: CustomFieldValuePort;
   /** Feature 034 — mailer for the order-confirmation e-mail (best-effort, post-commit). */
   mailer?: EmailMailerPort;
   /**
@@ -108,7 +107,7 @@ export interface OrdersModuleOptions {
    * catalogue's legacy `defaultPrice` attribute. Absence is now a `lazyPort`
    * gate that throws `MODULE_DISABLED`, which nothing can mistake for a price.
    */
-  pricingService: PricingServiceContract;
+  pricingService: LinePricePort;
   /**
    * Feature 038 (US3) — the org address book. The admin create-order flow and
    * the external intake persist (and clean up) addresses typed inline on the
@@ -165,8 +164,8 @@ export interface OrdersModuleOptions {
    * no manifest entry can make that untrue. An accessor is read where it is
    * used, so the answer is the one the container has then.
    */
-  paymentAdapterRegistry: () => PaymentAdapterRegistry;
-  shippingAdapterRegistry: () => ShippingAdapterRegistry;
+  paymentAdapterRegistry: () => PaymentAdapterRegistryPort;
+  shippingAdapterRegistry: () => ShippingAdapterRegistryPort;
   paymentOrderStatusRegistry: () => OrderStatusRegistry;
   /**
    * Feature 026 — optional gate that refuses cart-line-add, place-order, and
@@ -195,14 +194,14 @@ export interface OrdersModuleOptions {
    * When provided, `POST /api/v1/cart/coupon` validates the code via
    * `applyToCart`. Optional so legacy compositions still build.
    */
-  promotionService?: PromotionService;
+  promotionService?: PromotionPort;
   /**
    * Feature 027 US3 — getter for the RFQ service used by Cart → Quote
    * Request and Quote Request → Cart conversions. Getter (not direct
    * reference) so the QR module can be constructed AFTER commerceModule
    * in composition.ts; the closure resolves lazily at request time.
    */
-  getRfqService?: () => RfqService | null;
+  getRfqService?: () => RfqCustomerPort | null;
   /**
    * Feature 039 — late-bind the OrderService back to composition so the
    * quick_order module's one-click flow can reuse `placeOrder` without the
@@ -327,7 +326,10 @@ export function commerceModule(options: OrdersModuleOptions) {
     // Feature 038 US4 — additional confirmation recipients (per-org + scope).
     const orgConfirmationEmailsPort: OrganizationConfirmationEmailsPort = {
       getConfirmationEmails: async (organizationId: string) => {
-        const org = await options.emFactory().findOne(Organization, { id: organizationId });
+        // Feature 075 — the addresses an organisation wants copied on every
+        // confirmation are `organizations`' column, read over its port. This
+        // used to be `em.findOne(Organization, …)` on this module's manager.
+        const org = await options.organizationDetails.findById(organizationId);
         return org?.orderConfirmationEmails ?? [];
       },
     };
