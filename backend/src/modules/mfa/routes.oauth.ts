@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { randomBytes } from 'crypto';
 import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '@b2b/contracts';
-import type { AuthSessionPort } from '@b2b/contracts';
+import type { AuthSessionPort, FederatedSignInOptionsResponse } from '@b2b/contracts';
 import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { ChallengeStore } from './services/challenge-store.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
@@ -37,6 +37,7 @@ export async function registerMfaOAuthRoutes(
   deps: MfaOAuthDeps,
 ): Promise<void> {
   for (const surface of ['customer', 'admin'] as const) {
+    registerProviders(app, deps, surface);
     registerStart(app, deps, surface);
     registerCallback(app, deps, surface);
   }
@@ -58,6 +59,44 @@ function sanitiseNext(input: string | undefined): string {
 function loginRedirect(deps: MfaOAuthDeps, surface: Surface, message: string): string {
   const base = frontendBase(deps, surface);
   return `${base}/login?error=${encodeURIComponent(message)}`;
+}
+
+/**
+ * The providers a login screen may actually offer, for this surface and — for
+ * the customer surface — this sales channel.
+ *
+ * **Pre-auth and public, deliberately.** The login screens are the callers, so
+ * there is no actor to gate on; and the answer is exactly what the buttons
+ * themselves announce, so it reveals nothing a visitor could not read off the
+ * page. It carries no client id, no redirect URI, and nothing per-account —
+ * asking it about a particular user is not possible, which is what keeps it
+ * from becoming a probe for whether an address has a federated identity.
+ *
+ * The body is the same conjunction `registerStart` applies below before it will
+ * redirect anywhere: the operator's setting for this surface and channel, AND
+ * the provider actually being configured. Publishing it stops the frontend from
+ * guessing at a decision this module already makes — it used to render both
+ * buttons unconditionally, which on a default deployment (both settings
+ * `false`) advertised two sign-in routes that could not work (#193).
+ *
+ * `mfa` owns it, so `ctx.routes` gates it like everything else the module owns:
+ * with the module off it answers 503 `MODULE_DISABLED`, and both frontends fail
+ * closed on that — no module, no buttons.
+ */
+function registerProviders(app: FastifyInstance, deps: MfaOAuthDeps, surface: Surface): void {
+  app.get(`/api/v1/auth/${surface}/oauth/providers`, async (_request, reply) => {
+    const salesChannelId = surface === 'customer' ? (currentSalesChannel()?.id ?? null) : null;
+    const policy = await deps.policyResolver.resolve(
+      { subjectType: surface, subjectId: '' },
+      { salesChannelId },
+    );
+    const providers = (['google', 'microsoft'] as const).filter((provider) => {
+      const settingEnabled = provider === 'google' ? policy.googleEnabled : policy.microsoftEnabled;
+      return settingEnabled && deps.oauthProvider.isEnabled(provider);
+    });
+    const body: FederatedSignInOptionsResponse = { providers };
+    return reply.send(body);
+  });
 }
 
 function registerStart(app: FastifyInstance, deps: MfaOAuthDeps, surface: Surface): void {
