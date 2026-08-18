@@ -15,8 +15,8 @@
  * says so.
  *
  * **Nothing left here carries that sentence.** The `orders` cut drained 64 of
- * this module's 73 entries across five merge requests. What remains is nine
- * entries of two kinds, and neither is "not yet done":
+ * this module's 73 entries across five merge requests. What remains is eleven
+ * entries of three kinds, and none is "not yet done":
  *
  *  - **two `permanent: true`** — the `payments` and `invoices` rows placement
  *    opens, held co-transactional by `payments_order_fk` and
@@ -28,6 +28,11 @@
  *    error raised for a design decision rather than solved inside a cut. Each
  *    entry states the analysis, including why moving the operation into the
  *    owner does not work and which test asserts the property that stops it.
+ *  - **two `sql:` reaches seen only since issue #187** — the channel→warehouse
+ *    knex join inside the placement transaction. Not a new coupling: a knex
+ *    builder names its table as a call argument, so both predicates were blind
+ *    to it while the other nine entries were being drained. D-94.4 has already
+ *    ruled how they go.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
@@ -46,6 +51,22 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'F3 Phase C — orders. **Escalated, not deferred.** The stock reservation is co-transactional with placement and has no foreign key to justify it under D-78 point 2: `stock_allocations.order_item_id` is `uuid not null` with no `references "order_items"` (inventory/migrations/20260503T182812_inventory_workflow.ts:199-211) — the same shape D-90 has just repaired for `shipments.order_id`. D-78 point 1 does not apply either: `reserve` cannot move inside `inventory` and keep its guarantee, because the `PESSIMISTIC_WRITE` lock on `stock_levels` has to be held until the order commits (test/contract/orders/place-stock-race.test.ts is the race it stops), and a separate transaction would leave `reserved` incremented for a placement that then rolls back. So it is D-78 point 3, and it is raised rather than solved.',
   'modules/orders/services/order-service.ts:inventory/services/fulfilment-strategy-resolver':
     'F3 Phase C — orders. **Escalated, not deferred.** The stock reservation is co-transactional with placement and has no foreign key to justify it under D-78 point 2: `stock_allocations.order_item_id` is `uuid not null` with no `references "order_items"` (inventory/migrations/20260503T182812_inventory_workflow.ts:199-211) — the same shape D-90 has just repaired for `shipments.order_id`. D-78 point 1 does not apply either: `reserve` cannot move inside `inventory` and keep its guarantee, because the `PESSIMISTIC_WRITE` lock on `stock_levels` has to be held until the order commits (test/contract/orders/place-stock-race.test.ts is the race it stops), and a separate transaction would leave `reserved` incremented for a placement that then rolls back. So it is D-78 point 3, and it is raised rather than solved.',
+  'modules/orders/services/order-service.ts:sql:inventory/warehouse_channel_assignments':
+    'Issue #187 seed, ruled by D-94.4 — placement resolves channel → warehouse with ' +
+    '`knexForStock(\'warehouse_channel_assignments as a\').join(\'warehouses as w\', …)`, ' +
+    'two of `inventory`\'s tables joined by hand inside the placement transaction. Both ' +
+    'predicates were blind to it: a builder names no import specifier and no SQL ' +
+    'statement, which is why it stood while this shard was drained from 73 entries to ' +
+    'nine. Retired by: `InventoryStockReadPort.listChannelWarehouses(salesChannelId)` — ' +
+    '`listChannelAssignments` already exists and is one field (`warehouse.code`), one ' +
+    'filter (`w.active`) and one ordering short of this query. `candidatesFor` must NOT ' +
+    'be used for it: it reads through the owner\'s own `EntityManager`, so it neither ' +
+    'takes nor holds the `PESSIMISTIC_WRITE` the placement race depends on.',
+  'modules/orders/services/order-service.ts:sql:inventory/warehouses':
+    'Issue #187 seed, ruled by D-94.4 — the second table of the same knex join described ' +
+    'in the `warehouse_channel_assignments` entry above: `warehouses` supplies the code ' +
+    'and the `active` filter the candidate ordering needs. One key per table, so the two ' +
+    'retire together when `listChannelWarehouses` replaces the join.',
   'modules/orders/services/order-service.ts:invoices/entities/invoice.entity': {
     permanent: true,
     reason:

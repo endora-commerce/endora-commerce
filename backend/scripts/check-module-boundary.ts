@@ -18,13 +18,28 @@
  * ## Two predicates, one ledger
  *
  * The **import** predicate reads specifiers. The **`sql`** predicate reads table
- * identifiers out of string and template literals and resolves each against a
- * table→owner map. Both produce findings into the same per-consumer shard and
- * the same `ledger-size`, because the question the number answers is "is there
- * cross-module coupling left", not "is there coupling of a particular syntax
- * left" (D-87). A raw `SELECT` across a package boundary compiles, runs and
- * returns rows; a `violations=0` that cannot see one licenses a package split
- * that is 116 couplings short of true.
+ * identifiers and resolves each against a table→owner map. Both produce findings
+ * into the same per-consumer shard and the same `ledger-size`, because the
+ * question the number answers is "is there cross-module coupling left", not "is
+ * there coupling of a particular syntax left" (D-87). A raw `SELECT` across a
+ * package boundary compiles, runs and returns rows; a `violations=0` that cannot
+ * see one licenses a package split that is 116 couplings short of true.
+ *
+ * The `sql` predicate reads a table identifier **two ways** — a third
+ * recognition path for the check, not a third predicate: a SQL **statement** in
+ * a string or template literal (D-87), and a knex query **builder**, which names
+ * its table as a call argument and is therefore invisible to the statement path
+ * and to the import predicate alike (issue #187 — ten such reaches, in six
+ * files, stood outside a `sql=111` that read as the whole coupling). Both
+ * resolve through the same owner map, produce the same finding and take the same
+ * ledger key, so one table reached both ways in one file is one entry. `syntax`
+ * says which path saw it. `scripts/lib/sql-tables.ts` states what each has to
+ * look like, and why the builder's method list is enumerated rather than open.
+ *
+ * A path that went blind cannot pass quietly: the ledger is two-way, so the ten
+ * entries the builder path seeded go **stale** the moment it stops seeing them,
+ * and the run fails on the stale entries rather than reporting a smaller number.
+ * That is the same property the owner map's two counts buy, one level up.
  *
  * The owner map is built from **two** sources and the second is not optional:
  * every `@Entity()` class's table name (220 tables), and every `create table` in
@@ -94,7 +109,7 @@
  *   - **`migrations/`, for the `sql` predicate** — a migration naming another
  *     module's table is the dependency-corrected execution order's problem, and
  *     `test/unit/db/fk-dependency-drift.test.ts` already owns it.
- *   - **Comments, for the `sql` predicate** — not by exclusion but by
+ *   - **Comments, for both `sql` paths** — not by exclusion but by
  *     construction: the predicate reads literal *nodes*. The first spike was a
  *     regex over source text and hallucinated a dozen tables (`every`, `bumps`,
  *     `used`, `path`), because an apostrophe in an English comment opens a
@@ -170,6 +185,7 @@ import {
   declaredTableNames,
   sqlTableAccesses,
   type SqlAccessDirection,
+  type SqlAccessSyntax,
 } from './lib/sql-tables.js';
 import { pluralize } from '../src/db/pluralizing-naming-strategy.js';
 
@@ -221,11 +237,14 @@ export interface CrossModuleImport {
 }
 
 /**
- * A module naming another module's table in raw SQL (D-87).
+ * A module naming another module's table in raw SQL or in a query builder
+ * (D-87; issue #187).
  *
  * The owner is the module (or the kernel) whose entity class or `create table`
  * DDL declares the table, so the remedy is the same one an import edge gets:
- * ask the owner through a port.
+ * ask the owner through a port. `syntax` says which recognition path saw it —
+ * the two share the ledger key, so one table reached both ways in one file is
+ * one entry.
  */
 export interface CrossModuleSqlAccess {
   readonly predicate: 'sql';
@@ -239,7 +258,9 @@ export interface CrossModuleSqlAccess {
   /** The table identifier as the statement names it, lower-cased. */
   readonly table: string;
   readonly direction: SqlAccessDirection;
-  /** The head of the statement, for the message. */
+  /** A SQL statement literal, or a knex query builder. */
+  readonly syntax: SqlAccessSyntax;
+  /** The head of the statement or of the builder chain, for the message. */
   readonly statement: string;
   /** True when either side lives under `src/apps/<deployment>/modules/`. */
   readonly overlay: boolean;
@@ -638,6 +659,7 @@ export function analyzeSqlSource(
       target: target.id,
       table: access.table,
       direction: access.direction,
+      syntax: access.syntax,
       statement: access.statement,
       overlay: owner.dir.startsWith('apps/') || target.dir.startsWith('apps/'),
     });
@@ -960,9 +982,19 @@ function sqlRemedyFor(finding: CrossModuleSqlAccess): string {
       '    `sales_channel_membership` audit row, which is Principle XIII as well.',
     ].join('\n');
   }
+  const invisibility =
+    finding.syntax === 'builder'
+      ? [
+          `${head} A query builder names its table as a call argument, so`,
+          '    neither an import specifier nor a SQL statement names it — and it still',
+          '    compiles, runs and returns rows. Ask the owner instead:',
+        ]
+      : [
+          `${head} A raw statement across the boundary compiles, runs and returns`,
+          '    rows, and no import specifier names it. Ask the owner instead:',
+        ];
   return [
-    `${head} A raw statement across the boundary compiles, runs and returns`,
-    '    rows, and no import specifier names it. Ask the owner instead:',
+    ...invisibility,
     `      1. \`${finding.target}\` publishes a port and its contract type in`,
     `         packages/contracts/src/${finding.target}.ts;`,
     "      2. resolve it here with lazyPort<ContractType>(ctx, '<literalPortName>');",
@@ -975,8 +1007,8 @@ function describeFinding(finding: ModuleBoundaryFinding): string {
   if (finding.predicate === 'sql') {
     return (
       `  - ${finding.file}:${finding.line}\n` +
-      `      ${finding.moduleId} -> ${finding.target}   sql ${finding.direction}   ` +
-      `${finding.table}\n      ${finding.statement}\n`
+      `      ${finding.moduleId} -> ${finding.target}   sql ${finding.syntax} ${finding.direction}` +
+      `   ${finding.table}\n      ${finding.statement}\n`
     );
   }
   return (
@@ -1044,7 +1076,7 @@ async function main(): Promise<void> {
       const tag = result.violations.includes(finding) ? 'CROSS   ' : 'LEDGERED';
       const detail =
         finding.predicate === 'sql'
-          ? `sql  ${finding.direction}\n           ${finding.table}`
+          ? `sql  ${finding.syntax} ${finding.direction}\n           ${finding.table}`
           : `${finding.kind}  ${finding.surface}\n           ${finding.specifier}`;
       console.log(
         `${tag} ${finding.file}:${finding.line}  [${finding.moduleId} -> ${finding.target}] ${detail}`,

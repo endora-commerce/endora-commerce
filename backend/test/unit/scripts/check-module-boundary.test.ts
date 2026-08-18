@@ -395,6 +395,217 @@ describe('the sql predicate — the shapes it has to see (D-87)', () => {
   });
 });
 
+/**
+ * The knex query builder — the `sql` predicate's third recognition path
+ * (issue #187).
+ *
+ * A builder names its table as an **argument to a call**, not inside a statement
+ * literal, so the statement path is blind to it and the import path is blind to
+ * it too (a builder names no specifier). Seven cross-module accesses in five
+ * files stood invisible to both while `sql=111` read as the whole coupling.
+ *
+ * Every fixture below enters as source text against the same fixture schema, so
+ * the owner map's two passes run rather than being handed their answer, and each
+ * positive asserts `syntax: 'builder'` — a proof that only checked the table
+ * would go green off the statement path it is not testing.
+ */
+describe('the sql predicate — knex query builders (issue #187)', () => {
+  const BLOG_SERVICE = 'modules/blog/services/blog-service.ts';
+  /** The shape 34 of the tree's ~40 builder queries start with. */
+  const BOUND_KNEX = 'const knex = em.getKnex();';
+
+  it('sees a table named as the knex callable’s argument', () => {
+    const found = sqlFindings(
+      `${BOUND_KNEX}\nconst rows = await knex('products').where('status', s).select('id');`,
+      BLOG_SERVICE,
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      predicate: 'sql',
+      syntax: 'builder',
+      moduleId: 'blog',
+      target: 'catalog',
+      table: 'products',
+      direction: 'read',
+    });
+  });
+
+  it('sees a table named by `from`', () => {
+    const found = sqlFindings(
+      "const rows = await em.getKnex().from('products').where('status', s);",
+      BLOG_SERVICE,
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ syntax: 'builder', table: 'products', target: 'catalog' });
+  });
+
+  it('sees a table named by `join`, and reads the join condition as columns', () => {
+    // `order-service.ts:1199` in full: the joined table is the finding, and the
+    // two column arguments that follow it are not tables however they are
+    // spelled.
+    const found = sqlFindings(
+      `${BOUND_KNEX}\n` +
+        "const rows = await knex('blog_posts as b')\n" +
+        "  .join('assets as a', 'a.id', 'b.cover_id')\n" +
+        "  .select('a.url');",
+      BLOG_SERVICE,
+    );
+    expect(found.map((f) => f.table)).toEqual(['assets']);
+    expect(found[0]).toMatchObject({ syntax: 'builder', target: 'assets_library' });
+  });
+
+  it('sees each join variant, not only the one the tree happens to call today', () => {
+    for (const method of [
+      'innerJoin',
+      'leftJoin',
+      'leftOuterJoin',
+      'rightJoin',
+      'rightOuterJoin',
+      'fullOuterJoin',
+      'crossJoin',
+    ]) {
+      const found = sqlFindings(
+        `${BOUND_KNEX}\nawait knex('blog_posts').${method}('products', 'products.id', 'blog_posts.product_id');`,
+        BLOG_SERVICE,
+      );
+      expect(found.map((f) => f.table), method).toEqual(['products']);
+    }
+  });
+
+  it('sees a table named by `into` and by `table`', () => {
+    for (const method of ['into', 'table']) {
+      const found = sqlFindings(
+        `${BOUND_KNEX}\nawait knex.insert(rows).${method}('cms_blocks');`,
+        BLOG_SERVICE,
+      );
+      expect(found.map((f) => f.table), method).toEqual(['cms_blocks']);
+    }
+  });
+
+  it('strips an alias and a schema qualifier from the table it reads', () => {
+    const found = sqlFindings(
+      `${BOUND_KNEX}\nawait knex('public.products as p').where('p.status', s);`,
+      BLOG_SERVICE,
+    );
+    expect(found.map((f) => f.table)).toEqual(['products']);
+  });
+
+  it('reads the aliasing object form `knex({ p: "products" })`', () => {
+    // `stock-level-service.ts:190` — the alias is the key and the table is the
+    // value, so a first-argument-must-be-a-string rule reports nothing here.
+    const found = sqlFindings(
+      `${BOUND_KNEX}\nconst q = knex({ p: 'products' }).where('p.status', s);`,
+      BLOG_SERVICE,
+    );
+    expect(found.map((f) => f.table)).toEqual(['products']);
+  });
+
+  it('sees a bridge table whose only declaration is `create table` DDL', () => {
+    const found = sqlFindings(
+      `${BOUND_KNEX}\nawait knex('sales_channel_products').where('sales_channel_id', id);`,
+      'modules/catalog/services/catalog-query.service.ts',
+    );
+    expect(found[0]).toMatchObject({
+      syntax: 'builder',
+      table: 'sales_channel_products',
+      target: 'kernel',
+    });
+  });
+
+  it('records a builder write as a write', () => {
+    const found = sqlFindings(
+      `${BOUND_KNEX}\nawait knex('cms_blocks').insert({ id, slug });`,
+      'modules/newsletter/services/consent-block-seeder.ts',
+    );
+    expect(found[0]).toMatchObject({ syntax: 'builder', table: 'cms_blocks', direction: 'write' });
+  });
+
+  it('records an update through a builder as a write', () => {
+    const found = sqlFindings(
+      `${BOUND_KNEX}\nawait knex('cms_blocks').where('id', id).update({ slug });`,
+      'modules/newsletter/services/consent-block-seeder.ts',
+    );
+    expect(found[0]).toMatchObject({ direction: 'write' });
+  });
+
+  it('names the module’s own table as the module’s own', () => {
+    expect(
+      sqlFindings(`${BOUND_KNEX}\nawait knex('blog_posts').select('id');`, BLOG_SERVICE),
+    ).toEqual([]);
+  });
+
+  it('does not read a column argument as a table, however it is spelled', () => {
+    // The reason the method list is enumerated rather than "any string literal
+    // on any builder method": `where`, `select` and `orderBy` take columns, and
+    // a column spelled like another module's table is not a reach into it. The
+    // control is in the same fixture, so this cannot pass by seeing nothing.
+    const found = sqlFindings(
+      `${BOUND_KNEX}\n` +
+        "await knex('products').where('status', s);\n" +
+        "await knex('blog_posts').select('cms_blocks').where('assets', true).orderBy('products');",
+      BLOG_SERVICE,
+    );
+    expect(found.map((f) => f.table)).toEqual(['products']);
+    expect(found[0]).toMatchObject({ syntax: 'builder' });
+  });
+
+  it('does not read a table-shaped literal on a call that is not a builder', () => {
+    // The flooding shape, measured: `isPresent('inventory')`,
+    // `defineModuleManifest('catalog')` and `@Entity({ tableName: 'products' })`
+    // put a table-shaped literal in 270 argument positions the builder never
+    // reaches. The control is in the same fixture.
+    const found = sqlFindings(
+      `${BOUND_KNEX}\n` +
+        "await knex('products').where('status', s);\n" +
+        "if (!effectiveState.isPresent('assets')) return;\n" +
+        "this.log('cms_blocks', 'seeded');",
+      BLOG_SERVICE,
+    );
+    expect(found.map((f) => f.table)).toEqual(['products']);
+  });
+
+  it('does not read a builder call on an identifier no `getKnex()` bound', () => {
+    // The knex callable has no method name to key on, so the callee has to be
+    // known to hold a knex instance. Nothing else may open the door: a bare
+    // `translate('products')` is not a query.
+    const found = sqlFindings(
+      `${BOUND_KNEX}\nawait knex('products').select('id');\nconst label = translate('assets');`,
+      BLOG_SERVICE,
+    );
+    expect(found.map((f) => f.table)).toEqual(['products']);
+  });
+
+  it('ignores a builder in a migration — the execution order owns that question', () => {
+    expect(
+      sqlFindings(
+        `${BOUND_KNEX}\nawait knex('products').select('id');`,
+        'modules/blog/migrations/20260810T101010_blog_thing.ts',
+      ),
+    ).toEqual([]);
+  });
+
+  it('ignores a builder over a table nobody owns', () => {
+    expect(
+      sqlFindings(`${BOUND_KNEX}\nawait knex('a_table_nobody_owns').select('id');`, BLOG_SERVICE),
+    ).toEqual([]);
+  });
+
+  it('gives a statement and a builder over one table in one file a single key', () => {
+    // The ledger key is `<file>:sql:<owner>/<table>` for both paths, so the two
+    // syntaxes over one table are one entry that retires when the last of them
+    // goes — the same property FR-026 gives the import predicate.
+    const found = sqlFindings(
+      `${BOUND_KNEX}\n` +
+        "await knex('products').select('id');\n" +
+        'await conn.execute(`select id from products`);',
+      BLOG_SERVICE,
+    );
+    expect(found).toHaveLength(2);
+    expect(found.map((f) => f.syntax).sort()).toEqual(['builder', 'statement']);
+    expect(new Set(found.map(keyOf)).size).toBe(1);
+  });
+});
+
 describe('the table→owner map — two sources, and the entity wins', () => {
   it('resolves a table from an entity’s `tableName`', () => {
     const found = sqlFindings(
