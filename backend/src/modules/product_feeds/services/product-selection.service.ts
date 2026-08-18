@@ -175,7 +175,7 @@ export class ProductSelectionService {
    */
   async *iterateProductIds(scope: SelectionScope): AsyncGenerator<string[]> {
     // Bound as a local so the channel this query set is scoped by is visible in
-    // the same scope as the query itself (`no-unscoped-channel-query`).
+    // the same scope as the query itself (Principle XII's accessor clause).
     const { salesChannelId } = scope;
     const channelIds = await this.channelProductIds(salesChannelId);
     if (channelIds.length === 0) return;

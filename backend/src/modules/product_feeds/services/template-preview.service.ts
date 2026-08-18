@@ -284,7 +284,7 @@ export class TemplatePreviewService {
   ): Promise<FeedItemSource> {
     // The preview is evaluated in the channel the draft names, exactly as a run
     // would be; binding it here keeps that visible at the read
-    // (`no-unscoped-channel-query`).
+    // (Principle XII's accessor clause).
     const salesChannelId = channel.id;
     const product = await this.deps.catalogProducts.findById(request.productId);
     if (!product) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product not found.');

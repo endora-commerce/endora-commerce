@@ -1,6 +1,60 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 4.0.0 → 4.0.1
+Rationale: PATCH. Principle XII's sanctioned-accessor clause said the rule was
+"enforced by the `no-unscoped-channel-query` lint rule". That sentence was
+false, and had been since feature 005: the rule was referenced by **no** ESLint
+config in the repository — its own header said so, deferring the wiring to a
+task called T062 — and it did not look at a bridge table at all. It flagged
+`em.find(Product, …)` in a function with no `salesChannelId` in scope, which is
+a different rule about a different thing. Its only live reader was one
+`product_feeds` test that loaded the file by path.
+
+So the clause has been unenforced for four features in a Constitution that says
+it is enforced, and the cost is measurable: 116 raw statements against another
+module's tables stand in the tree today, eight of them against the
+`sales_channel_*` bridges, one of which copies a product's whole channel
+assortment with a raw `INSERT` after its Command has already returned — no
+membership audit row for any of it (issue #174).
+
+The rule is deleted rather than wired: wiring it would enforce a *different*
+rule (thread a `salesChannelId` parameter) at the cost of a rewrite. The
+parenthetical now names the mechanism that does enforce the clause —
+`check:module-boundary`'s `sql` predicate (feature 077, D-87), which resolves
+every `sales_channel_*` table to its owner out of the DDL and ledgers every raw
+reach.
+
+PATCH, not MINOR: no rule moves. A statement of fact about the tree that was
+untrue is corrected, and no compliant implementation becomes non-compliant —
+the clause it describes is unchanged in substance and in scope.
+
+Modified principles:
+  - XII. Sales-Channel Content Scoping — the sanctioned-accessor clause's
+    parenthetical, and quality gate #11's matching sentence.
+
+Added sections:
+  - (none)
+
+Removed sections:
+  - (none)
+
+Templates / artifacts requiring alignment:
+  - ✅ AGENTS.md — the `check:module-boundary` inventory row now states the
+       second predicate.
+  - ✅ eslint-rules/no-unscoped-channel-query.js — deleted, with the
+       `product_feeds` test that loaded it by path.
+  - ✅ README.md / .github/pull_request_template.md — neither names the rule.
+
+Deferred items / TODOs:
+  - The ~116 seeded `sql:` ledger entries drain module by module (D-87 handoff
+    steps 8 and 9). Feature 075's SC-002 wording waits on the owner's ruling in
+    §5 of specs/077-f3-consequence-rulings/rulings.md.
+
+--- The 4.0.0 report follows unchanged.
+
+SYNC IMPACT REPORT
+==================
 Version change: 3.11.0 → 4.0.0
 Rationale: MAJOR bump. Principle XVII's "One toggle, **in Settings**, declared
 by the module" clause named the Settings module's admin surface as the home of
@@ -545,7 +599,8 @@ surfaces channel-scoped content or evaluates channel-bound commercial rules:
   fails closed, never falls open to "all channels."
 - **Sanctioned accessor only.** The `sales_channel_*` membership bridges MUST be read and written
   **only** through the channel-membership service; owning modules MUST NOT query the bridge tables
-  directly (enforced by the `no-unscoped-channel-query` lint rule). Channel membership stays one
+  directly (enforced by `check:module-boundary`'s `sql` predicate, which resolves every bridge
+  table to its owner out of the DDL — feature 077, D-87). Channel membership stays one
   authoritative, auditable path — mirroring how Principle I routes all cross-module access through
   explicit interfaces.
 - **Evaluation snapshots carry the channel.** Cart / pricing / promotion evaluation MUST include
@@ -1105,7 +1160,8 @@ Every change MUST pass the following sixteen gates before merge:
     a channel-scoped read or commercial evaluation that returns the full cross-channel set when
     no explicit channel is present (fail-open), a null / unresolved channel that matches a
     channel-bound record, a module that queries a `sales_channel_*` bridge directly instead of the
-    channel-membership service (`no-unscoped-channel-query` must pass), or a channel-scoped path
+    channel-membership service (`check:module-boundary` must pass, and its `sql:` ledger must not
+    grow), or a channel-scoped path
     that ships without cross-channel tests (out-of-channel content hidden + null-channel fails
     closed).
 12. **Uniform write auditing** — reviewers MUST reject any change that violates Principle XIII:
@@ -1213,4 +1269,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 4.0.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-08-12
+**Version**: 4.0.1 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-08-17

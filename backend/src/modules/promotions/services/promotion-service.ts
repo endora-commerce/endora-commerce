@@ -326,8 +326,9 @@ export class PromotionService {
     //   - `null`  → the cart resolved to no channel → nothing matches (fail closed);
     //   - absent  → a legacy caller that does not participate in channel scoping →
     //               the gate is skipped (neutrality; every real caller sends the field).
-    // The bridge is read only through SalesChannelMembershipService (the
-    // `no-unscoped-channel-query` rule); when it is not wired (legacy test
+    // The bridge is read only through SalesChannelMembershipService (Principle
+    // XII's accessor clause, enforced by `check:module-boundary`'s `sql`
+    // predicate since D-87); when it is not wired (legacy test
     // composition) the gate degrades to no channel filtering. This is an interim
     // predicate subsumed by the future unified channel resolver (spec 03).
     let channelPromotionIds: Set<string> | null = null;

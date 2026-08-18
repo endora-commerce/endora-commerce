@@ -489,7 +489,7 @@ export function productFeedsModule(
     const channel = await em.findOne(SalesChannel, { id: salesChannelId });
     if (!channel) return out;
     // The ids come from the channel-scoped selection; the channel is bound above
-    // so the scoping is visible here too (`no-unscoped-channel-query`).
+    // so the scoping is visible here too (Principle XII's accessor clause).
     const products = await options.catalogProducts.findByIds(input.productIds);
     for (const product of products) {
       const resolved = await resolveAnonymousPrice({

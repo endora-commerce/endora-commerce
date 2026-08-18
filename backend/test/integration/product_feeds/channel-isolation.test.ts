@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ProductSelectionRule } from '@b2b/contracts';
 import {
@@ -439,89 +439,13 @@ describe('product feed channel isolation [integration]', () => {
       }
     });
 
-    /**
-     * The reads this module performs on a rule-listed entity that genuinely
-     * carry no channel dimension. Each is here with its reason; anything not on
-     * this list is a finding, and the list is asserted to be exact, so a stale
-     * entry fails just as loudly as a new violation.
-     *
-     * `eslint-rules/no-unscoped-channel-query.js` is deliberately conservative
-     * (its own header says so) and is not yet referenced from
-     * `eslint.config.js`, so it is run here directly rather than through the
-     * repo lint task — which is also what makes "the module is clean under it"
-     * a statement someone can rely on when it is finally switched on.
-     */
-    const ALLOWED_UNSCOPED: ReadonlyArray<{ file: string; entity: string; why: string }> = [
-      // **Empty, and that is the finished state.** Feature 075, Phase C removed
-      // the first three — the `PriceList` existence check and both `Category`
-      // reads went to `priceListReadPort` and `catalogCategoryReadPort` — and
-      // the exactness half below is what forced the fourth off this list too:
-      // the selection scan compiles to `CatalogProductFilter` and runs inside
-      // `catalogProductFilterPort` now, so `product-selection.service.ts` names
-      // no catalog entity at all and there is nothing left to scope by hand.
-      //
-      // The list stays rather than the assertion collapsing to `toEqual([])`,
-      // because the exactness half is what makes an entry added later have to
-      // correspond to a real read.
-    ];
-
-    it('is clean under no-unscoped-channel-query, bar the documented reads', async () => {
-      const { Linter } = await import('eslint');
-      const tsParser = (await import('@typescript-eslint/parser')).default;
-      // The rule is plain JavaScript with no type declarations — a lint asset,
-      // not a compiled module — so it is loaded by URL rather than by a static
-      // specifier `tsc` would demand types for.
-      const rulePath = pathToFileURL(
-        join(HERE, '../../../../eslint-rules/no-unscoped-channel-query.js'),
-      ).href;
-      const plugin = ((await import(rulePath)) as { default: { rules: Record<string, unknown> } })
-        .default;
-
-      const linter = new Linter();
-      const findings: Array<{ file: string; entity: string; line: number }> = [];
-      for (const file of moduleSources(MODULE_ROOT)) {
-        const messages = linter.verify(
-          readFileSync(file, 'utf8'),
-          [
-            {
-              files: ['**/*.ts'],
-              languageOptions: { parser: tsParser as never },
-              linterOptions: { reportUnusedDisableDirectives: 'off' },
-              plugins: { channels: plugin as never },
-              rules: { 'channels/no-unscoped-channel-query': 'error' },
-            },
-          ],
-          file,
-        );
-        for (const message of messages) {
-          const entity = /`\w+\((\w+), …\)`/.exec(message.message)?.[1] ?? 'unknown';
-          findings.push({
-            file: file.slice(MODULE_ROOT.length + 1),
-            entity,
-            line: message.line,
-          });
-        }
-      }
-
-      const unexpected = findings.filter(
-        (finding) =>
-          !ALLOWED_UNSCOPED.some(
-            (allowed) => allowed.file === finding.file && allowed.entity === finding.entity,
-          ),
-      );
-      expect(
-        unexpected.map((f) => `${f.file}:${f.line} ${f.entity}`),
-        'a channel-scoped entity is read without the channel in scope — thread it through or document it here',
-      ).toEqual([]);
-
-      // Exactness: an allow-list entry that no longer corresponds to a real read
-      // is a comment claiming a scoping decision nobody is making any more.
-      for (const allowed of ALLOWED_UNSCOPED) {
-        expect(
-          findings.some((f) => f.file === allowed.file && f.entity === allowed.entity),
-          `stale allow-list entry: ${allowed.file} / ${allowed.entity}`,
-        ).toBe(true);
-      }
-    });
+    // This file used to run `eslint-rules/no-unscoped-channel-query.js` by path
+    // — the only live reader that rule ever had. D-87 deleted it: it was wired
+    // into no ESLint config, it never looked at a bridge table, and the
+    // Constitution had credited it with enforcing the accessor clause since
+    // feature 005. The repo-wide mechanism is `check:module-boundary`'s `sql`
+    // predicate, which resolves `sales_channel_*` to its owner from the DDL and
+    // ledgers every raw reach. The source-level assertion above stays: it is
+    // this module's own, and it is cheaper to read than a ledger diff.
   });
 });

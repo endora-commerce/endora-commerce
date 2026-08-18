@@ -49,7 +49,8 @@ flag, not resolution.
 
 This invariant is enforced by `backend/scripts/check-channel-resolution.ts`
 (CI `--enforce`). Bridge membership is read only through
-`SalesChannelMembershipService` (the `no-unscoped-channel-query` rule).
+`SalesChannelMembershipService`; `check:module-boundary`'s `sql` predicate is what
+refuses a raw `sales_channel_*` statement (D-87).
 
 Full contract + consumption guide: `specs/053-sales-channel-scoping-unification/`
 (`contracts/resolved-channel-context.md`, `contracts/header-dialect.md`,

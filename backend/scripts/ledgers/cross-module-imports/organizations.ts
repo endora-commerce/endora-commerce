@@ -36,4 +36,16 @@ export const entries: Readonly<Record<string, string>> = {
     'Resolving `quoteRequestReadPort` from `organizations` would also close a manifest cycle ' +
     '(`quote_requests` declares `organizations`) for a question this module does not own. ' +
     'Retired by the same FR-015 split as the entry above.',
+
+  // --- D-87: raw SQL against another module's tables (feature 077) ---
+  'modules/organizations/services/organization-inheritance-service.ts:sql:credit_limits/credit_limits':
+    'D-87 seed — `organizations` reads `credit_limits`\'s `credit_limits` table in raw ' +
+    'SQL. The statement names no import specifier, so the boundary it crosses compiles ' +
+    'and returns rows. Retired by: `creditLimitService`, resolved through `lazyPort` with ' +
+    '`credit_limits` declared in this module\'s manifest dependencies.',
+  'modules/organizations/services/organization-moderation-service.ts:sql:customer_accounts/customer_accounts':
+    'D-87 seed — `organizations` reads `customer_accounts`\'s `customer_accounts` table in ' +
+    'raw SQL. The statement names no import specifier, so the boundary it crosses ' +
+    'compiles and returns rows. Retired by: `customerAccountReadPort`, resolved through ' +
+    '`lazyPort` with `customer_accounts` declared in this module\'s manifest dependencies.',
 };
