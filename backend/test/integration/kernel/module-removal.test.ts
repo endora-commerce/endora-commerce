@@ -159,9 +159,10 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `auth` (T078). `composition.ts` imports `promoteAdminActor` and the
   // `AuthCradle` type. The type import is the ordinary shape of a root
   // resolving a module's registrations. `promoteAdminActor` is the interesting
-  // one: it is the admin-session promotion the hand-wired `requireCustomer`
-  // closure applies before deciding whether a request carries a customer, and
-  // it leaves when `customer_accounts` converts.
+  // one: the MFA actor bridge promotes a partially-authenticated session before
+  // asserting it is an admin, and it leaves when `auth` provides actor
+  // promotion as a port. It was never the customer guard's — that one is
+  // `auth`'s `requireCustomer` port since issue #43 and promotes nothing.
   auth: ['src/composition.ts'],
   // `admin_roles` (wave 1). `composition.ts` imports its service types to
   // annotate what it resolves out of the container — the ordinary shape of a

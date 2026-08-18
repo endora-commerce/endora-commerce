@@ -173,7 +173,6 @@ import { seedUs2Commerce } from './seed-commerce.js';
 import { seedTestAdmins } from './seed-admins.js';
 import {
   registerTestAuth,
-  requireTestCustomer,
   TEST_ADMIN_ID,
   TEST_CUSTOMER_ID,
   TEST_ORGANIZATION_ID,
@@ -1660,10 +1659,13 @@ export async function setupBackendServer(
     // the harness passed the same object to `searchModule` as an option but
     // never registered it, so `cms`' colour-palette writer had nothing to
     // resolve. Mirroring the root is the point of this block.
-    // Feature 072 (T096) — the harness's own customer guard, which is a
-    // different implementation from the root's. Registering it is what makes
-    // that divergence visible in one place instead of twenty-seven.
-    requireCustomer: requireTestCustomer(),
+    // `requireCustomer` is NOT here any more: `auth` provides it as a port
+    // (issue #43). This harness contributed `requireTestCustomer()` — a second
+    // implementation that read `request.testActor` where the root read
+    // `request.actor`, so every customer route was gated by one guard in
+    // production and a different one under test. `registerTestAuth` mirrors
+    // each resolved actor onto both properties, which is why the surviving
+    // implementation answers correctly here without reading `testActor`.
     // Feature 072 (wave 2) — mirrors `composition.ts`.
     customerContextResolver: customerResolver,
     // Feature 072 (wave 3) — how this composition names the calling customer as

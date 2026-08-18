@@ -6,6 +6,7 @@ import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { AdminPermissionChecker } from '../../kernel/ports/require-admin.js';
 import { authPlugin } from './plugin.js';
 import { createRequireAdmin, createRequireAdminAny } from './require-admin.js';
+import { createRequireCustomer } from './require-customer.js';
 import { AuthSessionReadService, createAuthSessionPort } from './services/session-port.js';
 import { SessionService } from './services/session-service.js';
 
@@ -117,6 +118,16 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(() => createRequireAdminAny({ permissionService: permissionChecker() }))
       .singleton(),
+  );
+
+  // The customer-side twin, and the last guard either composition root still
+  // declared for itself (issue #43). Both roots had one — reading different
+  // request properties and disagreeing on every request shape — while 16 route
+  // surfaces took production's and 11 the harness's. It reads nothing but the
+  // actor, so unlike the two above it closes over no collaborator.
+  ctx.di.providePort(
+    'requireCustomer',
+    ctx.asFunction(() => createRequireCustomer()).singleton(),
   );
 
   ctx.rootPlugin(

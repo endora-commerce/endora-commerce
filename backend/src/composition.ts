@@ -440,16 +440,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
-  const requireCustomer = async (request: FastifyRequest): Promise<void> => {
-    if (request.actor.kind !== 'customer') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-    }
-  };
-
   // Feature 072, T011/T012 — one guard implementation, owned by `auth` and
   // shared with the test harness. It used to be declared inline here while the
   // harness ran its own copy that read a different request property and took
   // `permissionService` as optional.
+  //
+  // Issue #43 — the same is now true of `requireCustomer`, which this root
+  // declared inline right here until the customer-side twin got the same
+  // treatment. That copy read `request.actor` and crashed on a request carrying
+  // none; the harness's `requireTestCustomer()` read `request.testActor` and
+  // refused. `auth` provides the one guard, and the 16 route surfaces that take
+  // it resolve the name out of the container.
   const requireAdmin = authCradle.requireAdmin;
 
   /**
@@ -1266,12 +1267,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // property of the deployment — the system-default channel, or the env
     // fallback when none is configured yet — not of any module, and this root
     // had spelled the same expression out four times.
-    // Feature 072 (T096) — `mfa` resolves it. Owned by `auth` in principle and
-    // still declared inline above; see the task on unifying it with the
-    // harness's `requireTestCustomer()`.
-    requireCustomer,
+    // `requireCustomer` is NOT here any more: `auth` provides it as a port
+    // (issue #43), for the same reason `requireAdmin` is not — re-registering
+    // the name would replace a gated registration with a plain closure.
     // Feature 072 (wave 2) — how this composition resolves the calling
-    // customer. Root-shaped for the same reason `requireCustomer` is: five
+    // customer. Root-shaped as `requireCustomer` used to be: five
     // modules take it as an option and each root spells it once.
     customerContextResolver: customerResolver,
     // Feature 072 (wave 3) — how this composition names the calling customer,
