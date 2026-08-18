@@ -145,8 +145,12 @@ never add a "module options" object for something the module can read itself.
    filters, or it is schema-only. An edge that answers none fails the build, and the three
    shapes that do are all fail-*open*: a captured cross-module registration, a read of an
    ungated registry whose owner states no absent-owner policy, and a gated port resolved
-   before the first request. The same artefact is what the operator's confirmation dialog
-   renders, so the classification is not CI bookkeeping — see
+   before the first request. The classification is not CI bookkeeping: the same artefact is what
+   the operator's confirmation dialog **will** render, which is feature 074's deliverable
+   (issue #121, in flight). Today's dialog is a bare `window.confirm` naming the module and
+   nothing else (`admin/src/modules/platform/ModuleActivationControl.tsx`), so classifying an
+   edge is currently answering the question that dialog cannot yet ask — write the entry for
+   the operator who will read it, not for the check. See
    `docs/docs/architecture/kernel.md` § *The deactivation-consequence ledger*.
 5. **Routes, workers, subscribers** — `ctx.routes` / `ctx.worker` / `ctx.subscribe`. These
    already apply the gating wrappers; do not call `defineModuleRoutes` and friends by hand.

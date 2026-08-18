@@ -38,9 +38,23 @@ x-backend-env: &backend-env
   MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY}
   # Public URLs (OAuth redirects, email links, CORS).
   BACKEND_PUBLIC_URL: https://${API_DOMAIN}
+  # Same origin under the name the payment gateways, the public product feeds
+  # and the newsletter confirmation links read (issue #218). Derived rather
+  # than asked for in `.env`, because there is only one right answer and an
+  # operator who has to supply it can leave it out: it used to default to
+  # `http://localhost:3001`, which handed every gateway a callback URL nothing
+  # on the internet can reach — so no payment was ever confirmed, and nothing
+  # logged or refused. The backend now refuses to boot in production when
+  # neither this nor BACKEND_PUBLIC_URL is set.
+  PUBLIC_API_BASE_URL: https://${API_DOMAIN}
   ADMIN_BASE_URL: https://${ADMIN_DOMAIN}
   STOREFRONT_BASE_URL: https://${STOREFRONT_DOMAIN}
   CORS_ALLOWED_ORIGINS: https://${STOREFRONT_DOMAIN},https://${ADMIN_DOMAIN}
+  # Shared secret for the storefront's on-demand cache revalidation endpoint
+  # (`storefront/app/api/revalidate/route.ts`). It must be the SAME value on
+  # both services; unset, the backend's revalidator is a silent no-op and a
+  # catalogue or CMS change never reaches the rendered storefront.
+  REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
   # Secrets — generate per environment, see deploy/.env.prod.example.
   SESSION_COOKIE_SECRET: ${SESSION_COOKIE_SECRET}
   SETTINGS_SECRET_ENCRYPTION_KEY: ${SETTINGS_SECRET_ENCRYPTION_KEY}
@@ -165,6 +179,10 @@ services:
       HOSTNAME: 0.0.0.0
       # Server-side fetcher → internal backend (NEXT_PUBLIC_* were baked at build).
       BACKEND_BASE_URL: http://backend:3001
+      # The other half of the revalidation seam: this is the secret
+      # `/api/revalidate` compares the backend's header against. Unset here and
+      # the endpoint answers 401 to a backend that is configured correctly.
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
     # Published on loopback only — the host nginx proxies ${STOREFRONT_DOMAIN} here.
     ports:
       - '${STOREFRONT_HOST_PORT:-127.0.0.1:3000}:3000'
@@ -202,25 +220,21 @@ services:
       timeout: 3s
       retries: 6
 
-  # Optional: seed demo/test catalog data. Run on demand, not on every deploy:
-  #   IMAGE_TAG=<sha> docker compose --env-file .env -f compose.prod.yml \
-  #     --profile seed run --rm seed
-  seed:
-    image: ${REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
-    command: ['pnpm', 'exec', 'tsx', 'src/modules/catalog/seeds/dev-catalog-seed.ts']
-    environment:
-      <<: *backend-env
-      # Opt in to running the destructive demo seed despite NODE_ENV=production.
-      # Scoped to this one-shot service only — backend/backend-migrate never get
-      # it, so an accidental run cannot wipe business data.
-      ALLOW_DEV_SEED_IN_PRODUCTION: 'true'
-    networks:
-      - internal
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: 'no'
-    profiles: ['seed']
+  # There is deliberately no `seed` service here (issue #218). This file used to
+  # define one that ran the developer demo seed — which truncates the public
+  # catalog and business tables — with `ALLOW_DEV_SEED_IN_PRODUCTION=true` set
+  # permanently. That flag exists so an accidental run cannot wipe real data,
+  # and pre-setting it in the production compose file disarmed the one guard
+  # that stood between a client's deployment and a truncate. Two accidents kept
+  # it harmless: a `seed` profile, and a `command` naming a path that does not
+  # exist — so the moment somebody "fixed the path" the README's own deployment
+  # steps would have wiped the catalogue.
+  #
+  # Populating a demo host is still supported, but the operator types the
+  # override themselves, at the moment they mean it (see deploy/README.md):
+  #   docker compose --env-file .env -f compose.prod.yml run --rm \
+  #     -e ALLOW_DEV_SEED_IN_PRODUCTION=true backend \
+  #     pnpm exec tsx src/seeds/dev-catalog-seed.ts
 
 networks:
   # Stack-private network for all services (DB/cache/search + apps talk here).

@@ -36,11 +36,14 @@ import { registerRequestScopeHook } from './kernel/request-scope-hook.js';
 // window because there is nothing to overwrite.
 import { MODULES } from './composition.generated.js';
 import {
+  assertPublicApiBaseUrlConfigured,
   composeModules,
+  configuredPublicApiBaseUrl,
   createRootContainer,
   createRegistrationOwnership,
   registerOrm,
   registerValues,
+  resolvePublicApiBaseUrl,
 } from './kernel/index.js';
 import { promoteAdminActor } from './modules/auth/plugin.js';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
@@ -160,6 +163,16 @@ function anyLabel(name: unknown): string {
 }
 
 export async function composeApp(): Promise<ComposeAppHandle> {
+  // Issue #218 — before anything is opened, refuse a production boot with no
+  // public origin. `PUBLIC_API_BASE_URL` is what every payment-gateway callback
+  // URL, public product-feed URL and newsletter confirmation link is built on,
+  // and its old `http://localhost:3001` default produced a wrong-but-plausible
+  // URL nothing logged and nothing refused. Both deployment entry points
+  // (`index.ts`, `worker.ts`) go through this function, so one line covers both
+  // — and `index.ts` already turns a throw from here into a "this is almost
+  // always a configuration problem" message plus `exit(1)`.
+  assertPublicApiBaseUrlConfigured();
+
   const orm = await initOrm();
   // Feature 050 — the single EM-injection seam. `forkScopedEm` is a bare
   // `orm.em.fork()`: it stamps NOTHING, because the tenant filters read the
@@ -291,8 +304,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // nothing else in this file has an opinion about it.
     pimErgonodeRunWorkers: runWorkers,
     productFeedsRunWorkers: runWorkers,
-    productFeedsPublicBaseUrl: process.env['PUBLIC_API_BASE_URL'] ??
-        `http://localhost:${process.env['PORT'] ?? '3001'}`,
+    productFeedsPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsTokenEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
     // The one connection ioredis has put into subscriber mode. Shared, because
     // a subscriber connection cannot serve commands: a per-module one would
@@ -1867,14 +1879,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           visibility: 'public',
           deletedAt: null,
         });
-        const apiOrigin = (process.env['PUBLIC_API_BASE_URL'] ?? '').replace(/\/+$/, '');
+        const apiOrigin = configuredPublicApiBaseUrl();
         for (const asset of assets) {
           try {
             const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
             if (resolved.expiresAt !== null) continue; // signed ⇒ not stable
             const url = /^https?:\/\//i.test(resolved.url)
               ? resolved.url
-              : apiOrigin === ''
+              : apiOrigin === null
                 ? null
                 : `${apiOrigin}/${resolved.url.replace(/^\/+/, '')}`;
             if (url) out.set(asset.id, url);
@@ -2017,10 +2029,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       defaultChannelId: (await salesChannels.resolver.getSystemDefault()).id,
       resolveChannelIdByCode: async (code) =>
         (await salesChannels.resolver.getByCode(code))?.id ?? null,
-      publicBaseUrl:
-        process.env['PUBLIC_API_BASE_URL'] ??
-        process.env['STOREFRONT_BASE_URL'] ??
-        'http://localhost:3000',
+      // The confirm/unsubscribe links this builds are `/api/v1/newsletter/...`
+      // paths, so the origin is the API's, never the storefront's. It used to
+      // fall back to `STOREFRONT_BASE_URL`, which on the shipped production
+      // template pointed every confirmation link at a Next.js host that serves
+      // no such route (issue #218).
+      publicBaseUrl: resolvePublicApiBaseUrl(),
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
       loadCustomerEmail: async (customerAccountId) =>
         (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,

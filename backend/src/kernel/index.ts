@@ -148,3 +148,10 @@ export {
   type SalesChannelResolutionPort,
 } from './ports/sales-channel.js';
 export { lazyPort } from './lazy-port.js';
+
+export {
+  PublicApiBaseUrlNotConfiguredError,
+  assertPublicApiBaseUrlConfigured,
+  configuredPublicApiBaseUrl,
+  resolvePublicApiBaseUrl,
+} from './public-api-base-url.js';

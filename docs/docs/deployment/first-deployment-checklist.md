@@ -93,8 +93,9 @@ switch, and the Languages screen shows that language as default.
 **Why.** `deploy/.env.prod.example` ships placeholders (`change-me-hex-32`,
 `change-me-base64-32`). They are syntactically valid, so nothing refuses to boot: a deployment
 that keeps them runs with a publicly-known session-signing key and a publicly-known
-settings-encryption key. Only a missing `SESSION_COOKIE_SECRET` is refused
-(`backend/src/index.ts:13-18`) — a placeholder one is not.
+settings-encryption key. Only two things are refused at boot: a missing
+`SESSION_COOKIE_SECRET` (`backend/src/index.ts`) and a missing public API origin (B2). A
+placeholder secret is not — it is syntactically a secret.
 
 **Do (engineer).** Generate each of `SESSION_COOKIE_SECRET`, `ASSETS_LIBRARY_HMAC_KEY`
 (`openssl rand -hex 32`), `SETTINGS_SECRET_ENCRYPTION_KEY`, `MFA_SECRET_ENCRYPTION_KEY`,
@@ -103,29 +104,34 @@ the file.
 
 **Verify.** `grep change-me /opt/b2b/.env` returns nothing.
 
-### B2. Set `PUBLIC_API_BASE_URL` and `REVALIDATE_SECRET` — the templates do not
+### B2. Set `REVALIDATE_SECRET`, and know why the backend refuses to boot without a public origin
 
-**Why.** Neither variable appears in `deploy/.env.prod.example` or in the `x-backend-env`
-block of `deploy/compose.prod.yml`, and both fail silently rather than loudly:
+**Why.** Neither `PUBLIC_API_BASE_URL` nor `REVALIDATE_SECRET` used to appear in
+`deploy/.env.prod.example` or in the `x-backend-env` block of `deploy/compose.prod.yml`, and
+both failed silently. Issue #218 changed both, in different ways:
 
-- `PUBLIC_API_BASE_URL` falls back to `http://localhost:3001`
-  (`backend/src/modules/tpay/backend.ts:91`, `backend/src/modules/payu/backend.ts:91`,
-  `backend/src/modules/autopay/routes.admin.ts:73`, `backend/src/composition.ts:294`). It is
-  the origin the payment-gateway callback (ITN/notification) URLs and the public product-feed
-  URLs are built on. Unset, the platform hands the gateway a `localhost` callback the gateway
-  cannot reach, and payments are never confirmed.
-- `REVALIDATE_SECRET` is the shared secret the backend uses to flush the storefront's fetch
-  cache after a content write (`backend/src/modules/catalog/backend.ts:265-278`, plus the
-  analytics and marketing modules). Unset, the revalidator is a documented no-op: content
-  changes do not appear on the storefront until the cache expires on its own.
+- `PUBLIC_API_BASE_URL` is the origin every payment-gateway callback (ITN/notification) URL,
+  every public product-feed URL and every newsletter confirmation link is built on. It used to
+  fall back to `http://localhost:3001`, so the platform handed the gateway a callback nothing
+  on the internet can reach and no payment was ever confirmed. `compose.prod.yml` now derives
+  it from `API_DOMAIN` alongside `BACKEND_PUBLIC_URL`, and the backend **refuses to boot** when
+  `NODE_ENV=production` and neither is set (`backend/src/kernel/public-api-base-url.ts`, called
+  first thing in `composeApp()`). Nothing to fill in — but if the backend exits at boot naming
+  this variable, `API_DOMAIN` is what is missing.
+- `REVALIDATE_SECRET` is the shared secret the backend presents to the storefront's
+  `/api/revalidate` endpoint after a content write (`backend/src/modules/catalog/backend.ts`,
+  plus the analytics and marketing modules). Unset, the revalidator is a silent no-op and the
+  storefront endpoint answers 401: content changes do not appear until the fetch cache expires
+  on its own. It is now in `deploy/.env.prod.example` and handed to **both** the backend and the
+  storefront container — the same value, or the seam does not close.
 
-**Do (engineer).** Add both to `deploy/.env` and to the backend service environment:
-`PUBLIC_API_BASE_URL=https://<API_DOMAIN>` and a freshly generated `REVALIDATE_SECRET`, shared
-with the storefront.
+**Do (engineer).** Generate `REVALIDATE_SECRET` (`openssl rand -hex 32`) into `deploy/.env`.
+Confirm `API_DOMAIN` is the real public API domain.
 
-**Verify.** In the Admin UI, a gateway's configuration screen shows a callback URL on the public
-API domain (not `localhost`), and that URL is what is registered in the provider's own portal.
-Publish a category change and confirm it appears on the storefront without waiting.
+**Verify.** `docker compose --env-file .env -f compose.prod.yml config | grep PUBLIC_API_BASE_URL`
+shows the public API origin, not `localhost`. In the Admin UI, a gateway's configuration screen
+shows a callback URL on that domain, and that URL is what is registered in the provider's own
+portal. Publish a category change and confirm it appears on the storefront without waiting.
 
 ### B3. Point `SMTP_URL` at a real relay
 
@@ -163,18 +169,20 @@ the release's `backend-migrate` container produces on the VPS.
 
 ### C2. Do not run the demo seed
 
-**Why.** `deploy/README.md` § *First deploy* step 3 offers a "seed test data" command, and it is
-the developer demo seed — `backend/src/seeds/dev-catalog-seed.ts`, which **truncates the public
-catalog and business tables**. The script has a production guard, and the compose service that
-runs it sets `ALLOW_DEV_SEED_IN_PRODUCTION=true` permanently to defeat it
-(`deploy/compose.prod.yml`, service `seed`). That is correct for a demo host and catastrophic
-for a client's. Two further reasons not to touch it: the command in `deploy/compose.prod.yml`
-names a path that does not exist (`src/modules/catalog/seeds/dev-catalog-seed.ts`), so it fails
-today rather than running — do not "fix" it on a client deployment — and the guard being
-switched off means the failure mode is silent data loss, not an error.
+**Why.** The developer demo seed (`backend/src/seeds/dev-catalog-seed.ts`) **truncates the
+public catalog and business tables**. It has a production guard —
+`ALLOW_DEV_SEED_IN_PRODUCTION` — which `deploy/compose.prod.yml` used to defeat permanently in
+a pre-armed `seed` service that `deploy/README.md` listed as a deployment step. Issue #218
+removed the service and took the seed out of the deployment procedure: there is now no way to
+run it that does not involve an operator typing `-e ALLOW_DEV_SEED_IN_PRODUCTION=true`
+themselves.
 
-**Do (operator + engineer).** Skip the `--profile seed` step entirely. Load the client's real
-catalog through the Import/Export module or the Ergonode PIM integration instead.
+That closes the accident, not the decision. The seed is still reachable, and this step is
+still the place where an operator says no to it.
+
+**Do (operator + engineer).** Run no seed. Load the client's real catalog through the
+Import/Export module or the Ergonode PIM integration instead. A deployment starts with an
+empty catalogue on purpose.
 
 **Verify.** No demo products, no demo organizations, no `platform_admin` account you did not
 create yourself. `select count(*) from products` returns what the client's own import produced.
