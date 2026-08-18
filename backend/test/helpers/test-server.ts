@@ -190,6 +190,12 @@ import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/
 import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
+import type { PimcoreClientPort } from '../../src/modules/pim_pimcore/services/pimcore-client.port.js';
+import type { PimcoreMediaFetcherPort } from '../../src/modules/pim_pimcore/services/pimcore-media-fetcher.port.js';
+import {
+  refusingPimcoreClient,
+  ScriptedPimcoreMediaFetcher,
+} from './scripted-pimcore-client.js';
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
@@ -280,6 +286,18 @@ export interface BackendServerOptions {
    * `ScriptedErgonodeMediaFetcher` holding their files.
    */
   ergonodeMediaFetcher?: ErgonodeMediaFetcherPort;
+  /**
+   * Feature 076 — the Pimcore Data Hub source transport. Defaults to a client
+   * that THROWS on every listing/get read, so a test that forgets to script the
+   * source fails loudly instead of reaching a customer's PIM; `pim_pimcore`
+   * tests pass a `ScriptedPimcoreClient` holding their fixtures.
+   */
+  pimcoreClient?: PimcoreClientPort;
+  /**
+   * Feature 076 — the byte source for imported Pimcore media. Defaults to a
+   * fetcher that has nothing scripted and therefore answers `not_found`.
+   */
+  pimcoreMediaFetcher?: PimcoreMediaFetcherPort;
   /**
    * Feature 072 (T073) — arm the cross-process pub/sub path: subscribe the
    * second Redis client to the custom-field and module-state channels.
@@ -551,6 +569,22 @@ function testAnyLabel(name: unknown): string {
 }
 
 const SEEDED_TABLES = [
+  // Feature 076 — Pimcore PIM. Truncated explicitly because nothing cascades
+  // here from the tables below: connection, inbound events, mappings, runs and
+  // issues have no path from catalog/orders. Listed children-first.
+  'pimcore_import_issues',
+  'pimcore_field_protections',
+  'pimcore_media_links',
+  'pimcore_product_links',
+  'pimcore_price_bindings',
+  'pimcore_category_mappings',
+  'pimcore_attribute_set_mappings',
+  'pimcore_attribute_mappings',
+  'pimcore_inbound_events',
+  // Runs and connections reference each other (`current_run_id` /
+  // `connection_id`); truncate … cascade handles the cycle.
+  'pimcore_import_runs',
+  'pimcore_connections',
   // Feature 068 — Ergonode PIM. Truncated explicitly because nothing cascades
   // here: `ergonode_product_links` hangs off products, but the connection, its
   // cursors, mappings, runs and issues have no path from any table below, so
@@ -950,6 +984,7 @@ export async function setupBackendServer(
     apiInterceptors,
     // The module's `ctx.onBoot` schedule reconcile resolves this (T131).
     pimErgonodeRunWorkers: false,
+    pimPimcoreRunWorkers: false,
     productFeedsRunWorkers: false,
     productFeedsPublicBaseUrl: 'http://feeds.test.local',
     productFeedsTokenEncryptionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
@@ -1995,6 +2030,12 @@ export async function setupBackendServer(
     pimErgonodeSourceOverrides: {
       ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
       mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
+    },
+    // Feature 076 — same window and reason as Ergonode: a contribution after
+    // boot would be discarded and a test could open a real socket to Pimcore.
+    pimPimcoreSourceOverrides: {
+      pimcoreClient: options.pimcoreClient ?? refusingPimcoreClient(),
+      mediaFetcher: options.pimcoreMediaFetcher ?? new ScriptedPimcoreMediaFetcher(),
     },
     productFeedsTestOverrides: {
       taxonomyDataRoot: '/nonexistent/product-feeds-taxonomies',

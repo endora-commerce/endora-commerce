@@ -186,6 +186,15 @@ const NAV: NavSection[] = [
         requiredPermission: 'pim_ergonode:read',
         module: 'pim_ergonode',
       },
+      // Feature 076 — Pimcore PIM. Same Catalog placement as Ergonode: one
+      // sidebar row; mapping surfaces arrive as tabs in later stories.
+      {
+        to: '/pim-pimcore',
+        labelKey: 'appShell.nav.pimPimcore',
+        icon: PlugZap,
+        requiredPermission: 'pim_pimcore:read',
+        module: 'pim_pimcore',
+      },
       // A feed publishes the catalogue, so it belongs beside the catalogue
       // rather than under Channels. Templates are a view of the same surface
       // and are reached through the tab strip there, not a second sidebar row.
@@ -599,6 +608,22 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/pim-ergonode\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.pimErgonode', href: null },
+  ] },
+  // Feature 076 — Pimcore PIM. Deepest trail first.
+  { test: /^\/pim-pimcore\/runs\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimPimcore', href: '/pim-pimcore' },
+    { labelKey: 'appShell.nav.pimPimcoreRuns', href: '/pim-pimcore/runs' },
+    { labelKey: 'appShell.crumb.importRun', href: null },
+  ] },
+  { test: /^\/pim-pimcore\/runs\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimPimcore', href: '/pim-pimcore' },
+    { labelKey: 'appShell.nav.pimPimcoreRuns', href: null },
+  ] },
+  { test: /^\/pim-pimcore\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimPimcore', href: null },
   ] },
   { test: /^\/product-feeds\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/product-feeds' },

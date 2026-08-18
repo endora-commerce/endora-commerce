@@ -240,6 +240,9 @@ import { Migration20260821T084923PayuFailureStatusOnHold } from '@endora-commerc
 import { Migration20260804T190439PimErgonodeInit } from '@endora-commerce/mod-pim-ergonode/migrations';
 import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '@endora-commerce/mod-pim-ergonode/migrations';
 
+// ── pim_pimcore ─────────────────────────────────────────────────────────────
+import { Migration20260818T102204PimPimcoreInit } from '../modules/pim_pimcore/migrations/20260818T102204_pim_pimcore_init.js';
+
 // ── price_lists ─────────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '@endora-commerce/mod-price-lists/migrations';
 import { Migration20260504T125655PriceListsEngine } from '@endora-commerce/mod-price-lists/migrations';
@@ -533,6 +536,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── pim_ergonode ────────────────────────────────────────────────────────────
   migration('pim_ergonode', Migration20260804T190439PimErgonodeInit),
   migration('pim_ergonode', Migration20260819T193653PimErgonodeFoldDerivedKeys),
+
+  // ── pim_pimcore ─────────────────────────────────────────────────────────────
+  migration('pim_pimcore', Migration20260818T102204PimPimcoreInit),
 
   // ── price_lists ─────────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),

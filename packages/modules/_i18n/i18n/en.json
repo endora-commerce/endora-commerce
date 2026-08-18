@@ -284,6 +284,8 @@
   "appShell.nav.pimErgonodeAttributeMappings": "Attribute mapping",
   "appShell.nav.pimErgonodeCategoryMappings": "Category mapping",
   "appShell.nav.pimErgonodeRuns": "Import history",
+  "appShell.nav.pimPimcore": "Pimcore PIM",
+  "appShell.nav.pimPimcoreRuns": "Import history",
   "appShell.nav.platformModules": "Modules",
   "appShell.nav.priceLists": "Price lists",
   "appShell.nav.productFeeds": "Product feeds",
