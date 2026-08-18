@@ -203,6 +203,23 @@ export interface CustomerAccountReadPort {
    */
   searchByEmail(query: string, limit: number): Promise<CustomerAccountRecord[]>;
 
+  /**
+   * Ids of accounts whose e-mail, first name or last name contains `query`,
+   * case-insensitively. An empty `query` returns no ids.
+   *
+   * Published after Phase P, as the twin of
+   * `OrganizationDetailsPort.searchIdsByName` and for the same consumer: the
+   * admin orders list resolves the people a search term names, then constrains
+   * orders to them. It is deliberately **not** {@link searchByEmail}, which
+   * matches the address alone — an operator typing a surname into the orders
+   * search expects the surname to match, and it does today.
+   *
+   * Ids only, and uncapped, because the caller feeds them straight into an
+   * `$in` over its own table and a cap would silently drop orders rather than
+   * accounts.
+   */
+  searchIdsByName(query: string): Promise<string[]>;
+
   /** Every account, for the bulk export adapter. Ordered by email. */
   listAll(): Promise<CustomerAccountRecord[]>;
 }

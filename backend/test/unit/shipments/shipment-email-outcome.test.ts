@@ -74,6 +74,7 @@ function orderReadPort(order: OrderRecord | null): OrderReadPort {
     findByIds: async () => (order ? [order] : []),
     listAll: async () => (order ? [order] : []),
     listItems: async () => [],
+    findIdsByBusinessIdLike: async () => [],
   };
 }
 
@@ -187,6 +188,7 @@ describe('shipments — the shipment-created notifier reports what happened (#78
       findByIds: async () => [],
       listAll: async () => [],
       listItems: async () => [],
+      findIdsByBusinessIdLike: async () => [],
     };
 
     const subject = new ShipmentEmailNotifier({

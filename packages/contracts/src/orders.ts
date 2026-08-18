@@ -752,6 +752,23 @@ export interface OrderReadPort {
   listAll(): Promise<OrderRecord[]>;
   /** The order's lines, in insertion order. */
   listItems(orderId: string): Promise<OrderItemRecord[]>;
+  /**
+   * Ids of orders whose business id contains `fragment`, case-insensitively,
+   * capped at `limit`. An empty `fragment` returns no ids.
+   *
+   * Published after Phase P, for `invoices`' `filter[orderNumber]`. It is not
+   * {@link OrderListPort.list}'s `q`, which also matches the buying
+   * organisation and the placing customer — an invoice list filtered by "order
+   * number" that quietly matched a company name would be a different filter
+   * wearing the same label. It is not `findByIds` either: the caller has a
+   * fragment, not ids.
+   *
+   * `limit` is the caller's, applied by the owner, so the narrowing happens
+   * once. `invoices` used to `em.find(Order, { businessId: { $ilike } }, {
+   * limit: 500 })` and then narrow again against its own page size, which
+   * silently dropped matches beyond the 500th.
+   */
+  findIdsByBusinessIdLike(fragment: string, limit: number): Promise<string[]>;
 }
 
 /** The admin order list's filter set. Page and page size are required. */
