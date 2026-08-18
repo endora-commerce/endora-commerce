@@ -2606,6 +2606,21 @@ const CHECKS: readonly CheckEntry[] = [
           ['backend/src/index.ts'],
         ),
       ),
+      // A nested git worktree is another commit of this same repository, so a
+      // file already repaired here is still unrepaired there — and reported
+      // once per worktree, against a path no merge request can change. It is a
+      // *path* exclusion, not a name one, because `.claude/` also holds
+      // `agents/` and `skills/`, which are tracked source and stay scanned.
+      'nested-worktree-excluded-but-not-the-rest-of-dot-claude': top(() =>
+        exactlyNulPaths(
+          [
+            nulFile('.claude/worktrees/agent-a1/backend/src/index.ts', 'a\0b'),
+            nulFile('.claude/agents/endora-commerce-dev.md', 'a\0b'),
+            nulFile('backend/src/index.ts', 'a\0b'),
+          ],
+          ['.claude/agents/endora-commerce-dev.md', 'backend/src/index.ts'],
+        ),
+      ),
       // The ledger's second direction: an entry naming a file that no longer
       // carries a NUL. It enters as bytes, like every other proof here.
       'stale-ledger-entry': top(
@@ -2851,7 +2866,7 @@ describe('every red proof enters at the top of the analysis', () => {
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations.
-      'backend/scripts/check-nul-bytes.ts': 8,
+      'backend/scripts/check-nul-bytes.ts': 9,
       'backend/scripts/check-overlay-determinism.ts': 3,
       // Five, plus D-88's four: two shapes the backward hop now refuses and two
       // it must not follow. The last two are the limit — a free function in
