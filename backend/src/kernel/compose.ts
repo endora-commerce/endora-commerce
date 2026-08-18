@@ -6,6 +6,7 @@ import {
   AmbiguousDecorationError,
   DuplicateRegistrationError,
   EagerResolutionError,
+  ForeignDecorationError,
   createDecorationLedger,
   createModuleContext,
   createModuleRegistrationSink,
@@ -21,6 +22,7 @@ import {
 
 export {
   AmbiguousDecorationError,
+  ForeignDecorationError,
   type DecorationLedger,
   type DecorationRecord,
 } from './module-context.js';
@@ -101,7 +103,8 @@ function alreadyNamesTheModule(error: unknown): boolean {
   return (
     error instanceof DuplicateRegistrationError ||
     error instanceof EagerResolutionError ||
-    error instanceof AmbiguousDecorationError
+    error instanceof AmbiguousDecorationError ||
+    error instanceof ForeignDecorationError
   );
 }
 
@@ -112,6 +115,16 @@ export interface ModuleEntry {
   /** The manifest version. */
   readonly version: string;
   readonly registerModule: (ctx: ModuleContext) => void;
+  /**
+   * This entry is one of the active **deployment's** overlay modules, found
+   * under `backend/src/apps/<deployment>/modules/` (issue #203).
+   *
+   * Absent for every core module, and the generated composer is what sets it —
+   * from the root the module was discovered under, never from anything the
+   * module says about itself. It exempts the module from the ownership rule on
+   * `ctx.di.decorate`, which is why it is a location and not a declaration.
+   */
+  readonly overlay?: boolean;
 }
 
 export interface ComposeModulesOptions {
@@ -214,6 +227,7 @@ export function composeModules(
         ownership,
         decorations,
         isRegistering: () => registering,
+        ...(entry.overlay === undefined ? {} : { overlay: entry.overlay }),
         ...(options.interceptorRegistry
           ? { interceptorRegistry: options.interceptorRegistry }
           : {}),

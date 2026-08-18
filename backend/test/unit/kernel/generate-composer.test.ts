@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertDependenciesPresent,
   detectHookExport,
+  emitComposer,
   MissingModuleDependencyError,
   orderModules,
   renderComposer,
@@ -171,6 +172,45 @@ describe('T047 — ordering', () => {
 
   it('reports a dependency cycle naming the modules, rather than linearising it', () => {
     expect(() => orderModules([node('a', ['b']), node('b', ['a'])])).toThrow(/cycle.*a.*b|a.*b.*cycle/s);
+  });
+});
+
+describe('issue #203 — a module entry says whether it is the deployment\'s', () => {
+  const node = (id: string, overlay: boolean): ComposerNode => ({
+    id,
+    dependencies: [],
+    isOverlay: overlay,
+    backendImportPath: overlay
+      ? `./apps/acme/modules/${id}/backend.js`
+      : `./modules/${id}/backend.js`,
+    manifestImportPath: overlay
+      ? `./apps/acme/modules/${id}/manifest.js`
+      : `./modules/${id}/manifest.js`,
+  });
+
+  /**
+   * `ctx.di.decorate` refuses a module wrapping a registration it does not own,
+   * and exempts a deployment's overlay module — the sanctioned per-deployment
+   * customisation seam. The exemption reaches the kernel as `overlay: true` on
+   * the composed entry, and it is derived here, from the root the module was
+   * discovered under. If the emitter dropped it, the guard would be a flat
+   * refusal that breaks every overlay deployment, and no test that *sets* the
+   * flag by hand could notice.
+   */
+  it('emits `overlay: true` for a module discovered under a deployment root', () => {
+    const content = emitComposer([node('price_lists', false), node('acme_pricing', true)]);
+    expect(content).toContain("{ id: 'acme_pricing', version: manifest1.version, overlay: true,");
+  });
+
+  it('emits no overlay marker for a core module, so core cannot claim the exemption', () => {
+    const content = emitComposer([node('price_lists', false)]);
+    expect(content).toContain(
+      "{ id: 'price_lists', version: manifest0.version, registerModule: module0.registerModule },",
+    );
+    // The entries, not the header — which explains the marker and would match
+    // a substring search whether or not the emitter ever writes one.
+    const entries = content.slice(content.indexOf('export const MODULES'));
+    expect(entries).not.toContain('overlay');
   });
 });
 

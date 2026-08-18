@@ -94,8 +94,10 @@ export class DuplicateRegistrationError extends Error {
     super(
       `[kernel] modules '${owner}' and '${claimant}' both register '${registrationName}'. ` +
         `A registration name is owned by exactly one module — otherwise which ` +
-        `implementation the platform runs depends on registration order. To change ` +
-        `another module's registration, decorate it: ctx.di.decorate('${registrationName}', …).`,
+        `implementation the platform runs depends on registration order. One of them ` +
+        `owns it and the other resolves it; a deployment that needs to change what ` +
+        `'${owner}' registers wraps it from its own overlay module, with ` +
+        `ctx.di.decorate('${registrationName}', …).`,
     );
     this.name = 'DuplicateRegistrationError';
   }
@@ -161,6 +163,54 @@ export class AmbiguousDecorationError extends Error {
         `declare it as \`decorationOrder['${registrationName}']\` in the composer.`,
     );
     this.name = 'AmbiguousDecorationError';
+  }
+}
+
+/**
+ * A module decorated a registration it does not own (issue #203).
+ *
+ * `decorate` used to check only that *something* was registered under the name.
+ * Both halves of the answer were already in hand at the call site — the
+ * decorating module's id, and the owner from the ownership ledger — and the
+ * record kept both while comparing neither, so any module could wrap any entry
+ * in the container: `commandBus` to observe every audited write,
+ * `auditLogService` to change what the audit records, another module's read
+ * port to sit between a consumer and its owner with nothing declared anywhere.
+ *
+ * Refused rather than ledgered. A ledger makes the platform's answer "we will
+ * notice", and what is at stake here is not a coupling to drain but the
+ * integrity of the audit path.
+ *
+ * The exemption is the **deployment's own** overlay module, which is a
+ * different act: core wrapping core is a coupling nothing declares, while a
+ * deployment wrapping core is the sanctioned per-deployment customisation seam
+ * (feature 072 replaced file shadowing with it). It is not a claim a module can
+ * make about itself — the generated composer sets it from the root the module
+ * was discovered under, `backend/src/apps/<deployment>/modules/`.
+ */
+export class ForeignDecorationError extends Error {
+  constructor(
+    readonly registrationName: string,
+    readonly moduleId: string,
+    /** The registering module, or `undefined` when a composition root registered it. */
+    readonly owner: string | undefined,
+  ) {
+    const owned =
+      owner === undefined
+        ? `a composition root registers it, so no module owns it`
+        : `'${owner}' registers it`;
+    super(
+      `[kernel] module '${moduleId}' cannot decorate '${registrationName}': ${owned}. ` +
+        `Decoration rewrites what every consumer of that name resolves, so it is the ` +
+        `owner's to do — reaching into another module's registration is a coupling ` +
+        `nothing declares and nothing reports. Ask ` +
+        `${owner === undefined ? 'the composition root' : `'${owner}'`} for the seam you ` +
+        `need (a port, a contribution point, an event), or, if this is a per-deployment ` +
+        `customisation, write it as an overlay module under ` +
+        `backend/src/apps/<deployment>/modules/ — that is the one decoration across ` +
+        `owners the platform sanctions.`,
+    );
+    this.name = 'ForeignDecorationError';
   }
 }
 
@@ -454,11 +504,35 @@ export interface ModuleContextOptions {
    * context built by hand in a unit test resolves freely.
    */
   readonly isRegistering?: () => boolean;
+  /**
+   * This module belongs to the active **deployment**, not to core — it was
+   * discovered under `backend/src/apps/<deployment>/modules/` (issue #203).
+   *
+   * The one thing it buys is the exemption from the ownership rule on
+   * `ctx.di.decorate`: a deployment may wrap a core registration, because that
+   * is the customisation seam feature 072 put in place of file shadowing. It
+   * is set by the generated composer from the module's location, never by the
+   * module, so core cannot assert it.
+   */
+  readonly overlay?: boolean;
 }
 
 export function createModuleContext(options: ModuleContextOptions): ModuleContext {
   const { module, container, eventBus, sink, log, interceptorRegistry, ownership } = options;
   const isRegistering = options.isRegistering ?? ((): boolean => false);
+  const isDeploymentOverlay = options.overlay === true;
+  /**
+   * Every name **this context** registered (issue #203).
+   *
+   * The ownership ledger is the composition's record and the authority
+   * wherever there is one, but a context built by hand carries none — and
+   * "no ledger" must not read as "no owner to compare", which would make the
+   * decoration rule off by construction for exactly the contexts a test
+   * builds. This answers the same question locally, and it cannot drift from
+   * the ledger: with a ledger present, every name in here is already claimed
+   * in it, so the fallback is unreachable.
+   */
+  const ownRegistrations = new Set<string>();
   const decorations = options.decorations ?? createDecorationLedger();
 
   /**
@@ -485,12 +559,16 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
 
     di: {
       register(registrations) {
-        for (const name of Object.keys(registrations)) ownership?.claim(name, module.id);
+        for (const name of Object.keys(registrations)) {
+          ownership?.claim(name, module.id);
+          ownRegistrations.add(name);
+        }
         container.register(registrations);
       },
 
       providePort(name, registration) {
         ownership?.claim(name, module.id);
+        ownRegistrations.add(name);
         registerPort(container, module.id, name, registration);
       },
 
@@ -502,9 +580,21 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
               `topological, so the owning module must come first.`,
           );
         }
-        // Recorded before anything is registered, so an ambiguous pair fails
-        // composition with the container untouched rather than half-wrapped.
-        decorations.record(name, module.id, ownership?.ownerOf(name));
+        // Whose registration is this? Asked before anything is written, for
+        // the same reason the ambiguity check is: a refused decoration must
+        // leave the container as it was rather than half-wrapped.
+        //
+        // An owner of `undefined` means nobody claimed the name — a
+        // composition root registered it (`commandBus`, `auditLogService`,
+        // `redis`) — and that is refused like any other foreign registration.
+        // Reading "unowned" as "fair game" would leave the highest-value
+        // targets in the platform the only undefended ones.
+        const owner =
+          ownership?.ownerOf(name) ?? (ownRegistrations.has(name) ? module.id : undefined);
+        if (owner !== module.id && !isDeploymentOverlay) {
+          throw new ForeignDecorationError(name, module.id, owner);
+        }
+        decorations.record(name, module.id, owner);
         const inner = container.getRegistration(name) as Resolver<T>;
         // Re-registering the previous resolver under a private name keeps the
         // inner instance resolving through the SAME container or scope, so its

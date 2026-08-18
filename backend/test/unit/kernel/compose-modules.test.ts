@@ -80,14 +80,22 @@ describe('T042 — two modules cannot register the same name', () => {
     ).toThrow(DuplicateRegistrationError);
   });
 
-  it('allows decoration, which is the deliberate way to change another module’s registration', () => {
+  it('allows decoration, which is how a deployment changes another module’s registration', () => {
+    // The remedy the collision error names, and it is the deployment's:
+    // `client_module` here is one of the active deployment's overlay modules,
+    // so it carries `overlay: true`. A *core* module wrapping another core
+    // module's registration is refused (issue #203) —
+    // `test/integration/kernel/decoration.test.ts` holds both halves.
     const container = createRootContainer();
     composeModules(
       [
         entry('core_module', (ctx) => ctx.di.register({ label: ctx.asValue('core') })),
-        entry('client_module', (ctx) =>
-          ctx.di.decorate<string>('label', (inner) => `${inner}+client`),
-        ),
+        {
+          ...entry('client_module', (ctx) =>
+            ctx.di.decorate<string>('label', (inner) => `${inner}+client`),
+          ),
+          overlay: true,
+        },
       ],
       { container, eventBus: new EventBus(), log: log() },
     );
