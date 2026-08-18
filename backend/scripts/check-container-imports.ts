@@ -31,6 +31,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -140,15 +141,18 @@ export function analyzeSource(source: string, file: string): ContainerImportFind
   return findings;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   const files = collectModuleFiles();
-  if (files.length === 0) {
-    console.error(
-      '[container-imports] no module sources under src/ — refusing to report a vacuous pass',
-    );
-    process.exit(2);
-  }
+  // `src/apps` is the second half of the scan and survives the module tree
+  // moving: five overlay files were enough to clear an emptiness guard and let
+  // the check print `module files=5 violations=0` (issue #215). The floor is
+  // one file per registered module, read from the manifest index.
+  await refuseVacuousModulePopulation({
+    prefix: '[container-imports]',
+    srcRoot: SRC_ROOT,
+    files,
+  });
   const findings = files.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
   const rel = (p: string): string => p.replace(`${SRC_ROOT}/`, 'src/');
 
@@ -179,5 +183,5 @@ function main(): void {
 // Run as CLI only — importing this module (e.g. from a unit test) must not
 // trigger the full scan + process.exit.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }

@@ -444,6 +444,20 @@ asserting the finding's kind, or four of a check's five signals can go blind beh
 fifth's red. `docs/docs/architecture/kernel.md` § *Writing a check that can go red* is the
 working guide.
 
+**Exit 2 on a walk that came back *short*, not only on one that came back empty** (issue
+#215). `files.length === 0` is the wrong predicate for a check whose population is
+`backend/src/modules`: 1364 of the 1469 `.ts` files under `backend/src` live there, so a
+moved module tree does not empty the walk — it leaves the other 105 files, which the check
+reads, finds nothing wrong in, and reports clean. Measured with `src/modules` moved out of
+`src`, eight checks exited 0; three more were red only because a ledger went stale, and
+four survive a *partial* move because their floor is "at least one" rather than "all of
+them". So a module-tree walk derives its expected population from the generated manifest
+index and refuses when a registered module contributed no source —
+`backend/scripts/lib/module-population.ts`, thirteen callers, and never a count written
+down (D-100). `backend/test/unit/scripts/moved-module-tree.test.ts` spawns each of them
+over a fixture backend whose modules are gone and whose registry still lists them; the
+inventory's `residueGuard` field is the two-way link to it.
+
 Both run in CI as GitLab's `quality:static` job — full tree, every MR and every push to
 `master`. They need only bash, grep, perl and POSIX awk (no `pnpm install`), so keep them
 free of gawk-isms and of anything that assumes a node toolchain. Neither script may pass on

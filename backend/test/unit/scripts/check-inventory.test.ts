@@ -163,6 +163,19 @@ interface RedProof {
   readonly prove: () => number;
 }
 
+/**
+ * Whether the check's population is the module tree, and how it proves it read
+ * that tree rather than the residue left when the tree moves (issue #215).
+ *
+ * `derived-population` means it compares its walk against the module ids the
+ * generated manifest index registers, and refuses when a registered module
+ * contributed no source. Those checks are the ones
+ * `test/unit/scripts/moved-module-tree.test.ts` spawns over a moved tree, and
+ * the link below is two-way: a check marked here and missing from that file
+ * fails, and so does one proven there and unmarked.
+ */
+type ResidueGuard = 'derived-population' | 'not-a-module-walk';
+
 interface CheckEntry extends ProvenCheck {
   /** Path relative to the repository root. */
   readonly script: string;
@@ -173,6 +186,7 @@ interface CheckEntry extends ProvenCheck {
   /** Where the shapes it refuses are enumerated in detail. */
   readonly companionTest: string;
   readonly vacuousGuard: VacuousGuard;
+  readonly residueGuard: ResidueGuard;
   /** Shape name → its proof. Every one must come back non-zero. */
   readonly red: Readonly<Record<string, RedProof>>;
 }
@@ -1308,6 +1322,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-channel-resolution.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       'raw-channel-header': top(() =>
         channelViolations(
@@ -1352,6 +1367,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/commands/check-command-coverage.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       'unaudited-sensitive-write': top(
         () =>
@@ -1436,6 +1452,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/container-import-check.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       import: top(() => containerAnalyze("import { asClass } from 'awilix';\n", MODULE_FILE).length),
       'import-type': top(
@@ -1460,6 +1477,9 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/docs/check-doc-snippets.test.ts',
     vacuousGuard: 'exit-2',
+    // Its population is the citing documents, not the tree they cite; a moved
+    // target is a citation that no longer matches, which is a finding.
+    residueGuard: 'not-a-module-walk',
     red: {
       'drifted-quotation': top(() => snippetFindings(DRIFTED_DOC, 'not a verbatim quotation')),
       'cited-file-moved': top(() =>
@@ -1479,6 +1499,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/tenancy/classification-check.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       unclassified: top(() =>
         classificationFindings(
@@ -1503,6 +1524,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/entry-scope-check.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       cli: top(() =>
         unscopedEntryPoints(
@@ -1541,6 +1563,10 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-error-translations.test.ts',
     vacuousGuard: 'exit-2',
+    // Its population is `ERROR_TRANSLATION_KEYS`. A module whose bundle is not
+    // where it looks turns every one of its codes into a finding, so a residue
+    // reads as 208 violations rather than as a clean tree.
+    residueGuard: 'not-a-module-walk',
     red: {
       'missing-in-both-languages': top(
         () =>
@@ -1577,6 +1603,8 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-fixture-substitution.test.ts',
     vacuousGuard: 'exit-2',
+    // Walks `backend/test`, not `backend/src/modules`.
+    residueGuard: 'not-a-module-walk',
     red: {
       // The block six files carried, letter for letter (issue #159).
       'two-step-string': top(() =>
@@ -1654,6 +1682,8 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-shared-table-wipes.test.ts',
     vacuousGuard: 'exit-2',
+    // Walks `backend/test`.
+    residueGuard: 'not-a-module-walk',
     red: {
       // The block all eight comparison files carried (issue #166).
       'orm-empty-filter': top(() =>
@@ -1714,6 +1744,8 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-harness-teardown.test.ts',
     vacuousGuard: 'exit-2',
+    // Walks `backend/test`.
+    residueGuard: 'not-a-module-walk',
     red: {
       'app-close': top(() =>
         handReleases(
@@ -1789,6 +1821,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/boundary-check.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       'rule-a-cross-module-relation': top(() =>
         relationViolations(CROSS_MODULE_RELATION, SEARCH_ENTITY),
@@ -1834,6 +1867,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-module-boundary.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       'value-import': top(() =>
         crossModuleKinds(ORDERS_READS_A_PRODUCT, ORDER_SERVICE_FILE, 'value-import'),
@@ -2127,6 +2161,9 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-overlay-determinism.test.ts',
     vacuousGuard: 'verdict',
+    // Compares committed artefacts against a regenerated pair; a moved tree
+    // makes them differ, which is the finding.
+    residueGuard: 'not-a-module-walk',
     red: {
       stale: top(() => artifactVerdicts('rendered\n', () => 'stale\n', 'stale')),
       missing: top(() =>
@@ -2158,6 +2195,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/port-catch-check.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       'port-own-name': top(() => checkPortCatches({ sources: PORT_CATCH_TREE }, {}).violations.length),
       'local-alias': top(
@@ -2231,6 +2269,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/port-dependency-check.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       'undeclared-dependency': top(() =>
         portViolations(ORDERS_RESOLVES_AT_CALL, PAYMENT_PORTS, 'undeclared-dependency'),
@@ -2481,6 +2520,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/port-shape-check.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       'optional-method-on-port': top(
         () =>
@@ -2655,6 +2695,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/subscribe-seam-check.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       'bus-shaped-receiver': top(
         () =>
@@ -2714,6 +2755,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-transaction-context.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       'knex-instance': top(
         () =>
@@ -2791,6 +2833,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-entry-presence.test.ts',
     vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
     red: {
       setInterval: top(() =>
         ungatedTimers(
@@ -2860,6 +2903,8 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-nul-bytes.test.ts',
     vacuousGuard: 'exit-2',
+    // Walks the whole repository, and every file in it is its population.
+    residueGuard: 'not-a-module-walk',
     red: {
       'raw-nul-in-source': top(
         () =>
@@ -2947,6 +2992,8 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/i18n-hardcoded-strings.test.ts',
     vacuousGuard: 'exit-2',
+    // Walks the admin SPA.
+    residueGuard: 'not-a-module-walk',
     red: {
       'jsx-text': top(
         () =>
@@ -2972,6 +3019,11 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality:static',
     companionTest: 'backend/test/unit/scripts/shell-checks.test.ts',
     vacuousGuard: 'exit-2',
+    // Rules 1 and 2 do read `backend/src/modules`, and the script refuses a
+    // full-mode run that finds no module there (issue #215) — but it is a
+    // shell script, so it cannot share the TypeScript floor and is proven in
+    // `shell-checks.test.ts` instead.
+    residueGuard: 'not-a-module-walk',
     red: {
       'module-folder': top(() =>
         shellRed('check-naming.sh', (fixture) => {
@@ -3015,6 +3067,8 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality:static',
     companionTest: 'backend/test/unit/scripts/shell-checks.test.ts',
     vacuousGuard: 'exit-2',
+    // Its population is the git listing, which the empty-listing guard covers.
+    residueGuard: 'not-a-module-walk',
     red: {
       'source-comment': top(() =>
         shellRed('check-language.sh', (fixture) => {
@@ -3043,6 +3097,8 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/shell-checks.test.ts',
     vacuousGuard: 'exit-2',
+    // Its population is one installed package.
+    residueGuard: 'not-a-module-walk',
     red: {
       // Both install layouts, because the repository's own is the hoisted one:
       // a candidate glob that stopped matching it would measure the other or
@@ -3209,17 +3265,69 @@ describe('every red proof enters at the top of the analysis', () => {
 });
 
 describe('every check refuses a vacuous pass', () => {
+  // A check may spell the refusal itself or delegate it to
+  // `scripts/lib/module-population.ts`, which loads the registry, compares it
+  // with the walk and exits 2 (issue #215). Nine do delegate: nine copies of an
+  // exit-2 guard would be nine chances to write the one that returns, and a
+  // guard written wrong is invisible by construction — the check reports green
+  // either way. So the text below accepts the delegation by name, and the
+  // behaviour is pinned in `moved-module-tree.test.ts` rather than here.
+  const DELEGATED = /refuseVacuousModulePopulation|vacuousModulePopulation/;
+
   for (const check of CHECKS) {
     it(`${check.script} carries the guard the inventory claims`, () => {
       const source = read(check.script);
       // Presence, not behaviour: the behavioural half is the companion test,
-      // which runs the check over an empty input and reads the exit code.
-      expect(source, `${check.script} names no vacuous-pass guard`).toMatch(/vacuous/);
+      // which runs the check over an input it never read and reads the exit code.
+      expect(source, `${check.script} names no vacuous-pass guard`).toMatch(
+        /vacuous|Vacuous/,
+      );
       if (check.vacuousGuard === 'exit-2') {
-        expect(source, `${check.script} should exit 2, not 0 or 1`).toMatch(/exit\(2\)|exit 2/);
+        expect(source, `${check.script} should exit 2, not 0 or 1`).toMatch(
+          new RegExp(`exit\\(2\\)|exit 2|${DELEGATED.source}`),
+        );
+      }
+      if (check.residueGuard === 'derived-population') {
+        expect(
+          source,
+          `${check.script} walks the module tree, so it must derive its expected ` +
+            'population from the manifest index rather than test the walk for emptiness',
+        ).toMatch(DELEGATED);
       }
     });
   }
+});
+
+describe('a check whose population is the module tree proves it read the tree', () => {
+  // Issue #215's two-way link. The behavioural proof is a spawn over a fixture
+  // backend whose module sources are gone and whose registry still lists them;
+  // it is expensive enough to live in one file, and that file is exactly what a
+  // future edit would delete without noticing. Both directions therefore fail
+  // here: a check marked `derived-population` and absent from the proof file,
+  // and a script the proof file names that the inventory does not mark.
+  const PROOF_FILE = 'backend/test/unit/scripts/moved-module-tree.test.ts';
+  const proof = read(PROOF_FILE);
+  const basenameOf = (script: string): string => script.slice(script.lastIndexOf('/') + 1);
+
+  it('has a moved-tree proof for every check whose population is the module tree', () => {
+    const unproven = CHECKS.filter((c) => c.residueGuard === 'derived-population')
+      .map((c) => basenameOf(c.script))
+      .filter((name) => !proof.includes(`'${name}'`));
+    expect(unproven, `${PROOF_FILE} does not spawn: ${unproven.join(', ')}`).toEqual([]);
+  });
+
+  it('marks every check that proof file spawns', () => {
+    const spawned = [...proof.matchAll(/script: '(check-[a-z-]+\.ts)'/g)].map((m) => m[1]!);
+    const marked = new Set(
+      CHECKS.filter((c) => c.residueGuard === 'derived-population').map((c) =>
+        basenameOf(c.script),
+      ),
+    );
+    const unmarked = spawned.filter((name) => !marked.has(name));
+    expect(unmarked, `proven in ${PROOF_FILE} but unmarked here: ${unmarked.join(', ')}`).toEqual(
+      [],
+    );
+  });
 });
 
 describe('every check has a companion test that exercises it', () => {

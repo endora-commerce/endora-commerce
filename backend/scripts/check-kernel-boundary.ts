@@ -121,6 +121,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
+import {
+  loadRegisteredModuleIds,
+  vacuousModulePopulation,
+} from './lib/module-population.js';
 
 const RELATION_DECORATORS = new Set(['ManyToOne', 'OneToMany', 'OneToOne', 'ManyToMany']);
 
@@ -596,7 +600,7 @@ function walkKernel(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   const files = collectSources(SRC_ROOT);
   const relationFiles = files.filter((f) => RELATION_DECORATOR_HINT.test(readFileSync(f, 'utf8')));
@@ -648,8 +652,27 @@ function main(): void {
   // the three rules has its own file list, and each can be emptied by an
   // unrelated edit — a moved directory, a renamed root, a walk that stops
   // matching. Exit 2 rather than 0 when one of them comes back empty.
+  //
+  // Rule A's list needed a fourth reason (issue #215). It is the whole of
+  // `src/`, and `src/` minus `src/modules` is still 105 files — so a moved
+  // module tree left it non-empty, and the relation sweep reported
+  // `violations=0` over a tree holding none of the relations it polices. The
+  // expectation is one source per registered module, derived from the manifest
+  // index; an index that cannot be read is itself a reason, because the floor
+  // would otherwise be silently absent.
   const vacuous: string[] = [];
   if (files.length === 0) vacuous.push('no sources under src/ (rule A)');
+  else {
+    try {
+      const reason = vacuousModulePopulation({
+        registered: await loadRegisteredModuleIds(SRC_ROOT),
+        files,
+      });
+      if (reason !== null) vacuous.push(`${reason} (rule A)`);
+    } catch (error: unknown) {
+      vacuous.push(`the module index under ${SRC_ROOT} could not be read: ${String(error)}`);
+    }
+  }
   if (platformFiles.length === 0) vacuous.push('no files under the platform roots (rule B)');
   if (closure.files.length === 0) vacuous.push('empty kernel import closure (rule C)');
   if (vacuous.length > 0) {
@@ -747,5 +770,5 @@ function main(): void {
 // Run as CLI only — importing this module (e.g. from a unit test) must not
 // trigger the full scan + process.exit.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }

@@ -790,16 +790,32 @@ describe('checkModuleBoundary — the six ways the ledger fails', () => {
 
 describe('checkModuleBoundary — refusing a vacuous pass (FR-021)', () => {
   const READ_SOMETHING = {
-    moduleFiles: 1309,
+    moduleFiles: ['modules/orders/a.ts', 'modules/catalog/b.ts'],
+    registeredModules: ['orders', 'catalog'],
     ledgerDirectoryExists: true,
     entityTables: 220,
     migrationTables: 241,
   };
 
   it('reports a reason when the module walk returned nothing', () => {
-    expect(vacuousReason({ ...READ_SOMETHING, moduleFiles: 0 })).toMatch(
+    expect(vacuousReason({ ...READ_SOMETHING, moduleFiles: [] })).toMatch(
       /no module sources under src\/ — refusing to report a vacuous pass/,
     );
+  });
+
+  it('reports a reason when the walk returned a residue of the module tree', () => {
+    // Issue #215. `src/apps` is the walk's second root, so a moved module tree
+    // leaves this check reading five overlay files — non-empty, and every shard
+    // an orphan. The orphan red is what hid it: the ledger is *meant* to drain,
+    // and the day it does this reports `violations=0` over a tree it never
+    // opened.
+    expect(
+      vacuousReason({
+        ...READ_SOMETHING,
+        moduleFiles: ['apps/example/modules/example_overlay/backend.ts'],
+        registeredModules: ['orders', 'catalog'],
+      }),
+    ).toMatch(/produced none for 2 of the 2 registered modules \(catalog, orders\)/);
   });
 
   it('reports a reason when the ledger directory is missing', () => {

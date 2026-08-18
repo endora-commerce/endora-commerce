@@ -64,6 +64,25 @@ if [[ "$listing" == "full" ]] && [ "${#changed_files[@]}" -eq 0 ]; then
   exit 2
 fi
 
+# ...and a listing that is merely non-empty is not enough (issue #215). Rules 1
+# and 2 read `backend/src/modules` off the filesystem rather than off the
+# listing, and 93% of the tree lives there: with that directory moved the two
+# rules iterate nothing, the other two report on the remaining 105 files, and
+# the script exits 0 having judged no module at all. So in full mode the
+# directory is a path that must resolve, and hold modules.
+if [[ "$listing" == "full" ]]; then
+  module_dir_count=0
+  if [ -d backend/src/modules ]; then
+    module_dir_count=$(find backend/src/modules -mindepth 1 -maxdepth 1 -type d | wc -l)
+  fi
+  if [ "$module_dir_count" -eq 0 ]; then
+    red "✗ check-naming found no module under backend/src/modules — the module folder and"
+    red "  migration-identifier rules would judge nothing while the rest reported clean."
+    red "  Refusing to report a vacuous pass."
+    exit 2
+  fi
+fi
+
 fail=0
 
 # ──────────────────────────────────────────────────────────────────────────
