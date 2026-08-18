@@ -43,12 +43,30 @@ export const manifest = defineModuleManifest({
     'email',
     'sales_channels',
   ],
+  // Feature 075 — `organizations` is resolved, not imported, since the cut
+  // replaced `em.findOne(Organization, …)` in the external namespace's price
+  // decorator with `organizationDetailsPort`. It is acknowledged rather than
+  // declared for the reason `price_lists` is, one line down: `organizations`
+  // declares this module (the org-scoped catalogue restriction is a list of
+  // products), so declaring it back closes a cycle and `migration-order` fails
+  // the build on one. The module is non-deactivatable, so the acknowledgement
+  // binds nothing an operator can flip.
   // Feature 073, Amendment A1. This one differs from the `organizations` pairs
   // in the way that matters to an operator: `price_lists` is deactivatable
   // (`price_lists.enabled`), so without this declaration the pricing engine
   // could be switched off underneath a live resolver in a core commerce module,
   // and nothing would refuse the flip.
   acknowledgedDependencies: [
+    {
+      moduleId: 'organizations',
+      port: 'organizationDetailsPort',
+      reason:
+        'Feature 075. The external catalog namespace decorates a bound caller’s prices with ' +
+        'their organisation’s effective tiers, and read the `Organization` entity directly to ' +
+        'do it. Over the port now — but `organizations` declares this module, so declaring it ' +
+        'back closes a cycle. Acknowledged rather than declared, and the module is ' +
+        'non-deactivatable, so nothing an operator can flip depends on the difference.',
+    },
     {
       moduleId: 'price_lists',
       port: 'pricingService',
@@ -82,6 +100,23 @@ export const manifest = defineModuleManifest({
         'said so — the behaviour was written in a `catch` at the call site, which also ' +
         'swallowed genuine inventory failures. Declared here, probed in front of the ' +
         'resolution, and the `catch` is gone.',
+    },
+    {
+      moduleId: 'search',
+      name: 'searchQueryPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'the storefront product listing is served from PostgreSQL instead of the search index',
+      reason:
+        'Issue #153. This module used to build its own `SearchQueryService` out of `search`\'s ' +
+        'class, so a composition held two Meilisearch clients and the public product list ' +
+        'reached the index through no gate at all: a switched-off `search` went on serving that ' +
+        'listing out of an index whose maintenance subscribers had stopped with it. It resolves ' +
+        'the port now, and the degrade stays what it was — PostgreSQL is this route\'s default ' +
+        'backend, and 503-ing a public catalogue because an optional search module is off would ' +
+        'take the storefront down for a capability it never required. Declared rather than ' +
+        'caught: presence is decided in front of the query, and an unreachable index is an arm ' +
+        'of the port\'s return type.',
     },
     {
       moduleId: 'prompt_actions',

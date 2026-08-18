@@ -58,30 +58,4 @@ export const entries: Readonly<Record<string, string>> = {
     'F3 Phase C — search, escalated. Same CLI entry point, same missing container: the ' +
     'product read port the indexer now takes is built by hand here. Retired by the ruling ' +
     'on how a module CLI script reaches a composition-root input.',
-  // Feature 075, Phase C — `catalog` builds its own `SearchQueryService`
-  // (`catalog/plugin.ts:240`, issue #153), so this constructor cannot drop its
-  // `EntityManager` while that construction stands, and the hydration below it
-  // is the one read in this module still going through `em.find(Product, …)`.
-  //
-  // **The published-contract half of the precondition has landed.** This entry
-  // used to say the conversion "first needs `SearchBackendUnavailable`
-  // expressed in `SearchQueryPort`"; it is, since `feat(search): searchQueryPort
-  // says "index unreachable" in its return type` — `SearchListOutcome`'s
-  // `index-unavailable` arm, so a consumer distinguishes an unreachable index
-  // from a switched-off module by reading a field rather than by the
-  // conditional re-throw `check:port-catches` refuses.
-  //
-  // What is left is exactly one line of somebody else's module:
-  // `catalog/plugin.ts:240` constructs this class instead of resolving
-  // `searchQueryPort`, which `search/backend.ts:146` already provides. Cutting
-  // it from this side would mean editing a consumer in `catalog`, which is that
-  // module's cut to make and not this shard's.
-  //
-  // Retired by: the `catalog` cut (C-W4), which resolves `searchQueryPort`
-  // instead of constructing this class.
-  'modules/search/services/search-query.service.ts:catalog/entities/product.entity':
-    'F3 Phase C — search, escalated. `catalog` constructs this class, so its constructor ' +
-    'keeps the EntityManager until issue #153 is retired. The contract half is done — ' +
-    'SearchQueryPort answers a SearchListOutcome — and only `catalog/plugin.ts:240` is ' +
-    'left. Retired by the catalog cut.',
 };

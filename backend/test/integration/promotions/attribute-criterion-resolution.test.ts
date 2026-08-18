@@ -64,7 +64,14 @@ describe('PromotionService — attribute criterion resolution (T056)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    const catalog = new CatalogQueryService(h.em, undefined, undefined, h.catalogAttributeRead);
+    const catalog = new CatalogQueryService(
+      h.em,
+      undefined,
+      undefined,
+      h.catalogAttributeRead,
+      undefined,
+      h.assetRead,
+    );
     const products = new CatalogProductReadService(h.em);
     const recordingProducts: CatalogProductReadPort = {
       ...products,

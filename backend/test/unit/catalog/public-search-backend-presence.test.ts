@@ -7,20 +7,27 @@ import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { registerCatalogPublicRoutes } from '../../../src/modules/catalog/routes.public.js';
+import type { SearchListOutcome, SearchQueryPort } from '@b2b/contracts';
 import type { CatalogQueryService } from '../../../src/modules/catalog/services/catalog-query.service.js';
-import type { SearchQueryService } from '../../../src/modules/search/services/search-query.service.js';
 
 /**
  * Issue #144 — the public catalogue listing decides `search`'s presence before
  * it reads Meilisearch.
  *
- * `catalog` builds its own `SearchQueryService` instead of resolving one, so no
- * port is crossed and none of the port checks can see this edge: with
+ * `catalog` used to build its own `SearchQueryService` instead of resolving one,
+ * so no port was crossed and none of the port checks could see this edge: with
  * `CATALOG_SEARCH_BACKEND=meilisearch` the catalogue went on serving Meilisearch
  * reads after an operator switched `search` off — on a public storefront
  * surface, out of an index whose maintenance subscribers had stopped with the
  * module. Constitution XVII: a module that is off behaves as if never installed,
  * and with `search` never installed this listing is a Postgres query.
+ *
+ * Issue #153 made it a port, and the probe under test matters *more* for it:
+ * calling a gated port with its owner switched off throws
+ * `ModuleDisabledError`, which must not reach a public catalogue listing. The
+ * fourth case below covers the other arm — an index the port could not reach —
+ * because that fallback used to be a `catch` on an error class and is now a
+ * field on the return value.
  *
  * The degrade is what is asserted, not a 503: the catalogue is
  * non-deactivatable, Postgres is its default read backend, and refusing a public
@@ -58,6 +65,8 @@ const EMPTY_PAGE = {
   pagination: { hasMore: false, limit: 50, cursor: null },
 };
 
+const EMPTY_OUTCOME: SearchListOutcome = { status: 'ok', result: EMPTY_PAGE };
+
 describe('catalog public listing — the Meilisearch read decides `search` presence', () => {
   let app: FastifyInstance;
   let postgresListProducts: ReturnType<typeof vi.fn>;
@@ -70,7 +79,7 @@ describe('catalog public listing — the Meilisearch read decides `search` prese
     registryCache.__setEnabledForTesting(ALL_IDS);
 
     postgresListProducts = vi.fn(async () => structuredClone(EMPTY_PAGE));
-    meilisearchListProducts = vi.fn(async () => structuredClone(EMPTY_PAGE));
+    meilisearchListProducts = vi.fn(async () => structuredClone(EMPTY_OUTCOME));
 
     const container = createRootContainer();
     app = Fastify();
@@ -94,7 +103,7 @@ describe('catalog public listing — the Meilisearch read decides `search` prese
       } as unknown as CatalogQueryService,
       searchQueryService: {
         listProducts: meilisearchListProducts,
-      } as unknown as SearchQueryService,
+      } as unknown as SearchQueryPort,
     });
     await app.ready();
   });
@@ -138,6 +147,24 @@ describe('catalog public listing — the Meilisearch read decides `search` prese
       meilisearchListProducts,
       'a switched-off `search` was still serving the public catalogue listing',
     ).not.toHaveBeenCalled();
+    expect(postgresListProducts).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to Postgres when the port reports the index unreachable', async () => {
+    // Issue #153 — the other degrade, and the one that used to be a `catch` on
+    // `SearchBackendUnavailable`. `search` is present; its index is not. The
+    // route reads a field to tell the two apart, so a `ModuleDisabledError`
+    // could never be mistaken for a slow index.
+    meilisearchListProducts.mockResolvedValueOnce({
+      status: 'index-unavailable',
+      reason: 'connect ECONNREFUSED 127.0.0.1:7700',
+    } satisfies SearchListOutcome);
+
+    const res = await app.inject({ method: 'GET', url: '/api/v1/catalog/products?limit=50' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['x-search-backend']).toBe('postgres');
+    expect(meilisearchListProducts).toHaveBeenCalledTimes(1);
     expect(postgresListProducts).toHaveBeenCalledTimes(1);
   });
 

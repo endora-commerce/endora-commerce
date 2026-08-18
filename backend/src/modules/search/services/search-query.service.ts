@@ -1,19 +1,15 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
 import { Meilisearch, type SearchResponse } from 'meilisearch';
 import {
   ERROR_CODES,
   listingPriceMoney,
   type CatalogAttributeReadPort,
+  type CatalogProductReadPort,
+  type CatalogProductRecord,
   type ListingPrice,
   type ListingPricePort,
   type ProductSummary,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-// Feature 075, Phase C — the one `catalog` import this module could not retire.
-// `catalog/plugin.ts` builds its own `SearchQueryService`, so the constructor
-// cannot lose its `EntityManager` until that construction goes, and that is
-// issue #153's business rather than this cut's. See the shard entry.
-import { Product } from '../../catalog/entities/product.entity.js';
 import { encodeCursor, decodeCursor } from '../../../http/cursor.js';
 import { indexUidFor, type IndexedDocument } from './search-indexer.js';
 
@@ -85,7 +81,19 @@ export class SearchQueryService {
   private readonly client: Meilisearch;
 
   constructor(
-    private readonly emFactory: () => EntityManager,
+    /**
+     * Issue #153 — `catalog`'s product rows, over the port, where an
+     * `EntityManager` and `em.find(Product, …)` used to be.
+     *
+     * The `EntityManager` could not leave while `catalog/plugin.ts` built this
+     * class itself: a second module's composition decided what this
+     * constructor took. It resolves `searchQueryPort` now, so the hydration
+     * below asks `catalog` for its rows and answers 503 `MODULE_DISABLED` when
+     * `catalog` is off — which is right, because `search`'s manifest declares
+     * `catalog` and an index over a catalogue that is gone has nothing to
+     * hydrate against.
+     */
+    private readonly products: CatalogProductReadPort,
     /**
      * Feature 061 — the catalog's composed attribute read model (Principle I:
      * filterable validation reads the view, not the catalog entity). Feature
@@ -117,7 +125,6 @@ export class SearchQueryService {
     params: SearchListProductsParams,
     ctx: SearchQueryContext,
   ): Promise<SearchListResult> {
-    const em = this.emFactory();
     const channel = ctx.resolvedChannel;
 
     // Validate filter keys against the live composed attribute views so that an
@@ -195,9 +202,7 @@ export class SearchQueryService {
     // Hydrate the channel-aware price + multilingual name override from
     // Postgres. This protects against stale index data and keeps R-18
     // (hide price on non-public channels) authoritative on Postgres.
-    const products = await em.find(Product, {
-      id: { $in: hits.map((h) => h.id) },
-    });
+    const products = await this.products.findByIds(hits.map((h) => h.id));
     const productById = new Map(products.map((p) => [p.id, p]));
     // A channel that withholds prices is not asked for them (R-18), so the
     // resolution never runs and every hit reports `null`.
@@ -309,7 +314,7 @@ function decodeOffsetCursor(cursor: string | undefined): number | null {
  * projection can be asserted without a Meilisearch round trip.
  */
 export function searchHitSummary(
-  product: Product,
+  product: CatalogProductRecord,
   hit: DocumentHit,
   channel: ResolvedSearchChannel,
   preferredLanguage: string | undefined,

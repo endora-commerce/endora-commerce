@@ -70,7 +70,14 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    svc = new CatalogQueryService(h.em, undefined, undefined, h.catalogAttributeRead);
+    svc = new CatalogQueryService(
+      h.em,
+      undefined,
+      undefined,
+      h.catalogAttributeRead,
+      undefined,
+      h.assetRead,
+    );
     const em = h.em();
 
     // Seed 50 attributes — mix of value types so every code branch fires.

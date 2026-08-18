@@ -1,14 +1,16 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CatalogBulkPriceLine,
+  OrgLinePricePort,
+  OrganizationDetailsPort,
+  OrganizationRecord,
   ProductAvailability,
   ProductDetail,
   ProductPriceTier,
   ProductSummary,
 } from '@b2b/contracts';
 import { Product } from '../entities/product.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
-import type { PricingServiceContract } from '../../price_lists/services/pricing-service.interface.js';
+
 
 /**
  * Feature 062 (research §R7) — pricing/availability decoration for the
@@ -42,7 +44,22 @@ export type ResolveAvailabilityPort = (
 
 export interface CatalogOrgPriceDecoratorDeps {
   emFactory: () => EntityManager;
-  pricingService: PricingServiceContract;
+  /**
+   * Feature 075 — the published line-pricing port, where
+   * `price_lists`' `PricingServiceContract` used to be. This decorator calls
+   * two of its methods. `OrgLinePricePort` — `LinePricePort` plus the bracket
+   * ladder — was published in this cut, because `PricingServiceContract` is
+   * deliberately not in `@b2b/contracts` (it is the overlay decoration's
+   * contract gate) and was `listBracketMinQuantities`' only declaration.
+   */
+  pricingService: OrgLinePricePort;
+  /**
+   * Feature 075 — the buying organisation, read through `organizations`' port
+   * instead of `em.findOne(Organization, …)` against its table. The engine
+   * reads two fields off it (the id, and the customer group a rule keys on),
+   * and `OrganizationRecord` carries both.
+   */
+  organizations: OrganizationDetailsPort;
   /** Optional inventory port — when absent, `availability` is omitted. */
   resolveAvailability?: ResolveAvailabilityPort;
 }
@@ -69,7 +86,7 @@ export class CatalogOrgPriceDecorator {
     }
 
     const em = this.deps.emFactory();
-    const organization = await em.findOne(Organization, { id: context.organizationId });
+    const organization = await this.deps.organizations.findById(context.organizationId);
     const products = await em.find(Product, { id: { $in: summaries.map((s) => s.id) } });
     const productById = new Map(products.map((p) => [p.id, p]));
 
@@ -114,7 +131,7 @@ export class CatalogOrgPriceDecorator {
     if (context.organizationId === null) return merged;
 
     const em = this.deps.emFactory();
-    const organization = await em.findOne(Organization, { id: context.organizationId });
+    const organization = await this.deps.organizations.findById(context.organizationId);
     const product = await em.findOne(Product, { id: detail.id });
     if (!product) return merged;
     const priceTiers = await this.#resolvePriceTiers(product, organization, context.salesChannel);
@@ -132,7 +149,7 @@ export class CatalogOrgPriceDecorator {
     context: { organizationId: string; salesChannel: ExternalPricingChannel },
   ): Promise<CatalogBulkPriceLine[]> {
     const em = this.deps.emFactory();
-    const organization = await em.findOne(Organization, { id: context.organizationId });
+    const organization = await this.deps.organizations.findById(context.organizationId);
 
     const skus = Array.from(new Set(lines.map((l) => l.sku)));
     const products = await em.find(Product, {
@@ -199,7 +216,7 @@ export class CatalogOrgPriceDecorator {
    */
   async #resolvePriceTiers(
     product: Product,
-    organization: Organization | null,
+    organization: OrganizationRecord | null,
     salesChannel: ExternalPricingChannel,
   ): Promise<ProductPriceTier[]> {
     const currencyCode = salesChannel.defaultCurrency.toUpperCase();

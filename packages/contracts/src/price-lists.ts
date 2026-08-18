@@ -362,6 +362,38 @@ export interface LinePricePort {
   }): Promise<LinePriceResult | null>;
 }
 
+/**
+ * `LinePricePort` plus the bracket ladder — the surface `catalog`'s external
+ * namespace prices a bound organisation's request with. Same container name
+ * (`pricingService`), same owner, one method more.
+ *
+ * **An extension rather than two more methods on `LinePricePort`**, and that is
+ * the whole design decision here. Every consumer of a published port types a
+ * structural stub against it in tests; widening `LinePricePort` broke one in
+ * `carts` that has no interest in brackets, and would break the next one too.
+ * A caller that needs both asks for both by name.
+ *
+ * It had to be published somewhere for feature 075's `catalog` cut, because
+ * `listBracketMinQuantities` was declared **only** on
+ * `price_lists/services/pricing-service.interface.ts` — and that file is
+ * deliberately not in this package, because it is the target of the
+ * feature-057 overlay decoration and moving it would move the contract gate.
+ * The alternative was `catalog` declaring the shape on its own side, where
+ * `lazyPort<T>`'s unchecked cast would leave nothing verifying that
+ * `price_lists` still satisfies it (D-77's rejected alternative, same
+ * reasoning). `PricingServiceContract` is a superset and satisfies this
+ * structurally, so no implementation changed.
+ */
+export interface OrgLinePricePort extends LinePricePort {
+  /**
+   * Feature 062 — the distinct bracket start quantities (ascending) across
+   * every ACTIVE price list for a (product, currency). The caller probes
+   * `resolveLinePrice` at each one to build the buying organisation's effective
+   * tier ladder without re-implementing resolution.
+   */
+  listBracketMinQuantities(productId: string, currencyCode: string): Promise<number[]>;
+}
+
 // --- Settings keys (also exposed via the settings manifest) -----------------
 
 export const PRICING_SETTING_CODES = {
