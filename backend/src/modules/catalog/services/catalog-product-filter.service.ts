@@ -42,12 +42,37 @@ import { toCatalogProductRecord } from './catalog-product-read.service.js';
  * surface publishing the DSL would have made it.
  *
  * `contains` and `startsWith` build their own patterns, so the caller never
- * writes `LIKE` syntax. The pattern is `%value%` / `value%` with **no escaping**
- * — deliberately, because that is byte-for-byte what the predicate this
- * replaces produced, and adding escaping here would change which products a
- * saved rule selects. It is a defect worth its own change, not a line in a
- * boundary cut.
+ * writes `LIKE` syntax and the escaping rule has exactly one home — this file.
+ * See {@link escapeLikeLiteral} for what that rule is and why the value has to
+ * go through it.
  */
+
+/**
+ * The one place a `contains` / `startsWith` value becomes part of a pattern.
+ *
+ * Both operators name a **literal**: `contains "50%"` means the three
+ * characters `5`, `0`, `%`. `LIKE` reads `%` as "anything", `_` as "any one
+ * character" and — in PostgreSQL, absent an explicit `ESCAPE` clause — `\` as
+ * the escape character, so a value carrying any of the three used to mean
+ * something other than what the operator promises. Issue #181: an unescaped
+ * `contains "50%"` selected every product with "50" followed by anything.
+ *
+ * `\` is the escape character used here rather than an explicit `ESCAPE`
+ * clause, because there is nowhere to put one: MikroORM renders `$ilike` as
+ * `column ilike ?` with the pattern bound as a parameter, and reaching for a
+ * raw fragment to append `ESCAPE` would put SQL text back into a translation
+ * whose whole point is that it has no node for one. PostgreSQL's default escape
+ * character already *is* `\`, so escaping with it needs no clause — and it has
+ * to be escaped first in its own right, or a value ending in a backslash would
+ * escape the wildcard this function's callers append.
+ *
+ * Note the failure was not only over-matching: PostgreSQL degrades an escape
+ * sequence it does not recognise to the plain character, so the unescaped
+ * pattern for `C\D` also *missed* the row that actually holds the backslash.
+ */
+export function escapeLikeLiteral(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
 
 /** The page size the feed pipeline already walks in. */
 const DEFAULT_PAGE_SIZE = 500;
@@ -174,9 +199,9 @@ function comparisonFor(condition: CatalogProductFilterCondition): { value: unkno
     case 'lte':
       return { value: { $lte: first } };
     case 'contains':
-      return { value: { $ilike: `%${String(first)}%` } };
+      return { value: { $ilike: `%${escapeLikeLiteral(String(first))}%` } };
     case 'startsWith':
-      return { value: { $ilike: `${String(first)}%` } };
+      return { value: { $ilike: `${escapeLikeLiteral(String(first))}%` } };
     /* c8 ignore next 4 -- unreachable while the contract union and this switch
        agree; a future operator with no branch selects nothing rather than
        everything. */
