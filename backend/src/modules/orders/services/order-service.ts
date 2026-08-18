@@ -84,6 +84,7 @@ import type {
   EmailMailerPort,
   OrderStatusRegistry,
   OrganizationDetailsPort,
+  OrganizationRecord,
   PaymentAdapterRegistryPort,
   PaymentMethodReadPort,
   PaymentMethodRecord,
@@ -764,6 +765,28 @@ export class OrderService {
   }
 
   /**
+   * The buyer's effective customer group (issue #177).
+   *
+   * The account's own group, else the Organization's — the same chain the
+   * pricing engine resolves, and the fact the promotion engine's audience
+   * filter compares against. Both `computeMonetaryTotals` and the usage context
+   * handed to `finalizeUsage` passed a literal `null` here, so a promotion an
+   * operator restricted to a group never reduced an order total and every
+   * redemption row claimed the buyer belonged to no group.
+   */
+  private async resolveCustomerGroupId(
+    customerAccountId: string,
+    organization: OrganizationRecord | null,
+  ): Promise<string | null> {
+    // Reads through the owners' published ports rather than their entities:
+    // this method arrived with #177 while the `orders` cut was in flight, so
+    // it was written against `em.findOne(CustomerAccount, …)` and the two
+    // merged cleanly in text and not at all in types.
+    const account = await this.neighbours.customerAccountRead.findById(customerAccountId);
+    return account?.customerGroupId ?? organization?.customerGroupId ?? null;
+  }
+
+  /**
    * Single source of truth for order money math (feature 049). Computes the
    * subtotal, per-product VAT (via the injected tax resolver), delivery cost,
    * payment surcharge, and promotion discount for a set of cart lines. Used by
@@ -812,6 +835,8 @@ export class OrderService {
     appliedPromotionCode: string | null;
     salesChannelId: string | null;
     organizationId: string;
+    /** The buyer's effective group — see {@link resolveCustomerGroupId}. */
+    customerGroupId: string | null;
   }): Promise<{
     subtotal: number;
     taxTotal: number;
@@ -876,7 +901,7 @@ export class OrderService {
     if (this.promotion) {
       const snapshot: CartSnapshot = {
         organizationId: input.organizationId,
-        customerGroupId: null,
+        customerGroupId: input.customerGroupId,
         currency,
         lines: items.map((it) => ({
           productId: it.productId,
@@ -980,6 +1005,7 @@ export class OrderService {
       appliedPromotionCode: cart.appliedPromotionCode ?? null,
       salesChannelId: cart.salesChannelId ?? null,
       organizationId: ctx.organizationId,
+      customerGroupId: await this.resolveCustomerGroupId(ctx.customerAccountId, org),
     });
 
     return {
@@ -1331,6 +1357,10 @@ export class OrderService {
           : [];
       const productById = new Map(products.map((p) => [p.id, p]));
 
+      // Resolved once and used twice: the promotion engine's audience filter
+      // inside the totals below, and the redemption row `finalizeUsage` writes.
+      const customerGroupId = await this.resolveCustomerGroupId(ctx.customerAccountId, org);
+
       // All monetary math (subtotal, per-product VAT, delivery, surcharge,
       // promotion discount) runs through one shared computation so the storefront
       // preview endpoint and order placement can never drift.
@@ -1356,6 +1386,7 @@ export class OrderService {
         appliedPromotionCode: cart.appliedPromotionCode ?? null,
         salesChannelId: cart.salesChannelId ?? null,
         organizationId: ctx.organizationId,
+        customerGroupId,
       });
 
       // Sales channel — resolved once above (request channel preferred, the
@@ -1457,7 +1488,7 @@ export class OrderService {
           ctx: {
             organizationId: ctx.organizationId,
             customerAccountId: ctx.customerAccountId,
-            customerGroupId: null,
+            customerGroupId,
             salesChannelId: channel.id,
           },
           applied: appliedPromotions.map((ap) => ({
