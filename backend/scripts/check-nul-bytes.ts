@@ -208,12 +208,29 @@ export function extensionOf(path: string): string {
  * synthetic path: the pruning a real run does for speed and the exclusion the
  * rule makes are then the same decision, taken in one place.
  */
+/**
+ * Is this repo-relative path at, or under, a `SKIPPED_PATH_PREFIXES` entry?
+ *
+ * **One function, called from both places on purpose.** The walk prunes for
+ * speed and `isScannablePath` states the rule, and while those were two
+ * expressions of the same predicate the walk's copy kept the check reporting
+ * `violations=0` after the rule's copy went missing — so the red proof, which
+ * enters at `findNulBytes`, could not see its own exclusion disappear. A
+ * duplicated decision is one that can go half-missing without anything
+ * noticing.
+ */
+function isUnderSkippedPrefix(relativePath: string): boolean {
+  return Object.keys(SKIPPED_PATH_PREFIXES).some(
+    (prefix) => relativePath === prefix || relativePath.startsWith(`${prefix}/`),
+  );
+}
+
 export function isScannablePath(path: string): boolean {
   const segments = path.split('/');
   if (segments.slice(0, -1).some((segment) => SKIPPED_DIRECTORIES[segment] !== undefined)) {
     return false;
   }
-  // MUTATION
+  if (isUnderSkippedPrefix(path)) return false;
   const basename = segments[segments.length - 1] ?? '';
   if (BINARY_FILENAMES[basename] !== undefined) return false;
   return BINARY_EXTENSIONS[extensionOf(path)] === undefined;
@@ -286,19 +303,12 @@ export function checkNulBytes(
   };
 }
 
-/** True unless the repo-relative directory is (or is under) a skipped prefix. */
-function isScannableDirectoryPrefix(relativeDir: string): boolean {
-  return !Object.keys(SKIPPED_PATH_PREFIXES).some(
-    (prefix) => relativeDir === prefix || relativeDir.startsWith(`${prefix}/`),
-  );
-}
-
 function walk(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir)) {
     if (SKIPPED_DIRECTORIES[name] !== undefined) continue;
     const full = join(dir, name);
-    if (!isScannableDirectoryPrefix(relative(REPO_ROOT, full))) continue;
+    if (isUnderSkippedPrefix(relative(REPO_ROOT, full))) continue;
     // A dangling symlink must not abort the walk, hence `throwIfNoEntry`.
     const stat = statSync(full, { throwIfNoEntry: false });
     if (stat === undefined) continue;
