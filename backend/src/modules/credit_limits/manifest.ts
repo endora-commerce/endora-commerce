@@ -16,7 +16,18 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port, the customer guard and the customer
   // context resolver this module now resolves from the container.
-  dependencies: ['organizations', 'auth'],
+  //
+  // D-94.1 adds `orders`, for the foreign key
+  // `credit_limit_reservations_order_fk` (`credit_limit_reservations.order_id`
+  // -> `orders.id`, `on delete restrict`). AGENTS.md § Migrations item 4: a
+  // cross-module foreign key is declared here or the build fails, and an
+  // `acknowledgedDependencies` entry does not satisfy it. The edge is mutual —
+  // `placeOrder` calls `reserve({ tx })` on this module's service and this
+  // module records a row against the order — so the cycle it closes is broken
+  // on the *other* side: `orders` re-expresses `creditLimitService` as an
+  // acknowledged edge, which drops the install ordering the constraint says is
+  // backwards and keeps the bind (D-94.3).
+  dependencies: ['organizations', 'auth', 'orders'],
   settings: {
     moduleCode: 'credit_limits',
     groups: [{ code: 'credit_limits', name: 'Credit limits' }],

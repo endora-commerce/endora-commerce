@@ -78,5 +78,13 @@ describe('placeOrder — failure preserves the cart (feature 036)', () => {
     // No order created for this organization.
     const orders = await h.em().find(Order, { organizationId: TEST_ORGANIZATION_ID });
     expect(orders.length).toBe(0);
+
+    // D-94.1 — and the completion pointer never appeared. `placeOrder` sets
+    // `completedOrderId` beside `status = 'completed'`, on the placement
+    // transaction, and `carts_completed_order_fk` is what makes that the only
+    // place it can be set: the pointer cannot be written before the order
+    // exists. A rolled-back placement therefore leaves it null, which is the
+    // schema-level statement of what this test has always asserted.
+    expect(after!.completedOrderId ?? null).toBeNull();
   });
 });

@@ -94,6 +94,7 @@ describe('placeOrder — customer-group targeted promotion (issue #177)', () => 
   });
 
   function orderService(): OrderService {
+    const promotionService = promotionServiceFor(h);
     const registry = new PaymentAdapterRegistry();
     for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     return new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
@@ -102,7 +103,12 @@ describe('placeOrder — customer-group targeted promotion (issue #177)', () => 
       resolveTaxRate: async () => 0.23,
       paymentAdapters: registry,
       orderStatusRegistry: new EnumOrderStatusRegistry(),
-      promotion: promotionServiceFor(h),
+      // D-94.5 split the seam in two: `promotion` is the read half
+      // (`PromotionApplyPort.applyToCart`), `promotionUsageFinalizer` is the
+      // redemption row written on the placement transaction. The same service
+      // satisfies both, and this file asserts the row, so it wires both.
+      promotion: promotionService,
+      promotionUsageFinalizer: promotionService,
     });
   }
 

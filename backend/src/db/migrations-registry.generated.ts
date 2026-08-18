@@ -62,6 +62,7 @@ import { Migration20260506T081055BlogInit } from '../modules/blog/migrations/202
 // ── carts ───────────────────────────────────────────────────────────────────
 import { Migration20260611T140352CartsConsolidation } from '../modules/carts/migrations/20260611T140352_carts_consolidation.js';
 import { Migration20260611T140413CartsCartItemPackaging } from '../modules/carts/migrations/20260611T140413_carts_cart_item_packaging.js';
+import { Migration20260818T081253CartsCartCompletedOrderFk } from '../modules/carts/migrations/20260818T081253_carts_cart_completed_order_fk.js';
 
 // ── catalog ─────────────────────────────────────────────────────────────────
 import { Migration20260429T064146CatalogAttributeSetsInit } from '../modules/catalog/migrations/20260429T064146_catalog_attribute_sets_init.js';
@@ -113,6 +114,7 @@ import { Migration20260721T011509CredentialsInit } from '../modules/credentials/
 // ── credit_limits ───────────────────────────────────────────────────────────
 import { Migration20260425T063333CreditLimitsInit } from '../modules/credit_limits/migrations/20260425T063333_credit_limits_init.js';
 import { Migration20260817T201111CreditLimitsReturnTopups } from '../modules/credit_limits/migrations/20260817T201111_credit_limits_return_topups.js';
+import { Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk } from '../modules/credit_limits/migrations/20260818T081252_credit_limits_credit_limit_reservation_order_fk.js';
 
 // ── custom_fields ───────────────────────────────────────────────────────────
 import { Migration20260718T200338CustomFieldsInit } from '../modules/custom_fields/migrations/20260718T200338_custom_fields_init.js';
@@ -144,6 +146,7 @@ import { Migration20260715T171116GoogleAnalyticsInit } from '../modules/google_a
 import { Migration20260503T182812InventoryWorkflow } from '../modules/inventory/migrations/20260503T182812_inventory_workflow.js';
 import { Migration20260611T140347InventoryWarehouseDefaultLowStockThreshold } from '../modules/inventory/migrations/20260611T140347_inventory_warehouse_default_low_stock_threshold.js';
 import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from '../modules/inventory/migrations/20260611T140348_inventory_per_warehouse_low_stock_thresholds.js';
+import { Migration20260818T081243InventoryStockAllocationOrderItemFk } from '../modules/inventory/migrations/20260818T081243_inventory_stock_allocation_order_item_fk.js';
 
 // ── invoices ────────────────────────────────────────────────────────────────
 import { Migration20260629T125121InvoicesModule } from '../modules/invoices/migrations/20260629T125121_invoices_module.js';
@@ -220,6 +223,7 @@ import { Migration20260806T125806ProductFeedsDelivery } from '../modules/product
 // ── promotions ──────────────────────────────────────────────────────────────
 import { Migration20260505T074605PromotionsCriteria } from '../modules/promotions/migrations/20260505T074605_promotions_criteria.js';
 import { Migration20260618T100727PromotionsEngine } from '../modules/promotions/migrations/20260618T100727_promotions_engine.js';
+import { Migration20260818T081251PromotionsPromotionUsageOrderFk } from '../modules/promotions/migrations/20260818T081251_promotions_promotion_usage_order_fk.js';
 
 // ── prompt_actions ──────────────────────────────────────────────────────────
 import { Migration20260611T140410PromptActionsInit } from '../modules/prompt_actions/migrations/20260611T140410_prompt_actions_init.js';
@@ -315,6 +319,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── carts ───────────────────────────────────────────────────────────────────
   migration('carts', Migration20260611T140352CartsConsolidation),
   migration('carts', Migration20260611T140413CartsCartItemPackaging),
+  migration('carts', Migration20260818T081253CartsCartCompletedOrderFk),
 
   // ── catalog ─────────────────────────────────────────────────────────────────
   migration('catalog', Migration20260429T064146CatalogAttributeSetsInit),
@@ -366,6 +371,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── credit_limits ───────────────────────────────────────────────────────────
   migration('credit_limits', Migration20260425T063333CreditLimitsInit),
   migration('credit_limits', Migration20260817T201111CreditLimitsReturnTopups),
+  migration('credit_limits', Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk),
 
   // ── custom_fields ───────────────────────────────────────────────────────────
   migration('custom_fields', Migration20260718T200338CustomFieldsInit),
@@ -397,6 +403,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('inventory', Migration20260503T182812InventoryWorkflow),
   migration('inventory', Migration20260611T140347InventoryWarehouseDefaultLowStockThreshold),
   migration('inventory', Migration20260611T140348InventoryPerWarehouseLowStockThresholds),
+  migration('inventory', Migration20260818T081243InventoryStockAllocationOrderItemFk),
 
   // ── invoices ────────────────────────────────────────────────────────────────
   migration('invoices', Migration20260629T125121InvoicesModule),
@@ -473,6 +480,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── promotions ──────────────────────────────────────────────────────────────
   migration('promotions', Migration20260505T074605PromotionsCriteria),
   migration('promotions', Migration20260618T100727PromotionsEngine),
+  migration('promotions', Migration20260818T081251PromotionsPromotionUsageOrderFk),
 
   // ── prompt_actions ──────────────────────────────────────────────────────────
   migration('prompt_actions', Migration20260611T140410PromptActionsInit),

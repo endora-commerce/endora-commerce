@@ -433,22 +433,29 @@ export class CreditLimitService {
     orderId: string;
     amount: number;
     currency: string;
-    /** When called inside the order-placement transaction, the caller passes its tx em. */
-    tx?: EntityManager;
+    /**
+     * The order-placement transaction. **Required** since D-94.5: the one
+     * caller always passed it, and the optional shape is what let this method
+     * double as a standalone transaction — a lie about the seam.
+     * `credit_limit_reservations_order_fk` (`on delete restrict`) means the
+     * reservation row cannot exist before the order does, and the
+     * `PESSIMISTIC_WRITE` this takes on the organization's credit row has to
+     * be held until placement commits or credit is consumed for an order that
+     * rolled back.
+     */
+    tx: EntityManager;
   }): Promise<ReserveResult> {
-    // `reserve` runs inside the caller's order-placement transaction (accepts
-    // `tx`) and is a system operation, not an admin action; the credit movement
+    // `reserve` runs inside the caller's order-placement transaction — since
+    // D-94.5 that is structural rather than conditional, because `tx` is
+    // required — and is a system operation, not an admin action; the credit movement
     // is captured by the credit_limit.reserved.v1 event and the reservation row,
     // not the admin audit log. The exemption itself sits on `#reserveFlat` and
     // `#reserveInherited`, which are where the write is — a marker here guarded
     // nothing, and since D-89(c) the staleness half says so instead of counting
     // it as a live exemption.
-    const run = async (em: EntityManager): Promise<ReserveResult> =>
-      this.inheritance ? this.#reserveInherited(em, input) : this.#reserveFlat(em, input);
-
-    if (input.tx) return run(input.tx);
-    const em = this.emFactory();
-    return em.transactional(run);
+    return this.inheritance
+      ? this.#reserveInherited(input.tx, input)
+      : this.#reserveFlat(input.tx, input);
   }
 
   /** Pre-feature flat reservation — locks the org's own row (unchanged). */

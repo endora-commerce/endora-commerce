@@ -121,12 +121,21 @@ export const manifest = defineModuleManifest({
   // `dependencies` rather than `nonBindingDependencies` for the reason
   // `quick_order` gives — a back-in-stock notice addressed to an account the
   // platform will not identify is worse than a refused subscription.
+  //
+  // D-94.1 adds `orders`, for the foreign key
+  // `stock_allocations_order_item_fk` (`stock_allocations.order_item_id` ->
+  // `order_items.id`, `on delete restrict`). AGENTS.md § Migrations item 4: a
+  // cross-module foreign key is declared here or the build fails. It is the
+  // one edge of the four-site family that closes no cycle — `orders` resolves
+  // no port this module owns in `dependencies`, only the two
+  // `degrades-without` reads placement makes.
   dependencies: [
     'auth',
     'catalog',
     'customer_accounts',
     'dictionaries',
     'email',
+    'orders',
     'organizations',
     'sales_channels',
     'settings',

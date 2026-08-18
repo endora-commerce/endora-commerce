@@ -21,6 +21,7 @@ import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { CreditLimitService } from '../../../src/modules/credit_limits/services/credit-limit-service.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
@@ -36,6 +37,35 @@ import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js'
  */
 
 let seq = 0;
+/**
+ * A minimal placed order for a reservation to reference.
+ * `credit_limit_reservations_order_fk` (D-94.1, `on delete restrict`) refuses
+ * the `randomUUID()` order ids this file used to draw against.
+ */
+async function seedOrder(em: EntityManager, organizationId: string): Promise<string> {
+  const order = em.create(Order, {
+    organizationId,
+    placedByCustomerAccountId: randomUUID(),
+    salesChannelId: randomUUID(),
+    status: 'paid',
+    paymentStatus: 'paid',
+    deliveryAddress: { recipientName: 'S', street: 's', city: 'c', postalCode: '00-000', country: 'PL' },
+    billingAddress: { recipientName: 'S', street: 's', city: 'c', postalCode: '00-000', country: 'PL' },
+    deliveryMethodId: randomUUID(),
+    deliveryMethodSnapshot: { code: 'p', name: 'P', cost: 0 },
+    paymentMethodId: randomUUID(),
+    paymentMethodSnapshot: { code: 'bt', name: 'BT', kind: 'bank_transfer' },
+    subtotal: '10.00',
+    taxTotal: '0.00',
+    deliveryTotal: '0.00',
+    total: '10.00',
+    currency: 'PLN',
+    placedAt: new Date(),
+  });
+  await em.persistAndFlush(order);
+  return order.id;
+}
+
 async function makeRootOrg(em: EntityManager, name: string): Promise<Organization> {
   seq += 1;
   const org = em.create(Organization, {
@@ -155,15 +185,23 @@ describe('flat-behavior preservation (feature 056, FR-001/FR-013)', () => {
     expect((await wiredSvc.getForOrganization(orgWired.id))!.organizationId).toBe(orgWired.id);
     expect((await flatSvc.getForOrganization(orgFlat.id))!.organizationId).toBe(orgFlat.id);
 
-    // Identical reserve outcomes for the same draw sequence.
-    const flat1 = await flatSvc.reserve({ organizationId: orgFlat.id, orderId: randomUUID(), amount: 60, currency: 'PLN' });
-    const wired1 = await wiredSvc.reserve({ organizationId: orgWired.id, orderId: randomUUID(), amount: 60, currency: 'PLN' });
+    // Identical reserve outcomes for the same draw sequence. `reserve` takes
+    // the caller's transaction since D-94.5 — it is the placement transaction
+    // in production, and one opened here in a test.
+    const reserve = (
+      svc: CreditLimitService,
+      input: { organizationId: string; orderId: string; amount: number; currency: string },
+    ): ReturnType<CreditLimitService['reserve']> =>
+      h.em().transactional((tx) => svc.reserve({ ...input, tx }));
+
+    const flat1 = await reserve(flatSvc, { organizationId: orgFlat.id, orderId: await seedOrder(em, orgFlat.id), amount: 60, currency: 'PLN' });
+    const wired1 = await reserve(wiredSvc, { organizationId: orgWired.id, orderId: await seedOrder(em, orgWired.id), amount: 60, currency: 'PLN' });
     expect(wired1.ok).toBe(flat1.ok);
     expect(wired1.ok && flat1.ok && wired1.availableAmountAfter).toBe(flat1.ok && flat1.availableAmountAfter);
 
     // Over-draw fails in both with the same code.
-    const flat2 = await flatSvc.reserve({ organizationId: orgFlat.id, orderId: randomUUID(), amount: 50, currency: 'PLN' });
-    const wired2 = await wiredSvc.reserve({ organizationId: orgWired.id, orderId: randomUUID(), amount: 50, currency: 'PLN' });
+    const flat2 = await reserve(flatSvc, { organizationId: orgFlat.id, orderId: await seedOrder(em, orgFlat.id), amount: 50, currency: 'PLN' });
+    const wired2 = await reserve(wiredSvc, { organizationId: orgWired.id, orderId: await seedOrder(em, orgWired.id), amount: 50, currency: 'PLN' });
     expect(wired2.ok).toBe(false);
     expect(flat2.ok).toBe(false);
     expect(!wired2.ok && wired2.code).toBe(!flat2.ok && flat2.code);

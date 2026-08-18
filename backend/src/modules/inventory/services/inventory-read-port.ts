@@ -1,13 +1,18 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CandidateWarehouse,
+  ChannelWarehouse,
   InventoryStockReadPort,
   StockLevelRecord,
   WarehouseChannelAssignmentRecord,
   WarehouseRecord,
 } from '@b2b/contracts';
 import { StockLevel } from '../entities/stock-level.entity.js';
-import { Warehouse } from '../entities/warehouse.entity.js';
+import {
+  DEFAULT_WAREHOUSE_CODE,
+  DEFAULT_WAREHOUSE_ID,
+  Warehouse,
+} from '../entities/warehouse.entity.js';
 import { WarehouseChannelAssignment } from '../entities/warehouse-channel-assignment.entity.js';
 
 /**
@@ -58,6 +63,67 @@ export class InventoryStockReadService implements InventoryStockReadPort {
       { orderBy: { sortOrder: 'asc', id: 'asc' } },
     );
     return rows.map(toWarehouseChannelAssignmentRecord);
+  }
+
+  /**
+   * The channel → warehouse binding placement allocates against (D-94.4).
+   *
+   * This was a knex join inside `orders`' placement transaction —
+   * `warehouse_channel_assignments as a` joined to `warehouses as w`, two of
+   * this module's tables named by hand in another module's method body, with
+   * the empty-channel fallback spelled out of a UUID constant copied from
+   * `warehouse.entity.ts`. Both halves are this module's business, so both are
+   * here: the ordering placement walks (`isDefault desc, sortOrder asc,
+   * createdAt asc`, which is *not* `listChannelAssignments`' ordering) and the
+   * default-warehouse fallback.
+   *
+   * The fallback is not dead code kept for tests. The boot-time
+   * `WarehouseChannelReconciler` binds the default warehouse to every channel,
+   * so a production deployment does not reach it — but a seed-skipped
+   * environment, and a channel whose only bound warehouses have been
+   * deactivated, both do, and answering nothing there would refuse every line
+   * rather than allocate against the default.
+   *
+   * Read through this module's own `EntityManager`, deliberately: it is the
+   * *binding*, not the stock. The caller reads and locks `stock_levels` itself,
+   * on its own transaction — see the port's doc comment for why
+   * `candidatesFor` cannot stand in here.
+   */
+  async listChannelWarehouses(salesChannelId: string): Promise<ChannelWarehouse[]> {
+    const em = this.emFactory();
+    const assignments = await em.find(
+      WarehouseChannelAssignment,
+      { salesChannelId },
+      { orderBy: { isDefault: 'desc', sortOrder: 'asc', createdAt: 'asc' } },
+    );
+    if (assignments.length > 0) {
+      const warehouses = await em.find(Warehouse, {
+        active: true,
+        id: { $in: assignments.map((a) => a.warehouseId) },
+      });
+      const byId = new Map(warehouses.map((w) => [w.id, w]));
+      const bound = assignments.flatMap((assignment) => {
+        const warehouse = byId.get(assignment.warehouseId);
+        // The `active` filter is a join condition, not a post-filter with a
+        // fabricated stand-in: a deactivated warehouse is not a candidate.
+        if (!warehouse) return [];
+        return [
+          {
+            warehouseId: assignment.warehouseId,
+            warehouseCode: warehouse.code,
+            isDefault: assignment.isDefault,
+          },
+        ];
+      });
+      if (bound.length > 0) return bound;
+    }
+    return [
+      {
+        warehouseId: DEFAULT_WAREHOUSE_ID,
+        warehouseCode: DEFAULT_WAREHOUSE_CODE,
+        isDefault: true,
+      },
+    ];
   }
 
   async candidatesFor(input: {

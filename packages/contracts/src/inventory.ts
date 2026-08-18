@@ -421,6 +421,16 @@ export interface StockLevelRecord {
   updatedAt: Date;
 }
 
+/**
+ * One **active** warehouse bound to a sales channel, in the order placement
+ * walks them. See {@link InventoryStockReadPort.listChannelWarehouses}.
+ */
+export interface ChannelWarehouse {
+  warehouseId: string;
+  warehouseCode: string;
+  isDefault: boolean;
+}
+
 /** Which warehouses serve which sales channel, and in what order. */
 export interface WarehouseChannelAssignmentRecord {
   id: string;
@@ -459,10 +469,35 @@ export interface InventoryStockReadPort {
   listWarehouses(options?: { activeOnly?: boolean }): Promise<WarehouseRecord[]>;
   listChannelAssignments(salesChannelId: string): Promise<WarehouseChannelAssignmentRecord[]>;
   /**
+   * The **active** warehouses bound to a channel, joined with their codes and
+   * ordered the way placement walks them: `isDefault desc, sortOrder asc,
+   * createdAt asc`. When the channel has no active warehouse bound, this
+   * answers the seeded default warehouse — the fallback lives here rather than
+   * in the caller, which is where it used to be spelled out of a UUID constant
+   * copied from `warehouse.entity.ts` (D-94.4).
+   *
+   * Not a widening of {@link listChannelAssignments}: that one has a different
+   * ordering and a different consumer, and both should keep saying what they
+   * mean.
+   *
+   * **`candidatesFor` is not the method for the placement call site**, and the
+   * distinction matters more than it looks. `candidatesFor` computes
+   * availability through this module's own `EntityManager`, so it neither
+   * takes nor holds the `PESSIMISTIC_WRITE` on `stock_levels` that stops two
+   * concurrent placements allocating the same unit
+   * (`test/contract/orders/place-stock-race.test.ts`). Placement therefore
+   * takes the channel → warehouse binding from here and reads and locks the
+   * stock rows itself, on its own transaction.
+   */
+  listChannelWarehouses(salesChannelId: string): Promise<ChannelWarehouse[]>;
+  /**
    * Candidate warehouses for one product line on one channel, ordered by
    * warehouse code, with `available = onHand - reserved`. An empty answer
    * means the line cannot be allocated anywhere, which is not the same as an
    * error.
+   *
+   * Read outside any caller's transaction — see the warning on
+   * {@link listChannelWarehouses}.
    */
   candidatesFor(input: {
     productId: string;
@@ -706,4 +741,39 @@ function splitAcross(
     return { ok: true, allocations };
   }
   return { ok: false, reason: 'insufficient_stock' };
+}
+
+/**
+ * Container name: `inventoryFulfilmentPlanningPort`. Owner: `inventory`.
+ *
+ * The warehouse-picking **policy** placement runs, published (D-94.4).
+ *
+ * `orders` used to reach both halves through `await import(
+ * '../../inventory/services/…')` inside the placement method body: a dynamic
+ * import, invisible to a reviewer scanning the import block, of the rules that
+ * decide which warehouse serves a line. Publishing them stops the policy being
+ * something `orders` can re-implement by editing an import.
+ *
+ * Two methods and not two more on {@link InventoryStockReadPort}: a *read*
+ * port that also decides policy makes its own name a lie. Both are **pure over
+ * their arguments** — no `EntityManager`, no table, no clock — so the contract
+ * stays FR-034-clean and the caller may run them inside its own transaction
+ * without the owner ever touching it.
+ */
+export interface InventoryFulfilmentPlanningPort {
+  /**
+   * Product > Organization > Sales Channel (already collapsed into
+   * `channelDefault`) > platform default. See
+   * {@link resolveEffectiveFulfilmentStrategy}.
+   */
+  resolveEffectiveStrategy(
+    product: FulfilmentLayer,
+    organization: FulfilmentLayer,
+    channelDefault: EffectiveFulfilment,
+  ): EffectiveFulfilment;
+  /**
+   * One line's allocation plan over the candidate warehouses the caller has
+   * already read **and locked**. See {@link resolveAllocations}.
+   */
+  planAllocations(input: ResolveAllocationsInput): AllocationOutcome;
 }

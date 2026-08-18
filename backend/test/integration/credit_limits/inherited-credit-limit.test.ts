@@ -97,6 +97,21 @@ describe('credit-limit inheritance + concurrency (US3)', () => {
     await em.flush();
   }
 
+  /**
+   * `reserve` requires the caller's transaction since D-94.5, and every
+   * reservation now references a real order — `credit_limit_reservations_order_fk`
+   * (`on delete restrict`) refuses the `randomUUID()` order ids these cases
+   * used to pass. One transaction per call, so the concurrency case below still
+   * races five separate pessimistic locks exactly as it did.
+   */
+  const reserve = (input: {
+    organizationId: string;
+    orderId: string;
+    amount: number;
+    currency: string;
+  }): ReturnType<CreditLimitService['reserve']> =>
+    h.em().transactional((tx) => svc.reserve({ ...input, tx }));
+
   beforeAll(async () => {
     h = await setupBackendServer();
     tree = new OrganizationTreeService(h.em);
@@ -132,10 +147,13 @@ describe('credit-limit inheritance + concurrency (US3)', () => {
     await setMode(head.id, 'shared_pool');
 
     // 5 concurrent draws of 30 from the two branches → demand 150 > pool 100.
-    const draws = [branchA, branchB, branchA, branchB, branchA].map((org) =>
-      svc.reserve({
+    const drawOrders = await Promise.all(
+      [branchA, branchB, branchA, branchB, branchA].map((org) => seedOrder(h.em(), org.id)),
+    );
+    const draws = [branchA, branchB, branchA, branchB, branchA].map((org, i) =>
+      reserve({
         organizationId: org.id,
-        orderId: randomUUID(),
+        orderId: drawOrders[i]!,
         amount: 30,
         currency: 'PLN',
       }),
@@ -175,14 +193,14 @@ describe('credit-limit inheritance + concurrency (US3)', () => {
     // Each branch draws 80 of its own inherited 100 → both succeed (independent).
     const orderX1 = await seedOrder(em, branchX.id);
     const orderY1 = await seedOrder(em, branchY.id);
-    const rx = await svc.reserve({ organizationId: branchX.id, orderId: orderX1, amount: 80, currency: 'PLN' });
-    const ry = await svc.reserve({ organizationId: branchY.id, orderId: orderY1, amount: 80, currency: 'PLN' });
+    const rx = await reserve({ organizationId: branchX.id, orderId: orderX1, amount: 80, currency: 'PLN' });
+    const ry = await reserve({ organizationId: branchY.id, orderId: orderY1, amount: 80, currency: 'PLN' });
     expect(rx.ok).toBe(true);
     expect(ry.ok).toBe(true);
 
     // Branch X is now bounded by ITS OWN inherited 100 (80 used → 20 left).
     const orderX2 = await seedOrder(em, branchX.id);
-    const rx2 = await svc.reserve({ organizationId: branchX.id, orderId: orderX2, amount: 30, currency: 'PLN' });
+    const rx2 = await reserve({ organizationId: branchX.id, orderId: orderX2, amount: 30, currency: 'PLN' });
     expect(rx2.ok).toBe(false);
     expect(!rx2.ok && rx2.code).toBe('LIMIT_INSUFFICIENT');
   });
@@ -201,9 +219,9 @@ describe('credit-limit inheritance + concurrency (US3)', () => {
     expect(resolved!.organizationId).toBe(child.id);
     expect(Number(resolved!.grantedAmount)).toBe(40);
 
-    const r = await svc.reserve({
+    const r = await reserve({
       organizationId: child.id,
-      orderId: randomUUID(),
+      orderId: await seedOrder(em, child.id),
       amount: 60,
       currency: 'PLN',
     });
@@ -216,9 +234,19 @@ describe('credit-limit inheritance + concurrency (US3)', () => {
     const root = await makeRootOrg(em, 'ICL Flat root');
     await svc.grant({ organizationId: root.id, grantedAmount: 50, currency: 'PLN' });
 
-    const r1 = await svc.reserve({ organizationId: root.id, orderId: randomUUID(), amount: 40, currency: 'PLN' });
+    const r1 = await reserve({
+      organizationId: root.id,
+      orderId: await seedOrder(em, root.id),
+      amount: 40,
+      currency: 'PLN',
+    });
     expect(r1.ok).toBe(true);
-    const r2 = await svc.reserve({ organizationId: root.id, orderId: randomUUID(), amount: 20, currency: 'PLN' });
+    const r2 = await reserve({
+      organizationId: root.id,
+      orderId: await seedOrder(em, root.id),
+      amount: 20,
+      currency: 'PLN',
+    });
     expect(r2.ok).toBe(false);
     expect(!r2.ok && r2.code).toBe('LIMIT_INSUFFICIENT');
   });

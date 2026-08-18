@@ -15,7 +15,8 @@ import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
  *   - `data.nextAction` carries the real adapter variant (here:
  *     `awaiting_transfer` because the seeded method uses the bank-transfer
  *     adapter), with the order's `amount`/`currency`,
- *   - the cart transitions to `completed` once placement succeeds.
+ *   - the cart transitions to `completed` once placement succeeds, and records
+ *     which order consumed it (D-94.1, `carts.completed_order_id`).
  */
 describe('POST /api/v1/orders — contract', () => {
   let h: BackendServerHandle;
@@ -80,8 +81,14 @@ describe('POST /api/v1/orders — contract', () => {
       expect(body.data.nextAction.accountDetails.reference).toMatch(/^ORDER-/);
     }
 
-    // Cart consumed.
+    // Cart consumed — and, since D-94.1, it records **which** order consumed
+    // it. Before `carts_completed_order_fk` the platform answered that question
+    // by correlating timestamps; `placeOrder` stamps the pointer beside
+    // `status = 'completed'`, on the placement transaction, which is the only
+    // place it can be stamped because the pointer cannot be written before the
+    // order exists.
     const cart = await h.em().findOne(Cart, { customerAccountId: TEST_CUSTOMER_ID });
     expect(cart?.status).toBe('completed');
+    expect(cart?.completedOrderId).toBe(body.data.id);
   });
 });

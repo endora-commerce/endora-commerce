@@ -8,9 +8,12 @@ import type Redis from 'ioredis';
 import type { EmailMailerPort } from '@b2b/contracts';
 import {
   OrderService,
-  type CreditLimitPort,
   type OrderEventBus,
-  type PromotionPort,
+  // The two em-carrying interfaces their owners write (D-94.5), re-exported by
+  // `order-service.ts` — which is where the seam is stated and where the two
+  // permanent ledger entries sit.
+  type CreditLimitPort,
+  type PromotionUsageFinalizer,
 } from './services/order-service.js';
 import { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderTransitionService } from './services/order-transition-service.js';
@@ -35,6 +38,8 @@ import type {
   CustomerAccountReadPort,
   DeliveryMethodReadPort,
   FulfilmentStrategy,
+  InventoryFulfilmentPlanningPort,
+  InventoryStockReadPort,
   InvoicePdfPort,
   InvoiceReadPort,
   LinePricePort,
@@ -42,6 +47,7 @@ import type {
   OrganizationDetailsPort,
   PaymentAdapterRegistryPort,
   PaymentMethodReadPort,
+  PromotionApplyPort,
   RfqCustomerPort,
   ShippingAdapterRegistryPort,
 } from '@b2b/contracts';
@@ -142,6 +148,16 @@ export interface OrdersModuleOptions {
   /** Accessors: both owners are deactivatable `degrades-without` edges. */
   deliveryMethodRead: () => DeliveryMethodReadPort | null;
   paymentMethodRead: () => PaymentMethodReadPort | null;
+  /**
+   * The two `inventory` ports the stock reservation runs on, as one accessor
+   * (D-94.4, issue #188). `null` ⇒ `inventory` is not effectively present, and
+   * placement skips the reservation whole — `orders` declares the edge
+   * `degrades-without` with exactly that sentence.
+   */
+  inventory: () => {
+    readonly stockRead: InventoryStockReadPort;
+    readonly planning: InventoryFulfilmentPlanningPort;
+  } | null;
   assetRead: AssetReadPort;
   /**
    * `invoices` is deactivatable and declares this module, so its two ports are
@@ -193,8 +209,19 @@ export interface OrdersModuleOptions {
    * Feature 027 US2 — promotion engine used by the cart's coupon flow.
    * When provided, `POST /api/v1/cart/coupon` validates the code via
    * `applyToCart`. Optional so legacy compositions still build.
+   *
+   * `PromotionApplyPort` since D-94.5 — the contract `promotions` publishes,
+   * rather than a near-identical interface this module used to declare and
+   * nothing checked the provider against.
    */
-  promotionService?: PromotionPort;
+  promotionService?: PromotionApplyPort;
+  /**
+   * The redemption row placement writes on its own `EntityManager` (D-94.5).
+   * A separate name because it is a separate port: `promotions` declares the
+   * interface, because the signature carries a MikroORM type that FR-034 keeps
+   * out of `@b2b/contracts`.
+   */
+  promotionUsageFinalizer?: PromotionUsageFinalizer;
   /**
    * Feature 027 US3 — getter for the RFQ service used by Cart → Quote
    * Request and Quote Request → Cart conversions. Getter (not direct
@@ -361,10 +388,13 @@ export function commerceModule(options: OrdersModuleOptions) {
         ...(options.resolveChannelAllowNegativeStock
           ? { resolveChannelAllowNegativeStock: options.resolveChannelAllowNegativeStock }
           : {}),
-        // Feature 036 (US3) — PromotionService satisfies PromotionPort
-        // structurally; threaded so placeOrder stamps the cart's coupon
-        // discount onto the Order.
+        // Feature 036 (US3) — threaded so placeOrder stamps the cart's coupon
+        // discount onto the Order, and D-94.5's finalizer beside it for the
+        // redemption row that goes in the same transaction.
         ...(options.promotionService ? { promotion: options.promotionService } : {}),
+        ...(options.promotionUsageFinalizer
+          ? { promotionUsageFinalizer: options.promotionUsageFinalizer }
+          : {}),
         resolveTaxRate: options.resolveTaxRate,
         neighbours: {
           organizationDetails: options.organizationDetails,
@@ -373,6 +403,7 @@ export function commerceModule(options: OrdersModuleOptions) {
           catalogProductRead: options.catalogProductRead,
           paymentMethodRead: options.paymentMethodRead,
           deliveryMethodRead: options.deliveryMethodRead,
+          inventory: options.inventory,
         },
         ...(options.mailer ? { mailer: options.mailer } : {}),
         ...(options.confirmationRenderers
