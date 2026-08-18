@@ -13,9 +13,15 @@
  *
  * Credentials are printed to stdout so the developer can sign in immediately.
  *
- * NOT for production. Drops business-data tables — refuses to run unless
- * NODE_ENV !== 'production' and the DATABASE_URL points at a localhost or
- * docker-compose host.
+ * NOT for production. It drops business-data tables, so `mustBeNonProduction()`
+ * (`dev-seed-guard.ts`) refuses to run it unless BOTH hold: `NODE_ENV` is not
+ * `production`, and `DATABASE_URL` names a loopback host or a database whose
+ * name follows the `_test` convention the vitest harness uses. Each has its own
+ * explicit opt-out — `ALLOW_DEV_SEED_IN_PRODUCTION=true` and
+ * `ALLOW_DEV_SEED_ON_NON_LOCAL_DATABASE=true` — and a deliberate demo seed on a
+ * remote database needs both. Issue #224: until then the second guard was a
+ * regex over the whole DSN whose `postgres` alternative matched the
+ * `postgresql://` scheme, so it had never refused a database on any host.
  *
  * ## Why this lives in `src/seeds/` and not in `catalog` (feature 075)
  *
@@ -44,6 +50,7 @@
  */
 
 import { initOrm, closeOrm } from '../db/index.js';
+import { mustBeNonProduction } from './dev-seed-guard.js';
 import { Product } from '../modules/catalog/entities/product.entity.js';
 import { Category } from '../modules/catalog/entities/category.entity.js';
 import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
@@ -182,26 +189,6 @@ function productPlaceholderSvg(leafSlug: string, bgHex: string, index: number): 
     `<text x="92" y="94" font-size="6" fill="#c7ccd1" text-anchor="end" font-family="monospace">${String(index + 1).padStart(2, '0')}</text>` +
     `</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-}
-
-function mustBeNonProduction(): void {
-  // The seed is destructive (it truncates the public catalog/business tables),
-  // so it refuses NODE_ENV=production by default. A deliberate demo deployment
-  // can opt in with ALLOW_DEV_SEED_IN_PRODUCTION=true — this is intentionally a
-  // separate, explicit flag so an accidental run never wipes real data.
-  const forced = process.env['ALLOW_DEV_SEED_IN_PRODUCTION'] === 'true';
-  if (process.env['NODE_ENV'] === 'production' && !forced) {
-    throw new Error(
-      'refusing to run dev-catalog-seed in NODE_ENV=production ' +
-        '(set ALLOW_DEV_SEED_IN_PRODUCTION=true to override — this WIPES business data)',
-    );
-  }
-  const url = process.env['DATABASE_URL'] ?? 'postgresql://b2b:b2b@localhost:5432/b2b';
-  if (!/localhost|127\.0\.0\.1|postgres(?::\d+)?/.test(url)) {
-    throw new Error(
-      `refusing to run dev-catalog-seed against a non-local DATABASE_URL: ${url}`,
-    );
-  }
 }
 
 async function main(): Promise<void> {
