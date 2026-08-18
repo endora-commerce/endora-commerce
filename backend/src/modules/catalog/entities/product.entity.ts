@@ -70,9 +70,37 @@ export class Product {
   attributeValues: Record<string, unknown> = {};
 
   /**
-   * allowedOrganizationIds is denormalised as JSONB for read convenience; the
-   * canonical M:N source of truth is the `product_allowed_organizations` bridge
-   * (managed in the initial migration).
+   * The organisations allowed to see this product — **this column is the
+   * storage**, not a cache of one. There is no bridge table: the comment that
+   * stood here until issue #227 named a `product_allowed_organizations` M:N
+   * source of truth that no migration has ever created and no query has ever
+   * read, which is worse than stale — it invites a writer to treat this column
+   * as rebuildable from a table that is not there.
+   *
+   * `products.allowed_organization_ids` is `jsonb not null default '[]'::jsonb`
+   * (`db/migrations/20260424T165847_core_foundation_init.ts`), and a read path
+   * that enforces it asks with `@>` containment over the array — the buyer's
+   * organisation id has to be *in* it, rather than the array being compared to
+   * anything.
+   *
+   * Two states an enforcing read must not conflate:
+   *
+   *  - **empty array** — no organisation restriction. Disclosure is then
+   *    `visibility`'s alone.
+   *  - **empty array with `visibility = 'organization_restricted'`** — visible
+   *    to nobody. The restriction was asked for and names no organisation; the
+   *    permissive reading of it would disclose the row to everybody, which is
+   *    the opposite of what the operator saved.
+   *
+   * A non-empty array restricts whatever `visibility` says, `public` included.
+   * Enforcement is per read path and not every path applies it today; the
+   * `CatalogQuickSearchPort` doc block in `@b2b/contracts` states the predicate
+   * for the path that does.
+   *
+   * No foreign key holds these ids, so a deleted organisation leaves its id in
+   * every product that named it. That question — whether the relationship the
+   * old comment imagined should exist — is issue #227's second half and is not
+   * settled here.
    */
   @Property({ type: 'json' })
   allowedOrganizationIds: string[] = [];
