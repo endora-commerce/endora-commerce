@@ -208,8 +208,7 @@ export type MessageKey =
   | 'account.socialLinks.intro'
   | 'account.socialLinks.linkedOn'
   | 'account.socialLinks.remove'
-  | 'account.socialLinks.lastCredential'
-  | 'account.socialLinks.setPassword';
+  | 'account.socialLinks.lastCredential';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -432,8 +431,7 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'account.socialLinks.linkedOn': 'Linked on',
     'account.socialLinks.remove': 'Remove',
     'account.socialLinks.lastCredential':
-      'This is the only sign-in identity linked to your account. Set a password for the account first, then you can remove it.',
-    'account.socialLinks.setPassword': 'Set a password',
+      'This is the last sign-in identity linked to your account, and it cannot be removed. We cannot confirm that you have another way to sign in — an account created through a sign-in provider is given a password nobody is told — so removing it could lock you out for good. There is no way to remove it at the moment.',
   },
   'pl-PL': {
     'nav.home': 'Strona glowna',
@@ -655,8 +653,7 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'account.socialLinks.linkedOn': 'Powiązano',
     'account.socialLinks.remove': 'Usuń',
     'account.socialLinks.lastCredential':
-      'To jedyna tożsamość logowania powiązana z Twoim kontem. Najpierw ustaw hasło do konta — wtedy usunięcie będzie możliwe.',
-    'account.socialLinks.setPassword': 'Ustaw hasło',
+      'To ostatnia tożsamość logowania powiązana z Twoim kontem i nie można jej usunąć. Nie możemy potwierdzić, że masz inny sposób logowania — konto założone przez dostawcę logowania otrzymuje hasło, którego nikt nie zna — więc usunięcie mogłoby trwale odciąć Ci dostęp. Obecnie nie ma możliwości usunięcia tego powiązania.',
   },
 };
 

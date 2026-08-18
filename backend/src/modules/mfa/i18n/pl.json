@@ -1,5 +1,5 @@
 {
   "adminRoles.permission.mfa:reset": "Resetowanie 2FA użytkownika",
   "adminRoles.permission.mfa:manage": "Zarządzanie politykami 2FA i wymuszaniem w Organizacji",
-  "errors.MFA_SOCIAL_LAST_CREDENTIAL": "To jedyna tożsamość logowania powiązana z Twoim kontem. Najpierw ustaw hasło do konta — wtedy usunięcie będzie możliwe."
+  "errors.MFA_SOCIAL_LAST_CREDENTIAL": "To ostatnia tożsamość logowania powiązana z kontem i nie można jej usunąć. Platforma nie może potwierdzić, że konto ma inny sposób logowania — konto założone przez dostawcę logowania otrzymuje hasło, którego nikt nie zna — więc usunięcie mogłoby trwale odciąć dostęp do konta."
 }

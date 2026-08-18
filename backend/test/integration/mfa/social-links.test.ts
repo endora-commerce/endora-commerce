@@ -128,8 +128,16 @@ describe('MFA social identity links — list + unlink (issue #194)', () => {
     // This is the bundle's wording, which differs from the thrower's on
     // purpose — it is the discriminator that says the lookup really happened.
     expect(res.json().error?.message).toBe(
-      'This is the only sign-in identity linked to your account. Set a password for the account first, then you can remove it.',
+      'This is the last sign-in identity linked to the account, and it cannot be removed. ' +
+        'The platform cannot confirm that the account has another way in — an account created ' +
+        'through a sign-in provider is given a password nobody is told — so removing it could ' +
+        'lock its holder out for good.',
     );
+    // The sentence states a fact, not an instruction. The rule counts links,
+    // so "set a password first" — which this said until review — names a step
+    // that lifts nothing, and a security screen that sends its reader on an
+    // errand with no effect is worse than one that plainly says no.
+    expect(res.json().error?.message).not.toContain('Set a password');
     // A refusal is a refusal: the row is untouched.
     expect(await linkRows()).toHaveLength(1);
   });

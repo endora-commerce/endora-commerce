@@ -44,15 +44,19 @@ describe('SocialLinksPanel', () => {
     expect(html).toContain('name="provider"');
     expect(html).toContain('value="google"');
     expect(html).toContain('value="microsoft"');
-    expect(html).not.toContain('Set a password');
   });
 
-  it('replaces the unlink with the reason and the route out for the last link', () => {
+  it('states plainly that the last link cannot be removed, and offers no errand', () => {
     const html = render([LAST_LINK]);
     expect(html).toContain(
-      'This is the only sign-in identity linked to your account.',
+      'This is the last sign-in identity linked to your account, and it cannot be removed.',
     );
-    expect(html).toContain('/account/password');
+    expect(html).toContain('There is no way to remove it at the moment.');
+    // The rule the server enforces counts links, so setting a password lifts
+    // nothing. Telling the holder to set one would be an instruction with no
+    // effect on the screen whose value is that its statements are true.
+    expect(html).not.toContain('/account/password');
+    expect(html).not.toContain('Set a password');
     // No form at all, not a disabled button: the control that would submit the
     // removal is what must be absent, and `provider` is only ever submitted by
     // that form.
@@ -67,6 +71,9 @@ describe('SocialLinksPanel', () => {
   it('ships the copy in Polish as well as English', () => {
     const html = render([LAST_LINK], 'pl-PL');
     expect(html).toContain('Powiązane konta');
-    expect(html).toContain('To jedyna tożsamość logowania powiązana z Twoim kontem.');
+    expect(html).toContain(
+      'To ostatnia tożsamość logowania powiązana z Twoim kontem i nie można jej usunąć.',
+    );
+    expect(html).toContain('Obecnie nie ma możliwości usunięcia tego powiązania.');
   });
 });

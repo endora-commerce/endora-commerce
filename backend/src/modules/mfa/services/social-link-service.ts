@@ -29,11 +29,19 @@ import { MfaSocialIdentity } from '../entities/mfa-social-identity.entity.js';
  * that**: there is no `passwordSetAt`, no `mustChangePassword`, no flag on the
  * account saying a password was ever chosen.
  *
- * Rather than guess, this refuses to remove the **last** link of any account,
- * names the reason (`last_credential`), and lets the surface offer the route
- * out — set a password — instead of a dead end. Where another link remains, the
+ * Rather than guess, this refuses to remove the **last** link of any account
+ * and names the reason (`last_credential`). Where another link remains, the
  * removal goes through. An active TOTP enrolment deliberately does not unblock
  * it: a second factor is not a first one, and nobody signs in with TOTP alone.
+ *
+ * **The refusal is currently absolute, and every sentence about it says so.**
+ * The first draft told the holder to set a password first — but the rule counts
+ * links, so setting one lifts nothing; there is no datum for it to read. An
+ * instruction with no effect is worse on a security surface than a plain "no",
+ * so both the thrown message and the `errors.MFA_SOCIAL_LAST_CREDENTIAL`
+ * sentence state that the link cannot be removed and why. The way out is a
+ * `passwordSetAt` (or equivalent) on the account: when that lands, this rule
+ * and those sentences change in the same commit.
  */
 export class SocialLinkService {
   constructor(
@@ -89,7 +97,7 @@ export class SocialLinkService {
           throw new HttpError(
             409,
             ERROR_CODES.MFA_SOCIAL_LAST_CREDENTIAL,
-            'This is the only sign-in identity linked to the account. Set a password first, then remove it.',
+            'This is the last sign-in identity linked to the account and cannot be removed: the platform cannot confirm the account has another way in.',
           );
         }
         const before = {
