@@ -453,6 +453,179 @@ export class OrderApiIntakeService {
   });
 });
 
+describe('findPortCatches — one hop backwards, through `this` only (D-88)', () => {
+  /** The gateway skeleton: a public `handle`, a `try`, a private method below. */
+  const gateway = (body: string): Map<string, string> =>
+    new Map([
+      ['modules/promotions/backend.ts', PROVIDER],
+      ['modules/carts/backend.ts', CONSUMER_BACKEND],
+      ['modules/carts/services/cart-gateway-service.ts', body],
+    ]);
+
+  it('follows a private method of the same class that reaches the gate', () => {
+    const found = findPortCatches({
+      sources: gateway(`
+export class CartGatewayService {
+  async handle(payload: unknown): Promise<void> {
+    try {
+      await this.settlePaid(payload);
+    } catch (err) {
+      this.deps.onError?.(err);
+    }
+  }
+  private async settlePaid(payload: unknown): Promise<void> {
+    await this.deps.promotion.applyToCart(payload);
+  }
+}
+`),
+    });
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      moduleId: 'carts',
+      port: 'settlePaid',
+      handled: false,
+      gates: ['promotionService'],
+    });
+  });
+
+  it('carries the gates the method reaches, so OWNER LOCKED still derives', () => {
+    // The hop must not launder the gate into "some port": `gateOwners` is what
+    // D-63 reads, and a hop that lost it would retire a site by accident.
+    const found = findPortCatches({
+      sources: gateway(`
+export class CartGatewayService {
+  async handle(p: unknown): Promise<void> {
+    try { await this.settlePaid(p); } catch { return; }
+  }
+  private async settlePaid(p: unknown): Promise<void> {
+    await this.deps.promotion.applyToCart(p);
+  }
+}
+`),
+      manifests: [
+        { id: 'promotions', activation: { nonDeactivatable: true, reason: 'Nothing prices without it.' } },
+      ],
+    });
+    expect(found[0]?.gateOwners).toEqual(['promotions']);
+    expect(found[0]?.ownerLocked).toBe(true);
+  });
+
+  it('follows the hop transitively inside the class', () => {
+    const found = findPortCatches({
+      sources: gateway(`
+export class CartGatewayService {
+  async handle(p: unknown): Promise<void> {
+    try { await this.settlePaid(p); } catch { return; }
+  }
+  private async settlePaid(p: unknown): Promise<void> { await this.reprice(p); }
+  private async reprice(p: unknown): Promise<void> {
+    await this.deps.promotion.applyToCart(p);
+  }
+}
+`),
+    });
+    expect(found.map((entry) => entry.port)).toEqual(['settlePaid']);
+    expect(found[0]?.gates).toEqual(['promotionService']);
+  });
+
+  it('reports a hop the `catch` narrows as handled', () => {
+    const found = findPortCatches({
+      sources: gateway(`
+export class CartGatewayService {
+  async handle(p: unknown): Promise<void> {
+    try { await this.settlePaid(p); } catch (err) { rethrowIfModuleDisabled(err); this.log(err); }
+  }
+  private async settlePaid(p: unknown): Promise<void> {
+    await this.deps.promotion.applyToCart(p);
+  }
+}
+`),
+    });
+    expect(found.map((entry) => entry.handled)).toEqual([true]);
+  });
+
+  it('does not follow a free function in another file', () => {
+    // The limit is `this`, and only `this`: a helper across a file boundary
+    // would need whole-program call-graph resolution, where "port-carrying"
+    // stops being decidable from names. The second `try` is the control, so
+    // this asserts a limit rather than an absence.
+    const found = findPortCatches({
+      sources: new Map([
+        ['modules/promotions/backend.ts', PROVIDER],
+        ['modules/carts/backend.ts', CONSUMER_BACKEND],
+        [
+          'modules/carts/services/cart-helpers.ts',
+          'export async function repriceCart(deps, p) { await deps.promotion.applyToCart(p); }',
+        ],
+        [
+          'modules/carts/services/cart-gateway-service.ts',
+          `
+import { repriceCart } from './cart-helpers.js';
+export class CartGatewayService {
+  async viaHelper(p: unknown): Promise<void> {
+    try { await repriceCart(this.deps, p); } catch { return; }
+  }
+  async viaOwnMethod(p: unknown): Promise<void> {
+    try { await this.settlePaid(p); } catch { return; }
+  }
+  private async settlePaid(p: unknown): Promise<void> {
+    await this.deps.promotion.applyToCart(p);
+  }
+}
+`,
+        ],
+      ]),
+    });
+    expect(found.map((entry) => entry.port)).toEqual(['settlePaid']);
+  });
+
+  it('reads `this.close()` as the class’s own method, not a module alias of that name', () => {
+    // `product_feeds` holds both spellings — a plugin closure registered as
+    // `close` and a `TaxonomyRefreshService#close` that writes a check row — and
+    // without the shadowing rule the second inherited the first's gates.
+    const found = findPortCatches({
+      sources: new Map([
+        ['modules/promotions/backend.ts', PROVIDER],
+        [
+          'modules/carts/backend.ts',
+          `${CONSUMER_BACKEND}\nconst handle = { close: async () => { await cradle().promotionService.shutdown(); } };`,
+        ],
+        [
+          'modules/carts/services/cart-gateway-service.ts',
+          `
+export class CartGatewayService {
+  async shutdown(): Promise<void> {
+    try { await this.close(); } catch { return; }
+  }
+  async viaOwnMethod(p: unknown): Promise<void> {
+    try { await this.settlePaid(p); } catch { return; }
+  }
+  private async close(): Promise<void> { this.rows.length = 0; }
+  private async settlePaid(p: unknown): Promise<void> {
+    await this.deps.promotion.applyToCart(p);
+  }
+}
+`,
+        ],
+      ]),
+    });
+    expect(found.map((entry) => entry.port)).toEqual(['settlePaid']);
+  });
+
+  it('does not follow a method on an injected collaborator that is not a port', () => {
+    const found = findPortCatches({
+      sources: gateway(`
+export class CartGatewayService {
+  async handle(p: unknown): Promise<void> {
+    try { await this.deps.auditWriter.record(p); } catch { return; }
+  }
+}
+`),
+    });
+    expect(found).toEqual([]);
+  });
+});
+
 describe('checkPortCatches — the two-way ratchet', () => {
   it('fails on an unledgered bare catch', () => {
     const result = checkPortCatches({ sources: tree(BARE) }, {});

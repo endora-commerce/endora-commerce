@@ -73,6 +73,53 @@
  *     of them in one run;
  *   - **a field read off a port** — `p.attributeValues[key]` is a value.
  *
+ * ## The one hop backwards, and why it is not that propagation (D-88)
+ *
+ * A **method of the same class** whose body reaches a gated port is itself a
+ * carrier *for the purposes of a `catch` around a call to it*. So
+ * `try { await this.settlePaid(…) } catch { … }` is judged exactly as
+ * `try { await this.receiveHandler.receive(…) } catch { … }` is.
+ *
+ * The next reader of "a call's **result** does not carry", sitting three lines
+ * above a rule that follows calls, will assume one of the two is wrong. They are
+ * not, and the difference is **directional**. The excluded rule runs *forward*:
+ * from a port, through an arbitrary callee, into every local downstream of the
+ * value it returned — which is how `JSON.stringify(x)` became a port and why one
+ * run produced 39 false findings. This one runs *backward*: from a **callee's
+ * body** to the **call site**, inside one class. Nothing about a value's
+ * contents is inferred; the gates the method carries are exactly the gates its
+ * body reaches, which is what feeds D-63's `OWNER LOCKED` derivation unchanged.
+ *
+ * The limit is `this`, and only `this`:
+ *
+ *   - **same class only** — `this.<name>(…)` where `<name>` is declared in the
+ *     enclosing class. Not a free function, not an imported helper, not a method
+ *     on an injected collaborator that is not itself a port.
+ *   - **transitive through the class** — a private method calling another
+ *     private method that reaches a gate carries too, bounded by the same
+ *     fixpoint round-cap the alias table uses.
+ *
+ * What is **not** seen, deliberately: a helper in another file reached through
+ * an import, a callback passed in from outside the class, a method on an
+ * injected collaborator. Each of those is a value crossing a file boundary,
+ * where the check would need whole-program call-graph resolution to stay
+ * precise and where "port-carrying" stops being decidable from names. A class is
+ * the one scope where the callee's body and the call site are guaranteed to be
+ * in the same author's hands, which is why the line is drawn there and not one
+ * hop further.
+ *
+ * The blast radius was measured before the widening landed: **8 sites, 7 of them
+ * already correct by hand** — six payment and shipping gateways that each
+ * derived the answer themselves and wrote three to five lines of comment
+ * justifying it, plus one that re-throws unconditionally — and **one live
+ * fail-open**, `organizations/services/org-registration-notifier.ts`, where
+ * `onError?.(err)` swallowed a 503 from `admin_notifications` and every
+ * organization registration went silently un-notified. That is the shape the
+ * hop exists for: a public `handle(payload)`, a `try` around the domain
+ * application, and private methods underneath that reach the port. It is the
+ * dominant integration skeleton in this tree, which makes it the worst possible
+ * place for a check to stop looking.
+ *
  * Aliases are **scoped**, and by the scope the binding actually has. A `const`
  * is file-scoped, because it is: `catalog` renames its bulk-operation service to
  * `queue` in one file and holds a BullMQ queue under the same spelling in
@@ -800,6 +847,158 @@ function handles(clause: ts.CatchClause, delegates: ReadonlySet<string>): boolea
   return named;
 }
 
+/**
+ * How many rounds the method fixpoint runs before it gives up.
+ *
+ * The same cap the alias table uses, for the same reason: a chain of private
+ * methods is bounded in practice, and a cap makes "did not converge" a bug
+ * report rather than a hang.
+ */
+const METHOD_HOP_ROUNDS = 12;
+
+/** The name of a class member as `this.<name>` would spell it, or `null`. */
+function memberName(name: ts.PropertyName | undefined): string | null {
+  if (name === undefined) return null;
+  if (ts.isIdentifier(name) || ts.isPrivateIdentifier(name)) return name.text;
+  if (ts.isStringLiteral(name)) return name.text;
+  return null;
+}
+
+/** `this.<name>` / `this.#name`, as the receiver of a call — the name, or `null`. */
+function thisMethodCalled(node: ts.CallExpression): string | null {
+  if (!ts.isPropertyAccessExpression(node.expression)) return null;
+  if (node.expression.expression.kind !== ts.SyntaxKind.ThisKeyword) return null;
+  const name = node.expression.name;
+  return ts.isIdentifier(name) || ts.isPrivateIdentifier(name) ? name.text : null;
+}
+
+/** The class a node sits inside, by name — `null` for a class expression. */
+function enclosingClassName(node: ts.Node): string | null {
+  for (let at: ts.Node | undefined = node; at !== undefined; at = at.parent) {
+    if (ts.isClassDeclaration(at)) return at.name?.text ?? null;
+  }
+  return null;
+}
+
+/** `<file>#<class>#<method>` — a method's identity for the hop. */
+function methodKey(file: string, className: string, method: string): string {
+  return `${file}#${className}#${method}`;
+}
+
+/**
+ * Which methods carry a gate into a `catch` around a call to them (D-88).
+ *
+ * Two passes and then a fixpoint. The first records, per class member, the port
+ * or alias names its body reaches directly — the same three call shapes the
+ * `try` scan reads, so a method and a `try` block agree about what a port call
+ * looks like by construction. The second records `this.<name>(…)` edges inside
+ * the class. The fixpoint then walks the edges backwards until nothing new
+ * appears, which is what makes a private method calling a private method that
+ * reaches a gate carry as well.
+ *
+ * Nothing crosses a class boundary here, and nothing crosses a file boundary:
+ * that is the whole limit, and it is stated in the header because one hop is a
+ * limit too.
+ */
+function collectCarryingMethods(
+  parsed: ReadonlyMap<string, ts.SourceFile>,
+  readsAsPortIn: (file: string, name: string) => boolean,
+  declaresMember: (file: string, className: string, name: string) => boolean,
+): Map<string, Set<string>> {
+  /** method key → the port/alias names its body reaches. */
+  const carries = new Map<string, Set<string>>();
+  /** method key → the method keys it calls through `this`. */
+  const edges = new Map<string, Set<string>>();
+
+  for (const [file, sf] of parsed) {
+    const reads = (name: string): boolean => readsAsPortIn(file, name);
+
+    const record = (className: string, method: string, body: ts.Node): void => {
+      const key = methodKey(file, className, method);
+      const ports = carries.get(key) ?? new Set<string>();
+      const calls = edges.get(key) ?? new Set<string>();
+      const scan = (inner: ts.Node): void => {
+        if (ts.isCallExpression(inner)) {
+          const hop = thisMethodCalled(inner);
+          if (hop !== null && declaresMember(file, className, hop)) {
+            calls.add(methodKey(file, className, hop));
+          } else if (ts.isPropertyAccessExpression(inner.expression)) {
+            const receiver = tailName(inner.expression.expression);
+            if (receiver !== null && reads(receiver)) ports.add(receiver);
+            else if (reads(inner.expression.name.text)) ports.add(inner.expression.name.text);
+          }
+          if (
+            ts.isIdentifier(inner.expression) &&
+            inner.expression.text !== 'lazyPort' &&
+            reads(inner.expression.text)
+          ) {
+            ports.add(inner.expression.text);
+          }
+          if (ts.isIdentifier(inner.expression) && inner.expression.text === 'requireModuleEnabled') {
+            ports.add('requireModuleEnabled');
+          }
+        }
+        inner.forEachChild(scan);
+      };
+      body.forEachChild(scan);
+      carries.set(key, ports);
+      edges.set(key, calls);
+    };
+
+    for (const [className, members] of classesIn(sf)) {
+      for (const [name, body] of members) record(className, name, body);
+    }
+  }
+
+  for (let round = 0; round < METHOD_HOP_ROUNDS; round += 1) {
+    let grew = false;
+    for (const [key, calls] of edges) {
+      const ports = carries.get(key);
+      if (ports === undefined) continue;
+      for (const callee of calls) {
+        for (const port of carries.get(callee) ?? []) {
+          if (!ports.has(port)) {
+            ports.add(port);
+            grew = true;
+          }
+        }
+      }
+    }
+    if (!grew) break;
+  }
+
+  // A method that reaches nothing is not a carrier; dropping it here keeps the
+  // lookup at the `try` site a presence test rather than a size test.
+  for (const [key, ports] of [...carries]) if (ports.size === 0) carries.delete(key);
+  return carries;
+}
+
+/** Class name → its method-shaped members, by the name `this.<x>` spells. */
+function classesIn(sf: ts.SourceFile): Map<string, Map<string, ts.Node>> {
+  const classes = new Map<string, Map<string, ts.Node>>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isClassDeclaration(node) && node.name) {
+      const members = classes.get(node.name.text) ?? new Map<string, ts.Node>();
+      for (const member of node.members) {
+        const name = memberName(member.name);
+        if (name === null) continue;
+        if (ts.isMethodDeclaration(member) && member.body) members.set(name, member.body);
+        else if (
+          ts.isPropertyDeclaration(member) &&
+          member.initializer &&
+          (ts.isArrowFunction(member.initializer) || ts.isFunctionExpression(member.initializer))
+        ) {
+          members.set(name, member.initializer.body);
+        }
+      }
+      classes.set(node.name.text, members);
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return classes;
+}
+
 /** Every `try` in `src/**` whose body calls through a gated port. */
 export function findPortCatches(input: PortCatchInput): PortCatch[] {
   const analysis = analyze(input.sources);
@@ -822,6 +1021,30 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
     parsed.set(file, ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true));
   }
   const delegates = collectRethrowDelegates(parsed.values());
+  /**
+   * The classes each file declares, by member name.
+   *
+   * It decides a **shadowing** rule the pre-D-88 check got wrong in one
+   * direction: `this.close(…)` where `close` is a method of the enclosing class
+   * is that method, never a module-scoped alias that happens to share the
+   * spelling. `product_feeds` holds both — a plugin closure bound to `close` and
+   * a `TaxonomyRefreshService#close` that writes a check row — and without this
+   * the hop reported the second as though it reached the first's twenty gates.
+   */
+  const declaredMembers = new Map<string, Map<string, ReadonlySet<string>>>();
+  for (const [file, sf] of parsed) {
+    declaredMembers.set(
+      file,
+      new Map([...classesIn(sf)].map(([name, members]) => [name, new Set(members.keys())])),
+    );
+  }
+  const declaresMember = (file: string, className: string, name: string): boolean =>
+    declaredMembers.get(file)?.get(className)?.has(name) === true;
+  const carryingMethods = collectCarryingMethods(
+    parsed,
+    (file, name) => analysis.readsAsPort(name, moduleOf(`/src/${file}`) ?? ROOT, file),
+    declaresMember,
+  );
 
   for (const [file] of input.sources) {
     const moduleId = moduleOf(`/src/${file}`) ?? ROOT;
@@ -831,16 +1054,39 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
 
     const visit = (node: ts.Node): void => {
       if (ts.isTryStatement(node) && node.catchClause) {
-        const ports = new Set<string>();
+        /**
+         * The name the site is reported under → the port/alias names it stands
+         * for. Identity for a direct reach; for a D-88 method hop the key is the
+         * method and the value is what its body reaches, so `gates` — and with
+         * it the `OWNER LOCKED` derivation — comes out unchanged.
+         */
+        const ports = new Map<string, Set<string>>();
+        const add = (name: string, via: Iterable<string>): void => {
+          const carried = ports.get(name) ?? new Set<string>();
+          for (const one of via) carried.add(one);
+          ports.set(name, carried);
+        };
+        const className = enclosingClassName(node);
+        /** D-88's shadowing rule — see {@link declaredMembers}. */
+        const ownMethod = (inner: ts.CallExpression): string | null => {
+          const method = className === null ? null : thisMethodCalled(inner);
+          return method !== null && className !== null && declaresMember(file, className, method)
+            ? method
+            : null;
+        };
         const scan = (inner: ts.Node): void => {
-          if (ts.isCallExpression(inner) && ts.isPropertyAccessExpression(inner.expression)) {
+          if (
+            ts.isCallExpression(inner) &&
+            ts.isPropertyAccessExpression(inner.expression) &&
+            ownMethod(inner) === null
+          ) {
             const receiver = tailName(inner.expression.expression);
             if (receiver !== null && readsAsPort(receiver)) {
-              ports.add(receiver);
+              add(receiver, [receiver]);
             } else if (readsAsPort(inner.expression.name.text)) {
               // `this.deps.getTransactionalEmailSender()` — the alias is the
               // thing being called, not the object it hangs off.
-              ports.add(inner.expression.name.text);
+              add(inner.expression.name.text, [inner.expression.name.text]);
             }
           }
           if (
@@ -849,7 +1095,7 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
             inner.expression.text !== 'lazyPort' &&
             readsAsPort(inner.expression.text)
           ) {
-            ports.add(inner.expression.text);
+            add(inner.expression.text, [inner.expression.text]);
           }
           // `requireModuleEnabled('x')` throws the same error, on purpose.
           if (
@@ -857,7 +1103,14 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
             ts.isIdentifier(inner.expression) &&
             inner.expression.text === 'requireModuleEnabled'
           ) {
-            ports.add('requireModuleEnabled');
+            add('requireModuleEnabled', ['requireModuleEnabled']);
+          }
+          // D-88 — one hop backwards, through `this` and nothing else.
+          if (ts.isCallExpression(inner) && className !== null) {
+            const method = ownMethod(inner);
+            const carried =
+              method === null ? undefined : carryingMethods.get(methodKey(file, className, method));
+            if (method !== null && carried !== undefined) add(method, carried);
           }
           inner.forEachChild(scan);
         };
@@ -866,12 +1119,14 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
         if (ports.size > 0) {
           const handled = handles(node.catchClause, delegates);
           const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
-          for (const port of ports) {
+          for (const [port, via] of ports) {
             const gates = [
-              ...new Set([
-                ...(analysis.portOwners.has(port) ? [port] : []),
-                ...(analysis.gatesOf.get(port) ?? []),
-              ]),
+              ...new Set(
+                [...via].flatMap((one) => [
+                  ...(analysis.portOwners.has(one) ? [one] : []),
+                  ...(analysis.gatesOf.get(one) ?? []),
+                ]),
+              ),
             ].sort();
             found.push({
               file,

@@ -620,6 +620,124 @@ const PORT_CATCH_DEPS_TREE = new Map([
 ]);
 
 /**
+ * D-88 — the gate reached one hop backwards, through `this` and nothing else.
+ *
+ * The dominant integration skeleton in this tree: a public `handle(payload)`, a
+ * `try` around the domain application, and a private method underneath that
+ * reaches the port. The `try` body names no port at all, which is why the check
+ * could not see eight sites of this shape — seven correct by hand and one a live
+ * fail-open.
+ */
+const PORT_CATCH_METHOD_HOP_TREE = new Map([
+  [
+    'modules/promotions/backend.ts',
+    "export function registerModule(ctx) { ctx.di.providePort('promotionService', x); }",
+  ],
+  [
+    'modules/carts/services/cart-gateway-service.ts',
+    'export class CartGatewayService {\n' +
+      '  async handle(payload) {\n' +
+      '    try { await this.settlePaid(payload); } catch (err) { this.deps.onError?.(err); }\n' +
+      '  }\n' +
+      '  private async settlePaid(payload) {\n' +
+      '    await this.deps.promotionService.applyToCart(payload);\n' +
+      '  }\n' +
+      '}',
+  ],
+]);
+
+/** The same hop, one level deeper: a private method calling a private method. */
+const PORT_CATCH_TRANSITIVE_HOP_TREE = new Map([
+  [
+    'modules/promotions/backend.ts',
+    "export function registerModule(ctx) { ctx.di.providePort('promotionService', x); }",
+  ],
+  [
+    'modules/carts/services/cart-gateway-service.ts',
+    'export class CartGatewayService {\n' +
+      '  async handle(payload) {\n' +
+      '    try { await this.settlePaid(payload); } catch (err) { this.deps.onError?.(err); }\n' +
+      '  }\n' +
+      '  private async settlePaid(payload) { await this.reprice(payload); }\n' +
+      '  private async reprice(payload) {\n' +
+      '    await this.deps.promotionService.applyToCart(payload);\n' +
+      '  }\n' +
+      '}',
+  ],
+]);
+
+/**
+ * A free function in **another file** that reaches the gate, plus a control.
+ *
+ * The limit is `this`, and only `this`: following an imported helper would need
+ * whole-program call-graph resolution, and "port-carrying" stops being decidable
+ * from names at that point. The control is the same class's own hop, so the
+ * proof reads 1 when the limit holds and 2 the moment it stops holding.
+ */
+const PORT_CATCH_FREE_FUNCTION_TREE = new Map([
+  [
+    'modules/promotions/backend.ts',
+    "export function registerModule(ctx) { ctx.di.providePort('promotionService', x); }",
+  ],
+  [
+    'modules/carts/services/cart-helpers.ts',
+    'export async function repriceCart(deps, payload) {\n' +
+      '  await deps.promotionService.applyToCart(payload);\n' +
+      '}',
+  ],
+  [
+    'modules/carts/services/cart-gateway-service.ts',
+    "import { repriceCart } from './cart-helpers.js';\n" +
+      'export class CartGatewayService {\n' +
+      '  async viaHelper(payload) {\n' +
+      '    try { await repriceCart(this.deps, payload); } catch { return 0; }\n' +
+      '  }\n' +
+      '  async viaOwnMethod(payload) {\n' +
+      '    try { await this.settlePaid(payload); } catch { return 0; }\n' +
+      '  }\n' +
+      '  private async settlePaid(payload) {\n' +
+      '    await this.deps.promotionService.applyToCart(payload);\n' +
+      '  }\n' +
+      '}',
+  ],
+]);
+
+/**
+ * A class method that **shadows** a module-scoped alias of the same spelling.
+ *
+ * `product_feeds` holds both: a plugin closure registered as `close`, and a
+ * `TaxonomyRefreshService#close` that writes a check row. Reading the second as
+ * the first put twenty gates on a method that reaches none, and a `try` two hops
+ * above it went red for a reason nobody could act on. The control is the same
+ * class's real hop.
+ */
+const PORT_CATCH_SHADOWED_METHOD_TREE = new Map([
+  [
+    'modules/promotions/backend.ts',
+    "export function registerModule(ctx) { ctx.di.providePort('promotionService', x); }",
+  ],
+  [
+    'modules/carts/backend.ts',
+    "const deps = { close: () => cradle().promotionService.shutdown() };",
+  ],
+  [
+    'modules/carts/services/cart-gateway-service.ts',
+    'export class CartGatewayService {\n' +
+      '  async shutdown() {\n' +
+      '    try { await this.close(); } catch { return 0; }\n' +
+      '  }\n' +
+      '  async viaOwnMethod(payload) {\n' +
+      '    try { await this.settlePaid(payload); } catch { return 0; }\n' +
+      '  }\n' +
+      '  private async close() { this.rows.length = 0; }\n' +
+      '  private async settlePaid(payload) {\n' +
+      '    await this.deps.promotionService.applyToCart(payload);\n' +
+      '  }\n' +
+      '}',
+  ],
+]);
+
+/**
  * A repeating timer built from `setTimeout`, in a file that opens no scope. The
  * red proof runs through `analyzeSource` rather than `violationsOf` alone
  * (issue #128): the blindness was in the **classifier**, which grepped for
@@ -1730,6 +1848,34 @@ const CHECKS: readonly CheckEntry[] = [
             { 'modules/carts/services/cart-admin-service.ts:promotionService': 'stale now' },
           ).stale.length,
       ),
+      // --- the one hop backwards (D-88) ------------------------------------
+      //
+      // Two shapes it now refuses and two it still must not follow. The last
+      // two are discriminations: each tree carries the negative shape *and* the
+      // same class's real hop as a control, so the proof reads 1 while the limit
+      // holds and 0 the moment a second finding appears beside it.
+      'method-hop-through-this': top(
+        () =>
+          checkPortCatches({ sources: PORT_CATCH_METHOD_HOP_TREE }, {}).violations.filter(
+            (entry) => entry.port === 'settlePaid' && entry.gates.includes('promotionService'),
+          ).length,
+      ),
+      'method-hop-transitively-through-the-class': top(
+        () =>
+          checkPortCatches({ sources: PORT_CATCH_TRANSITIVE_HOP_TREE }, {}).violations.filter(
+            (entry) => entry.port === 'settlePaid' && entry.gates.includes('promotionService'),
+          ).length,
+      ),
+      'free-function-in-another-file-is-not-followed': top(() => {
+        const violations = checkPortCatches({ sources: PORT_CATCH_FREE_FUNCTION_TREE }, {})
+          .violations;
+        return violations.length === 1 && violations[0]?.port === 'settlePaid' ? 1 : 0;
+      }),
+      'own-method-shadows-a-module-alias': top(() => {
+        const violations = checkPortCatches({ sources: PORT_CATCH_SHADOWED_METHOD_TREE }, {})
+          .violations;
+        return violations.length === 1 && violations[0]?.port === 'settlePaid' ? 1 : 0;
+      }),
     },
   },
   {
@@ -2309,7 +2455,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // cannot go red on its own.
       'backend/scripts/check-module-boundary.ts': 25,
       'backend/scripts/check-overlay-determinism.ts': 3,
-      'backend/scripts/check-port-catches.ts': 5,
+      // Five, plus D-88's four: two shapes the backward hop now refuses and two
+      // it must not follow. The last two are the limit — a free function in
+      // another file, and a class method shadowing a module-scoped alias — and
+      // a limit nothing proves is a limit that quietly moves.
+      'backend/scripts/check-port-catches.ts': 9,
       'backend/scripts/check-port-dependencies.ts': 19,
       'backend/scripts/check-subscribe-seam.ts': 3,
       'backend/scripts/i18n-hardcoded-strings.ts': 2,
