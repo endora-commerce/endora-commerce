@@ -8,16 +8,32 @@ import type {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Shipment } from '../entities/shipment.entity.js';
-// The one cross-module import feature 075 could not retire here, and the
-// reason is transactional rather than typed: this handler moves the order's
-// status **inside its own transaction**, together with the shipment row, so a
-// carrier callback either records both or neither. A port executes on the
-// owner's `EntityManager` — a different fork, therefore a different
-// transaction — so replacing this read would silently trade atomicity for a
-// boundary. It stays ledgered in
-// `scripts/ledgers/cross-module-imports/shipments.ts`, with the question that
-// retires it: does `orders` publish a transaction-participating status write,
-// or does the shipment→order transition become an event `orders` consumes?
+/**
+ * `Order` is the one cross-module import feature 075 keeps here **permanently**
+ * (D-90, under D-78 point 2).
+ *
+ * `shipments.order_id` carries a declared foreign key into `orders.id`
+ * (`shipments_order_fk`, `on delete restrict`, added by
+ * `shipments/migrations/20260817T194652_shipments_order_fk.ts`), so this is a
+ * genuinely co-transactional seam: a carrier callback moves the shipment row
+ * and the order's `status` in **one `em.transactional`**, and either both land
+ * or neither does. `emFactory` forks per call, so a port executes on the
+ * owner's `EntityManager` — a different fork, therefore a different transaction
+ * — and replacing this read would trade the atomicity for a boundary without
+ * saying so. Splitting the write instead needs durable delivery between the two
+ * halves, and D-58 refused the outbox that would provide it.
+ *
+ * D-78 rules that such a seam keeps the caller's `EntityManager` and is
+ * *declared* — `orders` is in this module's manifest `dependencies` (the port
+ * below already required it), the ledger entry in
+ * `scripts/ledgers/cross-module-imports/shipments.ts` names the constraint, and
+ * this comment says which transaction the write runs in. `payments` carries the
+ * identical seam in `receive-payment-handler.ts:8-27`.
+ *
+ * The after-commit half is a port and stays one: the templated status
+ * announcement goes out through `orderStatusAnnouncePort`, because the status
+ * set is admin-configurable and the naming scheme belongs to `orders`.
+ */
 import { Order } from '../../orders/entities/order.entity.js';
 import type { ShippingEventBus } from './events.js';
 
