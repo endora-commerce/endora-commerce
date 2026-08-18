@@ -149,7 +149,7 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
       em: emReturning([actionRow(), actionRow({ module_id: 'blog', action_id: 'write' })]),
       i18nService: i18n,
       permissionService: permissions,
-      isModuleActivated: (moduleId) => moduleId !== 'blog',
+      presence: { isActivated: (moduleId) => moduleId !== 'blog', version: () => 0 },
     });
 
     const result = await service.listVisibleForOperator({
@@ -211,7 +211,7 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
       redisSubscriber: undefined as never,
       requireAdmin: () => async () => undefined,
       resolveAdminContext: () => ({ adminUserId: 'admin-1' }),
-      isModuleActivated: () => true,
+      presence: { isActivated: () => true, version: () => 0 },
       log: { info: () => {}, warn: () => {} },
     });
 

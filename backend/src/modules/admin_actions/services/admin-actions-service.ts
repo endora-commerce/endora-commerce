@@ -17,10 +17,25 @@ import { STATE_CHANGED_CHANNEL } from '../../../kernel/lifecycle/registry-cache.
  * 'installed'`, resolves label/description keys via the feature 019
  * i18n resolver, filters by the operator's permissions, sorts by
  * `(weight asc, locale-aware label asc)`, and caches the result in an
- * in-process `Map` keyed by `(language, permissionFingerprint)`. The
- * cache is cleared on every `b2b:module:state-changed` pub/sub message
- * — any module enable/disable could change visibility for any operator
- * so a coarse clear is correct and trivially cheap at this scale.
+ * in-process `Map` keyed by `(language, permissionFingerprint)`.
+ *
+ * **Two things drop that cache, and only one of them is load-bearing**
+ * (issue #225):
+ *
+ *  - the presence **version** the snapshot was built under, compared on every
+ *    read. This is what keeps the snapshot from outliving the presence it was
+ *    built from. The `b2b:module:state-changed` message announces a change
+ *    whose effect on `registryCache` is still a PostgreSQL round-trip away, so
+ *    a snapshot rebuilt on the message alone is rebuilt from the *pre-change*
+ *    activation map and then kept until the next message — which is the defect
+ *    this comparison closes. Being a pull, it depends on no subscriber and on
+ *    no registration order.
+ *  - the pub/sub message itself, which still clears the cache eagerly. It is
+ *    no longer what makes the result correct; it covers the inputs presence
+ *    does not move — an install that rewrites this module's `module_actions`
+ *    rows or another module's translation bundles without changing anybody's
+ *    presence — and it drops a stale snapshot a few milliseconds earlier in the
+ *    common case.
  */
 
 interface ModuleActionRow {
@@ -51,7 +66,8 @@ export interface AdminActionsServiceDeps {
   redisSubscriber?: Redis;
   log?: { info(msg: string): void; warn(msg: string): void };
   /**
-   * Feature 073 — the **operator** presence axis, injected.
+   * Feature 073 / issue #225 — the **operator** presence axis and the
+   * generation of the data it answers from, injected as one value.
    *
    * The query below already resolves the platform axis in SQL, freshly, per
    * call. What it cannot see is the operator's activation, which lives in a
@@ -63,11 +79,32 @@ export interface AdminActionsServiceDeps {
    * `module_registrations` and asserts the platform axis must not silently
    * start filtering on an empty in-memory set.
    *
-   * Omitted ⇒ every module's operator axis reads as activated, which is the
-   * pre-073 behaviour of an unwired composition, not a fall-open: there is no
-   * activation state to resolve at all.
+   * The reading and the version travel together, in one object, because a
+   * composition that supplied the first without the second would cache an
+   * answer it can never drop — and there are two composition roots to keep in
+   * step. Omitted ⇒ every module's operator axis reads as activated and the
+   * version never moves, which is the behaviour of an unwired composition, not
+   * a fall-open: there is no activation state to resolve at all.
    */
-  isModuleActivated?: (moduleId: string) => boolean;
+  presence?: ModulePresenceProbe;
+}
+
+/**
+ * The operator presence axis, as this service consumes it: one reading and the
+ * generation that reading came from.
+ *
+ * Both composition roots build it off `effectiveState`, which is where the two
+ * halves are already one object; stating the pair here is what stops a root
+ * from wiring the reading alone.
+ */
+export interface ModulePresenceProbe {
+  /** Is this module activated by the operator? */
+  isActivated(moduleId: string): boolean;
+  /**
+   * Generation of the presence `isActivated` answers from. Changes when a
+   * refresh installs presence that differs from the presence before it.
+   */
+  version(): number;
 }
 
 export interface ListVisibleResult {
@@ -79,8 +116,10 @@ export class AdminActionsService {
   private readonly em: () => EntityManager;
   private readonly i18nService: AdminI18nTranslatePort;
   private readonly permissionService: PermissionReadPort;
-  private readonly isModuleActivated: (moduleId: string) => boolean;
+  private readonly presence: ModulePresenceProbe;
   private readonly cache = new Map<string, ListVisibleResult>();
+  /** Presence generation every snapshot currently in {@link cache} was built under. */
+  private cachedPresenceVersion: number;
   /** Counts service work so tests can assert cache hits / misses. */
   public stats = { dbHits: 0, cacheHits: 0, invalidations: 0 };
 
@@ -88,7 +127,11 @@ export class AdminActionsService {
     this.em = deps.em;
     this.i18nService = deps.i18nService;
     this.permissionService = deps.permissionService;
-    this.isModuleActivated = deps.isModuleActivated ?? ((): boolean => true);
+    this.presence = deps.presence ?? {
+      isActivated: (): boolean => true,
+      version: (): number => 0,
+    };
+    this.cachedPresenceVersion = this.presence.version();
 
     if (deps.redisSubscriber) {
       void deps.redisSubscriber.subscribe(STATE_CHANGED_CHANNEL);
@@ -99,7 +142,10 @@ export class AdminActionsService {
     }
   }
 
-  /** Drop every cached snapshot. Called by the pubsub handler. */
+  /**
+   * Drop every cached snapshot. Called by the pub/sub handler and by the
+   * presence-version comparison in {@link listVisibleForOperator}.
+   */
   invalidate(): void {
     this.cache.clear();
     this.stats.invalidations += 1;
@@ -117,6 +163,19 @@ export class AdminActionsService {
     language: SupportedAdminLanguage;
     adminUserId: string;
   }): Promise<ListVisibleResult> {
+    // Issue #225 — before anything is served from the snapshot, ask whether the
+    // presence it was built from is still the presence being answered. A read
+    // that landed while `registryCache.refreshFromDb` was in flight built its
+    // snapshot from the pre-refresh maps; the version moves when that refresh
+    // lands, and this is where the snapshot goes with it. The number is recorded
+    // *before* the rebuild below, so a refresh completing while that rebuild is
+    // running is caught by the next read rather than becoming permanent.
+    const presenceVersion = this.presence.version();
+    if (presenceVersion !== this.cachedPresenceVersion) {
+      this.cachedPresenceVersion = presenceVersion;
+      this.invalidate();
+    }
+
     const permissions = await this.permissionService.listPermissions(args.adminUserId);
     const fingerprint = fingerprintPermissions(permissions);
     const cacheKey = `${args.language}::${fingerprint}`;
@@ -150,7 +209,7 @@ export class AdminActionsService {
       // the operator's. A palette that advertises a deactivated module's action
       // leads an operator straight to a 503, which is the same defect as an
       // unfiltered sidebar.
-      if (!this.isModuleActivated(row.module_id)) continue;
+      if (!this.presence.isActivated(row.module_id)) continue;
       if (
         row.required_permission == null ||
         permissions.includes('*') ||

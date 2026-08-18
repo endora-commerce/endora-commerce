@@ -4,6 +4,7 @@ import type { AdminI18nTranslatePort, PermissionReadPort } from '@b2b/contracts'
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { ModulePresenceProbe } from './services/admin-actions-service.js';
 import {
   adminActionsModule,
   type AdminActionsManifestRegistryView,
@@ -29,12 +30,17 @@ import {
  * pointing at a route that moved. Moving the reconcile is a change that has to
  * carry its own evidence; uniformity with the other conversions is not it.
  *
- * **`isModuleActivated` stops being optional**, and its absent form is the
+ * **The presence probe stops being optional**, and its absent form is the
  * permissive one. The option's own comment says what that costs: *"Without it
  * the palette keeps offering a deactivated module's actions, which lead to a
  * 503."* An operator switches a module off, its entries stay in ⌘K, and the
  * admin who picks one gets an error rather than an absence. Both roots pass it,
  * so nothing is live; eleventh removal of this shape.
+ *
+ * Issue #225 — it carries the presence **version** alongside the reading, in
+ * one value, because the service memoises what the reading produced and needs
+ * to know when the reading moved. A root that supplied one without the other
+ * would give the palette a snapshot it can never drop.
  *
  * `adminActionsReconciler` is a **port** — the lifecycle orchestrator resolves
  * it across a module boundary on install and hard-uninstall.
@@ -50,8 +56,11 @@ export interface AdminActionsCradle {
   readonly permissionService: PermissionReadPort;
   /** Reads the lifecycle registry lazily; `undefined` until `_lifecycle` exists. */
   readonly lifecycleManifestRegistry: () => AdminActionsManifestRegistryView | undefined;
-  /** The operator presence axis, so the palette hides a deactivated module. */
-  readonly moduleActivationProbe: (moduleId: string) => boolean;
+  /**
+   * The operator presence axis and its generation, so the palette hides a
+   * deactivated module and stops serving a snapshot built before it was.
+   */
+  readonly modulePresenceProbe: ModulePresenceProbe;
   readonly adminActions: { handle: AdminActionsModuleHandle; plugin: unknown };
   readonly adminActionsReconciler: AdminActionsModuleHandle['reconciler'];
 }
@@ -78,8 +87,11 @@ export function registerModule(ctx: ModuleContext): void {
             ctx.cradle<AdminActionsCradle>().requireAdmin(permission)(req, reply),
           resolveAdminContext: (req) =>
             ctx.cradle<AdminActionsCradle>().adminContextResolver(req),
-          isModuleActivated: (moduleId) =>
-            ctx.cradle<AdminActionsCradle>().moduleActivationProbe(moduleId),
+          presence: {
+            isActivated: (moduleId) =>
+              ctx.cradle<AdminActionsCradle>().modulePresenceProbe.isActivated(moduleId),
+            version: () => ctx.cradle<AdminActionsCradle>().modulePresenceProbe.version(),
+          },
         }),
       )
       .singleton(),

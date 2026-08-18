@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { RegistryState } from '@b2b/contracts';
@@ -81,6 +82,27 @@ export class ModuleRegistryCache {
   /** Resolved operator activation, per declaring module. */
   private activation = new Map<string, boolean>();
   private declarations = new Map<string, ModuleActivationDeclaration>();
+  /**
+   * Content hash of the two axes, and the counter that moves with it.
+   *
+   * Issue #225 — a consumer that memoises anything derived from presence needs
+   * to know **when the presence it read from was replaced**, and a pub/sub
+   * message cannot tell it: the message announces a change whose effect on this
+   * cache is still a PostgreSQL round-trip away, so a snapshot rebuilt on the
+   * message is rebuilt from the pre-change maps and then kept. The version is
+   * the answer to that, and it is a *pull*: no registration, therefore no
+   * listener order to get wrong, and a consumer constructed after a refresh
+   * still reads the right number.
+   *
+   * It moves on **content**, not on refresh count. Every state-changed message
+   * refreshes every process and the degraded-mode timer refreshes every five
+   * seconds; a counter bumped per refresh would drop a consumer's cache each
+   * time and make it worthless during a Redis outage, for a presence that did
+   * not move. The hash costs one pass over ~70 entries, once per refresh, and
+   * never on the read path.
+   */
+  private presenceSignature = '';
+  private presenceVersionCounter = 0;
   private subscriber: Redis | null = null;
   private degraded = false;
   private fallbackTimer: NodeJS.Timeout | null = null;
@@ -89,6 +111,39 @@ export class ModuleRegistryCache {
   /** True once {@link load} — or the test seam that stands in for it — has run. */
   isLoaded(): boolean {
     return this.loaded;
+  }
+
+  /**
+   * Monotonic counter over the *content* of both axes. It changes exactly when
+   * a load has installed presence that differs from the presence before it, so
+   * a consumer that caches a projection of presence can drop that cache by
+   * comparing the number it built under with the current one.
+   *
+   * Synchronous and allocation-free, like every other read here: it is meant to
+   * be asked on a request path.
+   */
+  presenceVersion(): number {
+    return this.presenceVersionCounter;
+  }
+
+  /**
+   * Re-sign both axes and bump the counter when the signature moved. Called at
+   * the end of every path that installs presence — the real refresh and the
+   * three test seams alike, because a seam that swaps presence without moving
+   * the version would leave a consumer serving the presence before it.
+   */
+  private restamp(): void {
+    const parts: string[] = [];
+    for (const moduleId of [...this.platformStates.keys()].sort()) {
+      parts.push(`p:${moduleId}=${this.platformStates.get(moduleId) ?? ''}`);
+    }
+    for (const moduleId of [...this.activation.keys()].sort()) {
+      parts.push(`a:${moduleId}=${this.activation.get(moduleId) === true ? '1' : '0'}`);
+    }
+    const signature = createHash('sha1').update(parts.join('\n')).digest('hex');
+    if (signature === this.presenceSignature) return;
+    this.presenceSignature = signature;
+    this.presenceVersionCounter += 1;
   }
 
   private assertLoaded(read: string): void {
@@ -241,6 +296,7 @@ export class ModuleRegistryCache {
     for (const id of opts?.deactivated ?? []) {
       this.activation.set(id, false);
     }
+    this.restamp();
   }
 
   /**
@@ -256,6 +312,7 @@ export class ModuleRegistryCache {
     this.platformStates = new Map();
     this.activation = new Map();
     this.declarations = new Map();
+    this.restamp();
   }
 
   /**
@@ -274,6 +331,7 @@ export class ModuleRegistryCache {
    */
   async __refreshActivationForTesting(em: () => EntityManager): Promise<void> {
     this.activation = await resolveActivation(em(), [...this.declarations.values()]);
+    this.restamp();
   }
 
   /** True when the pub/sub side is unhealthy and the cache is TTL-refreshing. */
@@ -296,6 +354,7 @@ export class ModuleRegistryCache {
     this.platformStates = freshStates;
     this.activation = freshActivation;
     this.loaded = true;
+    this.restamp();
     this.clearDegradedMode();
   }
 

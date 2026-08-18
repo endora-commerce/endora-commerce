@@ -339,9 +339,11 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // note in `promotions/backend.ts` on why this is the last live instance of it.
   // The organization-status gate feature 026 US5 added: an org-targeted
   // promotion only fires for an active Organization. Owned by `organizations`.
-  // The operator presence axis the command palette filters on. A root's to
-  // supply — which modules a deployment ships is not a module's business.
-  moduleActivationProbe: '_lifecycle',
+  // The operator presence axis the command palette filters on, plus the
+  // generation of the data it answers from (issue #225). A root's to supply —
+  // which modules a deployment ships is not a module's business — and one name
+  // rather than two, so a root cannot wire the reading without the generation.
+  modulePresenceProbe: '_lifecycle',
   // Every way `pwa` reaches outside itself — the `assets_library` upload facade,
   // the sales-channel code⇄id helpers, the admin audit context and the FR-024
   // push-target resolvers — contributed as one bridge by a root.
