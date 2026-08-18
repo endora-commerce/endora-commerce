@@ -3,8 +3,11 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { OrderComment } from '../entities/order-comment.entity.js';
 import { Order } from '../entities/order.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { EmailMailerPort, TransactionalEmailSender } from '@b2b/contracts';
+import type {
+  CustomerAccountReadPort,
+  EmailMailerPort,
+  TransactionalEmailSender,
+} from '@b2b/contracts';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 import { buildOrderCommentNotificationEmail } from '../email-templates/order-comment-notification.js';
 import {
@@ -27,6 +30,7 @@ export class OrderCommentService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly graphService: OrderStatusGraphService,
+    private readonly customerAccountRead: CustomerAccountReadPort,
     private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
@@ -117,7 +121,7 @@ export class OrderCommentService {
     body: string,
   ): Promise<OrderEmailResult> {
     const context = { orderId: order.id, code: 'order_comment' };
-    const customer = await em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId });
+    const customer = await this.customerAccountRead.findById(order.placedByCustomerAccountId);
     if (!customer?.email) return orderEmailNotSent(undefined, context, 'no_recipient');
     const message = buildOrderCommentNotificationEmail({
       to: customer.email,

@@ -51,29 +51,45 @@ export interface PromotionPort {
     },
   ): Promise<void>;
 }
-import { Organization } from '../../organizations/entities/organization.entity.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { actorFromContext } from '../../../commands/index.js';
 import { getTenantContext } from '../../../tenancy/index.js';
-import { Address } from '../../addresses/entities/address.entity.js';
 import { Cart } from '../../carts/entities/cart.entity.js';
 import { CartItem } from '../../carts/entities/cart-item.entity.js';
-import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.entity.js';
-import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
 import { NoSystemDefaultChannel } from '../../../kernel/sales-channels/no-system-default-channel.error.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
 import { OrderAppliedPromotion } from '../entities/order-applied-promotion.entity.js';
+/**
+ * The two rows placement opens in another module's table, and the two imports
+ * feature 075 keeps on purpose (D-78 point 2, `check-module-boundary`'s
+ * `permanent: true`).
+ *
+ * `payments_order_fk` and `invoices_order_fk` both reference `orders.id` with
+ * `on delete restrict`, so each child row must see its order **inside the
+ * placement transaction below** — a port would open a second transaction and
+ * could not satisfy a foreign key against a row that has not committed. The
+ * ledger entries name the constraints and what would retire them.
+ */
 import { Payment } from '../../payments/entities/payment.entity.js';
 import { Invoice } from '../../invoices/entities/invoice.entity.js';
 import { OrderAccessService } from './order-access-service.js';
-import type { PaymentAdapterRegistry } from '../../payment_methods/services/payment-adapter-registry.js';
-import type { OrderStatusRegistry } from '../../payment_methods/services/order-status-registry.port.js';
-import type { ShippingAdapterRegistry } from '../../delivery_methods/services/shipping-adapter-registry.js';
-import type { EmailMailerPort, TransactionalEmailSender } from '@b2b/contracts';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import type {
+  AddressReadPort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  DeliveryMethodReadPort,
+  DeliveryMethodRecord,
+  EmailMailerPort,
+  OrderStatusRegistry,
+  OrganizationDetailsPort,
+  PaymentAdapterRegistryPort,
+  PaymentMethodReadPort,
+  PaymentMethodRecord,
+  ShippingAdapterRegistryPort,
+  TransactionalEmailSender,
+} from '@b2b/contracts';
 import {
   buildOrderConfirmationEmail,
   buildOrderConfirmationVariables,
@@ -176,13 +192,45 @@ export interface CustomerContext {
  *   8. Clear the cart.
  *   9. Emit order.created.v1.
  */
+/**
+ * The neighbouring modules' published surfaces `placeOrder` and the preview
+ * read (feature 075, Phase C).
+ *
+ * A group rather than seven constructor parameters, because they arrive
+ * together from `backend.ts` and are never wired one at a time.
+ */
+export interface OrderServiceNeighbourPorts {
+  readonly organizationDetails: OrganizationDetailsPort;
+  readonly customerAccountRead: CustomerAccountReadPort;
+  readonly addressRead: AddressReadPort;
+  readonly catalogProductRead: CatalogProductReadPort;
+  /** `null` ⇒ `payment_methods` is not effectively present. */
+  readonly paymentMethodRead: () => PaymentMethodReadPort | null;
+  /** `null` ⇒ `delivery_methods` is not effectively present. */
+  readonly deliveryMethodRead: () => DeliveryMethodReadPort | null;
+}
+
 export class OrderService {
   private readonly accessService: OrderAccessService;
 
-  private readonly paymentAdapters: PaymentAdapterRegistry | undefined;
+  private readonly paymentAdapters: PaymentAdapterRegistryPort | undefined;
   private readonly orderStatusRegistry: OrderStatusRegistry | undefined;
-  private readonly shippingAdapters: ShippingAdapterRegistry | undefined;
+  private readonly shippingAdapters: ShippingAdapterRegistryPort | undefined;
   private readonly mailer: EmailMailerPort | undefined;
+  /**
+   * The neighbouring modules' published read models (feature 075).
+   *
+   * Required, and grouped, because they replace `em.findOne(Organization, …)`
+   * and its six siblings: a read that used to run against another module's
+   * table through this module's `EntityManager` now runs through the owner's,
+   * where its tenant filter applies and where a switched-off owner refuses
+   * instead of answering from tables deactivation leaves in place.
+   *
+   * The two method catalogues are **accessors**: `payment_methods` and
+   * `delivery_methods` are deactivatable and declared `degrades-without`, so
+   * presence is asked per placement rather than captured here.
+   */
+  private readonly neighbours: OrderServiceNeighbourPorts;
   /**
    * Feature 075 — the order-confirmation e-mail's two adapter-rendered lines.
    *
@@ -221,11 +269,12 @@ export class OrderService {
     private readonly creditLimit?: CreditLimitPort,
     accessService?: OrderAccessService,
     paymentDeps?: {
-      paymentAdapters?: PaymentAdapterRegistry;
+      paymentAdapters?: PaymentAdapterRegistryPort;
       orderStatusRegistry?: OrderStatusRegistry;
-      shippingAdapters?: ShippingAdapterRegistry;
+      shippingAdapters?: ShippingAdapterRegistryPort;
       mailer?: EmailMailerPort;
       confirmationRenderers?: () => OrderConfirmationRenderers;
+      neighbours: OrderServiceNeighbourPorts;
       businessId?: BusinessIdGenerator;
       promotion?: PromotionPort;
       confirmationRecipients?: (input: {
@@ -258,7 +307,15 @@ export class OrderService {
       }) => Promise<number>;
     },
   ) {
-    this.accessService = accessService ?? new OrderAccessService(emFactory);
+    if (!paymentDeps) {
+      throw new Error(
+        'OrderService: `paymentDeps.neighbours` is required (feature 075) — the placement ' +
+          'path reads six neighbouring modules through their published ports.',
+      );
+    }
+    this.neighbours = paymentDeps.neighbours;
+    this.accessService =
+      accessService ?? new OrderAccessService(paymentDeps.neighbours.customerAccountRead);
     this.paymentAdapters = paymentDeps?.paymentAdapters;
     this.orderStatusRegistry = paymentDeps?.orderStatusRegistry;
     this.shippingAdapters = paymentDeps?.shippingAdapters;
@@ -360,7 +417,7 @@ export class OrderService {
     if (!this.mailer) return orderEmailNotSent(undefined, emailContext, 'no_transport');
     const em = this.emFactory();
     const [customer, items] = await Promise.all([
-      em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId }),
+      this.neighbours.customerAccountRead.findById(order.placedByCustomerAccountId),
       em.find(OrderItem, { orderId: order.id }),
     ]);
     if (!customer) return orderEmailNotSent(undefined, emailContext, 'no_recipient');
@@ -373,7 +430,8 @@ export class OrderService {
       const language = channel?.defaultLanguage ?? 'en-US';
       const rendererKey =
         this.paymentAdapters?.get(order.paymentMethodSnapshot.adapter ?? '')?.renderers?.email ?? null;
-      const deliveryMethod = await em.findOne(DeliveryMethod, { id: order.deliveryMethodId });
+      const deliveryMethod =
+        (await this.neighbours.deliveryMethodRead()?.findById(order.deliveryMethodId)) ?? null;
       const shippingRendererKey =
         this.shippingAdapters?.get(deliveryMethod?.adapter ?? '')?.renderers?.email ?? null;
       const variables = buildOrderConfirmationVariables(
@@ -453,7 +511,8 @@ export class OrderService {
       null;
     // Feature 035 — resolve the shipping adapter's e-mail renderer key. The
     // delivery snapshot does not store the adapter, so look the method up.
-    const deliveryMethod = await em.findOne(DeliveryMethod, { id: order.deliveryMethodId });
+    const deliveryMethod =
+      (await this.neighbours.deliveryMethodRead()?.findById(order.deliveryMethodId)) ?? null;
     const shippingRendererKey =
       this.shippingAdapters?.get(deliveryMethod?.adapter ?? '')?.renderers?.email ?? null;
     const channel = await em.findOne(SalesChannel, { id: order.salesChannelId });
@@ -564,7 +623,7 @@ export class OrderService {
    */
   private async assertPaymentMethodUsable(
     ctx: CustomerContext,
-    method: PaymentMethod,
+    method: PaymentMethodRecord,
     salesChannelId: string | null,
   ): Promise<void> {
     const adapter = this.paymentAdapters?.get(method.adapter);
@@ -623,7 +682,7 @@ export class OrderService {
    */
   private async assertShippingMethodUsable(
     ctx: CustomerContext,
-    method: DeliveryMethod,
+    method: DeliveryMethodRecord,
     salesChannelId: string | null,
   ): Promise<void> {
     const adapter = this.shippingAdapters?.get(method.adapter);
@@ -711,6 +770,31 @@ export class OrderService {
    * both `placeOrder` and the read-only `previewTotal` so the storefront never
    * re-derives pricing on the client and the two can never drift.
    */
+  /**
+   * The chosen delivery method, but only while it is active — and only while
+   * `delivery_methods` is effectively present.
+   *
+   * The status filter used to be a predicate in the query; it is applied here
+   * because `DeliveryMethodReadPort.findById` deliberately does not filter, so
+   * that a settlement of an order placed earlier can still name a method an
+   * operator has since retired. A *placement* wants the narrow read, and this
+   * is where that decision belongs.
+   *
+   * `null` for an absent owner is the same answer as "not active": the caller
+   * refuses the placement with the method-not-active 400, which is the truth —
+   * there is no active method catalogue to choose from.
+   */
+  private async activeDeliveryMethod(id: string) {
+    const method = await this.neighbours.deliveryMethodRead()?.findById(id);
+    return method && method.status === 'active' ? method : null;
+  }
+
+  /** The payment twin of {@link activeDeliveryMethod}. */
+  private async activePaymentMethod(id: string) {
+    const method = await this.neighbours.paymentMethodRead()?.findById(id);
+    return method && method.status === 'active' ? method : null;
+  }
+
   private async computeMonetaryTotals(input: {
     items: Array<{
       productId: string;
@@ -850,7 +934,7 @@ export class OrderService {
     currency: string;
   }> {
     const em = this.emFactory();
-    const org = await em.findOne(Organization, { id: ctx.organizationId });
+    const org = await this.neighbours.organizationDetails.findById(ctx.organizationId);
     const cart = await em.findOne(Cart, {
       customerAccountId: ctx.customerAccountId,
       status: 'active',
@@ -859,23 +943,17 @@ export class OrderService {
     if (!cart || items.length === 0) {
       throw new HttpError(409, ERROR_CODES.CART_EMPTY, 'Cart is empty.');
     }
-    const deliveryMethod = await em.findOne(DeliveryMethod, {
-      id: req.deliveryMethodId,
-      status: 'active',
-    });
+    const deliveryMethod = await this.activeDeliveryMethod(req.deliveryMethodId);
     if (!deliveryMethod) {
       throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Delivery method is not active.');
     }
-    const paymentMethod = await em.findOne(PaymentMethod, {
-      id: req.paymentMethodId,
-      status: 'active',
-    });
+    const paymentMethod = await this.activePaymentMethod(req.paymentMethodId);
     if (!paymentMethod) {
       throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Payment method is not active.');
     }
     const products =
       items.length > 0
-        ? await em.find(Product, { id: { $in: items.map((i) => i.productId) } })
+        ? await this.neighbours.catalogProductRead.findByIds(items.map((i) => i.productId))
         : [];
     const productById = new Map(products.map((p) => [p.id, p]));
 
@@ -883,11 +961,11 @@ export class OrderService {
     // else the organization's registered country.
     let taxCountry: string | null = org?.registeredAddress?.country ?? null;
     if (req.billingAddressId) {
-      const billing = await em.findOne(Address, {
-        id: req.billingAddressId,
-        organizationId: ctx.organizationId,
-        deletedAt: null,
-      });
+      const billing = await this.neighbours.addressRead.findById(
+        ctx.organizationId,
+        req.billingAddressId,
+        { liveOnly: true },
+      );
       if (billing) taxCountry = billing.country;
     }
 
@@ -921,7 +999,7 @@ export class OrderService {
   ): Promise<Order> {
     const em = this.emFactory();
     const order = await em.transactional(async (tx) => {
-      const org = await tx.findOne(Organization, { id: ctx.organizationId });
+      const org = await this.neighbours.organizationDetails.findById(ctx.organizationId);
       if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       // **The service-seam guard. Not dead code — do not delete it.**
       //
@@ -986,18 +1064,22 @@ export class OrderService {
       }
 
       const [delivery, billing] = await Promise.all([
-        tx.findOne(Address, { id: req.deliveryAddressId, organizationId: ctx.organizationId, deletedAt: null }),
-        tx.findOne(Address, { id: req.billingAddressId, organizationId: ctx.organizationId, deletedAt: null }),
+        this.neighbours.addressRead.findById(ctx.organizationId, req.deliveryAddressId, {
+          liveOnly: true,
+        }),
+        this.neighbours.addressRead.findById(ctx.organizationId, req.billingAddressId, {
+          liveOnly: true,
+        }),
       ]);
       if (!delivery || !billing) {
         throw new HttpError(403, ERROR_CODES.ADDRESS_NOT_OWNED, 'Address does not belong to the caller organization.');
       }
 
-      const deliveryMethod = await tx.findOne(DeliveryMethod, { id: req.deliveryMethodId, status: 'active' });
+      const deliveryMethod = await this.activeDeliveryMethod(req.deliveryMethodId);
       if (!deliveryMethod) {
         throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Delivery method is not active.');
       }
-      const paymentMethod = await tx.findOne(PaymentMethod, { id: req.paymentMethodId, status: 'active' });
+      const paymentMethod = await this.activePaymentMethod(req.paymentMethodId);
       if (!paymentMethod) {
         throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Payment method is not active.');
       }
@@ -1111,7 +1193,7 @@ export class OrderService {
       // Load product flags + strategy overrides.
       const orderProductIds = Array.from(new Set(items.map((i) => i.productId)));
       const orderProducts = orderProductIds.length
-        ? await tx.find(Product, { id: { $in: orderProductIds } })
+        ? await this.neighbours.catalogProductRead.findByIds(orderProductIds)
         : [];
       const productFlagsById = new Map(
         orderProducts.map((p) => [
@@ -1243,7 +1325,10 @@ export class OrderService {
       }
 
       const productIds = items.map((i) => i.productId);
-      const products = productIds.length > 0 ? await tx.find(Product, { id: { $in: productIds } }) : [];
+      const products =
+        productIds.length > 0
+          ? await this.neighbours.catalogProductRead.findByIds(productIds)
+          : [];
       const productById = new Map(products.map((p) => [p.id, p]));
 
       // All monetary math (subtotal, per-product VAT, delivery, surcharge,
@@ -1446,6 +1531,9 @@ export class OrderService {
       }
       await tx.flush();
 
+      // Inside the placement transaction, and required to be: `payments_order_fk`
+      // (`on delete restrict`) means this row cannot exist before the order does,
+      // and the order does not commit until this method returns. See the import.
       const payment = tx.create(Payment, {
         orderId: order.id,
         paymentMethodId: paymentMethod.id,
@@ -1462,7 +1550,7 @@ export class OrderService {
       // Gateway adapters fork a separate EM and often cannot see just-flushed
       // Order/Payment/Customer rows until this transaction commits — pass
       // everything the adapter needs to start payment (esp. TPay payer fields).
-      const placer = await tx.findOne(CustomerAccount, { id: ctx.customerAccountId });
+      const placer = await this.neighbours.customerAccountRead.findById(ctx.customerAccountId);
       const payerName =
         [placer?.firstName, placer?.lastName].filter(Boolean).join(' ').trim() ||
         billing.recipientName ||
@@ -1551,6 +1639,7 @@ export class OrderService {
       // Kick off invoice row — status stays `pending` for the unit test that
       // hits the "not ready" contract; fixtures transition it to `ready` for
       // the download test.
+      // The `payments` note above, for `invoices_order_fk`.
       const invoice = tx.create(Invoice, {
         orderId: order.id,
         kind: 'proforma',

@@ -9,6 +9,7 @@ import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actor
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { OrderComment } from '../../../src/modules/orders/entities/order-comment.entity.js';
 import { OrderCommentService } from '../../../src/modules/orders/services/order-comment-service.js';
+import { ordersNeighbourPorts } from '../../helpers/orders-neighbour-ports.js';
 import { OrderStatusGraphService } from '../../../src/modules/orders/services/order-status-graph-service.js';
 import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
@@ -110,7 +111,12 @@ describe('Order comments', () => {
     // Ensure the customer has a resolvable email.
     const acct = await em.findOne(CustomerAccount, { id: TEST_CUSTOMER_ID });
     const mailer = new InMemoryMailer();
-    const svc = new OrderCommentService(h.em, new OrderStatusGraphService(h.em), mailer);
+    const svc = new OrderCommentService(
+      h.em,
+      new OrderStatusGraphService(h.em),
+      ordersNeighbourPorts(h.em).customerAccountRead,
+      mailer,
+    );
 
     await svc.addByAdmin(openOrderId, randomUUID(), { body: 'internal', isCustomerVisible: false, notifyCustomer: true });
     expect(mailer.sent).toHaveLength(0); // internal → never notify

@@ -3,11 +3,13 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
-import { Cart } from '../../carts/entities/cart.entity.js';
-import { CartItem } from '../../carts/entities/cart-item.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { EmailMailerPort, TransactionalEmailSender } from '@b2b/contracts';
+import type {
+  CartWritePort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  EmailMailerPort,
+  TransactionalEmailSender,
+} from '@b2b/contracts';
 import { buildReorderCreatedEmail } from '../email-templates/reorder-created.js';
 import {
   orderEmailNotSent,
@@ -45,6 +47,9 @@ interface ReorderContext {
 export class OrderReorderService {
   constructor(
     private readonly emFactory: () => EntityManager,
+    private readonly cartWrite: CartWritePort,
+    private readonly catalogProductRead: CatalogProductReadPort,
+    private readonly customerAccountRead: CustomerAccountReadPort,
     private readonly resolveReorderEnabled?: (salesChannelId: string) => Promise<boolean>,
     private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
@@ -55,9 +60,11 @@ export class OrderReorderService {
     ctx: ReorderContext,
     opts: { notifyCustomer?: boolean } = {},
   ): Promise<ReorderResult> {
-    // command-coverage-ignore: reorder rebuilds the customer's active cart from a
-    // prior order — a cart mutation (the carts module owns cart auditing), not an
-    // order-domain write; fully reconstructable, no undo value.
+    // The marker that used to sit here is gone with the write it exempted
+    // (feature 075): this method no longer touches `carts`' tables at all — it
+    // hands the lines to `cartWritePort.replaceItemsForCustomer`, and cart
+    // auditing is the `carts` module's, where it always belonged. Reading an
+    // order and sending a message is all that is left on this side.
     const em = this.emFactory();
     const order = await em.findOne(Order, { id: orderId, organizationId: ctx.organizationId });
     if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
@@ -71,8 +78,13 @@ export class OrderReorderService {
 
     const items = await em.find(OrderItem, { orderId });
     const productIds = [...new Set(items.map((it) => it.productId))];
-    const products = await em.find(Product, { id: { $in: productIds } });
-    const available = new Map(products.filter((p) => p.status !== 'inactive' && !p.deletedAt).map((p) => [p.id, p]));
+    // `liveOnly` is the soft-delete half of the old predicate; the status half
+    // stays here because it is `!== 'inactive'` rather than `=== 'active'`, and
+    // `activeOnly` would quietly drop a draft product a past order contains.
+    const products = await this.catalogProductRead.findByIds(productIds, { liveOnly: true });
+    const available = new Map(
+      products.filter((p) => p.status !== 'inactive').map((p) => [p.id, p]),
+    );
 
     const unavailableItems: ReorderUnavailableItem[] = [];
     const reorderable = items.filter((it) => {
@@ -83,38 +95,29 @@ export class OrderReorderService {
       return true;
     });
 
-    // Get-or-create the customer's active cart, clear it, and reseed from the
-    // order's items (snapshot prices; the cart re-prices on read where wired).
-    let cart = await em.findOne(Cart, {
-      customerAccountId: ctx.customerAccountId,
-      organizationId: ctx.organizationId,
-      status: 'active',
-    });
-    if (!cart) {
-      cart = em.create(Cart, { customerAccountId: ctx.customerAccountId, organizationId: ctx.organizationId });
-      await em.persistAndFlush(cart);
-    } else {
-      const existing = await em.find(CartItem, { cartId: cart.id });
-      if (existing.length > 0) await em.removeAndFlush(existing);
-    }
-
-    const newItems = reorderable.map((it) =>
-      em.create(CartItem, {
-        cartId: cart!.id,
+    // Clear the customer's active cart and reseed it from the order's items
+    // (snapshot prices; the cart re-prices on read where wired). This module
+    // used to `em.create(Cart, …)` and hand-build `CartItem` rows, which is two
+    // of another module's tables written from here, with the clear-then-seed
+    // rule spelled out a second time and the `lastActivityAt` bookkeeping in
+    // neither. `replaceItemsForCustomer` is `carts`' published answer to
+    // exactly that, and its doc comment names this path.
+    const cart = await this.cartWrite.replaceItemsForCustomer(
+      { customerAccountId: ctx.customerAccountId, organizationId: ctx.organizationId },
+      reorderable.map((it) => ({
         productId: it.productId,
         ...(it.variantId ? { variantId: it.variantId } : {}),
         quantity: it.quantity,
         unitPrice: String(it.unitPrice),
         currency: order.currency,
-      }),
+      })),
     );
-    if (newItems.length > 0) await em.persistAndFlush(newItems);
 
     if (opts.notifyCustomer) await this.notify(em, order);
 
     return {
-      cartId: cart.id,
-      checkoutUrl: `/checkout?cartId=${cart.id}&reorderOf=${order.id}`,
+      cartId: cart.cart.id,
+      checkoutUrl: `/checkout?cartId=${cart.cart.id}&reorderOf=${order.id}`,
       unavailableItems,
     };
   }
@@ -128,7 +131,7 @@ export class OrderReorderService {
    */
   private async notify(em: EntityManager, order: Order): Promise<OrderEmailResult> {
     const context = { orderId: order.id, code: 'reorder_created' };
-    const customer = await em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId });
+    const customer = await this.customerAccountRead.findById(order.placedByCustomerAccountId);
     if (!customer?.email) return orderEmailNotSent(undefined, context, 'no_recipient');
     const sender = this.getTransactionalEmailSender?.();
     if (sender) {

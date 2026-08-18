@@ -14,6 +14,7 @@ import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/b
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 /**
  * Feature 036 (US4) — a failed placement (here: an address that does not belong
@@ -48,7 +49,8 @@ describe('placeOrder — failure preserves the cart (feature 036)', () => {
       undefined,
       undefined,
       undefined,
-      { paymentAdapters: registry, orderStatusRegistry: new EnumOrderStatusRegistry() },
+      {
+      neighbours: orderServiceNeighbours(h.em), paymentAdapters: registry, orderStatusRegistry: new EnumOrderStatusRegistry() },
     );
 
     await expect(

@@ -13,6 +13,7 @@ import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/ser
 import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
 import { OrderConfirmationService } from '../../../src/modules/orders/services/order-confirmation-service.js';
+import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 describe('OrderConfirmationService.resolveAdditional (unit)', () => {
   it('merges org + scope recipients, dedupes, and drops invalid entries', async () => {
@@ -50,6 +51,7 @@ describe('placeOrder — confirmation CC to additional recipients (US4)', () => 
     for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
 
     const service = new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
+      neighbours: orderServiceNeighbours(h.em),
       // Issue #124 — a rig states its own tax authority. `OrderService` has no
       // fallback rate, so an order it cannot price is refused rather than taxed
       // at a figure nobody configured.

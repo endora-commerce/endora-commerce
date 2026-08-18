@@ -13,6 +13,7 @@ import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/se
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
 import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { OrderAppliedPromotion } from '../../../src/modules/orders/entities/order-applied-promotion.entity.js';
+import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 /**
  * Feature 045 (US2) — an automatic action-based promotion carries from cart to
@@ -43,6 +44,7 @@ describe('placeOrder — automatic promotion carried to order (feature 045)', ()
     const registry = new PaymentAdapterRegistry();
     for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     const service = new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
+      neighbours: orderServiceNeighbours(h.em),
       // Issue #124 — a rig states its own tax authority. `OrderService` has no
       // fallback rate, so an order it cannot price is refused rather than taxed
       // at a figure nobody configured.
