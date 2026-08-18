@@ -71,6 +71,12 @@ import { buildDeactivationLedger } from '../../../src/modules/_lifecycle/service
 import { nonBindingPortEdgesFrom } from '../../../src/modules/_lifecycle/services/gating-graph.js';
 import { checkSubscribeSeam } from '../../../scripts/check-subscribe-seam.js';
 import {
+  checkNulBytes,
+  findNulBytes,
+  GIT_BINARY_WINDOW,
+  type ScannedFile,
+} from '../../../scripts/check-nul-bytes.js';
+import {
   checkEntryPresence,
   keyOf as entryPresenceKeyOf,
   type EntryConstruct,
@@ -1251,6 +1257,25 @@ function shellRed(script: string, prepare: (f: ReturnType<typeof createShellChec
     fixture.cleanup();
   }
 }
+
+/** A file for `check-nul-bytes`: its path and its raw bytes, the check's own input. */
+const nulFile = (path: string, text: string): ScannedFile => ({
+  path,
+  bytes: new TextEncoder().encode(text),
+});
+
+/**
+ * A source whose NUL sits past the 8000 bytes git reads before deciding binary.
+ *
+ * `admin-actions-service.ts` carried its NUL at byte 8032, so git kept diffing
+ * it as text; a check that copied git's window would have read it clean.
+ */
+const nulPastGitWindow = (path: string): ScannedFile =>
+  nulFile(path, `${'// padding\n'.repeat(Math.ceil((GIT_BINARY_WINDOW + 64) / 11))}const k = \`a\0b\`;`);
+
+/** 1 when exactly the expected paths came back — the shape a discrimination needs. */
+const exactlyNulPaths = (files: readonly ScannedFile[], expected: readonly string[]): number =>
+  JSON.stringify(findNulBytes(files).map((f) => f.path)) === JSON.stringify(expected) ? 1 : 0;
 
 // --- the inventory ----------------------------------------------------------
 
@@ -2518,6 +2543,80 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // The check whose defect its own artefact hides: a NUL makes git call the
+    // file binary, so the diff that would show the byte shows nothing at all.
+    // Six shapes it must see and two it must not. The two exclusions are proven
+    // as **discriminations** — a proof that asserts "no finding" is green when
+    // the check is blind, so each pairs the excluded file with a source file
+    // beside it and asserts that exactly the source comes back.
+    script: 'backend/scripts/check-nul-bytes.ts',
+    npmScript: 'check:nul-bytes',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-nul-bytes.test.ts',
+    vacuousGuard: 'exit-2',
+    red: {
+      'raw-nul-in-source': top(
+        () =>
+          findNulBytes([nulFile('backend/src/http/interceptors/registry.ts', 'const k = `a\0b`;')])
+            .length,
+      ),
+      // Git's own heuristic reads the first 8000 bytes only, which is why one
+      // of the six kept diffing as text while carrying the byte.
+      'nul-past-gits-binary-window': top(
+        () =>
+          findNulBytes([nulPastGitWindow('backend/src/x/service.ts')]).filter(
+            (finding) => finding.beyondGitBinaryWindow,
+          ).length,
+      ),
+      // A test file is in the population like any other source: a fixture
+      // builds a JavaScript string, and the escape builds the same string.
+      'nul-in-test-fixture': top(
+        () =>
+          findNulBytes([
+            nulFile('backend/test/unit/product_feeds/xml-feed-serializer.test.ts', '`A\0B`'),
+          ]).length,
+      ),
+      // The reason the exclusion is a deny-list rather than an allow-list of
+      // known-text extensions: neither of these would be in the population.
+      'nul-in-unlisted-text-extension': top(() =>
+        exactlyNulPaths(
+          [nulFile('backend/src/db/seed.sql', "values ('\0')"), nulFile('tooling/c.toml', 'k="\0"')],
+          ['backend/src/db/seed.sql', 'tooling/c.toml'],
+        ),
+      ),
+      'nul-in-extensionless-file': top(
+        () => findNulBytes([nulFile('scripts/release-notes', 'a\0b')]).length,
+      ),
+      'binary-extension-excluded': top(() =>
+        exactlyNulPaths(
+          [
+            nulFile('admin/public/icons/admin-192.png', '\x89PNG\0\0\0'),
+            nulFile('admin/src/main.ts', 'const k = `a\0b`;'),
+          ],
+          ['admin/src/main.ts'],
+        ),
+      ),
+      'pruned-directory-excluded': top(() =>
+        exactlyNulPaths(
+          [
+            nulFile('node_modules/dep/index.js', 'a\0b'),
+            nulFile('backend/dist/index.js', 'a\0b'),
+            nulFile('backend/src/index.ts', 'a\0b'),
+          ],
+          ['backend/src/index.ts'],
+        ),
+      ),
+      // The ledger's second direction: an entry naming a file that no longer
+      // carries a NUL. It enters as bytes, like every other proof here.
+      'stale-ledger-entry': top(
+        () =>
+          checkNulBytes([nulFile('backend/src/a.ts', 'const k = `ab`;')], {
+            'backend/src/a.ts': 'A reason that has outlived its file.',
+          }).stale.length,
+      ),
+    },
+  },
+  {
     // Ran in no job until issue #116. The admin SPA carries 274 findings, so
     // `--strict` would have failed the build on standing debt rather than on a
     // regression; it runs against a per-file baseline instead, two-way like
@@ -2749,6 +2848,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // only named the table would go green off the statement path it is not
       // testing.
       'backend/scripts/check-module-boundary.ts': 31,
+      // Six shapes it must see — including a NUL past git's own 8000-byte
+      // window, which is what an implementation copying git's heuristic would
+      // stop seeing — and two exclusions proven as discriminations.
+      'backend/scripts/check-nul-bytes.ts': 8,
       'backend/scripts/check-overlay-determinism.ts': 3,
       // Five, plus D-88's four: two shapes the backward hop now refuses and two
       // it must not follow. The last two are the limit — a free function in
