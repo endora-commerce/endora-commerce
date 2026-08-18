@@ -626,6 +626,11 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.nav.pimPimcore', href: '/pim-pimcore' },
     { labelKey: 'appShell.nav.pimPimcoreAttributeMappings', href: null },
   ] },
+  { test: /^\/pim-pimcore\/category-mappings\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimPimcore', href: '/pim-pimcore' },
+    { labelKey: 'appShell.nav.pimPimcoreCategoryMappings', href: null },
+  ] },
   { test: /^\/pim-pimcore\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.pimPimcore', href: null },

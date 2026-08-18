@@ -100,6 +100,7 @@ import { ErgonodeRunsPage } from './modules/pim_ergonode/ErgonodeRunsPage.js';
 import { ErgonodeRunDetailPage } from './modules/pim_ergonode/ErgonodeRunDetailPage.js';
 import { PimcoreConnectionPage } from './modules/pim_pimcore/PimcoreConnectionPage.js';
 import { PimcoreAttributeMappingPage } from './modules/pim_pimcore/PimcoreAttributeMappingPage.js';
+import { PimcoreCategoryMappingPage } from './modules/pim_pimcore/PimcoreCategoryMappingPage.js';
 import { PimcoreRunsPage } from './modules/pim_pimcore/PimcoreRunsPage.js';
 import { PimcoreRunDetailPage } from './modules/pim_pimcore/PimcoreRunDetailPage.js';
 import { InvoiceTemplateEditor } from './modules/invoices/templates/InvoiceTemplateEditor.js';
@@ -327,6 +328,10 @@ export function App(): ReactNode {
         <Route
           path="/pim-pimcore/attribute-mappings"
           element={<PimcoreAttributeMappingPage />}
+        />
+        <Route
+          path="/pim-pimcore/category-mappings"
+          element={<PimcoreCategoryMappingPage />}
         />
         <Route path="/pim-pimcore/runs" element={<PimcoreRunsPage />} />
         <Route path="/pim-pimcore/runs/:runId" element={<PimcoreRunDetailPage />} />
