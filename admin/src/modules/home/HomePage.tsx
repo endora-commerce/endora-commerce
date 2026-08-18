@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { CircleDollarSign, FileText, Plus, Upload, type LucideIcon } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth';
-import { useModulePresence } from '@/lib/module-presence';
+import { useSurfaceVisibility, type GatedSurface } from '@/lib/surface-visibility';
 import { useTranslation } from '@/i18n/useTranslation';
 import { RecentActivityCard } from './RecentActivityCard';
 
@@ -16,7 +16,7 @@ import { RecentActivityCard } from './RecentActivityCard';
  * so the page never blocks on a slow / missing endpoint.
  */
 
-interface Kpi {
+interface Kpi extends GatedSurface {
   labelKey: string;
   value: string;
   tone?: 'default' | 'warn' | 'danger';
@@ -28,38 +28,65 @@ interface Kpi {
    * forever, and a link into a surface that answers 503.
    */
   module: string;
+  /**
+   * The permission the tile's own endpoint enforces (issue #230). Without it a
+   * restricted role spent a request per page load collecting a 403, then read a
+   * permanent "—" on a tile linking to a list it cannot open.
+   */
+  requiredPermission?: string;
 }
 
 const INITIAL_KPIS: Kpi[] = [
-  { labelKey: 'home.kpi.activeProducts', value: '—', to: '/catalog/products?status=active', module: 'catalog' },
-  { labelKey: 'home.kpi.pendingQuotes', value: '—', tone: 'warn', to: '/quote-requests?status=Pending&scope=all', module: 'quote_requests' },
-  { labelKey: 'home.kpi.openOrders', value: '—', to: '/orders?status=new', module: 'orders' },
-  { labelKey: 'home.kpi.outOfStock', value: '—', tone: 'danger', to: '/inventory?stock=out', module: 'inventory' },
+  { labelKey: 'home.kpi.activeProducts', value: '—', to: '/catalog/products?status=active', requiredPermission: 'catalog:read', module: 'catalog' },
+  { labelKey: 'home.kpi.pendingQuotes', value: '—', tone: 'warn', to: '/quote-requests?status=Pending&scope=all', requiredPermission: 'rfqs:handle', module: 'quote_requests' },
+  { labelKey: 'home.kpi.openOrders', value: '—', to: '/orders?status=new', requiredPermission: 'orders:read', module: 'orders' },
+  // `orders:read` is not a copy of the tile above it: the inventory endpoints
+  // really are gated by it (`inventory/routes.admin.ts:103`).
+  { labelKey: 'home.kpi.outOfStock', value: '—', tone: 'danger', to: '/inventory?stock=out', requiredPermission: 'orders:read', module: 'inventory' },
 ];
 
 /**
  * The quick-action buttons, attributed the same way. They were four hardcoded
  * `navigate(...)` calls; a button that jumps into an absent module's editor is
  * the same defect as an unfiltered sidebar row, just one click further in.
+ *
+ * Issue #230 — and so is a button that jumps into a screen the role cannot
+ * open. Each code is read from the route the *action* performs, which is not
+ * always the one the destination list reads: "New product" posts a product, so
+ * it is `catalog:write` (`catalog/routes.admin.ts:222`) rather than the
+ * `catalog:read` that gates the products list. These render or do not render;
+ * the reasoning for hiding rather than disabling is on `PALETTE_ITEMS` in
+ * `AppShell.tsx`, and this card follows it so the two agree.
  */
-interface QuickAction {
+interface QuickAction extends GatedSurface {
   labelKey: string;
   icon: LucideIcon;
   to: string;
   module: string;
+  requiredPermission?: string;
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { labelKey: 'home.quickActions.newProduct', icon: Plus, to: '/catalog/products/new', module: 'catalog' },
-  { labelKey: 'home.quickActions.editPricing', icon: CircleDollarSign, to: '/price-lists', module: 'price_lists' },
-  { labelKey: 'home.quickActions.importInventory', icon: Upload, to: '/import-export', module: 'import_export' },
-  { labelKey: 'home.quickActions.convertQuote', icon: FileText, to: '/quote-requests', module: 'quote_requests' },
+  { labelKey: 'home.quickActions.newProduct', icon: Plus, to: '/catalog/products/new', requiredPermission: 'catalog:write', module: 'catalog' },
+  { labelKey: 'home.quickActions.editPricing', icon: CircleDollarSign, to: '/price-lists', requiredPermission: 'price_lists:read', module: 'price_lists' },
+  { labelKey: 'home.quickActions.importInventory', icon: Upload, to: '/import-export', requiredPermission: 'catalog:write', module: 'import_export' },
+  { labelKey: 'home.quickActions.convertQuote', icon: FileText, to: '/quote-requests', requiredPermission: 'rfqs:handle', module: 'quote_requests' },
 ];
+
+/**
+ * The stock-alerts card is `inventory`'s whole contribution to the dashboard,
+ * and its feed (`/api/v1/admin/inventory/low-stock`) is gated by `orders:read`
+ * like the rest of that module's reads.
+ */
+const STOCK_ALERTS_SURFACE: GatedSurface = {
+  module: 'inventory',
+  requiredPermission: 'orders:read',
+};
 
 export function HomePage(): ReactNode {
   const t = useTranslation('core');
   const { me } = useAuth();
-  const { isPresent } = useModulePresence();
+  const isVisible = useSurfaceVisibility();
   const navigate = useNavigate();
   const firstName = me?.adminUser.firstName?.trim() || t('home.defaultName');
   const [kpis, setKpis] = useState<Kpi[]>(INITIAL_KPIS);
@@ -77,15 +104,19 @@ export function HomePage(): ReactNode {
       // Feature 073: a tile whose module is absent is not rendered, so its
       // fetch is skipped too. Firing it anyway would spend a request per page
       // load to collect a 503 for a number nobody will see.
-      const forModule = (
-        moduleId: string,
+      //
+      // Issue #230 widens that from module presence to the whole visibility
+      // predicate: the same argument holds verbatim for a 403, and the fetch
+      // and the tile now answer to one rule rather than two.
+      const forSurface = (
+        surface: GatedSurface,
         fetcher: () => Promise<void>,
-      ): Promise<void> => (isPresent(moduleId) ? fetcher() : Promise.resolve());
+      ): Promise<void> => (isVisible(surface) ? fetcher() : Promise.resolve());
       await Promise.all([
         // The list endpoint paginates server-side; ask for one row so the
         // network payload is tiny and read the live `counts.active` field
         // (which the endpoint computes across the full product set).
-        forModule('catalog', () =>
+        forSurface(INITIAL_KPIS[0]!, () =>
           fetchKpi('/api/v1/admin/catalog/products?pageSize=1', (data: unknown) => {
             const counts = (data as { counts?: { active?: number } }).counts;
             if (counts?.active !== undefined) {
@@ -99,7 +130,7 @@ export function HomePage(): ReactNode {
         // A platform admin owns no per-user assignments, so scope the count to
         // "all" for them (parity with the list's default Visibility filter);
         // otherwise the tile would read 0 even with pending requests waiting.
-        forModule('quote_requests', () =>
+        forSurface(INITIAL_KPIS[1]!, () =>
           fetchKpi(
             `/api/v1/admin/quote-requests?status=Pending${
               me?.role?.code === 'platform_admin' ? '&assignmentScope=all' : ''
@@ -110,13 +141,13 @@ export function HomePage(): ReactNode {
             },
           ),
         ),
-        forModule('orders', () =>
+        forSurface(INITIAL_KPIS[2]!, () =>
           fetchKpi('/api/v1/admin/orders?status=new', (data: unknown) => {
             const arr = (data as { data?: unknown[] }).data ?? [];
             next[2]!.value = String(arr.length);
           }),
         ),
-        forModule('inventory', () =>
+        forSurface(INITIAL_KPIS[3]!, () =>
           fetchKpi('/api/v1/admin/inventory', (data: unknown) => {
             const k = (data as { data?: { outOfStockCount?: number } }).data;
             if (k?.outOfStockCount !== undefined) {
@@ -124,7 +155,7 @@ export function HomePage(): ReactNode {
             }
           }),
         ),
-        forModule('inventory', () =>
+        forSurface(STOCK_ALERTS_SURFACE, () =>
           fetchKpi('/api/v1/admin/inventory/low-stock', (data: unknown) => {
             const items = (data as {
               items?: Array<{
@@ -154,6 +185,10 @@ export function HomePage(): ReactNode {
     return (): void => {
       cancelled = true;
     };
+    // One fetch pass per mount, as before. `isVisible` is deliberately not a
+    // dependency: re-running on its identity would refire every KPI request the
+    // moment module presence or the permission set re-resolves, and the tiles
+    // are a page-load snapshot, not a live feed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -170,7 +205,7 @@ export function HomePage(): ReactNode {
 
       {/* KPI tiles */}
       <div className="b2b-row b2b-kpi-grid" style={{ gap: 16, marginBottom: 20 }}>
-        {kpis.filter((k) => isPresent(k.module)).map((k) => (
+        {kpis.filter(isVisible).map((k) => (
           <Stat
             key={k.labelKey}
             label={t(k.labelKey)}
@@ -188,14 +223,14 @@ export function HomePage(): ReactNode {
         <div className="b2b-col" style={{ gap: 16 }}>
           {/* Quick actions — the card folds away when every action in it belongs
               to a switched-off module, the same rule the sidebar sections use. */}
-          {QUICK_ACTIONS.some((a) => isPresent(a.module)) && (
+          {QUICK_ACTIONS.some(isVisible) && (
           <div className="b2b-card">
             <div className="b2b-card__head">
               <div className="b2b-card__title">{t('home.quickActions.title')}</div>
             </div>
             <div className="b2b-card__body">
               <div className="b2b-col" style={{ gap: 8 }}>
-                {QUICK_ACTIONS.filter((a) => isPresent(a.module)).map((action) => {
+                {QUICK_ACTIONS.filter(isVisible).map((action) => {
                   const Icon = action.icon;
                   return (
                     <button
@@ -216,7 +251,7 @@ export function HomePage(): ReactNode {
 
           {/* Stock alerts — wholly owned by `inventory`; the card is the
               module's contribution to the dashboard, so it goes with it. */}
-          {isPresent('inventory') && (
+          {isVisible(STOCK_ALERTS_SURFACE) && (
           <div className="b2b-card">
             <div className="b2b-card__head">
               <div>
