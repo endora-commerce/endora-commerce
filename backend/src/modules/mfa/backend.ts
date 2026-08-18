@@ -44,13 +44,13 @@ import { mfaModule, type MfaModuleHandle } from './plugin.js';
  *  - `mfaDefaultChannelIdResolver` — defaults to `async () => null`, which is
  *    exactly the `?? null` both roots already spell at the call site.
  *
- * `requireCustomer` is resolved rather than passed, but it is **not** this
- * module's to own: it is `auth`'s customer-side guard, still declared inline in
- * `composition.ts` while the harness runs a separate `requireTestCustomer()`.
- * That is the divergence T011/T012 already fixed for `requireAdmin` and never
- * did for this one; it is filed as its own task rather than folded in here,
- * because unifying it touches twenty-seven call sites that have nothing to do
- * with MFA.
+ * `requireCustomer` is resolved rather than passed, and it is **not** this
+ * module's to own: it is `auth`'s customer-side guard, which `auth` provides as
+ * a port beside `requireAdmin` since issue #43. Until then each root declared
+ * its own — `composition.ts` inline, the harness as `requireTestCustomer()` —
+ * and the two disagreed on which request property carried the actor. Unifying
+ * them was filed as its own task rather than folded in here, because it touched
+ * twenty-seven call sites that have nothing to do with MFA.
  *
  * The base URLs come from the environment, read here rather than threaded from
  * a root — a packaged module reads its own configuration.

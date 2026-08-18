@@ -244,11 +244,10 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // supplies the closure that will read it later. The entry goes when
   // `_lifecycle` provides the accessor as a port of its own.
   lifecycleManifestRegistry: '_lifecycle',
-  // `auth`'s customer-side guard, still declared inline in each root while the
-  // harness runs a separate `requireTestCustomer()` — the divergence T011/T012
-  // fixed for `requireAdmin` and never did for this one. Owner is `auth`; the
-  // entry goes when the two implementations are unified.
-  requireCustomer: 'auth',
+  // `requireCustomer` is gone from here too (issue #43): `auth` provides it
+  // beside the two admin guards, the roots declare none, and the 16 consumers
+  // declare the edge in their manifests like any other port.
+  //
   // How a composition names the acting admin on an audit record. Root-shaped
   // by nature — production reads `request.actor`, the harness `request.testActor`
   // — so it is a composition input rather than any module's property.

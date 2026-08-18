@@ -1,6 +1,4 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { ERROR_CODES } from '@b2b/contracts';
-import { HttpError } from '../../src/http/error-envelope.js';
 import type { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
@@ -289,10 +287,14 @@ export function requireTestAdmin(permissionService: PermissionService): RequireA
   return createRequireAdmin({ permissionService });
 }
 
-export function requireTestCustomer() {
-  return async (request: FastifyRequest): Promise<void> => {
-    if (request.testActor?.kind !== 'customer') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-    }
-  };
-}
+/*
+ * `requireTestCustomer` used to sit here and is gone (issue #43) — the third
+ * and last guard this file implemented for itself. It read `request.testActor`
+ * where `composition.ts`'s inline copy read `request.actor`, so the two
+ * disagreed on every request shape that exists: a request carrying only the
+ * production actor was admitted by one and refused by the other, and a request
+ * carrying neither crashed the root's copy with a `TypeError` while this one
+ * answered 401. `auth` provides `requireCustomer` as a port now, both roots
+ * resolve it, and the surviving implementation makes the production read with
+ * this file's tolerance for an unresolved actor.
+ */
