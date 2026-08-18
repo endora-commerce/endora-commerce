@@ -393,6 +393,13 @@ export interface EmailDefaults {
  * contribution lands before the read. Publishing the shape must not change
  * that, and must not gate it: a gate would throw during composition, exactly
  * as `assetReferenceRegistry`'s did before it was un-gated.
+ *
+ * **Owner off:** nothing throws here. This is a **contribution seam**, a plain
+ * `di.register` rather than a `providePort`, so a push still lands and
+ * `transactional_emails` filters by contributor when it enumerates. Converting it to
+ * `providePort` would move every edge into it from `contributes` to
+ * `fails-closed` in the deactivation-consequence ledger, and change the
+ * sentence the operator's confirmation dialog renders.
  */
 export interface EmailDefaultsRegistryPort {
   register(code: string, defaults: EmailDefaults, ownerModuleId: string): void;

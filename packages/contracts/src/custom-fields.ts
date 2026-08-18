@@ -273,6 +273,12 @@ export interface CustomFieldDefinitionWithOptions {
  * definition Command, with a 5 s TTL fallback), so this is cheap enough to
  * call on a hot path — which is what the existing `DefinitionSource` interface
  * was extracted for.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `custom_fields` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CustomFieldDefinitionReadPort {
   listForEntity(entityType: SupportedEntityType): Promise<CustomFieldDefinitionWithOptions[]>;
@@ -315,6 +321,12 @@ export interface CustomFieldDefinitionReadPort {
  * `validateAndMerge` throws `CustomFieldValidationError` — serialised as HTTP
  * 422 — with the per-field errors (feature 055 FR-004). Unknown patch keys are
  * ignored; dormant keys already in the bag are retained (FR-010).
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `custom_fields` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CustomFieldValuePort {
   validateAndMerge(

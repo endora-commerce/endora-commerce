@@ -289,6 +289,9 @@ export interface AssetRecord {
  *
  * When `assets_library` is off the read fails closed, which is right: an
  * attach that cannot verify the asset would store a dangling id.
+ *
+ * Whether `assets_library` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface AssetReadPort {
   findById(id: string, options?: { liveOnly?: boolean }): Promise<AssetRecord | null>;
@@ -400,6 +403,12 @@ export interface AssetUploadInput {
  * source supplied, patches the alternate text onto it, and soft-deletes the
  * asset an item stopped pointing at. Four methods, which is the whole of the
  * demand — the module's own admin surface is much larger and stays unpublished.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `assets_library` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface AssetsLibraryPort {
   upload(input: AssetUploadInput): Promise<AssetDetail>;

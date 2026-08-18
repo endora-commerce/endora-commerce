@@ -66,6 +66,30 @@ export type UpdateAddressInput = Partial<{
  * The four direct entity reads. `findById` is scoped by organisation on
  * purpose: every caller already knows whose address it is asking for, and
  * doing the check in one query is what stops it being forgotten.
+ *
+ * **`liveOnly` defaults to `false`: a by-id read returns a soft-deleted
+ * address.** The two lookups differ from the two lists on purpose — an address
+ * is soft-deleted, and `findById` / `findByIds` are how a caller resolves an id
+ * something else already stored, where "the row is gone" and "the row was
+ * deleted after it was referenced" are different answers and only the second is
+ * renderable. `listForOrganization` and `findDefault` are the opposite case —
+ * they are choosing an address to use *now* — so they filter `deletedAt: null`
+ * unconditionally and take no flag at all.
+ *
+ * The consequence, said plainly because it is one careless cut from a product
+ * change: a consumer replacing a hand-written `deletedAt: null` filter with
+ * `findById` and dropping the filter as "now redundant" reinstates deleted
+ * addresses. Pass `{ liveOnly: true }` whenever the answer feeds a choice
+ * rather than a rendering — all three call sites in the tree do
+ * (`orders/services/order-service.ts:989,1093,1096`). The record also carries
+ * `deletedAt`, so a caller that must tell the two apart can (Phase-P
+ * unreached-port audit, A8).
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `addresses` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface AddressReadPort {
   findById(
@@ -91,13 +115,31 @@ export interface AddressReadPort {
 }
 
 /**
- * Container name: `addressService`. Owner: `addresses`.
+ * Container name: `addressServicePort`. Owner: `addresses`.
+ *
+ * (It said `addressService` until issue #192, and that name **is** registered:
+ * it is the `AddressService` **class**, whose methods return `Address`
+ * entities. `Address` is structurally assignable to `AddressRecord`, so a
+ * consumer copying the old name out of this comment gets entities across the
+ * boundary behind a record-shaped type and `tsc` says nothing — the mapping
+ * `createAddressServicePort` performs is exactly what it skips. Two consumers
+ * followed it: `orders/backend.ts` and `organizations/backend.ts` both resolve
+ * `lazyPort<AddressServicePort>(ctx, 'addressService')`. Re-pointing them at
+ * `addressServicePort` is a Phase-C change, not a doc change, because it swaps
+ * a live entity for a snapshot record; issue #192 reports it and does not make
+ * it.)
  *
  * The write surface `orders` and `organizations` reach. The
  * one-default-per-kind invariant and the country-code validation stay on this
  * side of the port, where they already are — `createAddress` validates the
  * country against `dictionaries` before it writes, and a caller cannot be
  * trusted to remember that.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `addresses` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface AddressServicePort {
   list(organizationId: string, kind?: AddressKindValue): Promise<AddressRecord[]>;

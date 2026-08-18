@@ -205,6 +205,22 @@ const CROSS_MODULE_RELATION = [
   '}',
 ].join('\n');
 
+/**
+ * A published port introduced the way every port in the tree is, naming
+ * `container`. Source text, so `check-port-shape`'s own doc-block sweep has to
+ * find it — a fixture that handed over a parsed `{ portName, container }` would
+ * prove the comparison and skip the parse the comparison rests on.
+ */
+const PORT_DOC = (container: string): string =>
+  [
+    '/**',
+    ` * Container name: \`${container}\`. Owner: \`admin_roles\`.`,
+    ' */',
+    'export interface PublishedPort {',
+    '  list(): Promise<Record[]>;',
+    '}',
+  ].join('\n');
+
 const UNAUDITED_WRITE = `
   export class ThingService {
     constructor(private em: () => any) {}
@@ -2420,12 +2436,27 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
-    // Two shapes, because the rule bites in two places and only one of them was
-    // ever hit: the published port, and an interface a consumer widens it with.
-    // Each fixture enters as source text — a pre-parsed member list would prove
-    // the reporter and not the sweep that has to find the port in the first
-    // place. No ledger: D-97.1 deleted the single occurrence, so an entry here
-    // could only be a licence to re-open it.
+    // Two signals, five shapes.
+    //
+    // Signal 1 (D-97.3) bites in two places and only one of them was ever hit:
+    // the published port, and an interface a consumer widens it with.
+    //
+    // Signal 2 (issue #192) is the container name, and its two shapes are not
+    // interchangeable: an unregistered name fails loudly at first call, a name
+    // that resolves to the ungated twin does not fail at all. The second proof
+    // asserts `documentedRegistrationKind: 'plain'` rather than just the kind,
+    // because "the doc points at a registration with no gate on it" is the whole
+    // finding — a proof that only counted it would stay green if the check
+    // stopped telling a plain registration from a gated one.
+    //
+    // The fifth is the ledger's second direction. `PORTS_WITHOUT_A_REGISTRATION`
+    // is one entry long and is not a queue; a two-way ratchet whose stale half
+    // nothing proves is a list that quietly outlives its reason.
+    //
+    // Each fixture enters as source text — a pre-parsed member list, or a
+    // registration map handed in already built, would prove the reporter and not
+    // the sweep that has to find the port and the registration in the first
+    // place.
     script: 'backend/scripts/check-port-shape.ts',
     npmScript: 'check:port-shape',
     job: 'quality',
@@ -2475,6 +2506,52 @@ const CHECKS: readonly CheckEntry[] = [
               ],
             ]),
           }).findings.filter((f) => f.kind === 'optional-method-on-port-extension').length,
+      ),
+      'container-name-unregistered': top(
+        () =>
+          checkPortShape({
+            contracts: new Map([['contracts/admin-users.ts', PORT_DOC('impersonationService')]]),
+            modules: new Map([
+              [
+                'modules/admin_users/backend.ts',
+                "ctx.di.providePort('somethingElse', ctx.asFunction(f).singleton());",
+              ],
+            ]),
+            unregisteredLedger: {},
+          }).nameFindings.filter((f) => f.kind === 'container-name-unregistered').length,
+      ),
+      'container-name-not-the-gated-registration': top(
+        () =>
+          checkPortShape({
+            contracts: new Map([['contracts/admin-roles.ts', PORT_DOC('adminRoleService')]]),
+            modules: new Map([
+              [
+                'modules/admin_roles/backend.ts',
+                [
+                  'ctx.di.register({ adminRoleService: ctx.asFunction(f).singleton() });',
+                  "ctx.di.providePort<PublishedPort>('adminRolePort', ctx.asFunction(g).singleton());",
+                ].join('\n'),
+              ],
+            ]),
+            unregisteredLedger: {},
+          }).nameFindings.filter(
+            (f) =>
+              f.kind === 'container-name-not-the-gated-registration' &&
+              f.documentedRegistrationKind === 'plain',
+          ).length,
+      ),
+      'stale-unregistered-ledger-entry': top(
+        () =>
+          checkPortShape({
+            contracts: new Map([['contracts/admin-roles.ts', PORT_DOC('adminRolePort')]]),
+            modules: new Map([
+              [
+                'modules/admin_roles/backend.ts',
+                "ctx.di.providePort<PublishedPort>('adminRolePort', ctx.asFunction(g).singleton());",
+              ],
+            ]),
+            unregisteredLedger: { PublishedPort: 'no provider, pending a ruling' },
+          }).staleLedgerEntries.length,
       ),
     },
   },
@@ -2934,9 +3011,15 @@ describe('every red proof enters at the top of the analysis', () => {
       // a limit nothing proves is a limit that quietly moves.
       'backend/scripts/check-port-catches.ts': 9,
       'backend/scripts/check-port-dependencies.ts': 19,
-      // Two: the published port and the interface widening one. The rule bites
-      // in exactly those two places, and only the second has ever been hit.
-      'backend/scripts/check-port-shape.ts': 2,
+      // Two for the optional-method rule: the published port and the interface
+      // widening one, which is exactly where it bites. Plus issue #192's three
+      // for the container-name signal — the two shapes a wrong name takes, and
+      // the ledger's stale direction. The name signal's second shape asserts the
+      // documented name's *registration kind*, not just the finding: "the
+      // contract points at an ungated registration" is the defect, and a proof
+      // that dropped that field would go green on a check that had stopped
+      // telling plain from gated.
+      'backend/scripts/check-port-shape.ts': 5,
       // Three spellings of a whole-table wipe, plus the baseline's second
       // direction.
       'backend/scripts/check-shared-table-wipes.ts': 4,

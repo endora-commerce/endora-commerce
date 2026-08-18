@@ -584,6 +584,12 @@ export interface OrganizationCreditOwner {
  *
  * `credit_limits` is the only consumer: it asks which organisation in the
  * hierarchy actually holds the limit that applies here.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `organizations` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface OrganizationInheritancePort {
   creditOwner(organizationId: string): Promise<OrganizationCreditOwner>;
@@ -642,6 +648,12 @@ export type OrganizationAllowListKind =
  * cites for putting a degrade inside the owner's implementation: a consumer
  * that caught an exception here would turn a fail-closed edge into a
  * fail-open one.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `organizations` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface OrganizationRestrictionPort {
   allowedIdsFor(
@@ -663,6 +675,12 @@ export interface OrganizationRestrictionPort {
  * here is the shape feature 075 removes, and the second `EntityManager`
  * argument went with it — the one caller already flushes the account before
  * calling.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `organizations` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface PersonalOrganizationPort {
   ensureForCustomerAccount(customerAccountId: string): Promise<OrganizationRecord>;
@@ -683,6 +701,12 @@ export interface SalesRepAssignmentRow {
  * The sales-rep assignment relation as other modules see it. `quote_requests`
  * scopes an admin's RFQ list with it; the admin surfaces read it to decide
  * whether a rep may see an organisation at all.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `organizations` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface SalesRepAssignmentPort {
   canSeeOrganization(adminUserId: string, organizationId: string): Promise<boolean>;

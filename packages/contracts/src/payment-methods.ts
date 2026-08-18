@@ -272,6 +272,12 @@ export interface PaymentMethodRecord {
  * whether the read is a catalogue (active only) or a settlement of an order
  * placed earlier (any, or a paid order stops being explicable the day an
  * operator retires a method).
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `payment_methods` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface PaymentMethodReadPort {
   findById(id: string): Promise<PaymentMethodRecord | null>;
@@ -284,7 +290,7 @@ export interface PaymentMethodReadPort {
 }
 
 /**
- * Container name: `paymentAdapterRegistryPort`. Owner: `payment_methods`.
+ * Container name: `paymentAdapterRegistry`. Owner: `payment_methods`.
  *
  * A **contribution seam**: the four gateway modules push their adapter in from
  * their boot hook and this module's catalogue reads the table. Every edge into
@@ -292,9 +298,29 @@ export interface PaymentMethodReadPort {
  * that.
  *
  * `register` names its contributor, and `isAvailable` / `get` / `resolve` /
- * `list` filter on that name's effective state, while `entry`, `ownerOf` and
- * `listAll` deliberately do not — an admin screen has to keep showing a method
- * *and* the reason it is unavailable.
+ * `list` filter on that name's effective state, while `ownerOf` and `listAll`
+ * deliberately do not — an admin screen has to keep showing a method *and* the
+ * reason it is unavailable. (`entry` is on the class and **not** on this
+ * interface; the prose used to name it here, which is how a reader learned
+ * about a method the contract does not publish.)
+ *
+ * **The published surface against the measured demand** (issue #192), because
+ * §1.1 asks for the union of what consumers use rather than the class:
+ * `register` has five contributors — `tpay`, `stripe`, `payu`, `autopay` and
+ * `payments`' own built-ins — and `get` and `ownerOf` are read by `orders`
+ * (`orders/services/order-service.ts:433,511,630,639,1590`). `isRegistered` is
+ * `payment_methods`' own route guard and `listAll` is reached only by the
+ * gateway off-state tests. `unregister`, `isAvailable`, `resolve` and `list`
+ * have no caller on this registry at all — they are published ahead of a
+ * reader, and are named here rather than quietly dropped because narrowing the
+ * interface is a surface decision this comment may not take on its own.
+ *
+ * **Owner off:** nothing throws here. This is a **contribution seam**, a plain
+ * `di.register` rather than a `providePort`, so a push still lands and
+ * `payment_methods` filters by contributor when it enumerates. Converting it to
+ * `providePort` would move every edge into it from `contributes` to
+ * `fails-closed` in the deactivation-consequence ledger, and change the
+ * sentence the operator's confirmation dialog renders.
  */
 export interface PaymentAdapterRegistryPort {
   register(adapter: PaymentAdapter, module: string): void;

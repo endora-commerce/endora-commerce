@@ -924,17 +924,55 @@ export function registeredNames(source: string, file: string): string[] {
  * presence gate, and a root registration replaces the gate with a plain value.
  */
 export function providedPortNames(source: string, file: string): string[] {
+  return providedPorts(source, file).map((port) => port.name);
+}
+
+/** One `ctx.di.providePort<T>('name', …)` call, with the contract it names. */
+export interface ProvidedPort {
+  /** The container name, always a string literal (a computed one is skipped). */
+  readonly name: string;
+  /**
+   * The published contract the registration is checked against, when the call
+   * carries a type argument. `null` for the 53 that do not — those compare
+   * nothing (Phase-P unreached-port audit, A12).
+   */
+  readonly typeName: string | null;
+  readonly line: number;
+}
+
+/**
+ * Every gated registration a file makes, with its type argument.
+ *
+ * The single expression of "this call is a `providePort`" in the tree.
+ * `providedPortNames` above and `check-port-shape`'s container-name signal both
+ * come through here rather than each writing the predicate again: a check whose
+ * decision exists in two places can go half-missing without its red proof
+ * noticing, which is how `check:nul-bytes` kept printing `violations=0` with its
+ * rule mutated.
+ */
+export function providedPorts(source: string, file: string): ProvidedPort[] {
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const names: string[] = [];
+  const ports: ProvidedPort[] = [];
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node) && calleeTail(node) === 'di.providePort') {
       const [first] = node.arguments;
-      if (first && ts.isStringLiteral(first)) names.push(first.text);
+      if (first && ts.isStringLiteral(first)) {
+        const [typeArgument] = node.typeArguments ?? [];
+        ports.push({
+          name: first.text,
+          typeName:
+            typeArgument && ts.isTypeReferenceNode(typeArgument) &&
+            ts.isIdentifier(typeArgument.typeName)
+              ? typeArgument.typeName.text
+              : null,
+          line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+        });
+      }
     }
     node.forEachChild(visit);
   };
   sf.forEachChild(visit);
-  return names;
+  return ports;
 }
 
 type FunctionLike =

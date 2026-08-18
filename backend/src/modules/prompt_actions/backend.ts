@@ -93,6 +93,14 @@ export interface PromptActionsCradle {
 
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
+    // A **contribution registry**, and a plain `di.register` on purpose: it must
+    // stay one. `catalog`, `inventory` and `orders` push their tool descriptors
+    // in from `ctx.onBoot`, and boot hooks run whatever this module's effective
+    // state is, so a `providePort` gate here would throw `MODULE_DISABLED`
+    // during composition and stop the backend from starting. It would also move
+    // every edge into this name from `contributes` to `fails-closed` in the
+    // deactivation-consequence ledger, changing the sentence the operator's
+    // confirmation dialog renders (issue #192; port-publication.md §1.4).
     promptActionToolRegistry: ctx.asFunction(() => new PromptActionToolRegistry()).singleton(),
 
     // The second contribution registry, and an ordinary registration for the

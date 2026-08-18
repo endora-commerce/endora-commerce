@@ -79,6 +79,9 @@ export interface AuthResolvedSession {
  * `MODULE_DISABLED`) at the resolution seam — which is the correct answer: a
  * platform that cannot mint or validate a session must refuse the login rather
  * than issue one nothing can check.
+ *
+ * Whether `auth` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface AuthSessionPort {
   createSession(input: AuthCreateSessionInput): Promise<AuthSessionCookiePayload>;
@@ -109,6 +112,9 @@ export interface AuthCustomerLastSeen {
  * When `auth` is off the call fails closed, which is right: an "online now"
  * view assembled from no session data would be a list of everybody, at an
  * invented timestamp.
+ *
+ * Whether `auth` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface AuthSessionReadPort {
   /**

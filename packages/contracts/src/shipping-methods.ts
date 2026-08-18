@@ -230,6 +230,12 @@ export interface DeliveryMethodRecord {
  * gives: a catalogue read wants active methods, a settlement of an order
  * placed earlier wants any, or the order stops being explicable the day an
  * operator retires a method.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `delivery_methods` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface DeliveryMethodReadPort {
   findById(id: string): Promise<DeliveryMethodRecord | null>;
@@ -254,6 +260,13 @@ export interface DeliveryMethodReadPort {
  * `list` filter on that name's effective state, while `entry`, `ownerOf` and
  * `listAll` deliberately do not — an admin screen has to keep showing a method
  * *and* the reason it is unavailable.
+ *
+ * **Owner off:** nothing throws here. This is a **contribution seam**, a plain
+ * `di.register` rather than a `providePort`, so a push still lands and
+ * `delivery_methods` filters by contributor when it enumerates. Converting it to
+ * `providePort` would move every edge into it from `contributes` to
+ * `fails-closed` in the deactivation-consequence ledger, and change the
+ * sentence the operator's confirmation dialog renders.
  */
 export interface ShippingAdapterRegistryPort {
   register(adapter: ShippingAdapter, module: string): void;

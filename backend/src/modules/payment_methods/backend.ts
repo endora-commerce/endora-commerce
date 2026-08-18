@@ -73,6 +73,16 @@ export function registerModule(ctx: ModuleContext): void {
     // registry this one merely holds. `payments` pushes them from its own boot
     // hook (T143a), exactly as each gateway module registers its own — this
     // module holds the table and never decides what is in it.
+    //
+    // And it stays a plain `di.register`. `PaymentAdapterRegistryPort` is
+    // published over this name, which makes it look like the odd one out beside
+    // the ports below; it is not. Five modules push into it from `ctx.onBoot`,
+    // where a `providePort` gate would throw `MODULE_DISABLED` during
+    // composition, and converting it would move every edge into it from
+    // `contributes` to `fails-closed` in the deactivation-consequence ledger —
+    // changing the sentence the operator's confirmation dialog renders
+    // (issue #192; port-publication.md §1.4). Presence is answered at
+    // enumeration instead, keyed on the module recorded with each entry.
     paymentAdapterRegistry: ctx.asFunction(() => paymentAdapterRegistry).singleton(),
 
     paymentMethodEligibility: ctx

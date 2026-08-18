@@ -564,7 +564,15 @@ export interface CreditTopupResult {
   availableAmountAfter?: number;
 }
 
-/** Container name: `creditTopupPort`. Owner: `credit_limits`. */
+/**
+ * Container name: `creditTopupPort`. Owner: `credit_limits`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `credit_limits` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
 export interface CreditTopupPort {
   creditFromReturn(input: CreditTopupInput): Promise<CreditTopupResult>;
 }
@@ -596,6 +604,12 @@ export interface OrderReturnContext {
  * The order facts a return needs — paid-per-line amounts, the
  * fulfilment-completing timestamp, channel, customer, organisation — without
  * `returns` reading the orders tables (Principle I).
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `orders` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface OrderReturnContextPort {
   getReturnContext(orderId: string): Promise<OrderReturnContext | null>;
@@ -661,7 +675,15 @@ export interface CorrectiveInvoiceNotDue {
 
 export type CorrectiveInvoiceResult = CorrectiveInvoiceIssued | CorrectiveInvoiceNotDue;
 
-/** Container name: `correctiveInvoicePort`. Owner: `invoices`. */
+/**
+ * Container name: `correctiveInvoicePort`. Owner: `invoices`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `invoices` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
 export interface CorrectiveInvoicePort {
   createCorrection(input: CorrectiveInvoiceInput): Promise<CorrectiveInvoiceResult>;
 }

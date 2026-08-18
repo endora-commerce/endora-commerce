@@ -37,12 +37,26 @@ export interface UpsertAdminRoleInput {
 }
 
 /**
- * Container name: `adminRoleService`. Owner: `admin_roles`.
+ * Container name: `adminRolePort`. Owner: `admin_roles`.
+ *
+ * (It said `adminRoleService` until issue #192. That name is registered — it is
+ * the `AdminRoleService` **class**, a plain `di.register` with no presence gate,
+ * whose `list()` returns `AdminRole` **entities**. `AdminRole` is structurally
+ * assignable to `AdminRoleRecord`, so a consumer that copied the old name got an
+ * ungated registration and entities across the boundary, and `tsc` said nothing.
+ * Nothing in the tree ever did — `admin_users` resolves `adminRolePort` — but the
+ * comment was a standing invitation to.)
  *
  * `admin_users` reads a role to render it beside its user and to enforce the
  * role's `requiresTwoFactor` at login. `remove` refuses a role whose code was
  * registered as system-protected (feature 016 FR-025), and that refusal stays
  * on this side of the port.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `admin_roles` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface AdminRolePort {
   list(): Promise<AdminRoleRecord[]>;
@@ -72,7 +86,12 @@ export interface SystemRoleCodePort {
 }
 
 /**
- * Container name: `permissionCatalogueService`. Owner: `admin_roles`.
+ * Container name: `permissionCataloguePort`. Owner: `admin_roles`.
+ *
+ * (It said `permissionCatalogueService` until issue #192 — the same trap as
+ * {@link AdminRolePort}: that name is a plain `di.register` of the
+ * `PermissionCatalogueService` class, with no presence gate on it. The gated
+ * registration is this one.)
  *
  * The permission codes an operator may actually grant — core
  * `PERMISSION_CATALOGUE` plus every registered module's manifest
@@ -80,6 +99,12 @@ export interface SystemRoleCodePort {
  *
  * Synchronous by contract: the catalogue is assembled from manifests at
  * composition time and never queried.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `admin_roles` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface PermissionCataloguePort {
   listAssignable(): PermissionCatalogueEntry[];
@@ -94,6 +119,12 @@ export interface PermissionCataloguePort {
  *
  * The single-permission check `auth`'s guard makes is deliberately not here —
  * see the file header.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `admin_roles` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface PermissionReadPort {
   listPermissions(adminUserId: string): Promise<string[]>;

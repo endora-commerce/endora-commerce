@@ -43,6 +43,9 @@ export interface CurrencyRecord {
  * When `currencies` is off every method fails closed. A price with no currency
  * is not a price, so there is nothing for a caller to degrade to — and
  * defaulting to one would silently reprice a catalogue.
+ *
+ * Whether `currencies` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface CurrencyReadPort {
   list(): Promise<CurrencyRecord[]>;

@@ -141,6 +141,9 @@ export interface CustomerAccountLookupOptions {
  * a read whose absence would otherwise be indistinguishable from "no such
  * account": a cart approval that cannot identify its buyer must refuse, not
  * proceed anonymously.
+ *
+ * Whether `customer_accounts` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface CustomerAccountReadPort {
   findById(
@@ -364,10 +367,24 @@ export interface CustomerLoginInput {
 }
 
 /**
- * Container name: `customerAuthService`. Owner: `customer_accounts`.
+ * Container name: `customerAuthPort`. Owner: `customer_accounts`.
+ *
+ * (It said `customerAuthService` until issue #192 — the same trap as
+ * {@link AddressServicePort}. That name is registered too, for the
+ * `CustomerAuthService` **class**, which returns the `CustomerAccount` entity;
+ * `customer_accounts/backend.ts` keeps it registered on purpose, "for the
+ * consumers Phase C has not reached". `customers/backend.ts` is one of them and
+ * resolves it by name today. The record-returning adapter is `customerAuthPort`,
+ * and `organizations` already resolves that one.)
  *
  * Consumed by `customers` and `organizations`, which own the storefront login,
  * registration and self-service routes over these accounts.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CustomerAuthPort {
   login(input: CustomerLoginInput): Promise<CustomerLoginOutcome>;
@@ -385,6 +402,12 @@ export interface CustomerAuthPort {
  * `requestReset` returns `{ rawToken: null }` for an unknown address on
  * purpose — the caller must not be able to tell an unknown e-mail from a known
  * one.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CustomerPasswordResetPort {
   requestReset(email: string): Promise<{ rawToken: string | null }>;
@@ -392,11 +415,22 @@ export interface CustomerPasswordResetPort {
 }
 
 /**
- * Container name: `roleService`. Owner: `customer_accounts`.
+ * Container name: `customerRolePort`. Owner: `customer_accounts`.
+ *
+ * (It said `roleService` until issue #192. Nothing registers that name; the
+ * module's own class is `customerRoleService` and the gated port is this one.
+ * A name-keyed sweep had already miscounted this port as unreached because of
+ * it — see the Phase-P unreached-port audit, A5.)
  *
  * Consumed by `organizations`, which owns the member-management surface. The
  * "an organisation keeps at least one admin" rule lives on this side of the
  * port, not in the caller.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CustomerRolePort {
   listMembers(organizationId: string): Promise<CustomerAccountRecord[]>;
@@ -421,6 +455,12 @@ export interface CustomerTotpEnrolmentResult {
  * The customer's own second factor, which is a different thing from the `mfa`
  * module's login orchestration: this port writes the enrolment onto the
  * account row, `mfa` decides whether a login must present one.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CustomerTotpEnrolmentPort {
   enable(customerAccountId: string): Promise<CustomerTotpEnrolmentResult>;

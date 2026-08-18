@@ -603,8 +603,29 @@ export interface CartSeedLine {
  * by `em.find(CartItem, { cartId })`, which is two round trips and one place
  * to forget the status filter.
  *
+ * **Neither half of that is still true, and this port has no consumer** (issue
+ * #192; Phase-P unreached-port audit, A6). `quote_requests` no longer reads
+ * `Cart` — its conversion is cut and resolves `cartWritePort`. `orders`' read is
+ * the only cross-module reach into `carts/entities/**` left in the tree, and it
+ * is **escalated, not deferred**: placement reads the cart inside
+ * `em.transactional` and ends by clearing it and marking it `completed` on the
+ * same object, with `test/integration/orders/place-order-failure-preserves-cart.test.ts`
+ * asserting that a failed placement leaves the cart intact. A read through this
+ * port runs on the owner's own `EntityManager`, outside that transaction, so it
+ * cannot serve that site. The ruling is D-78 point 3, recorded in
+ * `backend/scripts/ledgers/cross-module-imports/orders.ts`.
+ *
+ * So the port stands published for a demand the tree has ruled out. It is kept
+ * rather than retired because the escalation is open, not settled: if D-78
+ * point 3 is answered by moving the completion into `carts`, this is the read
+ * half of that answer. Whoever settles it retires the port or writes the real
+ * consumer here — leaving the sentence above unamended was the defect.
+ *
  * When `carts` is off the read fails closed, which is right: a checkout that
  * cannot see the cart must refuse rather than place an empty order.
+ *
+ * Whether `carts` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface CartReadPort {
   findActiveForCustomer(ctx: CartCustomerContext): Promise<CartWithItems | null>;
@@ -626,6 +647,12 @@ export interface CartReadPort {
  * `em.create(Cart, …)` and then hand-build `CartItem` rows — two modules
  * writing another module's two tables, with the clear-then-seed rule spelled
  * out twice and the `lastActivityAt` bookkeeping in neither.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `carts` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CartWritePort {
   getOrCreateForCustomer(ctx: CartCustomerContext): Promise<CartRecord>;
@@ -677,6 +704,12 @@ export interface CustomerCartsView {
  * FR-031): the account's current cart and its abandoned ones. A reporting
  * read, deliberately separate from {@link CartReadPort}, which is the
  * transactional one.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `carts` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface CartQueryPort {
   listForCustomer(customerAccountId: string): Promise<CustomerCartsView>;

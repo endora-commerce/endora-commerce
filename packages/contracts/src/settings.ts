@@ -426,6 +426,9 @@ export interface SettingsSetValueResult {
  * When `settings` is off the write fails closed. There is no degrade to
  * design: a configuration screen that reported success while storing nothing
  * is worse than one that refuses.
+ *
+ * Whether `settings` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface SettingsAdminPort {
   setValueForAllChannels(

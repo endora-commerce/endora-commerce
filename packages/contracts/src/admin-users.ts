@@ -136,13 +136,24 @@ export interface ImpersonationEndResult {
 }
 
 /**
- * Container name: `impersonationService`. Owner: `admin_users`.
+ * Container name: `impersonationPort`. Owner: `admin_users`.
+ *
+ * (It said `impersonationService` until issue #192. Nothing registers that
+ * name — a consumer copying it out of here got
+ * `[kernel] 'impersonationService' is not registered in this composition` on
+ * first call, and no `tsc` error before it.)
  *
  * `customers` hosts the "view as this customer" control, so the surface and
  * the machinery sit in different modules by design.
  *
  * `impersonatedCustomerAccount` is the four-field identity the caller renders,
  * not the account entity and not `CustomerAccountRecord` — see its own note.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `admin_users` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
  */
 export interface ImpersonationPort {
   start(input: ImpersonationStartInput): Promise<ImpersonationStartResult>;

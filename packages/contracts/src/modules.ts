@@ -673,6 +673,20 @@ export interface RegisteredModuleManifest {
 /**
  * Container name: `moduleManifestReadPort`. Owner: `_lifecycle`.
  *
+ * **Nothing registers that name today, and a consumer must not resolve it.** The
+ * four modules that read the manifests read `resolvedModuleRegistry`, a
+ * composition-root contribution on `PLATFORM_OWNED_NAMES`
+ * (`backend/scripts/check-port-dependencies.ts`), whose reason is that "which
+ * modules a deployment ships is not something a module may decide". So this
+ * interface proposes moving a platform-owned input into a module-owned
+ * registration, against a standing ruling; whether it is implemented or deleted
+ * is Q2 of the Phase-P unreached-port audit
+ * (`specs/075-cross-module-decoupling-sweep/unreached-port-audit.md`, A4) and is
+ * not answered here. `check:port-shape` carries it as the single entry of
+ * `PORTS_WITHOUT_A_REGISTRATION`, so the debt is loud and cannot go stale
+ * quietly — a registration appearing under this name fails the check as a stale
+ * entry.
+ *
  * Reads the **resolved** registry — core manifests plus the active
  * deployment's overlay modules — so an overlay module's permissions, palette
  * actions, settings and i18n bundles are seen exactly as a core module's are.
