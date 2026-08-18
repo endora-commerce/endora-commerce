@@ -26,6 +26,28 @@ export interface CatalogEvents extends Record<string, EventBase> {
 }
 
 export type CatalogEventBus = EventBus<CatalogEvents>;
+
+/**
+ * How a duplicate inherits the source's per-warehouse low-stock thresholds
+ * (issue #185).
+ *
+ * The rows live in `inventory`'s `product_warehouse_low_stock_thresholds`, and
+ * this service used to write them with an `insert … select` of its own — no
+ * import specifier for the boundary check to see, no gate, and no audit row on
+ * the owner's side. `inventory` publishes the copy now.
+ *
+ * `'not-present'` rather than a throw or a `catch`: `inventory` is
+ * deactivatable and this module declares the edge `degrades-without`, so
+ * absence is **decided** in front of the gate by the wiring in `backend.ts` and
+ * arrives here in the return type. A duplicate made while the module is off
+ * carries no per-warehouse thresholds and falls back to the product-level and
+ * warehouse-level chain — which is what a duplicate looks like on a deployment
+ * that never installed `inventory`.
+ */
+export type CatalogWarehouseThresholdCopy = (input: {
+  sourceProductId: string;
+  targetProductId: string;
+}) => Promise<{ copied: number } | 'not-present'>;
 import { HttpError } from '../../../http/error-envelope.js';
 import { Category } from '../entities/category.entity.js';
 import { Product } from '../entities/product.entity.js';
@@ -137,6 +159,14 @@ export class CatalogAdminService {
      * Required for attribute/option mutations.
      */
     private readonly customFields?: CatalogCustomFieldsPort,
+    /**
+     * Issue #185 — `inventory`'s per-warehouse threshold copy, presence-decided
+     * by the wiring. Optional for the same reason every collaborator above it
+     * is: fixtures that duplicate a product without an inventory composition
+     * keep constructing this service, and a duplicate with no thresholds copied
+     * is the module's declared degrade rather than a failure.
+     */
+    private readonly copyWarehouseThresholds?: CatalogWarehouseThresholdCopy,
   ) {}
 
   #requireAttributeRead(): CatalogAttributeReadService {
@@ -714,12 +744,15 @@ export class CatalogAdminService {
       [dup.id, source.id],
     );
 
-    // sales_channel_products (bridge)
-    await conn.execute(
-      `insert into "sales_channel_products" ("sales_channel_id", "product_id")
-         select "sales_channel_id", ? from "sales_channel_products" where "product_id" = ?`,
-      [dup.id, source.id],
-    );
+    // The channel assortment, through the kernel's membership service (issue
+    // #185). This was an `insert … select` against the bridge table, which is
+    // Principle XII's accessor clause and Principle XIII in one statement: the
+    // bridge was written directly and not one of the memberships the duplicate
+    // gained was audited. `copyMemberships` adds them one audited call at a
+    // time.
+    if (this.salesChannelMembership) {
+      await this.salesChannelMembership.copyMemberships('product', source.id, dup.id);
+    }
 
     // gallery_items + gallery_item_labels — we need a fresh UUID per item
     // and to rewrite the bridge rows to the new ids.
@@ -824,16 +857,18 @@ export class CatalogAdminService {
       }
     }
 
-    // product_warehouse_low_stock_thresholds — per-(product, warehouse)
-    // low-stock thresholds. Carry these over so duplicates inherit the
-    // same per-warehouse alerting profile.
-    await conn.execute(
-      `insert into "product_warehouse_low_stock_thresholds"
-         ("product_id", "warehouse_id", "threshold", "created_at", "updated_at")
-         select ?, "warehouse_id", "threshold", now(), now()
-           from "product_warehouse_low_stock_thresholds" where "product_id" = ?`,
-      [dup.id, source.id],
-    );
+    // Per-(product, warehouse) low-stock thresholds, so the duplicate inherits
+    // the source's alerting profile. `inventory`'s rows and `inventory`'s
+    // Command since issue #185 — this used to be an `insert … select` into that
+    // module's table from here, which kept writing while an operator had the
+    // module switched off. No `catch` around it: the wiring decides presence in
+    // front of the gate and the degrade arrives as `'not-present'`.
+    if (this.copyWarehouseThresholds) {
+      await this.copyWarehouseThresholds({
+        sourceProductId: source.id,
+        targetProductId: dup.id,
+      });
+    }
 
     // product_variants (configurable products) — each variant has its own
     // unique SKU; we allocate copies the same way as the parent SKU.

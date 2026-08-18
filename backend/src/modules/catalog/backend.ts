@@ -22,6 +22,7 @@ import type {
   CatalogProductWritePort,
   CatalogPromoAttributePort,
   CatalogQuickSearchPort,
+  InventoryProductThresholdWritePort,
   SearchQueryPort,
   LanguageReadPort,
   OrganizationDetailsPort,
@@ -56,7 +57,10 @@ import {
   createCatalogProductWritePort,
   createCatalogPromoAttributePort,
 } from './services/catalog-write-ports.js';
-import type { CatalogEventBus } from './services/catalog-admin.service.js';
+import type {
+  CatalogEventBus,
+  CatalogWarehouseThresholdCopy,
+} from './services/catalog-admin.service.js';
 import { registerCatalogAssetReferences } from './services/asset-references.js';
 import {
   presenceAwareBulkRecorder,
@@ -227,6 +231,32 @@ export function registerModule(ctx: ModuleContext): void {
       return cradle().requireBoundApiKey(scope)(request, reply);
     };
 
+  /**
+   * Issue #185 — the per-warehouse threshold copy product duplication makes.
+   *
+   * `duplicateProduct` used to run an `insert … select` into
+   * `product_warehouse_low_stock_thresholds` on its own `EntityManager`. The
+   * table is `inventory`'s, created by `inventory`'s migration, and the
+   * statement named no import specifier, asked no gate and left no audit row on
+   * that module's side — so the copy went on happening with `inventory`
+   * switched off.
+   *
+   * The same D-44 shape as the two API-key gates above, and for the same
+   * reason: this module declares `inventoryProductThresholdWritePort`
+   * `degrades-without`, so a closed gate must never be *met*. Presence is
+   * decided here, in front of the resolution, and the absent answer travels in
+   * the return type rather than through a `catch` that would read a genuine
+   * inventory failure as "this deployment has no warehouses".
+   */
+  const inventoryThresholds = lazyPort<InventoryProductThresholdWritePort>(
+    ctx,
+    'inventoryProductThresholdWritePort',
+  );
+  const copyWarehouseThresholds: CatalogWarehouseThresholdCopy = async (input) => {
+    if (!effectiveState.isPresent('inventory')) return 'not-present';
+    return inventoryThresholds.copyProductWarehouseThresholds(input);
+  };
+
   ctx.di.register({
     /**
      * Feature 068 — the storefront serves the category tree from a fetch cache
@@ -333,6 +363,7 @@ export function registerModule(ctx: ModuleContext): void {
               cradle().catalogImagePlaceholderUrl(salesChannelCode),
             reindexSearchIndexes: () => cradle().catalogSearchReindex(),
             categoryRevalidator: cradle().catalogCategoryRevalidator,
+            copyWarehouseThresholds,
           }),
       )
       .singleton(),
@@ -496,6 +527,7 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort'),
             lazyPort<ListingPricePort>(ctx, 'pricingService'),
             lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
           ),
       )
       .singleton(),
@@ -521,6 +553,7 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'customFieldDefinitionService',
             ),
+            copyWarehouseThresholds,
           ),
       )
       .singleton(),
@@ -593,6 +626,7 @@ export function registerModule(ctx: ModuleContext): void {
             commandBus,
             lazyPort<ListingPricePort>(ctx, 'pricingService'),
             lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
           ),
       )
       .singleton(),

@@ -39,7 +39,13 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    svc = new ProductLinkService(() => h.em(), undefined, h.pricingService, h.assetRead);
+    svc = new ProductLinkService(
+      () => h.em(),
+      undefined,
+      h.pricingService,
+      h.assetRead,
+      h.salesChannels.membershipService,
+    );
 
     const def = await h.salesChannels.resolver.getSystemDefault();
     defaultChannelId = def.id;

@@ -71,6 +71,7 @@ describe('PromotionService — attribute criterion resolution (T056)', () => {
       h.catalogAttributeRead,
       undefined,
       h.assetRead,
+      h.salesChannels.membershipService,
     );
     const products = new CatalogProductReadService(h.em);
     const recordingProducts: CatalogProductReadPort = {

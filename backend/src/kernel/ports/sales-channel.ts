@@ -74,6 +74,28 @@ export interface SalesChannelMembershipPort {
     entityId: string,
   ): Promise<MembershipMutationResult>;
 
+  /**
+   * Give the target every channel the source belongs to, one audited add per
+   * membership (issue #185). `catalog`'s product duplication is the caller.
+   */
+  copyMemberships(
+    entityType: ChannelMemberEntityType,
+    sourceEntityId: string,
+    targetEntityId: string,
+    options?: MembershipMutationOptions,
+  ): Promise<{ copied: number }>;
+
+  /**
+   * Narrow a known set of entity ids to those bound to `channelId`. The
+   * intersection, not the enumeration — see the service's note on why this is
+   * a separate method from {@link listEntityIdsForChannel}.
+   */
+  filterEntityIdsInChannel(
+    channelId: string,
+    entityType: ChannelMemberEntityType,
+    entityIds: readonly string[],
+  ): Promise<string[]>;
+
   /** Channels an entity currently belongs to. */
   listChannelsForEntity(
     entityType: ChannelMemberEntityType,

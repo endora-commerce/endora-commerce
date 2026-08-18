@@ -28,6 +28,7 @@ import type { SalesChannelMembershipService } from '../../kernel/sales-channels/
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import {
   CatalogAdminService,
+  type CatalogWarehouseThresholdCopy,
   type CatalogCustomFieldsPort,
   type CatalogEventBus,
 } from './services/catalog-admin.service.js';
@@ -135,6 +136,14 @@ export interface CatalogModuleOptions {
    * pre-feature-005 fixtures.
    */
   salesChannelMembership?: SalesChannelMembershipService;
+  /**
+   * Issue #185 — `inventory`'s per-warehouse threshold copy, used by product
+   * duplication. Contributed as a presence-decided closure rather than resolved
+   * here, for the reason `resolveExternalAvailability` is: this module declares
+   * `inventory` `degrades-without`, so absence is decided in front of the gate
+   * and reaches the service in its return type.
+   */
+  copyWarehouseThresholds?: CatalogWarehouseThresholdCopy;
   /**
    * Feature 022 — language admin service used by the product scope
    * editor's scope-context endpoint (for the primary admin language)
@@ -246,6 +255,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.commandBus,
       options.pricingService,
       options.assets,
+      options.salesChannelMembership,
     );
     // Feature 061 — the composed attribute read model (definitions from the
     // custom_fields cache + catalog extension rows). Constructed once and
@@ -262,6 +272,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       attributeReadService,
       options.pricingService,
       options.assets,
+      options.salesChannelMembership,
     );
     const adminService = new CatalogAdminService(
       options.emFactory,
@@ -271,6 +282,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.commandBus,
       attributeReadService,
       options.customFieldsPort,
+      options.copyWarehouseThresholds,
     );
     const bulkUpdateService = new CatalogBulkUpdateService(
       options.emFactory,
@@ -367,6 +379,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.commandBus,
       options.pricingService,
       options.assets,
+      options.salesChannelMembership,
     );
     const groupedService = new GroupedService(options.emFactory, options.commandBus);
     const bundleService = new BundleService(options.emFactory, options.commandBus);
@@ -384,12 +397,17 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.requireApiKey &&
       options.requireBoundApiKey &&
       options.pricingService &&
-      options.organizations
+      options.organizations &&
+      // Issue #185 — the assortment check goes through the channel-membership
+      // accessor, so the namespace is not mounted without it rather than
+      // falling back to a hand-written bridge read.
+      options.salesChannelMembership
     ) {
       const decorator = new CatalogOrgPriceDecorator({
         emFactory: options.emFactory,
         pricingService: options.pricingService,
         organizations: options.organizations,
+        channelMembership: options.salesChannelMembership,
         ...(options.resolveExternalAvailability
           ? { resolveAvailability: options.resolveExternalAvailability }
           : {}),

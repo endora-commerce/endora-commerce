@@ -544,6 +544,51 @@ export interface InventoryStockImportPort {
   importStockLevels(rows: readonly StockLevelImportRow[]): Promise<BulkImportReport>;
 }
 
+// --- the per-warehouse threshold copy ----------------------------------------
+
+/** How many `(product, warehouse)` thresholds the copy wrote. */
+export interface ProductThresholdCopyResult {
+  copied: number;
+}
+
+/**
+ * Container name: `inventoryProductThresholdWritePort`. Owner: `inventory`.
+ *
+ * Issue #185. `catalog` duplicates a product and carries the source's
+ * per-warehouse low-stock thresholds over to the copy — with an
+ * `insert … select` against `product_warehouse_low_stock_thresholds`, a table
+ * this module owns and this module's migration creates. Four things were absent
+ * from that statement at once: no import specifier, so the boundary check could
+ * not see it; no gate, so the write proceeded with this module switched off; no
+ * declared edge; and no audit row on this side, so rows appeared here with
+ * nothing here having decided they should.
+ *
+ * The copy is therefore published rather than ledgered. It runs as one Command
+ * on **this module's own transaction**, not the caller's: the duplication
+ * commits its product row before it asks, an alerting profile is an indication
+ * on a product rather than part of what makes one, and a duplicate that lost
+ * its thresholds is exactly the duplicate an operator gets when this module was
+ * never installed. Rolling a whole duplication back over it would be the wrong
+ * trade in the other direction.
+ *
+ * **Owner off:** `catalog` declares this name `degrades-without` and decides
+ * presence in front of the gate, so a duplicate made while this module is off
+ * carries no per-warehouse thresholds and the duplication itself succeeds. The
+ * gate `providePort` wraps this in stays real for any caller that forgets.
+ */
+export interface InventoryProductThresholdWritePort {
+  /**
+   * Copy every `(warehouse, threshold)` the source product carries onto the
+   * target, overwriting a row the target already holds for the same warehouse.
+   * A source with no thresholds answers `{ copied: 0 }` and records nothing —
+   * the same rule the channel-membership service applies to an idempotent add.
+   */
+  copyProductWarehouseThresholds(input: {
+    sourceProductId: string;
+    targetProductId: string;
+  }): Promise<ProductThresholdCopyResult>;
+}
+
 // --- the two pure allocation functions ---------------------------------------
 //
 // Relocated here from `inventory/services/` (feature 075, Phase P, FR-013).

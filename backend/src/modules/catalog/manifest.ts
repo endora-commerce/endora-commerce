@@ -102,6 +102,23 @@ export const manifest = defineModuleManifest({
         'resolution, and the `catch` is gone.',
     },
     {
+      moduleId: 'inventory',
+      name: 'inventoryProductThresholdWritePort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'a duplicated product does not inherit the source’s per-warehouse low-stock thresholds',
+      reason:
+        'Issue #185. Product duplication copied the source’s alerting profile with an ' +
+        '`insert … select` into `product_warehouse_low_stock_thresholds` — `inventory`’s table, ' +
+        'reached with no import specifier, no gate, no declared edge and no audit row on the ' +
+        'owner’s side. A second entry rather than a widening of `catalogExternalAvailability` ' +
+        'above: that sentence describes a *read* degrade and must not be stretched over a write. ' +
+        'Not `dependencies` (`inventory` declares this module) and not acknowledged either — an ' +
+        'acknowledged edge sits in the refusal graph and would make `inventory` undeactivatable ' +
+        'while a catalogue is present. The degrade is real: the duplicate falls back to the ' +
+        'product- and warehouse-level chain, as on a deployment without the module.',
+    },
+    {
       moduleId: 'search',
       name: 'searchQueryPort',
       kind: 'degrades-without',

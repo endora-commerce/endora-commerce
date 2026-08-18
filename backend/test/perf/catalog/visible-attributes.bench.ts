@@ -77,6 +77,7 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
       h.catalogAttributeRead,
       undefined,
       h.assetRead,
+      h.salesChannels.membershipService,
     );
     const em = h.em();
 

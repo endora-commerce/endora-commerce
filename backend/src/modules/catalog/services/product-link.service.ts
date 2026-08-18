@@ -7,6 +7,7 @@ import {
   type ListingPricePort,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import type { CommandBus } from '../../../commands/index.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink, type ProductLinkKind } from '../entities/product-link.entity.js';
@@ -101,7 +102,28 @@ export class ProductLinkService {
      * asset row and keeps the bridge query on this module's own tables.
      */
     private readonly assets?: AssetReadPort,
+    /**
+     * Issue #185 — the kernel's channel-membership accessor. The storefront
+     * link read below asked `sales_channel_products` in raw SQL, which crosses
+     * the boundary while naming no import specifier and is the read
+     * Constitution XII reserves to this service.
+     *
+     * Optional only in the signature, like the two above; a link read that
+     * reaches it unwired fails loudly rather than quietly answering the
+     * cross-channel set.
+     */
+    private readonly channelMembership?: SalesChannelMembershipPort,
   ) {}
+
+  #requireChannelMembership(): SalesChannelMembershipPort {
+    if (!this.channelMembership) {
+      throw new Error(
+        'ProductLinkService: the channel-membership port is not wired — link tiles cannot be ' +
+          'scoped to a channel without leaking the cross-channel set.',
+      );
+    }
+    return this.channelMembership;
+  }
 
   #requireAssets(): AssetReadPort {
     if (!this.assets) {
@@ -300,23 +322,21 @@ export class ProductLinkService {
     // channel is resolved once upstream (`getResolvedChannel()`) and handed in;
     // the membership filter is ALWAYS applied, failing closed to an empty
     // visible set rather than leaking the full cross-channel target set.
+    // Through the kernel's accessor since issue #185: this was a `select
+    // product_id from sales_channel_products` written here, which is the one
+    // read Principle XII names the membership service for.
     const channel = ctx.resolvedChannel;
-    let visibleIds: Set<string>;
-    if (targets.length > 0) {
-      const visibleRows = await em
-        .getConnection()
-        .execute<{ product_id: string }[]>(
-          `select product_id from sales_channel_products
-           where sales_channel_id = ? and product_id in (${targets
-             .map(() => '?')
-             .join(',')})`,
-          [channel.id, ...targets.map((t) => t.id)],
-        );
-      visibleIds = new Set(visibleRows.map((r) => r.product_id));
-    } else {
-      // No channel resolved (or no targets) → nothing is visible (fail closed).
-      visibleIds = new Set<string>();
-    }
+    const visibleIds =
+      targets.length > 0
+        ? new Set(
+            await this.#requireChannelMembership().filterEntityIdsInChannel(
+              channel.id,
+              'product',
+              targets.map((t) => t.id),
+            ),
+          )
+        : // No targets → nothing is visible (fail closed).
+          new Set<string>();
 
     // Primary asset urls: the gallery thumb chain, with the legacy
     // `product_assets` fallback. Shared with `CatalogQueryService` so the chain
