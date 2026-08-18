@@ -110,6 +110,9 @@ function ledgerForTheEdge(): { entries: LedgerEntry[]; unassignedCount: number }
       MANIFESTS.map((manifest) => [manifest.id, manifest.dependencies ?? []] as const),
     ),
     nonBinding: nonBindingPortEdgesFrom(MANIFESTS),
+    // D-101 §5 — acknowledged edges into locked owners are in the population.
+    // `search` owns none, so this changes nothing here and says so.
+    acknowledged: [],
     neverAbsentOwners: new Set(
       MANIFESTS.filter(
         (manifest) =>

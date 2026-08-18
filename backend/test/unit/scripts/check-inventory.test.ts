@@ -654,6 +654,7 @@ function importedSeamShapes(source: string): number {
     declaredDependencies: new Map(),
     nonBinding: [],
     neverAbsentOwners: new Set(),
+    acknowledged: [],
     contributionPolicies: {},
     excludedNames: new Set(),
   }).unassigned.filter((edge) => edge.shape === 'registry-without-policy').length;
@@ -2253,6 +2254,7 @@ const CHECKS: readonly CheckEntry[] = [
             declaredDependencies: new Map(),
             nonBinding: [],
             neverAbsentOwners: new Set(),
+            acknowledged: [],
             contributionPolicies: {},
             excludedNames: new Set(),
           }).unassigned.length,

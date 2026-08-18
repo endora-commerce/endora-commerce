@@ -156,11 +156,22 @@
  *
  * A `catch` can only swallow a presence answer that is **reachable**. When
  * every gate the alias carries belongs to a module whose manifest declares
- * `activation.nonDeactivatable`, there is no state in which that gate says no:
- * the orchestrator refuses the flip on both axes, with no `--force`. The site
- * is reported as `OWNER LOCKED` rather than as a violation to drain, and a
+ * `activation.nonDeactivatable`, no **undeclared** absence can produce that
+ * state: the orchestrator refuses deactivation, disable and uninstall alike,
+ * with no `--force`, and a composition that omits the module refuses to boot
+ * (D-101, `assertLockedModulesPresent`). A deployment that **declared** the
+ * omission does reach the state, and the deactivation-consequence ledger is
+ * where that is recorded — which is what the declaration is read against. The
+ * site is reported as `OWNER LOCKED` rather than as a violation to drain, and a
  * ledger entry for one reads **stale** — there is nothing left to repair, so a
  * note saying "drain me" is a debt the tree does not owe.
+ *
+ * This paragraph said "there is no state in which that gate says no" until
+ * D-101. Two states existed even then — a deployment that never shipped the
+ * module, and a `module_registrations` row written before D-69 locked it, which
+ * the boot reconciler inserts around and never repairs. Both refuse the boot
+ * now, so the claim is true again *with the qualifier*, and the qualifier is
+ * the part that has to survive the next edit.
  *
  * It is derived from `manifest.ts` on every run rather than written into a
  * reason string, and that is the whole of its safety: an owner who un-locks a

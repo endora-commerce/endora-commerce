@@ -36,6 +36,7 @@ const input = (over: Partial<LedgerInput>): LedgerInput => ({
   declaredDependencies: new Map(),
   nonBinding: [],
   neverAbsentOwners: new Set(),
+  acknowledged: [],
   contributionPolicies: {},
   excludedNames: new Set(),
   ...over,
@@ -195,6 +196,89 @@ describe('the one unacceptable outcome, by shape', () => {
     );
 
     expect(ledger.unassigned[0]?.shape).toBe('captured-registration');
+  });
+});
+
+describe('an acknowledged edge into a locked owner — D-101 §5', () => {
+  /**
+   * Before D-101 a locked owner meant "no state to describe", and every edge
+   * into one was dropped. That is still right for the *flip*: the orchestrator
+   * refuses deactivation, disable and uninstall alike. It stopped being right
+   * for the *state*: a deployment may omit the module outright, and since D-101
+   * it may do so only by declaring the omission — at which point the
+   * consequences are exactly what that declaration is read against.
+   *
+   * So the acknowledged edges enter the population and the rest of an edge into
+   * a locked owner does not. The distinction is not cosmetic: an acknowledged
+   * edge is one somebody deliberately withheld from `dependencies`, which is
+   * also the one a "what does this deployment lose?" reader would otherwise
+   * never see — `admin_roles -> admin_users` is the edge this whole record
+   * started from.
+   */
+  it('classifies the acknowledged edge rather than dropping it with the lock', () => {
+    const ledger = buildDeactivationLedger(
+      input({
+        reads: [
+          read({
+            moduleId: 'admin_roles',
+            dependsOn: 'admin_users',
+            name: 'adminUserReadPort',
+            gated: true,
+          }),
+        ],
+        neverAbsentOwners: new Set(['admin_users']),
+        acknowledged: [{ moduleId: 'admin_roles', name: 'adminUserReadPort' }],
+      }),
+    );
+
+    expect(ledger.unassigned).toEqual([]);
+    expect(ledger.entries).toEqual([
+      {
+        moduleId: 'admin_roles',
+        dependsOn: 'admin_users',
+        name: 'adminUserReadPort',
+        outcome: 'fails-closed',
+        whenAbsent: null,
+      },
+    ]);
+  });
+
+  it('still drops an unacknowledged edge into the same locked owner', () => {
+    // The population grows by the acknowledged edges and by nothing else. A
+    // declared dependency into a locked owner is already visible as a
+    // dependency; the acknowledged one is the edge no array a reader checks
+    // would show them.
+    const ledger = buildDeactivationLedger(
+      input({
+        reads: [read({ moduleId: 'mfa', dependsOn: 'admin_users', name: 'adminUserReadPort', gated: true })],
+        declaredDependencies: new Map([['mfa', ['admin_users']]]),
+        neverAbsentOwners: new Set(['admin_users']),
+        acknowledged: [{ moduleId: 'admin_roles', name: 'adminUserReadPort' }],
+      }),
+    );
+
+    expect(ledger.entries).toEqual([]);
+    expect(ledger.unassigned).toEqual([]);
+  });
+
+  it('keeps the operator dialog unchanged, because a locked module is never the one being flipped', () => {
+    // The rows an operator sees are `deactivationConsequencesFor(entries, X)`,
+    // and X is the module they are switching off. A locked module cannot be X,
+    // so nothing in the new entries can reach the dialog — the classification
+    // is read by whoever declares a reduced deployment, not by the operator.
+    const ledger = buildDeactivationLedger(
+      input({
+        reads: [
+          read({ moduleId: 'admin_roles', dependsOn: 'admin_users', name: 'adminUserReadPort', gated: true }),
+        ],
+        neverAbsentOwners: new Set(['admin_users']),
+        acknowledged: [{ moduleId: 'admin_roles', name: 'adminUserReadPort' }],
+      }),
+    );
+
+    expect(deactivationConsequencesFor(ledger.entries, 'admin_users', () => true)).toEqual([
+      { moduleId: 'admin_roles', effect: 'unavailable', description: null },
+    ]);
   });
 });
 
