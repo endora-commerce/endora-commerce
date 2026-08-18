@@ -7,9 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/lib/auth';
 import { loginCopy } from '@/i18n/preauth-login-copy';
-
-const adminApiBaseUrl =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
+import { FederatedSignIn } from '@/components/FederatedSignIn';
 
 /**
  * Admin login screen. Rendered by App when no session is active; the
@@ -146,23 +144,12 @@ export function LoginPage(): ReactNode {
               {submitting ? loginCopy.submitting : loginCopy.submit}
             </Button>
           </form>
-          {/* Feature 042 US5 — federated sign-in (existing admin users only). */}
-          <div className="flex flex-col gap-2">
-            <a
-              className="inline-flex min-h-11 items-center justify-center rounded-md border px-4 text-sm"
-              href={`${adminApiBaseUrl}/api/v1/auth/admin/oauth/google/start`}
-              data-provider="google"
-            >
-              Continue with Google
-            </a>
-            <a
-              className="inline-flex min-h-11 items-center justify-center rounded-md border px-4 text-sm"
-              href={`${adminApiBaseUrl}/api/v1/auth/admin/oauth/microsoft/start`}
-              data-provider="microsoft"
-            >
-              Continue with Microsoft
-            </a>
-          </div>
+          {/* Feature 042 US5 — federated sign-in (existing admin users only).
+              Issue #193: the block decides for itself whether it has anything
+              to offer and renders nothing when it does not, divider included.
+              It sits *below* the submit button so that its late arrival can
+              displace no control the admin is aiming at. */}
+          <FederatedSignIn />
           <p className="text-xs text-muted-foreground">
             {loginCopy.footerPrefix}{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-[0.7rem]">

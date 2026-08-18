@@ -19,6 +19,36 @@ export const mfaSocialProviderSchema = z.enum(['google', 'microsoft']);
 export type MfaSocialProvider = z.infer<typeof mfaSocialProviderSchema>;
 
 // ---------------------------------------------------------------------------
+// Federated sign-in availability (issue #193)
+// ---------------------------------------------------------------------------
+
+/**
+ * `GET /api/v1/auth/{customer|admin}/oauth/providers` — public, unauthenticated.
+ *
+ * The providers a sign-in surface can actually complete a hand-off with. A
+ * provider is listed only when **both** halves hold: client credentials are
+ * configured for it (backend env, never Settings) *and* the surface's
+ * `mfa.*.<provider>_enabled` setting is on for the request's sales channel.
+ *
+ * A provider missing either half is **absent from the array**, not present with
+ * a `false` flag. That asymmetry is the contract's job: a frontend deciding
+ * "render this button or not" must not be handed a reason to render a control
+ * whose click leads back to the login screen with an error. Both settings
+ * default to `false`, so the honest answer on a fresh deployment is `[]`.
+ *
+ * The route belongs to `mfa` and is gated at its registration seam, so a
+ * switched-off module answers 503 `MODULE_DISABLED`. Frontends still project
+ * absence from `/module-presence` first and treat the 503 as defence in depth —
+ * absence is projected, never inferred from a status code.
+ */
+export const federatedSignInOptionsResponseSchema = z.object({
+  providers: z.array(mfaSocialProviderSchema),
+});
+export type FederatedSignInOptionsResponse = z.infer<
+  typeof federatedSignInOptionsResponseSchema
+>;
+
+// ---------------------------------------------------------------------------
 // Two-step login result (replaces the inline `twoFactorCode` shape)
 // ---------------------------------------------------------------------------
 
