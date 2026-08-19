@@ -59,7 +59,7 @@ import { LanguagePicker } from './LanguagePicker.js';
 import { useViewportTier } from './hooks/useViewportTier.js';
 import { NotificationBell } from './notifications';
 import { useAdminActions } from '@/lib/admin-actions/useAdminActions';
-import { normalize } from '@/lib/admin-actions/normalize';
+import { normalize } from '@/lib/text-normalization';
 import { useModulePresence } from '@/lib/module-presence';
 import {
   useSurfaceVisibility,
@@ -992,12 +992,15 @@ interface PaletteItem extends GatedSurface {
  *
  * Issue #233. The dialog merges three indexes and used to match with two
  * different rules: the server-fed Actions group filters through `normalize`
- * (`lib/admin-actions/useAdminActions.ts`), which folds diacritics *and* the
- * stroked letters NFD leaves standing, while the static Navigate group and the
- * pinned Assistant row used a bare `toLowerCase().includes()`. Typing
- * `zamowienia` therefore found the Actions row for orders and not the Navigate
- * row for the same screen — and Polish operators routinely type without
- * diacritics, so half the palette silently stopped answering them.
+ * (`lib/text-normalization.ts`, applied in `lib/admin-actions/useAdminActions.ts`),
+ * which folds diacritics *and* the stroked letters NFD leaves standing, while
+ * the static Navigate group and the pinned Assistant row used a bare
+ * `toLowerCase().includes()`. Typing `zamowienia` therefore found the Actions
+ * row for orders and not the Navigate row for the same screen — and Polish
+ * operators routinely type without diacritics, so half the palette silently
+ * stopped answering them. Issue #236 then found a fourth copy in the
+ * page-builder drawer, which is why the fold now lives at
+ * `lib/text-normalization.ts` and not under `lib/admin-actions/`.
  *
  * `normalize` is **imported, not re-implemented**: the whole defect was one
  * question answered twice, and a copy is how the two answers drifted apart. It
@@ -1010,7 +1013,9 @@ interface PaletteItem extends GatedSurface {
  * (Postel's Law — accept what was typed and normalise it.)
  *
  * `needle` must already be normalised; the caller folds the query once per
- * keystroke rather than once per row.
+ * keystroke rather than once per row. `normalize` trims, so a query with a
+ * leading space matches what the operator meant rather than nothing at all
+ * (issue #236).
  */
 function matchesQuery(needle: string, ...haystacks: string[]): boolean {
   return haystacks.some((haystack) => normalize(haystack).includes(needle));

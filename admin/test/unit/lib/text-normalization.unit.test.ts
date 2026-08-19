@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalize } from '../../../src/lib/admin-actions/normalize';
+import { normalize } from '../../../src/lib/text-normalization';
 
 describe('normalize', () => {
   it('strips Polish diacritics', () => {
@@ -26,6 +26,19 @@ describe('normalize', () => {
 
   it('returns the empty string for an empty input', () => {
     expect(normalize('')).toBe('');
+  });
+
+  it('trims surrounding whitespace', () => {
+    // Issue #236 item 3. Four of the six call sites folded the query without
+    // trimming it, so one leading space matched nothing — Postel's Law failing
+    // on the surfaces built to be forgiving. The trim belongs here, once,
+    // rather than at each caller that happens to remember it.
+    expect(normalize('  Zamowienia  ')).toBe('zamowienia');
+    expect(normalize('\t\nplatnosci ')).toBe('platnosci');
+  });
+
+  it('returns the empty string for a whitespace-only input', () => {
+    expect(normalize('   ')).toBe('');
   });
 
   it('preserves digits, dashes, and spaces', () => {

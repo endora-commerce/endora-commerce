@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { AdminActionView } from '@b2b/contracts';
 import { useAdminActionsContext } from './AdminActionsProvider.js';
-import { normalize } from './normalize.js';
+import { normalize } from '../text-normalization.js';
 
 /**
  * Read the operator-visible action list from the registry context, with
