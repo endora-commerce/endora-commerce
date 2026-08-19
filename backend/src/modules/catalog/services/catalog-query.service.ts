@@ -382,11 +382,18 @@ export class CatalogQueryService {
       categoryFilteredIds = await this.productIdsInCategoryTree(em, params.categorySlug);
     }
 
-    // Build the summaries
+    // Build the summaries. The page is priced **once** — `toSummary` used to
+    // ask `price_lists` for a batch of one, so a 50-card page made 50 calls and
+    // paid the resolution's fixed cost (the active lists, the settings pair, the
+    // organisation's chain) 50 times over. Resolving the page here and handing
+    // the map down is what makes `resolveListingPrices` a batch in practice
+    // rather than only in signature.
+    const priceable = filtered.filter((p) =>
+      categoryFilteredIds ? categoryFilteredIds.has(p.id) : true,
+    );
+    const resolvedPrices = await this.#listingPricesFor(priceable, channel);
     const summaries = await Promise.all(
-      filtered
-        .filter((p) => (categoryFilteredIds ? categoryFilteredIds.has(p.id) : true))
-        .map((p) => this.toSummary(em, p, channel, ctx.preferredLanguage)),
+      priceable.map((p) => this.toSummary(em, p, channel, ctx.preferredLanguage, resolvedPrices)),
     );
 
     return {
@@ -425,7 +432,13 @@ export class CatalogQueryService {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
 
-    const summary = await this.toSummary(em, product, channel, ctx.preferredLanguage);
+    const summary = await this.toSummary(
+      em,
+      product,
+      channel,
+      ctx.preferredLanguage,
+      await this.#listingPricesFor([product], channel),
+    );
 
     // Categories
     const categoryRows = await em.execute<{ category_id: string }[]>(
@@ -1403,11 +1416,21 @@ export class CatalogQueryService {
     return sets;
   }
 
+  /**
+   * One product's listing summary.
+   *
+   * `resolvedPrices` is the **page's** chain answer, resolved by the caller and
+   * required rather than optional: this method used to resolve its own price,
+   * which meant every listing path that mapped over a page called
+   * `resolveListingPrices` once per card. Making the parameter mandatory is
+   * what stops the next caller from quietly re-opening that.
+   */
   private async toSummary(
     em: EntityManager,
     product: Product,
     channel: CatalogResolvedChannel,
-    preferredLanguage?: string,
+    preferredLanguage: string | undefined,
+    resolvedPrices: Map<string, ListingPrice>,
   ): Promise<ProductSummary> {
     // Primary asset — for listings prefer the gallery's Thumbnail (US3),
     // then Base Image, then any first gallery item, finally the legacy
@@ -1423,13 +1446,11 @@ export class CatalogQueryService {
     );
 
     // Price — the pricing engine's answer for this product on this channel
-    // (issue #132). Sales Channel visibility still strips it on a non-public
-    // channel; what changed is that the figure underneath is one a price list
-    // stands behind rather than the catalogue's own legacy attribute.
-    const price = this.#summaryPrice(
-      await this.#listingPricesFor([product], channel),
-      product.id,
-    );
+    // (issue #132), read out of the page's resolution. Sales Channel visibility
+    // still strips it on a non-public channel; what changed is that the figure
+    // underneath is one a price list stands behind rather than the catalogue's
+    // own legacy attribute.
+    const price = this.#summaryPrice(resolvedPrices, product.id);
 
     const nameText = this.pickLang(product.name, preferredLanguage, channel);
 

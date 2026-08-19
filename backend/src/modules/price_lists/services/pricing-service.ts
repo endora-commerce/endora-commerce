@@ -19,6 +19,8 @@ import type { PriceListTargetReads } from './price-list-service.js';
 import type {
   ListingPricesInput,
   PricedProductRef,
+  PricingEngineResult,
+  PricingLineResult,
   PricingOrganizationRef,
   PricingServiceContract,
 } from './pricing-service.interface.js';
@@ -38,6 +40,42 @@ import type {
  * every write path and emits cache invalidation through the optional
  * `PricingCache` injected at construction.
  */
+
+/** An active list that matched, paired with the row the priority walk ranks. */
+interface MatchedList {
+  list: PriceList;
+  candidate: PriceListCandidate<PriceList>;
+}
+
+/**
+ * The engine's answer, as a charged line (FR-034): Sale when present, Base
+ * otherwise, `null` when nothing on any matching list prices the product.
+ *
+ * Extracted from `resolveLinePrice` so the batched listing path applies exactly
+ * the same rule to the engine results it assembles — the sale-wins step is one
+ * of the places a second implementation could have quietly disagreed.
+ */
+export function lineFromEngine(out: PricingEngineResult): PricingLineResult | null {
+  if (out.sale) {
+    return {
+      amount: out.sale.bracket.amount,
+      currency: out.currencyCode,
+      priceListId: out.sale.listId,
+      isSale: true,
+      bracketStartQuantity: out.sale.bracket.minQuantity,
+      displayMode: out.displayMode,
+    };
+  }
+  if (!out.base.bracket) return null;
+  return {
+    amount: out.base.bracket.amount,
+    currency: out.currencyCode,
+    priceListId: out.base.listId,
+    isSale: false,
+    bracketStartQuantity: out.base.bracket.minQuantity,
+    displayMode: out.displayMode,
+  };
+}
 
 export class PricingService implements PricingServiceContract {
   constructor(
@@ -157,10 +195,6 @@ export class PricingService implements PricingServiceContract {
 
     // Load every active list and evaluate.
     const activeLists = await em.find(PriceList, { status: 'active' });
-    interface MatchedList {
-      list: PriceList;
-      candidate: PriceListCandidate<PriceList>;
-    }
     const baseMatches: MatchedList[] = [];
     const saleMatches: MatchedList[] = [];
     for (const list of activeLists) {
@@ -271,53 +305,176 @@ export class PricingService implements PricingServiceContract {
     bracketStartQuantity: number;
     displayMode: DisplayMode;
   } | null> {
-    const out = await this.resolveEngine(input);
-    if (out.sale) {
-      return {
-        amount: out.sale.bracket.amount,
-        currency: out.currencyCode,
-        priceListId: out.sale.listId,
-        isSale: true,
-        bracketStartQuantity: out.sale.bracket.minQuantity,
-        displayMode: out.displayMode,
-      };
-    }
-    if (!out.base.bracket) return null;
-    return {
-      amount: out.base.bracket.amount,
-      currency: out.currencyCode,
-      priceListId: out.base.listId,
-      isSale: false,
-      bracketStartQuantity: out.base.bracket.minQuantity,
-      displayMode: out.displayMode,
-    };
+    return lineFromEngine(await this.resolveEngine(input));
   }
 
   /**
    * Issue #132 — the price a catalogue listing may render, per product.
    *
-   * The chain is `listingPriceFrom`; this method is the loop that feeds it, so
-   * the listing paths make one call and get an answer whose type states which
-   * step of the chain produced it. Every requested product gets an entry.
+   * The chain is `listingPriceFrom`; this method feeds it, so the listing paths
+   * make one call and get an answer whose type states which step of the chain
+   * produced it. Every requested product gets an entry.
+   *
+   * ## Why this is a batch and not a loop
+   *
+   * It used to be a loop over `resolveLinePrice`, which is **7 queries per
+   * product, sequentially**: a 50-item catalogue page — the platform's default
+   * page size and its busiest storefront read — cost 350 round trips and 315 ms
+   * of resolution on a warm local Postgres. Six of those seven asked a question
+   * whose answer does not vary across the page (the active price lists, the
+   * settings pair, the organization's override) or asked it one id at a time
+   * (the category memberships, the brackets, the product-scope overrides).
+   *
+   * So the set is resolved once and applied per product: the memberships in one
+   * `in (…)`, the active lists once, the organization's inheritance chain once,
+   * the brackets in **priority waves** (one query per fall-through level the
+   * page actually needs, not per product), and the display-mode chain through
+   * `resolveDisplayModes`, reusing the memberships already read.
+   *
+   * ## What is *not* batched, and why
+   *
+   * The application-rule evaluation and the priority walk stay per product, and
+   * they have to: `evaluateApplicationRule` reads the product's own category
+   * memberships, so a category rule matches some cards on a page and not
+   * others, and the winning list therefore differs per product. Both are pure
+   * in-memory functions over rows already loaded — the same
+   * `evaluateApplicationRule` / `pickPriorityChain` / `resolvePriceBracket`
+   * helpers `resolveEngine` composes — so the per-product part costs no I/O.
+   *
+   * The bracket wave is what keeps that honest. A single `in (…)` over every
+   * matched list would fetch brackets for lists most cards never reach; asking
+   * one wave at a time fetches exactly the (list, product) pairs the per-product
+   * walk would have asked for, in one query per level instead of one per card.
+   *
+   * ## Identity with the per-product path
+   *
+   * `resolveEngine` and `resolveLinePrice` are untouched: cart, checkout and the
+   * admin resolved-price probe take the same path they always did, and
+   * `test/integration/price_lists/listing-prices-batch.test.ts` asserts, product
+   * by product over a fixture with a bracket gap, a sale partition, a category
+   * rule and both unpriced arms, that this method answers exactly what looping
+   * that path answers. The LRU is keyed and populated identically, so a page
+   * whose products are already cached still issues no query at all.
    */
   async resolveListingPrices(input: ListingPricesInput): Promise<Map<string, ListingPrice>> {
     const currencyCode = (
       input.context.currencyCode ?? input.context.salesChannel.defaultCurrency
     ).toUpperCase();
     const out = new Map<string, ListingPrice>();
+    if (input.products.length === 0) return out;
+
+    const organization = input.context.organization ?? null;
+    const customerGroupId =
+      input.context.customerGroupId ?? organization?.customerGroupId ?? null;
+    const salesChannel = input.context.salesChannel;
+    const cacheKeyFor = (productId: string) => ({
+      productId,
+      variantId: null,
+      quantity: 1,
+      currencyCode,
+      salesChannelId: salesChannel.id,
+      organizationId: organization?.id ?? null,
+      customerGroupId,
+    });
+
+    // A page may name the same product twice; the answer is the same, and the
+    // loop it replaces resolved it twice.
+    const requested = new Map<string, PricedProductRef>();
     for (const product of input.products) {
-      const line = await this.resolveLinePrice({
-        product,
-        variantId: null,
-        context: {
-          quantity: 1,
-          organization: input.context.organization ?? null,
-          customerGroupId: input.context.customerGroupId ?? null,
-          salesChannel: input.context.salesChannel,
-          currencyCode,
+      if (!requested.has(product.id)) requested.set(product.id, product);
+    }
+
+    const pending: PricedProductRef[] = [];
+    for (const product of requested.values()) {
+      const cached = this.cache?.get(cacheKeyFor(product.id));
+      if (cached) out.set(product.id, listingPriceFrom(lineFromEngine(cached), product, currencyCode));
+      else pending.push(product);
+    }
+    if (pending.length === 0) return out;
+
+    const em = this.emFactory();
+    const productIds = pending.map((p) => p.id);
+    const categoryIdsByProduct = await this.loadCategoryMemberships(em, productIds);
+    const orgId = organization?.id ?? null;
+    // Feature 056 — one chain for the page: it depends on the acting org, which
+    // the listing context fixes for every product on it.
+    const organizationChain =
+      orgId !== null && this.resolveOrgChain
+        ? await this.resolveOrgChain(orgId)
+        : orgId !== null
+          ? [orgId]
+          : [];
+    const activeLists = await em.find(PriceList, { status: 'active' });
+
+    const baseMatches = new Map<string, MatchedList[]>();
+    const saleMatches = new Map<string, MatchedList[]>();
+    for (const product of pending) {
+      const ctx: ResolutionContext = {
+        organizationId: orgId,
+        organizationChain,
+        customerGroupId,
+        salesChannelId: salesChannel.id,
+        currencyCode,
+        productCategoryIds: categoryIdsByProduct.get(product.id) ?? new Set<string>(),
+      };
+      const base: MatchedList[] = [];
+      const sale: MatchedList[] = [];
+      for (const list of activeLists) {
+        const evaluation = evaluateApplicationRule(list.applicationRule, ctx);
+        if (!evaluation.matched) continue;
+        const candidate: PriceListCandidate<PriceList> = {
+          list,
+          evaluation,
+          modifiedAt: list.modifiedAt,
+          name: list.name,
+          isSystem: list.isSystem,
+        };
+        if (list.type === 'sale') sale.push({ list, candidate });
+        else base.push({ list, candidate });
+      }
+      baseMatches.set(product.id, base);
+      saleMatches.set(product.id, sale);
+    }
+
+    const baseResults = await this.pickAndResolveBracketsForSet(em, baseMatches, currencyCode, 1);
+    const saleResults = await this.pickAndResolveBracketsForSet(em, saleMatches, currencyCode, 1);
+
+    // Same lazy construction as `resolveEngine`, for the same reason: it keeps
+    // `PriceListService` out of this class's constructor signature.
+    const { PriceListService } = await import('./price-list-service.js');
+    const priceListService = new PriceListService(
+      this.emFactory,
+      undefined,
+      undefined,
+      undefined,
+      this.targetReads,
+    );
+    const displayModes = await priceListService.resolveDisplayModes({
+      productIds,
+      organizationId: orgId,
+      salesChannelId: salesChannel.id,
+      customerKind: organization ? 'signed_in' : 'guest',
+      categoryIdsByProduct,
+    });
+
+    for (const product of pending) {
+      const base = baseResults.get(product.id) ?? { list: null, bracket: null };
+      const sale = saleResults.get(product.id) ?? { list: null, bracket: null };
+      const engine: PricingEngineResult = {
+        base: {
+          listId: base.list?.id ?? '',
+          listName: base.list?.name ?? '',
+          bracket: base.bracket,
         },
-      });
-      out.set(product.id, listingPriceFrom(line, product, currencyCode));
+        sale:
+          sale.list && sale.bracket
+            ? { listId: sale.list.id, listName: sale.list.name, bracket: sale.bracket }
+            : null,
+        displayMode: displayModes.get(product.id) ?? 'gross_only',
+        currencyCode,
+      };
+      this.cache?.set(cacheKeyFor(product.id), engine);
+      out.set(product.id, listingPriceFrom(lineFromEngine(engine), product, currencyCode));
     }
     return out;
   }
@@ -381,6 +538,115 @@ export class PricingService implements PricingServiceContract {
    * list+bracket pair, or {list: null, bracket: null} if every match
    * has no usable bracket.
    */
+  /**
+   * `(product_id, category_id)` memberships for a set of products, every
+   * requested product present — an uncategorised one answers an empty set
+   * rather than a missing key, which is what `resolveEngine`'s single-product
+   * read means by "no rows".
+   */
+  private async loadCategoryMemberships(
+    em: EntityManager,
+    productIds: readonly string[],
+  ): Promise<Map<string, Set<string>>> {
+    const out = new Map<string, Set<string>>();
+    for (const id of productIds) out.set(id, new Set<string>());
+    if (productIds.length === 0) return out;
+    const placeholders = productIds.map(() => '?').join(',');
+    const rows = await em.execute<Array<{ product_id: string; category_id: string }>>(
+      `select product_id, category_id from product_categories where product_id in (${placeholders})`,
+      [...productIds],
+    );
+    for (const row of rows) out.get(row.product_id)?.add(row.category_id);
+    return out;
+  }
+
+  /**
+   * `pickAndResolveBracket` for a whole page, in **priority waves**.
+   *
+   * Each wave picks the top-priority remaining list per product — the same
+   * `pickPriorityChain` call the single-product walk makes — and reads the
+   * brackets for that wave's (list, product) pairs in one query. A product
+   * whose picked list has no usable bracket drops that list and enters the next
+   * wave, exactly as FR-031's fall-through does; a product with no candidate
+   * left answers `{ list: null, bracket: null }`, exactly as the single walk's
+   * exhausted `remaining` does.
+   *
+   * The number of queries is therefore the number of fall-through levels the
+   * page actually needs — one, normally — instead of one per product, and the
+   * rows fetched are the ones the per-product walk would have fetched rather
+   * than every matched list's brackets.
+   */
+  private async pickAndResolveBracketsForSet(
+    em: EntityManager,
+    matchesByProduct: ReadonlyMap<string, MatchedList[]>,
+    currencyCode: string,
+    quantity: number,
+  ): Promise<Map<string, { list: PriceList | null; bracket: PriceBracketRow | null }>> {
+    const out = new Map<string, { list: PriceList | null; bracket: PriceBracketRow | null }>();
+    const remaining = new Map<string, MatchedList[]>();
+    for (const [productId, matches] of matchesByProduct) {
+      if (matches.length === 0) out.set(productId, { list: null, bracket: null });
+      else remaining.set(productId, [...matches]);
+    }
+
+    while (remaining.size > 0) {
+      const picks = new Map<string, PriceList>();
+      for (const [productId, matches] of [...remaining]) {
+        const picked = pickPriorityChain(matches.map((m) => m.candidate));
+        if (!picked) {
+          out.set(productId, { list: null, bracket: null });
+          remaining.delete(productId);
+          continue;
+        }
+        picks.set(productId, picked.list);
+      }
+      if (picks.size === 0) break;
+
+      const listIds = [...new Set([...picks.values()].map((list) => list.id))];
+      const brackets = await em.find(PriceListPriceBracket, {
+        priceListId: { $in: listIds },
+        productId: { $in: [...picks.keys()] },
+      });
+      const rowsByPair = new Map<string, PriceBracketRow[]>();
+      for (const b of brackets) {
+        const key = `${b.priceListId}|${b.productId}`;
+        const rows = rowsByPair.get(key);
+        const row: PriceBracketRow = {
+          priceListId: b.priceListId,
+          productId: b.productId,
+          currencyCode: b.currencyCode,
+          minQuantity: b.minQuantity,
+          maxQuantity: b.maxQuantity ?? null,
+          amount: b.amount,
+        };
+        if (rows) rows.push(row);
+        else rowsByPair.set(key, [row]);
+      }
+
+      for (const [productId, list] of picks) {
+        const bracket = resolvePriceBracket(
+          rowsByPair.get(`${list.id}|${productId}`) ?? [],
+          currencyCode,
+          quantity,
+        );
+        if (bracket) {
+          out.set(productId, { list, bracket });
+          remaining.delete(productId);
+          continue;
+        }
+        const matches = remaining.get(productId);
+        if (!matches) continue;
+        const idx = matches.findIndex((m) => m.list.id === list.id);
+        if (idx >= 0) matches.splice(idx, 1);
+        if (matches.length === 0) {
+          out.set(productId, { list: null, bracket: null });
+          remaining.delete(productId);
+        }
+      }
+    }
+    return out;
+  }
+
   private async pickAndResolveBracket(
     em: EntityManager,
     matches: Array<{ list: PriceList; candidate: PriceListCandidate<PriceList> }>,
