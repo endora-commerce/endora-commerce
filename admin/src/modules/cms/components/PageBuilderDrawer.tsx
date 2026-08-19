@@ -3,16 +3,17 @@
 import { useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { normalize } from '@/lib/text-normalization';
 
-function normalize(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim();
-}
-
-/** Puck `overrides.drawer` — search box above the component list. */
+/**
+ * Puck `overrides.drawer` — search box above the component list.
+ *
+ * The fold is `lib/text-normalization.ts`, **imported, never re-implemented**.
+ * This file used to carry its own NFD-only copy, which cannot touch `ł` — so
+ * `naglowek` found nothing while `Nagłówek`, the shipped Polish label for the
+ * Heading block, sat in the list unmatched (issue #236). Both sides are folded:
+ * folding only the haystack breaks the operator who does type the diacritics.
+ */
 export function PageBuilderDrawer({
   children,
   searchPlaceholder,

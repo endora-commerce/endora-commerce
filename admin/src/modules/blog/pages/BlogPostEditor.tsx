@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
-import { normalize } from '@/lib/admin-actions/normalize';
+import { normalize } from '@/lib/text-normalization';
 import { ContentLanguageTabs } from '../../cms/components/ContentLanguageTabs';
 import { PageBuilderEditor } from '../../cms/components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../../cms/components/ScopePicker';

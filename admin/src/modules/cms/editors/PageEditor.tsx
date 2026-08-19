@@ -12,7 +12,7 @@ import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useTranslation } from '@/i18n/useTranslation';
-import { normalize } from '@/lib/admin-actions/normalize';
+import { normalize } from '@/lib/text-normalization';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { CmsContentEditorLayout } from '../components/CmsContentEditorLayout';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';

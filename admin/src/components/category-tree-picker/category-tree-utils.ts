@@ -1,4 +1,4 @@
-import { normalize } from '@/lib/admin-actions/normalize';
+import { normalize } from '@/lib/text-normalization';
 
 export interface CategoryTreePickerCategory {
   id: string;
@@ -74,7 +74,7 @@ export function filterCategoryTree(
   query: string,
   locale: string,
 ): CategoryTreeNode[] {
-  const q = normalize(query.trim());
+  const q = normalize(query);
   if (!q) return nodes;
 
   function filterList(list: CategoryTreeNode[]): CategoryTreeNode[] {

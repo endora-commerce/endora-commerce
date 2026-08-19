@@ -10,7 +10,7 @@ import { AdminActionsProvider } from '../../src/lib/admin-actions/AdminActionsPr
  * Issue #233 item 3 — the palette's two indexes matched differently.
  *
  * The ⌘K dialog merges three groups. The server-fed Actions group has always
- * filtered through `lib/admin-actions/normalize.ts`, which folds diacritics and
+ * filtered through `lib/text-normalization.ts`, which folds diacritics and
  * the stroked letters NFD leaves alone; the static Navigate group and the
  * pinned Assistant row filtered with a bare `toLowerCase().includes()`. So
  * `zamowienia` — how a Polish operator types it on a hurry, or on a keyboard
@@ -210,6 +210,22 @@ describe('AppShell palette — one matching rule for every group (issue #233)', 
     // `zrobić` lives in the assistant's Polish description.
     const rows = await paletteRowsFor('zrobic');
     expect(rows.some((text) => text.includes('Zapytaj asystenta'))).toBe(true);
+  });
+
+  it('ignores whitespace around the query, in every group', async () => {
+    // Issue #236 item 3. The query was folded but never trimmed, so one
+    // leading space — a stray keystroke, or the space left behind by pasting
+    // a copied label — emptied the palette with no explanation, on the one
+    // surface whose entire job is to be forgiving (Postel's Law).
+    const rows = await paletteRowsFor(' zamowienia ');
+    expect(rows.some((text) => text.includes('Otwórz zamówienia'))).toBe(true);
+    expect(rows.some((text) => text.includes('Zamówienia'))).toBe(true);
+  });
+
+  it('lists every row for a whitespace-only query, as it does for an empty one', async () => {
+    const rows = await paletteRowsFor('   ');
+    expect(rows.some((text) => text.includes('Otwórz zamówienia'))).toBe(true);
+    expect(rows.some((text) => text.includes('Zamówienia'))).toBe(true);
   });
 
   it('still filters — an unrelated query matches no row in any group', async () => {

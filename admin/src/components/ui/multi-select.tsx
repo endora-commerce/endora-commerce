@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
+import { normalize } from '@/lib/text-normalization';
 
 export interface MultiSelectOption {
   value: string;
@@ -24,14 +25,6 @@ export interface MultiSelectProps {
   searchable?: boolean;
   /** Placeholder for the search box when `searchable`. */
   searchPlaceholder?: string;
-}
-
-/** NFD-normalise, strip combining marks, case-fold — mirrors the combobox. */
-function normalize(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase();
 }
 
 /**
@@ -76,9 +69,10 @@ export function MultiSelect({
     if (!open) setQuery('');
   }, [open]);
 
+  const needle = normalize(query);
   const visibleOptions =
-    searchable && query.trim() !== ''
-      ? options.filter((o) => normalize(o.label).includes(normalize(query)))
+    searchable && needle !== ''
+      ? options.filter((o) => normalize(o.label).includes(needle))
       : options;
 
   const selectedSet = new Set(selected);
