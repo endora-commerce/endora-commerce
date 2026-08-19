@@ -222,6 +222,15 @@
         }
       }
     },
+    "/api/v1/admin/admin-users/{id}/password": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/analytics/summary": {
       "get": {
         "responses": {
