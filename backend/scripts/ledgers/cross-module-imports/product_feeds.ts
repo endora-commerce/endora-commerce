@@ -14,7 +14,9 @@
  * is a boundary the repository has decided to keep, and it needs a reason that
  * says so.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   'modules/product_feeds/services/feed-generation.service.ts:sql:catalog/gallery_items':
     'D-87 seed — `product_feeds` reads `catalog`\'s `gallery_items` table in raw SQL. The ' +
     'statement names no import specifier, so the boundary it crosses compiles and returns ' +

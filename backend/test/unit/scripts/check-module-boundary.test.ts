@@ -1,12 +1,14 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   analyzeSource,
+  CANONICAL_SHARD_ENTRY_TYPE,
   checkModuleBoundary,
   collectModuleFiles,
   collectSchemaFiles,
+  declaredEntryType,
   findCrossModuleSql,
   generatedExemptionIssues,
   isPermanent,
@@ -14,6 +16,7 @@ import {
   ledgerDirectory,
   loadLedgerShards,
   permanentEntryIssue,
+  shardShapeIssue,
   sourcesOf,
   vacuousReason,
   type LedgerEntry,
@@ -644,6 +647,9 @@ describe('the table→owner map — two sources, and the entity wins', () => {
   });
 });
 
+// Six of the seven. The seventh — a shard declaring an entry type of its own
+// (issue #217) — needs a file rather than a record, so it has its own block at
+// the end of this file.
 describe('checkModuleBoundary — the six ways the ledger fails', () => {
   const CROSS = "import { Product } from '../../catalog/entities/product.entity.js';";
   const key = `${ORDER_SERVICE}:${PRODUCT}`;
@@ -882,6 +888,8 @@ describe('the tree itself', () => {
     expect(result.emptyShards).toEqual([]);
     expect(result.orphanShards).toEqual([]);
     expect(result.misfiledEntries).toEqual([]);
+    expect(result.permanentIssues).toEqual([]);
+    expect(result.shardShapeIssues).toEqual([]);
   });
 
   it('scans the same files the CLI scans, and the walk is the shared one', () => {
@@ -949,5 +957,155 @@ describe('the ledger shards on disk', () => {
     for (const name of readdirSync(ledgerDirectory())) {
       expect(readFileSync(join(ledgerDirectory(), name), 'utf8')).toContain('export const entries');
     }
+  });
+});
+
+/**
+ * The shape a shard declares (issue #217).
+ *
+ * `payments` was typed `Readonly<Record<string, string>>`, and so were 28 other
+ * shards — only the four that had already had to hold a permanent entry declared
+ * `Readonly<Record<string, LedgerEntry>>`, so there was no majority to learn the
+ * shape from. Both consequences were silent: a permanent entry could not be
+ * *written* in such a file, so the one edge `payments_order_fk` holds
+ * co-transactional claimed permanence in prose and counted toward `ledger-size`
+ * as debt nothing would drain, and `permanentEntryIssue` — the rule that refuses
+ * a permanence claim naming no retiring condition — had no field to run on.
+ *
+ * So the proofs below enter where the shard does, through `loadLedgerShards`
+ * over files written to disk: a shard handed in as a record is already past the
+ * only place the declared type exists.
+ */
+describe('a shard declares one entry type, and its permanence rule runs over it', () => {
+  const PAYMENTS_SEAM =
+    'modules/payments/services/receive-payment-handler.ts:orders/entities/order.entity';
+  const ORDERS_SEAM = 'modules/orders/services/order-service.ts:catalog/entities/product.entity';
+
+  /** One crossing file, plus the module markers that make its owner exist. */
+  const sources = (crossing: 'payments' | 'orders'): Map<string, string> =>
+    new Map([
+      ['modules/orders/backend.ts', 'export function registerModule(ctx) {}'],
+      ['modules/catalog/backend.ts', 'export function registerModule(ctx) {}'],
+      ['modules/payments/backend.ts', 'export function registerModule(ctx) {}'],
+      crossing === 'payments'
+        ? ([
+            'modules/payments/services/receive-payment-handler.ts',
+            "import { Order } from '../../orders/entities/order.entity.js';",
+          ] as [string, string])
+        : ([
+            'modules/orders/services/order-service.ts',
+            "import { Product } from '../../catalog/entities/product.entity.js';",
+          ] as [string, string]),
+    ]);
+
+  /**
+   * Writes real shard files and loads them through the check's own loader.
+   *
+   * The directory sits inside the test tree so a shard's `import type` resolves
+   * the way every shard in `scripts/ledgers/` does — the fixture is a shard, not
+   * a file shaped like one.
+   */
+  async function loadWritten(files: Record<string, string>): Promise<LedgerShard[]> {
+    const here = fileURLToPath(new URL('.', import.meta.url));
+    const directory = mkdtempSync(join(here, 'ledger-shard-fixture-'));
+    try {
+      for (const [name, body] of Object.entries(files)) {
+        writeFileSync(join(directory, `${name}.ts`), body);
+      }
+      return await loadLedgerShards(directory);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+
+  const CANONICAL_SHARD = [
+    "import type { LedgerEntry } from '../../../../scripts/check-module-boundary.js';",
+    '',
+    'export const entries: Readonly<Record<string, LedgerEntry>> = {',
+    `  '${PAYMENTS_SEAM}': {`,
+    '    permanent: true,',
+    "    reason: '`payments_order_fk`, `on delete restrict`: the payment row and the order " +
+      "status move in one transaction.',",
+    "    retiredBy: '',",
+    '  },',
+    '};',
+    '',
+  ].join('\n');
+
+  // The defect's own shape: the file `payments` shipped, with the seam its
+  // string type forced into a sentence.
+  const STRING_TYPED_SHARD = [
+    'export const entries: Readonly<Record<string, string>> = {',
+    `  '${PAYMENTS_SEAM}':`,
+    "    'PERMANENT. `payments_order_fk` makes this co-transactional, so no cut retires it.',",
+    '};',
+    '',
+  ].join('\n');
+
+  it('runs the permanence rule over a shard loaded from disk', async () => {
+    // The half that was unreachable while the file was string-typed: the entry
+    // claims permanence, names no retiring condition, and is refused.
+    const shards = await loadWritten({ payments: CANONICAL_SHARD });
+    const result = checkModuleBoundary({ sources: sources('payments') }, shards);
+    expect(result.shardShapeIssues).toEqual([]);
+    expect(result.permanentKeys).toEqual([PAYMENTS_SEAM]);
+    expect(result.permanentIssues).toEqual([
+      `${PAYMENTS_SEAM} is permanent but names no retiring condition`,
+    ]);
+  });
+
+  it('fails a shard typed `Readonly<Record<string, string>>`, as `payments` was', async () => {
+    const shards = await loadWritten({ payments: STRING_TYPED_SHARD });
+    const result = checkModuleBoundary({ sources: sources('payments') }, shards);
+    expect(result.shardShapeIssues).toHaveLength(1);
+    expect(result.shardShapeIssues[0]).toContain(
+      'payments declares `Readonly<Record<string, string>>`',
+    );
+    // And what that typing cost, in the same run: the seam is ledgered as
+    // ordinary debt, so it counts toward `ledger-size` and the permanence rule
+    // never sees it — a claim spelled in prose is a reason like any other.
+    expect(result.violations).toEqual([]);
+    expect(result.permanentKeys).toEqual([]);
+    expect(result.permanentIssues).toEqual([]);
+  });
+
+  it('fails a shard that declares no entry type at all', async () => {
+    const shards = await loadWritten({
+      orders: ['export const entries = {', `  '${ORDERS_SEAM}': 'F3 Phase C — orders.',`, '};', ''].join(
+        '\n',
+      ),
+    });
+    const result = checkModuleBoundary({ sources: sources('orders') }, shards);
+    expect(result.shardShapeIssues).toHaveLength(1);
+    expect(result.shardShapeIssues[0]).toContain('orders declares no entry type');
+  });
+
+  it('accepts the declaration however it is wrapped', () => {
+    // Prettier breaks a long declaration across lines, so the comparison is on
+    // normalised whitespace rather than on one spelling of it.
+    expect(
+      declaredEntryType('export const entries:\n  Readonly<Record<string, LedgerEntry>> = {};'),
+    ).toBe(CANONICAL_SHARD_ENTRY_TYPE);
+    expect(declaredEntryType('export const entries = {};')).toBeNull();
+    expect(declaredEntryType('export const entries: Record<string, string> = {};')).toBe(
+      'Record<string, string>',
+    );
+  });
+
+  it('says nothing about a shard built in memory — it has no file to declare a type in', () => {
+    // Every other fixture in this file hands in a record, and none of them is a
+    // file that got its declaration wrong.
+    expect(shardShapeIssue('orders', undefined)).toBeNull();
+  });
+
+  it('holds over the shards on disk, and every one of them carries its source', async () => {
+    const shards = await loadLedgerShards(ledgerDirectory());
+    expect(shards.length).toBeGreaterThan(0);
+    expect(shards.filter((loaded) => (loaded.source ?? '') === '')).toEqual([]);
+    expect(
+      shards
+        .map((loaded) => shardShapeIssue(loaded.moduleId, loaded.source))
+        .filter((issue) => issue !== null),
+    ).toEqual([]);
   });
 });

@@ -14,7 +14,9 @@
  * is a boundary the repository has decided to keep, and it needs a reason that
  * says so.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   // The `quote_requests` cut retired nineteen of the twenty. This one is not a
   // read of another module's data and no port can express it: it is a **route
   // file** — `organizations/routes.sales-reps.ts`, which `organizations` owns

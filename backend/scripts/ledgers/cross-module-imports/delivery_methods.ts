@@ -14,7 +14,9 @@
  * It is not a new coupling — it is a coupling the check could not see, because raw SQL
  * names no import specifier. It says which port retires it.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   'modules/delivery_methods/commands/delivery-method.commands.ts:sql:shipments/shipments':
     'D-87 seed — `delivery_methods` reads `shipments`\'s `shipments` table in raw SQL. The ' +
     'statement names no import specifier, so the boundary it crosses compiles and returns ' +

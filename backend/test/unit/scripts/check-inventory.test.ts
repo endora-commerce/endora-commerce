@@ -2290,6 +2290,21 @@ const CHECKS: readonly CheckEntry[] = [
             },
           ]).permanentIssues.length,
       ),
+      // Issue #217's own shape, and the one that makes the two proofs above
+      // reachable at all: a shard typed `Readonly<Record<string, string>>`
+      // cannot *hold* a permanent entry, so the rule they prove never runs over
+      // it. The fixture is the shard's source text, because the declared type
+      // exists nowhere else — the imported value has already lost it.
+      'shard-declaring-its-own-entry-type-fails': top(
+        () =>
+          checkModuleBoundary({ sources: moduleBoundaryTree(ORDERS_READS_A_PRODUCT) }, [
+            {
+              moduleId: 'orders',
+              entries: { [CROSS_MODULE_KEY]: 'not yet cut' },
+              source: "export const entries: Readonly<Record<string, string>> = {};",
+            },
+          ]).shardShapeIssues.length,
+      ),
 
       // --- the `sql` predicate (D-87) --------------------------------------
       //
@@ -3901,8 +3916,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // cannot go red on its own. Plus issue #187's six for the builder path,
       // every one of them asserting `syntax: 'builder'`, because a proof that
       // only named the table would go green off the statement path it is not
-      // testing.
-      'backend/scripts/check-module-boundary.ts': 31,
+      // testing. Plus issue #217's one: a shard that declares its own entry
+      // type, which is what kept the three permanence shapes above from ever
+      // running over 29 of the 33 shards.
+      'backend/scripts/check-module-boundary.ts': 32,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations.

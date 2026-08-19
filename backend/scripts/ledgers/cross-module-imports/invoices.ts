@@ -18,7 +18,9 @@
  * `orderReadPort`, and two type-only imports to the contracts their owners
  * publish. Neither entry below is a read this module could have moved.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   'modules/invoices/entities/invoice.entity.ts:orders/entities/order.entity':
     'F3 Phase C — invoices. Not retired by the invoices cut merge request: this is the ' +
     '`@TransitivelyScoped(() => Order, "orderId")` argument, a tenancy classification ' +

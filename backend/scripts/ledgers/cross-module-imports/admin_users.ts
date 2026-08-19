@@ -14,7 +14,9 @@
  * is a boundary the repository has decided to keep, and it needs a reason that
  * says so.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   // The `admin_users` cut merge request retired the other twenty-one. This one
   // is left standing deliberately, and it is the shape `_i18n`'s shard already
   // escalated — that note names this very file, and says the question is worth

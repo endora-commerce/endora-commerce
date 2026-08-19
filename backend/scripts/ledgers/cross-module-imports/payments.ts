@@ -22,6 +22,12 @@
  * `{ permanent: true, reason, retiredBy }` shape `catalog`, `orders` and
  * `shipments` carry, so the classification is structural rather than a word in
  * a sentence.
+ *
+ * The typing itself is no longer a convention either. `payments` was one of 29
+ * shards declaring `Readonly<Record<string, string>>` against four declaring the
+ * entry type, so "the other files do it this way" was not even true here; the
+ * check now reads the declaration out of each shard's own source and refuses one
+ * that types its entries differently.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
@@ -30,7 +36,9 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     permanent: true,
     reason:
       'PERMANENT (D-78 point 2). `payments.order_id` carries a declared foreign key into ' +
-      '`orders.id` — `payments_order_fk`, `on delete restrict` — and a gateway callback moves ' +
+      '`orders.id` — `payments_order_fk`, `on delete restrict`, added by ' +
+      '`db/migrations/20260425T050720_core_commerce_init.ts:173`, in the frozen historical ' +
+      'prefix — and a gateway callback moves ' +
       'the payment row and the order’s `status` / `paymentStatus` inside one `em.transactional`, ' +
       'so either both land or neither does. `emFactory` forks per call, so a read port executes ' +
       'on the owner’s EntityManager, in a different transaction; routing this write through one ' +

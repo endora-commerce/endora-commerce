@@ -14,7 +14,9 @@
  * landed. They are not new couplings — they are couplings the check could not see, because
  * raw SQL names no import specifier. Each says which port retires it.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   'modules/google_analytics/services/cookie-consent-block-seeder.ts:sql:cms/cms_block_sales_channels':
     'D-87 seed — `google_analytics` writes `cms`\'s `cms_block_sales_channels` table in ' +
     'raw SQL. The statement names no import specifier, so the boundary it crosses ' +

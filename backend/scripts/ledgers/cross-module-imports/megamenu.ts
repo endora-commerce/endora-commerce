@@ -14,7 +14,9 @@
  * It is not a new coupling — it is a coupling the check could not see, because raw SQL
  * names no import specifier. It says which port retires it.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   'modules/megamenu/services/megamenu-service.ts:sql:kernel/sales_channels':
     'D-87 seed — `megamenu` reads the kernel\'s `sales_channels` table in raw SQL, so the ' +
     'read is invisible to the import predicate and to the request-channel resolver alike. ' +
