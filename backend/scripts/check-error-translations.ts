@@ -1,6 +1,28 @@
 /**
  * Every error code an operator can see has a sentence, in both shipped
- * languages.
+ * languages — and every sentence written anywhere is one an operator can reach.
+ *
+ * Two predicates over one population, and they are two halves of a bijection
+ * (feature 082, D-127):
+ *
+ *   **P1** every routed key exists. For each code in `ERROR_TRANSLATION_KEYS`,
+ *          the bundle it routes to has `errors.<CODE>` in `en` and `pl`.
+ *          Ledgered by `UNTRANSLATED_ERROR_CODES`, two-way, may only shrink.
+ *   **P2** every written key is a routed key. For each `errors.*` key in any
+ *          module bundle, the module holding it is the module the routing table
+ *          points at. Three kinds — `unreachable`, `duplicate`, `no-code` — and
+ *          **no ledger**, deliberately: every repair is a JSON line moved or
+ *          deleted plus at most one routing line, so there is nothing to
+ *          schedule. Four candidate exceptions were tested and refuted
+ *          (`specs/082-error-code-ownership/rulings.md` § 7). If a fifth is
+ *          found, record it there and add the ledger then — do not ship an
+ *          empty one.
+ *
+ * P1 alone cannot see a sentence written in a bundle the table does not name,
+ * and that is where issue #229's five defects lived: `carts` had finished
+ * wording for two codes routed to `core`, and three more codes were shadowed by
+ * a machine-shaped placeholder in the bundle routing did reach — in Polish,
+ * `Błąd: order not found.` standing over `Nie znaleziono zamówienia.`
  *
  * The envelope's `preSerialization` hook replaces an error's message wholesale
  * with the bundle string for `errors.<CODE>`, resolved in the module
@@ -21,7 +43,7 @@
  * problem that no longer exists. It is meant to shrink. Do not add to it to make
  * a build pass — add the sentence.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ERROR_TRANSLATION_KEYS } from '../src/modules/_i18n/services/error-translation.js';
@@ -43,9 +65,13 @@ const CORE_BUNDLE_MODULE = '_i18n';
  *
  * They are listed rather than swept because writing a sentence in two languages
  * is content work with a house voice, not a mechanical edit, and a batch of
- * machine-shaped strings is what produced the 181 Polish placeholders already in
+ * machine-shaped strings is what produced the 169 Polish placeholders already in
  * the tree (`Błąd: <the english code, lowercased>`). Those satisfy a checker and
  * help nobody, which is the outcome this ledger exists to avoid repeating.
+ * (The number this sentence carried, 181, was taken on a tree older than the one
+ * it shipped against and was three high; 169 is measured here. The count is kept
+ * rather than dropped because the placeholder story is the reason this ledger
+ * exists at all.)
  *
  * **Read the `core` block as "unrouted", not "owned by the kernel."** Sixty-one
  * of these reach `core` by falling off the end of `moduleIdForErrorCode`, which
@@ -59,15 +85,18 @@ const CORE_BUNDLE_MODULE = '_i18n';
  * added the routing rule, #223 the nine sentences in `mfa`'s own bundle. In
  * between, the family was routed correctly and still untranslated, and this
  * ledger read exactly as it had before — which is the thing to notice. Nothing
- * here distinguishes "no sentence written yet" from "no sentence could ever have
- * been found", so a code listed under `core` says nothing about whether its
- * bundle is reachable at all.
+ * *in this list* distinguishes "no sentence written yet" from "no sentence could
+ * ever have been found", so a code listed under `core` says nothing about
+ * whether its bundle is reachable at all.
  *
- * Two entries below are already the second kind, measured while draining
- * `MFA_*`: `CART_COUPON_REJECTED` and `CART_LINE_CAP_EXCEEDED` have finished
- * sentences in both languages in `carts`' own bundle, and route to `core`, which
- * has neither — so "untranslated" is the wrong word for them, and moving them
- * out of this list means a routing decision rather than a piece of writing.
+ * **P2 is what distinguishes them now**, and it is not a ledger. Two entries
+ * that stood here until issue #231 were the second kind — `CART_COUPON_REJECTED`
+ * and `CART_LINE_CAP_EXCEEDED` had finished sentences in both languages in
+ * `carts`' own bundle while routing pointed at `core`, which had neither, so
+ * "untranslated" was the wrong word for them and the repair was a routing
+ * decision rather than a piece of writing. That shape is now a hard
+ * `unreachable` finding with no ledger to absorb it, so it cannot be filed here
+ * again by mistake. An entry below is a code with **no sentence anywhere**.
  *
  * Grouped as measured, so a module can drain its own block.
  */
@@ -121,8 +150,37 @@ export interface ErrorTranslationTarget {
  */
 export interface TranslationInput {
   readonly keys: Readonly<Record<string, ErrorTranslationTarget>>;
-  /** The bundle for `moduleId` in `language`, as a flat key → value map. */
+  /** P1: the bundle for `moduleId` in `language`, as a flat key → value map. */
   readonly readBundle: (moduleId: string, language: string) => Record<string, unknown>;
+  /**
+   * P2: every `errors.*` key written anywhere, with the bundle that holds it.
+   *
+   * A separate member because `readBundle(moduleId, language)` can only read the
+   * bundle the routing table names, and P2's whole question is about the bundles
+   * it does not name. `moduleId` here is the **directory** — `_i18n`, never
+   * `core`; the rename is applied to the table's answer, which is the only place
+   * it means anything.
+   */
+  readonly listBundleKeys: () => Iterable<BundleKey>;
+}
+
+/** One `errors.*` key as it is written on disk. */
+export interface BundleKey {
+  readonly moduleId: string;
+  readonly language: string;
+  readonly key: string;
+}
+
+/** Why a written sentence is not the sentence anything reads. */
+export type SentenceFindingKind = 'unreachable' | 'duplicate' | 'no-code';
+
+export interface SentenceFinding extends BundleKey {
+  /** The base code, with any `.<token>` suffix resolved away. */
+  readonly code: string;
+  readonly kind: SentenceFindingKind;
+  /** The directory the routing table points at, or `null` for `no-code`. */
+  readonly routedModuleId: string | null;
+  readonly repair: string;
 }
 
 function bundlePath(moduleId: string, language: string): string {
@@ -156,9 +214,41 @@ export function diskBundleReader(): TranslationInput['readBundle'] {
   };
 }
 
-export function findUntranslatedErrorCodes(
-  input: TranslationInput = { keys: ERROR_TRANSLATION_KEYS, readBundle: diskBundleReader() },
-): Finding[] {
+/**
+ * Every `errors.*` key written in a module bundle — every `i18n/en.json` and
+ * `i18n/pl.json` under `src/modules/` — and the
+ * default {@link TranslationInput.listBundleKeys}.
+ *
+ * Overlay bundles under `src/apps/**` are outside the population: zero exist
+ * today, and if one ever ships a bundle the extension is one path and the
+ * findings are the same findings.
+ */
+export function diskBundleKeyWalker(): TranslationInput['listBundleKeys'] {
+  return function* walk(): Generator<BundleKey> {
+    const directories = readdirSync(modulesRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+    for (const moduleId of directories) {
+      for (const language of LANGUAGES) {
+        const bundle = loadBundle(join(modulesRoot, moduleId, 'i18n', `${language}.json`));
+        for (const key of Object.keys(bundle)) {
+          if (key.startsWith('errors.')) yield { moduleId, language, key };
+        }
+      }
+    }
+  };
+}
+
+function defaultInput(): TranslationInput {
+  return {
+    keys: ERROR_TRANSLATION_KEYS,
+    readBundle: diskBundleReader(),
+    listBundleKeys: diskBundleKeyWalker(),
+  };
+}
+
+export function findUntranslatedErrorCodes(input: TranslationInput = defaultInput()): Finding[] {
   const read = input.readBundle;
 
   const findings: Finding[] = [];
@@ -171,47 +261,177 @@ export function findUntranslatedErrorCodes(
   return findings.sort((a, b) => a.code.localeCompare(b.code));
 }
 
-function main(): void {
-  const findings = findUntranslatedErrorCodes();
-  const unledgered = findings.filter((f) => !UNTRANSLATED_ERROR_CODES.has(f.code));
-  const found = new Set(findings.map((f) => f.code));
-  const stale = [...UNTRANSLATED_ERROR_CODES].filter((code) => !found.has(code)).sort();
+/**
+ * The key grammar, in full: `errors.<CODE>` and `errors.<CODE>.<token>`.
+ *
+ * The token shape is issue #65's refusal discriminator — the envelope reads
+ * `details.code`, looks up `errors.<CODE>.<token>` and falls back to
+ * `errors.<CODE>` — so a token key is attributed to its **base** code. Getting
+ * that wrong would report fourteen live sentences in `invoices` and `carts` as
+ * naming no code, and the repair a `no-code` finding invites is deletion.
+ */
+const ERROR_KEY = /^errors\.([A-Z][A-Z0-9_]*)(?:\.([a-z][a-z0-9_]*))?$/;
 
-  const total = Object.keys(ERROR_TRANSLATION_KEYS).length;
+/**
+ * P2 — every written key is a routed key.
+ *
+ * The comparison is between **directories**: the walk yields `_i18n`, and the
+ * routing table's `core` is mapped onto it here rather than in the walk, because
+ * `core` is a routing answer and never a place on disk.
+ */
+export function findUnreachableSentences(
+  input: TranslationInput = defaultInput(),
+): SentenceFinding[] {
+  const findings: SentenceFinding[] = [];
+  for (const written of input.listBundleKeys()) {
+    const match = ERROR_KEY.exec(written.key);
+    if (!match) continue;
+    const code = match[1] as string;
+    const target = input.keys[code];
+    if (!target) {
+      findings.push({
+        ...written,
+        code,
+        kind: 'no-code',
+        routedModuleId: null,
+        repair: `"${code}" is not in ERROR_CODES — delete the key, or re-file it as errors.<CODE>.<token>`,
+      });
+      continue;
+    }
+    const routedModuleId = target.moduleId === 'core' ? CORE_BUNDLE_MODULE : target.moduleId;
+    if (routedModuleId === written.moduleId) continue;
+
+    const routedHasIt =
+      typeof input.readBundle(target.moduleId, written.language)[written.key] === 'string';
+    findings.push({
+      ...written,
+      code,
+      kind: routedHasIt ? 'duplicate' : 'unreachable',
+      routedModuleId,
+      repair: routedHasIt
+        ? `${routedModuleId} holds this key too and is the bundle that is read — delete this copy`
+        : `nothing reads this sentence — move it to ${routedModuleId}, or route ${code} here`,
+    });
+  }
+  return findings.sort(
+    (a, b) =>
+      a.moduleId.localeCompare(b.moduleId) ||
+      a.key.localeCompare(b.key) ||
+      a.language.localeCompare(b.language),
+  );
+}
+
+export interface AnalysisResult {
+  /** P1 findings, ledgered and not. */
+  readonly findings: readonly Finding[];
+  readonly unledgered: readonly Finding[];
+  readonly stale: readonly string[];
+  /** P2 findings — no ledger, so every one of these fails the build. */
+  readonly sentences: readonly SentenceFinding[];
+  /** What the bundle walk actually read, so a vacuous pass has a name. */
+  readonly keysWalked: readonly BundleKey[];
+  readonly exitCode: 0 | 1 | 2;
+  readonly summary: string;
+}
+
+/**
+ * Both predicates, the ledger arithmetic and the exit code — one function, so
+ * the companion test can drive the whole decision from an injected tree instead
+ * of re-deriving half of it (issue #130).
+ */
+export function analyseErrorTranslations(
+  input: TranslationInput = defaultInput(),
+  ledger: ReadonlySet<string> = UNTRANSLATED_ERROR_CODES,
+): AnalysisResult {
+  const findings = findUntranslatedErrorCodes(input);
+  const unledgered = findings.filter((f) => !ledger.has(f.code));
+  const found = new Set(findings.map((f) => f.code));
+  const stale = [...ledger].filter((code) => !found.has(code)).sort();
+  const keysWalked = [...input.listBundleKeys()];
+  const sentences = findUnreachableSentences(input);
+  const total = Object.keys(input.keys).length;
+
+  // Two vacuity guards, independent on purpose (§ 3.3). The routing table is a
+  // static import and the bundles are a filesystem walk, so either can come
+  // back empty while the other is full; a single guard over one of them lets
+  // the other report a clean tree while looking at nothing (issue #113).
   if (total === 0) {
-    // The routing table is the whole input. An empty one reports every code
-    // translated, which is the same green as every code having a sentence.
-    console.error(
-      '[error-translations] ERROR_TRANSLATION_KEYS routes no code — ' +
+    return {
+      findings, unledgered, stale, sentences, keysWalked, exitCode: 2,
+      summary:
+        '[error-translations] ERROR_TRANSLATION_KEYS routes no code — ' +
         'refusing to report a vacuous pass',
-    );
+    };
+  }
+  if (keysWalked.length === 0) {
+    return {
+      findings, unledgered, stale, sentences, keysWalked, exitCode: 2,
+      summary:
+        '[error-translations] the bundle walk read no errors.* key — ' +
+        'refusing to report a vacuous pass',
+    };
+  }
+
+  const byKind = (kind: SentenceFindingKind): number =>
+    sentences.filter((f) => f.kind === kind).length;
+  return {
+    findings,
+    unledgered,
+    stale,
+    sentences,
+    keysWalked,
+    exitCode: unledgered.length > 0 || stale.length > 0 || sentences.length > 0 ? 1 : 0,
+    summary:
+      `[error-translations] codes=${total} translated=${total - findings.length} ` +
+      `violations=${unledgered.length} ledgered=${findings.length - unledgered.length} ` +
+      `ledger-size=${ledger.size} stale=${stale.length} ` +
+      `written=${keysWalked.length} unreachable=${byKind('unreachable')} ` +
+      `duplicate=${byKind('duplicate')} noCode=${byKind('no-code')}`,
+  };
+}
+
+function main(): void {
+  const result = analyseErrorTranslations();
+  if (result.exitCode === 2) {
+    console.error(result.summary);
     process.exit(2);
   }
-  console.log(
-    `[error-translations] codes=${total} translated=${total - findings.length} ` +
-      `violations=${unledgered.length} ledgered=${findings.length - unledgered.length} ` +
-      `ledger-size=${UNTRANSLATED_ERROR_CODES.size} stale=${stale.length}`,
-  );
+  console.log(result.summary);
 
-  if (unledgered.length > 0) {
+  if (result.unledgered.length > 0) {
     console.error(
       '\nThese error codes render as a raw code to the operator. Add ' +
         '"errors.<CODE>" to the owning module\'s i18n bundle, in BOTH languages:',
     );
-    for (const f of unledgered) {
+    for (const f of result.unledgered) {
       console.error(`  - ${f.code} → ${f.moduleId} (missing in: ${f.missingIn.join(', ')})`);
     }
   }
 
-  if (stale.length > 0) {
+  if (result.stale.length > 0) {
     console.error(
       '\nThese are in UNTRANSLATED_ERROR_CODES but now have a sentence. Delete ' +
         'them from the ledger — it may only shrink:',
     );
-    for (const code of stale) console.error(`  - ${code}`);
+    for (const code of result.stale) console.error(`  - ${code}`);
   }
 
-  if (unledgered.length > 0 || stale.length > 0) process.exit(1);
+  if (result.sentences.length > 0) {
+    console.error(
+      '\nThese sentences are written where the routing table does not look, so ' +
+        'nothing reads them. There is no ledger for this — every repair is a ' +
+        'JSON line moved or deleted, plus at most one routing line:',
+    );
+    for (const f of result.sentences) {
+      const routed = f.routedModuleId ?? 'nothing';
+      console.error(
+        `  - [${f.kind}] ${f.moduleId}/i18n/${f.language}.json "${f.key}" ` +
+          `(routed: ${routed}) — ${f.repair}`,
+      );
+    }
+  }
+
+  if (result.exitCode !== 0) process.exit(result.exitCode);
 }
 
 // Run as CLI only — importing this module (e.g. from a unit test) must not

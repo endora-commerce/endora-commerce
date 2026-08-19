@@ -1,9 +1,6 @@
 {
   "errors.CART_EMPTY": "Twój koszyk jest pusty.",
   "errors.CART_LINE_CAP_EXCEEDED": "Osiągnięto maksymalną liczbę pozycji w koszyku.",
-  "errors.CART_NOT_FOUND": "Nie znaleziono koszyka.",
-  "errors.CART_ITEM_NOT_FOUND": "Nie znaleziono pozycji koszyka.",
-  "errors.SHOPPING_LIST_NOT_FOUND": "Nie znaleziono listy zakupowej.",
   "errors.CART_COUPON_REJECTED": "Nie udało się zastosować kodu kuponu.",
   "errors.CART_COUPON_REJECTED.invalid_code": "Nieprawidłowy kod kuponu.",
   "errors.CART_COUPON_REJECTED.expired": "Kod kuponu wygasł.",
@@ -12,13 +9,6 @@
   "errors.CART_COUPON_REJECTED.wrong_customer_group": "Ten kupon nie jest dostępny dla Twojej grupy klientów.",
   "errors.CART_COUPON_REJECTED.wrong_organization": "Ten kupon nie jest dostępny dla Twojej organizacji.",
   "errors.CART_COUPON_REJECTED.coupon_format_invalid": "Kody kuponów mogą zawierać tylko duże litery, cyfry, '-' i '_'.",
-  "errors.APPROVAL_NOT_REQUIRED": "Twoja organizacja nie wymaga akceptacji koszyka.",
-  "errors.APPROVAL_ALREADY_INITIATED": "Ten koszyk już oczekuje na akceptację.",
-  "errors.APPROVAL_NOT_PENDING": "Ten koszyk nie oczekuje na akceptację.",
-  "errors.ORG_ADMIN_SELF_SUBMIT": "Administratorzy organizacji nie muszą zgłaszać własnych koszyków do akceptacji.",
-  "errors.QUOTE_REQUEST_NOT_FOUND": "Nie znaleziono zapytania ofertowego.",
-  "errors.QUOTE_REQUEST_NOT_CONVERTIBLE": "Tego zapytania ofertowego nie można zamienić na koszyk w obecnym stanie.",
-  "errors.ALREADY_TERMINAL": "Ten koszyk jest już w stanie końcowym.",
 
   "lines.unavailable.out_of_stock": "Brak na stanie.",
   "lines.unavailable.not_purchasable": "Niedostępny.",

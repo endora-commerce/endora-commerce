@@ -27,7 +27,6 @@
   "reorder.action": "Zamów ponownie",
   "reorder.disabled": "Ponowne składanie zamówień jest wyłączone dla tego kanału sprzedaży",
   "cloneToQuote.action": "Utwórz zapytanie ofertowe z zamówienia",
-  "errors.INVALID_TRANSITION": "Ta zmiana statusu jest niedozwolona.",
-  "errors.ORDER_BELOW_MINIMUM": "Wartość zamówienia jest poniżej minimum wymaganego dla tego kanału sprzedaży.",
-  "errors.REORDER_DISABLED": "Ponowne składanie zamówień jest wyłączone."
+  "errors.ORDER_NOT_FOUND": "Nie znaleziono zamówienia.",
+  "errors.ORDER_NOT_CANCELLABLE": "Tego zamówienia nie można już anulować."
 }
