@@ -51,6 +51,8 @@
 
 import { initOrm, closeOrm } from '../db/index.js';
 import { mustBeNonProduction } from './dev-seed-guard.js';
+import { SEED_SCOPE_REASON } from './seed-scope.js';
+import { enterSystemScope } from '../kernel/scope.js';
 import { Product } from '../modules/catalog/entities/product.entity.js';
 import { Category } from '../modules/catalog/entities/category.entity.js';
 import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
@@ -971,7 +973,14 @@ async function main(): Promise<void> {
   await closeOrm();
 }
 
-main().catch((err) => {
+// The seed's whole execution runs inside one system scope (issue #228, FR-020),
+// in the idiom every other CLI entry point in the tree uses: the scope wraps the
+// top-level invocation, so there is no path into `main` that is outside it.
+// `SEED_SCOPE_REASON` (seed-scope.ts) says why the scope is `system` and why one
+// scope covers the run. `mustBeNonProduction()` stays `main`'s first statement —
+// the scope opens no connection and reads no row, so a refused run still touches
+// nothing.
+enterSystemScope(SEED_SCOPE_REASON, main, { entryPoint: 'cli' }).catch((err) => {
   console.error(err);
   process.exit(1);
 });

@@ -1,11 +1,13 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   analyzeSource,
   classify,
+  declaredProgramEntryPoints,
   establishesScope,
+  relative,
   stripCommentsAndStrings,
   violationsOf,
   staleAllowances,
@@ -79,6 +81,101 @@ describe('classify', () => {
 
   it('says nothing about an ordinary service', () => {
     expect(classify(SERVICE, 'export class Indexer {}')).toBeNull();
+  });
+});
+
+describe('declaredProgramEntryPoints', () => {
+  const packageJson = (scripts: Record<string, string>): string =>
+    JSON.stringify({ name: 'backend', scripts });
+
+  it('reads the src files package.json runs as a process of their own', () => {
+    expect(
+      declaredProgramEntryPoints(packageJson({ dev: 'tsx watch --env-file-if-exists=.env src/index.ts' })),
+    ).toEqual(['src/index.ts']);
+  });
+
+  it('finds the entry point behind a compound command', () => {
+    // `seed:dev` is two commands joined by `&&`, and the entry point is the
+    // second one. A rule that read the first word of the script would miss it —
+    // which is the file this whole check went blind on.
+    expect(
+      declaredProgramEntryPoints(
+        packageJson({
+          'seed:dev':
+            'pnpm run migration:up && tsx --env-file-if-exists=.env src/seeds/dev-catalog-seed.ts',
+        }),
+      ),
+    ).toEqual(['src/seeds/dev-catalog-seed.ts']);
+  });
+
+  it('ignores a compiled entry point — this check reads sources, not dist', () => {
+    expect(declaredProgramEntryPoints(packageJson({ start: 'node dist/index.js' }))).toEqual([]);
+  });
+
+  it('ignores a script that runs build tooling rather than the platform', () => {
+    // `backend/scripts/` is not under `src/`, so the walk never sees it and a
+    // declaration naming it would be a population entry with no file.
+    expect(
+      declaredProgramEntryPoints(packageJson({ 'check:entry-scope': 'tsx scripts/check-entry-scope.ts' })),
+    ).toEqual([]);
+  });
+
+  it('says nothing about a package.json with no scripts at all', () => {
+    expect(declaredProgramEntryPoints(JSON.stringify({ name: 'backend' }))).toEqual([]);
+  });
+});
+
+describe('classify, given what package.json declares', () => {
+  const DECLARED = new Set(['src/seeds/dev-catalog-seed.ts', 'src/modules/search/scripts/reindex.ts']);
+
+  it('treats a declared src file under no scripts/ directory as a program entry point', () => {
+    // The gap issue #228 is about: `src/seeds/dev-catalog-seed.ts` is a
+    // top-level `main()` that truncates and repopulates a dozen modules'
+    // tables, and the population defined by shape alone could not see it.
+    expect(classify('/repo/backend/src/seeds/dev-catalog-seed.ts', 'main();', DECLARED)).toBe(
+      'program',
+    );
+  });
+
+  it('leaves a declared scripts/ file in the cli class', () => {
+    expect(classify('/repo/backend/src/modules/search/scripts/reindex.ts', 'main();', DECLARED)).toBe(
+      'cli',
+    );
+  });
+
+  it('says nothing about a src file no package script runs', () => {
+    expect(classify('/repo/backend/src/seeds/attribute-fixtures.ts', 'export const x = 1;', DECLARED)).toBeNull();
+  });
+});
+
+describe('the real tree', () => {
+  const backendRoot = fileURLToPath(new URL('../../../', import.meta.url));
+  const declared = new Set(
+    declaredProgramEntryPoints(readFileSync(join(backendRoot, 'package.json'), 'utf8')),
+  );
+
+  it('declares the dev seed as a program this check has to see', () => {
+    expect(declared).toContain('src/seeds/dev-catalog-seed.ts');
+  });
+
+  it('classifies the dev seed as an entry point rather than as an ordinary file', () => {
+    const seed = join(backendRoot, 'src/seeds/dev-catalog-seed.ts');
+    expect(classify(seed, readFileSync(seed, 'utf8'), declared)).toBe('program');
+  });
+
+  it('resolves every declared program to a file the walk can read', () => {
+    // The population now has a second source, so it has a second way of going
+    // quietly short: a package script renamed away from its file removes an
+    // entry point from the population and nothing else notices.
+    for (const path of declared) {
+      expect(existsSync(join(backendRoot, path)), `${path} is declared but absent`).toBe(true);
+    }
+  });
+
+  it('spells the exemptions the way `relative` reports a walked file', () => {
+    for (const path of NO_SCOPE_NEEDED.keys()) {
+      expect(relative(join(backendRoot, path))).toBe(path);
+    }
   });
 });
 
