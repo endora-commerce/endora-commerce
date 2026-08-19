@@ -60,9 +60,14 @@ import { EntityChannelMembership } from '../sales_channels/components/EntityChan
 // not to the catalogue's editor.
 import {
   ErgonodePriceProtectionPanel,
-  FieldProtectionSummary,
-  FieldProtectionToggle,
+  FieldProtectionSummary as ErgonodeFieldProtectionSummary,
+  FieldProtectionToggle as ErgonodeFieldProtectionToggle,
 } from '../pim_ergonode/components/FieldProtectionToggle';
+import {
+  PimcorePriceProtectionPanel,
+  FieldProtectionSummary as PimcoreFieldProtectionSummary,
+  FieldProtectionToggle as PimcoreFieldProtectionToggle,
+} from '../pim_pimcore/components/FieldProtectionToggle';
 import { ProductInventoryTab } from './ProductInventoryTab';
 import { PackagingUnitsEditor } from './components/PackagingUnitsEditor';
 import { ProductAttributesTab } from './ProductAttributesTab';
@@ -540,24 +545,41 @@ export function ProductEditor(): ReactNode {
                     existing products: at Channel = Global it writes the
                     per-language baseline on `products`; at a specific
                     channel it writes a `product_value_overrides` row. */}
-                {/* Feature 068 / US4 — which fields the Ergonode import may not
-                    touch (FR-055), plus the integration-managed and last-synced
-                    indicators (FR-068). The name and description controls sit
-                    here because the panel below is their sole editor. */}
-                <FieldProtectionSummary productId={id} />
+                {/* Feature 068 / US4 + 076 / US5 — which fields the PIM import
+                    may not touch. At most one PIM connection is enabled
+                    (FR-075), so each control hides itself when its module is
+                    off and the editor needs no condition of its own. */}
+                <ErgonodeFieldProtectionSummary productId={id} />
+                <PimcoreFieldProtectionSummary productId={id} />
                 {id ? (
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     {LOCALES.map((l) => (
-                      <FieldProtectionToggle
-                        key={`protect-name-${l}`}
+                      <ErgonodeFieldProtectionToggle
+                        key={`ergonode-protect-name-${l}`}
                         productId={id}
                         fieldPath="name"
                         languageCode={l}
                       />
                     ))}
                     {LOCALES.map((l) => (
-                      <FieldProtectionToggle
-                        key={`protect-description-${l}`}
+                      <ErgonodeFieldProtectionToggle
+                        key={`ergonode-protect-description-${l}`}
+                        productId={id}
+                        fieldPath="description"
+                        languageCode={l}
+                      />
+                    ))}
+                    {LOCALES.map((l) => (
+                      <PimcoreFieldProtectionToggle
+                        key={`pimcore-protect-name-${l}`}
+                        productId={id}
+                        fieldPath="name"
+                        languageCode={l}
+                      />
+                    ))}
+                    {LOCALES.map((l) => (
+                      <PimcoreFieldProtectionToggle
+                        key={`pimcore-protect-description-${l}`}
                         productId={id}
                         fieldPath="description"
                         languageCode={l}
@@ -742,7 +764,8 @@ export function ProductEditor(): ReactNode {
                 <div>
                   <div className="b2b-label">
                     {t('productEditor.section.categories')}
-                    <FieldProtectionToggle productId={id} fieldPath="categories" className="ml-3" />
+                    <ErgonodeFieldProtectionToggle productId={id} fieldPath="categories" className="ml-3" />
+                    <PimcoreFieldProtectionToggle productId={id} fieldPath="categories" className="ml-3" />
                   </div>
                   <CategoryTreePicker
                     categories={categories}
@@ -767,10 +790,11 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'pricing' && id ? (
             <div className="b2b-col" style={{ gap: 16 }}>
-              {/* Feature 068 / FR-062 — one control per price the Ergonode
-                  import could write here. Renders `null` when no binding covers
-                  this product, which is every product until one is bound. */}
+              {/* Feature 068 / FR-062 + 076 / FR-072 — one control per price the
+                  active PIM import could write here. Each panel renders null
+                  when its connection is off or no binding covers this product. */}
               <ErgonodePriceProtectionPanel productId={id} />
+              <PimcorePriceProtectionPanel productId={id} />
               <LinkedPriceListsPanel productId={id} />
             </div>
           ) : null}
@@ -787,7 +811,8 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'media' && id ? (
             <>
-              <FieldProtectionToggle productId={id} fieldPath="gallery" className="mb-2" />
+              <ErgonodeFieldProtectionToggle productId={id} fieldPath="gallery" className="mb-2" />
+              <PimcoreFieldProtectionToggle productId={id} fieldPath="gallery" className="mb-2" />
               <GallerySection ref={galleryRef} productId={id} />
             </>
           ) : null}
@@ -803,7 +828,8 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'attachments' && id ? (
             <>
-              <FieldProtectionToggle productId={id} fieldPath="attachments" className="mb-2" />
+              <ErgonodeFieldProtectionToggle productId={id} fieldPath="attachments" className="mb-2" />
+              <PimcoreFieldProtectionToggle productId={id} fieldPath="attachments" className="mb-2" />
               <AttachmentsSection productId={id} />
             </>
           ) : null}
