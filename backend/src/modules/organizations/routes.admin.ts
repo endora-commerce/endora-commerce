@@ -598,14 +598,15 @@ export async function registerOrganizationsAdminRoutes(
           'A personal (individual) organization cannot have additional members.',
         );
       }
-      const email = body.email.toLowerCase();
       const role = body.role ?? 'regular_user';
       // The duplicate check and the argon2 hash both moved to the owner's side
       // of the port with the write; `create` raises the same 409
       // `EMAIL_ALREADY_REGISTERED`.
       const customer = await deps.customerAccountWrite.create({
         organizationId: org.id,
-        email,
+        // Handed over as typed: the write port folds it, so this surface
+        // cannot disagree with the one the buyer registers through.
+        email: body.email,
         password: body.password,
         firstName: body.firstName,
         lastName: body.lastName,

@@ -158,3 +158,7 @@ export * from './import-export.js';
 // shape: a pure text utility that was correct and unfindable inside
 // `normalizeOrganizationName` until six copies of it had been written.
 export * from './text-normalization.js';
+// The one e-mail fold. Not an API shape either: the rule that an address is
+// stored and compared in one form, reachable by both modules that key a row on
+// one.
+export * from './email-address.js';

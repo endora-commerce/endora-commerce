@@ -2,6 +2,7 @@ import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
+  normalizeEmailAddress,
   type CustomerAccountAdminSearchCriteria,
   type CustomerAccountAdminSearchPort,
   type CustomerAccountAdminSearchResult,
@@ -79,16 +80,12 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     input: CustomerAccountStandaloneCreateInput,
   ): Promise<CustomerAccountRecord> {
     const em = this.emFactory();
-    // Stored verbatim, deliberately, and **not** lower-cased the way
-    // `CustomerAccountMemberWriteService.create` does it. That asymmetry is not
-    // this boundary cut's to settle: `CustomerAuthService.login` matches the
-    // address exactly as typed, so an account whose e-mail was folded on the
-    // way in cannot be signed into with the address its holder registered.
-    // Folding here would extend a latent defect to a second entrance instead of
-    // repairing it — the repair is one normalisation, applied on both writes
-    // and on the login read, and it needs a migration for the rows already
-    // stored either way.
-    const email = input.email;
+    // Folded, like the other write on this table and like every read of it.
+    // This entrance stored the address verbatim while
+    // `CustomerAccountMemberWriteService.create` folded it, so which spelling a
+    // row held depended on which door the buyer came through; the login read
+    // matched neither reliably. One normalisation now answers for all of them.
+    const email = normalizeEmailAddress(input.email);
     const existing = await em.findOne(CustomerAccount, { email });
     if (existing) {
       throw new HttpError(

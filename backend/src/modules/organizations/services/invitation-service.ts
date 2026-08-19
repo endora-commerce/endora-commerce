@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
+  normalizeEmailAddress,
   type CustomerAccountMemberWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
@@ -90,7 +91,9 @@ export class InvitationService {
   ): Promise<InvitationResult> {
     const em = this.emFactory();
     const role = input.role ?? 'regular_user';
-    const lowercaseEmail = input.email.toLowerCase();
+    // This module keeps a row of its own on the same address, so it folds it
+    // the same way the account table does rather than by a private rule.
+    const invitedEmail = normalizeEmailAddress(input.email);
 
     // Feature 051 — a personal (B2C) organization is single-member by
     // definition; it cannot invite additional members.
@@ -104,7 +107,7 @@ export class InvitationService {
     }
 
     // Pre-check existing membership.
-    const existingByEmail = await this.accounts.read.findByEmail(lowercaseEmail);
+    const existingByEmail = await this.accounts.read.findByEmail(invitedEmail);
     if (existingByEmail) {
       if (existingByEmail.organizationId === actor.organizationId) {
         throw new HttpError(
@@ -124,7 +127,7 @@ export class InvitationService {
     const invitation = em.create(OrganizationInvitation, {
       organizationId: actor.organizationId,
       invitedByCustomerAccountId: actor.customerAccountId ?? null,
-      email: lowercaseEmail,
+      email: invitedEmail,
       role,
       tokenHash: sha256Hex(rawToken),
       expiresAt: new Date(Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1_000),
@@ -135,7 +138,7 @@ export class InvitationService {
         objectType: 'organization',
         objectId: actor.organizationId,
         stateBefore: null,
-        stateAfter: { email: lowercaseEmail, role },
+        stateAfter: { email: invitedEmail, role },
       });
     }
     try {

@@ -1,5 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type AuthSessionPort, type MfaLoginPort } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  normalizeEmailAddress,
+  type AuthSessionPort,
+  type MfaLoginPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
@@ -58,7 +63,13 @@ export class CustomerAuthService {
     salesChannelId?: string | null;
   }): Promise<CustomerLoginOutcome> {
     const em = this.emFactory();
-    const customer = await em.findOne(CustomerAccount, { email: input.email });
+    // Folded, because the row is. `=` on `text` is case-sensitive in Postgres,
+    // so comparing the address exactly as typed refused every account whose
+    // holder had capitalised anything — with the generic error above, which
+    // says nothing they or support could act on.
+    const customer = await em.findOne(CustomerAccount, {
+      email: normalizeEmailAddress(input.email),
+    });
     if (!customer) {
       // Generic error to avoid account enumeration.
       throw new HttpError(401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password.');

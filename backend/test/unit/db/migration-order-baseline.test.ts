@@ -31,11 +31,19 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
  * position must be in the open block.
  *
  * Note on the counts. `specs/081-per-module-migration-order/` measured 141
- * migrations (112 baseline, 29 open) against `master@4186aec0`. One migration
- * landed between that commit and this branch's base —
- * `Migration20260819T074816CustomerAccountsPasswordSetAt`, an open-block entry
- * — so the numbers here are 142/112/30. The frozen prefix, which is the claim
- * the feature rests on, is the spec's 112 unchanged.
+ * migrations (112 baseline, 29 open) against `master@4186aec0`. Two migrations
+ * have landed since — `Migration20260819T074816CustomerAccountsPasswordSetAt`
+ * and `Migration20260819T142837CustomerAccountsFoldEmailCase`, both open-block
+ * entries — so the numbers here are 143/112/31. The frozen prefix, which is the
+ * claim the feature rests on, is the spec's 112 unchanged.
+ *
+ * A new migration is therefore added to `PRE_081_ORDER` in the position feature
+ * 065's algorithm would have emitted it: `…FoldEmailCase` is stamped after
+ * `…PasswordSetAt` and owned by the same module, so chronology and the
+ * dependency-inversion corrections both put it immediately behind it. That is
+ * not a regeneration — the 142 positions the literal already held are
+ * untouched, and `EXPECTED_MOVED_POSITIONS` stayed at 26, which is the evidence
+ * that the insertion did not move anybody.
  */
 
 const FROZEN_PREFIX_LENGTH = 112;
@@ -193,6 +201,7 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260804T152604CatalogWidenProductSku',
   'Migration20260804T160244CatalogCategoryActivation',
   'Migration20260819T074816CustomerAccountsPasswordSetAt',
+  'Migration20260819T142837CustomerAccountsFoldEmailCase',
   'Migration20260817T055457PriceListsSingleSystemPriceList',
   'Migration20260801T111000InvoicesGenericTemplateReseed',
   'Migration20260804T190439PimErgonodeInit',

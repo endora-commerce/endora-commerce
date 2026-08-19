@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
+  normalizeEmailAddress,
   type CustomerAccountCreateInput,
   type CustomerAccountLookupOptions,
   type CustomerAccountMemberWritePort,
@@ -98,8 +99,12 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
     email: string,
     options?: CustomerAccountLookupOptions,
   ): Promise<CustomerAccountRecord | null> {
+    // The fold is here rather than at the four callers: this is the one
+    // question "is this address taken" is asked through, and a caller that
+    // folded its own way (or forgot to) is what made a registered account
+    // unfindable by the address its holder had typed.
     const account = await this.emFactory().findOne(CustomerAccount, {
-      email,
+      email: normalizeEmailAddress(email),
       ...activeFilter(options),
     });
     return account ? toCustomerAccountRecord(account) : null;
@@ -239,7 +244,7 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
 
   async create(input: CustomerAccountCreateInput): Promise<CustomerAccountRecord> {
     const em = this.emFactory();
-    const email = input.email.toLowerCase();
+    const email = normalizeEmailAddress(input.email);
     const existing = await em.findOne(CustomerAccount, { email });
     if (existing) {
       throw new HttpError(
@@ -297,7 +302,7 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
       lastName: account.lastName,
     };
     if (patch.email !== undefined) {
-      const nextEmail = patch.email.toLowerCase();
+      const nextEmail = normalizeEmailAddress(patch.email);
       if (nextEmail !== account.email) {
         const taken = await em.findOne(CustomerAccount, { email: nextEmail, deletedAt: null });
         if (taken && taken.id !== account.id) {

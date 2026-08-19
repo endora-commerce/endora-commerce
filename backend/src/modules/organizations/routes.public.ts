@@ -3,6 +3,7 @@ import {
   SESSION_COOKIE_NAME,
   customerLoginRequestSchema,
   emailVerificationRequestSchema,
+  normalizeEmailAddress,
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
   registerOrganizationRequestSchema,
@@ -209,9 +210,13 @@ export async function registerOrganizationsPublicRoutes(
     { schema: { body: passwordResetRequestSchema } },
     async (request, reply) => {
       const body = passwordResetRequestSchema.parse(request.body);
-      const result = await passwordResetService.requestReset(body.email.toLowerCase());
+      // The address is handed over as typed — the port folds it, as every
+      // other lookup on that table does. The probe key below is the one place
+      // the folded form is needed here, and it uses the same function so the
+      // key cannot drift from what the lookup matched.
+      const result = await passwordResetService.requestReset(body.email);
       if (deps.latestTokenByEmail && result.rawToken) {
-        deps.latestTokenByEmail.set(`reset:${body.email.toLowerCase()}`, result.rawToken);
+        deps.latestTokenByEmail.set(`reset:${normalizeEmailAddress(body.email)}`, result.rawToken);
         deps.latestTokenByEmail.set('__latest_reset__', result.rawToken);
       }
       // Always 202 — defends against account enumeration.
