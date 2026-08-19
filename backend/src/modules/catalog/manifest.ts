@@ -35,8 +35,14 @@ export const manifest = defineModuleManifest({
   // prices through the pricing engine, but `price_lists` declares *this* module
   // — a price list is a list of prices for products — so the edge is mutual and
   // declaring it back closes a cycle. Catalog installs first.
+  // `audit_logs` owns `auditReferenceRegistry`, the registry this module pushes
+  // its own "what is this audit row called, and where does the admin app show
+  // it?" resolver into (feature 075, D-87). The registry is ungated and its
+  // owner is non-deactivatable, so the declaration buys install and migration
+  // order rather than a flip-time refusal.
   dependencies: [
     'admin_notifications',
+    'audit_logs',
     'admin_users',
     'assets_library',
     'custom_fields',

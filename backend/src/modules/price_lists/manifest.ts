@@ -72,7 +72,19 @@ export const manifest = defineModuleManifest({
   // contributes its "who still prices in this currency" descriptor to (feature
   // 077, D-87). `currencies` used to ask the question itself, with a
   // `count(*) from "price_lists"` naming this module's table.
-  dependencies: ['catalog', 'currencies', 'customer_accounts', 'organizations', 'settings'],
+  // `audit_logs` owns `auditReferenceRegistry`, the registry this module pushes
+  // its own "what is this audit row called, and where does the admin app show
+  // it?" resolver into (feature 075, D-87). The registry is ungated and its
+  // owner is non-deactivatable, so the declaration buys install and migration
+  // order rather than a flip-time refusal.
+  dependencies: [
+    'audit_logs',
+    'catalog',
+    'currencies',
+    'customer_accounts',
+    'organizations',
+    'settings',
+  ],
   permissions: [
     { code: PRICE_LIST_PERMISSIONS.READ, label: 'View price lists and pricing rules' },
     { code: PRICE_LIST_PERMISSIONS.WRITE, label: 'Edit price lists, brackets and display modes' },

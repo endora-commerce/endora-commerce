@@ -129,7 +129,13 @@ export const manifest = defineModuleManifest({
   // one edge of the four-site family that closes no cycle — `orders` resolves
   // no port this module owns in `dependencies`, only the two
   // `degrades-without` reads placement makes.
+  // `audit_logs` owns `auditReferenceRegistry`, the registry this module pushes
+  // its own "what is this audit row called, and where does the admin app show
+  // it?" resolver into (feature 075, D-87). The registry is ungated and its
+  // owner is non-deactivatable, so the declaration buys install and migration
+  // order rather than a flip-time refusal.
   dependencies: [
+    'audit_logs',
     'auth',
     'catalog',
     'customer_accounts',

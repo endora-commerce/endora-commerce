@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import { normalizeEmailAddress } from '@b2b/contracts';
+import type { AuditReferenceRegistryPort, OrganizationDetailsPort } from '@b2b/contracts';
 import type {
   AuthSessionPort,
   CustomerAccountAdminSearchPort,
@@ -22,6 +23,7 @@ import { recordAuditFromContext } from '../../commands/index.js';
 import { withSystemScope } from '../../tenancy/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import { registerCustomerAccountAuditReferences } from './services/audit-references.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
@@ -469,5 +471,32 @@ export function registerModule(ctx: ModuleContext): void {
       requireAdmin: (permission) => async (req, reply) =>
         ctx.cradle<CustomerAccountsCradle>().requireAdmin(permission)(req, reply),
     });
+  });
+
+  /**
+   * What an audit row about an impersonated customer is called, and where the admin app shows it
+   * (feature 075, D-87 drain).
+   *
+   * `audit_logs` used to answer both by hand — one SQL statement naming this
+   * module's table, and this module's admin route spelled into its own switch.
+   * A read port would have been the wrong repair: `audit_logs` is a
+   * cross-cutting reader, and five ports into it would be five edges pointing
+   * from the record towards the things it records. One of the five contributors
+   * (`inventory`) is switchable, and `audit_logs` is `nonDeactivatable`, so that
+   * edge would also have taken the operator's switch away. A push costs nothing
+   * and reads the same for all five.
+   *
+   * A **contribution** hook: it pushes an inert resolver into
+   * `auditReferenceRegistry`, an ungated registry, and carries no presence probe
+   * (D-67/D-68). The registry's own enumeration policy is what drops this entry
+   * while the module is absent — probing here would make the drop survive a
+   * reactivation until the next restart.
+   */
+  ctx.onBoot(() => {
+    registerCustomerAccountAuditReferences(
+      lazyPort<AuditReferenceRegistryPort>(ctx, 'auditReferenceRegistry'),
+      ctx.cradle<CustomerAccountsCradle>().emFactory,
+      lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+    );
   });
 }

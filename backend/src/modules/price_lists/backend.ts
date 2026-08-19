@@ -13,7 +13,9 @@ import type {
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import type { AuditReferenceRegistryPort } from '@b2b/contracts';
 import { lazyPort } from '../../kernel/index.js';
+import { registerPriceListAuditReferences } from './services/audit-references.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { priceListsModule, type PriceListsModuleOptions } from './plugin.js';
 import { DEFAULT_PRICING_CACHE_TTL_MS } from './services/pricing-cache.js';
@@ -240,6 +242,32 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.onBoot(() => {
     registerPriceListCurrencyReferences(
       lazyPort<DictionaryReferenceRegistryPort>(ctx, 'currencyReferenceRegistry'),
+      ctx.cradle<PriceListsCradle>().emFactory,
+    );
+  });
+
+  /**
+   * What an audit row about a price list is called, and where the admin app shows it
+   * (feature 075, D-87 drain).
+   *
+   * `audit_logs` used to answer both by hand — one SQL statement naming this
+   * module's table, and this module's admin route spelled into its own switch.
+   * A read port would have been the wrong repair: `audit_logs` is a
+   * cross-cutting reader, and five ports into it would be five edges pointing
+   * from the record towards the things it records. One of the five contributors
+   * (`inventory`) is switchable, and `audit_logs` is `nonDeactivatable`, so that
+   * edge would also have taken the operator's switch away. A push costs nothing
+   * and reads the same for all five.
+   *
+   * A **contribution** hook: it pushes an inert resolver into
+   * `auditReferenceRegistry`, an ungated registry, and carries no presence probe
+   * (D-67/D-68). The registry's own enumeration policy is what drops this entry
+   * while the module is absent — probing here would make the drop survive a
+   * reactivation until the next restart.
+   */
+  ctx.onBoot(() => {
+    registerPriceListAuditReferences(
+      lazyPort<AuditReferenceRegistryPort>(ctx, 'auditReferenceRegistry'),
       ctx.cradle<PriceListsCradle>().emFactory,
     );
   });

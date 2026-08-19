@@ -7,6 +7,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { CountryReferenceRegistry } from '../../../src/modules/dictionaries/services/country-reference-registry.js';
+import { AuditReferenceRegistry } from '../../../src/modules/audit_logs/services/audit-reference-registry.js';
 
 /**
  * Issue #146 / D-68 — `inventory`'s warehouse/channel reconcile decides presence
@@ -51,6 +52,7 @@ interface Composed {
   registeredEmailDefaults: string[];
   registeredPromptTools: string[];
   countryReferences: CountryReferenceRegistry;
+  auditReferences: AuditReferenceRegistry;
 }
 
 async function composeInventory(): Promise<Composed> {
@@ -59,6 +61,10 @@ async function composeInventory(): Promise<Composed> {
   const registeredEmailDefaults: string[] = [];
   const registeredPromptTools: string[] = [];
   const countryReferences = new CountryReferenceRegistry();
+  // Presence-blind on purpose: this fixture asks whether the *contribution* ran,
+  // and the registry's own skip policy is pinned in
+  // `test/unit/audit_logs/audit-reference-registry.test.ts`.
+  const auditReferences = new AuditReferenceRegistry(() => true);
   registerValues(container, {
     emFactory: (): EntityManager => ({}) as EntityManager,
     eventBus: new EventBus(),
@@ -74,6 +80,11 @@ async function composeInventory(): Promise<Composed> {
     // still owns warehouses carrying a country code, so `dictionaries` must
     // still refuse to delete one out from under them (feature 077, D-87).
     countryReferenceRegistry: countryReferences,
+    // `audit_logs` owns `auditReferenceRegistry` and is not composed here. Its
+    // contribution belongs with the three above: the registry's host filters by
+    // contributor, so probing here would leave the dashboard unable to name a
+    // warehouse until the next restart after a reactivation (feature 075, D-87).
+    auditReferenceRegistry: auditReferences,
   });
   const composed = composeModules([{ id: 'inventory', version: '1.0.0', registerModule }], {
     container,
@@ -85,6 +96,7 @@ async function composeInventory(): Promise<Composed> {
     registeredEmailDefaults,
     registeredPromptTools,
     countryReferences,
+    auditReferences,
   };
 }
 
@@ -116,8 +128,13 @@ describe('inventory boot reconcile is gated on effective presence', () => {
   it('still contributes its email defaults and assistant tools while off', async () => {
     registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['inventory'] });
 
-    const { runBootHooks, registeredEmailDefaults, registeredPromptTools, countryReferences } =
-      await composeInventory();
+    const {
+      runBootHooks,
+      registeredEmailDefaults,
+      registeredPromptTools,
+      countryReferences,
+      auditReferences,
+    } = await composeInventory();
     await runBootHooks();
 
     expect(
@@ -130,6 +147,11 @@ describe('inventory boot reconcile is gated on effective presence', () => {
       countryReferences.owners(),
       'the warehouse country scanner was probed too, so an operator can now delete a ' +
         'country a deactivated warehouse still sits in',
+    ).toContain('inventory');
+    expect(
+      auditReferences.owners(),
+      'the audit label resolver was probed, so an operator switching the module back on ' +
+        'would read raw warehouse ids on the dashboard until the next restart',
     ).toContain('inventory');
   });
 
