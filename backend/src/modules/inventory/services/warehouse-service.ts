@@ -298,20 +298,27 @@ export class WarehouseService {
   }
 
   private async collectTotals(em: EntityManager, ids: string[]): Promise<Map<string, WarehouseTotals>> {
-    const knex = em.getKnex();
+    if (ids.length === 0) return new Map();
+    // `em.execute`, not `em.getKnex()`: a knex handle carries no transaction
+    // context, so the totals shown next to a warehouse a caller has just
+    // written inside a transaction would be read from before that write
+    // (issue #207).
+    const placeholders = ids.map(() => '?').join(', ');
     const [stockTotals, defaultCounts] = await Promise.all([
-      knex('stock_levels')
-        .whereIn('warehouse_id', ids)
-        .select('warehouse_id')
-        .count<{ warehouse_id: string; products: string }[]>({ products: '*' })
-        .sum<{ warehouse_id: string; on_hand: string }[]>({ on_hand: 'on_hand' })
-        .groupBy('warehouse_id'),
-      knex('warehouse_channel_assignments')
-        .whereIn('warehouse_id', ids)
-        .where('is_default', true)
-        .select('warehouse_id')
-        .count<{ warehouse_id: string; default_count: string }[]>({ default_count: '*' })
-        .groupBy('warehouse_id'),
+      em.execute(
+        `select warehouse_id, count(*) as products, sum(on_hand) as on_hand
+           from stock_levels
+          where warehouse_id in (${placeholders})
+          group by warehouse_id`,
+        [...ids],
+      ),
+      em.execute(
+        `select warehouse_id, count(*) as default_count
+           from warehouse_channel_assignments
+          where warehouse_id in (${placeholders}) and is_default = true
+          group by warehouse_id`,
+        [...ids],
+      ),
     ]);
     const map = new Map<string, WarehouseTotals>();
     for (const id of ids) {

@@ -133,18 +133,19 @@ export class AvailabilityWorker {
   async handleAdjusted(payload: AdjustedPayload): Promise<void> {
     if (payload.after <= 0) return;
     const em = this.emFactory();
-    const knex = em.getKnex();
-    const where: Record<string, unknown> = { product_id: payload.productId };
-    if (payload.variantId === null) {
-      where['variant_id'] = null;
-    } else {
-      where['variant_id'] = payload.variantId;
-    }
-    const sumRow = await knex('stock_levels')
-      .where(where)
-      .sum<{ on_hand: string | null }[]>('on_hand as on_hand')
-      .first();
-    const cumulativeAfter = Number(sumRow?.on_hand ?? 0);
+    // `em.execute`, not `em.getKnex()`: a knex handle takes its own pooled
+    // connection, so a caller that raised this event from inside a transaction
+    // would have the sum answered from outside it (issue #207).
+    const variantClause =
+      payload.variantId === null ? 'variant_id is null' : 'variant_id = ?';
+    const variantParams = payload.variantId === null ? [] : [payload.variantId];
+    const sumRows = (await em.execute(
+      `select sum(on_hand) as on_hand
+         from stock_levels
+        where product_id = ? and ${variantClause}`,
+      [payload.productId, ...variantParams],
+    )) as Array<{ on_hand: string | null }>;
+    const cumulativeAfter = Number(sumRows[0]?.on_hand ?? 0);
     const cumulativeBefore = cumulativeAfter - (payload.after - payload.before);
     if (cumulativeBefore > 0 || cumulativeAfter <= 0) return;
 

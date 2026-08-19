@@ -206,13 +206,18 @@ export async function registerInventoryRoutes(
 
       let cumulativeOnHand = 0;
       if (candidateWarehouseIds.length > 0) {
-        const knex = em.getKnex();
-        const sumRow = await knex('stock_levels')
-          .where('product_id', productId)
-          .whereIn('warehouse_id', candidateWarehouseIds)
-          .sum<{ on_hand: string | null }[]>('on_hand as on_hand')
-          .first();
-        cumulativeOnHand = Number(sumRow?.on_hand ?? 0);
+        // `em.execute`, not `em.getKnex()`: a knex handle takes its own pooled
+        // connection, so this sum would answer from outside any transaction a
+        // caller holds open while the `em.find` fallback below answers from
+        // inside it — one route, two views of `stock_levels` (issue #207).
+        const placeholders = candidateWarehouseIds.map(() => '?').join(', ');
+        const sumRows = (await em.execute(
+          `select sum(on_hand) as on_hand
+             from stock_levels
+            where product_id = ? and warehouse_id in (${placeholders})`,
+          [productId, ...candidateWarehouseIds],
+        )) as Array<{ on_hand: string | null }>;
+        cumulativeOnHand = Number(sumRows[0]?.on_hand ?? 0);
       } else {
         // Fallback when no channel binding is wired yet.
         const rows = await em.find(StockLevel, { productId });
@@ -223,10 +228,11 @@ export async function registerInventoryRoutes(
 
       const globalThresholds = await loadGlobalThresholds(em);
       const productThresholds = await loadProductThresholdsRow(em, productId);
-      const knex = em.getKnex();
-      const productCategoryRows = await knex('product_categories')
-        .where('product_id', productId)
-        .select<Array<{ category_id: string }>>('category_id');
+      // `em.execute`, not `em.getKnex()` — same reason as the sum above.
+      const productCategoryRows = (await em.execute(
+        `select category_id from product_categories where product_id = ?`,
+        [productId],
+      )) as Array<{ category_id: string }>;
       const categoryIds = productCategoryRows.map((r) => r.category_id);
       const categories = await catalogCategories.findByIds(categoryIds);
       const categoryThresholds = categories.map((c) => ({

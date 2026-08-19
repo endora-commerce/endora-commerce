@@ -735,10 +735,9 @@ export class CatalogAdminService {
       };
     });
 
-    const conn = em.getConnection();
 
     // product_categories (bridge)
-    await conn.execute(
+    await em.execute(
       `insert into "product_categories" ("product_id", "category_id")
          select ?, "category_id" from "product_categories" where "product_id" = ?`,
       [dup.id, source.id],
@@ -756,7 +755,7 @@ export class CatalogAdminService {
 
     // gallery_items + gallery_item_labels — we need a fresh UUID per item
     // and to rewrite the bridge rows to the new ids.
-    const galleryRows = (await conn.execute(
+    const galleryRows = (await em.execute(
       `select "id", "asset_id", "position" from "gallery_items"
          where "product_id" = ? order by "position" asc`,
       [source.id],
@@ -766,14 +765,14 @@ export class CatalogAdminService {
       for (const row of galleryRows) {
         const newId = randomUUID();
         idMap.set(row.id, newId);
-        await conn.execute(
+        await em.execute(
           `insert into "gallery_items"
              ("id", "product_id", "asset_id", "position", "created_at", "updated_at")
              values (?, ?, ?, ?, now(), now())`,
           [newId, dup.id, row.asset_id, row.position],
         );
       }
-      const labelRows = (await conn.execute(
+      const labelRows = (await em.execute(
         `select "gallery_item_id", "label" from "gallery_item_labels"
            where "product_id" = ?`,
         [source.id],
@@ -781,7 +780,7 @@ export class CatalogAdminService {
       for (const lbl of labelRows) {
         const mapped = idMap.get(lbl.gallery_item_id);
         if (!mapped) continue;
-        await conn.execute(
+        await em.execute(
           `insert into "gallery_item_labels"
              ("gallery_item_id", "product_id", "label") values (?, ?, ?)`,
           [mapped, dup.id, lbl.label],
@@ -790,7 +789,7 @@ export class CatalogAdminService {
     }
 
     // product_attachments
-    await conn.execute(
+    await em.execute(
       `insert into "product_attachments"
          ("id", "product_id", "asset_id", "attachment_type_id", "name", "description", "position", "created_at", "updated_at")
          select gen_random_uuid(), ?, "asset_id", "attachment_type_id", "name", "description", "position", now(), now()
@@ -800,7 +799,7 @@ export class CatalogAdminService {
 
     // product_links (only outgoing links are copied — incoming links from
     // other products toward the source product stay attached to the source)
-    await conn.execute(
+    await em.execute(
       `insert into "product_links"
          ("id", "source_product_id", "target_product_id", "kind", "position", "created_at", "updated_at")
          select gen_random_uuid(), ?, "target_product_id", "kind", "position", now(), now()
@@ -810,7 +809,7 @@ export class CatalogAdminService {
 
     // grouped_items (children of a grouped product)
     if (source.type === 'grouped') {
-      await conn.execute(
+      await em.execute(
         `insert into "grouped_items"
            ("id", "parent_product_id", "child_product_id", "quantity", "position", "created_at", "updated_at")
            select gen_random_uuid(), ?, "child_product_id", "quantity", "position", now(), now()
@@ -821,7 +820,7 @@ export class CatalogAdminService {
 
     // bundle_slots + bundle_slot_options
     if (source.type === 'bundle') {
-      const slotRows = (await conn.execute(
+      const slotRows = (await em.execute(
         `select "id", "name", "min_quantity", "max_quantity", "position"
            from "bundle_slots" where "parent_product_id" = ?`,
         [source.id],
@@ -834,7 +833,7 @@ export class CatalogAdminService {
       }>;
       for (const slot of slotRows) {
         const newSlotId = randomUUID();
-        await conn.execute(
+        await em.execute(
           `insert into "bundle_slots"
              ("id", "parent_product_id", "name", "min_quantity", "max_quantity", "position", "created_at", "updated_at")
              values (?, ?, ?::jsonb, ?, ?, ?, now(), now())`,
@@ -847,7 +846,7 @@ export class CatalogAdminService {
             slot.position,
           ],
         );
-        await conn.execute(
+        await em.execute(
           `insert into "bundle_slot_options"
              ("id", "slot_id", "option_product_id", "default_quantity", "position", "created_at", "updated_at")
              select gen_random_uuid(), ?, "option_product_id", "default_quantity", "position", now(), now()
@@ -1188,12 +1187,13 @@ export class CatalogAdminService {
       ? await this.productIdsInCategoryTree(em, options.categorySlug.trim())
       : null;
     if (categoryProductIds && categoryProductIds.size === 0) {
-      const knexEmpty = em.getKnex();
-      const countRowsEmpty = (await knexEmpty('products')
-        .whereNull('deleted_at')
-        .select('status')
-        .count<{ status: string; count: string | number }[]>('* as count')
-        .groupBy('status')) as Array<{ status: string; count: string | number }>;
+      // `em.execute`, not `em.getKnex()`: a knex handle takes its own pooled
+      // connection, so the status badges would be counted from outside a
+      // transaction the caller holds open while `em.find` above answers from
+      // inside it — one screen, two views of `products` (issue #207).
+      const countRowsEmpty = (await em.execute(
+        `select status, count(*) as count from products where deleted_at is null group by status`,
+      )) as Array<{ status: string; count: string | number }>;
       const countsEmpty = { all: 0, active: 0, draft: 0, inactive: 0 };
       for (const row of countRowsEmpty) {
         const n = Number(row.count) || 0;
@@ -1230,16 +1230,21 @@ export class CatalogAdminService {
           });
         }
       });
-      const totalRow = (await baseQuery.clone().count<{ count: string | number }>('* as count').first()) as
-        | { count: string | number }
-        | undefined;
-      total = Number(totalRow?.count ?? 0);
-      const idRows = (await baseQuery
-        .clone()
-        .orderBy('created_at', 'desc')
-        .offset(page * pageSize)
-        .limit(pageSize)
-        .select<Array<{ id: string }>>('id')) as Array<{ id: string }>;
+      // Both pages run through `em.execute(builder)` rather than by awaiting
+      // the builder: a knex handle carries no transaction context, so the page
+      // a caller inside a transaction is shown would be computed from rows that
+      // transaction has not written yet (issue #207). The builder is kept
+      // rather than rewritten as a statement because the filters above are
+      // assembled at runtime; `execute` compiles it and runs it with the
+      // EntityManager's transaction context, so the SQL is byte-for-byte the
+      // one this method already sent.
+      const totalRows = (await em.execute(
+        baseQuery.clone().count('* as count'),
+      )) as Array<{ count: string | number }>;
+      total = Number(totalRows[0]?.count ?? 0);
+      const idRows = (await em.execute(
+        baseQuery.clone().orderBy('created_at', 'desc').offset(page * pageSize).limit(pageSize).select('id'),
+      )) as Array<{ id: string }>;
       const ids = idRows.map((r) => r.id);
       if (ids.length === 0) {
         items = [];
@@ -1261,12 +1266,11 @@ export class CatalogAdminService {
     // Counts are computed across the *full* product set (including archived)
     // so the admin's status tabs always have honest badges, regardless of
     // which tab is currently active.
-    const knex = em.getKnex();
-    const countRows = (await knex('products')
-      .whereNull('deleted_at')
-      .select('status')
-      .count<{ status: string; count: string | number }[]>('* as count')
-      .groupBy('status')) as Array<{ status: string; count: string | number }>;
+    // `em.execute`, not `em.getKnex()` — same reason as the empty-category
+    // branch above.
+    const countRows = (await em.execute(
+      `select status, count(*) as count from products where deleted_at is null group by status`,
+    )) as Array<{ status: string; count: string | number }>;
     const counts = { all: 0, active: 0, draft: 0, inactive: 0 };
     for (const row of countRows) {
       const n = Number(row.count) || 0;
@@ -1320,11 +1324,13 @@ export class CatalogAdminService {
       return qb;
     };
 
-    const countRow = (await applyListFilters(knex('products'))
-      .clone()
-      .count<{ count: string | number }>('* as count')
-      .first()) as { count: string | number } | undefined;
-    const total = Number(countRow?.count ?? 0);
+    // `em.execute(builder)`, not an awaited builder — see `listProducts`
+    // (issue #207); the filters are assembled at runtime, so the builder stays
+    // and `execute` supplies the EntityManager's transaction context.
+    const countRows = (await em.execute(
+      applyListFilters(knex('products')).clone().count('* as count'),
+    )) as Array<{ count: string | number }>;
+    const total = Number(countRows[0]?.count ?? 0);
 
     if (total > maxSelectionSize) {
       throw new HttpError(
@@ -1335,10 +1341,9 @@ export class CatalogAdminService {
       );
     }
 
-    const idRows = (await applyListFilters(knex('products'))
-      .clone()
-      .orderBy('created_at', 'desc')
-      .select<Array<{ id: string }>>('id')) as Array<{ id: string }>;
+    const idRows = (await em.execute(
+      applyListFilters(knex('products')).clone().orderBy('created_at', 'desc').select('id'),
+    )) as Array<{ id: string }>;
 
     const productIds = idRows.map((r) => r.id);
     return { productIds, total: productIds.length };
@@ -1356,7 +1361,7 @@ export class CatalogAdminService {
   /** Category membership ids for admin product editor (feature 031). */
   async getProductCategoryIds(productId: string): Promise<string[]> {
     const em = this.emFactory();
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select category_id from product_categories where product_id = ?`,
       [productId],
     )) as Array<{ category_id: string }>;
@@ -1383,7 +1388,7 @@ export class CatalogAdminService {
       frontier = nextIds;
     }
 
-    const rows = await em.getConnection().execute<{ product_id: string }[]>(
+    const rows = await em.execute<{ product_id: string }[]>(
       `select product_id from product_categories where category_id in (${all.map(() => '?').join(',')})`,
       all,
     );
@@ -1783,10 +1788,14 @@ export class CatalogAdminService {
     const keys = Object.keys(attributeValues);
     if (keys.length === 0) return;
 
-    const conn = em.getConnection();
     // Feature 061 — set membership is keyed by definition id; the key lives on
     // the definition, resolved through the composed view (Principle I).
-    const rows = (await conn.execute(
+    //
+    // `em.execute`, not `em.getConnection().execute`: this guard runs on the
+    // Command's `em` inside the create/update transaction, so read on a pooled
+    // connection it answered from outside the very transaction it is guarding
+    // (issue #207).
+    const rows = (await em.execute(
       `select custom_field_definition_id
        from attribute_set_attributes
        where attribute_set_id = ?`,
@@ -1831,9 +1840,8 @@ export class CatalogAdminService {
     attributeSetId: string,
     mergedAttributeValues: Record<string, unknown>,
   ): Promise<void> {
-    const conn = em.getConnection();
     // Feature 061 — the required flag lives on the definition (composed view).
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       `select custom_field_definition_id
        from attribute_set_attributes
        where attribute_set_id = ?`,
@@ -1878,7 +1886,6 @@ export class CatalogAdminService {
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
-    const conn = em.getConnection();
     // Feature 061 — membership is definition-keyed; identity fields come from
     // the composed view.
     const views = await this.#requireAttributeRead().listAll();
@@ -1888,7 +1895,7 @@ export class CatalogAdminService {
     ): Promise<Map<string, { labelDefault: string; isRequired: boolean }>> => {
       const out = new Map<string, { labelDefault: string; isRequired: boolean }>();
       if (!setId) return out;
-      const rows = (await conn.execute(
+      const rows = (await em.execute(
         `select custom_field_definition_id
          from attribute_set_attributes
          where attribute_set_id = ?`,

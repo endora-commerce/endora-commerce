@@ -88,13 +88,15 @@ export class AvailabilityNotificationService {
 
     // Cumulative on-hand across every warehouse — the subscribe is gated
     // platform-wide, not per channel.
-    const knex = em.getKnex();
-    const where = { product_id: input.productId } as Record<string, string>;
-    const sumRow = await knex('stock_levels')
-      .where(where)
-      .sum<{ on_hand: string | null }[]>('on_hand as on_hand')
-      .first();
-    const cumulative = Number(sumRow?.on_hand ?? 0);
+    // `em.execute`, not `em.getKnex()`: a knex handle carries no transaction
+    // context, so this in-stock gate would answer from outside a transaction the
+    // caller holds open while the `em.findOne` below answers from inside it
+    // (issue #207).
+    const sumRows = (await em.execute(
+      `select sum(on_hand) as on_hand from stock_levels where product_id = ?`,
+      [input.productId],
+    )) as Array<{ on_hand: string | null }>;
+    const cumulative = Number(sumRows[0]?.on_hand ?? 0);
     if (cumulative > 0) {
       throw new HttpError(
         422,

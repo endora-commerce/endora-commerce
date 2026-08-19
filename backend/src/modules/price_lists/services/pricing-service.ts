@@ -137,12 +137,10 @@ export class PricingService implements PricingServiceContract {
     if (cached) return cached;
 
     // Build the resolution context.
-    const productCategoryRows = await em
-      .getConnection()
-      .execute<Array<{ category_id: string }>>(
-        `select category_id from product_categories where product_id = ?`,
-        [product.id],
-      );
+    const productCategoryRows = await em.execute<Array<{ category_id: string }>>(
+      `select category_id from product_categories where product_id = ?`,
+      [product.id],
+    );
     const orgId = context.organization?.id ?? null;
     // Feature 056 — build the org inheritance chain (nearest-first). Flat when
     // no resolver is wired or the org is a root.
@@ -365,16 +363,14 @@ export class PricingService implements PricingServiceContract {
    */
   async listBracketMinQuantities(productId: string, currencyCode: string): Promise<number[]> {
     const em = this.emFactory();
-    const rows = await em
-      .getConnection()
-      .execute<Array<{ min_quantity: number | string }>>(
-        `select distinct b.min_quantity
-           from price_list_price_brackets b
-           join price_lists l on l.id = b.price_list_id
-          where b.product_id = ? and b.currency_code = ? and l.status = 'active'
-          order by b.min_quantity asc`,
-        [productId, currencyCode.toUpperCase()],
-      );
+    const rows = await em.execute<Array<{ min_quantity: number | string }>>(
+      `select distinct b.min_quantity
+         from price_list_price_brackets b
+         join price_lists l on l.id = b.price_list_id
+        where b.product_id = ? and b.currency_code = ? and l.status = 'active'
+        order by b.min_quantity asc`,
+      [productId, currencyCode.toUpperCase()],
+    );
     return rows.map((r) => Number(r.min_quantity));
   }
 
