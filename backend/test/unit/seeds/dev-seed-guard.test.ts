@@ -8,12 +8,11 @@
  * below is the proof, and it is kept as the reason this file exists.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import {
   mustBeNonProduction,
   TEST_DATABASE_NAME_PATTERN,
 } from '../../../src/seeds/dev-seed-guard.js';
+import { TEST_DATABASE_NAME_PATTERN as HARNESS_TEST_DATABASE_PATTERN } from '../../run-isolation.js';
 
 const DEV_LOCAL = 'postgresql://b2b:b2b@localhost:5432/b2b';
 const DEV_COMPOSE = 'postgresql://b2b:b2b@postgres:5432/b2b';
@@ -161,15 +160,12 @@ describe('mustBeNonProduction — NODE_ENV', () => {
 
 describe('the test-database convention', () => {
   it('is the same one the vitest harness uses to decide a database is safe to wipe', () => {
-    const globalSetup = readFileSync(
-      fileURLToPath(new URL('../../global-setup.ts', import.meta.url)),
-      'utf8',
-    );
-    const harnessPattern = /const looksLikeTest = (\/.*\/)\.test\(dbName\)/.exec(globalSetup)?.[1];
-    expect(
-      harnessPattern,
-      'test/global-setup.ts no longer spells its test-database check the way this test reads it',
-    ).toBeTruthy();
-    expect(`/${TEST_DATABASE_NAME_PATTERN.source}/`).toBe(harnessPattern);
+    // Read from the harness's own export rather than scraped out of
+    // `global-setup.ts`, which is where it used to live. `src/` cannot import
+    // from `test/`, so the two copies stay two copies; this test is the thing
+    // that keeps them one judgement, and comparing the values is a stronger
+    // pin than matching the text that defines them.
+    expect(TEST_DATABASE_NAME_PATTERN.source).toBe(HARNESS_TEST_DATABASE_PATTERN.source);
+    expect(TEST_DATABASE_NAME_PATTERN.flags).toBe(HARNESS_TEST_DATABASE_PATTERN.flags);
   });
 });

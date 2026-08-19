@@ -5,20 +5,26 @@
  *   0. Apply the deterministic cipher keys every run needs, database or not.
  *      A run that declares `BACKEND_TEST_SERVICES=none` (issue #211) stops
  *      here, after pointing every service URL at an unreachable port.
- *   1. Force DATABASE_URL to a dedicated test database so `test-server.ts`
- *      cannot truncate the dev/prod DB by accident.
+ *   1. Give this invocation its **own** database and its own Redis logical
+ *      database, so two concurrent `vitest run`s cannot corrupt each other
+ *      (issue #189). The migrated template is created and brought up to date
+ *      under an advisory lock; the run database is a clone of it.
  *   2. Refuse to run if the resolved URL does not look like a test DB (must
  *      contain `_test` or `test_` in the database name). Override with
  *      ALLOW_NON_TEST_DATABASE_URL=1 if you really know what you're doing.
- *   3. Create the test DB on first run if it doesn't exist yet.
- *   4. Apply pending migrations so `truncate cascade` in test-server has
- *      a fully-migrated schema to truncate.
+ *      Every generated name is put through the same judgement — isolation
+ *      never widens it.
+ *   3. Drop this invocation's database when the run ends, and sweep the
+ *      databases of runs that crashed before they could.
  *
  * Workers inherit env vars from the parent process, so setting
  * `process.env.DATABASE_URL` here propagates to every test worker.
  *
- * Override the test DB URL with TEST_DATABASE_URL (e.g. for CI with a
- * different host).
+ * Override the base test DB URL with TEST_DATABASE_URL (e.g. for CI with a
+ * different host) — the template and the per-invocation database are derived
+ * from it. `BACKEND_TEST_ISOLATION=shared` restores the pre-#189 behaviour of
+ * every invocation sharing one database; see `test/run-isolation.ts` for what
+ * that used to cost.
  */
 
 import { Client } from 'pg';
@@ -28,13 +34,29 @@ import {
   SERVICES_DECLARATION_ENV,
   UNREACHABLE_SERVICE_URLS,
 } from './declared-services.js';
+import {
+  ISOLATION_ENV,
+  KEEP_DATABASE_ENV,
+  TEST_DATABASE_NAME_PATTERN,
+  isolationMode,
+  redisUrlNamesDatabase,
+  runIdentity,
+} from './run-isolation.js';
+import {
+  dropRunDatabase,
+  leaseRedisDatabase,
+  provisionRunDatabase,
+  sweepStrandedRunDatabases,
+  type RedisLease,
+} from './run-isolation-provision.js';
 
 const DEFAULT_TEST_DATABASE_URL = 'postgresql://b2b:b2b@localhost:5432/b2b_test';
+const DEFAULT_REDIS_URL = 'redis://localhost:6379';
 
 function resolveTestDatabaseUrl(): string {
   const url = process.env['TEST_DATABASE_URL']?.trim() || DEFAULT_TEST_DATABASE_URL;
   const dbName = new URL(url).pathname.replace(/^\//, '');
-  const looksLikeTest = /(^|_)test(_|$)/.test(dbName);
+  const looksLikeTest = TEST_DATABASE_NAME_PATTERN.test(dbName);
   if (!looksLikeTest && !process.env['ALLOW_NON_TEST_DATABASE_URL']) {
     throw new Error(
       `Refusing to run tests against database "${dbName}" — name must contain "_test" ` +
@@ -111,9 +133,8 @@ async function applyMigrations(): Promise<void> {
  * a warm one describe the same channel.
  */
 async function establishPlatformInvariants(orm: MikroORM): Promise<void> {
-  const { DefaultChannelReconciler } = await import(
-    '../src/kernel/sales-channels/default-channel-reconciler.js'
-  );
+  const { DefaultChannelReconciler } =
+    await import('../src/kernel/sales-channels/default-channel-reconciler.js');
   // `SalesChannel` is a `@GlobalEntity`, so a plain fork is the right EM here:
   // there is no tenant filter to stamp and no request scope to inherit.
   const result = await new DefaultChannelReconciler(
@@ -151,12 +172,14 @@ function applyDeterministicTestEnv(): void {
   // to encrypt TOTP secrets. Supply a deterministic test key so enrolment
   // routes work without loading backend/.env.
   if (!process.env['MFA_SECRET_ENCRYPTION_KEY']) {
-    process.env['MFA_SECRET_ENCRYPTION_KEY'] =
-      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+    process.env['MFA_SECRET_ENCRYPTION_KEY'] = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
   }
 }
 
-export default async function globalSetup(): Promise<void> {
+/** Vitest calls what a globalSetup returns once the whole invocation is over. */
+type Teardown = () => Promise<void>;
+
+export default async function globalSetup(): Promise<Teardown | void> {
   applyDeterministicTestEnv();
 
   // Issue #211 — the run may declare that it has no services, and then this
@@ -180,8 +203,64 @@ export default async function globalSetup(): Promise<void> {
     return;
   }
 
-  const testUrl = resolveTestDatabaseUrl();
-  process.env['DATABASE_URL'] = testUrl;
-  await ensureDatabaseExists(testUrl);
-  await applyMigrations();
+  const baseUrl = resolveTestDatabaseUrl();
+
+  // The pre-#189 behaviour, kept as an explicit opt-out: every invocation on
+  // one database. Worth having for a post-mortem — the run database is dropped
+  // when the run ends, and sometimes what you want is the database a failing
+  // run left behind, under a name you already know.
+  if (isolationMode() === 'shared') {
+    process.env['DATABASE_URL'] = baseUrl;
+    await ensureDatabaseExists(baseUrl);
+    await applyMigrations();
+    process.stdout.write(
+      `[test-setup] ${ISOLATION_ENV}=shared — this invocation shares ` +
+        `${new URL(baseUrl).pathname.replace(/^\//, '')} with every other one.\n`,
+    );
+    return;
+  }
+
+  // Issue #189 — this invocation's own database, cloned from the migrated
+  // template. `migrateTemplate` is passed in rather than done here because the
+  // ORM config reads DATABASE_URL at import: the template is migrated while
+  // that variable names the template, and the run database takes over
+  // immediately after.
+  const run = await provisionRunDatabase({
+    baseUrl,
+    migrateTemplate: async (templateUrl) => {
+      process.env['DATABASE_URL'] = templateUrl;
+      await applyMigrations();
+    },
+  });
+  process.env['DATABASE_URL'] = run.url;
+
+  // The same defect on the other service: the 20-file batch that "passed alone"
+  // would still have collided on Redis keys. An explicit index in REDIS_URL is
+  // somebody's deliberate choice and is left alone.
+  const redisBaseUrl = process.env['REDIS_URL'] ?? DEFAULT_REDIS_URL;
+  let lease: RedisLease | undefined;
+  if (redisUrlNamesDatabase(redisBaseUrl)) {
+    process.stdout.write(
+      `[test-setup] REDIS_URL already names a logical database — leaving it alone.\n`,
+    );
+  } else {
+    lease = await leaseRedisDatabase(redisBaseUrl, runIdentity());
+    process.env['REDIS_URL'] = lease.url;
+  }
+
+  // Runs that crashed before their teardown. Best-effort, capped, and only ever
+  // over names this harness generated.
+  await sweepStrandedRunDatabases(baseUrl, run.name);
+
+  return async () => {
+    await lease?.release();
+    if (process.env[KEEP_DATABASE_ENV]) {
+      process.stdout.write(
+        `[test-setup] ${KEEP_DATABASE_ENV} is set — keeping ${run.name}. ` +
+          `Drop it yourself, or leave it for the sweep in ~4 h.\n`,
+      );
+      return;
+    }
+    await dropRunDatabase(baseUrl, run.name);
+  };
 }

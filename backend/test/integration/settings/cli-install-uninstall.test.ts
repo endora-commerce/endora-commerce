@@ -21,8 +21,12 @@ import { resolve } from 'node:path';
  */
 
 const REPO_ROOT = resolve(__dirname, '../../../../');
-const DATABASE_URL =
-  process.env['TEST_DATABASE_URL'] ?? 'postgresql://b2b:b2b@localhost:5432/b2b_test';
+// This invocation's own database, which `test/global-setup.ts` put in
+// DATABASE_URL — not TEST_DATABASE_URL, which names the *base* the template and
+// the run database are derived from (issue #189). Spawning the CLI against the
+// base would write into a database no test in this run is reading, and into one
+// another invocation may be cloning at that moment.
+const DATABASE_URL = process.env['DATABASE_URL'] ?? 'postgresql://b2b:b2b@localhost:5432/b2b_test';
 
 function runCli(
   script: 'modules-install' | 'modules-uninstall',
