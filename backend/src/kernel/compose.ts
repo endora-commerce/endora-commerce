@@ -1,6 +1,11 @@
 import type { EventBus } from '../events/bus.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import { registerValues, type KernelContainer } from './container.js';
+import { effectiveState } from './lifecycle/effective-state.js';
+import {
+  assertRequiredModulesPresent,
+  type RequiredModule,
+} from './lifecycle/required-modules.js';
 import { enterSystemScope } from './scope.js';
 import {
   AmbiguousDecorationError,
@@ -156,6 +161,22 @@ export interface ComposeModulesOptions {
    * disagree.
    */
   readonly decorationOrder?: Readonly<Record<string, readonly string[]>> | undefined;
+  /**
+   * The modules this composition is required to have — issue #258, and see
+   * `lifecycle/required-modules.ts` for the whole reasoning.
+   *
+   * A root derives it with `requiredModulesFrom(manifests)` and hands it over as
+   * data, for the same reason `activationDeclarationsFrom` exists: the composer
+   * is given three fields per module and may not read a manifest. Deriving it is
+   * the root's job; there is no list anywhere, so withdrawing a lock changes
+   * this refusal in the same run (D-100).
+   *
+   * Omitting it means *this composition requires nothing*, which is the honest
+   * answer for a fixture composing two modules that do not exist. Every root
+   * that composes the platform passes it, and `harness-parity.test.ts` is what
+   * keeps the two from drifting apart on it.
+   */
+  readonly requiredModules?: readonly RequiredModule[] | undefined;
 }
 
 export interface ComposedModules {
@@ -205,6 +226,24 @@ export function composeModules(
   entries: readonly ModuleEntry[],
   options: ComposeModulesOptions,
 ): ComposedModules {
+  // Issue #258 — before the first module registers, because both answers this
+  // needs exist already and nothing it could refuse is worth half-doing. It has
+  // to land ahead of the boot phase, which is where the failure it prevents
+  // surfaces (as `invoices` failing in a hook, naming the wrong module and no
+  // remedy); ahead of the *registration* phase is simply the earliest point
+  // that is still ahead of it.
+  //
+  // A composition passing no `requiredModules` requires nothing and is left
+  // alone: the presence singleton is process-wide and has nothing to do with a
+  // fixture composing two modules that do not exist.
+  if (options.requiredModules && options.requiredModules.length > 0) {
+    assertRequiredModulesPresent(
+      options.requiredModules,
+      new Set(entries.map((entry) => entry.id)),
+      effectiveState,
+    );
+  }
+
   const combined = createModuleRegistrationSink();
   const ownership = options.ownership ?? createRegistrationOwnership();
   const decorations =

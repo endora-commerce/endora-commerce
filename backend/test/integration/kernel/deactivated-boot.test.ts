@@ -93,16 +93,34 @@ const DEACTIVATED = [
 /**
  * The platform axis, in the same boot — modules this deployment does not offer.
  *
- * Four of them arrive here from the operator list (feature 074): `carts`,
- * `sales_channels`, `settings` and `taxes` are core now, and
- * `effectiveState` forces a core module's operator axis on whatever a Setting
- * says, so seeding them as deactivated would have simulated a state no operator
- * and no CLI can reach — and the boot cases under them would have passed
- * without the modules ever being absent. Absence is still reachable for every
- * one of them, by the axis that was always the deployment's: a build that never
- * installs the module. That is the same absence at the same reads, which is
- * what these cases are about, so the coverage of issue #90's `carts` and
- * `settings` sites is preserved rather than dropped.
+ * **This list used to hold four more, and issue #258 took them off it.** `carts`,
+ * `sales_channels`, `settings` and `taxes` arrived here from the operator list
+ * with feature 074: they are core now, so `effectiveState` forces their operator
+ * axis on whatever a Setting says, and seeding them as deactivated would have
+ * simulated a state no operator and no CLI can reach. The platform axis was the
+ * absence that stayed reachable, and the boot cases under them were real.
+ *
+ * That absence is now refused. A module whose manifest declares
+ * `activation.nonDeactivatable` is required to be *present*, not merely
+ * un-switch-off-able, and `composeModules` refuses a composition that lacks one
+ * before the first module registers (`required-module-absent.test.ts`). All four
+ * declare it, so seeding them platform-unavailable now simulates a state the
+ * platform will not boot in — and a case asserting "composition succeeds with
+ * `settings` absent" would be asserting the opposite of the ruling, from a
+ * fixture that reached a state nothing can produce.
+ *
+ * **What that costs, and why it costs nothing.** Their entry here was justified
+ * as preserving issue #90's coverage: modules reading `carts`' and `settings`'
+ * gated ports at boot. Those reads cannot fail any more, and not by luck — the
+ * gate has no "no" to give when its owner is required to be present, which is
+ * the same derivation `check:port-catches` reports as `OWNER LOCKED` and
+ * `check:entry-presence` uses to leave a locked module's boot hooks out of its
+ * population. The coverage is not dropped, it is discharged.
+ *
+ * `blog` replaces them, because the axis itself still needs a case that is not
+ * the tri-state one below: a module with an activation control, withdrawn on the
+ * *platform* axis rather than the operator's, which is what
+ * `module:disable blog` produces and what an operator's own choice must survive.
  *
  * `health_checks` is here for a second reason as well: it is the one module
  * that declares no activation block at all, so with its registry row gone it is
@@ -111,13 +129,7 @@ const DEACTIVATED = [
  * regardless, because `ctx.ungatedRoutes` exempts them, and the health-route
  * case at the bottom of this file is what shows it.
  */
-const PLATFORM_UNAVAILABLE = [
-  'carts',
-  'sales_channels',
-  'settings',
-  'taxes',
-  'health_checks',
-] as const;
+const PLATFORM_UNAVAILABLE = ['blog', 'health_checks'] as const;
 
 /** The only one of those with no activation declaration, hence no presence row. */
 const UNDECLARED = 'health_checks';
@@ -216,10 +228,11 @@ describe('the production composition root boots with modules switched off', () =
       if (moduleId === UNDECLARED) continue;
       const presence = effectiveState.presence(moduleId);
       expect(presence?.platformAvailable, `${moduleId} platform axis`).toBe(false);
-      // Core, so the operator axis reads `true` whatever is stored — and the
-      // conjunction is still absent. That is the two axes staying orthogonal,
-      // which is the property that makes this list a valid substitute for the
-      // deactivation it replaced.
+      // The operator never said no — `blog` ships activated by default and no
+      // Setting overrides it here — and the conjunction is still absent. That is
+      // the two axes staying orthogonal, which is what makes withdrawing a
+      // module on the platform axis a different state from an operator
+      // switching it off, and the reason both lists exist in one boot.
       expect(presence?.operatorActivated, `${moduleId} operator axis`).toBe(true);
       expect(effectiveState.isPresent(moduleId), `${moduleId} effective presence`).toBe(false);
     }

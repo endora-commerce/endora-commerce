@@ -43,6 +43,7 @@ import {
   createRegistrationOwnership,
   registerOrm,
   registerValues,
+  requiredModulesFrom,
   resolvePublicApiBaseUrl,
 } from './kernel/index.js';
 import { promoteAdminActor } from './modules/auth/plugin.js';
@@ -406,6 +407,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     log: console,
     interceptorRegistry: apiInterceptors,
     ownership: registrationOwnership,
+    // Issue #258 — the modules this deployment is required to have, derived
+    // from the manifest set it resolved above rather than written down (D-100).
+    // The composer refuses before the first module registers when one of them
+    // is missing, which is what stops a first boot from dying in whichever
+    // module's boot hook happened to need it first.
+    requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
   });
 
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
