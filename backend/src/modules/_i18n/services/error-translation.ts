@@ -124,6 +124,16 @@ function moduleIdForErrorCode(code: ErrorCode): string {
   // routing only the two unreachable codes would split a three-member family
   // across two bundles, which is the arrangement that hid this.
   if (code.startsWith('CART_')) return 'carts';
+  // Feature 082, D-125 — the `ORDER_*` family is exactly two codes
+  // (`ORDER_NOT_FOUND`, `ORDER_NOT_CANCELLABLE`). T1 of D-121 answers directly:
+  // the noun is an order and `orders` owns orders, so the sentence leaves
+  // `invoices` — which throws the code once and wrote the only real sentence
+  // for it — exactly as D-95.2 sent `INVOICE_NOT_READY` the other way from
+  // `orders` to `invoices`. Unlike `CART_*` this family has a member that the
+  // move would strand: `ORDER_NOT_CANCELLABLE` had only `_i18n`'s placeholder,
+  // so `orders` gains a written sentence for it in the same change rather than
+  // a ledger entry or an exception to the rule.
+  if (code.startsWith('ORDER_')) return 'orders';
   if (code.startsWith('ASSET_')) return 'assets_library';
   if (code.startsWith('CMS_')) return 'cms';
   if (code.startsWith('MEGAMENU_')) return 'megamenu';

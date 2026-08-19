@@ -34,7 +34,11 @@ import {
   violationsOf,
   type EntryKind,
 } from '../../../scripts/check-entry-scope.js';
-import { findUntranslatedErrorCodes } from '../../../scripts/check-error-translations.js';
+import {
+  findUnreachableSentences,
+  findUntranslatedErrorCodes,
+  type TranslationInput,
+} from '../../../scripts/check-error-translations.js';
 import { checkFixtureSubstitution } from '../../../scripts/check-fixture-substitution.js';
 import {
   checkSharedTableWipes,
@@ -223,6 +227,30 @@ const PROOFS_ENTERING_BELOW: Readonly<Record<string, string>> = {};
 const top = (prove: () => number): RedProof => ({ enters: 'top', prove });
 
 // --- fixtures the red proofs run on ----------------------------------------
+
+/**
+ * A whole tree for `check:error-translations`, keyed `<directory>.<language>`.
+ *
+ * The routing table is fixed and deliberately points `BLOG_POST_NOT_FOUND` at a
+ * module that is **not** the one the proofs write it in — that gap is the
+ * finding. Both members are built from one map, so the proof cannot describe a
+ * tree where P1's reader and P2's walk disagree.
+ */
+function errorSentenceTree(bundles: Record<string, Record<string, string>>): TranslationInput {
+  return {
+    keys: { BLOG_POST_NOT_FOUND: { moduleId: 'cms', key: 'errors.BLOG_POST_NOT_FOUND' } },
+    readBundle: (moduleId, language) => bundles[`${moduleId}.${language}`] ?? {},
+    listBundleKeys: () =>
+      Object.entries(bundles).flatMap(([slot, bundle]) => {
+        const cut = slot.lastIndexOf('.');
+        return Object.keys(bundle).map((key) => ({
+          moduleId: slot.slice(0, cut),
+          language: slot.slice(cut + 1),
+          key,
+        }));
+      }),
+  };
+}
 
 /**
  * Issue #216 — the manifests a lock claim is judged against.
@@ -1765,16 +1793,29 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-error-translations.test.ts',
     vacuousGuard: 'exit-2',
-    // Its population is `ERROR_TRANSLATION_KEYS`. A module whose bundle is not
-    // where it looks turns every one of its codes into a finding, so a residue
-    // reads as 208 violations rather than as a clean tree.
+    // Its population is `ERROR_TRANSLATION_KEYS` for P1 and a walk of the
+    // bundles for P2. A module whose bundle is not where it looks turns every
+    // one of its codes into a finding, so a residue reads as 208 violations
+    // rather than as a clean tree.
     residueGuard: 'not-a-module-walk',
+    // Two predicates, and the second (feature 082, D-127) has **no ledger** —
+    // not an empty one. Every P2 repair is a JSON line moved or deleted plus at
+    // most one routing line, so there is nothing a ledger could schedule. Four
+    // candidate exceptions were tested and refuted in `rulings.md` § 7: a
+    // planned re-route (one line, nothing to schedule), a deployment override
+    // (measured impossible — the sanctioned lever is decorating
+    // `adminI18nService`), two wordings for one code (impossible by
+    // construction, the envelope reads one key), and a sentence written before
+    // its code (refused by Principle II, which lands the contract first). If a
+    // fifth is found, record it there and add the ledger then. Do not add one
+    // here to make a build pass.
     red: {
       'missing-in-both-languages': top(
         () =>
           findUntranslatedErrorCodes({
             keys: { BLOG_POST_NOT_FOUND: { moduleId: 'blog', key: 'errors.BLOG_POST_NOT_FOUND' } },
             readBundle: () => ({}),
+            listBundleKeys: () => [],
           }).length,
       ),
       // "Both shipped languages" is the rule: an English-only sentence is still
@@ -1785,8 +1826,40 @@ const CHECKS: readonly CheckEntry[] = [
             keys: { BLOG_POST_NOT_FOUND: { moduleId: 'blog', key: 'errors.BLOG_POST_NOT_FOUND' } },
             readBundle: (_moduleId, language) =>
               language === 'en' ? { 'errors.BLOG_POST_NOT_FOUND': 'Post not found.' } : {},
+            listBundleKeys: () => [],
           }).length,
       ),
+      // P2's three kinds, one proof each, because four of a check's signals can
+      // go blind behind the fifth's red (issue #130). Each enters at the top:
+      // a routing table and a bundle walk in, findings out.
+      'sentence-unreachable': top(
+        () =>
+          findUnreachableSentences(
+            errorSentenceTree({ 'blog.en': { 'errors.BLOG_POST_NOT_FOUND': 'No such post.' } }),
+          ).filter((f) => f.kind === 'unreachable').length,
+      ),
+      'sentence-duplicated': top(
+        () =>
+          findUnreachableSentences(
+            errorSentenceTree({
+              'cms.en': { 'errors.BLOG_POST_NOT_FOUND': 'No such post.' },
+              'blog.en': { 'errors.BLOG_POST_NOT_FOUND': 'No such post.' },
+            }),
+          ).filter((f) => f.kind === 'duplicate').length,
+      ),
+      'sentence-names-no-code': top(
+        () =>
+          findUnreachableSentences(
+            errorSentenceTree({ 'blog.en': { 'errors.COUPON_EXPIRED': 'It expired.' } }),
+          ).filter((f) => f.kind === 'no-code').length,
+      ),
+      // The fourth fixture D-127 requires — a correctly-filed sentence, token
+      // key included, yielding **zero** findings — cannot live here: a `red`
+      // proof must come back non-zero. It is
+      // `check-error-translations.test.ts`' "says nothing about a
+      // correctly-filed sentence, token keys included", and it is what stops a
+      // predicate that reports every `errors.*` key it sees from passing the
+      // three above.
     },
   },
   {
@@ -3806,7 +3879,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // at file level — and the ledger's stale direction, which a per-site key
       // can break without breaking anything else.
       'backend/scripts/check-entry-scope.ts': 10,
-      'backend/scripts/check-error-translations.ts': 2,
+      // P1's two — a code missing in both languages and in one — plus P2's
+      // three kinds (feature 082, D-127). The fourth fixture D-127 requires is
+      // the discrimination one, which asserts **zero** findings and therefore
+      // cannot be a red proof; it is in the companion test.
+      'backend/scripts/check-error-translations.ts': 5,
       // Three shapes the read reaches the fallback through, four fabrications
       // the fallback performs; the two axes are independent, so the count is
       // their union rather than their product.
