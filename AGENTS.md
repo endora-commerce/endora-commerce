@@ -382,7 +382,15 @@ directly only where there is no `ModuleContext` — a CLI entry point. Four core
    platform genuinely cannot run without the module, declare it non-deactivatable with a
    reason. The lifecycle orchestrator refuses to disable **or uninstall** a module that
    declares it — soft and hard alike, with no `--force` (D-69) — so the declaration bites on
-   both axes and on every withdrawal. Never hard-code an exception list in the
+   both axes and on every withdrawal. **It also says the module is required to be *present*,
+   not merely un-switch-off-able** (issue #258): `composeModules` refuses, before the first
+   module registers, a composition that lacks one — naming it, the reason the manifest gives
+   and the remedy — because a platform without it does not degrade, it exits, in whichever
+   module's boot hook happens to need it first. *"Required to be installed"* and *"cannot be
+   switched off"* are one set on purpose; do not add a second manifest field for it, and do
+   not write the set down anywhere — `requiredModulesFrom(manifests)` derives it on every
+   composition, so an owner withdrawing a lock changes the refusal in the same run (D-100).
+   Never hard-code an exception list in the
    admin app, and never declare it because a screen happens to live in the module — the
    activation controls render on `/platform/modules`, which belongs to no module (D-36).
 5. **Admin and Storefront** — a module that is off contributes no sidebar entry, palette
