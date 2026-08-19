@@ -48,10 +48,33 @@ export interface PromotionRoutesDeps {
    * Feature 012 / US8 — feeds the rule-target picker endpoint. Since feature
    * 075's Phase C this is `catalogPromoAttributePort`, the two questions this
    * picker asks, rather than `catalog`'s 1400-line storefront query service.
+   *
+   * **Required** (issue #164), for the reason the two ports on
+   * `PromotionService` are. It was optional and the one call site there is —
+   * `backend.ts`, through `lazyPort('catalogPromoAttributePort')` — always
+   * supplied it, so the absent branch had never run; what it would have run
+   * was `503 { code: 'service_unavailable' }`, a code written nowhere else in
+   * the repository, in no `ERROR_CODES`, with no translation and no admin
+   * handler. That made it a second spelling of one absence, and the platform
+   * already spells that absence once: `lazyPort` resolves inside the forwarded
+   * call, so an owner that is not there throws `ModuleDisabledError` and the
+   * envelope answers 503 `MODULE_DISABLED` naming the module. Here even that
+   * cannot happen — `catalog` declares `activation.nonDeactivatable`, so the
+   * gate on this port has no closed state — which leaves exactly one absence
+   * this route can see, and it is the one `getAttributeWithOptions` already
+   * says in its return type: `null`, no such attribute.
    */
-  catalogPromoAttributes?: CatalogPromoAttributePort;
-  /** Feature 045 (T033) — list ports for the remaining rule-target pickers. */
-  ruleTargets?: PromotionRuleTargetPorts;
+  catalogPromoAttributes: CatalogPromoAttributePort;
+  /**
+   * Feature 045 (T033) — list ports for the remaining rule-target pickers.
+   *
+   * The bundle is required and its **members** are not: the container
+   * registers `promotionRuleTargets` with a `{}` default that a composition
+   * root contributes over, so the routes always receive one, while which
+   * picker kinds it knows how to list stays the composition's business
+   * (issue #164 again — the outer `?.` guarded nothing).
+   */
+  ruleTargets: PromotionRuleTargetPorts;
 }
 
 export async function registerPromotionRoutes(
@@ -178,11 +201,7 @@ export async function registerPromotionRoutes(
   app.get(
     '/api/v1/admin/promotions/rule-targets/attributes',
     { preHandler: readGate },
-    async (_request, reply) => {
-      if (!catalogPromoAttributes) {
-        reply.status(503);
-        return { error: { code: 'service_unavailable', message: 'Catalog port not configured.' } };
-      }
+    async () => {
       const keys = await catalogPromoAttributes.promoRuleAttributeKeys();
       const items = [];
       for (const k of keys) {
@@ -270,22 +289,22 @@ export async function registerPromotionRoutes(
 
   // Feature 045 (T033) — rule-target pickers feeding the Rule Builder.
   app.get('/api/v1/admin/promotions/rule-targets/sales-channels', { preHandler: readGate }, async () => ({
-    data: { items: (await ruleTargets?.salesChannels?.()) ?? [] },
+    data: { items: (await ruleTargets.salesChannels?.()) ?? [] },
   }));
   app.get('/api/v1/admin/promotions/rule-targets/customer-groups', { preHandler: readGate }, async () => ({
-    data: { items: (await ruleTargets?.customerGroups?.()) ?? [] },
+    data: { items: (await ruleTargets.customerGroups?.()) ?? [] },
   }));
   app.get('/api/v1/admin/promotions/rule-targets/organizations', { preHandler: readGate }, async () => ({
-    data: { items: (await ruleTargets?.organizations?.()) ?? [] },
+    data: { items: (await ruleTargets.organizations?.()) ?? [] },
   }));
   app.get('/api/v1/admin/promotions/rule-targets/categories', { preHandler: readGate }, async () => ({
-    data: { items: (await ruleTargets?.categories?.()) ?? [] },
+    data: { items: (await ruleTargets.categories?.()) ?? [] },
   }));
   app.get('/api/v1/admin/promotions/rule-targets/payment-methods', { preHandler: readGate }, async () => ({
-    data: { items: (await ruleTargets?.paymentMethods?.()) ?? [] },
+    data: { items: (await ruleTargets.paymentMethods?.()) ?? [] },
   }));
   app.get('/api/v1/admin/promotions/rule-targets/delivery-methods', { preHandler: readGate }, async () => ({
-    data: { items: (await ruleTargets?.deliveryMethods?.()) ?? [] },
+    data: { items: (await ruleTargets.deliveryMethods?.()) ?? [] },
   }));
 
   app.delete<{ Params: { id: string } }>(
