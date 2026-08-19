@@ -1038,7 +1038,7 @@ is how a wrong count survives: a document disagreeing with itself reads as
 two authors, not as an error. None of
 those was carelessness, and none of them announced itself: **a green result
 cannot be told apart from a check that looked at nothing**, and nothing in the
-repository forced the distinction. Six rules come out of it.
+repository forced the distinction. Seven rules come out of it.
 
 **Take the input as a parameter.** A check whose analysis reads the disk can
 only be run against the tree, and against a clean tree it agrees with a function
@@ -1080,6 +1080,28 @@ entity declared in an `entities/index.ts` was not *unclassified* as far as they
 were concerned — it was unread, and unread and clean print the same line. Walk
 the tree, pre-filter on the thing the rule is about (`@Entity(`, a relation
 decorator), and let the parse decide.
+
+**Do not lex by hand.** Nearly every source-level check starts by ignoring the
+comments, and written as an ordered pair of regexes that step is wrong in both
+orders. Block-comments-first, a `//` line ending in a route glob opens a block
+comment that runs to the next real terminator: `harness-parity.test.ts` lost
+**1135 of the harness's 2767 lines** that way, and `runBootHooks(`,
+`errorEnvelope` and `resolvePreferredLanguage` were invisible to every
+`not.toContain` assertion in the file — green because the text was gone (issue
+#234). Line-comments-first opens the symmetric hole: a `//` inside a block
+comment takes that block's own terminator with it and the opener runs on. And in
+either order a comment token inside a **string literal** — `'/*'` in
+`assets_library`'s wildcard-MIME test, `'image/*, */*;q=0.5'` in `pim_ergonode`'s
+Accept header — opens or closes a comment that is not there. So there is one
+implementation, `backend/scripts/lib/source-text.ts`, and it asks the parser
+which spans are comments rather than ordering two passes; `typescript` is already
+the input to nineteen checks, and a scanner that knows what a string literal is
+has no order to get wrong. It blanks rather than deletes, so a line number in the
+result is still a line number in the source. Where the consumer wants more than
+comments removed, read the nodes outright — `check-diacritic-folds` does,
+precisely because four files quote the wrong one-liner on purpose and a
+text-level implementation would report the documentation written to prevent the
+defect.
 
 **Give "nothing was read" its own exit code.** Exit 2, distinct from clean (0)
 and from violations found (1), whenever the file list, the routing table or the
