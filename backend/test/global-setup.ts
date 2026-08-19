@@ -43,8 +43,10 @@ import {
   redisUrlNamesDatabase,
   runIdentity,
   sharedDatabaseReason,
+  templateDrift,
 } from './run-isolation.js';
 import {
+  appliedMigrations,
   dropRunDatabase,
   leaseRedisDatabase,
   provisionRunDatabase,
@@ -109,6 +111,18 @@ async function applyMigrations(): Promise<void> {
   } finally {
     await closeOrm();
   }
+}
+
+/**
+ * The migration class names this run applies, in the order it applies them.
+ *
+ * Read from the ORM config rather than recomputed, so there is one ordering and
+ * not a copy of it here: `src/db/migration-order.ts` derives it from the
+ * manifest dependency graph, and it moves whenever a manifest does.
+ */
+async function configuredMigrationNames(): Promise<string[]> {
+  const { default: config } = await import('../src/db/mikro-orm.config.js');
+  return (config.migrations?.migrationsList ?? []).map((entry) => entry.name);
 }
 
 /**
@@ -225,6 +239,26 @@ export default async function globalSetup(): Promise<Teardown | void> {
       `[test-setup] ${shared === 'explicit' ? `${ISOLATION_ENV}=shared` : 'ALLOW_NON_TEST_DATABASE_URL'}` +
         ` — this invocation shares ${databaseNameOf(baseUrl)} with every other one.\n`,
     );
+    // The shared database accumulates the same way the template does — a
+    // migration from another branch, or one of ours appended where the order
+    // does not put it — and a test that drives the migrator reads that as a
+    // failure of the code under test. This path only *says* so: on this branch
+    // the database is the operator's, named by them or kept by them for a
+    // post-mortem, so it is not this harness's to drop. The isolated path,
+    // whose template is a name this module generates, rebuilds instead.
+    const drift = templateDrift(
+      await appliedMigrations(baseUrl),
+      await configuredMigrationNames(),
+      databaseNameOf(baseUrl),
+    );
+    if (drift) {
+      process.stdout.write(
+        `[test-setup] WARNING: ${drift.message.replace(' Rebuilding it from empty.', '')} ` +
+          `Nothing here rebuilds it, because you named it. A test that drives the migrator ` +
+          `will fail against it for that reason and not for its own — drop it and re-run, ` +
+          `or drop ${ISOLATION_ENV}=shared and let the isolated path rebuild its template.\n`,
+      );
+    }
     return;
   }
 
@@ -235,6 +269,12 @@ export default async function globalSetup(): Promise<Teardown | void> {
   // immediately after.
   const run = await provisionRunDatabase({
     baseUrl,
+    configuredMigrations: async (templateUrl) => {
+      // Before the first import of the ORM config, which captures this
+      // variable and never reads it again — see `ProvisionInput`.
+      process.env['DATABASE_URL'] = templateUrl;
+      return configuredMigrationNames();
+    },
     migrateTemplate: async (templateUrl) => {
       process.env['DATABASE_URL'] = templateUrl;
       await applyMigrations();

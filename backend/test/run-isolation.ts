@@ -42,6 +42,13 @@
  * from scratch on a fresh cluster, which is what the CI job's comment about
  * exercising the whole chain is protecting.
  *
+ * **And checked for currency before it is cloned.** The template outlives every
+ * run and is shared by every branch on the machine, while `migrator.up()` only
+ * appends — so what it holds has to be a *prefix* of the order this run
+ * configures, or no append can make it this run's platform. `templateDrift`
+ * below is that judgement, and provisioning rebuilds the template from empty
+ * when it finds one.
+ *
  * **Names satisfy the existing guard.** `runDatabaseName` refuses to produce a
  * name `TEST_DATABASE_NAME_PATTERN` would not accept, so the harness's refusal
  * to truncate a non-test database is untouched — not loosened, not bypassed.
@@ -283,4 +290,80 @@ export function advisoryLockKey(name: string): number {
     hash = Math.imul(hash, 0x01000193);
   }
   return hash | 0;
+}
+
+/**
+ * Why the migration template cannot be brought forward to this run's migration
+ * set by `migrator.up()`, and must be rebuilt from empty instead.
+ */
+export interface TemplateDrift {
+  /**
+   * `unknown-migration` — a name applied to the template that this run's
+   * registry does not contain at all. `out-of-order` — one of this run's own
+   * migrations, applied in a position the configured order does not put it in.
+   */
+  readonly kind: 'unknown-migration' | 'out-of-order';
+  /** The applied migration the judgement is about. */
+  readonly name: string;
+  /** The migration this run's order has in that position, when there is one. */
+  readonly expected?: string;
+  /** The whole finding as one line, for the log or for a throw. */
+  readonly message: string;
+}
+
+/**
+ * Whether the template is a database this run's migrations could have produced.
+ *
+ * The template is **long-lived and shared by every branch on the machine**, and
+ * it is only ever moved forward by `migrator.up()`, which appends. That is
+ * enough exactly when what is already applied is a **prefix** of the order this
+ * run configures: then the pending ones land after it, and the result is the
+ * order a database migrated from scratch today would have. Anything else —
+ * another branch's migration, or one of ours applied somewhere the order does
+ * not put it — is a database no `up()` can repair, so it is rebuilt.
+ *
+ * Both shapes are ordinary here, not exotic. Five agents share one cluster, so
+ * a template routinely carries a migration the branch running has never heard
+ * of; and `orderMigrations` places a migration by its module's position in the
+ * dependency graph, so a migration added anywhere but the last module lands at
+ * the **end** of an incrementally-migrated template and in the **middle** of a
+ * fresh one.
+ *
+ * That is not cosmetic. It broke
+ * `test/integration/catalog/attributes-migration-parity.test.ts`, which drives
+ * the real migrator: umzug reverts the last migration in *configured* order,
+ * while the test reads the last one in *applied* (`id`) order, and the two stop
+ * agreeing the moment the template stops being a prefix. The test then walked
+ * `down()` past its own target, never reached its termination condition, timed
+ * out, and left the run database with most of its schema reverted.
+ */
+export function templateDrift(
+  applied: readonly string[],
+  expected: readonly string[],
+  templateName = 'the migration template',
+): TemplateDrift | undefined {
+  const known = new Set(expected);
+  for (const [index, name] of applied.entries()) {
+    if (name === expected[index]) continue;
+    if (!known.has(name)) {
+      return {
+        kind: 'unknown-migration',
+        name,
+        message:
+          `${templateName} has "${name}" applied, which this run's migration registry does ` +
+          `not contain — another branch migrated it. Rebuilding it from empty.`,
+      };
+    }
+    const inPosition = expected[index];
+    return {
+      kind: 'out-of-order',
+      name,
+      ...(inPosition === undefined ? {} : { expected: inPosition }),
+      message:
+        `${templateName} has "${name}" applied at position ${index + 1}, where this run's ` +
+        `order has ${inPosition === undefined ? 'nothing' : `"${inPosition}"`} — an append ` +
+        `cannot move it. Rebuilding it from empty.`,
+    };
+  }
+  return undefined;
 }
