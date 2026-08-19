@@ -29,7 +29,12 @@ export const manifest = defineModuleManifest({
   // `customer_accounts.customer_group_id` is a real foreign key too, and since
   // feature 076 (D-79) it points at `customer_groups`, which this module now
   // owns: the constraint is intra-module and declares nothing.
-  dependencies: ['auth', 'organizations'],
+  // `audit_logs` owns `auditReferenceRegistry`, the registry this module pushes
+  // its own "what is this audit row called, and where does the admin app show
+  // it?" resolver into (feature 075, D-87). The registry is ungated and its
+  // owner is non-deactivatable, so the declaration buys install and migration
+  // order rather than a flip-time refusal.
+  dependencies: ['audit_logs', 'auth', 'organizations'],
   /**
    * D-96 — `mfaLoginPort`, the second factor on customer login.
    *

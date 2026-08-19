@@ -20,6 +20,7 @@ import type {
   PromptActionToolRegistryPort,
 } from '@b2b/contracts';
 import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@b2b/contracts';
+import type { AuditReferenceRegistryPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
@@ -38,6 +39,7 @@ import { WarehouseChannelReconciler } from './services/warehouse-channel-reconci
 import { AVAILABILITY_BACK_IN_STOCK_DEFAULT, LOW_STOCK_ALERT_DEFAULT } from './email-templates/transactional-defaults.js';
 import { inventoryPromptTools } from './prompt-tools.js';
 import { registerWarehouseCountryReferences } from './services/warehouse-country-reference.js';
+import { registerInventoryAuditReferences } from './services/audit-references.js';
 
 /**
  * `inventory` — three capabilities the test harness never had (feature 072,
@@ -427,6 +429,32 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.onBoot(() => {
     registerWarehouseCountryReferences(
       lazyPort<DictionaryReferenceRegistryPort>(ctx, 'countryReferenceRegistry'),
+      ctx.cradle<InventoryCradle>().emFactory,
+    );
+  });
+
+  /**
+   * What an audit row about a warehouse is called, and where the admin app shows it
+   * (feature 075, D-87 drain).
+   *
+   * `audit_logs` used to answer both by hand — one SQL statement naming this
+   * module's table, and this module's admin route spelled into its own switch.
+   * A read port would have been the wrong repair: `audit_logs` is a
+   * cross-cutting reader, and five ports into it would be five edges pointing
+   * from the record towards the things it records. One of the five contributors
+   * (`inventory`) is switchable, and `audit_logs` is `nonDeactivatable`, so that
+   * edge would also have taken the operator's switch away. A push costs nothing
+   * and reads the same for all five.
+   *
+   * A **contribution** hook: it pushes an inert resolver into
+   * `auditReferenceRegistry`, an ungated registry, and carries no presence probe
+   * (D-67/D-68). The registry's own enumeration policy is what drops this entry
+   * while the module is absent — probing here would make the drop survive a
+   * reactivation until the next restart.
+   */
+  ctx.onBoot(() => {
+    registerInventoryAuditReferences(
+      lazyPort<AuditReferenceRegistryPort>(ctx, 'auditReferenceRegistry'),
       ctx.cradle<InventoryCradle>().emFactory,
     );
   });

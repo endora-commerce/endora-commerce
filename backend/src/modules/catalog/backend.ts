@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import { ERROR_CODES, type ListingPricePort } from '@b2b/contracts';
+import type { AuditReferenceRegistryPort } from '@b2b/contracts';
 import type {
   AssetReadPort,
   AssetReferenceRegistryPort,
@@ -63,6 +64,7 @@ import type {
   CatalogWarehouseThresholdCopy,
 } from './services/catalog-admin.service.js';
 import { registerCatalogAssetReferences } from './services/asset-references.js';
+import { registerCatalogAuditReferences } from './services/audit-references.js';
 import { presenceAwareBulkRecorder } from './services/bulk-operation.service.js';
 import {
   catalogBulkProgressReader,
@@ -762,5 +764,31 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.routes(async (app) => {
     await cradle().catalog(app);
+  });
+
+  /**
+   * What an audit row about a product is called, and where the admin app shows it
+   * (feature 075, D-87 drain).
+   *
+   * `audit_logs` used to answer both by hand — one SQL statement naming this
+   * module's table, and this module's admin route spelled into its own switch.
+   * A read port would have been the wrong repair: `audit_logs` is a
+   * cross-cutting reader, and five ports into it would be five edges pointing
+   * from the record towards the things it records. One of the five contributors
+   * (`inventory`) is switchable, and `audit_logs` is `nonDeactivatable`, so that
+   * edge would also have taken the operator's switch away. A push costs nothing
+   * and reads the same for all five.
+   *
+   * A **contribution** hook: it pushes an inert resolver into
+   * `auditReferenceRegistry`, an ungated registry, and carries no presence probe
+   * (D-67/D-68). The registry's own enumeration policy is what drops this entry
+   * while the module is absent — probing here would make the drop survive a
+   * reactivation until the next restart.
+   */
+  ctx.onBoot(() => {
+    registerCatalogAuditReferences(
+      lazyPort<AuditReferenceRegistryPort>(ctx, 'auditReferenceRegistry'),
+      cradle().emFactory,
+    );
   });
 }

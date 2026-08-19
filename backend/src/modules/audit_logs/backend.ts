@@ -1,11 +1,14 @@
+import type { AuditReferenceRegistryPort } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { ModuleDisabledError } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { AuditActorIdentity } from './routes.admin.js';
 import { registerAuditLogAdminRoutes } from './routes.admin.js';
 import { registerRecentActivityRoutes } from './routes.admin.recent-activity.js';
+import { AuditReferenceRegistry } from './services/audit-reference-registry.js';
 import { RecentActivityService } from './services/recent-activity-service.js';
 
 /**
@@ -59,13 +62,56 @@ export interface AuditLogsCradle {
   readonly auditActorResolver:
     | ((ids: string[]) => Promise<AuditActorIdentity[]>)
     | undefined;
+  readonly auditReferenceRegistry: AuditReferenceRegistryPort;
   readonly recentActivityService: RecentActivityService;
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  /**
+   * Turning an actor id into a name, through the contribution point above.
+   *
+   * One closure, two readers — the audit-log list and the dashboard card — so
+   * there is exactly one place that decides what an absent directory means, and
+   * exactly one `catch` for a reviewer to check. The dashboard card used to
+   * decide it for itself, by running `select … from admin_users` (feature 075,
+   * D-87).
+   */
+  const resolveActors = async (ids: string[]): Promise<AuditActorIdentity[]> => {
+    const resolve = ctx.cradle<AuditLogsCradle>().auditActorResolver;
+    if (resolve === undefined) return [];
+    try {
+      return await resolve(ids);
+    } catch (error) {
+      // The enrichment is optional; the record is not. Anything else is
+      // a real failure and must not be swallowed into a blank column.
+      if (error instanceof ModuleDisabledError) return [];
+      throw error;
+    }
+  };
+
   ctx.di.register({
+    /**
+     * Who can turn one of *their* ids into a name and a link (feature 075,
+     * D-87). A **contribution seam**, so a plain `ctx.di.register`: contributors
+     * push from their own boot hooks, and a gate here would refuse them at a
+     * point in the boot where there is nothing to answer.
+     *
+     * The presence predicate is this module's enumeration policy — skip — and it
+     * is asked per read rather than per registration, so an operator's flip
+     * takes effect without a restart.
+     */
+    auditReferenceRegistry: ctx
+      .asFunction(
+        (): AuditReferenceRegistryPort =>
+          new AuditReferenceRegistry((moduleId) => effectiveState.isPresent(moduleId)),
+      )
+      .singleton(),
+
     recentActivityService: ctx
-      .asFunction(({ emFactory }: AuditLogsCradle) => new RecentActivityService(emFactory))
+      .asFunction(
+        ({ emFactory, auditReferenceRegistry }: AuditLogsCradle) =>
+          new RecentActivityService(emFactory, resolveActors, auditReferenceRegistry),
+      )
       .singleton(),
 
     // Contribution point, defaulted to absent by its owner. A deployment
@@ -86,18 +132,7 @@ export function registerModule(ctx: ModuleContext): void {
       // Resolved per request, and per request is what makes the degradation
       // work: a contributor captured once would keep naming actors long after
       // its module went away.
-      resolveActors: async (ids) => {
-        const resolve = ctx.cradle<AuditLogsCradle>().auditActorResolver;
-        if (resolve === undefined) return [];
-        try {
-          return await resolve(ids);
-        } catch (error) {
-          // The enrichment is optional; the record is not. Anything else is
-          // a real failure and must not be swallowed into a blank column.
-          if (error instanceof ModuleDisabledError) return [];
-          throw error;
-        }
-      },
+      resolveActors,
     });
 
     await registerRecentActivityRoutes(app, { recentActivityService, requireAdmin });

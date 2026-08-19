@@ -151,6 +151,10 @@ export * from './admin-users.js';
 export * from './addresses.js';
 export * from './shipments.js';
 export * from './admin-notifications.js';
+// The audit-log reference registry (feature 075, D-87 drain). Not an API shape:
+// the in-process seam each module answers "what is this row of mine called, and
+// where does the admin app show it?" through.
+export * from './audit-logs.js';
 // The bulk-import report both owners answer in and `import_export` renders
 // (feature 075, D-74). Not a module's port surface — a shape two of them share.
 export * from './import-export.js';
