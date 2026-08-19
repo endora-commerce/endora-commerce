@@ -483,16 +483,18 @@ test:backend:
     MEILI_MASTER_KEY: devMasterKeyChangeMe
     MEILI_ENV: development
     MEILI_NO_ANALYTICS: 'true'
-    # global-setup.ts creates + migrates this dedicated DB (and exercises every
-    # migration, so a separate migration:up step is redundant). The postgres
-    # service container starts empty on every pipeline, so this is a genuine
-    # from-scratch application of the whole chain in the order
-    # `src/db/migration-order.ts` computes — which is the only thing covering
-    # the open block, whose migrations are ordered by the module dependency
-    # graph rather than by chronology (feature 081, SC-004). Do not point this
-    # at a pre-migrated database. GitLab's docker executor reaches services by
-    # their alias host (postgres), NOT 127.0.0.1 — without this, tests fall
-    # back to localhost and ECONNREFUSED.
+    # The **base** name: global-setup.ts derives the migrated template
+    # (b2b_test_tpl) and this shard's own database (b2b_test_r_…) from it, and
+    # migrates the template (issue #189). The postgres service container starts
+    # empty on every pipeline, so this is still a genuine from-scratch
+    # application of the whole chain in the order `src/db/migration-order.ts`
+    # computes — which is the only thing covering the open block, whose
+    # migrations are ordered by the module dependency graph rather than by
+    # chronology (feature 081, SC-004); the shard then runs against a clone of
+    # what those migrations built, and a separate migration:up step stays
+    # redundant. Do not point this at a pre-migrated database. GitLab's docker
+    # executor reaches services by their alias host (postgres), NOT 127.0.0.1 —
+    # without this, tests fall back to localhost and ECONNREFUSED.
     TEST_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_test
     REDIS_URL: redis://redis:6379
     MEILISEARCH_URL: http://meilisearch:7700

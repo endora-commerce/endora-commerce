@@ -71,9 +71,50 @@ to a `BackendServerHandle`.
 
 ## Test database
 
-Tests run against a dedicated `b2b_test` database, not the dev `b2b`. The vitest globalSetup (`test/global-setup.ts`) forces `DATABASE_URL` to `postgresql://b2b:b2b@localhost:5432/b2b_test`, auto-creates the DB on first run, and applies migrations. Override with `TEST_DATABASE_URL=…` (must contain `_test` in the database name, or set `ALLOW_NON_TEST_DATABASE_URL=1`).
+Tests run against a dedicated test database, never the dev `b2b`. The vitest globalSetup
+(`test/global-setup.ts`) resolves the base DSN from `TEST_DATABASE_URL`
+(default `postgresql://b2b:b2b@localhost:5432/b2b_test`) and refuses a database whose name does
+not carry `test` — override with `ALLOW_NON_TEST_DATABASE_URL=1` if you really know what you
+are doing.
 
-This isolation is what protects dev data — `helpers/test-server.ts` truncates tables on every test run, including `admin_users` and `admin_roles`.
+This isolation is what protects dev data — `helpers/test-server.ts` truncates tables on every
+test run, including `admin_users` and `admin_roles`.
+
+### One database per invocation, not per developer (issue #189)
+
+Two `vitest run`s against one database corrupt each other, and the corruption does not look
+like one: `setupBackendServer` truncates `SEEDED_TABLES`, composes a server and seeds fixtures
+on every booting file, so the second invocation's truncate lands in the middle of the first
+one's setup. That produced `Hook timed out in 30000ms` in `beforeAll`, `Cannot read properties
+of undefined (reading 'app')` in a teardown that never got a handle, and a role created through
+the API reading back `null` — three signatures that are indistinguishable from real failures.
+
+So an invocation gets resources of its own, with nothing to remember:
+
+| Resource | What the run gets | Cleanup |
+| --- | --- | --- |
+| PostgreSQL | `<base>_r_<stamp>_<rand>`, cloned from the migrated template `<base>_tpl` | dropped by the run's teardown; a crashed run's database is swept by a later invocation once it is 4 h old and unconnected |
+| Redis | a logical database index, leased in index 0 and emptied before the run | released by the teardown; the lease expires 5 minutes after a crashed run stops refreshing it |
+
+`<base>_tpl` is the only database migrations are applied to, under an advisory lock so
+concurrent invocations cannot race on it; a run database is a `create database … template …`
+file copy (0.2 s warm). Nothing runs tests against the template, which is what keeps it idle
+enough to be cloned. If it ever gets into a state you do not trust, drop it — the next
+invocation recreates and re-migrates it:
+
+```bash
+psql -h localhost -U b2b -d postgres -c 'drop database if exists b2b_test_tpl with (force)'
+```
+
+Two escape hatches, both explicit:
+
+- `BACKEND_TEST_ISOLATION=shared` — the pre-#189 behaviour, every invocation on the base
+  database. Useful when you want to inspect afterwards a database whose name you already know.
+- `BACKEND_TEST_KEEP_DATABASE=1` — keep this run's database for a post-mortem. The run prints
+  its name.
+
+`test:unit:fast` is unaffected: it declares `BACKEND_TEST_SERVICES=none` and the setup returns
+before it provisions anything.
 
 ## The two ways to run this suite
 

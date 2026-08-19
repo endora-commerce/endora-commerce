@@ -67,6 +67,21 @@ and a test that needs a service stops the run with a sentence naming the ledger.
 side and need the services; `test:backend` in CI shards them five ways and still takes the better
 part of an hour.
 
+**Two runs at once no longer corrupt each other** (issue #189). Isolation used to be per
+database and per Redis instance, never per invocation: `setupBackendServer` truncates
+`SEEDED_TABLES` and reseeds on every booting file, so a second `vitest run` landed its truncate
+inside the first one's setup — a `beforeAll` timeout, a teardown dereferencing a handle that was
+never built, a just-created row reading back `null`. Every one of those is indistinguishable
+from a real failure, which is the actual cost. `test/global-setup.ts` now gives each invocation
+its **own** database — `<base>_r_<stamp>_<rand>`, a `create database … template` clone of the
+migrated `<base>_tpl`, ~1 s — and its **own** Redis logical database, leased in index 0. Both
+are released when the run ends and swept if it crashed. Nothing to remember and nothing to
+pass: `TEST_DATABASE_URL` still names the base, and the run's actual DSN is in `DATABASE_URL`
+— read that one if you spawn a CLI from a test. `BACKEND_TEST_ISOLATION=shared` restores the
+old behaviour for a post-mortem, `BACKEND_TEST_KEEP_DATABASE=1` keeps the run's database, and
+`test:unit:fast` is untouched because it declares `BACKEND_TEST_SERVICES=none` and provisions
+nothing. See `backend/test/README.md` § *One database per invocation*.
+
 ## Binding principles
 
 Full text in `.specify/memory/constitution.md` — this is the working summary, not a
@@ -439,8 +454,10 @@ number", never pick a number, never edit an execution list.
    migration under its old name will see the new name as pending and try to re-apply it.
    Rename only when moving a migration between groups is genuinely required (as feature 072
    T020 did), and ship the rename with a note telling every developer to rebuild:
-   `DATABASE_URL=…/b2b_test pnpm --filter backend run db:fresh` plus
-   `pnpm --filter backend run db:reset` for the dev database.
+   `DATABASE_URL=…/b2b_test_tpl pnpm --filter backend run db:fresh` plus
+   `pnpm --filter backend run db:reset` for the dev database. The template is the database the
+   test suite migrates since issue #189; dropping it is the other way to force the rebuild,
+   since the next invocation recreates it.
 6. **Never scaffold a migration stamped at or before `BASELINE_THROUGH`**
    (`20260801T000000`, `backend/src/db/migration-order.ts`). Everything the committed core
    registry contributed at or before it is the **frozen historical prefix**: its order is
