@@ -1,3 +1,4 @@
+import type { ShipmentStatus } from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 
 /**
@@ -12,6 +13,14 @@ export interface ShippingEvents extends Record<string, EventBase> {
     deliveryMethodId: string;
     adapter: string;
     attemptNo: number;
+    /**
+     * The state the row was opened in (issue #250). A subscriber that acts as
+     * if the carrier had been asked — the customer's "your order has shipped"
+     * e-mail is the one in this module — has to be able to tell a
+     * `pending_manual` shipment from a `pending` one, and the event is where
+     * it can, without re-reading the row it was just told about.
+     */
+    status: ShipmentStatus;
   };
   'shipment.received.v1': EventBase & {
     orderId: string;

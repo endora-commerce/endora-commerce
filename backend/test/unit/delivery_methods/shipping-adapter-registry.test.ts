@@ -78,4 +78,25 @@ describe('ShippingAdapterRegistry', () => {
     expect(reg.listAll()).toEqual(['manual_courier', 'carrier_express']);
     expect(() => reg.resolve('carrier_express')).toThrow(/currently disabled/i);
   });
+
+  /**
+   * Issue #250 — the three shapes of `absentOwnerFor`, asserted separately
+   * because each stands for a different sentence a shipment carries. Two of
+   * them make `get()` answer `undefined`, and it is exactly that collapse this
+   * reader exists to undo.
+   */
+  it('names the absent owner of a registered adapter, and nobody else', () => {
+    const reg = new ShippingAdapterRegistry(undefined, (id) => id === 'delivery_methods');
+    reg.register(adapter('manual_courier'), 'delivery_methods');
+    reg.register(adapter('carrier_express'), 'carrier');
+
+    // Registered, owner absent — the module an operator can switch back on.
+    expect(reg.absentOwnerFor('carrier_express')).toBe('carrier');
+    // Registered and available — nothing absent to name.
+    expect(reg.absentOwnerFor('manual_courier')).toBeNull();
+    // Never contributed — `get()` also answers `undefined` here, and this is
+    // the situation that must not be reported as a switched-off module.
+    expect(reg.get('never_contributed')).toBeUndefined();
+    expect(reg.absentOwnerFor('never_contributed')).toBeNull();
+  });
 });

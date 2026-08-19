@@ -77,8 +77,26 @@ export const deliveryMethodListItemSchema = z.object({
 });
 export type DeliveryMethodListItem = z.infer<typeof deliveryMethodListItemSchema>;
 
-/** Shipment-process status — distinct from the mapped Order status. */
-export const shipmentStatusSchema = z.enum(['pending', 'success', 'failure']);
+/**
+ * Shipment-process status — distinct from the mapped Order status.
+ *
+ * `pending_manual` is the state a shipment opens in when the carrier was never
+ * asked for it: the adapter that would have requested the label, the tracking
+ * number or the pickup is contributed by a module that is not present, so the
+ * row exists and a human has to finish it. It carries the same meaning as the
+ * refund settlement state of the same name (feature 046, FR-035) — deliberately
+ * the same word, because it is the same instruction to the same operator.
+ *
+ * It is **not** `failure`: nothing was rejected, because nothing was sent. It is
+ * not plain `pending` either — a `pending` shipment is waiting for a carrier
+ * that knows about it, and this one is waiting for a person.
+ */
+export const shipmentStatusSchema = z.enum([
+  'pending',
+  'pending_manual',
+  'success',
+  'failure',
+]);
 export type ShipmentStatus = z.infer<typeof shipmentStatusSchema>;
 
 /** Serialized Shipment (admin order view). */
@@ -285,4 +303,16 @@ export interface ShippingAdapterRegistryPort {
   listAll(): string[];
   /** Which module contributed the key, or `null` when nobody did. */
   ownerOf(adapterKey: string): string | null;
+  /**
+   * The module that would have handled this shipment but is not present, or
+   * `null` when the adapter is available or was never contributed.
+   *
+   * The one reader that answers the *question* rather than exposing the table,
+   * and the reason it exists: `get()` collapses "nobody ever contributed this
+   * key" and "its contributor is switched off" into one `undefined`, and those
+   * are two different situations for the operator — the second one names a
+   * module they can switch back on. The payment twin's `absentOwnerFor`
+   * (D-71) is the same reader for the same reason.
+   */
+  absentOwnerFor(adapterKey: string): string | null;
 }

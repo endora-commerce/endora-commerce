@@ -35,9 +35,16 @@ export class Shipment {
   @Property({ type: 'uuid' })
   deliveryMethodId!: string;
 
+  /**
+   * `pending` → `success` | `failure` is the carrier's path. `pending_manual`
+   * is the path where there was no carrier: the adapter that would have been
+   * asked belongs to a module that is not present, so the row was opened
+   * without a request ever leaving the platform and a person has to finish it
+   * (issue #250). Same word as the refund settlement state, on purpose.
+   */
   @Property({ type: 'string', length: 32 })
   @Index()
-  status: 'pending' | 'success' | 'failure' = 'pending';
+  status: 'pending' | 'pending_manual' | 'success' | 'failure' = 'pending';
 
   /** Carrier/adapter reference (e.g. tracking number) for idempotent matching. */
   @Property({ type: 'string', length: 255, nullable: true })
@@ -47,7 +54,11 @@ export class Shipment {
   @Property({ type: 'json', nullable: true })
   providerDetails?: Record<string, unknown> | null;
 
-  /** Populated on a failure outcome. */
+  /**
+   * Populated on a failure outcome, and on `pending_manual` with the sentence
+   * naming the module that was not asked — the two cases where a row needs to
+   * say why it is not a plain success.
+   */
   @Property({ type: 'text', nullable: true })
   failureReason?: string | null;
 

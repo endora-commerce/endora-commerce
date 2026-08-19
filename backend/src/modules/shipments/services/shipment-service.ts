@@ -7,8 +7,27 @@ import type {
   ShippingAdapterRegistryPort,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { Shipment } from '../entities/shipment.entity.js';
 import type { ShippingEventBus } from './events.js';
+
+/**
+ * What a `pending_manual` shipment says about itself, in one place so the row,
+ * the audit entry and the tests cannot drift apart (issue #250).
+ *
+ * English and persisted, like the payment side's refund reasons: this is the
+ * record of what happened, not a rendered string. The admin translates the
+ * *state* and shows this sentence as the detail that names the module — which
+ * is the one thing the operator needs and no translation can supply.
+ */
+export function carrierNotContactedReason(moduleId: string): string {
+  return (
+    `The "${moduleId}" module is not switched on here, so the carrier was never ` +
+    `asked to create this shipment. Switch the module back on and generate the ` +
+    `shipment again.`
+  );
+}
 
 /**
  * ShipmentService (feature 035, FR-021/FR-024).
@@ -25,6 +44,16 @@ import type { ShippingEventBus } from './events.js';
  * consistency. Both fail closed when their owner is off, which is right — a
  * shipment opened against an order the platform will not read is a parcel with
  * no addressee.
+ *
+ * Issue #250 — the adapter registry is a contribution point, so an adapter
+ * whose owner is switched off is filtered out at enumeration rather than
+ * throwing (D-39). That gate is right; what used to follow it was not. The
+ * hook was skipped and the row was still written `pending`, so a shipment with
+ * no label, no tracking number and no carrier that knew about it read exactly
+ * like one the carrier had accepted. It now opens `pending_manual` — the state
+ * the platform already uses on the payment side for "the money did not move,
+ * a person has to finish this" — with the module named in `failureReason` and
+ * an audit row recording the attempt.
  */
 export class ShipmentService {
   constructor(
@@ -32,6 +61,7 @@ export class ShipmentService {
     private readonly registry: ShippingAdapterRegistryPort,
     private readonly orderRead: OrderReadPort,
     private readonly deliveryMethodRead: DeliveryMethodReadPort,
+    private readonly auditLog: AuditLogService,
     private readonly events?: ShippingEventBus,
   ) {}
 
@@ -62,23 +92,51 @@ export class ShipmentService {
         const method = await this.deliveryMethodRead.findById(order.deliveryMethodId);
         const adapterKey = method?.adapter ?? order.deliveryMethodId;
 
+        const adapter = this.registry.get(adapterKey);
+        // Told apart deliberately: an adapter nobody ever contributed is an
+        // offline method that has always been finished by hand, and it keeps
+        // opening `pending`. Only a contributed adapter whose module is absent
+        // produces `pending_manual` — because only that one names a module an
+        // operator can switch back on.
+        const absentCarrierModule = adapter ? null : this.registry.absentOwnerFor(adapterKey);
+
         const shipment = tx.create(Shipment, {
           orderId,
           deliveryMethodId: order.deliveryMethodId,
-          status: 'pending',
+          status: absentCarrierModule ? 'pending_manual' : 'pending',
+          ...(absentCarrierModule
+            ? { failureReason: carrierNotContactedReason(absentCarrierModule) }
+            : {}),
           attemptNo: (latest?.attemptNo ?? 0) + 1,
         });
         await tx.persistAndFlush(shipment);
 
         // Invoke the adapter's shipment_created hook. The returned next-action
         // is informational; the Shipment stays pending until receive_shipment.
-        const adapter = this.registry.get(adapterKey);
         if (adapter) {
           await adapter.onShipmentCreated({
             orderId,
             shipmentId: shipment.id,
             deliveryMethodId: order.deliveryMethodId,
             attemptNo: shipment.attemptNo,
+          });
+        } else if (absentCarrierModule) {
+          // Co-transactional with the row it describes (Principle XIII): the
+          // shipment and the record of why it is unfinished commit together or
+          // not at all. `recordAuditFromContext` rather than the Command Bus
+          // for the reason its own docblock gives — this write already owns a
+          // transaction the bus would have to fork out of.
+          recordAuditFromContext(this.auditLog, tx, {
+            action: 'shipment.carrier_not_contacted',
+            objectType: 'shipment',
+            objectId: shipment.id,
+            stateAfter: {
+              orderId,
+              adapter: adapterKey,
+              absentModule: absentCarrierModule,
+              attemptNo: shipment.attemptNo,
+              status: shipment.status,
+            },
           });
         }
 
@@ -91,6 +149,7 @@ export class ShipmentService {
             deliveryMethodId: order.deliveryMethodId,
             adapter: adapterKey,
             attemptNo: shipment.attemptNo,
+            status: shipment.status,
           });
         }
         return { shipment, adapterKey };

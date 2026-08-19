@@ -97,6 +97,11 @@ from its boot hook (FR-001). No core change is required.
    uninstall hook is needed to withdraw the adapter — a module that is not
    present is not enumerated.
 
+   The skip does not answer for an order **already placed** on your method: a
+   shipment can still be generated for it, and since issue #250 that shipment
+   opens `pending_manual` naming your module rather than reading like one you
+   accepted. You write no code for it — see *When the registry is read* below.
+
    **Your hook pushes and returns.** It does not check what is already in the
    table, does not check whether `delivery_methods` is present, and treats no
    absence as an error — because nothing reads the registry while modules are
@@ -140,7 +145,7 @@ request**:
 | Storefront eligibility | `GET /api/v1/delivery-methods` → `ShippingMethodEligibilityService.filter` | the method is not offered (FR-003) |
 | Admin upsert guard | `PUT /api/v1/admin/delivery-methods/:code` → `isRegistered` | an explicitly supplied key nobody contributed is rejected (400); a contributed one whose owner is off is accepted, because the read is presence-blind on purpose |
 | Order placement | `orders` re-validates the chosen method, then fires `onOrderCreated` | a method whose owner is off answers 503 `MODULE_DISABLED`; an unregistered one skips the hook |
-| Shipment generation | `ShipmentService.create` → `onShipmentCreated` | the `Shipment` is opened and the adapter hook is skipped |
+| Shipment generation | `ShipmentService.create` → `onShipmentCreated` | the adapter hook is skipped and the `Shipment` opens **`pending_manual`** naming the absent module (issue #250) — never plain `pending`, which would read as a shipment the carrier had accepted |
 | Order-confirmation e-mail | the method's `renderers.email` key | the platform default renderer is used |
 
 Two things follow, and they are the reason this section exists rather than being
@@ -160,6 +165,16 @@ present — a buyer is never offered a carrier that cannot take the parcel, and
 `isRegistered` and `listAll` deliberately do not, because `/delivery-methods`
 has to keep showing the method *and* the reason it is unavailable: switching a
 module off is not uninstalling it.
+
+`absentOwnerFor(adapterKey)` is the fifth reader and the only one that answers
+the *question* instead of exposing the table: it names the module that
+contributed the key and is not present, and `null` in every other case. It
+exists because `get()` collapses two situations an operator cannot act on
+identically — a key nobody ever contributed, and a key whose carrier module is
+switched off — and only the second one names something they can switch back on.
+`shipments` asks it to decide which state to open a `Shipment` in; the payment
+twin, `GatewayRefundRegistry.absentOwnerFor`, is the same reader for the same
+reason (D-71).
 
 ## Lifecycle
 
