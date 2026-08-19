@@ -35,5 +35,13 @@ export const manifest = defineModuleManifest({
       },
     ],
   },
+  // Issue #213 — `integrations:manage` is a **shared** gate: it guards this
+  // module's admin surface and `api_keys`', and the core `PERMISSION_CATALOGUE`
+  // row that carries its label names `api_keys` alone. Declaring it here makes
+  // this module a second *owner*, so the presence filter on `/admin-roles` keeps
+  // it grantable while either surface is on. Without this line, switching
+  // `api_keys` off would take the code off the role editor while every route in
+  // `webhooks/routes.ts` went on enforcing it — a gate nobody can be granted.
+  permissions: [{ code: 'integrations:manage', label: 'Manage API keys + webhooks' }],
   activation: { settingCode: 'webhooks.enabled', default: true },
 });

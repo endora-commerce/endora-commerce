@@ -65,7 +65,10 @@ describe('AdminActionsService.listVisibleForOperator (integration)', () => {
     await orm.close(true);
   });
 
-  function buildService(permissionsByUser: Record<string, string[]>): AdminActionsService {
+  function buildService(
+    permissionsByUser: Record<string, string[]>,
+    isModuleActivated?: (moduleId: string) => boolean,
+  ): AdminActionsService {
     const i18nStub: Pick<I18nService, 'translate'> = {
       translate: async (
         moduleId: string,
@@ -86,6 +89,7 @@ describe('AdminActionsService.listVisibleForOperator (integration)', () => {
       em: () => em,
       i18nService: i18nStub as I18nService,
       permissionService: permStub as PermissionService,
+      ...(isModuleActivated ? { isModuleActivated } : {}),
     });
   }
 
@@ -133,6 +137,29 @@ describe('AdminActionsService.listVisibleForOperator (integration)', () => {
       adminUserId: 'admin',
     });
     expect(result.actions.find((a) => a.actionId === 'c1')).toBeUndefined();
+  });
+
+  /**
+   * The **other** presence axis, which the SQL join above cannot answer: the
+   * module is installed, and the operator has switched it off.
+   *
+   * Written while closing issue #213, which found the permission catalogue
+   * reading the platform axis alone. The palette does not share that defect —
+   * the join answers platform availability and `isModuleActivated` answers the
+   * operator's — but nothing in the tree asserted the second half, so the claim
+   * "the palette is fine" rested on reading the code. It rests on this now.
+   */
+  it('deactivated-module action is hidden even though the platform still offers it', async () => {
+    const deactivated = new Set(['fix_av_a']);
+    const service = buildService({ admin: ['*'] }, (moduleId) => !deactivated.has(moduleId));
+    const result = await service.listVisibleForOperator({
+      language: 'en',
+      adminUserId: 'admin',
+    });
+
+    // `fix_av_a` is `state: 'installed'` in the fixture, so the join keeps its
+    // rows and only the operator axis can remove them.
+    expect(result.actions.filter(isFixture).map((a) => a.actionId)).toEqual(['b1']);
   });
 
   it('sorts ascending by weight then by label', async () => {

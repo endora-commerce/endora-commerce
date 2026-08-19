@@ -47,14 +47,7 @@ import {
 } from './kernel/index.js';
 import { promoteAdminActor } from './modules/auth/plugin.js';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
-import type { PermissionService } from './modules/admin_roles/services/permission-service.js';
-import type { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
-import type { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
-import {
-  publishStateChanged,
-  registryCache,
-  STATE_CHANGED_CHANNEL,
-} from './kernel/lifecycle/registry-cache.js';
+import { publishStateChanged, registryCache } from './kernel/lifecycle/registry-cache.js';
 import { effectiveState } from './kernel/lifecycle/effective-state.js';
 import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 // Feature 072 (T138) — `organizations` owns its services, its routes and its
@@ -428,16 +421,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // root doing it made the platform's settleable payment kinds a property of
   // the composition, and kept them registered with `payments` switched off.
 
-  // Feature 072 (wave 1) — `admin_roles` owns these three now.
-  const rolesCradle = container.cradle as unknown as {
-    permissionService: PermissionService;
-    permissionCatalogueService: PermissionCatalogueService;
-    adminRoleService: AdminRoleService;
-  };
-  // `permissionService` is resolved where it is needed — `organizations` reads
-  // it as a port for the sales-rep roll-up capability since T143a, and it was
-  // this root's last consumer.
-  const permissionCatalogueService = rolesCradle.permissionCatalogueService;
+  // Feature 072 (wave 1) — `admin_roles` owns these three now, and this root no
+  // longer holds any of them. `permissionService` is resolved where it is needed
+  // (`organizations` reads it as a port for the sales-rep roll-up since T143a),
+  // and `permissionCatalogueService` stopped being held here with issue #213:
+  // the only reason left was to hand it an enabled-set accessor and a pub/sub
+  // invalidation, and both were wrong — the accessor read the platform axis
+  // alone, and the memo it invalidated should not have existed. The module reads
+  // `effectiveState` itself now and caches nothing.
 
   // `currencyService` is resolved from the container where it is needed —
   // `pim_ergonode` reads it as a port since T131, and nothing else here did.
@@ -2181,13 +2172,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // is after this function returns. Goes when `_lifecycle` converts.
   composedModules.contribute({
     lifecycleManifestRegistry: () => lifecycleRef?.handle.registry,
-  });
-
-  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
-  redisSubscriber.on('message', (channel) => {
-    if (channel === STATE_CHANGED_CHANNEL) {
-      permissionCatalogueService.invalidate();
-    }
   });
 
   // The boot half only: reconciling first-boot registrations, warming the

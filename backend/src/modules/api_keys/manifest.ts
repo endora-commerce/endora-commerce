@@ -33,5 +33,13 @@ export const manifest = defineModuleManifest({
       },
     ],
   },
+  // Issue #213 — `integrations:manage` is a **shared** gate: it guards this
+  // module's admin surface and `webhooks`', and the core `PERMISSION_CATALOGUE`
+  // row that carries its label can name only one module. Both owners declare it,
+  // so the presence filter on `/admin-roles` keeps the code grantable while
+  // either surface is on. This half is what the core row already says; it is
+  // written out anyway, because a shared code owned by one manifest and one
+  // hard-coded core row is the arrangement that produced the asymmetry.
+  permissions: [{ code: 'integrations:manage', label: 'Manage API keys + webhooks' }],
   activation: { settingCode: 'api_keys.enabled', default: true },
 });
