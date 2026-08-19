@@ -769,7 +769,47 @@ interval entry points by grepping for `setInterval(`, so `search`'s reindex loop
 was outside the population it counted and the FR-020 gap there stayed invisible
 behind a number that never moved. Two detectors for one shape is how they drift;
 the rules stay separate — one asks whether the callback decides presence, the
-other whether the file opens a scope — but the recognizer is one.
+other whether the site opens a scope — but the recognizer is one.
+
+#### A scope is answered per site, because a file-level answer is a disjunction
+
+`check-entry-scope.ts` classified **files** until issue #237, and a file reported
+`scoped` the moment *one* of its entry points was right. That is not a
+theoretical weakness: `kernel/lifecycle/registry-cache.ts` refreshed
+`module_registrations` and `settings` from a Redis pub/sub handler with no scope
+at all, and the check called the file scoped off a correctly wrapped
+`setInterval` 130 lines below it (issue #235). Six files in this tree carry more
+than one entry point, which is exactly where a disjunction can hide one.
+
+So the population is **sites**. Six classes: a CLI script and a declared program
+stay file-level — the entry is the file's own top-level execution — and each
+`new Worker(...)`, each repeating timer, each `x.on('message', …)` and each
+`process.on/once(...)` is a site of its own. Two of those classes are new, and
+one of them closes a gap no file-level class could: `kernel/container.ts`
+installs the process-wide `SIGINT`/`SIGTERM` disposal, and it is under no
+`scripts/` directory, is no declared program, constructs no `Worker` and starts
+no timer — the file-classifying check had nowhere to put it, so the handler was
+not exempt, it was absent. The two file-level sites are asked over the file
+**minus** the callbacks of the sites inside it, so a program cannot read as
+scoped off the `enterSystemScope` its Worker opens.
+
+A site is scoped when `enterSystemScope` / `enterPlatformScope` is called in its
+own callback, or **one hop** into a function bound in the same file — the depth
+`check-port-catches` follows `this.<method>()` to. Binding an identifier callback
+is not that hop: in `new Worker(QUEUE, processor, …)` the `processor` *is* the
+callback. Two hops, an imported delegate and a `this.<method>()` delegate are all
+outside what the analysis can see, and all three read as **unscoped**, which is
+the direction a blind spot has to fail in.
+
+`NO_SCOPE_NEEDED` is keyed the way `check-entry-presence`'s ledgers are —
+`<file>:<enclosing name>:<construct>`, line-independent, two-way — and one key
+may cover two sites that share all three (`index.ts` registers `SIGINT` and
+`SIGTERM` in one function). It is not expected to empty: an entry says why a site
+is *right* to run unscoped, with what would falsify it. The three cache-and-connection
+handlers in it are the worked example — a pub/sub handler that only drops a cached
+`Map` needs no scope because the refill happens on the next caller's stack, and
+the entry says so as a falsifier: **the day it reloads instead of dropping, it is
+issue #235 again**.
 
 `TIMERS_WITHOUT_PRESENCE` and `BOOT_HOOKS_WITHOUT_PRESENCE` are two-way like the
 ledgers above but, unlike them, are not expected to empty: an entry says why a
@@ -960,7 +1000,7 @@ is no container in the process running it.
 | `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a **gated port resolved from a `ctx.onBoot` hook or a `ctx.routes` body**; a root shadowing a module's port; a computed port name; **and an edge into a switchable module with no defined behaviour when that module is off** (the deactivation-consequence ledger above) |
 | `check-port-catches.ts` | a `catch` around a gated-port call that does not let `ModuleDisabledError` past — unconditional re-throw, `rethrowIfModuleDisabled`, naming the error, or a delegate that re-throws it. Follows the port through a holder and through a root contribution (issues #133/#113). Carries `PORT_CATCHES_TO_DRAIN`, a two-way ratchet, and derives `OWNER LOCKED` from the manifests for a site whose every gate has a `nonDeactivatable` owner (D-63) |
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
-| `check-entry-scope.ts` | a non-HTTP entry point — CLI script, BullMQ worker, repeating-timer sweep, **or a `src/` file `package.json` runs as a process of its own** — that establishes no scope (T037). The timer class is the *shape*, not the constructor: it reads `lib/repeating-timers.ts`, shared with `check-entry-presence.ts`, so a `setTimeout` the callback re-arms counts (issue #128). The fourth class is not a shape at all: the first three were written from what the tree held when FR-020 landed, and `src/seeds/dev-catalog-seed.ts` — a top-level `main()` truncating and repopulating a dozen modules' tables — was none of them, so `unscoped=0` said nothing about it (issue #228). The population is now the **union** of the shapes and the repository's own declaration of what it runs, and the line prints `entries=` so a widening that moved no population size is visible as having moved nothing |
+| `check-entry-scope.ts` | a non-HTTP entry **site** that establishes no scope (T037). Six classes: a CLI script and a `src/` file `package.json` runs as a process of its own — both file-level, one site each, the file's own top-level execution — plus one site per `new Worker(...)`, per repeating timer, per `x.on('message', …)` and per `process.on/once(...)`. The timer class is the *shape*, not the constructor: it reads `lib/repeating-timers.ts`, shared with `check-entry-presence.ts`, so a `setTimeout` the callback re-arms counts (issue #128). The population's second source is not a shape at all: the shape classes were written from what the tree held when FR-020 landed, and `src/seeds/dev-catalog-seed.ts` — a top-level `main()` truncating and repopulating a dozen modules' tables — was none of them, so `unscoped=0` said nothing about it (issue #228). **The population is sites, not files, since issue #237** — see below. The line prints `sites=` and `files=` so a widening that moved no population size is visible as having moved nothing |
 | `check-channel-resolution.ts` | a raw `x-sales-channel` header read outside the resolver; a storefront surface re-resolving the request channel; a settings read whose channel argument can be a string that is not a channel uuid (D-42); a channel id invented by a default parameter or a `randomUUID()` fallback (D-48). Runs `--enforce` in CI |
 | `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger — including `ROOT_MODULE_VALUE_IMPORTS` (T143c): every **value** import a root takes out of `src/modules/**`, keyed by owner, with what has to happen for it to drain, and "no root constructs a module-owned service" against a named allow-list |
 
@@ -1101,7 +1141,12 @@ result is still a line number in the source. Where the consumer wants more than
 comments removed, read the nodes outright — `check-diacritic-folds` does,
 precisely because four files quote the wrong one-liner on purpose and a
 text-level implementation would report the documentation written to prevent the
-defect.
+defect, and `check-entry-scope` does since issue #237: it carried the fourth copy
+of that regex pair, and its per-site rewrite asks the syntax tree every question
+it used to ask the text, so the copy is gone rather than converted. Its remaining
+text pass is a **pre-filter** that decides which 54 of 1458 files reach the
+parser, and it is deliberately over-inclusive — a comment quoting `new Worker(...)`
+costs one parse and cannot cost a finding.
 
 **Give "nothing was read" its own exit code.** Exit 2, distinct from clean (0)
 and from violations found (1), whenever the file list, the routing table or the

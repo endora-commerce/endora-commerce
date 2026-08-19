@@ -220,11 +220,3 @@ export function findRepeatingTimerSites(sf: ts.SourceFile): RepeatingTimerSite[]
   sf.forEachChild(visit);
   return sites;
 }
-
-/** Does this source start a repeating execution of its own? */
-export function hasRepeatingTimer(file: string, source: string): boolean {
-  // Cheap pre-filter: parsing every file in `src/` to answer "no" costs more
-  // than the whole check. A file that never spells either call cannot hold one.
-  if (!source.includes('setInterval') && !source.includes('setTimeout')) return false;
-  return findRepeatingTimerSites(parseScript(file, source)).length > 0;
-}
