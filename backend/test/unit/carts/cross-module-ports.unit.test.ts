@@ -10,7 +10,7 @@ import type {
 import { describe, expect, it, vi } from 'vitest';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ANONYMOUS_PRODUCT_AUDIENCE, ERROR_CODES } from '@b2b/contracts';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
 import { CartConversionService } from '../../../src/modules/carts/services/cart-conversion-service.js';
@@ -109,7 +109,10 @@ describe('carts — the up-sell strip reads catalog through its port', () => {
     } as unknown as CatalogProductReadPort;
 
     const service = new CartUpsellService(ownTablesOnly({ items: [itemRow()] }), catalog);
-    const candidates = await service.forCart('cart-1', 5);
+    // Issue #227 — the fixture rows carry no `visibility`, which reads as
+    // `public` here, so the audience narrows nothing and this test still says
+    // what it said: the link narrowing is the port's.
+    const candidates = await service.forCart('cart-1', 5, ANONYMOUS_PRODUCT_AUDIENCE);
 
     // The link narrowed by kind at the port, not filtered afterwards.
     expect(listLinksBySourceIds).toHaveBeenCalledWith(['p-1'], 'up_sell');
