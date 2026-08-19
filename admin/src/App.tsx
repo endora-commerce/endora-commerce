@@ -100,6 +100,7 @@ import { ErgonodeRunsPage } from './modules/pim_ergonode/ErgonodeRunsPage.js';
 import { ErgonodeRunDetailPage } from './modules/pim_ergonode/ErgonodeRunDetailPage.js';
 import { PimcoreConnectionPage } from './modules/pim_pimcore/PimcoreConnectionPage.js';
 import { PimcoreAttributeMappingPage } from './modules/pim_pimcore/PimcoreAttributeMappingPage.js';
+import { PimcoreAttributeSetMappingPage } from './modules/pim_pimcore/PimcoreAttributeSetMappingPage.js';
 import { PimcoreCategoryMappingPage } from './modules/pim_pimcore/PimcoreCategoryMappingPage.js';
 import { PimcoreRunsPage } from './modules/pim_pimcore/PimcoreRunsPage.js';
 import { PimcoreRunDetailPage } from './modules/pim_pimcore/PimcoreRunDetailPage.js';
@@ -328,6 +329,10 @@ export function App(): ReactNode {
         <Route
           path="/pim-pimcore/attribute-mappings"
           element={<PimcoreAttributeMappingPage />}
+        />
+        <Route
+          path="/pim-pimcore/attribute-set-mappings"
+          element={<PimcoreAttributeSetMappingPage />}
         />
         <Route
           path="/pim-pimcore/category-mappings"

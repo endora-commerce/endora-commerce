@@ -287,6 +287,7 @@
   "appShell.nav.pimPimcore": "Pimcore PIM",
   "appShell.nav.pimPimcoreRuns": "Import history",
   "appShell.nav.pimPimcoreAttributeMappings": "Attribute mapping",
+  "appShell.nav.pimPimcoreAttributeSetMappings": "Attribute-set mapping",
   "appShell.nav.pimPimcoreCategoryMappings": "Category mapping",
   "appShell.nav.platformModules": "Modules",
   "appShell.nav.priceLists": "Price lists",
