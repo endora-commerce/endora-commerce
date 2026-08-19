@@ -89,7 +89,19 @@ describe('AdminActionsService.listVisibleForOperator (integration)', () => {
       em: () => em,
       i18nService: i18nStub as I18nService,
       permissionService: permStub as PermissionService,
-      ...(isModuleActivated ? { isModuleActivated } : {}),
+      // `presence`, not `isModuleActivated`. MR !738 renamed this dependency
+      // when it replaced the pub/sub invalidation with a pulled presence
+      // generation, and this file was not on that branch to be renamed with it.
+      //
+      // The old name reached the constructor through a **spread**, and a spread
+      // bypasses excess-property checking — so `tsc` stayed green while
+      // `deps.presence` fell to its permissive default (`isActivated: () => true`)
+      // and every module read as activated. The one assertion that the palette
+      // filters on the operator axis quietly stopped asserting it, which is the
+      // exact state issue #213 existed to leave behind.
+      ...(isModuleActivated
+        ? { presence: { isActivated: isModuleActivated, version: (): number => 0 } }
+        : {}),
     });
   }
 
