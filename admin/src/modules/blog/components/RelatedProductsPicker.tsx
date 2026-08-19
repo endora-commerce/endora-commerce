@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useTranslation } from '@/i18n/useTranslation';
+import { normalize } from '@/lib/text-normalization';
 
 interface AdminProduct {
   id: string;
@@ -57,11 +58,12 @@ export function RelatedProductsPicker({
 
   const productsById = new Map(allProducts.map((p) => [p.id, p] as const));
 
+  const needle = normalize(q);
   const candidates = allProducts.filter((product) => {
     if (value.includes(product.id)) return false;
-    if (!q) return true;
-    const haystack = `${pickName(product.name, product.slug)} ${product.slug} ${product.sku}`.toLowerCase();
-    return haystack.includes(q.toLowerCase());
+    if (needle === '') return true;
+    const haystack = `${normalize(pickName(product.name, product.slug))} ${normalize(product.slug)} ${normalize(product.sku)}`;
+    return haystack.includes(needle);
   });
 
   const attach = useCallback(

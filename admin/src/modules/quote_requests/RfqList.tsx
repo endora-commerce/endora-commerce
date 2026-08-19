@@ -17,6 +17,7 @@ import { PaginationFooter } from '@/components/PaginationFooter';
 import { usePageSizePreference } from '@/lib/use-page-size-preference';
 import { useAuth } from '@/lib/auth';
 import { useTranslation } from '@/i18n/useTranslation';
+import { normalize } from '@/lib/text-normalization';
 
 /**
  * Admin Quote Requests list (feature 008 / T042). Restructured to mirror the
@@ -164,7 +165,7 @@ export function RfqList(): ReactNode {
 
   // Apply the client-side filters + sort, then paginate.
   const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
+    const needle = normalize(q);
     const statusSet = new Set(statusCodes);
     let out = rows.filter((r) => {
       if (statusSet.size > 0 && !statusSet.has(r.status)) return false;
@@ -175,8 +176,8 @@ export function RfqList(): ReactNode {
           r.organizationName ?? '',
           r.customerDisplayName ?? '',
         ]
-          .join(' ')
-          .toLowerCase();
+          .map(normalize)
+          .join(' ');
         if (!hay.includes(needle)) return false;
       }
       return true;

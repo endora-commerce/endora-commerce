@@ -6,6 +6,7 @@ import { PB_DATA_METADATA } from '@b2b/page-builder-core';
 import { ChevronDown, ChevronRight, Search, X } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
+import { normalize } from '@/lib/text-normalization';
 
 const inputClassName = '_Input-input_bsxfo_26';
 /** Match shadcn Button `h-9` — Puck's input padding is taller by default. */
@@ -340,9 +341,11 @@ function CategorySearchModal({
   }, [open, selectedKey]);
 
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = normalize(query);
     if (!needle) return categories;
-    return categories.filter((c) => c.label.toLowerCase().includes(needle) || c.slug.includes(needle));
+    return categories.filter(
+      (c) => normalize(c.label).includes(needle) || normalize(c.slug).includes(needle),
+    );
   }, [categories, query]);
 
   if (!open) return null;

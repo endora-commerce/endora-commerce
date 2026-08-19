@@ -6,6 +6,7 @@ import { useFocusTrap } from '@/components/hooks/useFocusTrap';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { TemplatePreview } from '../api';
+import { normalize } from '@/lib/text-normalization';
 
 /**
  * The sample-product preview — ux-design §3.4, FR-072, SC-013.
@@ -180,12 +181,12 @@ function ProductPickerDrawer(props: {
     };
   }, [t]);
 
-  const needle = query.trim().toLowerCase();
+  const needle = normalize(query);
   const candidates = products.filter(
     (product) =>
       needle === '' ||
-      product.sku.toLowerCase().includes(needle) ||
-      pickName(product.name, product.sku).toLowerCase().includes(needle),
+      normalize(product.sku).includes(needle) ||
+      normalize(pickName(product.name, product.sku)).includes(needle),
   );
 
   return (

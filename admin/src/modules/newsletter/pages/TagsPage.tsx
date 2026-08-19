@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/lib/auth';
+import { normalize } from '@/lib/text-normalization';
 import { newsletterClient } from '../api/newsletter-client';
 
 /** Backend requires tag codes / field keys to match this pattern. */
@@ -14,15 +15,22 @@ const CODE_RE = /^[a-z][a-z0-9_]*$/;
 const CUSTOM_FIELD_TYPES: CustomFieldType[] = ['text', 'number', 'boolean', 'date'];
 
 /**
- * Normalise free-text into a backend-valid code: lowercase, diacritics
- * stripped, non-alphanumerics collapsed to underscores, trimmed. A leading
- * digit still fails `CODE_RE`, so callers validate the result before sending.
+ * Normalise free-text into a backend-valid code: lowercase, diacritics folded,
+ * non-alphanumerics collapsed to underscores, trimmed. A leading digit still
+ * fails `CODE_RE`, so callers validate the result before sending.
+ *
+ * The fold is `lib/text-normalization.ts`, **imported, never re-implemented**
+ * (issue #239). The private NFD one-liner this used to carry did not fold `\u0142`
+ * \u2014 U+0142 has no canonical decomposition, so the strip had nothing to remove
+ * \u2014 it *deleted* it: `Metody p\u0142atno\u015bci` produced `metody_p_atnosci`, a code
+ * with a hole in it that the operator could not connect to anything typed.
+ *
+ * Codes already stored are **not** migrated (owner's ruling, 2026-08-19): only
+ * two developer environments exist, so renaming live tags buys nobody
+ * anything. New codes are correct from here on.
  */
 function slugifyCode(input: string): string {
-  return input
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
+  return normalize(input)
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 }

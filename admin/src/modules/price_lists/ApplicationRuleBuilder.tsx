@@ -18,6 +18,7 @@ import type {
 } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
+import { normalize } from '@/lib/text-normalization';
 
 const DEPTH_CAP = 5;
 
@@ -485,9 +486,9 @@ function ValuePicker(props: {
   };
 
   const filtered = cache.options.filter((opt) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return opt.label.toLowerCase().includes(q) || opt.value.toLowerCase().includes(q);
+    const q = normalize(search);
+    if (q === '') return true;
+    return normalize(opt.label).includes(q) || normalize(opt.value).includes(q);
   });
 
   const apply = (): void => {

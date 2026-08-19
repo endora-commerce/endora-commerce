@@ -397,16 +397,19 @@ describe('check-diacritic-folds — the ledger', () => {
     ]);
   });
 
-  it('holds only the four slugifiers, each with a reason and a retiring condition', () => {
-    // Two in `admin/`, two in `backend/`. The backend pair is not a discovery
-    // of the widened population: both were named in the check's header from the
-    // day it landed, as folds the rule could not reach. `foldDiacritics` makes
-    // them reachable, so they are ledgered debt with a retiring condition
-    // instead of a paragraph — and every one of the four is ledgered because it
-    // computes an already-persisted value, never because slugs are exempt.
+  it('holds only the two backend slugifiers, each with a reason and a retiring condition', () => {
+    // It held four when it landed. Issue #239 repaired the two in `admin/` —
+    // the owner ruled that new values are to be correct and historical ones are
+    // not migrated — and the entries went with them, because an entry over a
+    // file that no longer folds is exactly what the staleness half refuses.
+    //
+    // The backend pair is not a discovery of the widened population: both were
+    // named in the check's header from the day it landed, as folds the rule
+    // could not reach. `foldDiacritics` makes them reachable, so they are
+    // ledgered debt with a retiring condition instead of a paragraph — and both
+    // are ledgered because they compute an already-persisted, externally
+    // visible key, never because slugs are exempt.
     expect(Object.keys(DIACRITIC_FOLDS_ALLOWED).sort()).toEqual([
-      'admin/src/modules/newsletter/pages/TagsPage.tsx',
-      'admin/src/modules/product_feeds/api.ts',
       'backend/src/modules/catalog/services/catalog-admin.service.ts',
       'backend/src/modules/product_feeds/services/feed-template-io.service.ts',
     ]);
@@ -498,7 +501,7 @@ describe('check-diacritic-folds — the exit codes', () => {
     const result = repo.run();
     expect(result.status).toBe(0);
     expect(result.output).toContain('violations=0');
-    expect(result.output).toContain('ledgered=8');
+    expect(result.output).toContain('ledgered=4');
   });
 
   it('exits 1 when a ledger entry no longer describes the file it names', () => {
@@ -509,7 +512,7 @@ describe('check-diacritic-folds — the exit codes', () => {
     const result = repo.run();
     expect(result.status).toBe(1);
     expect(result.output).toContain('violations=0');
-    expect(result.output).toContain('stale=4');
+    expect(result.output).toContain('stale=2');
   });
 });
 
@@ -540,6 +543,21 @@ describe('check-diacritic-folds — the tree it guards', () => {
     const source = readFileSync(join(REPO_ROOT, path), 'utf8');
     expect(analyzeSource(source, path), `${path} folds on its own again`).toEqual([]);
     expect(source).toContain("import { foldDiacritics } from '@b2b/contracts'");
+  });
+
+  // The two admin slugifiers issue #239 took off the ledger. The check refuses
+  // a new fold in them now that no entry covers them; this is the other half —
+  // a file that stopped folding because it stopped slugifying would pass that
+  // and lose the behaviour the fold was for.
+  const unledgered = [
+    'admin/src/modules/product_feeds/api.ts',
+    'admin/src/modules/newsletter/pages/TagsPage.tsx',
+  ];
+
+  it.each(unledgered)('%s imports the shared fold instead of writing its own', (path) => {
+    const source = readFileSync(join(REPO_ROOT, path), 'utf8');
+    expect(analyzeSource(source, path), `${path} folds on its own again`).toEqual([]);
+    expect(source).toContain("from '@/lib/text-normalization'");
   });
 
   it('the anchored helper is the one in @b2b/contracts, reachable from every package', () => {

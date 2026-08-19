@@ -36,6 +36,7 @@ import { useTranslation } from '@/i18n/useTranslation';
 import { dictionaryClient } from '../client';
 import { EntryStatusBadges } from '../components/EntryStatusBadges';
 import { TranslationsDrawer } from '../components/TranslationsDrawer';
+import { normalize } from '@/lib/text-normalization';
 
 const REGIONS: Region[] = ['Africa', 'Americas', 'Asia', 'Europe', 'Oceania', 'Antarctic'];
 
@@ -114,12 +115,12 @@ export function CountriesTab(): ReactNode {
   }, [load]);
 
   const filtered = useMemo(() => {
-    const needle = search.trim().toLowerCase();
+    const needle = normalize(search);
     if (!needle) return rows;
     return rows.filter((row) =>
       [row.code, row.alpha3Code, row.label, row.region, row.subregion ?? '']
+        .map(normalize)
         .join(' ')
-        .toLowerCase()
         .includes(needle),
     );
   }, [rows, search]);

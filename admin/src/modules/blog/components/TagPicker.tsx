@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useTranslation } from '@/i18n/useTranslation';
 import { blogClient } from '../api/blog-client';
+import { normalize } from '@/lib/text-normalization';
 
 function pickName(name: Record<string, string> | undefined | null, fallback: string): string {
   if (!name) return fallback;
@@ -47,11 +48,12 @@ export function TagPicker({ value, onChange }: TagPickerProps): ReactNode {
 
   const tagsById = new Map(allTags.map((t) => [t.id, t] as const));
 
+  const needle = normalize(q);
   const candidates = allTags.filter((tag) => {
     if (value.includes(tag.id)) return false;
-    if (!q) return true;
-    const haystack = `${pickName(tag.name, tag.code)} ${tag.code}`.toLowerCase();
-    return haystack.includes(q.toLowerCase());
+    if (needle === '') return true;
+    const haystack = `${normalize(pickName(tag.name, tag.code))} ${normalize(tag.code)}`;
+    return haystack.includes(needle);
   });
 
   const attach = useCallback(
