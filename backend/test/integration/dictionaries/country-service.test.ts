@@ -2,9 +2,12 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { CountryService } from '../../../src/modules/dictionaries/services/country-service.js';
-import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
+import { CountryReferenceRegistry } from '../../../src/modules/dictionaries/services/country-reference-registry.js';
+import { registerTaxCountryReferences } from '../../../src/modules/taxes/services/tax-country-reference.js';
+
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
+import { runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 
 /**
  * T015 / T016 / T017 / T018 / T021 — CountryService invariants
@@ -18,6 +21,7 @@ describe('CountryService — invariants', () => {
   let db: TestDb;
   let em: EntityManager;
   let service: CountryService;
+  let references: CountryReferenceRegistry;
 
   beforeAll(async () => {
     db = await setupTestDb();
@@ -27,12 +31,20 @@ describe('CountryService — invariants', () => {
     await conn.execute(`delete from "dictionary_translations"`);
     await conn.execute(`delete from "language_countries"`);
     await conn.execute(`delete from "countries"`);
-    await runDictionarySeedReconciler(() => db.orm.em);
+    await runDictionarySeedReconcilerFor(() => db.orm.em);
   });
 
   beforeEach(async () => {
     em = await db.beginTx();
-    service = new CountryService(() => em);
+    // The delete guard asks `countryReferenceRegistry` who still points at the
+    // country (feature 077, D-87), where it used to hand-write `count(*)` over
+    // `addresses`, `taxes` and `organizations`. A live composition fills the
+    // registry from each contributor's boot hook; here the one contributor this
+    // file exercises registers its real descriptor, so the test runs the same
+    // query the module ships rather than a stub that cannot disagree with it.
+    references = new CountryReferenceRegistry();
+    registerTaxCountryReferences(references, () => em);
+    service = new CountryService(() => em, undefined, undefined, () => references);
   });
 
   afterEach(async () => {

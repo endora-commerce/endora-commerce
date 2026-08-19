@@ -5,9 +5,12 @@ import {
   LANGUAGE_CHANGED_EVENT,
   type CurrencyAdminPort,
   type CurrencyReadPort,
+  type CurrencySeedPort,
+  type DictionaryReferenceRegistryPort,
   type DictionaryValidator as DictionaryValidatorPort,
   type LanguageAdminPort,
   type LanguageReadPort,
+  type LanguageSeedPort,
 } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
@@ -19,6 +22,8 @@ import { DictionaryReadService } from './services/dictionary-read-service.js';
 import { LabelResolver } from './services/label-resolver.js';
 import { TranslationService } from './services/translation-service.js';
 import { CountryService } from './services/country-service.js';
+import { CountryReferenceRegistry } from './services/country-reference-registry.js';
+import { registerCountryCurrencyReference } from './services/country-currency-reference.js';
 import { LanguageCountryService } from './services/language-country-service.js';
 import { runDictionarySeedReconciler } from './services/seed-reconciler.js';
 import { registerDictionaryAdminRoutes } from './routes.admin.js';
@@ -84,6 +89,7 @@ export interface DictionariesCradle {
   readonly dictionaryCache: DictionaryCache | undefined;
   readonly dictionaryValidator: DictionaryValidatorPort;
   readonly dictionaryInvalidator: () => Promise<void>;
+  readonly countryReferenceRegistry: DictionaryReferenceRegistryPort;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -105,6 +111,25 @@ export function registerModule(ctx: ModuleContext): void {
         // process is going away has nothing to be stale for.
         await dictionaryCache?.invalidateAll().catch(() => undefined);
       })
+      .singleton(),
+  });
+
+  // ---------------------------------------------------------------------------
+  // Feature 077 (D-87 drain) — who still points at a country?
+  //
+  // `CountryService.remove` used to answer that with raw counts over
+  // `addresses`, `taxes` and `organizations`, and the orphan report with twelve
+  // `left join`s over eleven tables in nine modules. Every one of them named a
+  // table this module does not own, in a string no import-level boundary check
+  // can see. Contributors push a descriptor from their own boot hook now.
+  //
+  // A plain `ctx.di.register`, not a port: a contributor resolves it from a boot
+  // hook, and a boot hook that resolved a transient gate would stop the backend
+  // from starting the moment this module was switched off. Enumeration policy is
+  // stated at the class.
+  ctx.di.register({
+    countryReferenceRegistry: ctx
+      .asFunction(() => new CountryReferenceRegistry())
       .singleton(),
   });
 
@@ -149,15 +174,49 @@ export function registerModule(ctx: ModuleContext): void {
     });
   }
 
+  /**
+   * `countries.default_currency_code` points at `currencies`, so this module is
+   * one of that dictionary's consumers and contributes a descriptor like any
+   * other. `blocking: false` — the column's own foreign key is
+   * `on delete set null`, so the reference is worth reporting to an operator
+   * about to blank it but must not refuse the delete, which is exactly what the
+   * hand-written version said in a comment and expressed by leaving the count
+   * out of a sum.
+   *
+   * A contribution hook, kept separate from the seeding hook below: it must run
+   * whatever this module's state, and pushes an inert descriptor into an ungated
+   * registry (D-62). `product_feeds/backend.ts` is the shipped example of the
+   * pair.
+   */
+  ctx.onBoot(() => {
+    registerCountryCurrencyReference(
+      lazyPort<DictionaryReferenceRegistryPort>(ctx, 'currencyReferenceRegistry'),
+      ctx.cradle<DictionariesCradle>().emFactory,
+    );
+  });
+
   ctx.onBoot(async () => {
-    // Seeds the ISO reference data. Reads nothing but its own tables, so unlike
-    // `_i18n`'s bundle reconcile this is safe wherever the pass places it.
-    await runDictionarySeedReconciler(ctx.cradle<DictionariesCradle>().emFactory);
+    // Seeds the ISO reference data. The two tables it seeds that this module
+    // does not own — `currencies` and `languages` — go through their owners'
+    // published ports since feature 077's D-87 drain; before that they were raw
+    // statements naming those tables here.
+    await runDictionarySeedReconciler(ctx.cradle<DictionariesCradle>().emFactory, {
+      currencySeed: lazyPort<CurrencySeedPort>(ctx, 'currencySeedPort'),
+      currencyRead: lazyPort<CurrencyReadPort>(ctx, 'currencyReadPort'),
+      languageSeed: lazyPort<LanguageSeedPort>(ctx, 'languageSeedPort'),
+      languageRead: lazyPort<LanguageReadPort>(ctx, 'languageReadPort'),
+    });
   });
 
   ctx.routes(async (app) => {
-    const { emFactory, auditLogService, requireAdmin, dictionaryCache, dictionaryInvalidator } =
-      ctx.cradle<DictionariesCradle>();
+    const {
+      emFactory,
+      auditLogService,
+      requireAdmin,
+      dictionaryCache,
+      dictionaryInvalidator,
+      countryReferenceRegistry,
+    } = ctx.cradle<DictionariesCradle>();
     // Resolved once per route registration and handed down, never captured into
     // a singleton: `lazyPort` returns a proxy that resolves the gate per call,
     // so a switched-off owner is answered at the call and not at composition.
@@ -165,7 +224,12 @@ export function registerModule(ctx: ModuleContext): void {
     const languageRead = lazyPort<LanguageReadPort>(ctx, 'languageReadPort');
     await registerDictionaryAdminRoutes(app, {
       emFactory,
-      countryService: new CountryService(emFactory, dictionaryInvalidator, auditLogService),
+      countryService: new CountryService(
+        emFactory,
+        dictionaryInvalidator,
+        auditLogService,
+        () => countryReferenceRegistry,
+      ),
       currencyRead,
       currencyAdmin: lazyPort<CurrencyAdminPort>(ctx, 'currencyAdminPort'),
       languageRead,
@@ -185,6 +249,15 @@ export function registerModule(ctx: ModuleContext): void {
       ),
       invalidateDictionaryState: dictionaryInvalidator,
       requireAdmin,
+      countryReferences: countryReferenceRegistry,
+      currencyReferences: lazyPort<DictionaryReferenceRegistryPort>(
+        ctx,
+        'currencyReferenceRegistry',
+      ),
+      languageReferences: lazyPort<DictionaryReferenceRegistryPort>(
+        ctx,
+        'languageReferenceRegistry',
+      ),
     });
     await registerDictionaryStorefrontRoutes(app, {
       readService: new DictionaryReadService(

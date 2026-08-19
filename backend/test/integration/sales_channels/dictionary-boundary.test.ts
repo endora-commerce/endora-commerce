@@ -2,9 +2,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { EventBus } from '../../../src/events/bus.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
+
 import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
-import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
+import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { Currency } from '../../../src/modules/currencies/entities/currency.entity.js';
 import { Language } from '../../../src/modules/languages/entities/language.entity.js';
 import { SalesChannelsService } from '../../../src/modules/sales_channels/services/sales-channels.service.js';
@@ -21,7 +21,7 @@ describe('Sales channels dictionary boundary', () => {
     await conn.execute(`delete from "dictionary_translations"`);
     await conn.execute(`delete from "language_countries"`);
     await conn.execute(`delete from "countries"`);
-    await runDictionarySeedReconciler(() => db.orm.em);
+    await runDictionarySeedReconcilerFor(() => db.orm.em);
   });
 
   beforeEach(async () => {

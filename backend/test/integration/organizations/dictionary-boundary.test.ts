@@ -3,9 +3,9 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { RegisterOrganizationRequest } from '@b2b/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
+
 import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
-import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
+import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
 import { RegistrationService } from '../../../src/modules/organizations/services/registration-service.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
@@ -22,7 +22,7 @@ describe('Organizations dictionary boundary', () => {
     await conn.execute(`delete from "dictionary_translations"`);
     await conn.execute(`delete from "language_countries"`);
     await conn.execute(`delete from "countries"`);
-    await runDictionarySeedReconciler(() => db.orm.em);
+    await runDictionarySeedReconcilerFor(() => db.orm.em);
   });
 
   beforeEach(async () => {

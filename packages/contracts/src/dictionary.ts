@@ -414,3 +414,107 @@ export function dispatchValidatorMode(
   if (!incomingValue) return 'unchanged';
   return currentValue === incomingValue ? 'unchanged' : 'create-or-change';
 }
+
+// ---------------------------------------------------------------------------
+// Reference registries — "who still points at this dictionary entry?"
+// (feature 077, D-87 drain).
+// ---------------------------------------------------------------------------
+
+/**
+ * One consumer's answer about one dictionary code.
+ *
+ * The four descriptive fields are what the operator sees in the orphan report,
+ * and `ownerModuleId` is what attributes a refused delete to a module.
+ */
+export interface DictionaryReference {
+  ownerModuleId: string;
+  /** Operator-facing name of the consuming surface, e.g. `blog`. */
+  consumer: string;
+  /** The consumer's own table holding the reference. */
+  tableName: string;
+  /** The column, or the JSON path inside it, e.g. `registered_address.country`. */
+  columnName: string;
+  code: string;
+  count: number;
+  /**
+   * Whether this reference refuses the delete.
+   *
+   * `false` where the consumer's own foreign key clears the value instead
+   * (`on delete set null`) — the reference is still reported, because an
+   * operator about to blank a column wants to know, but it does not block.
+   * The decision belongs to the module that owns the referencing table, which
+   * is why it travels on the descriptor rather than in a caller's exception
+   * list.
+   */
+  blocking: boolean;
+}
+
+/**
+ * One contributed "who points at this dictionary entry" scanner.
+ *
+ * A module that stores a country, language or currency code registers one of
+ * these per column it stores it in, from its own `ctx.onBoot`. It queries its
+ * **own** tables and nothing else — which is the whole point: before this
+ * existed, `dictionaries`, `languages` and `currencies` each hand-wrote SQL
+ * naming twelve other modules' tables, invisible to every import-level
+ * boundary check because raw SQL names no specifier (D-87).
+ *
+ * `ownerModuleId` is required and is the whole mechanism (D-39): without it the
+ * registry could not state a policy for an absent owner at all.
+ */
+export interface DictionaryReferenceDescriptor {
+  ownerModuleId: string;
+  consumer: string;
+  tableName: string;
+  columnName: string;
+  /** See {@link DictionaryReference.blocking}. */
+  blocking: boolean;
+  /**
+   * How many of this consumer's rows reference `code`. Asked before a delete,
+   * so it must be a point query the consumer's own indexes can serve.
+   */
+  countReferences(code: string): Promise<number>;
+  /**
+   * Every code this consumer stores, with its row count. Asked by the orphan
+   * report, which is a full-table audit by nature — the caller subtracts the
+   * dictionary's own codes to find the danglers.
+   */
+  usedCodes(): Promise<ReadonlyArray<{ code: string; count: number }>>;
+}
+
+/**
+ * Container name: `countryReferenceRegistry`. Owner: `dictionaries`.
+ * Container name: `languageReferenceRegistry`. Owner: `languages`.
+ * Container name: `currencyReferenceRegistry`. Owner: `currencies`.
+ *
+ * One shape, three instances — one per dictionary, each owned by the module
+ * that owns the table being pointed at. Three rather than one because the
+ * enumeration policy and the 409 belong to the owner of the entry being
+ * deleted, and because a single registry would have to live in a module that
+ * two of the three readers cannot declare without closing a manifest cycle
+ * (`dictionaries` already depends on `languages` and `currencies`).
+ *
+ * A **contribution seam**: contributors push from a boot hook and read nothing
+ * back, so the registration is a plain `ctx.di.register` rather than a
+ * `providePort` — a boot hook that resolved a gate would stop the backend from
+ * starting whenever the registry's owner was switched off. All three owners are
+ * `nonDeactivatable` today, which is why no reader here degrades.
+ *
+ * **Enumeration policy: honoured while the contributing module is absent.**
+ * D-39's default is to skip, and honouring needs a written reason: this is
+ * referential integrity, not a surface. If `blog` is switched off its posts
+ * still exist and still carry language codes; skipping `blog`'s descriptor
+ * would let an operator delete a language that comes back as a dangling
+ * reference the moment `blog` is switched on again — data loss caused by an
+ * action Constitution XVII promises is non-destructive and reversible. Nobody
+ * sees a descriptor; they exist to refuse a delete and to report a dangler.
+ */
+export interface DictionaryReferenceRegistryPort {
+  register(descriptor: DictionaryReferenceDescriptor): void;
+  /** The contributing module of every registered descriptor, in registration order. */
+  owners(): readonly string[];
+  /** Every reference pointing at one code, across all descriptors. Zero counts dropped. */
+  countReferences(code: string): Promise<DictionaryReference[]>;
+  /** Every code every descriptor stores, with its row count. */
+  usedCodes(): Promise<DictionaryReference[]>;
+}

@@ -130,6 +130,11 @@ export const manifest = defineModuleManifest({
     'catalog',
     'cms',
     'dictionaries',
+    // `languages` owns `languageReferenceRegistry`, the registry this module
+    // contributes its two "which languages do posts and categories carry"
+    // descriptors to (feature 077, D-87). `languages` used to ask the question
+    // itself, with two `count(*)` statements naming this module's tables.
+    'languages',
     'sales_channels',
     'settings',
   ],

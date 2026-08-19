@@ -90,6 +90,13 @@ const SEAMS: ReadonlyArray<{ readonly owner: string; readonly name: string }> = 
   { owner: 'assets_library', name: 'assetReferenceRegistry' },
   { owner: 'cms', name: 'cmsReferenceRegistry' },
   { owner: 'megamenu', name: 'megamenuReferenceRegistry' },
+  // Feature 077's D-87 drain — one per dictionary, each owned by the module
+  // that owns the table being pointed at. Nine modules contribute a descriptor
+  // from a boot hook, which is why gating any of the three would turn an
+  // operator's off-switch into a backend that will not start.
+  { owner: 'dictionaries', name: 'countryReferenceRegistry' },
+  { owner: 'languages', name: 'languageReferenceRegistry' },
+  { owner: 'currencies', name: 'currencyReferenceRegistry' },
 ];
 
 /**
@@ -101,6 +108,13 @@ const STILL_PORTS: ReadonlyArray<{ readonly owner: string; readonly name: string
   { owner: 'transactional_emails', name: 'templateEmailPort' },
   { owner: 'transactional_emails', name: 'transactionalEmailSenderAccessor' },
   { owner: 'transactional_emails', name: 'emailBrandingAccessor' },
+  // The same distinction inside the D-87 drain: `currencies` and `languages`
+  // give away their reference registries ungated and keep the gate on the seams
+  // that **write** their tables. `dictionaries` seeds 53 currencies and two
+  // native labels through these, so a composition without their owners must
+  // fail rather than seed nothing and say nothing.
+  { owner: 'currencies', name: 'currencySeedPort' },
+  { owner: 'languages', name: 'languageSeedPort' },
 ];
 
 describe('D-39 — a contribution registry is registered, not provided as a port', () => {

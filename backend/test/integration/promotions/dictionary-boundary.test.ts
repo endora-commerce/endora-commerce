@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
+
 import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
-import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
+import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { Currency } from '../../../src/modules/currencies/entities/currency.entity.js';
 import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
 import { unreachableCatalogPorts } from '../../helpers/promotion-service.js';
@@ -20,7 +20,7 @@ describe('Promotions dictionary boundary', () => {
     await conn.execute(`delete from "dictionary_translations"`);
     await conn.execute(`delete from "language_countries"`);
     await conn.execute(`delete from "countries"`);
-    await runDictionarySeedReconciler(() => db.orm.em);
+    await runDictionarySeedReconcilerFor(() => db.orm.em);
   });
 
   beforeEach(async () => {

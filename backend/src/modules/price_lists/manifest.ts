@@ -68,7 +68,11 @@ export const manifest = defineModuleManifest({
   // for the admin resolved-price probe. Both fail closed, which is why the edge
   // is binding — pricing for a customer the platform will not identify is worse
   // than refusing the probe.
-  dependencies: ['catalog', 'customer_accounts', 'organizations', 'settings'],
+  // `currencies` owns `currencyReferenceRegistry`, the registry this module
+  // contributes its "who still prices in this currency" descriptor to (feature
+  // 077, D-87). `currencies` used to ask the question itself, with a
+  // `count(*) from "price_lists"` naming this module's table.
+  dependencies: ['catalog', 'currencies', 'customer_accounts', 'organizations', 'settings'],
   permissions: [
     { code: PRICE_LIST_PERMISSIONS.READ, label: 'View price lists and pricing rules' },
     { code: PRICE_LIST_PERMISSIONS.WRITE, label: 'Edit price lists, brackets and display modes' },

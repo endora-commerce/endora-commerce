@@ -802,6 +802,14 @@ export const CONTRIBUTION_POLICY_STATED: Readonly<Record<string, 'skip' | 'honou
   'assets_library:assetReferenceRegistry': 'honour',
   'cms:cmsReferenceRegistry': 'honour',
   'megamenu:megamenuReferenceRegistry': 'honour',
+  // Honoured, same ground, one dictionary each (feature 077, D-87): a module an
+  // operator switched off still owns the rows carrying the country, language or
+  // currency code, so its descriptor still refuses the delete. Skipping would
+  // let the operator delete the entry underneath it and get the dangling
+  // reference back on reactivation.
+  'dictionaries:countryReferenceRegistry': 'honour',
+  'languages:languageReferenceRegistry': 'honour',
+  'currencies:currencyReferenceRegistry': 'honour',
   // Skipped: a surface. `PromptActionToolRegistry.visibleFor` drops every tool
   // whose recorded owner is not effectively present, and `PlanExecutorService`
   // re-checks at execution.

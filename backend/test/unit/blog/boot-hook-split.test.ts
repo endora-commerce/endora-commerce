@@ -7,6 +7,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
+import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';
 
 /**
  * Issue #146 / D-68 — `blog`'s boot hook was **mixed**, and one probe at the top
@@ -44,6 +45,7 @@ const ALL_IDS = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id);
 interface Composed {
   runBootHooks: () => Promise<void>;
   assetReferenceRegistry: AssetReferenceRegistry;
+  languageReferenceRegistry: LanguageReferenceRegistry;
 }
 
 async function composeBlog(): Promise<Composed> {
@@ -52,17 +54,28 @@ async function composeBlog(): Promise<Composed> {
   const assetReferenceRegistry = new AssetReferenceRegistry();
   // What the hooks reach, and nothing more: no database connection, no Redis
   // client, no route surface.
+  // `languages` owns `languageReferenceRegistry` and is not composed here, so
+  // the root supplies it exactly as it supplies `assets_library`'. The same
+  // shape of contribution: a deactivated post still carries a language code, so
+  // `languages` must still refuse to delete one out from under it (feature 077,
+  // D-87).
+  const languageReferenceRegistry = new LanguageReferenceRegistry();
   registerValues(container, {
     emFactory: (): EntityManager => ({}) as EntityManager,
     redis: undefined,
     assetReferenceRegistry,
+    languageReferenceRegistry,
   });
   const composed = composeModules([{ id: 'blog', version: '1.0.0', registerModule }], {
     container,
     eventBus: new EventBus(),
     log: { info: () => {}, warn: () => {}, error: () => {} },
   });
-  return { runBootHooks: () => composed.runBootHooks(), assetReferenceRegistry };
+  return {
+    runBootHooks: () => composed.runBootHooks(),
+    assetReferenceRegistry,
+    languageReferenceRegistry,
+  };
 }
 
 describe('blog boot hooks: the seeds are probed, the asset scanner is not', () => {

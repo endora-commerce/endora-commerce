@@ -5,17 +5,19 @@ import {
   cmsColorPaletteSchema,
   type AssetReferenceRegistryPort,
   type CmsColorPalette,
+  type DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
 import { CMS_PAGE_BUILDER_SETTING_CODES } from './manifest.js';
 import type { CmsPageReadPort } from '@b2b/contracts';
 import { CmsPageReadService } from './services/cms-page-read-port.js';
-import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { cmsModule } from './plugin.js';
 import type { CmsAssetResolver } from './services/storefront-resolver.js';
 import { registerCmsAssetReferences } from './services/asset-references.js';
+import { registerCmsLanguageReferences } from './services/cms-language-reference.js';
 
 /**
  * `cms` — the endpoint that only worked in production (feature 072, wave 1,
@@ -271,5 +273,23 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.routes(async (app) => {
     await ctx.cradle<CmsCradle>().cms.plugin(app);
+  });
+
+  /**
+   * This module's rows carry a language code, so it answers "who still points at
+   * this language?" about its own tables (feature 077, D-87), where the owner used
+   * to count them with SQL naming this module's tables.
+   *
+   * A **contribution** hook: it pushes an inert descriptor into `languageReferenceRegistry`,
+   * an ungated registry, and carries no presence probe (D-62/D-68). Probing
+   * would be wrong in the dangerous direction — a switched-off module still owns
+   * the rows, so its language must still refuse the delete, which is the
+   * enumeration policy the registry states.
+   */
+  ctx.onBoot(() => {
+    registerCmsLanguageReferences(
+      lazyPort<DictionaryReferenceRegistryPort>(ctx, 'languageReferenceRegistry'),
+      ctx.cradle<CmsCradle>().emFactory,
+    );
   });
 }

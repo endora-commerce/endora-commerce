@@ -8,6 +8,7 @@ import type {
   OrganizationDetailsPort,
   PriceListAdminPort,
   PriceListReadPort,
+  DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
@@ -18,6 +19,7 @@ import { priceListsModule, type PriceListsModuleOptions } from './plugin.js';
 import { DEFAULT_PRICING_CACHE_TTL_MS } from './services/pricing-cache.js';
 import { PriceListReadService, toPriceListRecord } from './services/price-list-read-port.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
+import { registerPriceListCurrencyReferences } from './services/price-list-currency-reference.js';
 
 /**
  * `price_lists` — the decoration proof target (feature 072, wave 3, T127).
@@ -222,5 +224,23 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.routes(async (app) => {
     await ctx.cradle<PriceListsCradle>().priceLists.plugin(app);
+  });
+
+  /**
+   * This module's rows carry a currency code, so it answers "who still points at
+   * this currency?" about its own tables (feature 077, D-87), where the owner used
+   * to count them with SQL naming this module's tables.
+   *
+   * A **contribution** hook: it pushes an inert descriptor into `currencyReferenceRegistry`,
+   * an ungated registry, and carries no presence probe (D-62/D-68). Probing
+   * would be wrong in the dangerous direction — a switched-off module still owns
+   * the rows, so its currency must still refuse the delete, which is the
+   * enumeration policy the registry states.
+   */
+  ctx.onBoot(() => {
+    registerPriceListCurrencyReferences(
+      lazyPort<DictionaryReferenceRegistryPort>(ctx, 'currencyReferenceRegistry'),
+      ctx.cradle<PriceListsCradle>().emFactory,
+    );
   });
 }

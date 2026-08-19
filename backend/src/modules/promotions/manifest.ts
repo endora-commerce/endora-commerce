@@ -43,10 +43,16 @@ export const manifest = defineModuleManifest({
   // validator; `organizations` owns the status gate that keeps a suspended
   // organization from collecting org-targeted discounts. Feature 072 made all
   // three container resolutions rather than optional arguments.
+  // `currencies` owns `currencyReferenceRegistry`, the registry this module
+  // contributes its "who still prices in this currency" descriptor to (feature
+  // 077, D-87). `currencies` used to ask the question itself, with a
+  // `count(*) from "promotions"` naming this module's table — an edge that
+  // existed nowhere an operator, the lifecycle or the migration order could see.
   dependencies: [
     'catalog',
     'sales_channels',
     'auth',
+    'currencies',
     'dictionaries',
     'orders',
     'organizations',

@@ -22,6 +22,7 @@ import type {
   TemplateEmailPort,
   TransactionalEmailSender,
   VatValidator,
+  DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
@@ -65,6 +66,7 @@ import { MinisterstwoFinansowClient } from './integrations/ministerstwo-finansow
 import type { OrganizationEventBus } from './services/registration-service.js';
 import { organizationsModule, type OrganizationsModuleOptions } from './plugin.js';
 import { EMAIL_VERIFICATION_DEFAULT, NEW_ORG_REGISTRATION_DEFAULT, ORGANIZATION_INVITATION_DEFAULT } from './email-templates/transactional-defaults.js';
+import { registerOrganizationCountryReferences } from './services/organization-country-reference.js';
 
 /**
  * `organizations` — the tenancy root, and seven container names claimed by a
@@ -699,4 +701,22 @@ export function registerModule(ctx: ModuleContext): void {
     defaults.register('new_org_registration', NEW_ORG_REGISTRATION_DEFAULT, 'organizations');
   });
 
+
+  /**
+   * This module's rows carry a country code, so it answers "who still points at
+   * this country?" about its own tables (feature 077, D-87), where the owner used
+   * to count them with SQL naming this module's tables.
+   *
+   * A **contribution** hook: it pushes an inert descriptor into `countryReferenceRegistry`,
+   * an ungated registry, and carries no presence probe (D-62/D-68). Probing
+   * would be wrong in the dangerous direction — a switched-off module still owns
+   * the rows, so its country must still refuse the delete, which is the
+   * enumeration policy the registry states.
+   */
+  ctx.onBoot(() => {
+    registerOrganizationCountryReferences(
+      lazyPort<DictionaryReferenceRegistryPort>(ctx, 'countryReferenceRegistry'),
+      ctx.cradle<OrganizationsCradle>().emFactory,
+    );
+  });
 }

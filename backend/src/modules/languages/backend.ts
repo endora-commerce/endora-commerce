@@ -4,13 +4,17 @@ import {
   LANGUAGE_CHANGED_EVENT,
   type CurrencyAdminPort,
   type CurrencyReadPort,
+  type DictionaryReferenceRegistryPort,
   type LanguageAdminPort,
   type LanguageReadPort,
+  type LanguageSeedPort,
 } from '@b2b/contracts';
 import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { LanguageService } from './services/language-service.js';
 import { LanguageReadService, createLanguageAdminPort } from './services/language-ports.js';
+import { LanguageReferenceRegistry } from './services/language-reference-registry.js';
+import { LanguageSeedService } from './services/language-seed-service.js';
 import { LocaleService } from './services/locale-service.js';
 import { registerI18nRoutes } from './routes.js';
 
@@ -60,6 +64,7 @@ export interface LanguagesCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly languageService: LanguageService;
   readonly localeService: LocaleService;
+  readonly languageReferenceRegistry: DictionaryReferenceRegistryPort;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -70,7 +75,9 @@ export function registerModule(ctx: ModuleContext): void {
         const announce = async (): Promise<void> => {
           ctx.cradle<LanguagesCradle>().eventBus.emit(LANGUAGE_CHANGED_EVENT, {});
         };
-        return new LanguageService(emFactory, announce, auditLogService);
+        return new LanguageService(emFactory, announce, auditLogService, () =>
+          ctx.cradle<LanguagesCradle>().languageReferenceRegistry,
+        );
       })
       .singleton(),
   );
@@ -102,6 +109,38 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(() =>
         createLanguageAdminPort(() => ctx.cradle<LanguagesCradle>().languageService),
       )
+      .singleton(),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Feature 077 (D-87 drain) — who still points at a language?
+  //
+  // `LanguageService.remove` used to answer that with six hand-written counts
+  // over `megamenu`, `blog` (twice), `cms` and the kernel's channels. Four of
+  // the five named another module's table in a string, which no import-level
+  // boundary check can see. Contributors push a descriptor from their own boot
+  // hook now, and this module asks the registry instead.
+  //
+  // A plain `ctx.di.register`, not a port: a contributor resolves it from a boot
+  // hook, and a boot hook that resolved a transient gate would stop the backend
+  // from starting the moment this module was switched off. The descriptor is
+  // inert; `languageService`, which reads and writes languages, is the port and
+  // does fail closed. Enumeration policy is stated at the class.
+  ctx.di.register({
+    languageReferenceRegistry: ctx
+      .asFunction(() => new LanguageReferenceRegistry())
+      .singleton(),
+  });
+
+  /**
+   * The one write `dictionaries` needs against this table: filling the empty
+   * `native_label` migration 038 left behind. It used to run it as raw SQL from
+   * its own reconciler.
+   */
+  ctx.di.providePort<LanguageSeedPort>(
+    'languageSeedPort',
+    ctx
+      .asFunction(({ emFactory }: LanguagesCradle) => new LanguageSeedService(emFactory))
       .singleton(),
   );
 

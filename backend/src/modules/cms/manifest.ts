@@ -67,7 +67,11 @@ export const manifest = defineModuleManifest({
   // embedded-asset scan to (T143a) — the edge existed as a composition root's
   // cross-registration, which is to say it existed nowhere an operator, the
   // lifecycle or the migration order could see it.
-  dependencies: ['assets_library', 'sales_channels', 'auth', 'settings'],
+  // `languages` owns `languageReferenceRegistry`, the registry this module
+  // contributes its "which languages do pages carry" descriptor to (feature 077,
+  // D-87). `languages` used to ask the question itself, with a jsonb
+  // containment test against `cms_pages` — this module's table.
+  dependencies: ['assets_library', 'languages', 'sales_channels', 'auth', 'settings'],
   i18n: { bundlesDir: 'i18n' },
   settings,
   permissions: [
