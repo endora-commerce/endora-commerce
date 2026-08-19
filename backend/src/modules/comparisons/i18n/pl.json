@@ -22,6 +22,7 @@
   "list.loadMore": "Wczytaj więcej",
   "detail.page.title": "Szczegóły porównania",
   "detail.page.description": "Widok tylko do odczytu — to, co aktualnie widzi klient.",
+  "detail.pricesNote": "Ceny w tym widoku to ceny standardowe kanału sprzedaży, a nie ceny wynegocjowane przez klienta — klient widzi swoje. Produkty ograniczone do innych organizacji są tutaj pokazane w całości.",
   "detail.backToList": "Wróć do listy",
   "detail.owner": "Właściciel",
   "detail.salesChannel": "Kanał sprzedaży",

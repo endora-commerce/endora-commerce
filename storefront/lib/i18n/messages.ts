@@ -209,7 +209,14 @@ export type MessageKey =
   | 'account.socialLinks.linkedOn'
   | 'account.socialLinks.remove'
   | 'account.socialLinks.lastCredential'
-  | 'account.socialLinks.setPassword';
+  | 'account.socialLinks.setPassword'
+  // The shared comparison. Sender and recipient legitimately see different
+  // numbers and, where the sender restricted a product, different rows — so
+  // the view says whose prices these are and that something is missing,
+  // rather than leaving the reader to discover it.
+  | 'compare.shared.pricesYours'
+  | 'compare.shared.pricesChannel'
+  | 'compare.shared.hiddenProducts';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -434,6 +441,11 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'account.socialLinks.lastCredential':
       'This is the last sign-in identity linked to your account, and your account has no password on record — removing it now could lock you out for good. Set a password first, then you can remove it.',
     'account.socialLinks.setPassword': 'Set a password',
+    'compare.shared.pricesYours': 'Prices shown are your organisation’s.',
+    'compare.shared.pricesChannel':
+      'Prices shown are this store’s standard prices. Sign in to see the prices agreed for your organisation.',
+    'compare.shared.hiddenProducts':
+      'Some products in this comparison are not available to your account and are not shown here.',
   },
   'pl-PL': {
     'nav.home': 'Strona glowna',
@@ -657,6 +669,11 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'account.socialLinks.lastCredential':
       'To ostatnia tożsamość logowania powiązana z Twoim kontem, a konto nie ma zapisanego hasła — usunięcie jej teraz mogłoby trwale odciąć Ci dostęp. Najpierw ustaw hasło, a potem będziesz móc usunąć to powiązanie.',
     'account.socialLinks.setPassword': 'Ustaw hasło',
+    'compare.shared.pricesYours': 'Pokazane ceny dotyczą Twojej organizacji.',
+    'compare.shared.pricesChannel':
+      'Pokazane ceny to ceny standardowe tego sklepu. Zaloguj się, aby zobaczyć ceny uzgodnione dla Twojej organizacji.',
+    'compare.shared.hiddenProducts':
+      'Część produktów z tego zestawienia nie jest dostępna dla Twojego konta i nie jest tutaj pokazana.',
   },
 };
 

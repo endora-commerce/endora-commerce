@@ -21,6 +21,10 @@ const VIEW: ComparisonOwnerView = {
   shareToken: 'AAAAAAAAAAAAAAAAAAAAAA',
   displayMode: 'all',
   maxProducts: 4,
+  // The owner exports their own comparison, so the figures in it are their
+  // organisation's.
+  pricedFor: 'organization',
+  hiddenProductCount: 0,
   products: [
     {
       id: 'p1',

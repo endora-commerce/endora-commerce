@@ -43,7 +43,7 @@ export default async function SharedComparePage(props: {
           </p>
         </div>
       </div>
-      <SharedComparisonTable token={token} />
+      <SharedComparisonTable token={token} locale={locale} />
     </div>
   );
 }

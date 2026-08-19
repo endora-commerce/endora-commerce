@@ -154,9 +154,23 @@ export class ComparisonAdminService {
     if (!comparison) throw new ComparisonNotFoundError();
     // The detail view renders prices in the comparison's recorded
     // channel (the creator's), not the admin's preferred channel.
+    //
+    // And in that channel's **public** prices, not the owner's negotiated
+    // ones: the viewer decides the figures, the viewer here is an
+    // administrator, and an administrator has no buying organisation to
+    // resolve against. Handing this screen the owner's price lists would be a
+    // disclosure decision of its own rather than a consequence of this one, so
+    // the screen says which prices it is showing instead of assuming
+    // (`detail.pricesNote`).
+    //
+    // The `administrator` viewer is also what keeps every *row* on this screen.
+    // A storefront reader is filtered by `isProductVisibleTo`, and an admin
+    // given any audience would be filtered too — dropping exactly the
+    // organisation-restricted products this audit view exists to show.
     const view = await this.comparisonService.buildOwnerView(
       comparison,
       comparison.salesChannelId,
+      { kind: 'administrator' },
     );
 
     const channel = await em.findOne(SalesChannel, { id: comparison.salesChannelId });

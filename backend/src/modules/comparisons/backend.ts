@@ -4,6 +4,7 @@ import type {
   CatalogProductReadPort,
   CustomerAccountReadPort,
   ListingPricePort,
+  OrganizationDetailsPort,
 } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -81,6 +82,12 @@ export function registerModule(ctx: ModuleContext): void {
             // Issue #132 — a comparison column is a listing and prices through
             // the engine, not off the catalogue's legacy attribute.
             lazyPort<ListingPricePort>(ctx, 'pricingService'),
+            // The viewer's organisation, for the customer group the pricing
+            // engine selects a group-targeted list by. The edge binds: a
+            // comparison that cannot read the buyer's organisation would quote
+            // the channel price to a buyer who has negotiated one, which is
+            // silently wrong rather than visibly refused.
+            lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
           ),
       )
       .singleton(),

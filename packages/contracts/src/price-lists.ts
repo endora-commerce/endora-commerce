@@ -293,10 +293,21 @@ export interface ListingPriceProduct {
  * reaches into the owning module (Principle I). The owner's
  * `PricingServiceContract` is a superset and satisfies it structurally.
  *
- * There is no organization in the context: these are anonymous surfaces — the
- * public catalogue routes resolve a sales channel and no customer — so a
- * listing quotes the channel's anonymous price, which is the same resolution
- * the storefront's own `getResolvedPrice` performs from a server component.
+ * **`organization` is the viewer, and it is optional because the viewer may
+ * have none.** The catalogue, the search results and the product links quote
+ * the channel's anonymous price and omit it — those surfaces are shared by
+ * every reader, and a figure that varies per reader is one a page cannot be
+ * cached or indexed on. The comparison supplies it, and supplies it
+ * *conditionally*: a signed-in buyer's own organisation for a buyer, nothing at
+ * all for an anonymous reader of the same shared link. So the field is absent
+ * in the case it describes rather than absent because a caller forgot it, which
+ * is the distinction an always-supplied optional parameter fails.
+ *
+ * Widening this slice rather than publishing a second one is deliberate: the
+ * engine's own `ListingPricesInput` has carried an organisation all along, and
+ * the whole point of issue #132 was that the listing chain has **one**
+ * implementation — a second port over the same container method is the second
+ * chain arriving by another door.
  *
  * **Owner off:** the seam fails closed — resolving the port throws
  * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`. A listing
@@ -309,17 +320,25 @@ export interface ListingPricePort {
     context: {
       salesChannel: { id: string; defaultCurrency: string };
       currencyCode?: string;
+      /** The buying organisation, when the viewer has one. */
+      organization?: PriceOrganization | null;
     };
   }): Promise<Map<string, ListingPrice>>;
 }
 
 /**
- * The buying organisation, as a line resolution reads it: the id, which is a
+ * The buying organisation, as a price resolution reads it: the id, which is a
  * rule dimension and part of the cache key, and the group it belongs to, which
  * a customer's own group overrides. The same two fields the engine's own
  * `PricingOrganizationRef` names.
+ *
+ * Both slices take it. A cart line always has a buyer; a listing has one only
+ * where the surface knows who is reading — today, the comparison — and the
+ * *same* two fields have to travel either way, or a buyer's comparison column
+ * and their cart line would resolve against different price lists and disagree
+ * on the same product.
  */
-export interface LinePriceOrganization {
+export interface PriceOrganization {
   id: string;
   customerGroupId?: string | null;
 }
@@ -362,7 +381,7 @@ export interface LinePricePort {
     variantId?: string | null;
     context: {
       quantity: number;
-      organization?: LinePriceOrganization | null;
+      organization?: PriceOrganization | null;
       /** Feature 040 — a customer's direct group overrides the org's. */
       customerGroupId?: string | null;
       salesChannel: { id: string; defaultCurrency: string };

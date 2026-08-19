@@ -7,6 +7,7 @@ import type {
   ComparisonSharedView,
 } from '@b2b/contracts';
 import { ComparisonApiError, getSharedComparison } from '../lib/api/comparisons';
+import { tForLocale } from '../lib/i18n/messages';
 
 /**
  * `<SharedComparisonTable>` — feature 007 / US2 / T043.
@@ -23,8 +24,16 @@ import { ComparisonApiError, getSharedComparison } from '../lib/api/comparisons'
  * "Pokaż tylko różnice" locally (mapping to `'differences' | 'all'`),
  * plus a client-side "Ukryj puste" filter that drops rows where every
  * cell is null.
+ *
+ * **The table says whose view this is.** The server prices the columns for the
+ * reader and drops the products the reader may not see, so a recipient's table
+ * legitimately differs from the sender's in its figures and sometimes in its
+ * length. Both are stated — `pricedFor` and `hiddenProductCount` — because a
+ * difference a reader has to discover is one they will mistake for the
+ * sender's numbers.
  */
-export function SharedComparisonTable(props: { token: string }): ReactNode {
+export function SharedComparisonTable(props: { token: string; locale: string }): ReactNode {
+  const t = tForLocale(props.locale);
   const [state, setState] = useState<
     | { kind: 'loading' }
     | { kind: 'error'; message: string }
@@ -89,7 +98,13 @@ export function SharedComparisonTable(props: { token: string }): ReactNode {
   if (view.products.length === 0) {
     return (
       <div className="industria-compare-page">
-        <p className="muted">Porównywarka jest pusta.</p>
+        <p className="muted">
+          {view.hiddenProductCount > 0
+            ? // Every product in the sender's set is one this reader may not
+              // see. "Empty" would be a lie about the sender's comparison.
+              t('compare.shared.hiddenProducts')
+            : 'Porównywarka jest pusta.'}
+        </p>
       </div>
     );
   }
@@ -117,6 +132,17 @@ export function SharedComparisonTable(props: { token: string }): ReactNode {
           </span>
         </div>
       </div>
+
+      <p className="muted" role="status">
+        {view.pricedFor === 'organization'
+          ? t('compare.shared.pricesYours')
+          : t('compare.shared.pricesChannel')}
+      </p>
+      {view.hiddenProductCount > 0 ? (
+        <p className="muted" role="status">
+          {t('compare.shared.hiddenProducts')}
+        </p>
+      ) : null}
 
       <div className="industria-compare-table">
         <table>
