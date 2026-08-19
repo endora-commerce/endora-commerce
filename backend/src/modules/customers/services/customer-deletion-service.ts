@@ -1,11 +1,9 @@
-import {
-  ERROR_CODES,
-  type CustomerAccountLifecycleWritePort,
-  type CustomerAccountReadPort,
-  type CustomerAccountRecord,
-  type PersonalOrganizationPort,
-} from '@b2b/contracts';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import { Organization } from '../../organizations/entities/organization.entity.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 import type {
   ModerationActor,
@@ -20,29 +18,27 @@ import type {
  * sessions are revoked; history (orders, RFQs, audit) is retained. Within the
  * retention window an authorized actor can restore. The anonymization sweep
  * irreversibly scrubs PII after the window, after which restore is impossible.
- *
- * **Feature 075, Phase C — this service holds no other module's entity.** The
- * account writes and the scrub are `customer_accounts`', through
- * `customerAccountLifecycleWritePort`; the cascade onto a member-less personal
- * organisation is `organizations`', through `personalOrganizationPort`. Each
- * owner records the one audit row that describes its own write, with the same
- * action strings as before. What is left here is the *order* of the sweep and
- * the authority checks, which are this module's.
  */
+export const ANONYMIZED_NAME = 'Deleted customer';
+export const ANONYMIZED_PASSWORD_HASH = 'anonymized-no-login';
+
 export class CustomerDeletionService {
   constructor(
-    private readonly accounts: CustomerAccountReadPort,
-    private readonly accountWrites: CustomerAccountLifecycleWritePort,
-    private readonly personalOrganizations: PersonalOrganizationPort,
+    private readonly emFactory: () => EntityManager,
     private readonly authority: CustomerAuthorityService,
+    private readonly auditLog: AuditLogService,
     private readonly sessions: SessionRevoker,
   ) {}
 
   async softDelete(
     customerAccountId: string,
     actor: ModerationActor,
-  ): Promise<CustomerAccountRecord> {
-    const customer = await this.load(customerAccountId);
+  ): Promise<CustomerAccount> {
+    const em = this.emFactory();
+    const customer = await em.findOne(CustomerAccount, { id: customerAccountId });
+    if (!customer) {
+      throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
+    }
     await this.assertAuthorized(actor, customer.organizationId ?? null);
     if (customer.deletedAt) {
       throw new HttpError(409, ERROR_CODES.CUSTOMER_ALREADY_DELETED, 'Customer is already deleted.');
@@ -50,11 +46,12 @@ export class CustomerDeletionService {
 
     // Refuse to strand an org without an admin.
     if (customer.organizationId && customer.role === 'organization_admin') {
-      const remaining = await this.accounts.countByOrganizationRole(
-        customer.organizationId,
-        'organization_admin',
-        { excludeCustomerAccountId: customer.id, activeOnly: true },
-      );
+      const remaining = await em.count(CustomerAccount, {
+        organizationId: customer.organizationId,
+        role: 'organization_admin',
+        deletedAt: null,
+        id: { $ne: customer.id },
+      });
       if (remaining === 0) {
         throw new HttpError(
           409,
@@ -64,20 +61,56 @@ export class CustomerDeletionService {
       }
     }
 
-    const deleted = await this.accountWrites.softDelete(customer.id, {
-      actorAdminUserId: actor.adminUserId,
-    });
+    customer.deletedAt = new Date();
+    customer.deletionRequestedByAdminUserId = actor.adminUserId;
+    await em.flush();
     await this.sessions.destroyAllForCustomer(customer.id);
-    return deleted;
+
+    await this.auditLog.record({
+      actorAdminUserId: actor.adminUserId,
+      action: 'customer_account.deleted',
+      objectType: 'customer_account',
+      objectId: customer.id,
+      stateBefore: { deletedAt: null },
+      stateAfter: { deletedAt: customer.deletedAt.toISOString() },
+    });
+    return customer;
   }
 
   async restore(
     customerAccountId: string,
     actor: ModerationActor,
-  ): Promise<CustomerAccountRecord> {
-    const customer = await this.load(customerAccountId);
+  ): Promise<CustomerAccount> {
+    const em = this.emFactory();
+    const customer = await em.findOne(CustomerAccount, { id: customerAccountId });
+    if (!customer) {
+      throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
+    }
     await this.assertAuthorized(actor, customer.organizationId ?? null);
-    return this.accountWrites.restore(customer.id, { actorAdminUserId: actor.adminUserId });
+    if (!customer.deletedAt) {
+      throw new HttpError(409, ERROR_CODES.CUSTOMER_NOT_DELETED, 'Customer is not deleted.');
+    }
+    if (customer.anonymizedAt) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.CUSTOMER_RESTORE_WINDOW_ELAPSED,
+        'The restore window has elapsed; this account has been permanently anonymized.',
+      );
+    }
+
+    customer.deletedAt = null;
+    customer.deletionRequestedByAdminUserId = null;
+    await em.flush();
+
+    await this.auditLog.record({
+      actorAdminUserId: actor.adminUserId,
+      action: 'customer_account.restored',
+      objectType: 'customer_account',
+      objectId: customer.id,
+      stateBefore: { deletedAt: 'set' },
+      stateAfter: { deletedAt: null },
+    });
+    return customer;
   }
 
   /**
@@ -86,26 +119,76 @@ export class CustomerDeletionService {
    * anonymized. Called by the repeatable sweep worker.
    */
   async sweep(retentionDays: number, now: Date): Promise<number> {
+    const em = this.emFactory();
     const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
-    const due = await this.accountWrites.listDueForAnonymization(cutoff);
+    const due = await em.find(CustomerAccount, {
+      deletedAt: { $ne: null, $lt: cutoff },
+      anonymizedAt: null,
+    });
     for (const customer of due) {
-      await this.accountWrites.anonymize(customer.id);
-      // Feature 051 — a personal (B2C) organization backs exactly one customer.
-      // Once that customer is anonymized the org is member-less, so the scrub
-      // cascades: the owner renames it, blanks its address and soft-deletes it.
-      // Company (multi-member) orgs are never touched, and the owner decides
-      // that — this sweep only says which customer it just scrubbed.
-      await this.personalOrganizations.anonymizeIfOrphaned(customer.id);
+      await this.anonymize(em, customer);
     }
+    if (due.length > 0) await em.flush();
     return due.length;
   }
 
-  private async load(id: string): Promise<CustomerAccountRecord> {
-    const customer = await this.accounts.findById(id);
-    if (!customer) {
-      throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
-    }
-    return customer;
+  private async anonymize(em: EntityManager, customer: CustomerAccount): Promise<void> {
+    const before = { email: customer.email };
+    customer.email = `deleted+${customer.id}@anonymized.invalid`;
+    customer.firstName = ANONYMIZED_NAME;
+    customer.lastName = ANONYMIZED_NAME;
+    customer.passwordHash = ANONYMIZED_PASSWORD_HASH;
+    // Issue #222 — the scrubbed hash is a placeholder, not a credential, so the
+    // account has no password on record any more. Leaving the stamp would say
+    // the opposite of what the scrub just did.
+    customer.passwordSetAt = null;
+    customer.twoFactorSecret = null;
+    customer.twoFactorConfirmedAt = null;
+    customer.anonymizedAt = new Date();
+    await this.auditLog.record({
+      actorAdminUserId: null,
+      action: 'customer_account.anonymized',
+      objectType: 'customer_account',
+      objectId: customer.id,
+      stateBefore: before,
+      stateAfter: { anonymizedAt: customer.anonymizedAt.toISOString() },
+    });
+
+    // Feature 051 — a personal (B2C) organization backs exactly one customer.
+    // When that customer is anonymized the org is left member-less, so cascade
+    // the scrub: anonymize the org's PII (its name is derived from the customer's
+    // name) and soft-delete it. Company (multi-member) orgs are never touched.
+    await this.anonymizePersonalOrgIfOrphaned(em, customer);
+  }
+
+  private async anonymizePersonalOrgIfOrphaned(
+    em: EntityManager,
+    customer: CustomerAccount,
+  ): Promise<void> {
+    if (!customer.organizationId) return;
+    const org = await em.findOne(Organization, { id: customer.organizationId });
+    if (!org || !org.isPersonal || org.deletedAt) return;
+
+    // Any surviving (non-deleted) member keeps the org alive. For a personal
+    // org this is 0 once its single member has been soft-deleted.
+    const activeMembers = await em.count(CustomerAccount, {
+      organizationId: org.id,
+      deletedAt: null,
+    });
+    if (activeMembers > 0) return;
+
+    const before = { name: org.name };
+    org.name = ANONYMIZED_NAME;
+    org.registeredAddress = { street: '-', city: '-', postalCode: '-', country: org.registeredAddress.country };
+    org.deletedAt = new Date();
+    await this.auditLog.record({
+      actorAdminUserId: null,
+      action: 'organization.anonymized',
+      objectType: 'organization',
+      objectId: org.id,
+      stateBefore: before,
+      stateAfter: { anonymizedAt: org.deletedAt.toISOString(), isPersonal: true },
+    });
   }
 
   private async assertAuthorized(
