@@ -2,6 +2,13 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+// Comments removed by the parser rather than by an ordered pair of regexes
+// (issue #241). This file is where the ordered pair was wrong: block-first, a
+// `//` line ending in a route glob at `test-server.ts:1544` opened a comment
+// that ran 1135 lines, and `runBootHooks(`, `errorEnvelope` and
+// `resolvePreferredLanguage` were all invisible to every assertion below.
+// Issue #234 fixed the order; #241 removed the order from the question.
+import { codeOnly } from '../../../scripts/lib/source-text.js';
 import { MODULES } from '../../../src/composition.generated.js';
 // D-72 point 5 — the same manifest index `check-port-dependencies` and
 // `check-port-catches` read, so "which modules the platform refuses to switch
@@ -47,24 +54,6 @@ function constructedNames(source: string): Set<string> {
     names.add(match[1] as string);
   }
   return names;
-}
-
-/**
- * Source with comments removed — a mention of a call is not a call.
- *
- * **Line comments go first, and the order is the whole correctness of this
- * function** (issue #234). Run the other way round, a `//` line ending in a
- * route glob opens a block comment that never closes:
- * `// … under /api/v1/admin/assets/*` at `test-server.ts:1544` swallowed the
- * next **1172 lines** — 30% of the harness, including its single
- * `runBootHooks()` call and the whole `errorEnvelope` wiring — so anything
- * asserted over `codeOnly(harness)` inside that window was green because the
- * text was gone, not because the property held. Stripping line comments first
- * removes the fake opener with the line it sits on; nothing else about either
- * pass changes, and no assertion in this file changes its verdict.
- */
-function codeOnly(source: string): string {
-  return source.replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
 }
 
 /** `fooModule(` calls — the hand-wired module factories. */

@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ProductSelectionRule } from '@b2b/contracts';
+import { codeOnly } from '../../../scripts/lib/source-text.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -429,10 +430,12 @@ describe('product feed channel isolation [integration]', () => {
         const source = readFileSync(file, 'utf8');
         // Prose in comments is allowed to name the table (the service header
         // explains precisely why it must not be queried); a SQL string is not.
-        const sql = source
-          .split('\n')
-          .filter((line) => !line.trim().startsWith('*') && !line.trim().startsWith('//'))
-          .join('\n');
+        // The parser decides which spans are comments — this used to be a
+        // line-prefix filter, one of the four hand-rolled comment strippers
+        // issue #241 swept. It left a trailing `// … from sales_channel_x` in
+        // place, which would have failed this assertion over a sentence, and it
+        // dropped any line beginning with `*`, comment or not.
+        const sql = codeOnly(source, file);
         expect(sql, `${file} must not query sales_channel_* directly`).not.toMatch(
           /from\s+"?sales_channel_\w+"?|join\s+"?sales_channel_\w+"?|into\s+"?sales_channel_\w+"?/i,
         );
