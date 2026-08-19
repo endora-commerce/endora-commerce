@@ -73,6 +73,15 @@
         }
       }
     },
+    "/api/v1/account/mfa/social-links/{provider}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/account/mfa/status": {
       "get": {
         "responses": {
@@ -120,6 +129,15 @@
     },
     "/api/v1/admin/account/mfa/setup": {
       "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/account/mfa/social-links/{provider}": {
+      "delete": {
         "responses": {
           "200": {
             "description": "OK"
