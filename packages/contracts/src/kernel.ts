@@ -26,11 +26,23 @@
 export type RegistrationLifetime = 'singleton' | 'scoped' | 'transient';
 
 /**
- * The five classes of entry point that establish a scoped execution. Every one
- * of them goes through `enterPlatformScope`; before this feature only the HTTP
- * path and (most of) the worker path established a tenant context at all.
+ * The classes of entry point that establish a scoped execution. Every one of
+ * them goes through `enterPlatformScope`; before feature 072 only the HTTP path
+ * and (most of) the worker path established a tenant context at all.
+ *
+ * `'message'` is a Redis pub/sub callback (issue #235). It is its own label
+ * rather than a `'worker'`, because it is neither a BullMQ job nor a timer: it
+ * is delivered from a socket the composition opened, so it inherits no context
+ * from whatever asked for the work, and its own label is what says so at the
+ * call site.
  */
-export type ScopeEntryPointKind = 'http' | 'worker' | 'cli' | 'boot' | 'interval';
+export type ScopeEntryPointKind =
+  | 'http'
+  | 'worker'
+  | 'cli'
+  | 'boot'
+  | 'interval'
+  | 'message';
 
 /**
  * Per-execution metadata carried by a scope. Field names match the Command
