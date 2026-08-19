@@ -59,6 +59,7 @@ import { LanguagePicker } from './LanguagePicker.js';
 import { useViewportTier } from './hooks/useViewportTier.js';
 import { NotificationBell } from './notifications';
 import { useAdminActions } from '@/lib/admin-actions/useAdminActions';
+import { normalize } from '@/lib/admin-actions/normalize';
 import { useModulePresence } from '@/lib/module-presence';
 import {
   useSurfaceVisibility,
@@ -987,6 +988,35 @@ interface PaletteItem extends GatedSurface {
 }
 
 /**
+ * The palette's one matching rule, for every group it renders.
+ *
+ * Issue #233. The dialog merges three indexes and used to match with two
+ * different rules: the server-fed Actions group filters through `normalize`
+ * (`lib/admin-actions/useAdminActions.ts`), which folds diacritics *and* the
+ * stroked letters NFD leaves standing, while the static Navigate group and the
+ * pinned Assistant row used a bare `toLowerCase().includes()`. Typing
+ * `zamowienia` therefore found the Actions row for orders and not the Navigate
+ * row for the same screen — and Polish operators routinely type without
+ * diacritics, so half the palette silently stopped answering them.
+ *
+ * `normalize` is **imported, not re-implemented**: the whole defect was one
+ * question answered twice, and a copy is how the two answers drifted apart. It
+ * folds `ł` through an explicit stroked-letter map, which matters — `ł` has no
+ * NFD decomposition, so the obvious `normalize('NFD').replace(...)` one-liner
+ * leaves `płatności` unmatched by `platnosci`.
+ *
+ * **Both sides are folded.** Folding only the haystack breaks the operator who
+ * does type `zamówienia`; folding only the query breaks the one who does not.
+ * (Postel's Law — accept what was typed and normalise it.)
+ *
+ * `needle` must already be normalised; the caller folds the query once per
+ * keystroke rather than once per row.
+ */
+function matchesQuery(needle: string, ...haystacks: string[]): boolean {
+  return haystacks.some((haystack) => normalize(haystack).includes(needle));
+}
+
+/**
  * The static Navigate group.
  *
  * **Every `requiredPermission` here is read from the backend route that gates
@@ -1681,10 +1711,12 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
         sub: a.description ?? '',
         icon: resolveIcon(a.icon),
         to: a.targetRoute,
-        // Keywords are already pre-normalized by the registry; we keep
-        // them on the item so the navigate-group filter below can hit
-        // them via includes(). Lowercased for the existing filter.
-        keywords: a.keywords.join(' ').toLowerCase(),
+        // Carried for shape uniformity only: an Actions row is filtered by
+        // `useAdminActions(query)` before it reaches this mapper, so nothing
+        // below reads this field. Kept unfolded — `matchesQuery` normalises
+        // its haystack at compare time, and a second, differently-normalised
+        // copy of the same data is what issue #233 was about.
+        keywords: a.keywords.join(' '),
       })),
     [registryActions],
   );
@@ -1723,21 +1755,17 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
 
   const items = useMemo(() => {
     if (!query.trim()) return [...assistantItems, ...navigateItems, ...actionItems];
-    const q = query.toLowerCase();
-    const filteredAssistant = assistantItems.filter(
-      (i) =>
-        i.label.toLowerCase().includes(q) ||
-        i.sub.toLowerCase().includes(q) ||
-        i.keywords.includes(q),
+    // Folded once here, then compared against every row — see `matchesQuery`.
+    const q = normalize(query);
+    const filteredAssistant = assistantItems.filter((i) =>
+      matchesQuery(q, i.label, i.sub, i.keywords),
     );
     // Navigate group: filter against the *translated* label + sub plus
     // the raw keywords list so a Polish user can search in Polish and
     // an English user in English.
-    const filteredNav = navigateItems.filter((i) => {
-      const label = resolveLabel(i).toLowerCase();
-      const sub = resolveSub(i).toLowerCase();
-      return label.includes(q) || sub.includes(q) || i.keywords.includes(q);
-    });
+    const filteredNav = navigateItems.filter((i) =>
+      matchesQuery(q, resolveLabel(i), resolveSub(i), i.keywords),
+    );
     return [...filteredAssistant, ...filteredNav, ...actionItems];
     // `resolveLabel` / `resolveSub` are render-scoped closures over `t`; the
     // list re-derives on every language change through the parent re-render.
