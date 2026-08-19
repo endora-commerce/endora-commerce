@@ -39,27 +39,40 @@ const LANGUAGES = ['en', 'pl'] as const;
 const CORE_BUNDLE_MODULE = '_i18n';
 
 /**
- * Codes with no sentence in either language, as measured on 2026-08-16.
+ * Codes with no sentence in either language, first measured on 2026-08-16.
  *
- * They are listed rather than swept because writing 78 sentences in two
- * languages is content work with a house voice, not a mechanical edit, and a
- * batch of machine-shaped strings is what produced the 181 Polish placeholders
- * already in the tree (`Błąd: <the english code, lowercased>`). Those satisfy a
- * checker and help nobody, which is the outcome this ledger exists to avoid
- * repeating.
+ * They are listed rather than swept because writing a sentence in two languages
+ * is content work with a house voice, not a mechanical edit, and a batch of
+ * machine-shaped strings is what produced the 181 Polish placeholders already in
+ * the tree (`Błąd: <the english code, lowercased>`). Those satisfy a checker and
+ * help nobody, which is the outcome this ledger exists to avoid repeating.
  *
- * **Read the `core` block as "unrouted", not "owned by the kernel."** Seventy of
- * these reach `core` by falling off the end of `moduleIdForErrorCode`, which
- * matches on code prefixes and has no rule for them — `KSEF_*`, `PIM_ERGONODE_*`
- * and `MFA_*` plainly belong to their modules. So draining a block usually means
- * two edits: a routing rule, and the sentences in the module's own bundle. The
- * routing gap is the reason the sentences went missing unnoticed, because a code
- * routed to `core` looks like somebody else's problem.
+ * **Read the `core` block as "unrouted", not "owned by the kernel."** Sixty-one
+ * of these reach `core` by falling off the end of `moduleIdForErrorCode`, which
+ * matches on code prefixes and has no rule for them — `KSEF_*` and
+ * `PIM_ERGONODE_*` plainly belong to their modules. So draining a block usually
+ * means two edits: a routing rule, and the sentences in the module's own bundle.
+ * The routing gap is the reason the sentences went missing unnoticed, because a
+ * code routed to `core` looks like somebody else's problem.
+ *
+ * `MFA_*` is the worked example, and it took both edits and two issues: #194
+ * added the routing rule, #223 the nine sentences in `mfa`'s own bundle. In
+ * between, the family was routed correctly and still untranslated, and this
+ * ledger read exactly as it had before — which is the thing to notice. Nothing
+ * here distinguishes "no sentence written yet" from "no sentence could ever have
+ * been found", so a code listed under `core` says nothing about whether its
+ * bundle is reachable at all.
+ *
+ * Two entries below are already the second kind, measured while draining
+ * `MFA_*`: `CART_COUPON_REJECTED` and `CART_LINE_CAP_EXCEEDED` have finished
+ * sentences in both languages in `carts`' own bundle, and route to `core`, which
+ * has neither — so "untranslated" is the wrong word for them, and moving them
+ * out of this list means a routing decision rather than a piece of writing.
  *
  * Grouped as measured, so a module can drain its own block.
  */
 export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
-  // core (70)
+  // core (61)
   'ACCOUNT_BLOCKED', 'API_KEY_CHANNEL_MISMATCH', 'API_KEY_NOT_BOUND',
   'ASSISTANT_DISABLED', 'ASSISTANT_NOT_CONFIGURED', 'BULK_TOO_LARGE',
   'CART_COUPON_REJECTED', 'CART_LINE_CAP_EXCEEDED', 'CUSTOMER_ADDRESS_NOT_FOUND',
@@ -69,9 +82,6 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   'IDEMPOTENCY_KEY_REQUIRED', 'IDEMPOTENCY_KEY_REUSED', 'KSEF_ALREADY_SUBMITTED',
   'KSEF_CREDENTIAL_EXISTS', 'KSEF_CREDENTIAL_INVALID', 'KSEF_ENROLLMENT_REJECTED',
   'KSEF_NOT_CONFIGURED', 'KSEF_NOT_SUBMITTABLE', 'KSEF_UNAVAILABLE',
-  'MFA_ALREADY_ENROLLED', 'MFA_INVALID_CHALLENGE', 'MFA_INVALID_CODE',
-  'MFA_NOT_ENABLED', 'MFA_NO_ACTIVE_ENROLMENT', 'MFA_NO_PENDING_ENROLMENT',
-  'MFA_REAUTH_REQUIRED', 'MFA_TOO_MANY_ATTEMPTS', 'MFA_WRONG_SURFACE',
   'MODULE_ACTIVATION_PROTECTED', 'MODULE_DEPENDENCIES_ABSENT', 'MODULE_DEPENDENTS_PRESENT',
   'MODULE_NOT_DEACTIVATABLE', 'MODULE_NOT_FOUND', 'MODULE_SETTING_READ_ONLY',
   'ORG_OWNER_DEPLETION', 'PACKAGING_UNIT_NAME_CONFLICT', 'PACKAGING_UNIT_NOT_FOUND',
