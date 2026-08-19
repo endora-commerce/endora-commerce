@@ -6,6 +6,7 @@ import { composeModules } from '../../../src/kernel/compose.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { CountryReferenceRegistry } from '../../../src/modules/dictionaries/services/country-reference-registry.js';
 
 /**
  * Issue #146 / D-68 — `inventory`'s warehouse/channel reconcile decides presence
@@ -49,6 +50,7 @@ interface Composed {
   runBootHooks: () => Promise<void>;
   registeredEmailDefaults: string[];
   registeredPromptTools: string[];
+  countryReferences: CountryReferenceRegistry;
 }
 
 async function composeInventory(): Promise<Composed> {
@@ -56,6 +58,7 @@ async function composeInventory(): Promise<Composed> {
   const container = createRootContainer();
   const registeredEmailDefaults: string[] = [];
   const registeredPromptTools: string[] = [];
+  const countryReferences = new CountryReferenceRegistry();
   registerValues(container, {
     emFactory: (): EntityManager => ({}) as EntityManager,
     eventBus: new EventBus(),
@@ -66,6 +69,11 @@ async function composeInventory(): Promise<Composed> {
     promptActionToolRegistry: {
       register: (tool: { name?: string }) => registeredPromptTools.push(tool.name ?? '?'),
     },
+    // `dictionaries` owns `countryReferenceRegistry` and is not composed here.
+    // Its contribution belongs with the two above: a deactivated `inventory`
+    // still owns warehouses carrying a country code, so `dictionaries` must
+    // still refuse to delete one out from under them (feature 077, D-87).
+    countryReferenceRegistry: countryReferences,
   });
   const composed = composeModules([{ id: 'inventory', version: '1.0.0', registerModule }], {
     container,
@@ -76,6 +84,7 @@ async function composeInventory(): Promise<Composed> {
     runBootHooks: () => composed.runBootHooks(),
     registeredEmailDefaults,
     registeredPromptTools,
+    countryReferences,
   };
 }
 
@@ -107,7 +116,7 @@ describe('inventory boot reconcile is gated on effective presence', () => {
   it('still contributes its email defaults and assistant tools while off', async () => {
     registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['inventory'] });
 
-    const { runBootHooks, registeredEmailDefaults, registeredPromptTools } =
+    const { runBootHooks, registeredEmailDefaults, registeredPromptTools, countryReferences } =
       await composeInventory();
     await runBootHooks();
 
@@ -117,6 +126,11 @@ describe('inventory boot reconcile is gated on effective presence', () => {
         'contribute nothing until the next restart',
     ).toEqual(['low_stock_alert', 'availability_back_in_stock']);
     expect(registeredPromptTools.length).toBeGreaterThan(0);
+    expect(
+      countryReferences.owners(),
+      'the warehouse country scanner was probed too, so an operator can now delete a ' +
+        'country a deactivated warehouse still sits in',
+    ).toContain('inventory');
   });
 
   it('reconciles again once the module is back on', async () => {

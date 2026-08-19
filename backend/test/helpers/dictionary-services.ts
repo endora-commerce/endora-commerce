@@ -3,6 +3,13 @@ import type { CurrencyReadPort, LanguageReadPort } from '@b2b/contracts';
 import { DictionaryValidator } from '../../src/modules/dictionaries/services/dictionary-validator.js';
 import { CurrencyReadService } from '../../src/modules/currencies/services/currency-ports.js';
 import { LanguageReadService } from '../../src/modules/languages/services/language-ports.js';
+import { CurrencySeedService } from '../../src/modules/currencies/services/currency-seed-service.js';
+import { LanguageSeedService } from '../../src/modules/languages/services/language-seed-service.js';
+import {
+  runDictionarySeedReconciler,
+  type SeedReconcilerPorts,
+  type SeedReconcilerSummary,
+} from '../../src/modules/dictionaries/services/seed-reconciler.js';
 
 /**
  * The two read ports every `dictionaries` service takes — feature 075, Phase C.
@@ -32,4 +39,39 @@ export function dictionaryReadPortsFor(emFactory: () => EntityManager): {
 export function dictionaryValidatorFor(emFactory: () => EntityManager): DictionaryValidator {
   const ports = dictionaryReadPortsFor(emFactory);
   return new DictionaryValidator(emFactory, ports.currencies, ports.languages);
+}
+
+/**
+ * The four ports the seed reconciler takes — feature 077, D-87 drain.
+ *
+ * The reconciler seeds two tables `dictionaries` does not own, and it used to
+ * write both with raw SQL. It goes through `currencies`' and `languages`'
+ * published ports now, so a test that runs it against a bare database with no
+ * container needs the same four implementations those two modules register.
+ */
+export function dictionarySeedPortsFor(
+  emFactory: () => EntityManager,
+): SeedReconcilerPorts {
+  // The read ports use `em.find`, which MikroORM refuses on the **global**
+  // EntityManager — and every caller of this helper seeds in `beforeAll`, from
+  // `() => db.orm.em`, outside any transaction. A live composition hands its
+  // modules a request-scoped fork, so forking here is what makes the test EM
+  // the same shape rather than a special case: the seed statements this
+  // replaced went through `getConnection()`, which took its own pooled
+  // connection and committed immediately, exactly as an unwrapped fork does.
+  const scoped = (): EntityManager => emFactory().fork();
+  const reads = dictionaryReadPortsFor(scoped);
+  return {
+    currencySeed: new CurrencySeedService(scoped),
+    currencyRead: reads.currencies,
+    languageSeed: new LanguageSeedService(scoped),
+    languageRead: reads.languages,
+  };
+}
+
+/** `runDictionarySeedReconciler` with the ports a live composition would supply. */
+export function runDictionarySeedReconcilerFor(
+  emFactory: () => EntityManager,
+): Promise<SeedReconcilerSummary> {
+  return runDictionarySeedReconciler(emFactory, dictionarySeedPortsFor(emFactory));
 }

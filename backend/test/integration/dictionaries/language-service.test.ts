@@ -2,8 +2,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { LanguageService } from '../../../src/modules/languages/services/language-service.js';
-import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
+
 import { Language } from '../../../src/modules/languages/entities/language.entity.js';
+import { runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 
 /**
  * T015 / T016 / T017 / T019 / T023 — LanguageService extended invariants
@@ -24,7 +25,7 @@ describe('LanguageService — extended invariants', () => {
     await conn.execute(`delete from "dictionary_translations"`);
     await conn.execute(`delete from "language_countries"`);
     await conn.execute(`delete from "countries"`);
-    await runDictionarySeedReconciler(() => db.orm.em);
+    await runDictionarySeedReconcilerFor(() => db.orm.em);
   });
 
   beforeEach(async () => {

@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
-import { dictionaryReadPortsFor } from '../../helpers/dictionary-services.js';
+
+import { dictionaryReadPortsFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { LabelResolver } from '../../../src/modules/dictionaries/services/label-resolver.js';
 import { DictionaryTranslation } from '../../../src/modules/dictionaries/entities/dictionary-translation.entity.js';
 import { Language } from '../../../src/modules/languages/entities/language.entity.js';
@@ -18,7 +18,7 @@ describe('LabelResolver — locale fallback chain', () => {
     await conn.execute(`delete from "dictionary_translations"`);
     await conn.execute(`delete from "language_countries"`);
     await conn.execute(`delete from "countries"`);
-    await runDictionarySeedReconciler(() => db.orm.em);
+    await runDictionarySeedReconcilerFor(() => db.orm.em);
   });
 
   beforeEach(async () => {

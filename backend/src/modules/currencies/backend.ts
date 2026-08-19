@@ -3,11 +3,15 @@ import {
   CURRENCY_CHANGED_EVENT,
   type CurrencyAdminPort,
   type CurrencyReadPort,
+  type CurrencySeedPort,
+  type DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { CurrencyService } from './services/currency-service.js';
 import { CurrencyReadService, createCurrencyAdminPort } from './services/currency-ports.js';
+import { CurrencyReferenceRegistry } from './services/currency-reference-registry.js';
+import { CurrencySeedService } from './services/currency-seed-service.js';
 
 /**
  * `currencies` — one service, where there were two (feature 072, wave 1).
@@ -38,6 +42,7 @@ export interface CurrenciesCradle {
   readonly auditLogService: AuditLogService;
   readonly eventBus: { emit: (event: string, payload: unknown) => void };
   readonly currencyService: CurrencyService;
+  readonly currencyReferenceRegistry: DictionaryReferenceRegistryPort;
 }
 
 /**
@@ -60,10 +65,44 @@ export function registerModule(ctx: ModuleContext): void {
         const announce = async (): Promise<void> => {
           ctx.cradle<CurrenciesCradle>().eventBus.emit(CURRENCY_CHANGED_EVENT, {});
         };
-        return new CurrencyService(emFactory, announce, auditLogService);
+        return new CurrencyService(emFactory, announce, auditLogService, () =>
+          ctx.cradle<CurrenciesCradle>().currencyReferenceRegistry,
+        );
       })
       .singleton(),
   });
+
+  // ---------------------------------------------------------------------------
+  // Feature 077 (D-87 drain) — who still points at a currency?
+  //
+  // `CurrencyService.remove` used to answer that with five hand-written counts
+  // over `promotions`, `price_lists`, `dictionaries` and the kernel's channels.
+  // Three of the four named another module's table in a string, which no
+  // import-level boundary check can see. Contributors push a descriptor from
+  // their own boot hook now, and this module asks the registry instead.
+  //
+  // A plain `ctx.di.register`, not a port: a contributor resolves it from a boot
+  // hook, and a boot hook that resolved a transient gate would stop the backend
+  // from starting the moment this module was switched off. The descriptor is
+  // inert; `currencyAdminPort`, which writes currencies, is the port and does
+  // fail closed. Enumeration policy is stated at the class.
+  ctx.di.register({
+    currencyReferenceRegistry: ctx
+      .asFunction(() => new CurrencyReferenceRegistry())
+      .singleton(),
+  });
+
+  /**
+   * The insert `dictionaries` needs against this table. Its catalogue exists so
+   * that `countries.default_currency_code` is satisfiable on a fresh install;
+   * it used to write the 53 rows here as raw SQL from its own reconciler.
+   */
+  ctx.di.providePort<CurrencySeedPort>(
+    'currencySeedPort',
+    ctx
+      .asFunction(({ emFactory }: CurrenciesCradle) => new CurrencySeedService(emFactory))
+      .singleton(),
+  );
 
   // ---------------------------------------------------------------------------
   // Feature 075, Phase P — the published surface.

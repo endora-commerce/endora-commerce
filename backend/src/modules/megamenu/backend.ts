@@ -4,6 +4,7 @@ import type {
   AssetReferenceRegistryPort,
   CmsExternalReferenceScanner,
   DictionaryValidator,
+  DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -18,6 +19,7 @@ import { registerMegamenuAdminRoutes } from './routes.admin.js';
 import { registerMegamenuStorefrontRoutes } from './routes.storefront.js';
 import { registerMegamenuAssetReferences } from './services/asset-references.js';
 import { registerMegamenuCmsReferences } from './services/cms-references.js';
+import { registerMegamenuLanguageReferences } from './services/megamenu-language-reference.js';
 
 /**
  * `megamenu` — two dependency bundles that stay outside on purpose (feature
@@ -172,5 +174,23 @@ export function registerModule(ctx: ModuleContext): void {
     await registerMegamenuStorefrontRoutes(app, {
       storefrontResolver: megamenuServices.storefrontResolver,
     });
+  });
+
+  /**
+   * This module's rows carry a language code, so it answers "who still points at
+   * this language?" about its own tables (feature 077, D-87), where the owner used
+   * to count them with SQL naming this module's tables.
+   *
+   * A **contribution** hook: it pushes an inert descriptor into `languageReferenceRegistry`,
+   * an ungated registry, and carries no presence probe (D-62/D-68). Probing
+   * would be wrong in the dangerous direction — a switched-off module still owns
+   * the rows, so its language must still refuse the delete, which is the
+   * enumeration policy the registry states.
+   */
+  ctx.onBoot(() => {
+    registerMegamenuLanguageReferences(
+      lazyPort<DictionaryReferenceRegistryPort>(ctx, 'languageReferenceRegistry'),
+      ctx.cradle<MegamenuCradle>().emFactory,
+    );
   });
 }

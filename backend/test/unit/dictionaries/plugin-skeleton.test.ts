@@ -42,9 +42,18 @@ describe('dictionaries — what the module registers', () => {
 
     expect(container.hasRegistration('dictionaryValidator')).toBe(true);
     expect(container.hasRegistration('dictionaryInvalidator')).toBe(true);
-    // The seed reconciler moved off the handle and onto the boot hook, so it
-    // runs whether or not a composition root remembers it.
-    expect(sink.bootHooks).toHaveLength(1);
+    // `countryReferenceRegistry` — the ungated contribution seam four modules
+    // push their "who still points at this country" descriptors into, and the
+    // orphan report reads. A plain registration on purpose: a contributor
+    // resolves it from a boot hook, and a boot hook that asked a transient gate
+    // would stop the backend from starting whenever this module was off.
+    expect(container.hasRegistration('countryReferenceRegistry')).toBe(true);
+    // Two boot hooks, and the split is the point (D-62/D-68): one **contributes**
+    // this module's `countries.default_currency_code` descriptor to `currencies`
+    // and must run whatever this module's state, the other **works** — it seeds
+    // the ISO reference data. A single mixed hook cannot answer both, which is
+    // why `blog`, `cms` and `product_feeds` all ship the same pair.
+    expect(sink.bootHooks).toHaveLength(2);
     // `currencies.changed` and `languages.changed` — the two announcements that
     // make this module drop its own caches. They used to be subscribed by each
     // composition root reaching into this module's handle.

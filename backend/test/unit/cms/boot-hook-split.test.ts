@@ -8,6 +8,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
+import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';
 
 /**
  * Issue #146 / D-68 — `cms`' boot hook was **mixed**, exactly like `blog`'s.
@@ -50,23 +51,34 @@ const ALL_IDS = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id);
 interface Composed {
   runBootHooks: () => Promise<void>;
   assetReferenceRegistry: AssetReferenceRegistry;
+  languageReferenceRegistry: LanguageReferenceRegistry;
 }
 
 async function composeCms(): Promise<Composed> {
   const { registerModule } = await import('../../../src/modules/cms/backend.js');
   const container = createRootContainer();
   const assetReferenceRegistry = new AssetReferenceRegistry();
+  // `languages` owns this one and is not composed here, so the root supplies
+  // it exactly as it supplies `assets_library`'. Same shape of contribution:
+  // a deactivated page still carries language codes, so `languages` must still
+  // refuse to delete one out from under it (feature 077, D-87).
+  const languageReferenceRegistry = new LanguageReferenceRegistry();
   registerValues(container, {
     emFactory: (): EntityManager => ({}) as EntityManager,
     redis: {} as Redis,
     assetReferenceRegistry,
+    languageReferenceRegistry,
   });
   const composed = composeModules([{ id: 'cms', version: '1.0.0', registerModule }], {
     container,
     eventBus: new EventBus(),
     log: { info: () => {}, warn: () => {}, error: () => {} },
   });
-  return { runBootHooks: () => composed.runBootHooks(), assetReferenceRegistry };
+  return {
+    runBootHooks: () => composed.runBootHooks(),
+    assetReferenceRegistry,
+    languageReferenceRegistry,
+  };
 }
 
 describe('cms boot hooks: the Hook reconcile is probed, the asset scanner is not', () => {
@@ -97,13 +109,19 @@ describe('cms boot hooks: the Hook reconcile is probed, the asset scanner is not
   it('still registers its asset-reference scanner while off — integrity is not a surface', async () => {
     registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['cms'] });
 
-    const { runBootHooks, assetReferenceRegistry } = await composeCms();
+    const { runBootHooks, assetReferenceRegistry, languageReferenceRegistry } =
+      await composeCms();
     await runBootHooks();
 
     expect(
       assetReferenceRegistry.owners(),
       'the contribution was probed along with the reconcile, so an operator can now ' +
         'delete an asset a deactivated page still embeds',
+    ).toContain('cms');
+    expect(
+      languageReferenceRegistry.owners(),
+      'the language scanner was probed too, so an operator can now delete a language a ' +
+        'deactivated page still lists',
     ).toContain('cms');
   });
 

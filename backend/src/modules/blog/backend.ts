@@ -4,6 +4,7 @@ import type {
   AssetReferenceRegistryPort,
   DictionaryValidator,
   SystemRoleCodePort,
+  DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -27,6 +28,7 @@ import { seedDefaultCategory } from './services/seed-default-category.js';
 import { seedBlogRoles } from './services/seed-roles.js';
 import { registerBlogAdminRoutes } from './routes.admin.js';
 import { registerBlogStorefrontRoutes } from './routes.storefront.js';
+import { registerBlogLanguageReferences } from './services/blog-language-reference.js';
 
 /**
  * The Blog module's backend entry point — feature 016, converted to feature
@@ -201,5 +203,23 @@ export function registerModule(ctx: ModuleContext): void {
     // resolving it here asks no gate — the probe above is this module's own
     // answer about its own seeds, not a question about the registry's owner.
     await seedBlogRoles(emFactory, lazyPort<SystemRoleCodePort>(ctx, 'systemRoleCodePort'));
+  });
+
+  /**
+   * This module's rows carry a language code, so it answers "who still points at
+   * this language?" about its own tables (feature 077, D-87), where the owner used
+   * to count them with SQL naming this module's tables.
+   *
+   * A **contribution** hook: it pushes an inert descriptor into `languageReferenceRegistry`,
+   * an ungated registry, and carries no presence probe (D-62/D-68). Probing
+   * would be wrong in the dangerous direction — a switched-off module still owns
+   * the rows, so its language must still refuse the delete, which is the
+   * enumeration policy the registry states.
+   */
+  ctx.onBoot(() => {
+    registerBlogLanguageReferences(
+      lazyPort<DictionaryReferenceRegistryPort>(ctx, 'languageReferenceRegistry'),
+      ctx.cradle<BlogCradle>().emFactory,
+    );
   });
 }

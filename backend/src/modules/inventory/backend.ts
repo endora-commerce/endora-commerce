@@ -1,6 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { DictionaryValidator } from '@b2b/contracts';
+import type { DictionaryValidator,
+  DictionaryReferenceRegistryPort,
+} from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
@@ -35,6 +37,7 @@ import { WarehouseChannelService } from './services/warehouse-channel-service.js
 import { WarehouseChannelReconciler } from './services/warehouse-channel-reconciler.js';
 import { AVAILABILITY_BACK_IN_STOCK_DEFAULT, LOW_STOCK_ALERT_DEFAULT } from './email-templates/transactional-defaults.js';
 import { inventoryPromptTools } from './prompt-tools.js';
+import { registerWarehouseCountryReferences } from './services/warehouse-country-reference.js';
 
 /**
  * `inventory` — three capabilities the test harness never had (feature 072,
@@ -408,5 +411,23 @@ export function registerModule(ctx: ModuleContext): void {
     })) {
       registry.register(tool);
     }
+  });
+
+  /**
+   * This module's rows carry a country code, so it answers "who still points at
+   * this country?" about its own tables (feature 077, D-87), where the owner used
+   * to count them with SQL naming this module's tables.
+   *
+   * A **contribution** hook: it pushes an inert descriptor into `countryReferenceRegistry`,
+   * an ungated registry, and carries no presence probe (D-62/D-68). Probing
+   * would be wrong in the dangerous direction — a switched-off module still owns
+   * the rows, so its country must still refuse the delete, which is the
+   * enumeration policy the registry states.
+   */
+  ctx.onBoot(() => {
+    registerWarehouseCountryReferences(
+      lazyPort<DictionaryReferenceRegistryPort>(ctx, 'countryReferenceRegistry'),
+      ctx.cradle<InventoryCradle>().emFactory,
+    );
   });
 }

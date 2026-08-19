@@ -98,3 +98,38 @@ export interface CurrencyAdminPort {
   setDefault(code: string): Promise<CurrencyRecord>;
   remove(code: string): Promise<void>;
 }
+
+/**
+ * One currency the platform ships a definition for, as it crosses the boundary
+ * into {@link CurrencySeedPort}.
+ *
+ * The catalogue itself is `dictionaries`' — it exists so that
+ * `countries.default_currency_code` is satisfiable on a fresh install — while
+ * the table it lands in is this module's. That split is why the seam is a port
+ * and not a shared file.
+ */
+export interface CurrencySeedRow {
+  code: string;
+  label: string;
+  symbol: string;
+  symbolPosition?: 'prefix' | 'suffix';
+  decimalPlaces?: number;
+}
+
+/**
+ * Container name: `currencySeedPort`. Owner: `currencies`.
+ *
+ * The seam `dictionaries`' boot reconciler used to be a raw
+ * `insert into "currencies"` — this module's table, written by another module,
+ * invisible to every import-level boundary check (D-87).
+ *
+ * Deliberately **not** `CurrencyAdminPort.create`: 53 rows land on a fresh
+ * install, and routing them through the admin write path would record 53 audit
+ * entries for something no operator did and flush once per row. Seeding is
+ * idempotent by contract — a code that already exists is left exactly as it is,
+ * operator edits included.
+ */
+export interface CurrencySeedPort {
+  /** Inserts every row whose `code` is missing. Returns how many it inserted. */
+  ensureSeeded(rows: readonly CurrencySeedRow[]): Promise<number>;
+}

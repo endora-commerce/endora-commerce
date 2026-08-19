@@ -103,3 +103,25 @@ export interface LanguageAdminPort {
   setDefault(code: string): Promise<LanguageRecord>;
   remove(code: string): Promise<void>;
 }
+
+/**
+ * Container name: `languageSeedPort`. Owner: `languages`.
+ *
+ * The seam `dictionaries`' boot reconciler used to be a raw
+ * `update "languages" set "native_label" = …` — this module's table, written by
+ * another module (D-87).
+ *
+ * Narrow on purpose: the only seeding `dictionaries` does against this table is
+ * filling the empty `native_label` that migration 038 left behind, and the fill
+ * happens **once**. A row whose label an operator has since set is never
+ * overwritten, so a re-run is a no-op rather than a revert.
+ */
+export interface LanguageSeedPort {
+  /**
+   * Sets `nativeLabel` on every listed code that still holds the empty string.
+   * Returns how many rows it filled.
+   */
+  backfillNativeLabels(
+    rows: readonly { code: string; nativeLabel: string }[],
+  ): Promise<number>;
+}

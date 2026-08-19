@@ -1,11 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DictionaryValidator } from '@b2b/contracts';
+import type { DictionaryValidator,
+  DictionaryReferenceRegistryPort,
+} from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { AddressReadPort, AddressServicePort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { AddressService } from './services/address-service.js';
 import { AddressReadService, createAddressServicePort } from './services/address-ports.js';
+import { registerAddressCountryReferences } from './services/address-country-reference.js';
 
 /**
  * `addresses` — one service, where there were three (feature 072, wave 1,
@@ -88,4 +91,22 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton(),
   );
+
+  /**
+   * This module's rows carry a country code, so it answers "who still points at
+   * this country?" about its own tables (feature 077, D-87), where the owner used
+   * to count them with SQL naming this module's tables.
+   *
+   * A **contribution** hook: it pushes an inert descriptor into `countryReferenceRegistry`,
+   * an ungated registry, and carries no presence probe (D-62/D-68). Probing
+   * would be wrong in the dangerous direction — a switched-off module still owns
+   * the rows, so its country must still refuse the delete, which is the
+   * enumeration policy the registry states.
+   */
+  ctx.onBoot(() => {
+    registerAddressCountryReferences(
+      lazyPort<DictionaryReferenceRegistryPort>(ctx, 'countryReferenceRegistry'),
+      ctx.cradle<AddressesCradle>().emFactory,
+    );
+  });
 }

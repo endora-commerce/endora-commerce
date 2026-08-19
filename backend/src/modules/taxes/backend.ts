@@ -5,9 +5,12 @@ import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type {
-  TaxServicePort, DictionaryValidator } from '@b2b/contracts';
+  TaxServicePort, DictionaryValidator,
+  DictionaryReferenceRegistryPort,
+} from '@b2b/contracts';
 import { TaxService } from './services/tax-service.js';
 import { registerTaxRoutes } from './routes.js';
+import { registerTaxCountryReferences } from './services/tax-country-reference.js';
 
 /**
  * `taxes` — three optional arguments, all of which change what a write means
@@ -66,5 +69,23 @@ export function registerModule(ctx: ModuleContext): void {
       taxService: lazyPort<TaxService>(ctx, 'taxService'),
       requireAdmin,
     });
+  });
+
+  /**
+   * This module's rows carry a country code, so it answers "who still points at
+   * this country?" about its own tables (feature 077, D-87), where the owner used
+   * to count them with SQL naming this module's tables.
+   *
+   * A **contribution** hook: it pushes an inert descriptor into `countryReferenceRegistry`,
+   * an ungated registry, and carries no presence probe (D-62/D-68). Probing
+   * would be wrong in the dangerous direction — a switched-off module still owns
+   * the rows, so its country must still refuse the delete, which is the
+   * enumeration policy the registry states.
+   */
+  ctx.onBoot(() => {
+    registerTaxCountryReferences(
+      lazyPort<DictionaryReferenceRegistryPort>(ctx, 'countryReferenceRegistry'),
+      ctx.cradle<TaxesCradle>().emFactory,
+    );
   });
 }

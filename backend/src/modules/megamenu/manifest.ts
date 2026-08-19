@@ -18,7 +18,18 @@ export const manifest = defineModuleManifest({
   // asset-and-icon scan to (T143a); `cms` owns the one it contributes the
   // page/block scan to. Both edges existed as composition-root
   // cross-registrations, which is to say nowhere an operator could see them.
-  dependencies: ['assets_library', 'cms', 'sales_channels', 'auth', 'dictionaries'],
+  // `languages` owns `languageReferenceRegistry`, the registry this module
+  // contributes its "which languages do bindings carry" descriptor to (feature
+  // 077, D-87). `languages` used to ask the question itself, with a
+  // `count(*) from "megamenu_bindings"` naming this module's table.
+  dependencies: [
+    'assets_library',
+    'cms',
+    'languages',
+    'sales_channels',
+    'auth',
+    'dictionaries',
+  ],
   settings: {
     moduleCode: 'megamenu',
     groups: [{ code: 'megamenu', name: 'Megamenu' }],

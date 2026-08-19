@@ -1,5 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type DictionaryReference,
+  type DictionaryReferenceRegistryPort,
+} from '@b2b/contracts';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Language } from '../entities/language.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
@@ -28,6 +33,12 @@ export class LanguageService {
     private readonly emFactory: () => EntityManager,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
     private readonly auditLog?: AuditLogService,
+    /**
+     * Resolved per call rather than captured: the registry is a singleton this
+     * module owns, but the accessor keeps the constructor honest for the tests
+     * that build the service without one.
+     */
+    private readonly referenceRegistry?: () => DictionaryReferenceRegistryPort,
   ) {}
 
   #audit(
@@ -270,49 +281,54 @@ export class LanguageService {
     return target;
   }
 
-  async countDependents(code: string): Promise<{
-    salesChannelDefaults: number;
-    salesChannelLists: number;
-    megamenuBindings: number;
-    blogPostLanguages: number;
-    blogCategoryLanguages: number;
-    cmsPages: number;
-  }> {
-    const conn = this.emFactory().getConnection();
-    const [scDefault, scList, mm, bpl, bcl, cml] = await Promise.all([
-      conn.execute(
-        `select count(*)::int as n from "sales_channels" where "default_language" = ?`,
-        [code],
-      ) as Promise<Array<{ n: number }>>,
-      conn.execute(
-        `select count(*)::int as n from "sales_channels" where "languages" @> ?::jsonb`,
-        [JSON.stringify([code])],
-      ) as Promise<Array<{ n: number }>>,
-      conn.execute(
-        `select count(*)::int as n from "megamenu_bindings" where "language" = ?`,
-        [code],
-      ) as Promise<Array<{ n: number }>>,
-      conn.execute(
-        `select count(*)::int as n from "blog_post_languages" where "language" = ?`,
-        [code],
-      ) as Promise<Array<{ n: number }>>,
-      conn.execute(
-        `select count(*)::int as n from "blog_category_languages" where "language" = ?`,
-        [code],
-      ) as Promise<Array<{ n: number }>>,
-      conn.execute(
-        `select count(*)::int as n from "cms_pages" where "languages" @> ?::jsonb`,
-        [JSON.stringify([code])],
-      ) as Promise<Array<{ n: number }>>,
-    ]);
-    return {
-      salesChannelDefaults: scDefault[0]?.n ?? 0,
-      salesChannelLists: scList[0]?.n ?? 0,
-      megamenuBindings: mm[0]?.n ?? 0,
-      blogPostLanguages: bpl[0]?.n ?? 0,
-      blogCategoryLanguages: bcl[0]?.n ?? 0,
-      cmsPages: cml[0]?.n ?? 0,
-    };
+  /**
+   * Every consumer reference to `code`, across the platform (feature 077, D-87).
+   *
+   * This used to be six hand-written `count(*)` statements naming
+   * `sales_channels`, `megamenu_bindings`, `blog_post_languages`,
+   * `blog_category_languages` and `cms_pages` — five tables this module does not
+   * own, in strings no import-level boundary check can see. Four of them are
+   * contributed descriptors now (`languageReferenceRegistry`); the fifth is the
+   * kernel's channel table, which this module may read through the ORM because
+   * the kernel is not a module (D-32).
+   *
+   * Channels are counted in memory rather than in SQL: a deployment has tens of
+   * them, both questions are about the same rows, and `languages` is a JSON
+   * array whose containment test was the reason the statement existed at all.
+   */
+  async countDependents(code: string): Promise<DictionaryReference[]> {
+    const channels = await this.emFactory().find(SalesChannel, {});
+    const references: DictionaryReference[] = [];
+
+    const asDefault = channels.filter((channel) => channel.defaultLanguage === code).length;
+    if (asDefault > 0) {
+      references.push({
+        ownerModuleId: 'sales_channels',
+        consumer: 'sales_channels',
+        tableName: 'sales_channels',
+        columnName: 'default_language',
+        code,
+        count: asDefault,
+        blocking: true,
+      });
+    }
+
+    const listed = channels.filter((channel) => channel.languages.includes(code)).length;
+    if (listed > 0) {
+      references.push({
+        ownerModuleId: 'sales_channels',
+        consumer: 'sales_channels',
+        tableName: 'sales_channels',
+        columnName: 'languages[]',
+        code,
+        count: listed,
+        blocking: true,
+      });
+    }
+
+    const registry = this.referenceRegistry?.();
+    if (registry) references.push(...(await registry.countReferences(code)));
+    return references;
   }
 
   async remove(code: string): Promise<void> {
@@ -327,13 +343,12 @@ export class LanguageService {
       );
     }
     const dependents = await this.countDependents(code);
-    const total =
-      dependents.salesChannelDefaults +
-      dependents.salesChannelLists +
-      dependents.megamenuBindings +
-      dependents.blogPostLanguages +
-      dependents.blogCategoryLanguages +
-      dependents.cmsPages;
+    // Which references refuse the delete is the contributing module's call,
+    // carried on the descriptor: a column its own foreign key blanks on delete
+    // is reported but does not block.
+    const total = dependents
+      .filter((reference) => reference.blocking)
+      .reduce((sum, reference) => sum + reference.count, 0);
     if (total > 0) {
       throw new HttpError(
         409,
