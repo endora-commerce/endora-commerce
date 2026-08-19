@@ -102,12 +102,15 @@ export async function registerQuickOrderRoutes(
      *
      * The channel is the one the canonical resolver already put on the request
      * scope (feature 053 / Constitution XII), never re-resolved from a header
-     * here.
+     * here. The organisation comes off the buyer's session for the same reason
+     * — it decides which restricted products `catalog` will disclose, and this
+     * surface is the one that knows who is asking.
      */
     const hits = await deps.catalogQuickSearch.quickSearch({
       q: query.q,
       limit: query.limit,
       salesChannelId: getResolvedChannel(request).id,
+      organizationId: resolveCustomerContext(request).organizationId,
     });
 
     return {

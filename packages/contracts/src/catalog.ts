@@ -1975,6 +1975,16 @@ export interface CatalogQuickSearchParams {
    * answer to that must not be the cross-channel catalogue.
    */
   salesChannelId: string;
+  /**
+   * The organisation the buyer is shopping on behalf of. Required, and — like
+   * `salesChannelId` — there is no anonymous spelling: every transacting
+   * customer has an Organization (Constitution XI), and the alternative to
+   * requiring one is a caller that forgets and gets the unrestricted
+   * catalogue. A surface with no signed-in buyer must not call this port.
+   *
+   * See {@link CatalogQuickSearchPort} for what it restricts.
+   */
+  organizationId: string;
 }
 
 export interface CatalogQuickSearchHit {
@@ -2004,8 +2014,36 @@ export interface CatalogQuickSearchHit {
  * every active product on the platform whatever channel they were shopping —
  * Constitution XII, in the one place no static check was looking.
  *
- * Scoping is the same `sales_channel_products` membership filter this module's
- * own public listing applies, and it fails closed to the empty set.
+ * ## What it restricts, and how strictly
+ *
+ * Channel scoping is the same `sales_channel_products` membership filter this
+ * module's own public listing applies, and it fails closed to the empty set.
+ *
+ * `visibility` and `allowed_organization_ids` are applied too, on the
+ * **restrictive** reading of both columns. A row is disclosed when
+ *
+ *   - the buyer's `organizationId` appears in `allowed_organization_ids`; or
+ *   - `allowed_organization_ids` is empty **and** `visibility` is not
+ *     `organization_restricted`.
+ *
+ * Two consequences are deliberate. A non-empty allow-list restricts **whatever
+ * the `visibility` column says** — `public` with an allow-list naming three
+ * organisations is a state an operator can save today, and reading it as
+ * "public wins" would let a type-ahead disclose exactly the rows the operator
+ * named someone else on. And `organization_restricted` with an **empty**
+ * allow-list is visible to nobody, rather than to everybody.
+ * `logged_in_only` *is* disclosed, because `organizationId` is required: there
+ * is no caller of this port that is not a signed-in buyer.
+ *
+ * A looser reading would differ on precisely those two rows, and only there.
+ *
+ * This is stricter than the rest of the module, and knowingly so. No other read
+ * path in `catalog` enforces either column (the standing platform-wide gap),
+ * but this surface requires a signed-in buyer, discloses SKU, slug and name for
+ * every hit, and hands back an id that `POST /quick-order/build` accepts — so a
+ * restriction an operator set on the product would otherwise be bypassed by
+ * typing three characters. Closing the gap on the remaining surfaces is its own
+ * change; leaving this one open until then is not the safe half of the choice.
  *
  * When `catalog` is off the call fails closed: `quick_order` declares `catalog`
  * in `dependencies`, and a type-ahead that cannot ask the catalogue has nothing
