@@ -21,6 +21,7 @@
  * can use the admin panel's Users + Roles module to define narrower roles.
  */
 
+import { normalizeEmailAddress } from '@b2b/contracts';
 import { initOrm, closeOrm } from '../../../db/index.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import { AdminRole } from '../../admin_roles/entities/admin-role.entity.js';
@@ -60,7 +61,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     return v;
   };
   return {
-    email: required('email').toLowerCase(),
+    email: normalizeEmailAddress(required('email')),
     password: required('password'),
     firstName: required('first-name'),
     lastName: required('last-name'),

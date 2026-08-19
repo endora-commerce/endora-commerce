@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { normalizeEmailAddress } from '@b2b/contracts';
 import type {
   AdminUserLookupOptions,
   AdminUserPreferencePort,
@@ -45,7 +46,14 @@ export class AdminUserReadService implements AdminUserReadPort {
     email: string,
     options?: AdminUserLookupOptions,
   ): Promise<AdminUserRecord | null> {
-    const admin = await this.emFactory().findOne(AdminUser, { email, ...activeFilter(options) });
+    // Folded before the comparison, like every other read of this column: the
+    // callers that reach this method arrive from entrances that go through no
+    // request schema — the bootstrap CLI, an identity provider's claim — so the
+    // spelling they hand over is whatever their source held.
+    const admin = await this.emFactory().findOne(AdminUser, {
+      email: normalizeEmailAddress(email),
+      ...activeFilter(options),
+    });
     return admin ? toAdminUserRecord(admin) : null;
   }
 

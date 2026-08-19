@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
-import { ERROR_CODES, type AdminRolePort } from '@b2b/contracts';
+import { ERROR_CODES, normalizeEmailAddress, type AdminRolePort } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
@@ -169,7 +169,7 @@ export class AdminUserService {
     if (input.adminRoleId) await this.#assertRoleExists(input.adminRoleId);
     const passwordHash = await hashPassword(input.password);
     const user = em.create(AdminUser, {
-      email: input.email.toLowerCase(),
+      email: normalizeEmailAddress(input.email),
       passwordHash,
       firstName: input.firstName,
       lastName: input.lastName,

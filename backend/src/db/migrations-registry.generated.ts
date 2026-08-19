@@ -44,6 +44,7 @@ import { Migration20260611T140350AdminNotificationsInit } from '../modules/admin
 
 // ── admin_users ─────────────────────────────────────────────────────────────
 import { Migration20260425T053028AdminUsersInit } from '../modules/admin_users/migrations/20260425T053028_admin_users_init.js';
+import { Migration20260819T155150AdminUsersFoldEmailCase } from '../modules/admin_users/migrations/20260819T155150_admin_users_fold_email_case.js';
 
 // ── analytics ───────────────────────────────────────────────────────────────
 import { Migration20260425T143139AnalyticsInit } from '../modules/analytics/migrations/20260425T143139_analytics_init.js';
@@ -303,6 +304,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── admin_users ─────────────────────────────────────────────────────────────
   migration('admin_users', Migration20260425T053028AdminUsersInit),
+  migration('admin_users', Migration20260819T155150AdminUsersFoldEmailCase),
 
   // ── analytics ───────────────────────────────────────────────────────────────
   migration('analytics', Migration20260425T143139AnalyticsInit),
