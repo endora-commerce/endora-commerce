@@ -131,6 +131,7 @@ import {
 } from './lib/repeating-timers.js';
 import { loadLockedOwners } from './lib/switchable-modules.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -576,7 +577,7 @@ async function main(): Promise<void> {
   // does not refuse a **partial** move — index regenerated, half the modules
   // elsewhere — where the timers and boot hooks in the modules that left are
   // simply never classified and the run reports on what stayed (issue #215).
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[entry-presence]',
     srcRoot: SRC_ROOT,
     files,
@@ -617,6 +618,11 @@ async function main(): Promise<void> {
     console.log('');
   }
 
+  // What was read, beside what was found (issue #244). No `sites=`: this check
+  // records the entry points that fail the rule and never counts the ones that
+  // pass it, so there is no examined-site number to print without walking the
+  // tree twice — ledgered in `test/helpers/check-read-sizes.ts`.
+  reportReadSize({ prefix: '[entry-presence]', files: sources.size, coverage: [coverage] });
   console.log(
     `[entry-presence] uncatchable entry points not deciding presence=${result.total} ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +

@@ -87,6 +87,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { reportReadSize } from './lib/read-size.js';
 
 const TEST_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'test');
 
@@ -543,6 +544,10 @@ function main(): void {
     console.log('');
   }
 
+  // What was read, beside what was found (issue #244). `files` is the walk;
+  // `sites` is the subset that deletes rows at all, the population the baseline
+  // ratchets. `self-reported`: nothing derives "every test that deletes".
+  reportReadSize({ prefix: '[shared-table-wipes]', files: sources.size, sites: deleting });
   console.log(
     `[shared-table-wipes] files deleting rows=${deleting} ` +
       `unscoped whole-table wipes=${result.total} ` +

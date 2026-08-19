@@ -84,6 +84,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { activeOverlayModulesRoot } from '../src/overlay/overlay-roots.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -729,7 +730,7 @@ async function main(): Promise<void> {
   // be printed: over a moved module tree the walk comes back with `src/kernel`
   // and `src/db`, neither of which registers an admin route, so every other
   // guard here would read as a clean run (issue #215).
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[action-route-permissions]',
     srcRoot: SRC_ROOT,
     files: coreFiles,
@@ -787,6 +788,16 @@ async function main(): Promise<void> {
     console.log('');
   }
 
+  // What was read, in the shared grammar (issue #244). The manifest actions are
+  // the unit judged — one action, one declared permission, one target route —
+  // so they are the `sites` number; the route index they are compared against
+  // stays on the line below.
+  reportReadSize({
+    prefix: '[action-route-permissions]',
+    files: sources.size,
+    sites: actions.length,
+    coverage: [coverage],
+  });
   console.log(
     `[action-route-permissions] actions=${actions.length} admin-routes=${result.scan.routes.length} ` +
       `unreadable-paths=${result.scan.unreadablePaths} findings=${result.findings.length} ` +

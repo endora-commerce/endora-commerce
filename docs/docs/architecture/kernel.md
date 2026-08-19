@@ -1078,7 +1078,7 @@ is how a wrong count survives: a document disagreeing with itself reads as
 two authors, not as an error. None of
 those was carelessness, and none of them announced itself: **a green result
 cannot be told apart from a check that looked at nothing**, and nothing in the
-repository forced the distinction. Seven rules come out of it.
+repository forced the distinction. Eight rules come out of it.
 
 **Take the input as a parameter.** A check whose analysis reads the disk can
 only be run against the tree, and against a clean tree it agrees with a function
@@ -1158,6 +1158,44 @@ printed "0 finding(s) across 0 file(s)" with exit 0 for as long as it existed.
 state in which it measured nothing was also the one in which it reported the
 budget met.
 
+**Print what you read, not only what you found — and print the *short* case, not
+just the empty one.** Exit 2 answers "the input was empty". It does not answer
+"the input was 7% of itself", which is the case that actually happens: 1364 of
+the 1469 `.ts` files under `backend/src` live in `src/modules`, so moving that
+tree leaves eight checks reading the other 105 files, finding nothing wrong in
+them, and printing `violations=0` (issue #215). The same shape reached seven
+members — a population definition that excluded a live entry point (#228), a
+file that hid a site inside it (#235, #237), a spread that bypassed excess
+property checking (#238), a comment stripper that ate 41% of the file before
+matching (#241), and a population defined by the presence of the very thing
+being checked, so its absence was undetectable (#244). Every one of them was a
+check whose output said what it found and never said what it read. So each
+check prints one line in one grammar, from
+`backend/scripts/lib/read-size.ts` or its shell twin `scripts/lib/read-size.sh`:
+
+```
+[entry-scope] read: files=1459 sites=47 sources=manifest-index:65/65,package-scripts:18/18
+[nul-bytes]   read: files=8288 sources=self-reported
+```
+
+`files` is what the walk **opened** — never the files a finding landed in, which
+moves with the findings and cannot answer the question; `sites` is the finer
+population where the check has one, because #235 and #237 are exactly the case
+where the file count stood still and the site count moved; and `sources` is the
+**independent** derivation the size is reconciled against, because a check that
+computes its own population and then reports it has said the same thing twice.
+For a module walk that derivation is the generated manifest index, through
+`scripts/lib/module-population.ts` — every registered module must contribute a
+source, which is a floor nobody has to choose a number for. Where there
+genuinely is none the token is the literal `self-reported`, and the reason lives
+in `READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE`. The reporter refuses three shapes
+with exit 2 — nothing read, an expectation of zero, and a walk shorter than its
+expectation — and `backend/test/unit/scripts/check-read-size.test.ts` spawns
+every check and holds the printed numbers to a band recorded in
+`backend/test/helpers/check-read-sizes.ts` (−10% / +50%, asymmetric on purpose:
+the lower edge is the defect direction, the upper edge only stops the record
+going stale while the tree grows).
+
 **A ledger is two-way or it is an allow-list.** An unledgered violation fails,
 *and* an entry that no longer describes a violation fails. The second half is
 the one that rots: `PORT_CATCHES_TO_DRAIN`, `BARE_SUBSCRIPTIONS_TO_DRAIN`,
@@ -1193,7 +1231,10 @@ entry is where the shape's detail goes — the assertion on the message, the
 ledger, the exit code — while the inventory is what keeps a shape from
 disappearing when that file is edited. The inventory also pins which CI job runs
 each check and compares it against `.gitlab-ci.yml`, so a check that quietly
-leaves the job has to say so.
+leaves the job has to say so, and — since issue #244 — whether the check
+discloses the size of what it read, with the numbers themselves in
+`backend/test/helpers/check-read-sizes.ts` and the two-way `READ_SIZE_DEFERRED`
+for anything that does not.
 
 ### A benchmark asserts that it measured something before it asserts how long it took
 

@@ -77,6 +77,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { reportReadSize } from './lib/read-size.js';
 
 const TEST_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'test');
 
@@ -458,6 +459,12 @@ function main(): void {
     console.log('');
   }
 
+  // What was read, beside what was found (issue #244). `files` is the walk;
+  // `sites` is the subset that reads the database at all, which is the
+  // population the rule actually applies to — a filter that stops recognising
+  // a database read empties it while the walk stays the same size.
+  // `self-reported`: nothing derives "every test that touches Postgres".
+  reportReadSize({ prefix: '[fixture-substitution]', files: sources.size, sites: reading });
   console.log(
     `[fixture-substitution] files reading the database=${reading} ` +
       `defaulted database reads in tests=${result.total} ` +

@@ -45,6 +45,12 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck source=scripts/lib/read-size.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/read-size.sh"
+
+# Where the expected population comes from in full mode (issue #244).
+manifest_index="backend/src/modules/_lifecycle/manifest-index.generated.ts"
+
 red() { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 
@@ -271,6 +277,30 @@ fi
 if [[ "$listing" == "full" ]] && { [ "${#tracked[@]}" -eq 0 ] || [ "${#docs_files[@]}" -eq 0 ]; }; then
   red "✗ check-language listed no source files (${#tracked[@]}) or no docs pages (${#docs_files[@]}) — refusing to report a vacuous pass."
   exit 2
+fi
+
+# What was read, beside what was found (issue #244). `files` is both lists —
+# the in-scope source files and the docs pages — because the two scans are one
+# run and a green tick covers both. In full mode the source list is corroborated
+# against the generated manifest index: every registered module must contribute
+# at least one file, which is #215's predicate and strictly stronger than the
+# emptiness test above. In --diff mode the population is the merge request, so
+# there is no expectation to derive.
+if [[ "$listing" == "full" ]]; then
+  if ! language_coverage="$(printf '%s\n' "${tracked[@]}" \
+    | read_size_module_coverage "$manifest_index")"; then
+    red "✗ check-language could not read the manifest index at $manifest_index — the"
+    red "  expected population is derived from it. Refusing to report a vacuous pass."
+    exit 2
+  fi
+  read_size_report '[language]' "$(( ${#tracked[@]} + ${#docs_files[@]} ))" - \
+    "manifest-index:$language_coverage"
+else
+  # A --diff run's population is the merge request, so there is nothing to
+  # derive an expectation from and an empty one is the ordinary "this merge
+  # request touched nothing in scope" — the line is printed, the zero is not
+  # refused.
+  read_size_line '[language]' "$(( ${#tracked[@]} + ${#docs_files[@]} ))" - self-reported
 fi
 
 if [ "${#docs_files[@]}" -gt 0 ]; then

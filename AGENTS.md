@@ -483,6 +483,25 @@ and fails on one it does not name), a companion test, and an exit code of **2** 
 was read" — an empty file list, a missing input, a tree it could not walk. A green result
 must not be able to mean "not looking": that is issue #113.
 
+**And it prints what it read** (issue #244). Exit 2 answers "the input was empty"; it does
+not answer "the input was 7% of itself", which is the case that happens — the same shape has
+now been found seven times, and every one of them was a check whose output said what it
+found and never said what it read. So every check prints one line in one grammar, from
+`backend/scripts/lib/read-size.ts` or the shell twin `scripts/lib/read-size.sh`:
+`[entry-scope] read: files=1459 sites=47 sources=manifest-index:65/65,package-scripts:18/18`.
+`files` is what the walk **opened**, never the files a finding landed in; `sites` is the
+finer population where the check has one (#235/#237 are the case where the file count stood
+still and the site count moved); `sources` is the **independent** derivation it is reconciled
+against — the manifest index for a module walk, `package.json` scripts for a declared
+program — because a check that computes its own population and then reports it has said the
+same thing twice. Where there is genuinely no second author the token is `self-reported` and
+the reason goes in `READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE`. The reporter itself exits 2 on
+nothing read, on an expectation of zero and on a walk **shorter** than its expectation, and
+`backend/test/unit/scripts/check-read-size.test.ts` spawns all twenty-seven checks and holds
+each printed number to the band recorded in `backend/test/helpers/check-read-sizes.ts`
+(−10% / +50%). Re-record a number when the population legitimately grows; never widen the
+band to make a run pass.
+
 The inventory entry carries the red proofs, and two properties decide whether they are worth
 anything (issue #130). **The fixture enters at the top of the analysis** — source text, a
 file map, an injected reader, a fixture tree on disk — never a value the check normally

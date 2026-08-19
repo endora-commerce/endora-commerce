@@ -21,6 +21,12 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck source=scripts/lib/read-size.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/read-size.sh"
+
+# Where the expected population comes from in full mode (issue #244).
+manifest_index="backend/src/modules/_lifecycle/manifest-index.generated.ts"
+
 red() { printf '\033[31m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -84,6 +90,32 @@ if [[ "$listing" == "full" ]]; then
     red "  Refusing to report a vacuous pass."
     exit 2
   fi
+fi
+
+# What was read, beside what was found (issue #244). Four rules print a verdict
+# and none of them printed an input size, so a full-mode run that judged three
+# files and a full-mode run that judged three thousand ended in the same green
+# tick. In full mode the listing is corroborated against the generated manifest
+# index — every registered module must contribute at least one file — which is
+# the same floor `scripts/lib/module-population.ts` gives the tsx checks, and
+# strictly stronger than the `module_dir_count > 0` test above: that one passes
+# on a half-moved tree. In --diff mode the population is the merge request, so
+# there is nothing to derive an expectation from and the token says so.
+if [[ "$listing" == "full" ]]; then
+  if ! naming_coverage="$(printf '%s\n' "${changed_files[@]}" \
+    | read_size_module_coverage "$manifest_index")"; then
+    red "✗ check-naming could not read the manifest index at $manifest_index — the"
+    red "  expected population is derived from it, so there is nothing to compare the"
+    red "  listing against. Refusing to report a vacuous pass."
+    exit 2
+  fi
+  read_size_report '[naming]' "${#changed_files[@]}" - "manifest-index:$naming_coverage"
+else
+  # A --diff run's population is the merge request, so there is nothing to
+  # derive an expectation from and an empty one is the ordinary "this merge
+  # request touched nothing in scope" — the line is printed, the zero is not
+  # refused.
+  read_size_line '[naming]' "${#changed_files[@]}" - self-reported
 fi
 
 fail=0

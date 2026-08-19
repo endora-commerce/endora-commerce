@@ -37,6 +37,10 @@ case "$sub" in
   rev-parse)
     case "$1" in
       --is-inside-work-tree) exit "\${FAKE_GIT_IN_WORKTREE:-0}" ;;
+      # Whether the base ref is fetched. Both scripts degrade --diff to a full
+      # scan when it is not, so a diff-mode test is impossible without this
+      # answer — and diff mode is where the empty-population carve-out lives.
+      --verify) exit "\${FAKE_GIT_HAS_BASE_REF:-1}" ;;
       *) exit 1 ;;
     esac
     ;;
@@ -51,6 +55,12 @@ case "$sub" in
 esac
 `;
 
+/** The one module source every full-mode listing carries — see `lists`. */
+export const BASELINE_MODULE_SOURCE = 'backend/src/modules/orders/order-service.ts';
+
+/** Where the fixture's generated manifest index lives, as both scripts read it. */
+const MANIFEST_INDEX = 'backend/src/modules/_lifecycle/manifest-index.generated.ts';
+
 /** Where a pdfmake install sits: pnpm's hoisted store, or a plain top-level one. */
 export type PdfmakeLayout = 'hoisted' | 'top-level';
 
@@ -63,8 +73,22 @@ export interface ShellCheckFixture {
   readonly root: string;
   /** Writes a file into the fixture repository, creating its directories. */
   write: (path: string, content: string) => void;
-  /** What the faked `git ls-files` answers for the source scan and the docs scan. */
+  /**
+   * What the faked `git ls-files` answers for the source scan and the docs scan.
+   *
+   * {@link BASELINE_MODULE_SOURCE} is prepended unless `sources` is empty,
+   * because a *full-mode* listing is the whole repository and both scripts now
+   * reconcile it against the manifest index (issue #244): every registered
+   * module must contribute a file, or the run is reading a residue and exits 2.
+   * A test narrowing the listing to the one file its rule is about was only
+   * ever realistic because nothing checked. Use {@link listsExactly} to build a
+   * listing that genuinely misses a module.
+   */
   lists: (sources: readonly string[], docs?: readonly string[]) => void;
+  /** The listing verbatim, module coverage and all — the short-walk fixture. */
+  listsExactly: (sources: readonly string[], docs?: readonly string[]) => void;
+  /** Deletes the generated manifest index, leaving the module tree standing. */
+  removeManifestIndex: () => void;
   /**
    * Deletes `backend/src/modules`, leaving the rest of the fixture standing —
    * the module tree having moved, with the residue behind it (issue #215).
@@ -100,10 +124,13 @@ export function createShellCheckFixture(): ShellCheckFixture {
   mkdirSync(binDir, { recursive: true });
   writeFileSync(join(binDir, 'git'), FAKE_GIT, 'utf8');
   chmodSync(join(binDir, 'git'), 0o755);
-  mkdirSync(join(root, 'scripts'), { recursive: true });
+  mkdirSync(join(root, 'scripts', 'lib'), { recursive: true });
   for (const name of ['check-naming.sh', 'check-language.sh', 'check-pdfmake-footprint.sh']) {
     copyFileSync(join(SCRIPTS_DIR, name), join(root, 'scripts', name));
   }
+  // Each script sources the shared read-size reporter from beside itself
+  // (issue #244), so the copy needs it or every run dies before its first rule.
+  copyFileSync(join(SCRIPTS_DIR, 'lib', 'read-size.sh'), join(root, 'scripts', 'lib', 'read-size.sh'));
 
   const write = (path: string, content: string): void => {
     const full = join(root, path);
@@ -111,12 +138,31 @@ export function createShellCheckFixture(): ShellCheckFixture {
     writeFileSync(full, content, 'utf8');
   };
 
-  const lists = (sources: readonly string[], docs: readonly string[] = ['docs/docs/intro.md']): void => {
+  const listsExactly = (
+    sources: readonly string[],
+    docs: readonly string[] = ['docs/docs/intro.md'],
+  ): void => {
     write('lists/sources.txt', sources.map((s) => `${s}\n`).join(''));
     write('lists/docs.txt', docs.map((d) => `${d}\n`).join(''));
   };
 
-  write('backend/src/modules/orders/order-service.ts', '// English comment.\nexport const a = 1;\n');
+  const lists = (sources: readonly string[], docs?: readonly string[]): void => {
+    const covered =
+      sources.length === 0 || sources.includes(BASELINE_MODULE_SOURCE)
+        ? sources
+        : [BASELINE_MODULE_SOURCE, ...sources];
+    listsExactly(covered, docs);
+  };
+
+  write(BASELINE_MODULE_SOURCE, '// English comment.\nexport const a = 1;\n');
+  // The generated manifest index, in the one shape both scripts read it in: the
+  // module id is the directory segment of each `../<id>/manifest.js` specifier.
+  // Without it a full-mode run has no expectation to reconcile its listing
+  // against and exits 2 rather than reporting on a residue (issue #244).
+  write(
+    MANIFEST_INDEX,
+    "import { manifest as manifest0 } from '../orders/manifest.js';\nexport const MANIFEST_INDEX = [manifest0];\n",
+  );
   // A correctly module-scoped migration. `check-naming.sh`'s class-scope rule
   // reads the filesystem, not the listing, and exits 2 on a tree with no
   // migration at all — so without this file every red case above would come
@@ -144,6 +190,8 @@ export function createShellCheckFixture(): ShellCheckFixture {
     root,
     write,
     lists,
+    listsExactly,
+    removeManifestIndex: () => rmSync(join(root, MANIFEST_INDEX), { force: true }),
     removeModuleTree: () => rmSync(join(root, 'backend/src/modules'), { recursive: true, force: true }),
     installPdfmake,
     run: (script, args = [], env = {}) => {

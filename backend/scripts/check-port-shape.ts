@@ -145,6 +145,7 @@ import {
   resolvedNames,
 } from './check-port-dependencies.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const BACKEND_SRC = join(HERE, '..', 'src');
@@ -732,7 +733,7 @@ async function main(): Promise<void> {
   // one case a moved module tree does not produce (issue #215): `src/apps`
   // survives it, and the three floors below are each satisfied by a single
   // surviving registration or resolution. The floor is per registered module.
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[port-shape]',
     srcRoot: BACKEND_SRC,
     files: moduleFiles,
@@ -792,6 +793,17 @@ async function main(): Promise<void> {
     result.staleLedgerEntries.length +
     result.unpublishedResolutions.length +
     result.staleUnpublishedResolutions.length;
+  // What was read, in the shared grammar (issue #244). `files` is both walks —
+  // the contracts package and the module tree — and `sites` is the union of the
+  // two unit kinds this check judges: the published ports (signals 1 and 2) and
+  // the cross-module resolutions (signal 3). Each has a floor of its own above;
+  // the union is what the ratchet watches for a silent halving.
+  reportReadSize({
+    prefix: '[port-shape]',
+    files: contractFiles.length + moduleFiles.length,
+    sites: result.portTypes.length + result.lazyPortResolutionCount,
+    coverage: [coverage],
+  });
   console.log(
     `[port-shape] ports=${result.portTypes.length} ` +
       `contract-files=${contractFiles.length} module-files=${moduleFiles.length} ` +

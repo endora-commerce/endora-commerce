@@ -32,6 +32,7 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -148,7 +149,7 @@ async function main(): Promise<void> {
   // moving: five overlay files were enough to clear an emptiness guard and let
   // the check print `module files=5 violations=0` (issue #215). The floor is
   // one file per registered module, read from the manifest index.
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[container-imports]',
     srcRoot: SRC_ROOT,
     files,
@@ -161,6 +162,10 @@ async function main(): Promise<void> {
     console.log(`[container-imports] scanning ${modules.size} modules`);
   }
 
+  // What was read, beside what was found (issue #244). `module files` below is
+  // the same number today; it is printed in the shared grammar so the ratchet
+  // reads one shape across every check rather than twenty-four spellings.
+  reportReadSize({ prefix: '[container-imports]', files: files.length, coverage: [coverage] });
   console.log(
     `[container-imports] module files=${files.length} violations=${findings.length}`,
   );

@@ -32,6 +32,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { reportReadSize } from './lib/read-size.js';
 
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 
@@ -63,6 +64,21 @@ export function discoverCitingDocuments(
   repoRoot: string = REPO_ROOT,
   read: (p: string) => string = (p) => readFileSync(p, 'utf8'),
 ): string[] {
+  return markdownDocuments(repoRoot)
+    .filter((path) => read(join(repoRoot, path)).includes(MARKER_HINT))
+    .sort();
+}
+
+/**
+ * Every markdown file under {@link DOCUMENT_ROOTS}, cited or not — the walk
+ * itself, as a path relative to the repository root.
+ *
+ * Split out of {@link discoverCitingDocuments} so the check can print what it
+ * *read* and not only what enrolled (issue #244): "7 documents checked" is the
+ * same sentence whether the walk covered 400 markdown files or four, and the
+ * roots moving is exactly the failure this check's own header describes.
+ */
+export function markdownDocuments(repoRoot: string = REPO_ROOT): string[] {
   const found: string[] = [];
   const walk = (dir: string): void => {
     let names: string[];
@@ -79,11 +95,11 @@ export function discoverCitingDocuments(
         continue;
       }
       if (!name.endsWith('.md')) continue;
-      if (read(full).includes(MARKER_HINT)) found.push(relative(repoRoot, full));
+      found.push(relative(repoRoot, full));
     }
   };
   for (const root of DOCUMENT_ROOTS) walk(join(repoRoot, root));
-  return found.sort();
+  return found;
 }
 
 export interface SnippetFinding {
@@ -230,6 +246,10 @@ function main(): void {
     process.exit(1);
   }
 
+  // What was read, beside what was found (issue #244): the markdown walk, and
+  // the documents inside it that enrol by carrying a marker. `self-reported`:
+  // nothing derives "every document that should cite a source".
+  reportReadSize({ prefix: '[doc-snippets]', files: markdownDocuments().length, sites: scanned });
   console.log(`[doc-snippets] ${scanned} document(s) checked, every cited block is a quotation`);
 }
 

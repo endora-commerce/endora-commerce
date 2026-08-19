@@ -70,6 +70,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { reportReadSize } from './lib/read-size.js';
 
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 
@@ -344,6 +345,12 @@ function main(): void {
     console.log('');
   }
 
+  // What was read, beside what was found (issue #244). The population is the
+  // whole repository minus two declared exclusions, so the file count is the
+  // one number that says whether a new `SKIPPED_DIRECTORIES` entry quietly took
+  // a subtree out of the scan. `self-reported`: nothing else in the tree
+  // derives "every file that is not binary".
+  reportReadSize({ prefix: '[nul-bytes]', files: result.scanned });
   console.log(
     `[nul-bytes] scanned=${result.scanned} files-with-a-raw-NUL=${result.total} ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +

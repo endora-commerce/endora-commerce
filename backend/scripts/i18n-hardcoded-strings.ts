@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { reportReadSize } from './lib/read-size.js';
 
 /** `<repo>/admin/src` — the SPA this rule is about, wherever the checkout lives. */
 const DEFAULT_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', 'admin', 'src');
@@ -311,6 +312,11 @@ function main(): void {
 
   const findings: Finding[] = [];
   for (const f of files) walkFile(f, findings);
+
+  // What was read, in the shared grammar (issue #244) — before the `--strict`
+  // branch below, so both modes disclose the same walk. `self-reported`: the
+  // population is the admin SPA's own tree, which nothing else derives.
+  reportReadSize({ prefix: '[i18n:hardcoded]', files: files.length });
 
   const cwd = process.cwd();
   const print = (f: Finding): void => {

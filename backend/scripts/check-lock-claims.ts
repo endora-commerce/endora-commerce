@@ -101,6 +101,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 import {
   ManifestIndexUnreadableError,
   loadManifestActivations,
@@ -436,7 +437,7 @@ async function main(): Promise<void> {
   // because `scripts/` survives it and the regenerated index still answers for
   // every module. Only a per-module floor sees a manifest walk that came back
   // short, and it sees it without anybody choosing a number.
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[lock-claims]',
     srcRoot: SRC_ROOT,
     files,
@@ -463,6 +464,15 @@ async function main(): Promise<void> {
     console.log('');
   }
 
+  // What was read, in the shared grammar (issue #244). The claims are the finer
+  // population — a reason string is the unit this check judges, and a file can
+  // hold many — and the artefact count is the walk.
+  reportReadSize({
+    prefix: '[lock-claims]',
+    files: files.length,
+    sites: result.claims.length,
+    coverage: [coverage],
+  });
   console.log(
     `[lock-claims] artefacts=${files.length} named-subject claims=${result.claims.length} ` +
       `violations=${result.findings.length} locked-modules=${locked.size} ` +

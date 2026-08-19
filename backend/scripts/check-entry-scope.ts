@@ -124,6 +124,7 @@ import {
   stringLiteralOf,
 } from './lib/repeating-timers.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const SRC_ROOT = join(BACKEND_ROOT, 'src');
@@ -552,7 +553,7 @@ async function main(): Promise<void> {
   // its exemptions are keyed by `src/modules/**` paths — so a walk over the
   // residue left when the module tree moves recognises almost no entry point at
   // all and still clears the `sites.length === 0` floor (issue #215).
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[entry-scope]',
     srcRoot: SRC_ROOT,
     files,
@@ -628,9 +629,31 @@ async function main(): Promise<void> {
   }
 
   const byKind = (kind: EntryKind): number => sites.filter((site) => site.kind === kind).length;
-  // `sites` and `files` are printed because the population size is the number
-  // that says whether a widening did anything: a finding count that moves
-  // without it is finding something else (issues #228, #237).
+  // What was read, in the shared grammar (issue #244): the walk's own size, the
+  // entry sites classified inside it, and **both** independent derivations this
+  // check's population has — the manifest index for the module tree and
+  // `package.json` for the declared programs, which is the source issue #228
+  // added because the three shape classes could not see `dev-catalog-seed.ts`.
+  //
+  // `files=` here is the walk, not `files=` on the line below it: that one
+  // counts the files that *hold* a site, which moves with the findings and so
+  // cannot answer "did you read the tree".
+  reportReadSize({
+    prefix: '[entry-scope]',
+    files: files.length,
+    sites: sites.length,
+    coverage: [
+      coverage,
+      {
+        source: 'package-scripts',
+        expected: declaredPaths.length,
+        covered: declaredPaths.length - unresolved.length,
+      },
+    ],
+  });
+  // The per-class counts below are the population size for each shape: a
+  // finding count that moves without them is finding something else (issues
+  // #228, #237).
   console.log(
     `[entry-scope] sites=${sites.length} files=${new Set(sites.map((s) => s.file)).size} ` +
       `cli=${byKind('cli')} program=${byKind('program')} worker=${byKind('worker')} ` +

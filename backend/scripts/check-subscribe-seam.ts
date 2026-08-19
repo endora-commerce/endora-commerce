@@ -53,6 +53,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { moduleOf } from './check-port-dependencies.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -228,7 +229,7 @@ async function main(): Promise<void> {
   // that reads only the remainder finds no `eventBus.on` and says so, which is
   // the same green as a clean tree (issue #215). Derived from the manifest
   // index, so nothing here is a number anybody chose.
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[subscribe-seam]',
     srcRoot: SRC_ROOT,
     files: [...sources.keys()],
@@ -247,6 +248,13 @@ async function main(): Promise<void> {
     console.log('');
   }
 
+  // What was read, beside what was found (issue #244): the seam's finding count
+  // is zero on a clean tree and zero on a tree this never opened.
+  reportReadSize({
+    prefix: '[subscribe-seam]',
+    files: sources.size,
+    coverage: [coverage],
+  });
   console.log(
     `[subscribe-seam] module subscriptions bypassing the seam=${result.total} ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +

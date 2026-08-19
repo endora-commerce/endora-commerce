@@ -128,6 +128,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { reportReadSize } from './lib/read-size.js';
 
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 
@@ -474,6 +475,13 @@ function main(): void {
     console.log('');
   }
 
+  // What was read, beside what was found (issue #244) — and this check is the
+  // one that filed it: its population is defined by the *presence* of a fold,
+  // so a slugifier with no fold at all matches nothing and reports clean. The
+  // file count cannot see that either, but it is the number that says whether
+  // the four population roots were walked at all. `self-reported`: there is no
+  // independent derivation of "every file that should be scanned for a fold".
+  reportReadSize({ prefix: '[diacritic-folds]', files: result.scanned });
   console.log(
     `[diacritic-folds] scanned=${result.scanned} folds-outside-the-helper=${result.total} ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +

@@ -47,6 +47,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ERROR_TRANSLATION_KEYS } from '../src/modules/_i18n/services/error-translation.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const modulesRoot = resolve(here, '../src/modules');
@@ -390,12 +391,41 @@ export function analyseErrorTranslations(
   };
 }
 
+/**
+ * Every module bundle the walk opens — this check's real input (issue #244).
+ *
+ * It never named that input, and `loadBundle` answers `{}` for a file that is
+ * not there: a bundle directory that moved turns *every* routed code into a
+ * finding, and nothing on the summary line says whether anything was opened at
+ * all. Built from the same root and the same path shape as
+ * {@link diskBundleKeyWalker}, so the two cannot disagree about where a bundle
+ * lives.
+ */
+function bundleFilesOnDisk(): string[] {
+  return readdirSync(modulesRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) =>
+      LANGUAGES.map((language) => join(modulesRoot, entry.name, 'i18n', `${language}.json`)),
+    )
+    .filter((path) => existsSync(path));
+}
+
 function main(): void {
   const result = analyseErrorTranslations();
   if (result.exitCode === 2) {
     console.error(result.summary);
     process.exit(2);
   }
+  // What was read, beside what was found (issue #244). `sites` is the union of
+  // the two predicates' units — the routed codes P1 judges and the written
+  // `errors.*` keys P2 walks — because either population can empty while the
+  // other is full, which is the reason the two vacuity guards above are
+  // independent in the first place.
+  reportReadSize({
+    prefix: '[error-translations]',
+    files: bundleFilesOnDisk().length,
+    sites: Object.keys(ERROR_TRANSLATION_KEYS).length + result.keysWalked.length,
+  });
   console.log(result.summary);
 
   if (result.unledgered.length > 0) {

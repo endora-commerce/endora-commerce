@@ -199,6 +199,7 @@ import {
   type ManifestActivationInput,
 } from './lib/switchable-modules.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -1213,7 +1214,7 @@ async function main(): Promise<void> {
   // **partial** move — index regenerated, half the modules elsewhere — where
   // every remaining `catch` is classified and the count simply drops (issue
   // #215). That needs a per-module floor, from the same index.
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[port-catches]',
     srcRoot: SRC_ROOT,
     files: [...sources.keys()],
@@ -1266,6 +1267,16 @@ async function main(): Promise<void> {
     console.log('');
   }
 
+  // What was read, in the shared grammar (issue #244). The `catch` sites around
+  // a gated port are the finer population: every one of them is classified
+  // below, so a narrowing that stops recognising a port shows up here as fewer
+  // sites rather than as the same reassuring `violations=0`.
+  reportReadSize({
+    prefix: '[port-catches]',
+    files: sources.size,
+    sites: result.total,
+    coverage: [coverage],
+  });
   console.log(
     `[port-catches] guarded-port catches=${result.total} ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
