@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { OrderStatusAnnouncePort, PaymentMethodReadPort } from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -53,7 +54,11 @@ describe('ReceivePaymentHandler.reflectRefund', () => {
   });
 
   it('reflects a partial refund, then a full refund; idempotent and no downgrade', async () => {
-    const handler = new ReceivePaymentHandler(() => h.em());
+    const handler = new ReceivePaymentHandler(
+      () => h.em(),
+      h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
+      h.container.resolve<OrderStatusAnnouncePort>('orderStatusAnnouncePort'),
+    );
 
     // Partial refund (cumulative 1.00).
     const partial = await handler.reflectRefund({
