@@ -76,14 +76,14 @@ const LEDGER_ANCHOR =
   'export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {};';
 
 /**
- * The opening of the slug ledger's declaration in the checked-in script.
+ * The slug ledger's declaration in the checked-in script.
  *
- * Only the opening, because unlike the fold ledger this one is **not** empty
- * (issue #244): it carries the two `pim_ergonode` key derivations, so the
- * fixture replaces a span rather than a literal.
+ * The whole literal, not just its opening: it is empty since issue #260, so the
+ * fixture substitutes exactly the way it does for the fold ledger above. It was
+ * a span replacement while the two `pim_ergonode` key derivations stood in it.
  */
 const SLUG_LEDGER_ANCHOR =
-  'export const SLUG_RUNS_ALLOWED: Readonly<Record<string, LedgerEntry>>';
+  'export const SLUG_RUNS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {};';
 
 interface FixtureRepository {
   readonly root: string;
@@ -141,19 +141,22 @@ function fixtureRepository(
   }
 
   if (options.slugLedger !== undefined) {
-    // The slug ledger is multi-line and non-empty, so it is replaced by span
-    // rather than by an exact literal: from its declaration to the first `\n};`
-    // after it. Both ends are asserted, for the reason the fold anchor above is
-    // — a substitution that silently matched nothing leaves a green test proving
-    // the opposite of what it claims (issue #113).
+    // Empty since issue #260, so the CLI can no longer be driven into a stale
+    // slug finding by the tree alone — exactly the position the fold ledger has
+    // been in since #245, and the substitution is the same. The anchor is
+    // asserted rather than replaced best-effort: a substitution that silently
+    // matched nothing would leave a green test that proves the opposite of what
+    // it claims (issue #113).
     const source = readFileSync(checker, 'utf8');
-    const start = source.indexOf(SLUG_LEDGER_ANCHOR);
-    if (start < 0) throw new Error(`the slug ledger no longer opens with ${SLUG_LEDGER_ANCHOR}`);
-    const end = source.indexOf('\n};', start);
-    if (end < 0) throw new Error('the slug ledger declaration is not terminated by `\\n};`');
+    if (!source.includes(SLUG_LEDGER_ANCHOR)) {
+      throw new Error(`the slug ledger constant no longer reads ${SLUG_LEDGER_ANCHOR}`);
+    }
     writeFileSync(
       checker,
-      `${source.slice(0, start)}${SLUG_LEDGER_ANCHOR} = ${options.slugLedger}${source.slice(end + 3)}`,
+      source.replace(
+        SLUG_LEDGER_ANCHOR,
+        SLUG_LEDGER_ANCHOR.replace('= {};', `= ${options.slugLedger};`),
+      ),
       'utf8',
     );
   }
@@ -867,22 +870,18 @@ describe('check-diacritic-folds — the ledger', () => {
   });
 
   it('the slug ledger holds only deferred defects, each saying why and when it goes', () => {
-    // Two entries, both in `pim_ergonode`, and the assertion that matters is
-    // **not** the count: it is that neither is an exception to the rule. Both
-    // derive an identifier from an Ergonode source code and both delete `ł`
-    // rather than folding it, so the rule applies to each of them; what defers
-    // the repair is that they are **lookup** keys, re-derived on every import
-    // run to find a row a previous run created. Issue #245's owner ruling — new
-    // values correct, historical ones not migrated — covered values computed
-    // once at create time and does not reach these.
+    // Empty since issue #260. It opened with the two `pim_ergonode` key
+    // derivations, and neither was an exception to the rule: both derived an
+    // identifier from an Ergonode source code and both deleted `ł` rather than
+    // folding it. What deferred the repair was that they are **lookup** keys,
+    // re-derived on every import run to find a row a previous run created — so
+    // repairing them meant a back-fill, which #260 shipped.
     //
     // If an entry ever says "this is not a slug and needs no fold", the
     // predicate has outgrown its population and the answer is to narrow it, not
-    // to add the entry.
-    expect(Object.keys(SLUG_RUNS_ALLOWED)).toEqual([
-      'backend/src/modules/pim_ergonode/services/key-derivation.ts',
-      'backend/src/modules/pim_ergonode/services/import/attribute-phase.ts',
-    ]);
+    // to add the entry. "It is a lookup key" is not one either: that says what a
+    // repair costs, not whether one is owed.
+    expect(Object.keys(SLUG_RUNS_ALLOWED)).toEqual([]);
     for (const [path, entry] of Object.entries(SLUG_RUNS_ALLOWED)) {
       expect(entry.reason.length, `${path} has no reason`).toBeGreaterThan(30);
       expect(entry.retiredBy, `${path} names no retiring condition`).toContain('ruling');
@@ -955,9 +954,7 @@ describe('check-diacritic-folds — the exit codes', () => {
   it('exits 2 when the population is empty, rather than reporting a vacuous pass', () => {
     // Only the helper is written, and the helper is excluded by path — so the
     // walk really does read zero files in the population, and the answer is 2.
-    // The slug ledger is emptied so that the exit code can only be about the
-    // empty walk: with the real one, its two absent files would also be stale.
-    const result = fixtureRepository({ slugLedger: '{}' }).run();
+    const result = fixtureRepository().run();
     expect(result.status).toBe(2);
     expect(result.output).toContain('vacuous');
   });
@@ -966,7 +963,7 @@ describe('check-diacritic-folds — the exit codes', () => {
     // A moved helper means the exclusion exempts nothing and the real fold is
     // being reported at its new home. That is not a clean tree; it is a check
     // that has lost its subject.
-    const repo = fixtureRepository({ helper: null, slugLedger: '{}' });
+    const repo = fixtureRepository({ helper: null });
     repo.write('admin/src/lib/thing.ts', 'export const a = 1;\n');
     const result = repo.run();
     expect(result.status).toBe(2);
@@ -977,7 +974,6 @@ describe('check-diacritic-folds — the exit codes', () => {
   it('exits 2 when the helper is there but no longer parses as a fold', () => {
     const repo = fixtureRepository({
       helper: 'export const normalize = (v: string) => v.toLowerCase();\n',
-      slugLedger: '{}',
     });
     repo.write('admin/src/lib/thing.ts', 'export const a = 1;\n');
     const result = repo.run();
@@ -995,7 +991,6 @@ describe('check-diacritic-folds — the exit codes', () => {
         "export function foldDiacritics(v: string): string {\n" +
         "  return v.normalize('NFD').replace(/\\p{Diacritic}/gu, '').toLowerCase();\n" +
         '}\n',
-      slugLedger: '{}',
     });
     repo.write('admin/src/lib/thing.ts', 'export const a = 1;\n');
     const result = repo.run();
@@ -1036,19 +1031,46 @@ describe('check-diacritic-folds — the exit codes', () => {
   });
 
   it('exits 1 when a slug-ledger entry no longer describes the file it names', () => {
-    // The slug ledger's second direction, end to end, and it needs no injected
-    // constant: the checked-in ledger names two `pim_ergonode` files, and a
-    // fixture that does not write them is a fixture in which both entries have
-    // stopped describing anything. Nothing folds and nothing slugifies, so the
-    // exit code is the staleness half on its own.
-    const repo = fixtureRepository();
+    // The slug ledger's second direction, end to end. It is empty since issue
+    // #260, so the copy is given one naming a file the fixture never writes:
+    // the entry is stale and the run fails even though nothing folds and
+    // nothing slugifies. Before #260 this fell out of the real ledger's two
+    // `pim_ergonode` entries being absent from the fixture.
+    const repo = fixtureRepository({
+      slugLedger:
+        "{ 'backend/src/modules/x/slug.ts': " +
+        "{ findings: 1, reason: 'Fixture.', retiredBy: 'a ruling' } }",
+    });
     repo.write('admin/src/lib/thing.ts', 'export const a = 1;\n');
     const result = repo.run();
     expect(result.status).toBe(1);
     expect(result.output).toContain('violations=0');
-    expect(result.output).toContain('stale=2');
+    expect(result.output).toContain('stale=1');
     expect(result.output).toContain('[slug-runs]');
-    expect(result.output).toContain('key-derivation.ts');
+    expect(result.output).toContain('backend/src/modules/x/slug.ts');
+  });
+
+  it('exits 0 with a slug-ledger entry that still describes its file', () => {
+    // The other half of the substitution, so the fixture above is proven to be
+    // a discrimination rather than a way of making the run fail: the same
+    // injected entry over a file that really does build a slug passes, and is
+    // counted as ledgered rather than as a violation.
+    const repo = fixtureRepository({
+      slugLedger:
+        "{ 'backend/src/modules/x/slug.ts': " +
+        "{ findings: 1, reason: 'Fixture.', retiredBy: 'a ruling' } }",
+    });
+    repo.write(
+      'backend/src/modules/x/slug.ts',
+      'export const code = (name: string): string =>\n' +
+        "  name.toLowerCase().replace(/[^a-z0-9]+/g, '-');\n",
+    );
+    const result = repo.run();
+    expect(result.status).toBe(0);
+    expect(result.output).toContain('violations=0');
+    expect(result.output).toContain('slug-ledger-size=1');
+    expect(result.output).toContain('ledgered=1');
+    expect(result.output).toContain('stale=0');
   });
 
   it('exits 0 on a tree whose callers import the shared helper', () => {
@@ -1066,13 +1088,13 @@ describe('check-diacritic-folds — the exit codes', () => {
     const result = repo.run();
     expect(result.status).toBe(0);
     expect(result.output).toContain('violations=0');
-    // The fold ledger is empty since issue #245, so nothing folds and nothing is
-    // excused from folding. The slug ledger is not, and its two files are copied
-    // in by `ledgered: true` — which is the two-way property exercised, not a
-    // workaround: an entry over a file the run cannot see is stale.
+    // Both ledgers are empty — the fold one since issue #245, the slug one
+    // since #260 — so nothing folds, nothing slugifies outside the generator,
+    // and nothing is excused from either. `ledgered: true` copies no file in,
+    // which is what an empty two-way ratchet looks like from the CLI.
     expect(result.output).toContain('fold-ledger-size=0');
-    expect(result.output).toContain('slug-ledger-size=2');
-    expect(result.output).toContain('ledgered=2');
+    expect(result.output).toContain('slug-ledger-size=0');
+    expect(result.output).toContain('ledgered=0');
     expect(result.output).toContain('stale=0');
   });
 
@@ -1084,7 +1106,6 @@ describe('check-diacritic-folds — the exit codes', () => {
     const repo = fixtureRepository({
       ledger:
         "{ 'admin/src/modules/x.ts': { findings: 2, reason: 'Fixture.', retiredBy: 'issue #245' } }",
-      slugLedger: '{}',
     });
     repo.write('admin/src/lib/thing.ts', 'export const a = 1;\n');
     const result = repo.run();
@@ -1102,7 +1123,6 @@ describe('check-diacritic-folds — the exit codes', () => {
     const repo = fixtureRepository({
       ledger:
         "{ 'admin/src/modules/x.ts': { findings: 2, reason: 'Fixture.', retiredBy: 'issue #245' } }",
-      slugLedger: '{}',
     });
     repo.write(
       'admin/src/modules/x.ts',

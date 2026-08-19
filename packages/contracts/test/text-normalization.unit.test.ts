@@ -115,6 +115,39 @@ describe('slugify', () => {
     expect(slugify('ﬁszki')).toBe('szki');
   });
 
+  it('keeps the characters `preserve` names, and collapses everything else (issue #260)', () => {
+    // `pim_ergonode`'s option values are stored under `^[a-z0-9_-]{1,200}$` —
+    // two usable punctuation characters, which one separator cannot express.
+    // Without this option, folding those values correctly would also rewrite
+    // every already-correct `xl-red` into `xl_red`, orphaning the option every
+    // product carrying it points at.
+    expect(slugify('XL-RED', { separator: '_', preserve: '-' })).toBe('xl-red');
+    expect(slugify('KOD/A', { separator: '_', preserve: '-' })).toBe('kod_a');
+    // A preserved character is *not* collapsed: it is usable, so a run of it is
+    // as the caller wrote it.
+    expect(slugify('a--b', { separator: '_', preserve: '-' })).toBe('a--b');
+    // ...while a run of unusable characters is still one separator.
+    expect(slugify('a..b', { separator: '_', preserve: '-' })).toBe('a_b');
+    // The fold still runs, which is the whole point of the change.
+    expect(slugify('CZERWONY_ŻÓŁTY', { separator: '_', preserve: '-' })).toBe('czerwony_zolty');
+    // Default is empty, so every existing caller is untouched.
+    expect(slugify('xl-red', { separator: '_' })).toBe('xl_red');
+  });
+
+  it('escapes a preserved character rather than letting it re-open the class', () => {
+    // The members go inside a negated character class, so `]`, `$` and `\`
+    // would otherwise build a different pattern than the caller asked for —
+    // `]` closes it early and `\` escapes whatever follows.
+    expect(slugify('a]b$c', { preserve: ']$' })).toBe('a]b$c');
+    expect(slugify('a]b$c')).toBe('a-b-c');
+
+    // `^` is **not** a candidate for this test, and the reason is worth having
+    // written down: U+005E carries the Unicode `Diacritic` property, so step 2
+    // of the fold deletes it before the collapse class ever sees it. Preserving
+    // it is therefore not something this option can grant.
+    expect(slugify('a^b', { preserve: '^' })).toBe('ab');
+  });
+
   it('passes non-Latin scripts through the collapse rather than mangling them', () => {
     // Nothing in `[a-z0-9]` survives from them, so the answer is the fallback
     // rather than a wrong transliteration. Stated because it is a limit, not a

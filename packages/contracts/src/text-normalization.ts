@@ -125,6 +125,23 @@ export interface SlugifyOptions {
   readonly maxLength?: number;
   /** What an input that folds away to nothing produces. Empty string by default. */
   readonly fallback?: string;
+  /**
+   * Characters the caller's grammar allows **besides** `[a-z0-9]`, which
+   * therefore survive instead of collapsing to the separator.
+   *
+   * Empty for every slug in the kebab family, and that is the reason this is an
+   * option rather than a widening of the rule: `pim_ergonode`'s option values
+   * are stored under `^[a-z0-9_-]{1,200}$`, a grammar with **two** usable
+   * punctuation characters, so a generator that knows only one separator cannot
+   * express it. Without this, folding those values correctly would also have
+   * turned every already-correct `xl-red` into `xl_red` — a rename with no
+   * defect behind it, and one that orphans the option every product already
+   * points at (issue #260).
+   *
+   * Members are matched literally inside a negated character class, so a
+   * caller passes the characters themselves (`'-'`), not an escaped class.
+   */
+  readonly preserve?: string;
 }
 
 /** Escape a separator so it can sit inside a character class. */
@@ -148,7 +165,8 @@ function escapeForRegExp(literal: string): string {
  *
  * 1. **Fold** via `foldDiacritics` — decompose, strip the combining marks, map
  *    the letters NFD leaves standing, lowercase.
- * 2. **Collapse** every run of `[^a-z0-9]` to the separator.
+ * 2. **Collapse** every run of `[^a-z0-9]` — minus whatever `preserve` adds to
+ *    the usable set — to the separator.
  * 3. **Strip a leading separator**, before the slice — a leading separator can
  *    never survive, so it must not spend a character of the caller's budget.
  * 4. **Slice** to `maxLength`, when the caller has one.
@@ -198,6 +216,13 @@ function escapeForRegExp(literal: string): string {
  * and every one of these values is computed fresh at create time rather than
  * re-derived to look an existing row up. New values are correct from here on.
  *
+ * **`pim_ergonode` is the exception the ruling names, and it is the reason
+ * `preserve` exists.** Its two derivations are re-derived on every import run
+ * *to find the row a previous run created*, so a changed derivation orphans the
+ * row rather than improving it. Those values are migrated (issue #260), and the
+ * migration is only affordable because the derivation change is confined to the
+ * fold — which is what `preserve` buys.
+ *
  * `normalizeOrganizationName` is **not** a caller and must not become one: it
  * writes the persisted `organizations.name_search` column, which is a folded
  * name rather than a slug.
@@ -205,9 +230,19 @@ function escapeForRegExp(literal: string): string {
 export function slugify(input: string, options: SlugifyOptions = {}): string {
   const separator = options.separator ?? '-';
   const escaped = escapeForRegExp(separator);
-  const collapsed = foldDiacritics(input)
-    .replace(/[^a-z0-9]+/g, separator)
-    .replace(new RegExp(`^(?:${escaped})+`), '');
+  const usable = escapeForRegExp(options.preserve ?? '');
+  const folded = foldDiacritics(input);
+  // Two spellings of one step, and the branch is not a micro-optimisation. The
+  // default has to stay a **literal** `.replace(/[^a-z0-9]+/g, …)`, because
+  // that expression is what `check:diacritic-folds` reads to know this file is
+  // still the slug generator it exempts: its vacuous-pass guard cannot read a
+  // pattern built from a template, and a guard that cannot see the owner
+  // reports every private copy of it as fine (issue #244's whole point).
+  const collapsed = (
+    usable.length === 0
+      ? folded.replace(/[^a-z0-9]+/g, separator)
+      : folded.replace(new RegExp(`[^a-z0-9${usable}]+`, 'g'), separator)
+  ).replace(new RegExp(`^(?:${escaped})+`), '');
   const sliced = options.maxLength === undefined ? collapsed : collapsed.slice(0, options.maxLength);
   const trimmed = sliced.replace(new RegExp(`(?:${escaped})+$`), '');
   return trimmed.length > 0 ? trimmed : (options.fallback ?? '');
