@@ -79,7 +79,16 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     input: CustomerAccountStandaloneCreateInput,
   ): Promise<CustomerAccountRecord> {
     const em = this.emFactory();
-    const email = input.email.toLowerCase();
+    // Stored verbatim, deliberately, and **not** lower-cased the way
+    // `CustomerAccountMemberWriteService.create` does it. That asymmetry is not
+    // this boundary cut's to settle: `CustomerAuthService.login` matches the
+    // address exactly as typed, so an account whose e-mail was folded on the
+    // way in cannot be signed into with the address its holder registered.
+    // Folding here would extend a latent defect to a second entrance instead of
+    // repairing it — the repair is one normalisation, applied on both writes
+    // and on the login read, and it needs a migration for the rows already
+    // stored either way.
+    const email = input.email;
     const existing = await em.findOne(CustomerAccount, { email });
     if (existing) {
       throw new HttpError(
