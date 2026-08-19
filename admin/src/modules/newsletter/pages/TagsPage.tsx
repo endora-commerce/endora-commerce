@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import type { CustomFieldType, NewsletterCustomField, NewsletterTag } from '@b2b/contracts';
+import { slugify, type CustomFieldType, type NewsletterCustomField, type NewsletterTag } from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,6 @@ import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/lib/auth';
-import { normalize } from '@/lib/text-normalization';
 import { newsletterClient } from '../api/newsletter-client';
 
 /** Backend requires tag codes / field keys to match this pattern. */
@@ -19,20 +18,23 @@ const CUSTOM_FIELD_TYPES: CustomFieldType[] = ['text', 'number', 'boolean', 'dat
  * non-alphanumerics collapsed to underscores, trimmed. A leading digit still
  * fails `CODE_RE`, so callers validate the result before sending.
  *
- * The fold is `lib/text-normalization.ts`, **imported, never re-implemented**
- * (issue #239). The private NFD one-liner this used to carry did not fold `\u0142`
- * \u2014 U+0142 has no canonical decomposition, so the strip had nothing to remove
- * \u2014 it *deleted* it: `Metody p\u0142atno\u015bci` produced `metody_p_atnosci`, a code
- * with a hole in it that the operator could not connect to anything typed.
+ * The generator is `slugify` from `@b2b/contracts`, **imported, never
+ * re-implemented** (issues #239, #245). The private NFD one-liner it started as
+ * did not fold `ł` — U+0142 has no canonical decomposition, so the strip had
+ * nothing to remove — it *deleted* it: `Metody płatności` produced
+ * `metody_p_atnosci`, a code with a hole in it that the operator could not
+ * connect to anything typed.
+ *
+ * `_` is this caller's separator, passed explicitly, because the stored tag
+ * code grammar is `^[a-z][a-z0-9_]*$` and every other caller kebab-cases. There
+ * is no length option: the backend caps the column, not this prefill.
  *
  * Codes already stored are **not** migrated (owner's ruling, 2026-08-19): only
  * two developer environments exist, so renaming live tags buys nobody
  * anything. New codes are correct from here on.
  */
 function slugifyCode(input: string): string {
-  return normalize(input)
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+  return slugify(input, { separator: '_' });
 }
 
 export function TagsPage(): React.ReactElement {

@@ -60,6 +60,15 @@ const foldPaths = (files: readonly ScannedFile[]): string[] =>
 
 const temporaryRoots: string[] = [];
 
+/**
+ * The exact text of the ledger declaration in the checked-in script, so a
+ * fixture can give the copy a non-empty one. Written out rather than matched
+ * loosely: it is asserted before use, so a rename of the constant fails the
+ * test that depends on it instead of quietly disabling it.
+ */
+const LEDGER_ANCHOR =
+  'export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {};';
+
 interface FixtureRepository {
   readonly root: string;
   write(path: string, source: string): void;
@@ -79,7 +88,7 @@ interface FixtureRepository {
  * greps and the fixture has no install of its own.
  */
 function fixtureRepository(
-  options: { helper?: string | null; ledgered?: boolean } = {},
+  options: { helper?: string | null; ledgered?: boolean; ledger?: string } = {},
 ): FixtureRepository {
   const root = mkdtempSync(join(tmpdir(), 'diacritic-folds-check-'));
   temporaryRoots.push(root);
@@ -87,6 +96,23 @@ function fixtureRepository(
   mkdirSync(dirname(checker), { recursive: true });
   copyFileSync(SCRIPT, checker);
   symlinkSync(TYPESCRIPT, join(root, 'node_modules', 'typescript'), 'dir');
+  if (options.ledger !== undefined) {
+    // The real ledger is empty since issue #245, so the CLI can no longer be
+    // driven into a stale finding by the tree alone — and the staleness
+    // direction is half of what this check refuses. The copy's constant is
+    // substituted instead. The anchor is asserted rather than replaced
+    // best-effort: a substitution that silently matched nothing would leave a
+    // green test that proves the opposite of what it claims (issue #113).
+    const source = readFileSync(checker, 'utf8');
+    if (!source.includes(LEDGER_ANCHOR)) {
+      throw new Error(`the ledger constant no longer reads ${LEDGER_ANCHOR}`);
+    }
+    writeFileSync(
+      checker,
+      source.replace(LEDGER_ANCHOR, LEDGER_ANCHOR.replace('= {};', `= ${options.ledger};`)),
+      'utf8',
+    );
+  }
 
   const write = (path: string, source: string): void => {
     const full = join(root, path);
@@ -99,7 +125,9 @@ function fixtureRepository(
   if (helper !== null) write(SHARED_FOLD_HELPER, helper);
   // The ledger is a compiled-in constant, so a fixture that omits the files it
   // names reports them as stale and can never reach exit 0. Copying them in is
-  // not a workaround: it is the check's own two-way property, exercised.
+  // not a workaround: it is the check's own two-way property, exercised. It
+  // copies nothing while the real ledger is empty (issue #245) — which is why
+  // `ledger` above exists, to keep the staleness exit code provable end to end.
   if (options.ledgered === true) {
     for (const path of Object.keys(DIACRITIC_FOLDS_ALLOWED)) {
       write(path, readFileSync(join(REPO_ROOT, path), 'utf8'));
@@ -397,25 +425,22 @@ describe('check-diacritic-folds — the ledger', () => {
     ]);
   });
 
-  it('holds only the two backend slugifiers, each with a reason and a retiring condition', () => {
-    // It held four when it landed. Issue #239 repaired the two in `admin/` —
-    // the owner ruled that new values are to be correct and historical ones are
-    // not migrated — and the entries went with them, because an entry over a
-    // file that no longer folds is exactly what the staleness half refuses.
+  it('is empty, and any entry added back still has to say why and when it goes', () => {
+    // It held four when it landed. !753 repaired the two in `admin/` and issue
+    // #245 the two in `backend/`, under one owner ruling: new values are to be
+    // correct, historical ones are not migrated. Each pair's entries went with
+    // the repair, because an entry over a file that no longer folds is exactly
+    // what the staleness half refuses — and it did refuse them, loudly, which
+    // is how the last two came to be deleted rather than left standing.
     //
-    // The backend pair is not a discovery of the widened population: both were
-    // named in the check's header from the day it landed, as folds the rule
-    // could not reach. `foldDiacritics` makes them reachable, so they are
-    // ledgered debt with a retiring condition instead of a paragraph — and both
-    // are ledgered because they compute an already-persisted, externally
-    // visible key, never because slugs are exempt.
-    expect(Object.keys(DIACRITIC_FOLDS_ALLOWED).sort()).toEqual([
-      'backend/src/modules/catalog/services/catalog-admin.service.ts',
-      'backend/src/modules/product_feeds/services/feed-template-io.service.ts',
-    ]);
+    // Asserted as **empty** rather than deleted: the constant is the seam the
+    // two-way ratchet reads, and a rule with no list is a rule with nowhere to
+    // record the exception it will one day have. The loop below is what an
+    // entry would have to satisfy, and it is kept live for that day.
+    expect(Object.keys(DIACRITIC_FOLDS_ALLOWED)).toEqual([]);
     for (const [path, entry] of Object.entries(DIACRITIC_FOLDS_ALLOWED)) {
       expect(entry.reason.length, `${path} has no reason`).toBeGreaterThan(30);
-      expect(entry.retiredBy, `${path} names no retiring condition`).toContain('#239');
+      expect(entry.retiredBy, `${path} names no retiring condition`).toContain('#');
       expect(entry.findings, `${path} declares no count`).toBeGreaterThan(0);
     }
   });
@@ -501,18 +526,47 @@ describe('check-diacritic-folds — the exit codes', () => {
     const result = repo.run();
     expect(result.status).toBe(0);
     expect(result.output).toContain('violations=0');
-    expect(result.output).toContain('ledgered=4');
+    // The real ledger is empty since issue #245, so a clean tree is clean all
+    // the way down: nothing folds and nothing is excused from folding.
+    expect(result.output).toContain('ledgered=0');
+    expect(result.output).toContain('ledger-size=0');
   });
 
   it('exits 1 when a ledger entry no longer describes the file it names', () => {
-    // The second direction, end to end: the ledgered slugifiers are absent, so
-    // both entries are stale and the run fails even though nothing folds.
-    const repo = fixtureRepository();
+    // The second direction, end to end. The checked-in ledger is empty, so the
+    // copy is given one naming a file the fixture never writes: the entry is
+    // stale and the run fails even though nothing folds. Before issue #245 this
+    // fell out of the real ledger's two entries being absent from the fixture.
+    const repo = fixtureRepository({
+      ledger:
+        "{ 'admin/src/modules/x.ts': { findings: 2, reason: 'Fixture.', retiredBy: 'issue #245' } }",
+    });
     repo.write('admin/src/lib/thing.ts', 'export const a = 1;\n');
     const result = repo.run();
     expect(result.status).toBe(1);
     expect(result.output).toContain('violations=0');
-    expect(result.output).toContain('stale=2');
+    expect(result.output).toContain('stale=1');
+    expect(result.output).toContain('admin/src/modules/x.ts');
+  });
+
+  it('exits 0 with a ledger entry that still describes its file', () => {
+    // The other half of the substitution, so the fixture above is proven to be
+    // a discrimination rather than a way of making the run fail: the same
+    // injected entry over a file that really does fold passes, and is counted
+    // as ledgered rather than as a violation.
+    const repo = fixtureRepository({
+      ledger:
+        "{ 'admin/src/modules/x.ts': { findings: 2, reason: 'Fixture.', retiredBy: 'issue #245' } }",
+    });
+    repo.write(
+      'admin/src/modules/x.ts',
+      "export const n = (v: string) => v.normalize('NFD').replace(/\\p{Diacritic}/gu, '');\n",
+    );
+    const result = repo.run();
+    expect(result.status).toBe(0);
+    expect(result.output).toContain('violations=0');
+    expect(result.output).toContain('ledgered=2');
+    expect(result.output).toContain('stale=0');
   });
 });
 
@@ -545,19 +599,57 @@ describe('check-diacritic-folds — the tree it guards', () => {
     expect(source).toContain("import { foldDiacritics } from '@b2b/contracts'");
   });
 
-  // The two admin slugifiers issue #239 took off the ledger. The check refuses
-  // a new fold in them now that no entry covers them; this is the other half —
-  // a file that stopped folding because it stopped slugifying would pass that
-  // and lose the behaviour the fold was for.
-  const unledgered = [
-    'admin/src/modules/product_feeds/api.ts',
+  /**
+   * Every slug generator in the tree, and the assertion the check itself cannot
+   * make.
+   *
+   * There were eight, each a private four-line chain (issue #245). The check
+   * refuses a **fold** written outside the helper, which catches six of them
+   * and is blind to the other two by construction: `cms-template-layout.ts` and
+   * `slugFromSourceCode` had no fold step at all, so they wrote nothing for it
+   * to see while deleting `ł` out of every Polish name. Nor can it see a file
+   * that stopped folding because it stopped **slugifying** — which would pass
+   * the check and lose the behaviour outright.
+   *
+   * So the positive claim is asserted here, by name: each of the eight resolves
+   * its slug through `slugify` from `@b2b/contracts`, and none of them folds on
+   * its own. A ninth generator is only refused if it folds; a ninth that does
+   * not fold is what this list is for.
+   */
+  const slugGenerators = [
+    'backend/src/modules/product_feeds/services/feed-template-io.service.ts',
+    'backend/src/modules/pim_ergonode/services/import/category-phase.ts',
+    'backend/src/modules/catalog/services/catalog-admin.service.ts',
     'admin/src/modules/newsletter/pages/TagsPage.tsx',
+    'admin/src/modules/cms/components/cms-template-layout.ts',
+    'admin/src/modules/cms/editors/BlockEditor.tsx',
+    'admin/src/modules/cms/editors/PageEditor.tsx',
+    'admin/src/modules/product_feeds/api.ts',
   ];
 
-  it.each(unledgered)('%s imports the shared fold instead of writing its own', (path) => {
+  it.each(slugGenerators)('%s slugifies through @b2b/contracts, not its own chain', (path) => {
     const source = readFileSync(join(REPO_ROOT, path), 'utf8');
     expect(analyzeSource(source, path), `${path} folds on its own again`).toEqual([]);
-    expect(source).toContain("from '@/lib/text-normalization'");
+    expect(source, `${path} does not import the shared slug generator`).toMatch(
+      /import \{[^}]*\bslugify\b[^}]*\} from '@b2b\/contracts'/,
+    );
+    // The chain itself, not just the fold: a site that kept its own collapse and
+    // merely imported the helper would satisfy the two assertions above while
+    // still owning a copy of the cut and the trim. Matched on the **call**
+    // shape, because five of these files quote the class in a doc block to
+    // explain what they used to do — the same reason the check parses instead
+    // of grepping.
+    expect(source, `${path} still collapses characters on its own`).not.toContain(
+      '.replace(/[^a-z0-9]',
+    );
+  });
+
+  it('the shared generator is exported from the package index', () => {
+    // Or the eight consumers above cannot import it and the rule has nothing
+    // to mean outside `packages/`.
+    const helper = readFileSync(join(REPO_ROOT, SHARED_FOLD_HELPER), 'utf8');
+    expect(helper).toContain('export function slugify');
+    expect(helper).toContain('export interface SlugifyOptions');
   });
 
   it('the anchored helper is the one in @b2b/contracts, reachable from every package', () => {

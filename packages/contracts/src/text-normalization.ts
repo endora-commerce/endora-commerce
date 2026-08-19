@@ -1,6 +1,10 @@
 /**
- * One diacritic fold, for every package that has to compare two spellings of
- * the same word (issue #240).
+ * One diacritic fold — and, since issue #245, one slug generator — for every
+ * package that has to compare or key two spellings of the same word.
+ *
+ * `foldDiacritics` is the fold (issue #240). `slugify` is the generator built
+ * on it, and it replaced **eight** private copies; its own doc block carries
+ * the reasons that are specific to slugs. Everything below is about the fold.
  *
  * ## Why this file exists rather than a helper inside one consumer
  *
@@ -99,4 +103,112 @@ export function foldDiacritics(input: string): string {
     mapped += NON_DECOMPOSING_LATIN[character] ?? character;
   }
   return mapped.toLowerCase();
+}
+
+/**
+ * How one caller's slug grammar differs from another's. Every field is the
+ * caller's own policy; the *steps* are not negotiable and are not options.
+ */
+export interface SlugifyOptions {
+  /**
+   * What a run of unusable characters collapses to. `-` everywhere except the
+   * newsletter tag code, whose stored grammar is `_`.
+   */
+  readonly separator?: string;
+  /**
+   * The caller's own column or contract limit. **Deliberately not defaulted to
+   * a repo-wide number**: eight call sites cap at 80, 150, 160, 180 or not at
+   * all, and each cap decides which *new* values collide under that caller's
+   * unique constraint. Normalising them would be a data decision dressed as a
+   * tidy-up.
+   */
+  readonly maxLength?: number;
+  /** What an input that folds away to nothing produces. Empty string by default. */
+  readonly fallback?: string;
+}
+
+/** Escape a separator so it can sit inside a character class. */
+function escapeForRegExp(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+}
+
+/**
+ * The repository's one slug generator (issue #245).
+ *
+ * There were **eight**: three in `backend/`, five in `admin/`, each a private
+ * four-line chain that read as obviously right. Two of them
+ * (`cms-template-layout.ts`, `pim_ergonode`'s `slugFromSourceCode`) had no fold
+ * step at all — `Żółw` produced `w` and `Świeże Ćwikła` produced `wie-e-wik-a`
+ * — and `check:diacritic-folds` was structurally blind to both, because it
+ * counts folds written *outside* the shared helper and a site that folds
+ * nothing writes none. A shared generator is what makes "does this slug fold?"
+ * a question with one answer.
+ *
+ * The steps, in order:
+ *
+ * 1. **Fold** via `foldDiacritics` — decompose, strip the combining marks, map
+ *    the letters NFD leaves standing, lowercase.
+ * 2. **Collapse** every run of `[^a-z0-9]` to the separator.
+ * 3. **Strip a leading separator**, before the slice — a leading separator can
+ *    never survive, so it must not spend a character of the caller's budget.
+ * 4. **Slice** to `maxLength`, when the caller has one.
+ * 5. **Strip trailing separators**, after the slice — the cut can *create* one,
+ *    which is the whole point (see below).
+ * 6. **Fall back** when nothing survived.
+ *
+ * ## NFD, not NFKD, and that is a decision
+ *
+ * Three of the eight normalised with `NFKD`, which additionally maps the
+ * compatibility characters: `ﬁ` to `fi`, `²` to `2`, the full-width forms to
+ * their ASCII. Those mappings reach a slug **only** through characters that map
+ * *into* `[a-z0-9]`, and none of them is typed into a product name, a feed
+ * template name or a CMS page title. Where one does appear it now collapses to
+ * the separator rather than to a letter, so the slug stays legal and merely
+ * loses a character nobody could see in it. Against that, `ł` was being deleted
+ * out of every Polish name those three touched. The trade was taken for the
+ * admin pair in !753 and holds identically here.
+ *
+ * It has one consequence worth naming: two inputs `NFKD` kept apart can now
+ * fold together (`Kabel²` and `Kabel³` both become `kabel`). Every caller whose
+ * slug is unique-constrained already allocates against the live table —
+ * `CatalogAdminService.allocateUniqueSlug`, `pim_ergonode`'s
+ * `createWithFreeSlug` — so the second one is suffixed rather than rejected,
+ * exactly as two products sharing a plain name already are.
+ *
+ * ## The trailing strip runs after the slice, which is a change for six sites
+ *
+ * Six of the eight stripped **both** edge separators before cutting to length,
+ * so a cut landing on a separator left the slug ending in one:
+ * `...w-wersji-rozszerzona-`. Only `BlockEditor` and `PageEditor` had it right.
+ * This is the one change here that is not about diacritics; it shows only on an
+ * input long enough to be truncated, and it makes the result satisfy the kebab
+ * grammar (`^[a-z0-9]+(?:-[a-z0-9]+)*$`) that `pim_ergonode`'s own doc block
+ * already claimed for it.
+ *
+ * The **leading** strip stays where all eight had it — before the slice — for a
+ * reason that is not symmetry: a leading separator is never part of the answer,
+ * so letting it consume a character of `maxLength` would shorten every slug
+ * whose input begins with punctuation by one, in six sites at once, for no
+ * gain. Only the trailing edge can be *created* by the cut, so only the
+ * trailing strip has to run after it.
+ *
+ * Historical values are **not** migrated (owner's ruling, 2026-08-19,
+ * originally for the admin pair in !753 and extended to the rest): only two
+ * developer environments exist, so re-slugging live rows buys nobody anything,
+ * and every one of these values is computed fresh at create time rather than
+ * re-derived to look an existing row up. New values are correct from here on.
+ *
+ * `normalizeOrganizationName` is **not** a caller and must not become one: it
+ * writes the persisted `organizations.name_search` column, which is a folded
+ * name rather than a slug.
+ */
+export function slugify(input: string, options: SlugifyOptions = {}): string {
+  const separator = options.separator ?? '-';
+  const escaped = escapeForRegExp(separator);
+  const collapsed = foldDiacritics(input)
+    .replace(/[^a-z0-9]+/g, separator)
+    .replace(new RegExp(`^(?:${escaped})+`), '');
+  const sliced = options.maxLength === undefined ? collapsed : collapsed.slice(0, options.maxLength);
+  const trimmed = sliced.replace(new RegExp(`(?:${escaped})+$`), '');
+  return trimmed.length > 0 ? trimmed : (options.fallback ?? '');
 }

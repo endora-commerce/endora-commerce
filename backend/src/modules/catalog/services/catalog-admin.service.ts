@@ -3,6 +3,9 @@ import { randomUUID } from 'crypto';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
+  // Aliased: the private method below keeps the name, so the shared function
+  // needs one the class body cannot shadow.
+  slugify as slugifyText,
   type CatalogAdminAuditContext,
   type CreateAttributeRequest,
   type CreateProductRequest,
@@ -1937,17 +1940,33 @@ export class CatalogAdminService {
     return { attributesAdded, attributesRemoved, valuesPreserved, requiredButMissing };
   }
 
+  /**
+   * A product slug — the value that becomes a storefront URL and sits under
+   * `products.slug`'s unique index. Callers go through `allocateUniqueSlug`,
+   * which allocates against the live table rather than trusting this to be free.
+   *
+   * The fold is `slugify` from `@b2b/contracts`, **imported, never
+   * re-implemented** (issue #245). The private chain this carried normalised
+   * with `NFKD` and stripped the combining marks, which does nothing to `ł` —
+   * U+0142 has no canonical decomposition — so the `[^a-z0-9]+` collapse
+   * deleted it: `Łączniki` produced `aczniki` and `Wiertła` produced `wiert-a`.
+   * Every Polish product name reached the storefront a letter short.
+   *
+   * **The shared fold is NFD, so this gives up NFKD's compatibility mappings**,
+   * and here that is worth stating precisely because the slug is
+   * unique-constrained: two names `NFKD` kept apart can now fold together
+   * (`Kabel²` and `Kabel³` both give `kabel`). It cannot become a constraint
+   * violation — `allocateUniqueSlug` probes the table and suffixes `-2`, `-3`,
+   * … exactly as it already does for two products sharing a plain name — and
+   * the characters that can cause it (`ﬁ`, superscripts, full-width forms) are
+   * not typed into product names, while `ł` is in most of them.
+   *
+   * Slugs already stored are **not** migrated (owner's ruling, 2026-08-19).
+   * Nothing re-derives a slug to find an existing product: this runs on create
+   * and on duplicate, and duplicate re-slugs an already-slugged string.
+   */
   private slugify(value: string): string {
-    // \p{Diacritic} strips combining marks left over from NFKD normalization
-    // so accented Latin characters collapse onto their base letter; non-Latin
-    // characters drop entirely via the [^a-z0-9]+ pass below.
-    return value
-      .toLowerCase()
-      .normalize('NFKD')
-      .replace(/\p{Diacritic}/gu, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 160);
+    return slugifyText(value, { maxLength: 160 });
   }
 
   private anyValue(blob: Record<string, string>): string {
