@@ -113,6 +113,17 @@ function moduleIdForErrorCode(code: ErrorCode): string {
   // switched-off `invoices` does not cost another module its sentence. Keeping
   // the family in one bundle is how the next sentence stops going missing.
   if (code.startsWith('INVOICE_')) return 'invoices';
+  // Issue #231 — the `CART_*` family is exactly three codes (`CART_EMPTY`,
+  // `CART_LINE_CAP_EXCEEDED`, `CART_COUPON_REJECTED`) and `carts` holds a
+  // written sentence for all three in both languages, while `_i18n` held one
+  // for `CART_EMPTY` alone — so the other two rendered as a raw code to the
+  // buyer, and `CART_COUPON_REJECTED`'s seven refusal tokens could not be
+  // reached at all. Same rule as `INVOICE_*` above: the bundle follows the
+  // domain noun, not the thrower, even though `orders` throws `CART_EMPTY` at
+  // checkout. `_i18n`'s stranded `CART_EMPTY` pair is deleted with this line;
+  // routing only the two unreachable codes would split a three-member family
+  // across two bundles, which is the arrangement that hid this.
+  if (code.startsWith('CART_')) return 'carts';
   if (code.startsWith('ASSET_')) return 'assets_library';
   if (code.startsWith('CMS_')) return 'cms';
   if (code.startsWith('MEGAMENU_')) return 'megamenu';
