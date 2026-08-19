@@ -86,7 +86,15 @@ export const manifest = defineModuleManifest({
   // `DefaultPreferencePort`'s contract says its seam does when the owner is
   // off, and because a half-written set of ordering defaults is worse than a
   // refusal.
+  //
+  // Feature 075's Phase-C cut adds `addresses`: the self-service and admin
+  // address panels list the buyer's **organisation's** shared addresses beside
+  // their personal ones, and this module used to query that module's table
+  // itself. It reads `addressReadPort` now. Binding, and unremarkably so —
+  // `addresses` is non-deactivatable, so the edge has no absent state to
+  // declare a degrade for.
   dependencies: [
+    'addresses',
     'auth',
     'custom_fields',
     'customer_accounts',

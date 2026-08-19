@@ -1,16 +1,26 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type CustomerAccountLifecycleWritePort,
+  type CustomerAccountReadPort,
+  type CustomerAccountRecord,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 
 /**
  * CustomerModerationService — block / unblock a Customer account (feature 040,
  * US3). Enforces the staff-authority rules (FR-013/FR-015 via
- * CustomerAuthorityService), revokes sessions on block, records every action
- * in the audit log (FR-017), and guards against stranding an Organization with
- * zero usable admins.
+ * CustomerAuthorityService), revokes sessions on block, and guards against
+ * stranding an Organization with zero usable admins.
+ *
+ * **Feature 075, Phase C — the row is `customer_accounts`'.** This service used
+ * to load and mutate that module's entity and write the audit row for it; both
+ * moved behind `customerAccountLifecycleWritePort`, which records exactly the
+ * same `customer_account.blocked` / `.unblocked` entry (FR-017). What stays is
+ * everything that is a *decision*: whether this staff member may act on this
+ * customer, and whether the block would leave an Organization without an
+ * administrator. The session revocation stays too — it is `auth`'s, and it must
+ * happen after the block is durable rather than inside it.
  */
 export interface SessionRevoker {
   destroyAllForCustomer(customerAccountId: string): Promise<void>;
@@ -40,90 +50,47 @@ export interface UnblockCustomerInput {
   audit?: ModerationAuditMeta;
 }
 
-function snapshot(c: CustomerAccount): Record<string, unknown> {
-  return {
-    blockedAt: c.blockedAt ? c.blockedAt.toISOString() : null,
-    blockSource: c.blockSource ?? null,
-    blockReason: c.blockReason ?? null,
-  };
-}
-
 export class CustomerModerationService {
   constructor(
-    private readonly emFactory: () => EntityManager,
+    private readonly accounts: CustomerAccountReadPort,
+    private readonly accountWrites: CustomerAccountLifecycleWritePort,
     private readonly authority: CustomerAuthorityService,
-    private readonly auditLog: AuditLogService,
     private readonly sessions: SessionRevoker,
   ) {}
 
-  async block(input: BlockCustomerInput): Promise<CustomerAccount> {
-    const em = this.emFactory();
-    const customer = await this.loadActive(em, input.targetCustomerAccountId);
+  async block(input: BlockCustomerInput): Promise<CustomerAccountRecord> {
+    const customer = await this.loadActive(input.targetCustomerAccountId);
     await this.assertAuthorized(input.actor, customer);
 
     if (customer.blockedAt) return customer; // idempotent
 
-    await this.assertWouldNotStrandOrg(em, customer);
+    await this.assertWouldNotStrandOrg(customer);
 
-    const before = snapshot(customer);
-    customer.blockedAt = new Date();
-    customer.blockSource = 'staff';
-    customer.blockedByAdminUserId = input.actor.adminUserId;
-    customer.blockedByCustomerAccountId = null;
-    customer.blockReason = input.reason ?? null;
-    await em.flush();
+    const blocked = await this.accountWrites.block(customer.id, {
+      actorAdminUserId: input.actor.adminUserId,
+      reason: input.reason ?? null,
+      ...(input.audit ? { audit: input.audit } : {}),
+    });
 
     // Revoke active sessions so the block takes effect promptly (SC-002).
     await this.sessions.destroyAllForCustomer(customer.id);
-
-    await this.auditLog.record({
-      actorAdminUserId: input.actor.adminUserId,
-      action: 'customer_account.blocked',
-      objectType: 'customer_account',
-      objectId: customer.id,
-      stateBefore: before,
-      stateAfter: snapshot(customer),
-      ipAddress: input.audit?.ipAddress ?? null,
-      userAgent: input.audit?.userAgent ?? null,
-      requestId: input.audit?.requestId ?? null,
-    });
-    return customer;
+    return blocked;
   }
 
-  async unblock(input: UnblockCustomerInput): Promise<CustomerAccount> {
-    const em = this.emFactory();
-    const customer = await this.loadActive(em, input.targetCustomerAccountId);
+  async unblock(input: UnblockCustomerInput): Promise<CustomerAccountRecord> {
+    const customer = await this.loadActive(input.targetCustomerAccountId);
     await this.assertAuthorized(input.actor, customer);
 
     if (!customer.blockedAt) return customer; // idempotent
 
-    const before = snapshot(customer);
-    customer.blockedAt = null;
-    customer.blockSource = null;
-    customer.blockedByAdminUserId = null;
-    customer.blockedByCustomerAccountId = null;
-    customer.blockReason = null;
-    await em.flush();
-
-    await this.auditLog.record({
+    return this.accountWrites.unblock(customer.id, {
       actorAdminUserId: input.actor.adminUserId,
-      action: 'customer_account.unblocked',
-      objectType: 'customer_account',
-      objectId: customer.id,
-      stateBefore: before,
-      stateAfter: snapshot(customer),
-      ipAddress: input.audit?.ipAddress ?? null,
-      userAgent: input.audit?.userAgent ?? null,
-      requestId: input.audit?.requestId ?? null,
+      ...(input.audit ? { audit: input.audit } : {}),
     });
-    return customer;
   }
 
-  private async loadActive(
-    em: EntityManager,
-    id: string,
-  ): Promise<CustomerAccount> {
-    const customer = await em.findOne(CustomerAccount, { id, deletedAt: null });
+  private async loadActive(id: string): Promise<CustomerAccountRecord> {
+    const customer = await this.accounts.findById(id, { activeOnly: true });
     if (!customer) {
       throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
     }
@@ -132,7 +99,7 @@ export class CustomerModerationService {
 
   private async assertAuthorized(
     actor: ModerationActor,
-    customer: CustomerAccount,
+    customer: CustomerAccountRecord,
   ): Promise<void> {
     const allowed = await this.authority.canManageCustomer({
       isPlatformAdmin: actor.isPlatformAdmin,
@@ -153,18 +120,13 @@ export class CustomerModerationService {
    * of an Organization — that would strand the org with nobody able to manage
    * it (spec edge case "org-owner depletion").
    */
-  private async assertWouldNotStrandOrg(
-    em: EntityManager,
-    customer: CustomerAccount,
-  ): Promise<void> {
+  private async assertWouldNotStrandOrg(customer: CustomerAccountRecord): Promise<void> {
     if (!customer.organizationId || customer.role !== 'organization_admin') return;
-    const remaining = await em.count(CustomerAccount, {
-      organizationId: customer.organizationId,
-      role: 'organization_admin',
-      deletedAt: null,
-      blockedAt: null,
-      id: { $ne: customer.id },
-    });
+    const remaining = await this.accounts.countByOrganizationRole(
+      customer.organizationId,
+      'organization_admin',
+      { excludeCustomerAccountId: customer.id, activeOnly: true, notBlocked: true },
+    );
     if (remaining === 0) {
       throw new HttpError(
         409,

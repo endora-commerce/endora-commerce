@@ -21,13 +21,9 @@ export const entries: Readonly<Record<string, string>> = {
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:custom_fields/services/custom-field-value.service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/plugin.ts:customer_accounts/services/password-reset-service':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:email/services/mailer':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:orders/services/order-list-service':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/plugin.ts:organizations/services/personal-organization-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:quote_requests/services/rfq-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
@@ -39,10 +35,6 @@ export const entries: Readonly<Record<string, string>> = {
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/routes.admin.ts:custom_fields/services/custom-field-value.service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/routes.admin.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/routes.admin.ts:customer_accounts/services/password-reset-service':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/routes.admin.ts:email/services/mailer':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/routes.admin.ts:orders/services/order-list-service':
@@ -51,44 +43,12 @@ export const entries: Readonly<Record<string, string>> = {
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/routes.register.ts:auth/plugin':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/routes.self.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/routes.self.ts:orders/services/order-list-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/routes.self.ts:quote_requests/services/rfq-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/serializers.ts:addresses/entities/address.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-address-service.ts:addresses/entities/address.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-admin-query-service.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/services/customer-admin-query-service.ts:orders/entities/order.entity':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-admin-query-service.ts:organizations/entities/organization.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-admin-query-service.ts:customer_accounts/entities/customer-group.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request. The target module ' +
-    'changed with feature 076 (D-79), which moved `CustomerGroup` to `customer_accounts`; the ' +
-    'import itself is untouched and is retired by `customerGroupReadPort` in that cut.',
-  'modules/customers/services/customer-deletion-service.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-deletion-service.ts:organizations/entities/organization.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-moderation-service.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-org-assignment-service.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-org-assignment-service.ts:organizations/entities/organization.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/services/customer-presence-service.ts:auth/entities/session.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-presence-service.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-registration-service.ts:auth/services/password-hasher':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-registration-service.ts:customer_accounts/entities/customer-account.entity':
-    'F3 Phase C — customers. Retired by the customers cut merge request.',
-  'modules/customers/services/customer-registration-service.ts:organizations/services/personal-organization-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
 };

@@ -15,6 +15,8 @@ import {
 } from '../../../src/modules/customers/services/customer-authority-service.js';
 import { CustomerModerationService } from '../../../src/modules/customers/services/customer-moderation-service.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
+import { customerAccountLifecycleWriteFor } from '../../helpers/customer-account-ports.js';
 
 /**
  * Feature 040, US3 — block/unblock: authority, session revocation, login gate,
@@ -68,9 +70,9 @@ describe('CustomerModerationService', () => {
   function makeService(canSee: boolean): CustomerModerationService {
     const visibility: SalesRepVisibility = { canSeeOrganization: async () => canSee };
     return new CustomerModerationService(
-      () => em,
+      new CustomerAccountReadService(() => em),
+      customerAccountLifecycleWriteFor(() => em, audit),
       new CustomerAuthorityService(visibility),
-      audit,
       sessions,
     );
   }

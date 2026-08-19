@@ -44,7 +44,8 @@ describe('PersonalOrganizationService', () => {
     const account = makeAccount();
     await em.persistAndFlush(account);
 
-    const org = await svc.ensureFor(account, em);
+    const org = await svc.ensureForCustomerAccountId(account.id);
+    await em.refresh(account);
 
     expect(org.isPersonal).toBe(true);
     expect(org.status).toBe('active');
@@ -58,8 +59,9 @@ describe('PersonalOrganizationService', () => {
     const account = makeAccount();
     await em.persistAndFlush(account);
 
-    const first = await svc.ensureFor(account, em);
-    const second = await svc.ensureFor(account, em);
+    const first = await svc.ensureForCustomerAccountId(account.id);
+    const second = await svc.ensureForCustomerAccountId(account.id);
+    await em.refresh(account);
 
     // Idempotent: the same org is returned, and the account still points to it.
     expect(second.id).toBe(first.id);
@@ -69,14 +71,14 @@ describe('PersonalOrganizationService', () => {
   it('names the org from the email local-part when no first/last name', async () => {
     const account = makeAccount({ firstName: '', lastName: '', email: 'solo@ex.test' });
     await em.persistAndFlush(account);
-    const org = await svc.ensureFor(account, em);
+    const org = await svc.ensureForCustomerAccountId(account.id);
     expect(org.name).toBe('solo');
   });
 
   it('rejects attaching a second member to a personal org (single-member invariant)', async () => {
     const a1 = makeAccount();
     await em.persistAndFlush(a1);
-    const org = await svc.ensureFor(a1, em);
+    const org = await svc.ensureForCustomerAccountId(a1.id);
 
     await expect(svc.assertMembershipAllowed(org.id, em)).rejects.toThrow(/single-member/);
   });

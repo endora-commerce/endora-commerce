@@ -4,6 +4,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { CustomerAddressService } from '../../../src/modules/customers/services/customer-address-service.js';
 import { CustomerAddress } from '../../../src/modules/customers/entities/customer-address.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { AddressReadService } from '../../../src/modules/addresses/services/address-ports.js';
 
 /**
  * Feature 040, US2 — personal address book: one-default-per-(customer, kind)
@@ -21,7 +22,9 @@ describe('CustomerAddressService', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    service = new CustomerAddressService(() => em);
+    // The real `addresses` read port, not a stub: the org-shared half of this
+    // service is now a call through it (feature 075).
+    service = new CustomerAddressService(() => em, new AddressReadService(() => em));
     const c = em.create(CustomerAccount, {
       email: `addr-${Date.now()}-${Math.floor(performance.now())}@example.test`,
       passwordHash: 'x'.repeat(32),

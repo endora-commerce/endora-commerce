@@ -8,10 +8,12 @@ import {
   customFieldValuesSchema,
   validateCustomerVatRequestSchema,
   ERROR_CODES,
+  type CustomerAccountLifecycleWritePort,
+  type CustomerAccountReadPort,
   type VatValidator,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import type { Command, CommandBus } from '../../commands/index.js';
+import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 import {
   CustomFieldValidationError,
   type CustomFieldValueService,
@@ -23,7 +25,7 @@ import type { CustomerOrgAssignmentService } from './services/customer-org-assig
 import type { CustomerDeletionService } from './services/customer-deletion-service.js';
 import type { CustomerPresenceService } from './services/customer-presence-service.js';
 import type { CustomerAddressService } from './services/customer-address-service.js';
-import type { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
+import type { CustomerPasswordResetPort } from '@b2b/contracts';
 import type { Mailer } from '../email/services/mailer.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import {
@@ -34,8 +36,6 @@ import type { ImpersonationService } from '../admin_users/services/impersonation
 import type { CartQueryService } from '../carts/services/cart-query-service.js';
 import type { OrderListService } from '../orders/services/order-list-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
-import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
-import type { EntityManager } from '@mikro-orm/postgresql';
 
 const ADMIN_SHADOW_COOKIE = 'admin_shadow_session';
 
@@ -72,7 +72,13 @@ export type ResolveModerationActor = (
 }>;
 
 export interface CustomersAdminDeps {
-  emFactory: () => EntityManager;
+  /**
+   * Feature 075 — `customer_accounts`' published read and lifecycle write,
+   * where this file used to load and patch that module's entity through an
+   * `EntityManager` it no longer needs at all.
+   */
+  accounts: CustomerAccountReadPort;
+  accountWrites: CustomerAccountLifecycleWritePort;
   requireAdmin: RequireAdminGuard;
   resolveModerationActor: ResolveModerationActor;
   moderationService: CustomerModerationService;
@@ -87,14 +93,16 @@ export interface CustomersAdminDeps {
   impersonationService: ImpersonationService;
   deletionService: CustomerDeletionService;
   presenceService: CustomerPresenceService;
-  passwordResetService: PasswordResetService;
+  passwordResetService: CustomerPasswordResetPort;
   mailer: Mailer;
   auditLogService: AuditLogService;
   storefrontBaseUrl: string;
-  /** Feature 055 — validates + persists Customer custom-field values (via the Command Bus). */
+  /**
+   * Feature 055 — validates Customer custom-field values. It no longer
+   * persists them: `customer_accounts` owns the row, so its lifecycle port
+   * runs the Command and this validator is the merge that port is handed.
+   */
   customFieldValues?: CustomFieldValueService;
-  /** Feature 055 — audits the custom-field write co-transactionally when provided. */
-  commandBus?: CommandBus;
 }
 
 export async function registerCustomersAdminRoutes(
@@ -102,44 +110,36 @@ export async function registerCustomersAdminRoutes(
   deps: CustomersAdminDeps,
 ): Promise<void> {
   const { requireAdmin, resolveModerationActor, moderationService } = deps;
-  const { impersonationService, queryService } = deps;
+  const { impersonationService, queryService, accounts, accountWrites } = deps;
   const customFieldValues = deps.customFieldValues;
-  const commandBus = deps.commandBus;
 
-  // PATCH /api/v1/admin/customers/:id/custom-fields (feature 055). Audited via
-  // the Command Bus (Principle XIII); validation may reject with a 422.
-  if (customFieldValues && commandBus) {
+  // PATCH /api/v1/admin/customers/:id/custom-fields (feature 055).
+  //
+  // Feature 075 — the row is `customer_accounts`', so the Command that writes
+  // it and the audit row it carries are on that side of the port. What stays
+  // here is the merge: this surface owns the screen and resolves
+  // `custom_fields`' validator, and the merge has to run between the owner's
+  // load and its write or a concurrent patch is lost. Hence the callback.
+  if (customFieldValues) {
     app.patch<{ Params: { id: string } }>(
       '/api/v1/admin/customers/:id/custom-fields',
       { preHandler: requireAdmin('customers:manage'), schema: { body: customFieldValuesSchema } },
       async (request) => {
         const patch = customFieldValuesSchema.parse(request.body);
         const id = request.params.id;
-        const command: Command<CustomerAccount> = {
-          action: 'customer.custom_fields.update',
-          objectType: 'customer_account',
-          objectId: id,
-          capture: async ({ em }) => {
-            const c = await em.findOne(CustomerAccount, { id });
-            return c ? { customFieldValues: c.customFieldValues ?? {} } : null;
-          },
-          run: async ({ em }) => {
-            const customer = await em.findOne(CustomerAccount, { id });
-            if (!customer) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer not found.');
-            customer.customFieldValues = await customFieldValues.validateAndMerge(
-              'customer',
-              customer.customFieldValues ?? {},
-              patch,
-            );
-            return { result: customer, after: { customFieldValues: customer.customFieldValues } };
-          },
-        };
         try {
-          await commandBus.run(command);
+          await accountWrites.setCustomFieldValues(id, (current) =>
+            customFieldValues.validateAndMerge('customer', current, patch),
+          );
           const detail = await queryService.getDetail(id);
           if (!detail) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer not found.');
           return { data: detail };
         } catch (err) {
+          // The tolerance is narrow and one-shot: a rejected custom-field patch
+          // is a 422 and nothing else here is. `rethrowIfModuleDisabled` comes
+          // first so a switched-off owner keeps failing closed instead of being
+          // laundered into a validation error (AGENTS.md composition item 7).
+          rethrowIfModuleDisabled(err);
           if (err instanceof CustomFieldValidationError) {
             throw new HttpError(
               422,
@@ -351,7 +351,7 @@ export async function registerCustomersAdminRoutes(
     { preHandler: requireAdmin('customers:read') },
     async (request) => {
       await resolveModerationActor(request);
-      const customer = await deps.emFactory().findOne(CustomerAccount, { id: request.params.id });
+      const customer = await accounts.findById(request.params.id);
       const personal = await deps.addressService.listPersonal(request.params.id);
       const organization =
         customer?.organizationId == null
@@ -432,7 +432,7 @@ export async function registerCustomersAdminRoutes(
     { preHandler: requireAdmin('customers:read') },
     async (request) => {
       await resolveModerationActor(request);
-      const customer = await deps.emFactory().findOne(CustomerAccount, { id: request.params.id });
+      const customer = await accounts.findById(request.params.id);
       const data = await deps.rfqService.listForCustomer({
         customerAccountId: request.params.id,
         organizationId: customer?.organizationId ?? '',
@@ -469,9 +469,7 @@ export async function registerCustomersAdminRoutes(
     { preHandler: requireAdmin('customers:manage') },
     async (request, reply) => {
       const actor = await resolveModerationActor(request);
-      const customer = await deps
-        .emFactory()
-        .findOne(CustomerAccount, { id: request.params.id, deletedAt: null });
+      const customer = await accounts.findById(request.params.id, { activeOnly: true });
       if (!customer) {
         reply.code(404);
         return { error: { code: 'CUSTOMER_NOT_FOUND', message: 'Customer not found.' } };

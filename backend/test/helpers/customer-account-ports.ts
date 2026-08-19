@@ -1,9 +1,20 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomerAccountMemberWritePort, CustomerAccountReadPort } from '@b2b/contracts';
+import type {
+  CustomerAccountAdminSearchPort,
+  CustomerAccountLifecycleWritePort,
+  CustomerAccountMemberWritePort,
+  CustomerAccountReadPort,
+} from '@b2b/contracts';
+import type { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../src/commands/index.js';
 import {
   CustomerAccountMemberWriteService,
   CustomerAccountReadService,
 } from '../../src/modules/customer_accounts/services/customer-account-ports.js';
+import {
+  CustomerAccountAdminSearchService,
+  CustomerAccountLifecycleWriteService,
+} from '../../src/modules/customer_accounts/services/customer-account-lifecycle-ports.js';
 
 /**
  * The two `customer_accounts` ports a hand-built `organizations` service needs
@@ -23,4 +34,24 @@ export function customerAccountPortsFor(emFactory: () => EntityManager): {
     read: new CustomerAccountReadService(emFactory),
     write: new CustomerAccountMemberWriteService(emFactory),
   };
+}
+
+/**
+ * The account lifecycle port `customers`' hand-built services need
+ * (feature 075, Phase C) — again the real implementation, for the reason
+ * above: it is where the audit row for a block, a delete or a scrub is
+ * written, so a stub here would make every one of those assertions vacuous.
+ */
+export function customerAccountLifecycleWriteFor(
+  emFactory: () => EntityManager,
+  auditLog: AuditLogService,
+  commandBus?: CommandBus,
+): CustomerAccountLifecycleWritePort {
+  return new CustomerAccountLifecycleWriteService(emFactory, auditLog, commandBus);
+}
+
+export function customerAccountAdminSearchFor(
+  emFactory: () => EntityManager,
+): CustomerAccountAdminSearchPort {
+  return new CustomerAccountAdminSearchService(emFactory);
 }

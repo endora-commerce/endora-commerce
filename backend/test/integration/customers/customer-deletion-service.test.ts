@@ -10,7 +10,13 @@ import { Organization } from '../../../src/modules/organizations/entities/organi
 import { CustomerAuthorityService } from '../../../src/modules/customers/services/customer-authority-service.js';
 import { CustomerDeletionService } from '../../../src/modules/customers/services/customer-deletion-service.js';
 import { PersonalOrganizationService } from '../../../src/modules/organizations/services/personal-organization-service.js';
+import { toOrganizationRecord } from '../../../src/modules/organizations/services/organization-details-port.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import {
+  customerAccountLifecycleWriteFor,
+  customerAccountPortsFor,
+} from '../../helpers/customer-account-ports.js';
+import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
 
 /**
  * Feature 040, US7 — soft-delete, restore within window, and the permanent
@@ -21,6 +27,7 @@ describe('CustomerDeletionService', () => {
   let em: EntityManager;
   let redis: Redis;
   let svc: CustomerDeletionService;
+  let personalOrgs: PersonalOrganizationService;
   const actor = { adminUserId: '00000000-0000-4000-8000-00000000b001', isPlatformAdmin: true };
 
   beforeAll(async () => {
@@ -32,11 +39,25 @@ describe('CustomerDeletionService', () => {
   beforeEach(async () => {
     em = await db.beginTx();
     const sessions = new SessionService(() => em, redis);
-    svc = new CustomerDeletionService(
+    const audit = new AuditLogService(() => em);
+    personalOrgs = new PersonalOrganizationService(
       () => em,
+      customerAccountPortsFor(() => em),
+      audit,
+    );
+    svc = new CustomerDeletionService(
+      new CustomerAccountReadService(() => em),
+      customerAccountLifecycleWriteFor(() => em, audit),
+      {
+        ensureForCustomerAccount: async (id) =>
+          toOrganizationRecord(await personalOrgs.ensureForCustomerAccountId(id)),
+        anonymizeIfOrphaned: async (id) => {
+          const org = await personalOrgs.anonymizeIfOrphaned(id);
+          return org ? toOrganizationRecord(org) : null;
+        },
+      },
       new CustomerAuthorityService({ canSeeOrganization: async () => true }),
-      new AuditLogService(() => em),
-      { destroyAllForCustomer: (id) => sessions.destroyAllForCustomer(id) },
+      { destroyAllForCustomer: (id: string) => sessions.destroyAllForCustomer(id) },
     );
   });
 
@@ -112,8 +133,8 @@ describe('CustomerDeletionService', () => {
 
   it('cascades anonymization to the customer’s orphaned personal org (feature 051 T025)', async () => {
     const c = await makeCustomer();
-    const org = await new PersonalOrganizationService(() => em).ensureFor(c, em);
-    await em.flush();
+    const org = await personalOrgs.ensureForCustomerAccountId(c.id);
+    await em.refresh(c);
     expect(org.isPersonal).toBe(true);
 
     await svc.softDelete(c.id, actor);
