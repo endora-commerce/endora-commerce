@@ -10,6 +10,7 @@ import type { PromotionService } from '../../../src/modules/promotions/services/
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { Promotion } from '../../../src/modules/promotions/entities/promotion.entity.js';
 
 /**
  * Issue #251 — the four gates four optional constructor arguments used to
@@ -47,6 +48,7 @@ describe('PromotionService — the gates its optional arguments used to skip (is
   let otherChannelId: string;
 
   const PRODUCT_A = '00000000-0000-4000-8000-000000000001';
+  const NAME_PREFIX = 'issue 251 — ';
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -87,9 +89,15 @@ describe('PromotionService — the gates its optional arguments used to skip (is
     await teardownBackendServer(h);
   });
 
+  /**
+   * Scoped to this suite's own rows, not `truncate promotions cascade` (issue
+   * #166): the table is shared, and a wipe would make every assertion below a
+   * claim about the platform rather than about the promotion the test wrote.
+   * `sales_channel_promotions_promotion_fk` is `on delete cascade`, so the
+   * channel bindings go with them.
+   */
   beforeEach(async () => {
-    // Cascades to `sales_channel_promotions`, clearing prior bindings.
-    await h.em().getConnection().execute('truncate table promotions cascade');
+    await h.em().nativeDelete(Promotion, { name: { $like: `${NAME_PREFIX}%` } });
   });
 
   function snapshot(overrides: Partial<CartSnapshot> = {}): CartSnapshot {
@@ -112,9 +120,14 @@ describe('PromotionService — the gates its optional arguments used to skip (is
     };
   }
 
+  /** Which of `applyToCart`'s applications is the promotion this test wrote. */
+  function appliedIds(application: { appliedPromotions: Array<{ promotionId: string }> }): string[] {
+    return application.appliedPromotions.map((p) => p.promotionId);
+  }
+
   it('refuses an org-targeted promotion to a blocked Organization', async () => {
-    await svc.upsert({
-      name: '10% off for the blocked org',
+    const promo = await svc.upsert({
+      name: `${NAME_PREFIX}10% off for the blocked org`,
       kind: 'percentage_off',
       value: 10,
       organizationId: blockedOrgId,
@@ -122,30 +135,42 @@ describe('PromotionService — the gates its optional arguments used to skip (is
 
     const result = await svc.applyToCart(snapshot({ organizationId: blockedOrgId }));
 
-    expect(result.discountTotal).toBe(0);
-    expect(result.appliedPromotions).toEqual([]);
+    expect(appliedIds(result)).not.toContain(promo.id);
   });
 
   it('applies a channel-scoped promotion in its own channel and nowhere else', async () => {
     // `upsert` binds a new promotion to the system-default channel; the other
     // channel is one it was never bound to.
-    await svc.upsert({ name: '10% off in the default channel', kind: 'percentage_off', value: 10 });
+    const promo = await svc.upsert({
+      name: `${NAME_PREFIX}10% off in the default channel`,
+      kind: 'percentage_off',
+      value: 10,
+    });
 
     const inOwnChannel = await svc.applyToCart(snapshot({ salesChannelId: defaultChannelId }));
-    expect(inOwnChannel.discountTotal).toBe(10);
+    expect(appliedIds(inOwnChannel)).toContain(promo.id);
 
     const elsewhere = await svc.applyToCart(snapshot({ salesChannelId: otherChannelId }));
-    expect(elsewhere.discountTotal).toBe(0);
+    expect(appliedIds(elsewhere)).not.toContain(promo.id);
   });
 
   it('refuses a promotion whose currency is not a known dictionary entry', async () => {
     await expect(
-      svc.upsert({ name: '50 ZZZ off', kind: 'amount_off', value: 50, currency: 'ZZZ' }),
+      svc.upsert({
+        name: `${NAME_PREFIX}50 ZZZ off`,
+        kind: 'amount_off',
+        value: 50,
+        currency: 'ZZZ',
+      }),
     ).rejects.toMatchObject({ statusCode: 409, code: 'DICTIONARY_ENTRY_NOT_FOUND' });
   });
 
   it('records an audit row for a promotion write', async () => {
-    const promo = await svc.upsert({ name: 'Audited promotion', kind: 'percentage_off', value: 5 });
+    const promo = await svc.upsert({
+      name: `${NAME_PREFIX}audited promotion`,
+      kind: 'percentage_off',
+      value: 5,
+    });
 
     const entries = await h
       .em()
