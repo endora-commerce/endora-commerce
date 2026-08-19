@@ -14,6 +14,7 @@ import { Asset } from '../../../src/modules/assets_library/entities/asset.entity
 import { CmsPage } from '../../../src/modules/cms/entities/cms-page.entity.js';
 import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
 import { AssetsLibraryService } from '../../../src/modules/assets_library/services/assets-library.service.js';
+import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';
 
 /**
  * D-68 — an asset a **switched-off** `cms` still references cannot be deleted.
@@ -102,6 +103,12 @@ describe('an asset a deactivated cms still references cannot be deleted (D-68)',
       emFactory: () => h.em(),
       redis: h.redis,
       assetReferenceRegistry: registry,
+      // `languages` owns `languageReferenceRegistry` and is not composed here,
+      // so the root supplies it exactly as it supplies `assets_library`'. Same
+      // shape of contribution and same reason it must survive deactivation: a
+      // deactivated page still lists language codes, so `languages` must still
+      // refuse to delete one out from under it (feature 077, D-87).
+      languageReferenceRegistry: new LanguageReferenceRegistry(),
     });
     const composed = composeModules([{ id: 'cms', version: '1.0.0', registerModule }], {
       container,
