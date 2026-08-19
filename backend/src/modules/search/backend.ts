@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  CatalogCategoryReadPort,
   CatalogProductReadPort,
   ListingPricePort,
   OrganizationDetailsPort,
@@ -8,6 +9,7 @@ import type {
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { createSearchQueryPort } from './services/search-query-port.js';
 import { createSuggestionPricingEnricher } from './services/suggestion-pricing-enricher.js';
 import type { SuggestionPriceResolverPort } from './services/suggestion-pricing-enricher.js';
@@ -95,6 +97,16 @@ export function registerModule(ctx: ModuleContext): void {
           // can see; over the port the read answers 503 when `catalog` is off,
           // which is the binding dependency this manifest already declares.
           catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+          // Feature 075 / D-87 — the last two boundary crossings the indexer
+          // made in raw SQL: `catalog`'s `product_categories` / `categories`
+          // join, and the `sales_channel_products` bridge Principle XII
+          // reserves for the membership accessor. A statement names no import
+          // specifier, so neither was visible to Phase C.
+          catalogCategories: lazyPort<CatalogCategoryReadPort>(ctx, 'catalogCategoryReadPort'),
+          salesChannelMembership: lazyPort<SalesChannelMembershipPort>(
+            ctx,
+            'salesChannelMembershipPort',
+          ),
           settingsService: lazyPort<SearchModuleOptions['settingsService']>(
             ctx,
             'settingsReadPort',

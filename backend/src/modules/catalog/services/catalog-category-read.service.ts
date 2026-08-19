@@ -1,5 +1,9 @@
 import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
-import type { CatalogCategoryReadPort, CatalogCategoryRecord } from '@b2b/contracts';
+import type {
+  CatalogCategoryAssignmentRecord,
+  CatalogCategoryReadPort,
+  CatalogCategoryRecord,
+} from '@b2b/contracts';
 import { Category } from '../entities/category.entity.js';
 
 /**
@@ -86,6 +90,61 @@ export class CatalogCategoryReadService implements CatalogCategoryReadPort {
       cursorId = cursor.parentCategoryId ?? null;
     }
     return chain;
+  }
+
+  /**
+   * Feature 075 / D-87 — the `product_categories` bridge, which has no entity
+   * class and was therefore joined in raw SQL by whoever needed it. `search`
+   * ran this statement three times from inside its indexer.
+   *
+   * `em.execute` rather than `getConnection().execute`: the two are the same
+   * outside a transaction and only the first joins one when the caller has it
+   * open (issue #200).
+   */
+  async listAssignmentsForProducts(
+    productIds: readonly string[],
+    options?: { activeOnly?: boolean },
+  ): Promise<CatalogCategoryAssignmentRecord[]> {
+    if (productIds.length === 0) return [];
+    const placeholders = productIds.map(() => '?').join(',');
+    const activeFilter = options?.activeOnly === true ? ' and c.is_active = true' : '';
+    const rows = await this.emFactory().execute<
+      Array<{ product_id: string; category_id: string; slug: string }>
+    >(
+      `select pc.product_id, pc.category_id, c.slug
+         from product_categories pc
+         join categories c on c.id = pc.category_id
+        where pc.product_id in (${placeholders})${activeFilter}`,
+      [...productIds],
+    );
+    return rows.map((row) => ({
+      productId: row.product_id,
+      categoryId: row.category_id,
+      slug: row.slug,
+    }));
+  }
+
+  /**
+   * One recursive query rather than a query per level: a subtree re-projection
+   * runs on every category write, and the depth of the tree is data.
+   *
+   * No `is_active` / `deleted_at` filter anywhere in the walk — see the port's
+   * contract. The caller re-projects *because* a category changed, and a
+   * deactivation is the change that matters most.
+   */
+  async listProductIdsInSubtree(categoryId: string): Promise<string[]> {
+    const rows = await this.emFactory().execute<Array<{ product_id: string }>>(
+      `with recursive subtree as (
+           select id from categories where id = ?
+            union all
+           select c.id from categories c join subtree s on c.parent_category_id = s.id
+         )
+         select distinct pc.product_id
+           from product_categories pc
+           join subtree s on s.id = pc.category_id`,
+      [categoryId],
+    );
+    return rows.map((row) => row.product_id);
   }
 }
 

@@ -111,8 +111,32 @@ function refusingEm(): EntityManager {
   return {
     findOne: async (entity: { name?: string }) => refuse(entity),
     find: async (entity: { name?: string }) => refuse(entity),
-    getConnection: () => ({ execute: async () => [] }),
+    // A raw statement is refused rather than answered with `[]`: this module's
+    // remaining boundary crossings were SQL (D-87), and a fake that hands back
+    // "no rows" hides the crossing instead of failing on it.
+    execute: async (sql: string) => {
+      throw new Error(`search ran raw SQL across a module boundary: ${sql}`);
+    },
+    getConnection: () => ({
+      execute: async (sql: string) => {
+        throw new Error(`search ran raw SQL across a module boundary: ${sql}`);
+      },
+    }),
   } as unknown as EntityManager;
+}
+
+/**
+ * A port that must not be consulted on the path under test. It answers with a
+ * throw rather than an empty result: "nobody asked" and "the owner had nothing"
+ * are different facts, and a stub that renders the first as the second is the
+ * fixture-substitution shape `check:fixture-substitution` refuses.
+ */
+function notReached<T>(name: string): T {
+  return new Proxy({} as object, {
+    get: (_target, property) => () => {
+      throw new Error(`search reached ${name}.${String(property)} on a path that must not`);
+    },
+  }) as T;
 }
 
 const attributeRead = {
@@ -134,7 +158,14 @@ describe('search — the catalog and organizations reads go through ports', () =
       listValueOverridesByProductIds: async () => [],
     } as unknown as CatalogProductReadPort;
 
-    const indexer = new SearchIndexer({ attributeRead, products });
+    const indexer = new SearchIndexer({
+      attributeRead,
+      products,
+      // Neither is reached: the product read answers "no such product" and
+      // `upsertProduct` returns before it asks anyone else anything.
+      categories: notReached('catalogCategoryReadPort'),
+      channelMembership: notReached('salesChannelMembershipPort'),
+    });
     // The port answers "no such product", so the method returns before it
     // reaches Meilisearch — which is exactly the reach this case needs, since
     // the read under test happens first.

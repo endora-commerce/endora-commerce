@@ -3,11 +3,13 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type {
   CatalogAttributeReadPort,
+  CatalogCategoryReadPort,
   CatalogProductReadPort,
   ListingPricePort,
   SettingsAdminAuditContext,
   SettingsAdminPort,
 } from '@b2b/contracts';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { SearchIndexer } from './services/search-indexer.js';
 import { SearchEventSubscriber } from './services/search-event-subscriber.js';
 import { SearchQueryService } from './services/search-query.service.js';
@@ -85,6 +87,19 @@ export interface SearchModuleOptions {
    */
   catalogProducts: CatalogProductReadPort;
   /**
+   * Feature 075 / D-87 — the category assignments and the category subtree the
+   * indexer projects, read over `catalog`'s published port instead of out of
+   * its `product_categories` / `categories` tables. Same binding `catalog`
+   * dependency as `catalogProducts`, and the same answer when it is off.
+   */
+  catalogCategories: CatalogCategoryReadPort;
+  /**
+   * The `sales_channel_products` bridge, through the sanctioned accessor
+   * (Constitution XII). Kernel-composed, so it is present for as long as the
+   * platform is.
+   */
+  salesChannelMembership: SalesChannelMembershipPort;
+  /**
    * Universal-getter for Settings. Backs the suggest service's per-channel
    * popup-count + minimum-query-length, the `settings.value_changed` →
    * embedder reactor, and the reindex interval.
@@ -155,6 +170,8 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
   const indexer = new SearchIndexer({
     attributeRead: options.catalogAttributeRead,
     products: options.catalogProducts,
+    categories: options.catalogCategories,
+    channelMembership: options.salesChannelMembership,
   });
   // Handlers only: `backend.ts` registers them through `ctx.subscribe`, which
   // is what makes this module's effective state decide whether they run.

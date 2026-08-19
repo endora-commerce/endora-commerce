@@ -1643,6 +1643,19 @@ export interface CatalogCategoryRecord {
   deletedAt: Date | null;
 }
 
+/**
+ * One `product ↔ category` assignment, with the category's slug alongside.
+ *
+ * The slug rides on the row because every caller that reads assignments in
+ * bulk is building a projection keyed by product — a search document, a feed
+ * line — and would otherwise follow every assignment with a category lookup.
+ */
+export interface CatalogCategoryAssignmentRecord {
+  productId: string;
+  categoryId: string;
+  slug: string;
+}
+
 /** A configurable product's variant row. */
 export interface CatalogProductVariantRecord {
   id: string;
@@ -1803,6 +1816,35 @@ export interface CatalogCategoryReadPort {
    * is bounded anyway, because a corrupt `parent_id` should not hang a request.
    */
   ancestorsOf(categoryId: string): Promise<CatalogCategoryRecord[]>;
+
+  /**
+   * The category assignments of the given products (feature 075 / D-87).
+   *
+   * `product_categories` is a `catalog` table with no entity class, so the two
+   * modules that needed it joined it in raw SQL — a boundary crossing that
+   * names no import specifier and therefore compiled, gated by nothing.
+   *
+   * `activeOnly` drops assignments to a deactivated category. That is the
+   * narrowing a customer-facing projection wants and the reason the option
+   * exists rather than a hidden filter: an inactive category left in a search
+   * document keeps working as a storefront PLP filter.
+   */
+  listAssignmentsForProducts(
+    productIds: readonly string[],
+    options?: { activeOnly?: boolean },
+  ): Promise<CatalogCategoryAssignmentRecord[]>;
+
+  /**
+   * Distinct ids of the products assigned to `categoryId` or to any category
+   * below it.
+   *
+   * The walk is **structural**: it filters neither `isActive` nor `deletedAt`.
+   * The caller is re-projecting a subtree because a category just changed, and
+   * the change that matters most is a deactivation — narrowing to live rows
+   * would return nothing exactly when the stale projections need rewriting.
+   * A caller that wants the live set narrows the rows it gets back.
+   */
+  listProductIdsInSubtree(categoryId: string): Promise<string[]>;
 }
 
 // --- the bulk import surface -------------------------------------------------

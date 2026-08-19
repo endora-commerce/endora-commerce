@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CatalogProductReadPort } from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -8,6 +7,7 @@ import {
 import { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Meilisearch } from 'meilisearch';
+import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.js';
 
 /**
  * Feature 012 / T050 — Search indexer payload widening (US7).
@@ -28,17 +28,6 @@ import { Meilisearch } from 'meilisearch';
 
 const meilisearchHost = process.env['MEILISEARCH_URL'] ?? 'http://localhost:7700';
 const meilisearchKey = process.env['MEILISEARCH_API_KEY'] ?? 'devMasterKeyChangeMe';
-
-/**
- * The container's `catalogProductReadPort` — feature 075, Phase C. The indexer
- * takes `catalog`'s published read port instead of querying its table, so a
- * hand-built indexer here resolves the same registration the composed module
- * does rather than a second reader of the same rows.
- */
-function catalogProductReadPort(handle: BackendServerHandle): CatalogProductReadPort {
-  return (handle.container.cradle as never as { catalogProductReadPort: CatalogProductReadPort })
-    .catalogProductReadPort;
-}
 
 describe('SearchIndexer — feature 012 searchableOptions payload (T050)', () => {
   let h: BackendServerHandle;
@@ -74,7 +63,7 @@ describe('SearchIndexer — feature 012 searchableOptions payload (T050)', () =>
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
       attributeRead: h.catalogAttributeRead,
-      products: catalogProductReadPort(h),
+      ...searchIndexerNeighbourPorts(h),
     });
     const em = h.em();
     const channels = await em.find(SalesChannel, {});

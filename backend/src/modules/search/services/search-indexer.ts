@@ -4,12 +4,14 @@ import {
   resolveAttribute,
   SYSTEM_ATTRIBUTE_SCOPES,
   type CatalogAttributeReadPort,
+  type CatalogCategoryReadPort,
   type CatalogProductReadPort,
   type CatalogProductRecord,
   type CatalogProductValueOverrideRecord,
   type OverrideRow,
   type ResolverContext,
 } from '@b2b/contracts';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 
 /**
@@ -29,6 +31,14 @@ import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entit
  */
 
 const FALLBACK_LOCALE = 'en-US';
+
+/**
+ * How many member ids one `listEntityIdsForChannel` page carries. The accessor
+ * is paginated and defaults to 100; a full channel reindex wants the whole
+ * assortment, so the pages are walked to `total` — the shape `seo`'s sitemap
+ * generator settled on for the same read.
+ */
+const MEMBERSHIP_PAGE_SIZE = 500;
 
 export interface SearchIndexerOptions {
   meilisearchHost?: string;
@@ -56,6 +66,24 @@ export interface SearchIndexerOptions {
    * the binding `catalog` dependency this module's manifest declares.
    */
   products: CatalogProductReadPort;
+  /**
+   * Feature 075 / D-87 — the `product ↔ category` assignments and the category
+   * subtree an index document projects.
+   *
+   * They were three raw joins over `catalog`'s `product_categories` and
+   * `categories` from inside this file. Raw SQL names no import specifier, so
+   * Phase C's port conversion walked straight past them and they kept
+   * answering with `catalog` switched off, exactly as the entity reads had.
+   */
+  categories: CatalogCategoryReadPort;
+  /**
+   * The `sales_channel_products` bridge, through the accessor Principle XII
+   * reserves it for. Two statements here read the table directly — the
+   * membership of one product, and the assortment of one channel joined to
+   * `products` — which is the clause `SalesChannelMembershipPort`'s own doc
+   * comment states and the sweep found this module breaking.
+   */
+  channelMembership: SalesChannelMembershipPort;
 }
 
 export interface IndexedDocument {
@@ -94,6 +122,8 @@ export class SearchIndexer {
   private readonly locale: string;
   private readonly attributeRead: CatalogAttributeReadPort;
   private readonly products: CatalogProductReadPort;
+  private readonly categories: CatalogCategoryReadPort;
+  private readonly channelMembership: SalesChannelMembershipPort;
 
   constructor(options: SearchIndexerOptions) {
     const host =
@@ -108,6 +138,8 @@ export class SearchIndexer {
     this.locale = options.locale ?? FALLBACK_LOCALE;
     this.attributeRead = options.attributeRead;
     this.products = options.products;
+    this.categories = options.categories;
+    this.channelMembership = options.channelMembership;
   }
 
   /**
@@ -124,28 +156,23 @@ export class SearchIndexer {
     const indexUid = indexUidFor(channel);
     const index = await this.ensureIndex(indexUid);
 
-    const productIds = await this.productIdsInChannel(em, channel.id);
-    // The channel query above has already narrowed to publishable rows, so the
-    // port is asked for the wider read it defaults to — the same set the
-    // `em.find(Product, { id: { $in: … } })` this replaced returned.
-    const products = await this.products.findByIds(productIds);
-    const categoryRows = await em
-      .getConnection()
-      .execute<Array<{ product_id: string; category_id: string; slug: string }>>(
-        // Feature 068 — an inactive category must not survive in the indexed
-        // `categorySlugs`, or it keeps working as a storefront PLP filter.
-        `select pc.product_id, pc.category_id, c.slug
-           from product_categories pc
-           join categories c on c.id = pc.category_id
-          where c.is_active = true
-            and pc.product_id in (${productIds.length === 0 ? 'null' : productIds.map(() => '?').join(',')})`,
-        productIds,
-      );
+    // The membership accessor answers which products the channel carries; the
+    // publishable narrowing that used to ride along in the same join is now
+    // `isPublishable`, the one predicate the incremental upsert already used.
+    // Two owners, two reads, one definition of publishable.
+    const memberIds = await this.channelMemberProductIds(channel.id);
+    const products = (await this.products.findByIds(memberIds)).filter(isPublishable);
+    const productIds = products.map((p) => p.id);
+    // Feature 068 — an inactive category must not survive in the indexed
+    // `categorySlugs`, or it keeps working as a storefront PLP filter.
+    const categoryRows = await this.categories.listAssignmentsForProducts(productIds, {
+      activeOnly: true,
+    });
     const categoriesByProduct = new Map<string, Array<{ id: string; slug: string }>>();
     for (const row of categoryRows) {
-      const list = categoriesByProduct.get(row.product_id) ?? [];
-      list.push({ id: row.category_id, slug: row.slug });
-      categoriesByProduct.set(row.product_id, list);
+      const list = categoriesByProduct.get(row.productId) ?? [];
+      list.push({ id: row.categoryId, slug: row.slug });
+      categoriesByProduct.set(row.productId, list);
     }
 
     // Feature 012 / FR-035 — pre-load every searchable select-style
@@ -216,26 +243,15 @@ export class SearchIndexer {
     if (!product) return [];
 
     const channels = await em.find(SalesChannel, {});
-    const linkRows = await em
-      .getConnection()
-      .execute<Array<{ sales_channel_id: string }>>(
-        `select sales_channel_id from sales_channel_products where product_id = ?`,
-        [productId],
-      );
-    const linkedChannelIds = new Set(linkRows.map((r) => r.sales_channel_id));
+    const linkedChannelIds = new Set(
+      (await this.channelMembership.listChannelsForEntity('product', productId)).map((c) => c.id),
+    );
 
-    const categoryRows = await em
-      .getConnection()
-      .execute<Array<{ category_id: string; slug: string }>>(
-        // Feature 068 — same activation filter as the full reindex.
-        `select pc.category_id, c.slug
-           from product_categories pc
-           join categories c on c.id = pc.category_id
-          where c.is_active = true
-            and pc.product_id = ?`,
-        [productId],
-      );
-    const categories = categoryRows.map((r) => ({ id: r.category_id, slug: r.slug }));
+    // Feature 068 — same activation filter as the full reindex.
+    const categoryRows = await this.categories.listAssignmentsForProducts([productId], {
+      activeOnly: true,
+    });
+    const categories = categoryRows.map((r) => ({ id: r.categoryId, slug: r.slug }));
     // Feature 012 / FR-035 — same per-locale option-label projection
     // used by the offline reindex. Per-product upsert is incremental,
     // so we only build the lookup once per call.
@@ -244,14 +260,13 @@ export class SearchIndexer {
     // Fetch once; the resolver then runs per (channel, channel.defaultLanguage).
     const overrides = await this.products.listValueOverridesByProductIds([productId]);
 
-    const isPublishable =
-      product.status === 'active' && !product.deletedAt && !product.archivedAt;
+    const publishable = isPublishable(product);
 
     const touched: string[] = [];
     for (const channel of channels) {
       const indexUid = indexUidFor(channel);
       const index = await this.ensureIndex(indexUid);
-      if (linkedChannelIds.has(channel.id) && isPublishable) {
+      if (linkedChannelIds.has(channel.id) && publishable) {
         const document = buildDocument(product, categories, this.locale, optionLookup, {
           overrides,
           channelId: channel.id,
@@ -275,28 +290,16 @@ export class SearchIndexer {
    * category changes the `categorySlugs` projection of its products, and a
    * stale projection keeps a hidden category working as a PLP filter.
    *
-   * The subtree is walked in one recursive query rather than per level, and
-   * the product set is de-duplicated because a product may sit in several
-   * branches. Returns the number of products re-indexed.
+   * The subtree walk and the de-duplication both belong to `catalog`, which
+   * owns `categories` and `product_categories`; this module used to run the
+   * recursive query itself. Returns the number of products re-indexed.
    */
   async reindexCategorySubtree(em: EntityManager, categoryId: string): Promise<number> {
-    const rows = await em
-      .getConnection()
-      .execute<Array<{ product_id: string }>>(
-        `with recursive subtree as (
-             select id from categories where id = ?
-              union all
-             select c.id from categories c join subtree s on c.parent_category_id = s.id
-           )
-           select distinct pc.product_id
-             from product_categories pc
-             join subtree s on s.id = pc.category_id`,
-        [categoryId],
-      );
-    for (const row of rows) {
-      await this.upsertProduct(em, row.product_id);
+    const productIds = await this.categories.listProductIdsInSubtree(categoryId);
+    for (const productId of productIds) {
+      await this.upsertProduct(em, productId);
     }
-    return rows.length;
+    return productIds.length;
   }
 
   /**
@@ -484,21 +487,36 @@ export class SearchIndexer {
     }
   }
 
-  private async productIdsInChannel(em: EntityManager, channelId: string): Promise<string[]> {
-    const rows = await em
-      .getConnection()
-      .execute<Array<{ product_id: string }>>(
-        `select scp.product_id
-           from sales_channel_products scp
-           join products p on p.id = scp.product_id
-          where scp.sales_channel_id = ?
-            and p.status = 'active'
-            and p.deleted_at is null
-            and p.archived_at is null`,
-        [channelId],
+  /**
+   * Every product id the channel carries, not the first page of them.
+   * `listEntityIdsForChannel` is paginated and a full reindex wants the whole
+   * assortment, so the pages are walked to `total`. `total` is re-read on each
+   * call and the loop is bounded by it, so a concurrent membership write cannot
+   * spin it — the shape `seo`'s sitemap generator settled on for this read.
+   */
+  private async channelMemberProductIds(channelId: string): Promise<string[]> {
+    const ids = new Set<string>();
+    for (let page = 0; ; page += 1) {
+      const { entityIds, total } = await this.channelMembership.listEntityIdsForChannel(
+        channelId,
+        'product',
+        page,
+        MEMBERSHIP_PAGE_SIZE,
       );
-    return rows.map((r) => r.product_id);
+      for (const id of entityIds) ids.add(id);
+      if (entityIds.length === 0 || ids.size >= total) return [...ids];
+    }
   }
+}
+
+/**
+ * What a channel index carries. Archived and soft-deleted rows are excluded
+ * here and not by `CatalogProductLookupOptions`, whose `activeOnly` covers
+ * `status` and `deletedAt` but not `archivedAt` — and an archived product must
+ * not stay searchable.
+ */
+function isPublishable(product: CatalogProductRecord): boolean {
+  return product.status === 'active' && !product.deletedAt && !product.archivedAt;
 }
 
 export function indexUidFor(channel: { code: string }): string {
