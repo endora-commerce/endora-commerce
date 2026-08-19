@@ -6,16 +6,20 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import {
+  analyzeFile,
   analyzeSource,
   checkDiacriticFolds,
+  collapsesSeparatorRun,
   DIACRITIC_FOLDS_ALLOWED,
   EXCLUDED_SUBTREES,
   findDiacriticFolds,
-  helperStillFolds,
+  helperIsStillTheOwner,
   isDiacriticPattern,
   isScannablePath,
+  negatedAsciiClass,
   POPULATION_ROOTS,
   SHARED_FOLD_HELPER,
+  SLUG_RUNS_ALLOWED,
   type ScannedFile,
 } from '../../../scripts/check-diacritic-folds.js';
 
@@ -71,6 +75,16 @@ const temporaryRoots: string[] = [];
 const LEDGER_ANCHOR =
   'export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {};';
 
+/**
+ * The opening of the slug ledger's declaration in the checked-in script.
+ *
+ * Only the opening, because unlike the fold ledger this one is **not** empty
+ * (issue #244): it carries the two `pim_ergonode` key derivations, so the
+ * fixture replaces a span rather than a literal.
+ */
+const SLUG_LEDGER_ANCHOR =
+  'export const SLUG_RUNS_ALLOWED: Readonly<Record<string, LedgerEntry>>';
+
 interface FixtureRepository {
   readonly root: string;
   write(path: string, source: string): void;
@@ -90,7 +104,12 @@ interface FixtureRepository {
  * greps and the fixture has no install of its own.
  */
 function fixtureRepository(
-  options: { helper?: string | null; ledgered?: boolean; ledger?: string } = {},
+  options: {
+    helper?: string | null;
+    ledgered?: boolean;
+    ledger?: string;
+    slugLedger?: string;
+  } = {},
 ): FixtureRepository {
   const root = mkdtempSync(join(tmpdir(), 'diacritic-folds-check-'));
   temporaryRoots.push(root);
@@ -121,6 +140,24 @@ function fixtureRepository(
     );
   }
 
+  if (options.slugLedger !== undefined) {
+    // The slug ledger is multi-line and non-empty, so it is replaced by span
+    // rather than by an exact literal: from its declaration to the first `\n};`
+    // after it. Both ends are asserted, for the reason the fold anchor above is
+    // — a substitution that silently matched nothing leaves a green test proving
+    // the opposite of what it claims (issue #113).
+    const source = readFileSync(checker, 'utf8');
+    const start = source.indexOf(SLUG_LEDGER_ANCHOR);
+    if (start < 0) throw new Error(`the slug ledger no longer opens with ${SLUG_LEDGER_ANCHOR}`);
+    const end = source.indexOf('\n};', start);
+    if (end < 0) throw new Error('the slug ledger declaration is not terminated by `\\n};`');
+    writeFileSync(
+      checker,
+      `${source.slice(0, start)}${SLUG_LEDGER_ANCHOR} = ${options.slugLedger}${source.slice(end + 3)}`,
+      'utf8',
+    );
+  }
+
   const write = (path: string, source: string): void => {
     const full = join(root, path);
     mkdirSync(dirname(full), { recursive: true });
@@ -136,7 +173,10 @@ function fixtureRepository(
   // copies nothing while the real ledger is empty (issue #245) — which is why
   // `ledger` above exists, to keep the staleness exit code provable end to end.
   if (options.ledgered === true) {
-    for (const path of Object.keys(DIACRITIC_FOLDS_ALLOWED)) {
+    for (const path of [
+      ...Object.keys(DIACRITIC_FOLDS_ALLOWED),
+      ...Object.keys(SLUG_RUNS_ALLOWED),
+    ]) {
       write(path, readFileSync(join(REPO_ROOT, path), 'utf8'));
     }
   }
@@ -385,6 +425,322 @@ describe('check-diacritic-folds — the pattern vocabulary', () => {
   });
 });
 
+/**
+ * The third signal (issue #244), and why its proofs look different.
+ *
+ * The first two signals have a population defined by the presence of the thing
+ * they check: a site that folds nothing writes no `NFD` and no `\p{Diacritic}`,
+ * so its **absence** is undetectable. Two slug builders shipped that way for a
+ * year while the check printed `violations=0`.
+ *
+ * So this signal keys on the slug builder itself, which is present whether or
+ * not the site folds — and that is what the load-bearing proof below asserts: a
+ * builder that folds **correctly** is reported just the same. A predicate that
+ * only reported the unfolded ones would be the old blindness with an extra step.
+ *
+ * Every proof enters at `analyzeSource`, with source text, which is the top of
+ * the analysis (issue #130). The discriminations matter as much as the red ones
+ * here: this predicate's whole claim is that its population is honest, and the
+ * five sanitisers below are the measured shapes that would make it a ledger of
+ * exceptions if it matched them.
+ */
+describe('check-diacritic-folds — the slug run', () => {
+  const slugRuns = (source: string, path = 'admin/src/modules/x/thing.ts'): string[] =>
+    analyzeSource(source, path)
+      .filter((finding) => finding.kind === 'slug-run')
+      .map((finding) => finding.literal);
+
+  it('reports a slug builder with no fold step at all — the shape nothing could see', () => {
+    // `cms-template-layout.ts`'s `codeFromTemplateName`, verbatim in shape, as
+    // it stood on `master` until issue #245. Measured output: `Łatwy szablon`
+    // produced `atwy-szablon` and `Żółw` produced `w`.
+    expect(
+      slugRuns(
+        'export const codeFromTemplateName = (name: string): string =>\n' +
+          "  name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');",
+      ),
+    ).toEqual(['[^a-z0-9]+']);
+  });
+
+  it('reports a slug builder that folds correctly, because the rule is about the builder', () => {
+    // **The load-bearing proof.** `BlogPostEditor`'s local `slugify` folded via
+    // the admin `normalize` and was still the ninth private copy of a generator
+    // that has one owner. If this came back empty, the signal would be keyed on
+    // the missing fold — which is unobservable, and is the whole of issue #244.
+    expect(
+      slugRuns(
+        "import { normalize } from '@/lib/text-normalization';\n" +
+          'function slugify(input: string): string {\n' +
+          "  return normalize(input).replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 160);\n" +
+          '}',
+      ),
+    ).toEqual(['[^a-z0-9]+']);
+  });
+
+  it('reports the run collapsed in a second move later in the same chain', () => {
+    // `pim_ergonode`'s `sanitiseSourceCode`. The class carries no quantifier, so
+    // a predicate reading one expression node in isolation clears it; the run is
+    // collapsed by the `/_{2,}/g` that follows it in the same chain.
+    expect(
+      slugRuns(
+        'export function sanitiseSourceCode(sourceCode: string): string {\n' +
+          '  return sourceCode\n' +
+          '    .toLowerCase()\n' +
+          "    .replace(/[^a-z0-9_]/g, '_')\n" +
+          "    .replace(/_{2,}/g, '_')\n" +
+          "    .replace(/^[^a-z]+/, '');\n" +
+          '}',
+      ),
+    ).toEqual(['[^a-z0-9_]']);
+  });
+
+  it('reports the mixed-case and explicit-range spellings of the class', () => {
+    expect(slugRuns("export const a = (v: string) => v.replace(/[^a-zA-Z0-9]+/g, '-');")).toEqual([
+      '[^a-zA-Z0-9]+',
+    ]);
+    expect(slugRuns("export const b = (v: string) => v.replace(/[^A-Za-z0-9_-]+/g, '-');")).toEqual([
+      '[^A-Za-z0-9_-]+',
+    ]);
+  });
+
+  it('reports the `\\w` shorthand, which names the same ASCII set without a range', () => {
+    // A class-range grep reads `[^\w]+` clean, and it deletes `ł` exactly as
+    // `[^a-z0-9]+` does.
+    expect(slugRuns("export const a = (v: string) => v.replace(/[^\\w]+/g, '-');")).toEqual([
+      '[^\\w]+',
+    ]);
+  });
+
+  it('reports a braced run quantifier, not only `+`', () => {
+    expect(slugRuns("export const a = (v: string) => v.replace(/[^a-z0-9]{2,}/g, '-');")).toEqual([
+      '[^a-z0-9]{2,}',
+    ]);
+  });
+
+  it('reports a pattern built as a string for `new RegExp`', () => {
+    expect(
+      slugRuns("export const a = (v: string) => v.replace(new RegExp('[^a-z0-9]+', 'g'), '-');"),
+    ).toEqual(['[^a-z0-9]+']);
+  });
+
+  it('reports a separator held in a variable, which is how the generator itself writes it', () => {
+    // `slugify` spells it `.replace(/[^a-z0-9]+/g, separator)`. A copy of it
+    // would too, and a predicate requiring a string literal there would clear
+    // the closest possible imitation of the file it is protecting.
+    expect(
+      slugRuns(
+        'export function slug(v: string, separator: string): string {\n' +
+          '  return v.replace(/[^a-z0-9]+/g, separator);\n' +
+          '}',
+      ),
+    ).toEqual(['[^a-z0-9]+']);
+  });
+
+  it('reads an escaped `]` inside the class instead of stopping at it', () => {
+    // `[^\]a-z0-9]+` is legal. A naive `\[\^[^\]]*\]` stops at the escaped
+    // bracket, reads the class as holding no ranges, and clears the site.
+    expect(slugRuns("export const a = (v: string) => v.replace(/[^\\]a-z0-9]+/g, '-');")).toEqual([
+      '[^\\]a-z0-9]+',
+    ]);
+  });
+
+  it('cannot see a slug run quoted in a comment, while still reporting the code below it', () => {
+    // The same anchoring the fold signals have: three files in this tree quote
+    // the wrong chain in a doc block to explain what they used to do, and a
+    // text-level predicate reports the documentation written to prevent the
+    // defect. Exactly the code line comes back.
+    const source = [
+      '/**',
+      " * The chain this carried was `name.toLowerCase().replace(/[^a-z0-9]+/g, '-')`,",
+      ' * which deleted every non-ASCII letter.',
+      ' */',
+      "import { slugify } from '@b2b/contracts';",
+      'export const code = (name: string): string => slugify(name, { maxLength: 80 });',
+    ].join('\n');
+    expect(slugRuns(source)).toEqual([]);
+  });
+
+  it('leaves the shared generator alone by path, and reports the same chain elsewhere', () => {
+    // Issue #197's lesson, applied to the third signal: the exemption is one
+    // exact path, so a copy of `slugify` in another file is a violation however
+    // it is named.
+    const generator =
+      "export function slugify(input: string, separator = '-'): string {\n" +
+      '  return foldDiacritics(input).replace(/[^a-z0-9]+/g, separator);\n' +
+      '}';
+    expect(findDiacriticFolds([file(SHARED_FOLD_HELPER, generator)])).toEqual([]);
+    expect(
+      findDiacriticFolds([file('admin/src/lib/text-normalization.ts', generator)]).map(
+        (finding) => finding.kind,
+      ),
+    ).toEqual(['slug-run']);
+  });
+});
+
+/**
+ * The five shapes that decide whether this population is honest.
+ *
+ * A `replace` over a negated ASCII-alphanumeric class matches **9** sites in
+ * this tree, and 7 of them legitimately need no fold. If the predicate reported
+ * those, the ledger would be mostly exceptions — and a ledger that is mostly
+ * exceptions teaches people to add entries rather than to think, which is worse
+ * than the gap it was built to close.
+ *
+ * Requiring the **run collapse** is what removes them, and each of these is a
+ * live site measured on `master`. They are asserted one by one rather than in a
+ * loop because they fail for different reasons, and a loop would let four of
+ * them go blind behind the fifth's red (issue #130).
+ */
+describe('check-diacritic-folds — what the slug run does not refuse', () => {
+  const kinds = (source: string): string[] =>
+    analyzeSource(source, 'backend/src/modules/x/thing.ts').map((finding) => finding.kind);
+
+  it('leaves a deletion alone: `autopay`s hash seed, which must not change at all', () => {
+    // `.replace(/[^A-Za-z0-9]/g, '')` — the seed of a payment signature. Folding
+    // it would change every hash. Two independent rules clear it, and either
+    // alone would: the class carries no run quantifier, and the replacement is
+    // not a separator. The proof below covers the second rule on its own, so
+    // this one is not silently resting on the first.
+    expect(kinds("const compact = seed.replace(/[^A-Za-z0-9]/g, '');")).toEqual([]);
+  });
+
+  it('leaves a compaction alone: a quantified run replaced by nothing at all', () => {
+    // The empty-replacement rule, proven where it is the *only* thing standing:
+    // the class here is quantified, so the run-collapse requirement is satisfied
+    // and the verdict rests entirely on `''` not being a separator. Removing
+    // every unusable character produces `atwyszablon`, which is a compaction
+    // rather than a slug — there is no delimiter in it to be one.
+    expect(kinds("const compact = value.replace(/[^A-Za-z0-9]+/g, '');")).toEqual([]);
+  });
+
+  it('leaves a one-for-one substitution alone: a DOM id, which collapses no run', () => {
+    // `FieldProtectionToggle`'s element id. Every unusable character becomes its
+    // own hyphen, so length and position survive — identifier grammar, not slug
+    // grammar, and nothing about it is persisted.
+    expect(
+      kinds("const id = `ergonode-protect-${path}`.replace(/[^a-zA-Z0-9_-]/g, '-');"),
+    ).toEqual([]);
+  });
+
+  it('leaves an XML element name alone, which strips rather than separates', () => {
+    // `xml-feed-serializer`. Same two rules as the hash seed above, and the same
+    // note: each is proven alone elsewhere in this block.
+    expect(kinds("const cleaned = name.replace(/[^A-Za-z0-9_.:-]/g, '');")).toEqual([]);
+  });
+
+  it('leaves a Meilisearch index name alone, built from an already-constrained code', () => {
+    expect(
+      kinds("const index = `products_${code.replace(/[^a-z0-9_]/gi, '_').toLowerCase()}`;"),
+    ).toEqual([]);
+  });
+
+  it('leaves a Unicode-aware class alone, because it keeps its accented letters', () => {
+    // `[^\p{L}\p{N}]+` collapses a run and is **not** the defect: `ł` is a
+    // letter, so it survives. Matching it would report the correct answer.
+    expect(kinds("const s = v.replace(/[^\\p{L}\\p{N}]+/gu, '-');")).toEqual([]);
+  });
+
+  it('leaves a bare string pattern alone, which `replace` treats as a substring', () => {
+    // `'[^a-z0-9]+'` as a first argument matches those characters verbatim and
+    // collapses nothing at all.
+    expect(kinds("const s = v.replace('[^a-z0-9]+', '-');")).toEqual([]);
+  });
+
+  it('leaves a collapse whose halves sit in different statements — and says so', () => {
+    // Not a claim that this is correct code: it is the stated bound of the
+    // window (one call chain), in the idiom of `check-port-catches`, which
+    // follows a gate one hop through `this` and refuses to go further. A bound
+    // that is asserted is a bound a later widening has to delete deliberately.
+    expect(
+      kinds(
+        'export function key(v: string): string {\n' +
+          "  const collapsed = v.replace(/[^a-z0-9_]/g, '_');\n" +
+          "  return collapsed.replace(/_{2,}/g, '_');\n" +
+          '}',
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe('check-diacritic-folds — the site population it discloses', () => {
+  // `sites=` is a ratchet input (issue #244), so it has to count the population
+  // and not the findings. A number that moved with the findings would answer
+  // the wrong question — which is the mistake `check-entry-scope` had already
+  // made once, printing the files that hold an entry site rather than the files
+  // it opened.
+  const source = [
+    "export const compact = (s: string) => s.replace(/[^A-Za-z0-9]/g, '');",
+    "export const slug = (s: string) => s.replace(/[^a-z0-9]+/g, '-');",
+    "export const trimmed = (s: string) => s.replace(/^-+|-+$/g, '');",
+    "export const literal = (s: string) => s.replace('x', 'y');",
+  ].join('\n');
+
+  it('counts every readable `.replace()` it judged, cleared ones included', () => {
+    // Three of the four: the bare string pattern is not a pattern this check can
+    // read, so it is honestly outside the population rather than silently in it.
+    const analysis = analyzeFile(source, 'admin/src/lib/thing.ts');
+    expect(analysis.replaceSites).toBe(3);
+    expect(analysis.findings.map((finding) => finding.kind)).toEqual(['slug-run']);
+  });
+
+  it('does not move when a finding is repaired', () => {
+    // The property that makes the number worth recording: routing the one slug
+    // builder through the shared generator empties the findings and leaves the
+    // population where it was, minus only the call that went away.
+    const repaired = analyzeFile(
+      source.replace("s.replace(/[^a-z0-9]+/g, '-')", 'slugify(s)'),
+      'admin/src/lib/thing.ts',
+    );
+    expect(repaired.findings).toEqual([]);
+    expect(repaired.replaceSites).toBe(2);
+  });
+
+  it('is summed across the scanned files by the check itself', () => {
+    const result = checkDiacriticFolds(
+      [file('admin/src/lib/a.ts', source), file('admin/src/lib/b.ts', source)],
+      {},
+      {},
+    );
+    expect(result.replaceSites).toBe(6);
+    // ...and the excluded subtrees contribute none of it, or the disclosed
+    // number would describe a population the check does not judge.
+    const withExclusions = checkDiacriticFolds(
+      [file('admin/src/lib/a.ts', source), file('backend/scripts/check-x.ts', source)],
+      {},
+      {},
+    );
+    expect(withExclusions.replaceSites).toBe(3);
+  });
+});
+
+/** The two predicates the slug signal is assembled from, read directly. */
+describe('check-diacritic-folds — the slug vocabulary', () => {
+  it('recognises an ASCII-alphanumeric negated class and its quantifier', () => {
+    expect(negatedAsciiClass('[^a-z0-9]+')).toEqual({ text: '[^a-z0-9]+', quantified: true });
+    expect(negatedAsciiClass('[^a-z0-9_-]')).toEqual({ text: '[^a-z0-9_-]', quantified: false });
+    expect(negatedAsciiClass('[^\\w]{2,}')).toEqual({ text: '[^\\w]{2,}', quantified: true });
+  });
+
+  it('refuses a class that is not over ASCII alphanumerics', () => {
+    // A letter range with no digits is not the shape: `[^a-z]+` is nobody's slug
+    // builder, and a Unicode property class keeps the letters the defect deletes.
+    expect(negatedAsciiClass('[^a-z]+')).toBeUndefined();
+    expect(negatedAsciiClass('[^\\p{L}\\p{N}]+')).toBeUndefined();
+    expect(negatedAsciiClass('^-+|-+$')).toBeUndefined();
+  });
+
+  it('recognises a run collapse over a separator, in both spellings', () => {
+    expect(collapsesSeparatorRun('_{2,}', '_')).toBe(true);
+    expect(collapsesSeparatorRun('-+', '-')).toBe(true);
+    expect(collapsesSeparatorRun('[-]+$', '-')).toBe(true);
+    // The separator has to be the one the first move wrote, or a second chain
+    // step over an unrelated character would close the finding.
+    expect(collapsesSeparatorRun('_{2,}', '-')).toBe(false);
+    expect(collapsesSeparatorRun('', '-')).toBe(false);
+    expect(collapsesSeparatorRun('-+', '')).toBe(false);
+  });
+});
+
 describe('check-diacritic-folds — the ledger', () => {
   const slugifier = file(
     'admin/src/modules/product_feeds/api.ts',
@@ -392,13 +748,17 @@ describe('check-diacritic-folds — the ledger', () => {
   );
 
   it('passes a ledgered file and counts it as ledgered rather than clean', () => {
-    const result = checkDiacriticFolds([slugifier], {
-      'admin/src/modules/product_feeds/api.ts': {
-        findings: 2,
-        reason: 'Reason.',
-        retiredBy: 'issue #239',
+    const result = checkDiacriticFolds(
+      [slugifier],
+      {
+        'admin/src/modules/product_feeds/api.ts': {
+          findings: 2,
+          reason: 'Reason.',
+          retiredBy: 'issue #239',
+        },
       },
-    });
+      {},
+    );
     expect(result.violations).toEqual([]);
     expect(result.ledgered).toHaveLength(2);
     expect(result.total).toBe(2);
@@ -406,15 +766,24 @@ describe('check-diacritic-folds — the ledger', () => {
   });
 
   it('fails an entry whose count no longer matches, in both directions', () => {
-    const lowered = checkDiacriticFolds([slugifier], {
-      'admin/src/modules/product_feeds/api.ts': {
-        findings: 3,
-        reason: 'Reason.',
-        retiredBy: 'issue #239',
+    const lowered = checkDiacriticFolds(
+      [slugifier],
+      {
+        'admin/src/modules/product_feeds/api.ts': {
+          findings: 3,
+          reason: 'Reason.',
+          retiredBy: 'issue #239',
+        },
       },
-    });
+      {},
+    );
     expect(lowered.stale).toEqual([
-      { path: 'admin/src/modules/product_feeds/api.ts', declared: 3, actual: 2 },
+      {
+        path: 'admin/src/modules/product_feeds/api.ts',
+        declared: 3,
+        actual: 2,
+        ledger: 'folds',
+      },
     ]);
 
     const repaired = checkDiacriticFolds(
@@ -426,10 +795,55 @@ describe('check-diacritic-folds — the ledger', () => {
           retiredBy: 'issue #239',
         },
       },
+      {},
     );
     expect(repaired.stale).toEqual([
-      { path: 'admin/src/modules/product_feeds/api.ts', declared: 2, actual: 0 },
+      {
+        path: 'admin/src/modules/product_feeds/api.ts',
+        declared: 2,
+        actual: 0,
+        ledger: 'folds',
+      },
     ]);
+  });
+
+  it('keeps the two ledgers apart, so neither excuses the other kind', () => {
+    // The reason there are two rather than one per-file count: they answer
+    // different questions — "why is this fold not an import of `foldDiacritics`"
+    // against "why is this generator not an import of `slugify`" — and a file
+    // could carry one of each. An entry in the wrong ledger must excuse nothing,
+    // or the second signal is one typo away from being switched off.
+    const entry = { findings: 1, reason: 'Fixture reason.', retiredBy: 'issue #244' };
+
+    const slugFile = file(
+      'admin/src/modules/x/slug.ts',
+      "export const s = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, '-');",
+    );
+    const excusedByTheWrongLedger = checkDiacriticFolds(
+      [slugFile],
+      { 'admin/src/modules/x/slug.ts': entry },
+      {},
+    );
+    expect(excusedByTheWrongLedger.violations.map((f) => f.kind)).toEqual(['slug-run']);
+    // ...and the fold ledger's own staleness half sees the file as folding zero
+    // times, which is what makes filing it there fail rather than merely not help.
+    expect(excusedByTheWrongLedger.stale).toEqual([
+      { path: 'admin/src/modules/x/slug.ts', declared: 1, actual: 0, ledger: 'folds' },
+    ]);
+
+    const excusedByItsOwn = checkDiacriticFolds([slugFile], {}, {
+      'admin/src/modules/x/slug.ts': entry,
+    });
+    expect(excusedByItsOwn.violations).toEqual([]);
+    expect(excusedByItsOwn.ledgered).toHaveLength(1);
+    expect(excusedByItsOwn.stale).toEqual([]);
+
+    // And the mirror: a fold filed under the slug ledger is still a violation.
+    const foldOnly = checkDiacriticFolds([slugifier], {}, {
+      'admin/src/modules/product_feeds/api.ts': { ...entry, findings: 2 },
+    });
+    expect(foldOnly.violations).toHaveLength(2);
+    expect(foldOnly.stale.map((entryOut) => entryOut.ledger)).toEqual(['slug-runs']);
   });
 
   it('is empty, and any entry added back still has to say why and when it goes', () => {
@@ -452,6 +866,38 @@ describe('check-diacritic-folds — the ledger', () => {
     }
   });
 
+  it('the slug ledger holds only deferred defects, each saying why and when it goes', () => {
+    // Two entries, both in `pim_ergonode`, and the assertion that matters is
+    // **not** the count: it is that neither is an exception to the rule. Both
+    // derive an identifier from an Ergonode source code and both delete `ł`
+    // rather than folding it, so the rule applies to each of them; what defers
+    // the repair is that they are **lookup** keys, re-derived on every import
+    // run to find a row a previous run created. Issue #245's owner ruling — new
+    // values correct, historical ones not migrated — covered values computed
+    // once at create time and does not reach these.
+    //
+    // If an entry ever says "this is not a slug and needs no fold", the
+    // predicate has outgrown its population and the answer is to narrow it, not
+    // to add the entry.
+    expect(Object.keys(SLUG_RUNS_ALLOWED)).toEqual([
+      'backend/src/modules/pim_ergonode/services/key-derivation.ts',
+      'backend/src/modules/pim_ergonode/services/import/attribute-phase.ts',
+    ]);
+    for (const [path, entry] of Object.entries(SLUG_RUNS_ALLOWED)) {
+      expect(entry.reason.length, `${path} has no reason`).toBeGreaterThan(30);
+      expect(entry.retiredBy, `${path} names no retiring condition`).toContain('ruling');
+      expect(entry.findings, `${path} declares no count`).toBeGreaterThan(0);
+      // The entry has to describe a file that is really there, or the ledger is
+      // a list of paths nobody has read since they moved.
+      expect(
+        analyzeSource(readFileSync(join(REPO_ROOT, path), 'utf8'), path).filter(
+          (finding) => finding.kind === 'slug-run',
+        ),
+        `${path} no longer builds a slug — delete the entry`,
+      ).toHaveLength(entry.findings);
+    }
+  });
+
   it('gives every population root a reason', () => {
     for (const [root, reason] of Object.entries(POPULATION_ROOTS)) {
       expect(reason.length, `${root} has no reason`).toBeGreaterThan(20);
@@ -470,14 +916,38 @@ describe('check-diacritic-folds — the ledger', () => {
 
 describe('check-diacritic-folds — the self-test on its own exemption', () => {
   it('accepts the helper as it is on disk', () => {
-    expect(helperStillFolds(HELPER_SOURCE)).toBe(true);
+    expect(helperIsStillTheOwner(HELPER_SOURCE)).toBe(true);
   });
 
   it('refuses a helper that no longer folds, so a blind analysis cannot read green', () => {
-    expect(helperStillFolds('export const normalize = (v: string) => v.toLowerCase();')).toBe(false);
+    expect(
+      helperIsStillTheOwner('export const normalize = (v: string) => v.toLowerCase();'),
+    ).toBe(false);
     // Half a fold is not the helper either: the exemption is for the file that
-    // does both halves, and a helper missing one has either moved or broken.
-    expect(helperStillFolds("export const n = (v: string) => v.normalize('NFD');")).toBe(false);
+    // does every shape, and a helper missing one has either moved or broken.
+    expect(helperIsStillTheOwner("export const n = (v: string) => v.normalize('NFD');")).toBe(
+      false,
+    );
+  });
+
+  it('refuses a helper that still folds but no longer builds a slug', () => {
+    // The third shape joined the guard with issue #244, and this is why: a
+    // helper that folds is not enough, because `slugify` is what every
+    // `slug-run` failure message tells the author to import. Without it the
+    // remedy the check prints does not exist, and the predicate that reports it
+    // has lost the file that anchors its exemption.
+    const foldsOnly = [
+      "export const fold = (v: string) => v.normalize('NFD').replace(/\\p{Diacritic}/gu, '');",
+    ].join('\n');
+    expect(helperIsStillTheOwner(foldsOnly)).toBe(false);
+    // ...and it comes back the moment the generator does, so the assertion above
+    // is about the missing slug builder rather than about the fixture being
+    // short of something else.
+    expect(
+      helperIsStillTheOwner(
+        `${foldsOnly}\nexport const slugify = (v: string) => fold(v).replace(/[^a-z0-9]+/g, '-');`,
+      ),
+    ).toBe(true);
   });
 });
 
@@ -485,7 +955,9 @@ describe('check-diacritic-folds — the exit codes', () => {
   it('exits 2 when the population is empty, rather than reporting a vacuous pass', () => {
     // Only the helper is written, and the helper is excluded by path — so the
     // walk really does read zero files in the population, and the answer is 2.
-    const result = fixtureRepository().run();
+    // The slug ledger is emptied so that the exit code can only be about the
+    // empty walk: with the real one, its two absent files would also be stale.
+    const result = fixtureRepository({ slugLedger: '{}' }).run();
     expect(result.status).toBe(2);
     expect(result.output).toContain('vacuous');
   });
@@ -494,7 +966,7 @@ describe('check-diacritic-folds — the exit codes', () => {
     // A moved helper means the exclusion exempts nothing and the real fold is
     // being reported at its new home. That is not a clean tree; it is a check
     // that has lost its subject.
-    const repo = fixtureRepository({ helper: null });
+    const repo = fixtureRepository({ helper: null, slugLedger: '{}' });
     repo.write('admin/src/lib/thing.ts', 'export const a = 1;\n');
     const result = repo.run();
     expect(result.status).toBe(2);
@@ -505,11 +977,31 @@ describe('check-diacritic-folds — the exit codes', () => {
   it('exits 2 when the helper is there but no longer parses as a fold', () => {
     const repo = fixtureRepository({
       helper: 'export const normalize = (v: string) => v.toLowerCase();\n',
+      slugLedger: '{}',
     });
     repo.write('admin/src/lib/thing.ts', 'export const a = 1;\n');
     const result = repo.run();
     expect(result.status).toBe(2);
     expect(result.output).toContain('vacuous');
+  });
+
+  it('exits 2 when the helper folds but no longer holds the shared slug generator', () => {
+    // End to end, at the CLI, for the widening issue #244 made to the guard.
+    // The fixture's helper carries a complete fold and no `slugify`, so every
+    // other predicate is intact — the run is refused purely because the import
+    // its `slug-run` message names has gone.
+    const repo = fixtureRepository({
+      helper:
+        "export function foldDiacritics(v: string): string {\n" +
+        "  return v.normalize('NFD').replace(/\\p{Diacritic}/gu, '').toLowerCase();\n" +
+        '}\n',
+      slugLedger: '{}',
+    });
+    repo.write('admin/src/lib/thing.ts', 'export const a = 1;\n');
+    const result = repo.run();
+    expect(result.status).toBe(2);
+    expect(result.output).toContain('vacuous');
+    expect(result.output).toContain('slug generator');
   });
 
   it('exits 1 and names the file when a source folds outside the helper', () => {
@@ -524,19 +1016,64 @@ describe('check-diacritic-folds — the exit codes', () => {
     expect(result.output).toContain('violations=2');
   });
 
+  it('exits 1 and names the file when a source builds a slug outside the generator', () => {
+    // The shape issue #244 is about, at the CLI: `codeFromTemplateName` as it
+    // stood on `master` for a year. It writes **no fold at all**, so the two
+    // older signals see nothing in it — `violations=1` here is the third one
+    // reporting, and it would have been 0 before this signal existed.
+    const repo = fixtureRepository({ ledgered: true });
+    repo.write(
+      'admin/src/modules/cms/components/cms-template-layout.ts',
+      'export const codeFromTemplateName = (name: string): string =>\n' +
+        "  name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');\n",
+    );
+    const result = repo.run();
+    expect(result.status).toBe(1);
+    expect(result.output).toContain('admin/src/modules/cms/components/cms-template-layout.ts');
+    expect(result.output).toContain('violations=1');
+    expect(result.output).toContain('slug-run');
+    expect(result.output).toContain("Import { slugify } from '@b2b/contracts'");
+  });
+
+  it('exits 1 when a slug-ledger entry no longer describes the file it names', () => {
+    // The slug ledger's second direction, end to end, and it needs no injected
+    // constant: the checked-in ledger names two `pim_ergonode` files, and a
+    // fixture that does not write them is a fixture in which both entries have
+    // stopped describing anything. Nothing folds and nothing slugifies, so the
+    // exit code is the staleness half on its own.
+    const repo = fixtureRepository();
+    repo.write('admin/src/lib/thing.ts', 'export const a = 1;\n');
+    const result = repo.run();
+    expect(result.status).toBe(1);
+    expect(result.output).toContain('violations=0');
+    expect(result.output).toContain('stale=2');
+    expect(result.output).toContain('[slug-runs]');
+    expect(result.output).toContain('key-derivation.ts');
+  });
+
   it('exits 0 on a tree whose callers import the shared helper', () => {
     const repo = fixtureRepository({ ledgered: true });
     repo.write(
       'admin/src/components/ui/combobox.tsx',
       "import { normalize } from '@/lib/text-normalization';\nexport const n = normalize;\n",
     );
+    repo.write(
+      'admin/src/modules/cms/components/cms-template-layout.ts',
+      "import { slugify } from '@b2b/contracts';\n" +
+        'export const codeFromTemplateName = (name: string): string =>\n' +
+        "  slugify(name, { maxLength: 80 });\n",
+    );
     const result = repo.run();
     expect(result.status).toBe(0);
     expect(result.output).toContain('violations=0');
-    // The real ledger is empty since issue #245, so a clean tree is clean all
-    // the way down: nothing folds and nothing is excused from folding.
-    expect(result.output).toContain('ledgered=0');
-    expect(result.output).toContain('ledger-size=0');
+    // The fold ledger is empty since issue #245, so nothing folds and nothing is
+    // excused from folding. The slug ledger is not, and its two files are copied
+    // in by `ledgered: true` — which is the two-way property exercised, not a
+    // workaround: an entry over a file the run cannot see is stale.
+    expect(result.output).toContain('fold-ledger-size=0');
+    expect(result.output).toContain('slug-ledger-size=2');
+    expect(result.output).toContain('ledgered=2');
+    expect(result.output).toContain('stale=0');
   });
 
   it('exits 1 when a ledger entry no longer describes the file it names', () => {
@@ -547,6 +1084,7 @@ describe('check-diacritic-folds — the exit codes', () => {
     const repo = fixtureRepository({
       ledger:
         "{ 'admin/src/modules/x.ts': { findings: 2, reason: 'Fixture.', retiredBy: 'issue #245' } }",
+      slugLedger: '{}',
     });
     repo.write('admin/src/lib/thing.ts', 'export const a = 1;\n');
     const result = repo.run();
@@ -564,6 +1102,7 @@ describe('check-diacritic-folds — the exit codes', () => {
     const repo = fixtureRepository({
       ledger:
         "{ 'admin/src/modules/x.ts': { findings: 2, reason: 'Fixture.', retiredBy: 'issue #245' } }",
+      slugLedger: '{}',
     });
     repo.write(
       'admin/src/modules/x.ts',
@@ -607,21 +1146,20 @@ describe('check-diacritic-folds — the tree it guards', () => {
   });
 
   /**
-   * Every slug generator in the tree, and the assertion the check itself cannot
-   * make.
+   * Every slug generator in the tree, and what this list is still for.
    *
-   * There were eight, each a private four-line chain (issue #245). The check
-   * refuses a **fold** written outside the helper, which catches six of them
-   * and is blind to the other two by construction: `cms-template-layout.ts` and
-   * `slugFromSourceCode` had no fold step at all, so they wrote nothing for it
-   * to see while deleting `ł` out of every Polish name. Nor can it see a file
-   * that stopped folding because it stopped **slugifying** — which would pass
-   * the check and lose the behaviour outright.
+   * There were eight when issue #245 unified them, each a private four-line
+   * chain — and a **ninth**, `BlogPostEditor`, which that sweep missed. It was
+   * missed because nothing could see it: the fold signals report a fold written
+   * outside the helper, and `BlogPostEditor` folded correctly through the admin
+   * `normalize`, so there was no signal at all until issue #244 added one for
+   * the builder itself. It is this rule's first finding and the ninth entry
+   * below.
    *
-   * So the positive claim is asserted here, by name: each of the eight resolves
-   * its slug through `slugify` from `@b2b/contracts`, and none of them folds on
-   * its own. A ninth generator is only refused if it folds; a ninth that does
-   * not fold is what this list is for.
+   * The `slug-run` signal now covers the negative claim — no site builds a slug
+   * of its own — so what is left here is the claim it cannot make: a file that
+   * stopped slugifying altogether would satisfy every predicate in the check and
+   * lose the behaviour outright. Hence the positive assertion, by name.
    */
   const slugGenerators = [
     'backend/src/modules/product_feeds/services/feed-template-io.service.ts',
@@ -631,12 +1169,16 @@ describe('check-diacritic-folds — the tree it guards', () => {
     'admin/src/modules/cms/components/cms-template-layout.ts',
     'admin/src/modules/cms/editors/BlockEditor.tsx',
     'admin/src/modules/cms/editors/PageEditor.tsx',
+    'admin/src/modules/blog/pages/BlogPostEditor.tsx',
     'admin/src/modules/product_feeds/api.ts',
   ];
 
   it.each(slugGenerators)('%s slugifies through @b2b/contracts, not its own chain', (path) => {
     const source = readFileSync(join(REPO_ROOT, path), 'utf8');
-    expect(analyzeSource(source, path), `${path} folds on its own again`).toEqual([]);
+    expect(
+      analyzeSource(source, path),
+      `${path} folds or builds a slug on its own again`,
+    ).toEqual([]);
     expect(source, `${path} does not import the shared slug generator`).toMatch(
       /import \{[^}]*\bslugify\b[^}]*\} from '@b2b\/contracts'/,
     );

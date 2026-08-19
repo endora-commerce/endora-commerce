@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@measured/puck';
-import type { BlogPostDetail } from '@b2b/contracts';
+import { slugify as slugifyText, type BlogPostDetail } from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
-import { normalize } from '@/lib/text-normalization';
 import { ContentLanguageTabs } from '../../cms/components/ContentLanguageTabs';
 import { PageBuilderEditor } from '../../cms/components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../../cms/components/ScopePicker';
@@ -40,17 +39,23 @@ const blankForm: FormState = {
 };
 
 /**
- * Build a URL slug from a free-text title. Reuses the diacritic-folding
- * `normalize` helper (so Polish "Łatwy poradnik" → "latwy-poradnik"), then
- * collapses any run of non-alphanumerics to a single hyphen and trims to the
- * 160-char limit enforced by the slug validation regex.
+ * Build a URL slug from a free-text title (so Polish "Łatwy poradnik" becomes
+ * "latwy-poradnik"), within the 160-character limit the slug validation regex
+ * enforces.
+ *
+ * `slugify` from `@b2b/contracts`, **imported, never re-implemented** (issue
+ * #245) — aliased because this wrapper keeps the local name the JSX reads.
+ *
+ * It was the **ninth** private copy of that generator and issue #245's sweep
+ * missed it, which is how it came to be this rule's first finding: the chain it
+ * carried folded correctly via `normalize`, so `check:diacritic-folds` had
+ * nothing to report and there was no other signal to notice a hand-rolled slug
+ * builder until issue #244 added one. Nothing about the output moves — this
+ * site and `PageEditor` were among the few that already cut to length before
+ * stripping the trailing separator.
  */
 function slugify(input: string): string {
-  return normalize(input)
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+/, '')
-    .slice(0, 160)
-    .replace(/-+$/, '');
+  return slugifyText(input, { maxLength: 160 });
 }
 
 function dataFor(post: BlogPostDetail | null, language: string | null): Data | null {

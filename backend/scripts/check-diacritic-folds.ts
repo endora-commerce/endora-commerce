@@ -29,7 +29,8 @@
  *
  * ## What it refuses, and why it refuses the decomposition rather than the bug
  *
- * Two literal shapes, anywhere in the population except the helper's own path:
+ * Three literal shapes, anywhere in the population except the helper's own path.
+ * The first two are the **explicit** fold:
  *
  *   1. **`decomposition`** — a literal naming a decomposing normalization form,
  *      `NFD` or `NFKD`. `NFC` and `NFKC` are **not** in the rule: they compose,
@@ -53,6 +54,97 @@
  * candidate — it goes in the ledger with its reason, not into a widening of the
  * rule.
  *
+ * ## The third shape, and why a check needed one (issue #244)
+ *
+ *   3. **`slug-run`** — a `.replace()` that collapses a **run of characters
+ *      outside ASCII alphanumerics** to a separator: `/[^a-z0-9]+/g` to `'-'`,
+ *      and the variants below. Slug construction, in other words.
+ *
+ * The first two signals share a defect that neither of them can see, and it is
+ * the reason issue #244 exists: **their population is defined by the presence
+ * of the thing they check.** A site that folds nothing writes no `NFD` and no
+ * `\p{Diacritic}`, matches neither predicate, is not in the population, and
+ * reports clean. Two sites were live on `master` for a year that way —
+ * `cms-template-layout.ts`'s `codeFromTemplateName` and `pim_ergonode`'s
+ * `slugFromSourceCode` — each going straight from `toLowerCase()` to
+ * `[^a-z0-9]+`, so that `Żółw` produced `w`, `Świeże Ćwikła` produced
+ * `wie-e-wik-a` and `KAT_ŁĄCZNIKI_01` produced `kat-czniki-01`. That is the
+ * exact bug the first two signals exist to catch, and this check printed
+ * `violations=0` throughout. Issue #245 repaired the sites; the blindness
+ * survived it, because the next hand-rolled slug builder written without a fold
+ * would be just as invisible.
+ *
+ * So the third signal keys on something **present in both the good case and the
+ * bad one**: the slug builder itself. A site that folds correctly and one that
+ * folds not at all both write the run collapse, so the run collapse is where a
+ * missing fold becomes observable. Concretely the rule is *"slug construction
+ * has one owner"*, `slugify` in `@b2b/contracts`, and not *"a slug builder must
+ * fold"* — which is deliberate, and is what keeps the predicate honest:
+ *
+ *   - **It needs no dataflow.** "Did the value reaching this `.replace()` pass
+ *     through a fold?" cannot be answered by reading the expression: the fold
+ *     may be a call up the chain, a caller two frames away, or a local assigned
+ *     three statements earlier. A predicate that only read the same expression
+ *     would report every correct site that folds elsewhere, and one that
+ *     followed the value would have to say where it stops. Keying on the
+ *     builder removes the question rather than answering it badly.
+ *   - **It is strictly stronger.** `BlogPostEditor`'s local `slugify` folded
+ *     correctly via `normalize` and was still the ninth private copy of a
+ *     generator that has one owner — issue #245 unified eight and missed it.
+ *     This signal reported it, and the repair is this rule's first finding.
+ *
+ * ### What a run collapse is, and the two spellings of it
+ *
+ * A `.replace(pattern, separator)` whose pattern holds a **negated character
+ * class over ASCII alphanumerics** — `[^a-z0-9]`, `[^a-zA-Z0-9]`,
+ * `[^A-Za-z0-9_-]`, `[^\w]`, in a regular-expression literal or in a
+ * `new RegExp('...')` — and whose separator is a non-empty string or an
+ * identifier. The run itself is either:
+ *
+ *   - **quantified in place** — `[^a-z0-9]+`, `[^a-z0-9]{2,}`. All eight sites
+ *     issue #245 unified were written this way; or
+ *   - **collapsed in a second move later in the same call chain** —
+ *     `.replace(/[^a-z0-9_]/g, '_').replace(/_{2,}/g, '_')`, which is how
+ *     `pim_ergonode`'s two key derivations spell it. One expression, so this is
+ *     a structural window rather than a line-proximity one.
+ *
+ * ### The population is honest, and that was measured rather than asserted
+ *
+ * The obvious wider predicate — *any* negated ASCII-alphanumeric class — matches
+ * **9** sites in this tree, and 7 of them legitimately need no fold: a payment
+ * hash seed that must not change, an XML element name, a DOM `id`, a
+ * Meilisearch index name, a test database name. A ledger that is mostly
+ * exceptions teaches people to add entries rather than to think, so that
+ * predicate was rejected.
+ *
+ * Requiring the **run collapse** is what removes them, and it is not a
+ * convenience: collapsing a run to one separator is slug grammar, while
+ * deleting the run (to `''`) or substituting one-for-one preserves length and
+ * position, which is identifier grammar. Measured over the 322 `.replace()`
+ * calls whose pattern this check can read, it matches **4** sites — the helper
+ * (exempt), one repair and two ledgered —
+ * and **none of them is an exception to the rule**: both ledger entries are the
+ * same defect deferred for a stated data reason, not sites the rule does not
+ * reach. That is the difference the population had to show before this signal
+ * was worth shipping.
+ *
+ * ### What it cannot see, stated here rather than discovered later
+ *
+ *   - A collapse whose class is not lexically ASCII-alphanumeric:
+ *     `new RegExp(variable)`, a class assembled from a template literal, a
+ *     builder written with `split`/`join` or `Intl.Segmenter` rather than
+ *     `replace`.
+ *   - A two-move collapse whose halves sit in **different statements**
+ *     (`const a = x.replace(...); return a.replace(/-{2,}/g, '-');`). The window
+ *     is one call chain and goes no further, in the idiom of
+ *     `check-port-catches`, which follows a gate one hop through `this` and
+ *     refuses to go further.
+ *   - A bare `[^a-z0-9]` with **no** run collapse anywhere. It still deletes
+ *     `ł`, and it is out of the population on purpose: matching it is what pulls
+ *     in the seven sanitisers above.
+ *   - Whether a matched site **needs** a fold at all. That is a human judgement
+ *     and it belongs in a ledger reason, not in a predicate.
+ *
  * ## Literal nodes, so a comment is out of the population by construction
  *
  * The predicate reads **literal nodes** of the TypeScript AST, in the idiom of
@@ -64,12 +156,12 @@
  *
  * ## The population is the whole tree, because the fold is now reachable
  *
- * (And note the limit of that claim, which issue #245 measured: this check sees
- * a fold written **outside** the helper, so a slugifier with **no fold step at
- * all** writes nothing for it to see. Two shipped that way for a year, deleting
- * `ł` rather than folding it, while this check read clean over both. What
- * closes that gap is `slugify` in `@b2b/contracts` — one generator every slug
- * site composes — not a widening of this rule.)
+ * (This paragraph used to carry a caveat, and the `slug-run` signal above is
+ * what retired it: the first two signals see a fold written **outside** the
+ * helper, so a slugifier with **no fold step at all** wrote nothing for them to
+ * see. Two shipped that way for a year, deleting `ł` rather than folding it,
+ * while this check read clean over both. Issue #245's shared `slugify` repaired
+ * the sites and this signal closes the hole they went through.)
  *
  * It was `admin/src` and `admin/test` alone when this check landed, and the
  * header said why each other tree was out: none of them could import
@@ -85,12 +177,14 @@
  *     a two-line composition over the shared fold, not a second copy of it.
  *   - **`backend/`** — held the last two ledgered folds until issue #245 routed
  *     them, and five more slug generators, through `slugify` in
- *     `@b2b/contracts`. It folds nowhere of its own now.
- *   - **`storefront/`** — folds nowhere today. It is in the population so that
- *     the first fold written there is the one that gets refused, which is the
- *     only moment the rule is cheap to keep.
- *   - **`packages/`** — holds the shared fold itself, excluded by exact path.
- *     Every other package is scanned like any other consumer.
+ *     `@b2b/contracts`. It folds nowhere of its own now, and holds the two
+ *     ledgered `slug-run` sites.
+ *   - **`storefront/`** — folds nowhere today and builds no slug. It is in the
+ *     population so that the first one written there is the one that gets
+ *     refused, which is the only moment the rule is cheap to keep.
+ *   - **`packages/`** — holds the shared fold and the shared generator, both
+ *     excluded by that one exact path. Every other package is scanned like any
+ *     other consumer.
  *
  * `EXCLUDED_SUBTREES` names the two places that must be able to write the
  * shapes this check refuses: the checks themselves and their companion tests.
@@ -113,15 +207,19 @@
  * is exempt.
  *
  * The same path is the vacuous-pass guard's subject. The helper must exist and
- * must still contain **both** shapes, or the check exits 2 — because a helper
- * that no longer folds means either the file moved (and the exclusion now
- * exempts nothing) or the analysis stopped seeing folds (and every green after
- * that is worthless). A check whose own exemption is its self-test cannot go
- * quietly blind.
+ * must still contain **all three** shapes, or the check exits 2 — because a
+ * helper that no longer folds means either the file moved (and the exclusion
+ * now exempts nothing) or the analysis stopped seeing folds (and every green
+ * after that is worthless). The third shape joined that guard for the same
+ * reason and buys one more: `slugify` is what the failure message tells every
+ * author to import, so a run in which nothing in the helper parses as a slug
+ * builder is a run whose remedy does not exist. A check whose own exemption is
+ * its self-test cannot go quietly blind.
  *
  * Usage: `tsx scripts/check-diacritic-folds.ts [--list]`
- * Exit 0 = no unledgered fold; exit 1 = at least one, or a stale ledger entry;
- * exit 2 = nothing was read, so a pass would be vacuous.
+ * Exit 0 = no unledgered fold and no unledgered slug run; exit 1 = at least
+ * one, or a stale ledger entry; exit 2 = nothing was read, so a pass would be
+ * vacuous.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -235,21 +333,102 @@ export interface LedgerEntry {
  * which is the owner's standing ruling, and not an argument for computing the
  * next one wrongly.
  *
- * And note what this check **cannot** see, so an empty ledger is not read as
- * more than it is: it counts folds written *outside* the helper, so a slugifier
- * with no fold step at all is invisible to it. Two were —
- * `cms-template-layout.ts` and `pim_ergonode`'s `slugFromSourceCode`, both
- * deleting `ł` rather than folding it, neither ever reported here. What closes
- * that gap is the shared generator, not this list.
+ * This ledger covers the two **explicit** fold shapes only. The `slug-run`
+ * signal has its own, {@link SLUG_RUNS_ALLOWED}, because the two answer
+ * different questions — "why is this fold not an import of the helper" against
+ * "why is this generator not an import of `slugify`" — and a single per-file
+ * count over both kinds would make "never raise a number" ambiguous the first
+ * time one file carried one of each.
  */
 export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {};
 
-/** Which half of a fold a finding is. */
+/**
+ * Slug builders outside the helper that are not (yet) violations, with the
+ * reason (issue #244).
+ *
+ * **Two-way and per file by count**, exactly like the fold ledger above: an
+ * unledgered run collapse fails the build, a ledgered file whose count moved
+ * fails it too, and an entry naming a file that no longer builds a slug fails
+ * as well. Never raise a number to make the build pass — call `slugify`.
+ *
+ * Both entries are in `pim_ergonode`, both derive an identifier from an
+ * Ergonode source code, and both carry the defect this signal exists for: they
+ * go straight from `toLowerCase()` to an ASCII allow-list, so `ŁĄCZNIKI` is
+ * written `_czniki` rather than `laczniki`. Ergonode codes are free text and a
+ * Polish catalogue writes them in Polish — `category-phase.ts`'s own doc block
+ * says so, having been repaired for exactly this by issue #245.
+ *
+ * **Neither is an exception to the rule; both are the same defect deferred.**
+ * The distinction is not decoration: a ledger whose entries say "the rule does
+ * not apply here" is a ledger that has outgrown its predicate, and this one
+ * says "the rule applies and the repair is a data decision".
+ *
+ * What makes them a data decision, and what separates them from the eight sites
+ * issue #245 simply repaired: those eight compute a value **once, at create
+ * time**, and find the row again by a stored mapping. These two are re-derived
+ * on **every run** in order to find an existing row — `key-derivation.ts`'s own
+ * header says "repeated imports converge on the same attribute rather than
+ * growing a new one per run". Changing the derivation therefore does not
+ * produce a better key for the next import; it produces a **second** attribute
+ * beside every Polish-coded one already imported, and a second option value
+ * beside every product value that references one. That is a migration with a
+ * back-fill, which is why the owner ruling issue #245 took does not reach here.
+ */
+export const SLUG_RUNS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {
+  'backend/src/modules/pim_ergonode/services/key-derivation.ts': {
+    findings: 1,
+    reason:
+      'sanitiseSourceCode — the body of a custom-field key (`ergonode_<body>`), ' +
+      're-derived on every import run to find the attribute a previous run created. ' +
+      'It deletes every non-ASCII letter rather than folding it, so an Ergonode code ' +
+      'spelled `KOD_ŁĄCZNIKA` keys as `kod__cznika`. Routing it through `slugify` ' +
+      'changes the key, and a changed key does not correct the old attribute — it ' +
+      'creates a new one beside it on the next run.',
+    retiredBy:
+      'an owner ruling on re-deriving these two keys with a back-fill of the existing ' +
+      "`ErgonodeAttributeMapping` rows. Issue #245's ruling does not reach here: it " +
+      'covered values computed once at create time, and these are lookup keys.',
+  },
+  'backend/src/modules/pim_ergonode/services/import/attribute-phase.ts': {
+    findings: 1,
+    reason:
+      'deriveOptionValue — a select option value, stored and referenced by every ' +
+      'product value the later phases project onto it, and re-derived on every run ' +
+      'for exactly that reason. Same deletion (`CZERWONY_ŻÓŁTY` becomes ' +
+      '`czerwony__ty`), same consequence: a repaired derivation orphans the option ' +
+      'the products already point at.',
+    retiredBy: 'the same ruling as `key-derivation.ts`; the two move together or not at all.',
+  },
+};
+
+/** Which shape a finding is. */
 export type FoldKind =
   /** A literal naming `NFD` or `NFKD`. */
   | 'decomposition'
   /** A pattern that strips combining marks. */
-  | 'diacritic-strip';
+  | 'diacritic-strip'
+  /**
+   * A `.replace()` collapsing a run of non-ASCII-alphanumerics to a separator —
+   * slug construction, which has one owner. This is the shape that is present
+   * whether or not the site folds, which is what makes a missing fold
+   * observable (issue #244).
+   */
+  | 'slug-run';
+
+/** The two explicit-fold kinds, which {@link DIACRITIC_FOLDS_ALLOWED} answers for. */
+export const EXPLICIT_FOLD_KINDS: ReadonlySet<FoldKind> = new Set<FoldKind>([
+  'decomposition',
+  'diacritic-strip',
+]);
+
+/** Which ledger answers for a finding of this kind. */
+export function ledgerFor(
+  kind: FoldKind,
+  folds: Readonly<Record<string, LedgerEntry>>,
+  slugRuns: Readonly<Record<string, LedgerEntry>>,
+): Readonly<Record<string, LedgerEntry>> {
+  return EXPLICIT_FOLD_KINDS.has(kind) ? folds : slugRuns;
+}
 
 export interface FoldFinding {
   /** Repo-relative path, POSIX separators — also the ledger key. */
@@ -292,6 +471,187 @@ export function isDiacriticPattern(text: string): boolean {
   return DIACRITIC_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+/**
+ * A negated character class, tolerating an escaped `]` inside it.
+ *
+ * `[^\]a-z0-9]` is legal and rare; a naive `\[\^[^\]]*\]` stops at the escaped
+ * bracket and reads the class as `[^\]`, which holds no ranges and so silently
+ * clears the site. Consuming `\\.` first is one character of regex and removes
+ * the whole shape from the "cannot see" list.
+ */
+const NEGATED_CLASS = /\[\^((?:\\.|[^\]\\])*)\]/;
+
+/** The quantifier that turns a class into a **run**: `+`, `{2,}`, `{1,4}`. */
+const RUN_QUANTIFIER = /^(?:\+|\{\d+,\d*\})/;
+
+/** A negated class this check reads as "everything outside ASCII alphanumerics". */
+export interface NegatedAsciiClass {
+  /** The class as written, quantifier included where it carries one. */
+  readonly text: string;
+  /** True when the class itself is quantified, so the run collapses in one move. */
+  readonly quantified: boolean;
+}
+
+/**
+ * The negated ASCII-alphanumeric class in a pattern's source, if it has one.
+ *
+ * "ASCII alphanumeric" is a letter range **and** a digit range (`a-z0-9`,
+ * `a-zA-Z0-9`, `A-Za-z0-9_-`), or the `\w` shorthand, which is the same set
+ * plus `_`. Extra members are allowed and are the norm — six of the nine sites
+ * measured keep `_` or `-` — because what matters is that every character
+ * outside ASCII is on the wrong side of the negation.
+ *
+ * A class that names **Unicode** properties is deliberately not one of these:
+ * `[^\p{L}\p{N}]` keeps its accented letters, so it is not the defect and not in
+ * the population.
+ */
+export function negatedAsciiClass(pattern: string): NegatedAsciiClass | undefined {
+  const match = NEGATED_CLASS.exec(pattern);
+  if (match === null) return undefined;
+  const members = match[1] ?? '';
+  const asciiAlphanumeric =
+    (/a-z/i.test(members) && /0-9/.test(members)) || /\\w/.test(members);
+  if (!asciiAlphanumeric) return undefined;
+  const tail = pattern.slice(match.index + match[0].length);
+  const quantifier = RUN_QUANTIFIER.exec(tail);
+  return {
+    text: `${match[0]}${quantifier?.[0] ?? ''}`,
+    quantified: quantifier !== null,
+  };
+}
+
+/** Escape a literal so it can be matched inside a constructed pattern. */
+function escapeForRegExp(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+}
+
+/**
+ * Does this pattern collapse a **run of the separator** — `/-+/`, `/_{2,}/`,
+ * `/[-]+$/`?
+ *
+ * This is the second half of the two-move spelling. An anchored edge trim
+ * (`/^-+/`, `/-+$/`) counts, and that is a decision rather than an oversight: a
+ * site that emits a separator and then quantifies it anywhere is producing a
+ * separator-delimited value, which is the grammar the rule is about. It changes
+ * no finding on the tree this landed against, where the two two-move sites both
+ * spell it `/_{2,}/`.
+ */
+export function collapsesSeparatorRun(pattern: string, separator: string): boolean {
+  if (separator.length === 0) return false;
+  const escaped = escapeForRegExp(separator);
+  return new RegExp(`(?:\\[${escaped}\\]|${escaped})(?:\\+|\\{\\d+,\\d*\\})`).test(pattern);
+}
+
+/**
+ * The pattern source of a `.replace()`'s first argument, where it is literal.
+ *
+ * A regular-expression literal (its body, without the delimiters and flags) or a
+ * `new RegExp('…')` built from a string. A **bare string** first argument is not
+ * one: `replace` treats it as a literal substring rather than a pattern, so
+ * `'[^a-z0-9]+'` there matches those characters verbatim and collapses nothing.
+ */
+export function replacePatternSource(node: ts.Node, file: ts.SourceFile): string | undefined {
+  if (ts.isRegularExpressionLiteral(node)) {
+    const end = node.text.lastIndexOf('/');
+    return end > 0 ? node.text.slice(1, end) : undefined;
+  }
+  if (ts.isNewExpression(node) && node.expression.getText(file) === 'RegExp') {
+    const first = node.arguments?.[0];
+    return first !== undefined && ts.isStringLiteralLike(first) ? first.text : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * The separator a `.replace()` writes, where it is one.
+ *
+ * A non-empty string literal, or an identifier / property access — `slugify`
+ * itself writes `.replace(/[^a-z0-9]+/g, separator)`, and a copy of it would
+ * too. `''` is **not** a separator: deleting a run preserves nothing and is the
+ * shape four legitimate sanitisers in this tree use. A replacer *function* is
+ * not one either; nothing in the population writes a slug that way.
+ *
+ * Returns `null` for the identifier case, which is a separator whose text this
+ * check does not know — enough for the one-move spelling, not enough to look for
+ * a second move over it.
+ */
+export function replaceSeparator(node: ts.Node): string | null | undefined {
+  if (ts.isStringLiteralLike(node)) return node.text.length > 0 ? node.text : undefined;
+  if (ts.isIdentifier(node) || ts.isPropertyAccessExpression(node)) return null;
+  return undefined;
+}
+
+/**
+ * Is there a later `.replace()` in the **same call chain** that collapses a run
+ * of `separator`?
+ *
+ * The window is one expression and stops there. A collapse split across two
+ * statements is out of the population, and the header says so rather than
+ * leaving a reader to find out — the same bound `check-port-catches` draws when
+ * it follows a gate one hop through `this` and no further.
+ */
+function chainCollapsesSeparator(
+  call: ts.CallExpression,
+  separator: string,
+  file: ts.SourceFile,
+): boolean {
+  let current: ts.Node = call;
+  while (
+    ts.isPropertyAccessExpression(current.parent) &&
+    current.parent.expression === current &&
+    ts.isCallExpression(current.parent.parent) &&
+    current.parent.parent.expression === current.parent
+  ) {
+    const access = current.parent;
+    const next = current.parent.parent;
+    if (access.name.text === 'replace' && next.arguments.length === 2) {
+      const pattern = replacePatternSource(next.arguments[0]!, file);
+      if (pattern !== undefined && collapsesSeparatorRun(pattern, separator)) return true;
+    }
+    current = next;
+  }
+  return false;
+}
+
+/**
+ * Is this call a slug run — a `.replace()` collapsing everything outside ASCII
+ * alphanumerics to a separator?
+ *
+ * Exported so a red proof can enter here as well as at {@link analyzeSource}.
+ * Returns the class as written, which is what the failure message names.
+ */
+export function slugRunOf(node: ts.Node, file: ts.SourceFile): string | undefined {
+  if (!ts.isCallExpression(node)) return undefined;
+  if (!ts.isPropertyAccessExpression(node.expression)) return undefined;
+  if (node.expression.name.text !== 'replace' || node.arguments.length !== 2) return undefined;
+  const pattern = replacePatternSource(node.arguments[0]!, file);
+  if (pattern === undefined) return undefined;
+  const negated = negatedAsciiClass(pattern);
+  if (negated === undefined) return undefined;
+  const separator = replaceSeparator(node.arguments[1]!);
+  if (separator === undefined) return undefined;
+  if (negated.quantified) return negated.text;
+  if (separator === null) return undefined;
+  return chainCollapsesSeparator(node, separator, file) ? negated.text : undefined;
+}
+
+/** What one file's analysis yields: its findings, and the population it judged. */
+export interface FileAnalysis {
+  readonly findings: readonly FoldFinding[];
+  /**
+   * How many `.replace()` calls the slug predicate judged — the check's `sites=`
+   * number (issue #244).
+   *
+   * It counts the **population**, not the findings: every two-argument
+   * `.replace()` whose pattern this check can read, whether or not it turned out
+   * to be a slug run. A number that moved with the findings would answer the
+   * wrong question, which is the mistake `check-entry-scope` had already made
+   * once when it printed the files that hold an entry site rather than the files
+   * it opened.
+   */
+  readonly replaceSites: number;
+}
+
 /** Is this path in the population — a source file under a root, not the helper? */
 export function isScannablePath(path: string): boolean {
   if (path === SHARED_FOLD_HELPER) return false;
@@ -307,16 +667,23 @@ export function isScannablePath(path: string): boolean {
 }
 
 /**
- * Every fold half in one file's source.
+ * One file's source, analysed once.
  *
- * **This is the top of the analysis**: source text in, findings out. It parses
- * rather than greps, so a `normalize('NFD')` quoted in a doc block — which four
- * files in this tree do, on purpose, to explain why they do not use it — is not
- * a literal node and cannot be seen.
+ * **This is the top of the analysis**: source text in, findings and the judged
+ * population out. It parses rather than greps, so a `normalize('NFD')` quoted in
+ * a doc block — which four files in this tree do, on purpose, to explain why
+ * they do not use it — is not a literal node and cannot be seen. The same holds
+ * for the third signal: a doc block quoting `.replace(/[^a-z0-9]+/g, '-')` to
+ * explain the defect is not a call node.
+ *
+ * One parse for all three signals, and for the site count: two walks over the
+ * same tree would let the population and the findings drift apart, which is the
+ * one thing `sites=` exists to prevent.
  */
-export function analyzeSource(source: string, path: string): FoldFinding[] {
+export function analyzeFile(source: string, path: string): FileAnalysis {
   const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const found: FoldFinding[] = [];
+  let replaceSites = 0;
 
   const at = (node: ts.Node): { line: number; column: number } => {
     const position = file.getLineAndCharacterOfPosition(node.getStart(file));
@@ -334,11 +701,35 @@ export function analyzeSource(source: string, path: string): FoldFinding[] {
     } else if (ts.isRegularExpressionLiteral(node) && isDiacriticPattern(node.text)) {
       found.push({ path, kind: 'diacritic-strip', ...at(node), literal: node.text });
     }
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'replace' &&
+      node.arguments.length === 2 &&
+      replacePatternSource(node.arguments[0]!, file) !== undefined
+    ) {
+      replaceSites += 1;
+      const slugRun = slugRunOf(node, file);
+      if (slugRun !== undefined) {
+        found.push({ path, kind: 'slug-run', ...at(node), literal: slugRun });
+      }
+    }
     ts.forEachChild(node, visit);
   };
 
   visit(file);
-  return found;
+  return { findings: found, replaceSites };
+}
+
+/**
+ * The findings alone — the shape a red proof asserts against.
+ *
+ * Kept as its own export because every proof in the companion test and in the
+ * inventory enters here, with source text, which is the anchoring issue #130
+ * asks for.
+ */
+export function analyzeSource(source: string, path: string): FoldFinding[] {
+  return [...analyzeFile(source, path).findings];
 }
 
 /** A file handed to the analysis: repo-relative POSIX path plus its source text. */
@@ -347,7 +738,7 @@ export interface ScannedFile {
   readonly source: string;
 }
 
-/** Every fold half among the scannable files, in path order. */
+/** Every finding among the scannable files, in path order. */
 export function findDiacriticFolds(files: Iterable<ScannedFile>): FoldFinding[] {
   const found: FoldFinding[] = [];
   for (const file of files) {
@@ -363,11 +754,15 @@ export interface StaleEntry {
   readonly path: string;
   readonly declared: number;
   readonly actual: number;
+  /** Which ledger the entry sits in, so the report names the file to edit. */
+  readonly ledger: 'folds' | 'slug-runs';
 }
 
 export interface CheckResult {
   /** Files the analysis actually inspected — the vacuous-pass guard reads this. */
   readonly scanned: number;
+  /** `.replace()` calls the slug predicate judged — the `sites=` population. */
+  readonly replaceSites: number;
   readonly total: number;
   readonly violations: readonly FoldFinding[];
   readonly ledgered: readonly FoldFinding[];
@@ -377,25 +772,52 @@ export interface CheckResult {
 export function checkDiacriticFolds(
   files: Iterable<ScannedFile>,
   ledger: Readonly<Record<string, LedgerEntry>> = DIACRITIC_FOLDS_ALLOWED,
+  slugLedger: Readonly<Record<string, LedgerEntry>> = SLUG_RUNS_ALLOWED,
 ): CheckResult {
   const scannable = [...files].filter((file) => isScannablePath(file.path));
-  const all = findDiacriticFolds(scannable);
+  const all: FoldFinding[] = [];
+  let replaceSites = 0;
+  for (const file of scannable) {
+    const analysis = analyzeFile(file.source, file.path);
+    all.push(...analysis.findings);
+    replaceSites += analysis.replaceSites;
+  }
+  all.sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line || a.column - b.column);
 
-  const counts = new Map<string, number>();
-  for (const finding of all) counts.set(finding.path, (counts.get(finding.path) ?? 0) + 1);
+  // Counted per ledger, not per file: the two answer different questions, so a
+  // file carrying one of each is two independent entries rather than one
+  // ambiguous number.
+  const foldCounts = new Map<string, number>();
+  const slugCounts = new Map<string, number>();
+  for (const finding of all) {
+    const counts = EXPLICIT_FOLD_KINDS.has(finding.kind) ? foldCounts : slugCounts;
+    counts.set(finding.path, (counts.get(finding.path) ?? 0) + 1);
+  }
 
   const stale: StaleEntry[] = [];
   for (const [path, entry] of Object.entries(ledger)) {
-    const actual = counts.get(path) ?? 0;
-    if (actual !== entry.findings) stale.push({ path, declared: entry.findings, actual });
+    const actual = foldCounts.get(path) ?? 0;
+    if (actual !== entry.findings) {
+      stale.push({ path, declared: entry.findings, actual, ledger: 'folds' });
+    }
   }
+  for (const [path, entry] of Object.entries(slugLedger)) {
+    const actual = slugCounts.get(path) ?? 0;
+    if (actual !== entry.findings) {
+      stale.push({ path, declared: entry.findings, actual, ledger: 'slug-runs' });
+    }
+  }
+
+  const isLedgered = (finding: FoldFinding): boolean =>
+    ledgerFor(finding.kind, ledger, slugLedger)[finding.path] !== undefined;
 
   return {
     scanned: scannable.length,
+    replaceSites,
     total: all.length,
-    violations: all.filter((finding) => ledger[finding.path] === undefined),
-    ledgered: all.filter((finding) => ledger[finding.path] !== undefined),
-    stale: stale.sort((a, b) => a.path.localeCompare(b.path)),
+    violations: all.filter((finding) => !isLedgered(finding)),
+    ledgered: all.filter(isLedgered),
+    stale: stale.sort((a, b) => a.path.localeCompare(b.path) || a.ledger.localeCompare(b.ledger)),
   };
 }
 
@@ -414,17 +836,29 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 /**
- * Is the excluded helper still the file that folds?
+ * Is the excluded helper still the owner of all three shapes?
  *
  * The exemption and the self-test are the same path on purpose. If the helper
  * has moved, the exclusion exempts nothing and the real fold is now being
  * reported at its new home; if the helper is there but the analysis finds no
  * fold in it, the analysis has gone blind and every green it reports afterwards
  * is vacuous. Either way the answer is exit 2, not exit 0.
+ *
+ * The `slug-run` shape joined the guard with issue #244, and it earns its place
+ * twice over. It is the third predicate, so it is a third way for the analysis
+ * to go blind unnoticed. And `slugify` is what every `slug-run` failure message
+ * tells the author to import: a run in which nothing in the helper parses as a
+ * slug builder is a run whose remedy does not exist, which is worth an exit 2
+ * on its own.
+ *
+ * It was named `helperStillFolds` until then. The rename is the point of the
+ * widening: a function reporting `false` because `slugify` was deleted, under a
+ * name that says "folds", is the sort of quiet mismatch this file exists to
+ * refuse.
  */
-export function helperStillFolds(source: string): boolean {
+export function helperIsStillTheOwner(source: string): boolean {
   const kinds = new Set(analyzeSource(source, SHARED_FOLD_HELPER).map((finding) => finding.kind));
-  return kinds.has('decomposition') && kinds.has('diacritic-strip');
+  return kinds.has('decomposition') && kinds.has('diacritic-strip') && kinds.has('slug-run');
 }
 
 function main(): void {
@@ -438,10 +872,11 @@ function main(): void {
     );
     process.exit(2);
   }
-  if (!helperStillFolds(readFileSync(helperPath, 'utf8'))) {
+  if (!helperIsStillTheOwner(readFileSync(helperPath, 'utf8'))) {
     console.error(
-      `[diacritic-folds] ${SHARED_FOLD_HELPER} no longer parses as a fold — either it ` +
-        'stopped being the owner of the fold or this analysis went blind; refusing to ' +
+      `[diacritic-folds] ${SHARED_FOLD_HELPER} no longer parses as both the fold and the ` +
+        'slug generator — either it stopped being the owner of them or this analysis went ' +
+        'blind, and the import every failure message names would not exist; refusing to ' +
         'report a vacuous pass',
     );
     process.exit(2);
@@ -467,7 +902,10 @@ function main(): void {
 
   if (listMode) {
     for (const finding of findDiacriticFolds(files)) {
-      const tag = DIACRITIC_FOLDS_ALLOWED[finding.path] !== undefined ? 'LEDGERED' : 'FOLD    ';
+      const ledgered =
+        ledgerFor(finding.kind, DIACRITIC_FOLDS_ALLOWED, SLUG_RUNS_ALLOWED)[finding.path] !==
+        undefined;
+      const tag = ledgered ? 'LEDGERED' : 'FINDING ';
       console.log(
         `${tag} ${finding.path}:${finding.line}:${finding.column} ${finding.kind} ${finding.literal}`,
       );
@@ -476,19 +914,30 @@ function main(): void {
   }
 
   // What was read, beside what was found (issue #244) — and this check is the
-  // one that filed it: its population is defined by the *presence* of a fold,
-  // so a slugifier with no fold at all matches nothing and reports clean. The
-  // file count cannot see that either, but it is the number that says whether
-  // the four population roots were walked at all. `self-reported`: there is no
-  // independent derivation of "every file that should be scanned for a fold".
-  reportReadSize({ prefix: '[diacritic-folds]', files: result.scanned });
+  // one that filed it. `files` says whether the four population roots were
+  // walked at all; `sites` is the number the third signal exists for, because
+  // the first two have a population defined by the presence of a fold and a
+  // site that folds nothing is in neither. It counts every `.replace()` whose
+  // pattern the slug predicate could read, cleared ones included, so it never
+  // moves with the findings. `self-reported`: nothing in the tree derives "every
+  // file that should be scanned for a fold" — a fold is legal anywhere, which is
+  // the whole of issue #240.
+  reportReadSize({
+    prefix: '[diacritic-folds]',
+    files: result.scanned,
+    sites: result.replaceSites,
+  });
   console.log(
-    `[diacritic-folds] scanned=${result.scanned} folds-outside-the-helper=${result.total} ` +
+    `[diacritic-folds] scanned=${result.scanned} findings-outside-the-helper=${result.total} ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
-      `ledger-size=${Object.keys(DIACRITIC_FOLDS_ALLOWED).length} stale=${result.stale.length}`,
+      `fold-ledger-size=${Object.keys(DIACRITIC_FOLDS_ALLOWED).length} ` +
+      `slug-ledger-size=${Object.keys(SLUG_RUNS_ALLOWED).length} stale=${result.stale.length}`,
   );
 
-  if (result.violations.length > 0) {
+  const folds = result.violations.filter((finding) => EXPLICIT_FOLD_KINDS.has(finding.kind));
+  const slugRuns = result.violations.filter((finding) => finding.kind === 'slug-run');
+
+  if (folds.length > 0) {
     console.error(
       '\nA diacritic fold outside the shared helper (issue #240).\n' +
         `Import { foldDiacritics } from '@b2b/contracts' instead — or, in the admin,\n` +
@@ -501,7 +950,27 @@ function main(): void {
         'The shared fold decomposes, strips, and then maps the letters NFD left\n' +
         'standing — which is the step the one-liner is missing.\n',
     );
-    for (const finding of result.violations) {
+    for (const finding of folds) {
+      console.error(
+        `  - ${finding.path}:${finding.line}:${finding.column}  ${finding.kind}  ${finding.literal}`,
+      );
+    }
+  }
+  if (slugRuns.length > 0) {
+    console.error(
+      '\nA slug built outside the shared generator (issue #244).\n' +
+        `Import { slugify } from '@b2b/contracts' instead. It takes the caller's own\n` +
+        'policy — { separator, maxLength, fallback } — and nothing else is negotiable,\n' +
+        'because the step a hand-rolled chain leaves out is always the same one:\n' +
+        'collapsing everything outside `[a-z0-9]` **deletes** every non-ASCII letter\n' +
+        'unless the value was folded first. `Żółw` becomes `w`, `Świeże Ćwikła` becomes\n' +
+        '`wie-e-wik-a`, `KAT_ŁĄCZNIKI_01` becomes `kat-czniki-01`. Two sites shipped that\n' +
+        'way for a year and no check could see them, because a site that folds nothing\n' +
+        'writes no fold to find — which is why this rule keys on the slug builder\n' +
+        'instead. If the value here is already persisted and re-deriving it would\n' +
+        'rename live rows, that is a ledger entry with a reason, not a second copy.\n',
+    );
+    for (const finding of slugRuns) {
       console.error(
         `  - ${finding.path}:${finding.line}:${finding.column}  ${finding.kind}  ${finding.literal}`,
       );
@@ -509,11 +978,13 @@ function main(): void {
   }
   if (result.stale.length > 0) {
     console.error(
-      '\nStale ledger entries — the file no longer carries the folds the entry declares.\n' +
+      '\nStale ledger entries — the file no longer carries what the entry declares.\n' +
         'If they were repaired, delete the entry. Never raise a number to make the build pass.',
     );
     for (const entry of result.stale) {
-      console.error(`  - ${entry.path}: declared ${entry.declared}, found ${entry.actual}`);
+      console.error(
+        `  - [${entry.ledger}] ${entry.path}: declared ${entry.declared}, found ${entry.actual}`,
+      );
     }
   }
 

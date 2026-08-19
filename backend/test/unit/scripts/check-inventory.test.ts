@@ -92,7 +92,7 @@ import {
   analyzeSource as diacriticAnalyze,
   checkDiacriticFolds,
   findDiacriticFolds,
-  helperStillFolds,
+  helperIsStillTheOwner,
   SHARED_FOLD_HELPER,
   type ScannedFile as FoldSource,
 } from '../../../scripts/check-diacritic-folds.js';
@@ -1556,6 +1556,17 @@ const naiveFold = (form: 'NFD' | 'NFKD', strip: string): string =>
 
 /** U+0300–U+036F as the characters themselves — how one backend slugifier spells it. */
 const RAW_COMBINING_RANGE = `[${'̀'}-${'ͯ'}]`;
+
+/**
+ * A hand-rolled slug builder, parameterised by the two things that vary.
+ *
+ * `fold` is the step whose **absence** was undetectable before issue #244: a
+ * site that passes `''` here writes no fold at all, so the first two signals
+ * see nothing in it — which is precisely why the `slug-run` proofs below have
+ * to be written against both values.
+ */
+const handRolledSlug = (fold: string, collapse: string): string =>
+  `export const slug = (v: string) => ${fold}(v).replace(${collapse}, '-');`;
 
 /** 1 when exactly the expected paths folded — the shape a discrimination needs. */
 const exactlyFoldPaths = (files: readonly FoldSource[], expected: readonly string[]): number =>
@@ -3551,6 +3562,23 @@ const CHECKS: readonly CheckEntry[] = [
     // into `@b2b/contracts`: the rule "use the shared fold" had nothing to mean
     // in a package that could not reach one, which is why three packages that
     // fold were excluded by the first version of this entry.
+    //
+    // Issue #244 — and then this check turned out to be the family's own worked
+    // example. Both signals above have a population defined by the **presence**
+    // of the thing they check, so a slug builder that folds nothing writes
+    // nothing for them to see: two shipped that way for a year, deleting `ł`
+    // out of every Polish name, while the check printed `violations=0`
+    // throughout. The third signal, `slug-run`, keys on the builder instead —
+    // present whether or not the site folds — and its load-bearing proof is
+    // `slug-run-that-folds-correctly`: a predicate that reported only the
+    // unfolded ones would be the old blindness with an extra step.
+    //
+    // Its four discriminations carry as much weight as its red proofs. The
+    // obvious wider predicate matches 9 sites in this tree and 7 of them
+    // legitimately need no fold, which would make the ledger mostly exceptions —
+    // and a ledger that is mostly exceptions teaches people to add entries
+    // rather than to think. Requiring the run collapse is what removes them, and
+    // each discrimination below is one of those live sites.
     script: 'backend/scripts/check-diacritic-folds.ts',
     npmScript: 'check:diacritic-folds',
     job: 'quality',
@@ -3731,7 +3759,158 @@ const CHECKS: readonly CheckEntry[] = [
       // longer parses as a fold means the file moved or the analysis went
       // blind, and either way a green would be worthless.
       'helper-that-no-longer-folds': top(() =>
-        helperStillFolds('export const normalize = (v: string) => v.toLowerCase();') ? 0 : 1,
+        helperIsStillTheOwner('export const normalize = (v: string) => v.toLowerCase();') ? 0 : 1,
+      ),
+      // ---- the third signal (issue #244) ---------------------------------
+      // The two above have a population defined by the presence of the thing
+      // they check, so a site that folds nothing matches nothing and reports
+      // clean. This one keys on the slug builder, which is written either way.
+      //
+      // `cms-template-layout.ts` as it stood on `master` for a year: no fold
+      // step at all, so `Żółw` produced `w` and neither older signal saw it.
+      'slug-run-without-a-fold': top(
+        () =>
+          diacriticAnalyze(
+            "export const code = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-');",
+            'admin/src/modules/cms/components/cms-template-layout.ts',
+          ).filter((f) => f.kind === 'slug-run').length,
+      ),
+      // **The load-bearing one.** `BlogPostEditor` folded correctly through the
+      // admin `normalize` and was still a ninth private copy of the generator.
+      // If this came back 0 the signal would be keyed on the missing fold —
+      // which is unobservable, and is the whole of issue #244.
+      'slug-run-that-folds-correctly': top(
+        () =>
+          diacriticAnalyze(
+            handRolledSlug('normalize', '/[^a-z0-9]+/g'),
+            'admin/src/modules/blog/pages/BlogPostEditor.tsx',
+          ).filter((f) => f.kind === 'slug-run').length,
+      ),
+      // `pim_ergonode`'s `sanitiseSourceCode`: the class carries no quantifier,
+      // so the run is collapsed by a second `.replace` later in the same chain.
+      // A predicate reading one expression node in isolation clears it.
+      'slug-run-collapsed-in-a-second-move': top(
+        () =>
+          diacriticAnalyze(
+            "export const k = (v: string) => v.replace(/[^a-z0-9_]/g, '_').replace(/_{2,}/g, '_');",
+            'backend/src/modules/pim_ergonode/services/key-derivation.ts',
+          ).filter((f) => f.kind === 'slug-run').length,
+      ),
+      // `[^\w]+` names the same ASCII set without writing a range, so a
+      // class-range grep reads it clean while it deletes `ł` just the same.
+      'slug-run-written-with-the-w-shorthand': top(
+        () =>
+          diacriticAnalyze(
+            handRolledSlug('fold', '/[^\\w]+/g'),
+            'storefront/lib/slug.ts',
+          ).filter((f) => f.kind === 'slug-run').length,
+      ),
+      // The seven sanitisers the wider predicate would have pulled in, and the
+      // reason this ledger is not mostly exceptions. Written as
+      // discriminations, one per rule that clears them, because "no finding" is
+      // green when the check is blind.
+      //
+      // A one-for-one substitution preserves length and position — identifier
+      // grammar, not slug grammar. `FieldProtectionToggle`'s DOM id.
+      'one-for-one-substitution-is-not-a-slug': top(() =>
+        exactlyFoldPaths(
+          [
+            foldSource(
+              'admin/src/modules/pim_ergonode/components/FieldProtectionToggle.tsx',
+              "export const id = (p: string) => `x-${p}`.replace(/[^a-zA-Z0-9_-]/g, '-');",
+            ),
+            foldSource('admin/src/lib/slug.ts', handRolledSlug('fold', '/[^a-z0-9]+/g')),
+          ],
+          ['admin/src/lib/slug.ts'],
+        ),
+      ),
+      // A quantified run replaced by nothing is a compaction: there is no
+      // delimiter in the output for it to be a slug. `autopay`'s hash seed.
+      'deleting-the-run-is-not-a-slug': top(() =>
+        exactlyFoldPaths(
+          [
+            foldSource(
+              'backend/src/modules/autopay/services/autopay-hash.ts',
+              "export const c = (s: string) => s.replace(/[^A-Za-z0-9]+/g, '');",
+            ),
+            foldSource('admin/src/lib/slug.ts', handRolledSlug('fold', '/[^a-z0-9]+/g')),
+          ],
+          ['admin/src/lib/slug.ts'],
+        ),
+      ),
+      // A Unicode-aware class collapses a run and is **not** the defect: `ł` is
+      // a letter, so it survives. Reporting it would report the correct answer.
+      'unicode-aware-class-is-not-the-defect': top(() =>
+        exactlyFoldPaths(
+          [
+            foldSource(
+              'storefront/lib/heading-id.ts',
+              "export const h = (v: string) => v.replace(/[^\\p{L}\\p{N}]+/gu, '-');",
+            ),
+            foldSource('admin/src/lib/slug.ts', handRolledSlug('fold', '/[^a-z0-9]+/g')),
+          ],
+          ['admin/src/lib/slug.ts'],
+        ),
+      ),
+      // The stated bound of the window: one call chain, no further, in the
+      // idiom of `check-port-catches` following a gate one hop through `this`.
+      // A bound that is asserted is a bound a widening has to delete on purpose.
+      'a-collapse-split-across-statements-is-out-of-the-window': top(() =>
+        exactlyFoldPaths(
+          [
+            foldSource(
+              'backend/src/modules/x/two-statements.ts',
+              'export function k(v: string): string {\n' +
+                "  const c = v.replace(/[^a-z0-9_]/g, '_');\n" +
+                "  return c.replace(/_{2,}/g, '_');\n" +
+                '}',
+            ),
+            foldSource('admin/src/lib/slug.ts', handRolledSlug('fold', '/[^a-z0-9]+/g')),
+          ],
+          ['admin/src/lib/slug.ts'],
+        ),
+      ),
+      // The slug ledger's second direction, and its own: an entry over a file
+      // that no longer builds a slug fails, and a fold filed in the slug ledger
+      // is not excused by it.
+      'stale-slug-ledger-entry': top(
+        () =>
+          checkDiacriticFolds(
+            [foldSource('admin/src/lib/slug.ts', 'export const a = 1;')],
+            {},
+            {
+              'admin/src/lib/slug.ts': {
+                findings: 1,
+                reason: 'A reason that has outlived its slug builder.',
+                retiredBy: 'issue #244',
+              },
+            },
+          ).stale.length,
+      ),
+      // The exemption is one exact path for the generator exactly as it is for
+      // the fold (issue #197): a copy of `slugify` elsewhere is a violation
+      // however it is named.
+      'the-shared-generator-is-excluded-by-path-not-by-name': top(() =>
+        exactlyFoldPaths(
+          [
+            foldSource(SHARED_FOLD_HELPER, handRolledSlug('foldDiacritics', '/[^a-z0-9]+/g')),
+            foldSource(
+              'admin/src/lib/text-normalization.ts',
+              handRolledSlug('foldDiacritics', '/[^a-z0-9]+/g'),
+            ),
+          ],
+          ['admin/src/lib/text-normalization.ts'],
+        ),
+      ),
+      // The guard's third shape: a helper that still folds but no longer holds
+      // the generator. `slugify` is what every `slug-run` message tells the
+      // author to import, so its absence makes the printed remedy nonexistent.
+      'helper-that-folds-but-no-longer-slugifies': top(() =>
+        helperIsStillTheOwner(
+          "export const f = (v: string) => v.normalize('NFD').replace(/\\p{Diacritic}/gu, '');",
+        )
+          ? 0
+          : 1,
       ),
     },
   },
@@ -3995,7 +4174,17 @@ describe('every red proof enters at the top of the analysis', () => {
       // one discrimination turned into two: the packages that are now in, and
       // the two subtrees that stay out because spelling the refused shape is
       // their job.
-      'backend/scripts/check-diacritic-folds.ts': 14,
+      //
+      // Plus issue #244's eleven, for the third signal: four shapes of a slug
+      // run (no fold at all, a correct fold, a two-move collapse, the `\w`
+      // shorthand), four discriminations that are the honest population itself
+      // (a one-for-one substitution, a deleted run, a Unicode-aware class, a
+      // collapse split across statements), the second ledger's stale direction,
+      // the generator's path-anchored exemption, and the guard's third shape.
+      // The four discriminations are why the count grew by eleven rather than
+      // four: this predicate's whole claim is that its ledger is not a list of
+      // exceptions, and that claim is only worth what its negative proofs are.
+      'backend/scripts/check-diacritic-folds.ts': 25,
       'backend/scripts/check-doc-snippets.ts': 4,
       'backend/scripts/check-entity-tenant-classification.ts': 2,
       // Three timer shapes plus D-68's four boot-hook ones. The count is the
