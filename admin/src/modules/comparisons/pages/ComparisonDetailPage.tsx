@@ -21,10 +21,18 @@ import { getComparisonDetail } from '../api';
 /**
  * `<ComparisonDetailPage>` — feature 007 / US5 / T068.
  *
- * Read-only detail of a single Comparison. Renders the same products
- * + comparable-attribute projection the storefront customer sees, in
- * the comparison's RECORDED sales-channel context (so prices match
- * what the customer reported). No mutation controls.
+ * Read-only detail of a single Comparison. Renders the products and the
+ * comparable-attribute projection in the comparison's RECORDED sales-channel
+ * context (the creator's, not the admin's). No mutation controls.
+ *
+ * **The figures are the channel's, not the customer's.** Since the comparison
+ * became viewer-priced, the customer sees their own organisation's prices and
+ * an administrator — who has no buying organisation — sees the channel's. The
+ * screen says so rather than letting the reader assume the two agree, which is
+ * the same reason the storefront's shared view says whose prices it is showing.
+ * Every product is listed, including ones restricted to organizations other
+ * than the reader's: this is the audit view, and its question is what the
+ * customer put in the comparison.
  */
 export function ComparisonDetailPage(): ReactNode {
   const t = useTranslation('comparisons');
@@ -80,6 +88,10 @@ export function ComparisonDetailPage(): ReactNode {
         title={t('detail.page.title')}
         description={t('detail.page.description')}
       />
+
+      <Alert className="mb-4">
+        <AlertDescription>{t('detail.pricesNote')}</AlertDescription>
+      </Alert>
 
       <Card className="mb-4">
         <CardContent className="pt-6 space-y-2">
