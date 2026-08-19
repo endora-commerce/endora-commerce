@@ -9,9 +9,9 @@ import { getRootContainer, type KernelContainer, type KernelCradle } from './con
 
 /**
  * `enterPlatformScope` — the one entry into a scoped execution (feature 072,
- * FR-015…FR-021). Five callers: the HTTP `onRequest` hook, BullMQ processors,
- * the 15 CLI scripts, the four boot reconcilers and the four `setInterval`
- * sweeps.
+ * FR-015…FR-021). Six callers: the HTTP `onRequest` hook, BullMQ processors,
+ * the 15 CLI scripts, the four boot reconcilers, the four `setInterval` sweeps
+ * and — since issue #235 — the registry cache's Redis pub/sub handler.
  *
  * ## Three rules, none of them negotiable
  *

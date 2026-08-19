@@ -244,7 +244,18 @@ export class ModuleRegistryCache {
     this.subscriber = opts.redisSubscriber;
     this.subscriber.on('message', (channel) => {
       if (channel !== STATE_CHANGED_CHANNEL) return;
-      void this.refreshFromDb(opts.em).catch((err) => {
+      // Issue #235 — the same reason the degraded timer below states, for the
+      // same call: this refresh reads `module_registrations` and `settings` from
+      // a Redis pub/sub callback, delivered off a socket the composition opened,
+      // so there is no caller to inherit a context from. Both entities are
+      // `@GlobalEntity()` today and the tenant filters therefore contribute
+      // nothing — an accident of classification, not a design, and one that
+      // stops holding the moment either query path gains a scoped sibling.
+      void enterSystemScope(
+        '_lifecycle: registry refresh on state-change notification',
+        () => this.refreshFromDb(opts.em),
+        { entryPoint: 'message' },
+      ).catch((err) => {
         // Slip into degraded mode; the fallback timer keeps re-reading.
         this.enterDegradedMode(opts.em);
 
