@@ -153,7 +153,7 @@ export const POPULATION_ROOTS: Readonly<Record<string, string>> = {
     'an expected value with its own fold is a fifth copy that happens to be green.',
   backend:
     'Folds in two slugifiers today, both carrying the `l` bug, both ledgered ' +
-    'below because they compute persisted values (issue #239). It imports ' +
+    'below because they compute persisted, externally-visible keys. It imports ' +
     '@b2b/contracts everywhere else, so the shared fold is one import away.',
   storefront:
     'Folds nowhere today, which is exactly when a rule is cheap to keep: the ' +
@@ -211,51 +211,40 @@ export interface LedgerEntry {
  * no longer folds fails it as well. Never raise a number to make the build
  * pass: add the import.
  *
- * It holds exactly four **slugifiers**, two in `admin/` and two in `backend/`,
- * and it holds them for one reason: each computes a value that is **already
- * persisted** somewhere. A feed slug sits in a URL an operator has published, a
- * newsletter tag code is validated against `CODE_RE` by the backend, a feed
- * template filename is what a human was handed, a category slug is a link. Fold
- * any of them differently and the same input produces a different key — which
- * is a rename of live data, not a repair. Three of the four are additionally
- * `NFKD` rather than `NFD`, so they also fold compatibility characters
- * (`fi` ligature to `fi`, superscript two to `2`, full-width forms), and the
- * shared fold does not. That is a data migration wearing a one-line diff, and
- * it is issue #239's, not this check's.
+ * It holds exactly two **slugifiers**, both in `backend/`, and it holds them
+ * for one reason: each computes a value that is **already persisted** and
+ * **externally visible**. A feed template filename is what a human was handed
+ * and hands on; a category slug is a storefront URL. Fold either differently
+ * and the same input produces a different key — which is a rename of live
+ * data, not a repair. Both are additionally `NFKD` rather than `NFD`, so they
+ * also fold compatibility characters (`fi` ligature to `fi`, superscript two
+ * to `2`, full-width forms), and the shared fold does not.
  *
  * Note what is *not* the reason: "slugs are different from search". They are
  * not — the admin helper's own header names slug generators as one of its two
  * kinds of caller, and `PageEditor`, `BlockEditor` and `BlogPostEditor` already
  * use it. Distinguishing a search fold from a slug fold in the *rule* was
  * considered and rejected: it would exempt a whole category on the strength of
- * four files whose real problem is that their output is a stored key.
+ * files whose real problem is that their output is a stored key.
  *
- * The two backend entries are not new defects found by widening the population:
- * they were named in this file's header from the day it landed, as folds the
- * rule could not reach because no shared fold was reachable from `backend/`.
- * `foldDiacritics` makes them reachable, so they become ledgered debt with a
- * retiring condition instead of a paragraph.
+ * **The two `admin/` entries this ledger opened with are gone (issue #239).**
+ * `product_feeds/api.ts` and `newsletter/pages/TagsPage.tsx` both import the
+ * shared fold now. The owner ruled on 2026-08-19 that new values are to be
+ * correct and historical ones are not migrated: only two developer
+ * environments exist, so renaming their feeds and tags buys nobody anything.
+ * The admin feed slug also gave up NFKD's compatibility mappings in that
+ * repair, which was ruled the smaller loss — those mappings only reach a slug
+ * through characters nobody types into a feed name, while `ł` was being
+ * deleted out of every Polish one.
+ *
+ * The two backend entries were not discovered by widening the population: they
+ * were named in this file's header from the day it landed, as folds the rule
+ * could not reach because no shared fold was reachable from `backend/`.
+ * `foldDiacritics` makes them reachable, so they are ledgered debt with a
+ * retiring condition instead of a paragraph. Issue #239 was scoped to the admin
+ * SPA and did not rule on them.
  */
 export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {
-  'admin/src/modules/product_feeds/api.ts': {
-    findings: 2,
-    reason:
-      'Feed slug generator. NFKD, so its compatibility mappings are part of the ' +
-      'slug an operator has already published; folding it onto the shared NFD ' +
-      'helper renames existing feeds.',
-    retiredBy: 'issue #239 — one fold for slugs, with the NFKD migration it needs.',
-  },
-  'admin/src/modules/newsletter/pages/TagsPage.tsx': {
-    findings: 2,
-    reason:
-      'Newsletter tag/field code generator. NFD rather than NFKD, so this one ' +
-      'has no compatibility mappings to lose — but it drops the stroked letters ' +
-      'the shared fold maps, and the code it produces is persisted and validated ' +
-      'against CODE_RE by the backend. A label carrying an `l` with a stroke ' +
-      'currently yields a code with the letter deleted; the shared fold yields ' +
-      'one with an `l` in its place. That is a rename of live tags.',
-    retiredBy: 'issue #239 — one fold for slugs, with the NFKD migration it needs.',
-  },
   'backend/src/modules/product_feeds/services/feed-template-io.service.ts': {
     findings: 2,
     reason:
@@ -263,7 +252,9 @@ export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {
       'and hands on. NFKD, and it drops `ł` outright (`Łatwy szablon` becomes ' +
       '`atwy-szablon`), so repairing it changes the filename of every template ' +
       'already exported and possibly linked.',
-    retiredBy: 'issue #239 — one fold for slugs, with the migration it needs.',
+    retiredBy:
+      "the ruling issue #239 took for the admin pair, extended to this one — #239 " +
+      'was scoped to the admin SPA and left the backend slugifiers untouched.',
   },
   'backend/src/modules/catalog/services/catalog-admin.service.ts': {
     findings: 2,
@@ -272,7 +263,9 @@ export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {
       'stored, unique-constrained and reachable as storefront URLs. NFKD, and ' +
       'it drops `ł` the same way. Re-folding it is a URL migration with a ' +
       'redirect story, which is a decision nobody has taken.',
-    retiredBy: 'issue #239 — one fold for slugs, with the migration it needs.',
+    retiredBy:
+      "the ruling issue #239 took for the admin pair, extended to this one — #239 " +
+      'was scoped to the admin SPA and left the backend slugifiers untouched.',
   },
 };
 

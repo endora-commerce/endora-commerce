@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { varSnippet } from './insert-at-cursor';
 import type { EmailVariableItem } from './newsletter-variables';
+import { normalize } from '@/lib/text-normalization';
 
 export type { EmailVariableItem } from './newsletter-variables';
 export { varSnippet } from './insert-at-cursor';
@@ -49,13 +50,13 @@ export function EmailVariablesProvider({
   const value = useMemo(() => ({ variables, openPicker }), [variables, openPicker]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalize(query);
     if (!q) return variables;
     return variables.filter(
       (v) =>
-        v.key.toLowerCase().includes(q) ||
-        v.label.toLowerCase().includes(q) ||
-        (v.description?.toLowerCase().includes(q) ?? false),
+        normalize(v.key).includes(q) ||
+        normalize(v.label).includes(q) ||
+        (v.description !== undefined && normalize(v.description).includes(q)),
     );
   }, [variables, query]);
 

@@ -20,6 +20,7 @@ import {
   type TaxonomyNodeOption,
 } from './taxonomy-api';
 import { CategoryMappingRow } from './components/CategoryMappingRow';
+import { normalize } from '@/lib/text-normalization';
 
 /**
  * Category → provider taxonomy mapping — ux-design §2.8, FR-079–FR-081, FR-085.
@@ -142,9 +143,9 @@ export function CategoryMappingPage(): ReactNode {
 
   const filtered = useMemo(() => {
     const all = rows ?? [];
-    const needle = filter.trim().toLowerCase();
+    const needle = normalize(filter);
     if (needle === '') return all;
-    return all.filter((row) => row.categoryName.toLowerCase().includes(needle));
+    return all.filter((row) => normalize(row.categoryName).includes(needle));
   }, [rows, filter]);
 
   const useFlatList = (rows?.length ?? 0) > TREE_CEILING;

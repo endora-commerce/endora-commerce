@@ -7,6 +7,7 @@ import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { warehousesClient } from './api/warehouses-client';
+import { normalize } from '@/lib/text-normalization';
 
 /**
  * WarehousesList — admin landing for warehouse identity (feature 010 / US1).
@@ -37,12 +38,12 @@ export function WarehousesList(): ReactNode {
   }, [refresh]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalize(query);
     if (!q) return rows;
     return rows.filter(
       (r) =>
-        r.code.toLowerCase().includes(q) ||
-        r.name.toLowerCase().includes(q),
+        normalize(r.code).includes(q) ||
+        normalize(r.name).includes(q),
     );
   }, [rows, query]);
 

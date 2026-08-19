@@ -13,6 +13,7 @@ import {
 import type { DisplayMode } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
+import { normalize } from '@/lib/text-normalization';
 
 type Scope = 'organization' | 'category' | 'product';
 
@@ -136,12 +137,12 @@ export function DisplayModeOverridesPage(): ReactNode {
   };
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return overrides;
-    const q = search.toLowerCase();
+    const q = normalize(search);
+    if (q === '') return overrides;
     return overrides.filter((row) => {
-      const label = labelFor(row).toLowerCase();
-      const subtitle = subtitleFor(row).toLowerCase();
-      return label.includes(q) || subtitle.includes(q) || row.targetId.includes(q);
+      const label = normalize(labelFor(row));
+      const subtitle = normalize(subtitleFor(row));
+      return label.includes(q) || subtitle.includes(q) || normalize(row.targetId).includes(q);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overrides, search, orgs, cats, products]);
@@ -514,12 +515,12 @@ function AddOverrideDialog(props: {
       for (const p of Object.values(products)) rows.push({ id: p.id, label: p.name, subtitle: p.sku });
     }
     rows.sort((a, b) => a.label.localeCompare(b.label));
-    if (!search.trim()) return rows.filter((r) => !existing.has(r.id));
-    const q = search.toLowerCase();
+    const q = normalize(search);
+    if (q === '') return rows.filter((r) => !existing.has(r.id));
     return rows.filter(
       (r) =>
         !existing.has(r.id) &&
-        (r.label.toLowerCase().includes(q) || r.subtitle.toLowerCase().includes(q)),
+        (normalize(r.label).includes(q) || normalize(r.subtitle).includes(q)),
     );
   }, [scope, orgs, cats, products, existing, search]);
 

@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import { normalize } from '@/lib/text-normalization';
 import type {
   FeedDeliveryAttempt,
   FeedDeliveryConfig,
@@ -469,12 +470,30 @@ export const productFeedsClient = {
   },
 };
 
-/** Kebab-cases a feed name into a slug candidate, the way the operator expects. */
+/**
+ * Kebab-cases a feed name into a slug candidate, the way the operator expects.
+ *
+ * The fold is `lib/text-normalization.ts`, **imported, never re-implemented**
+ * (issue #239). The private one-liner this used to carry deleted `\u0142` instead
+ * of folding it \u2014 U+0142 has no canonical decomposition, so NFD left it
+ * standing and the `[^a-z0-9]` collapse then swallowed it: `Kana\u0142 sprzeda\u017cy`
+ * produced `kana-sprzedazy`, a slug missing a letter for no reason the
+ * operator can see.
+ *
+ * **It also drops NFKD for NFD, deliberately.** The compatibility mappings
+ * NFKD adds over NFD only reach a slug through characters that map *into*
+ * `[a-z0-9]` \u2014 the `fi` ligature, superscript digits, full-width forms. None
+ * of them is typed into a feed name, and where one is, it now collapses to the
+ * `-` separator rather than to a wrong letter, so the slug stays legal. That
+ * is a much smaller loss than deleting a letter out of every Polish name.
+ *
+ * Slugs already published are **not** migrated (owner's ruling, 2026-08-19).
+ * A feed's slug is a URL somebody may have handed to Google; re-folding it is
+ * a rename, and with two developer environments in existence it buys nothing.
+ * New slugs are correct from here on.
+ */
 export function slugify(value: string): string {
-  return value
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
+  return normalize(value)
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 160);

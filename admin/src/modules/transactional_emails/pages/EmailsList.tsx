@@ -12,6 +12,7 @@ import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth';
 import { useTranslation } from '@/i18n/useTranslation';
 import { transactionalEmailsClient } from '../api/transactional-emails-client';
+import { normalize } from '@/lib/text-normalization';
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
@@ -117,9 +118,11 @@ export function EmailsList(): React.ReactElement {
   }, []);
 
   const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
+    const needle = normalize(q);
     if (!needle) return items;
-    return items.filter((i) => i.name.toLowerCase().includes(needle) || i.code.toLowerCase().includes(needle));
+    return items.filter(
+      (i) => normalize(i.name).includes(needle) || normalize(i.code).includes(needle),
+    );
   }, [items, q]);
 
   if (!hasPermission('transactional_emails:read')) {

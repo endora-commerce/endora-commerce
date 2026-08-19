@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { BracketGrid, type BracketsByCurrency } from './BracketGrid';
 import { ApplicationRuleBuilder } from './ApplicationRuleBuilder';
+import { normalize } from '@/lib/text-normalization';
 
 type PriceListType = 'base' | 'sale';
 type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
@@ -812,9 +813,9 @@ function ProductPickerDialog({
 
   const candidates = products.filter((p) => {
     if (existing.has(p.id)) return false;
-    if (!query.trim()) return true;
-    const q = query.toLowerCase();
-    return pickName(p.name).toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+    const q = normalize(query);
+    if (q === '') return true;
+    return normalize(pickName(p.name)).includes(q) || normalize(p.sku).includes(q);
   });
 
   return (

@@ -34,6 +34,7 @@ import {
   parseValue,
   type SettingDraft,
 } from '../components/SettingRowEditor';
+import { normalize } from '@/lib/text-normalization';
 
 /**
  * Settings page — feature 004 / US2.
@@ -626,7 +627,7 @@ function filterGroupsForContext(
   search: string,
   channelContext: string | null,
 ): SettingGroupDto[] {
-  const q = search.trim().toLowerCase();
+  const q = normalize(search);
   const out: SettingGroupDto[] = [];
   for (const g of groups) {
     if (
@@ -641,7 +642,7 @@ function filterGroupsForContext(
     // channel-passing setting in the group rather than requiring a per-setting
     // match.
     const groupMatches =
-      q !== '' && (g.name.toLowerCase().includes(q) || g.code.toLowerCase().includes(q));
+      q !== '' && (normalize(g.name).includes(q) || normalize(g.code).includes(q));
     const filtered = g.settings.filter((s) => {
       if (
         channelContext !== null &&
@@ -661,9 +662,9 @@ function filterGroupsForContext(
 }
 
 function settingMatches(s: SettingDto, q: string): boolean {
-  if (s.name.toLowerCase().includes(q)) return true;
-  if (s.code.toLowerCase().includes(q)) return true;
-  if (s.description && s.description.toLowerCase().includes(q)) return true;
+  if (normalize(s.name).includes(q)) return true;
+  if (normalize(s.code).includes(q)) return true;
+  if (s.description && normalize(s.description).includes(q)) return true;
   return false;
 }
 
