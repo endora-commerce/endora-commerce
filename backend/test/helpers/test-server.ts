@@ -174,6 +174,7 @@ import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations, TEST_ORGANIZATION_TAX_ID } from './seed-organizations.js';
 import { seedUs2Commerce } from './seed-commerce.js';
 import { seedTestAdmins } from './seed-admins.js';
+import { TRANSLATION_PROOF } from './translation-proof.js';
 import {
   registerTestAuth,
   TEST_ADMIN_ID,
@@ -654,35 +655,6 @@ function harnessManifestRegistry(): LoadedManifestRegistry {
   return cachedManifestRegistry;
 }
 
-/**
- * The error code this harness proves the translation path with, and why it is a
- * constant rather than "any key that happens to be there".
- *
- * `VERSION_CONFLICT` routes to `core` in `ERROR_TRANSLATION_KEYS` and `_i18n`
- * ships a sentence for it in both languages, so resolving it walks the whole
- * path the envelope walks on a real refusal: the merged bundle for the
- * language, the `_i18n` → `core` namespace rename, and the `errors.<CODE>` key
- * inside it.
- *
- * Three further properties are what make it a defensible pick, and the third is
- * the one the constant it replaces failed. It reaches `core` by **explicit
- * membership** of `GENERIC_ERROR_CODES`, so no future `startsWith` family rule
- * can capture it; it is a platform mechanism eighteen modules throw, so no
- * module can claim ownership of the noun; and its sentence exists in **no other
- * bundle**, so nothing can strand it. `CART_EMPTY` had none of the three: issue
- * #231 routed the `CART_*` family to `carts` — where the better sentence had
- * been written all along — and this proof would have started failing on a
- * correct tree, reporting a broken harness where there was none.
- *
- * **A comment is not the guarantee** (feature 082, D-126). The four properties
- * above are exactly what the previous constant's comment asserted about
- * `CART_EMPTY`, in the same careful tone, and every one of them was wrong. So
- * the constant is exported and `test/unit/_i18n/translation-proof.test.ts`
- * checks all four against the real routing table and the real bundles on every
- * run. If this constant is ever changed, that file is where the change is
- * argued.
- */
-export const TRANSLATION_PROOF = { moduleId: 'core', key: 'errors.VERSION_CONFLICT' } as const;
 
 /**
  * Refuse to hand back a server whose error messages cannot be translated
@@ -2772,3 +2744,4 @@ class FakeVatValidator implements VatValidator {
     };
   }
 }
+

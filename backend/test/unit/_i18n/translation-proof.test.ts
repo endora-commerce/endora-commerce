@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ERROR_TRANSLATION_KEYS } from '../../../src/modules/_i18n/services/error-translation.js';
-import { TRANSLATION_PROOF } from '../../helpers/test-server.js';
+import { TRANSLATION_PROOF } from '../../helpers/translation-proof.js';
 
 /**
  * Feature 082, D-126 — the harness's translation proof is not free to pick, and
