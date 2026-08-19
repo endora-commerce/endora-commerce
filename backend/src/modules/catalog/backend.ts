@@ -5,6 +5,7 @@ import { ERROR_CODES, type ListingPricePort } from '@b2b/contracts';
 import type {
   AssetReadPort,
   AssetReferenceRegistryPort,
+  AdminNotificationRecordPort,
   AdminUserReadPort,
   CatalogAttachmentPort,
   CatalogAttributeReadPort,
@@ -62,10 +63,7 @@ import type {
   CatalogWarehouseThresholdCopy,
 } from './services/catalog-admin.service.js';
 import { registerCatalogAssetReferences } from './services/asset-references.js';
-import {
-  presenceAwareBulkRecorder,
-  type BulkNotificationPort,
-} from './services/bulk-operation.service.js';
+import { presenceAwareBulkRecorder } from './services/bulk-operation.service.js';
 import {
   catalogBulkProgressReader,
   catalogPromptMutationTools,
@@ -121,16 +119,41 @@ export interface CatalogCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly salesChannelMembershipPort: SalesChannelMembershipService;
   readonly customFieldValueService: NonNullable<CatalogModuleOptions['customFieldValues']>;
-  readonly customFieldDefinitionService: NonNullable<CatalogModuleOptions['customFieldDefinitions']>;
   /**
-   * The apply seam. Both roots passed `customFieldDefinitionService` for this
-   * and for `customFieldDefinitions` — one service satisfies both shapes — so
-   * there is one name, not a second registration nobody makes.
+   * `custom_fields`' published definition read model — the definitions this
+   * module composes its attribute read model out of, and the filterable set the
+   * storefront query merges in.
+   *
+   * The name is `customFieldDefinitionReadPort` since D-98.2: the container
+   * name a contract publishes, rather than the owner's own CRUD registration.
    */
+  readonly customFieldDefinitionReadPort: NonNullable<
+    CatalogModuleOptions['customFieldDefinitions']
+  >;
+  /**
+   * The apply seam, and a **different question** from the read port above.
+   *
+   * The two used to be one name here: both roots passed the owner's
+   * `CustomFieldDefinitionService` for `customFieldDefinitions` and for
+   * `customFieldsPort` because one service satisfies both shapes, so all four
+   * of this module's resolutions named `customFieldDefinitionService` — the two
+   * answers under one key that the `catalog:customFieldDefinitionService` ledger
+   * entry recorded. The read half names the published port now; this half
+   * cannot, because `CatalogCustomFieldsPort` extends
+   * `CustomFieldDefinitionApplyApi`, whose every method takes the caller's
+   * `EntityManager` (FR-034 keeps a MikroORM type out of `@b2b/contracts`) and
+   * `fk_product_attributes_custom_field_definition` is what holds it
+   * co-transactional (D-77).
+   */
+  readonly customFieldDefinitionService: NonNullable<CatalogModuleOptions['customFieldsPort']>;
   readonly pricingService: NonNullable<CatalogModuleOptions['pricingService']>;
   readonly languageService: NonNullable<CatalogModuleOptions['languageService']>;
-  /** `admin_notifications`' gated port — wrapped below, never handed on raw. */
-  readonly adminNotificationService: BulkNotificationPort;
+  /**
+   * `admin_notifications`' gated port — wrapped below, never handed on raw.
+   * The name is `adminNotificationRecordPort` since D-98.2: the container name
+   * a contract publishes, rather than the owner's class registration.
+   */
+  readonly adminNotificationRecordPort: AdminNotificationRecordPort;
   readonly emailMailer: NonNullable<CatalogModuleOptions['mailer']>;
   readonly requireApiKey: NonNullable<CatalogModuleOptions['requireApiKey']>;
   readonly requireBoundApiKey: NonNullable<CatalogModuleOptions['requireBoundApiKey']>;
@@ -299,11 +322,18 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'customFieldValueService',
             ),
-            customFieldDefinitions: lazyPort<CatalogCradle['customFieldDefinitionService']>(
+            // D-98.2 / issue #196 — the definition *read*, under the name a
+            // contract publishes. `customFieldDefinitionService` is the owner's
+            // own CRUD registration and answers a different question; it is
+            // still the apply seam below, which no contract can publish.
+            customFieldDefinitions: lazyPort<CatalogCradle['customFieldDefinitionReadPort']>(
               ctx,
-              'customFieldDefinitionService',
+              'customFieldDefinitionReadPort',
             ),
-            customFieldsPort: lazyPort<NonNullable<CatalogModuleOptions['customFieldsPort']>>(
+            // The apply seam (D-77): every method takes the caller's
+            // `EntityManager`, so it stays off `@b2b/contracts` and keeps
+            // naming the owner's own registration.
+            customFieldsPort: lazyPort<CatalogCradle['customFieldDefinitionService']>(
               ctx,
               'customFieldDefinitionService',
             ),
@@ -329,7 +359,11 @@ export function registerModule(ctx: ModuleContext): void {
             // return type. A `catch` at the call site fused "the operator
             // switched notifications off" with "the write failed".
             adminNotificationService: presenceAwareBulkRecorder(
-              lazyPort<BulkNotificationPort>(ctx, 'adminNotificationService'),
+              // D-98.2 / issue #196 — `adminNotificationRecordPort` is the name
+              // the contract publishes and the one that answers with a record;
+              // `adminNotificationService` is the class registration, whose
+              // `record` hands back the `AdminNotification` entity.
+              lazyPort<AdminNotificationRecordPort>(ctx, 'adminNotificationRecordPort'),
             ),
             mailer: lazyPort<CatalogCradle['emailMailer']>(ctx, 'emailMailer'),
             // Issue #153 — `search`'s listing backend, resolved rather than
@@ -506,9 +540,10 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory }: CatalogCradle) =>
           new CatalogAttributeReadService(
             emFactory,
-            lazyPort<CatalogCradle['customFieldDefinitionService']>(
+            // The definition read, under the published name (D-98.2).
+            lazyPort<CatalogCradle['customFieldDefinitionReadPort']>(
               ctx,
-              'customFieldDefinitionService',
+              'customFieldDefinitionReadPort',
             ),
           ),
       )
@@ -546,10 +581,13 @@ export function registerModule(ctx: ModuleContext): void {
             commandBus,
             lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort'),
             // The apply seam, not the definition source — `CatalogAdminService`
-            // takes `CatalogCustomFieldsPort`, and both roots passed
-            // `customFieldDefinitionService` for both arguments because the one
-            // service satisfies both shapes.
-            lazyPort<NonNullable<CatalogModuleOptions['customFieldsPort']>>(
+            // takes `CatalogCustomFieldsPort`. Both roots once passed the same
+            // service for this and for the definition source, which is why one
+            // name answered both questions; the read half names
+            // `customFieldDefinitionReadPort` now and this half stays here,
+            // unpublished by D-77 because every method takes the caller's
+            // `EntityManager`.
+            lazyPort<CatalogCradle['customFieldDefinitionService']>(
               ctx,
               'customFieldDefinitionService',
             ),

@@ -300,23 +300,26 @@ export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> 
     'is `promotions`\' own interface, kept out of `@b2b/contracts` because ' +
     '`finalizeUsage` takes the placement transaction, and held there by ' +
     '`promotion_usages_order_fk`. Retired by F4 package entry points.',
-  // `catalog`'s two edges. Both are repairs rather than doc fixes, and both are
-  // deferred by the concurrency rule rather than by a doubt about the answer.
+  // `catalog`'s remaining edge, and the one the #196 sweep recorded as *two
+  // answers under one key*. Four sites resolved this name because both
+  // composition roots handed the owner's `CustomFieldDefinitionService` to two
+  // different options — one service satisfying two shapes — so the definition
+  // *read* and the transactional *apply* seam were indistinguishable from the
+  // container's side. Issue #209 split them: the two read sites name the
+  // published `customFieldDefinitionReadPort`, and what is left under this key
+  // is the apply seam alone.
   'catalog:customFieldDefinitionService':
-    'Four sites, two answers. `:272` and `:478` read definitions and re-point to ' +
-    '`customFieldDefinitionReadPort`, exactly as `product_feeds` does in this merge ' +
-    'request. `:276` and `:520` are the **apply** seam, which D-77 ruled stays ' +
-    'unpublished: `CustomFieldDefinitionApplyApi` takes the caller\'s `EntityManager` ' +
-    '(FR-034) and `fk_product_attributes_custom_field_definition` holds it ' +
-    'co-transactional. So this key drains to the apply seam and no further, and that ' +
-    'half retires with F4 package entry points. Deferred here because `catalog` is ' +
-    'under concurrent work (issue #185).',
-  'catalog:adminNotificationService':
-    'The same one-line re-point `pim_ergonode` and `product_feeds` take in this merge ' +
-    'request: `adminNotificationRecordPort` is the published name and the one that ' +
-    'answers with a record, while `adminNotificationService` hands back the ' +
-    '`AdminNotification` entity. Deferred only because `catalog` is under concurrent ' +
-    'work (issue #185); it retires with that one-line change.',
+    'The apply seam, and only that, since issue #209 re-pointed this module\'s two ' +
+    'definition *reads* to the published `customFieldDefinitionReadPort`. ' +
+    '`CatalogCustomFieldsPort` extends `CustomFieldDefinitionApplyApi`, whose every ' +
+    "method takes the caller's `EntityManager` — FR-034 keeps a MikroORM type out of " +
+    '`@b2b/contracts`, and `fk_product_attributes_custom_field_definition` is `on delete ' +
+    'restrict` with a `unique` on the same column, so the attribute row and its ' +
+    'definition must be written in one transaction and a second one cannot satisfy the ' +
+    'key. D-77 ruled the seam permanent for that reason. Retired by F4 package entry ' +
+    'points, or by dropping the constraint — the same two conditions the D-77 note on ' +
+    "`CustomFieldDefinitionApplyApi` names, and the same shape as `orders`' two entries " +
+    'above.',
 };
 
 export interface PortShapeInput {

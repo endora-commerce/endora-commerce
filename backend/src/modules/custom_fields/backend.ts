@@ -102,6 +102,17 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
+  /**
+   * The module's own CRUD surface — its admin routes resolve it, and `catalog`
+   * reaches it for one thing only: the transactional apply seam
+   * (`CustomFieldDefinitionApplyApi`), whose every method takes the caller's
+   * `EntityManager` so that a product attribute and its definition are written
+   * under one transaction. D-77 ruled that seam permanent and FR-034 keeps a
+   * MikroORM type out of `@b2b/contracts`, so it is the one name this module
+   * publishes no contract for; it is ledgered as such in
+   * `RESOLUTIONS_OF_UNPUBLISHED_NAMES`. Every definition **read** goes through
+   * `customFieldDefinitionReadPort` below (issue #209).
+   */
   ctx.di.providePort(
     'customFieldDefinitionService',
     ctx
@@ -120,11 +131,11 @@ export function registerModule(ctx: ModuleContext): void {
    * Feature 075, Phase P — the definition read model, without the two ORM
    * entities `CachedDefinition` carries.
    *
-   * `customFieldDefinitionService` above stays: it is the module's own CRUD
-   * surface and its admin routes use it. This is the read seven modules
-   * actually make — `catalog`'s composed attribute read model most of all,
-   * because since feature 061 the definition half of a product attribute *is*
-   * a custom-field definition.
+   * `customFieldDefinitionService` above stays for the reason its own note
+   * gives. This is the read seven modules actually make — `catalog`'s composed
+   * attribute read model most of all, because since feature 061 the definition
+   * half of a product attribute *is* a custom-field definition, and since issue
+   * #209 that read names this port rather than the CRUD registration.
    */
   ctx.di.providePort<CustomFieldDefinitionReadPort>(
     'customFieldDefinitionReadPort',
