@@ -447,7 +447,23 @@ export function productFeedsModule(
   const resolveNamedListPrice: NamedListPriceResolver = async (input) =>
     namedListPrices.one(input);
 
-  /** The anonymous storefront resolution: no organization, no customer group (R12). */
+  /**
+   * The anonymous storefront resolution: no organization, no customer group
+   * (R12).
+   *
+   * **The two nulls are the ruling, not a default that has not been filled in
+   * yet.** A product feed shows the prices of the sales channel it is generated
+   * for and takes no organisation into account — `input.salesChannel` is the
+   * feed's own channel, resolved once in `FeedGenerationService.prepare`, and
+   * `organization` is `null` because the file is fetched by Google, which is
+   * nobody's buyer.
+   *
+   * So if a per-viewer price arrives on this port for some other caller, a feed
+   * keeps passing `null` here. An optional parameter that one caller supplies
+   * and another deliberately does not is exactly the shape issues #164 and #251
+   * were about, and the reason it is safe here is written above rather than
+   * left to be re-derived by whoever widens the port.
+   */
   const resolveAnonymousPrice: AnonymousPriceResolver = async (input) => {
     const resolved = await options.pricingService.resolveLinePrice({
       product: input.product,

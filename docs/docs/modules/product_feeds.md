@@ -102,8 +102,12 @@ not an estimate.
 
 Two things a rule can never do:
 
-- **widen the feed.** Active, publicly visible, not archived, and a member of this feed's channel is
-  a floor no criterion can lift;
+- **widen the feed.** Active, not archived, a member of this feed's channel, and visible to an
+  anonymous visitor is a floor no criterion can lift. "Visible to an anonymous visitor" is the whole
+  of the answer, not only the `public` switch: a product that is public **but** reserved to named
+  organisations stays out, because the file is fetched by Google and a link nobody outside those
+  organisations can open is an advertisement for a 404 — and for the existence of an assortment
+  somebody else was promised exclusively;
 - **silently match everything.** A criterion naming an attribute that has since been deleted fails
   the run with a configuration error, rather than quietly matching the whole catalogue.
 
