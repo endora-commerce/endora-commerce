@@ -187,7 +187,12 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.openInventory.description',
       icon: 'Boxes',
       targetRoute: '/inventory',
-      requiredPermission: 'catalog:write',
+      // `orders:read`, not anything named after inventory or the catalogue: the
+      // stock overview is gated by `requireAdmin('orders:read')`
+      // (`routes.admin.ts`). The `catalog:write` this used to declare was wrong
+      // in both directions at once — it hid the screen from operators who can
+      // open it and offered it to some who cannot (issue #232).
+      requiredPermission: 'orders:read',
       keywords: ['stock', 'inventory', 'warehouse', 'magazyn', 'zapasy'],
       weight: 230,
     },

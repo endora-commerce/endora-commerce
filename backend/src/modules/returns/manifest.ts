@@ -135,7 +135,10 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.returnStatusConfig.description',
       icon: 'Settings',
       targetRoute: '/returns/statuses',
-      requiredPermission: 'returns:write',
+      // `returns:read`, for the same reason as `orders:order-statuses`: the GET
+      // that renders the screen is read-gated, so the write code hid a screen
+      // read-only operators can open (issue #232).
+      requiredPermission: 'returns:read',
       keywords: ['return status', 'rma workflow', 'statusy zwrotów'],
       weight: 235,
     },

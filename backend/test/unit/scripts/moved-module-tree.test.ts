@@ -52,6 +52,11 @@ interface MovedTreeCheck {
 }
 
 const CHECKS: readonly MovedTreeCheck[] = [
+  {
+    script: 'check-action-route-permissions.ts',
+    args: [],
+    prefix: '[action-route-permissions]',
+  },
   { script: 'check-channel-resolution.ts', args: ['--enforce'], prefix: '[channel-resolution]' },
   { script: 'check-command-coverage.ts', args: ['--strict'], prefix: '[command-coverage]' },
   { script: 'check-container-imports.ts', args: [], prefix: '[container-imports]' },

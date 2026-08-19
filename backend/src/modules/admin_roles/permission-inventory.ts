@@ -345,8 +345,14 @@ interface FileFacts {
  * module-local, a relative import, or `@b2b/contracts`. Deeper indirection has
  * never appeared, and pretending to resolve it would hide the same gate the
  * `unresolved` bucket is there to surface.
+ *
+ * Exported for `scripts/check-action-route-permissions.ts` (issue #232), which
+ * asks the third direction — is an action's `requiredPermission` the code
+ * enforced on **its own** target route — and needs the same argument shapes read
+ * the same way. A second resolver would answer the same question differently the
+ * first time either of them learned a shape.
  */
-class ConstantResolver {
+export class ConstantResolver {
   readonly #facts = new Map<string, FileFacts | null>();
   #contractsFiles: string[] | null = null;
 

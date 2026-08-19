@@ -251,6 +251,11 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.openSettings.description',
       icon: 'Settings',
       targetRoute: '/settings',
+      // The only one of the 53 shipped actions that declared no code at all
+      // (issue #232), while `/api/v1/admin/settings` is
+      // `requireAdmin('settings:read')` — so the palette offered the screen to
+      // every role and every role without the code collected a 403 on arrival.
+      requiredPermission: 'settings:read',
       keywords: ['settings', 'preferences', 'config', 'ustawienia'],
       weight: 250,
     },

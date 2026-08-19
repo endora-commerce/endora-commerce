@@ -267,7 +267,11 @@ is not enough.
    Deep-link actions need an actual route, e.g. `/credentials/new`.
 6. **CI** — `pnpm --filter backend exec vitest run test/unit/_i18n/registered-bundles-shape.test.ts`
    verifies that every registered module's on-disk bundles load and that every manifest action
-   key resolves in every shipped language.
+   key resolves in every shipped language. `pnpm --filter backend run check:action-route-permissions`
+   verifies item 2 itself: that the declared code is the one enforced on **this action's**
+   `targetRoute` and not merely a code enforced somewhere. The permission inventory's two
+   directions cannot see that — both codes in issue #232 were real, declared and enforced —
+   so a valid code on the wrong route was invisible until this check existed.
 
 ### Module enable/disable (Principle XVII)
 
@@ -516,6 +520,7 @@ of this table: it enumerates every `check-*` script and fails on one it does not
 
 | Script | Job | What it refuses |
 | --- | --- | --- |
+| `check:action-route-permissions` | `quality` | A manifest action whose `requiredPermission` is not the code enforced on its own `targetRoute` (issue #232; Principle XVI item 2). The permission inventory sweeps two directions — enforced ⇒ grantable, grantable ⇒ enforced — and **both** defects that produced this check passed it: `settings`' palette entry declared no code at all against a `settings:read` route, and `inventory`'s declared `catalog:write` against an `orders:read` one. Real codes, enforced somewhere, on the wrong route: a set sweep cannot see either. Three findings — **missing**, **mismatched**, and **unresolvable**, which covers a `targetRoute` no registration matches, candidates that disagree, and a `preHandler` it cannot read (that last one matters most: an unreadable gate taken for "ungated" agrees with everything). Agreement is **sufficiency, not equality** — holding the declared code alone must open the screen — so either member of `requireAdminAny([…])` passes and a conjunction of two guards passes for nobody; the codes are opaque strings, so `catalog:write` does not satisfy a `catalog:read` gate. The SPA `targetRoute` is linked to an API path by nothing in the tree, so the check reconstructs the **entry route** in three levels (exact, subtree, then the owning module's own routes, for a screen whose placement is not its API path), and flips to the create route for a `/new` target. `ACTION_PERMISSION_DISAGREEMENTS` is two-way and holds the three verb-labelled actions whose screen needs a read code to open and a write code to use — one field cannot say both, and the choice is the owner's. |
 | `check:command-coverage` | `quality` | A sensitive write that neither runs a Command nor records an audit row (Principle XIII). `--strict` in CI, so a finding in any module fails. The vocabulary is `persist*`, `nativeUpdate`, `nativeDelete`, `remove*`, `flush` and — since D-89 — **`create`**, the last two only off an EntityManager receiver, because both are ordinary service vocabulary. It reads **call** shapes: a field assignment on a managed entity (`order.status = ref`) is a write the unit of work will flush and this check **cannot see it**, refused in writing rather than deferred, so its green means "no unaudited write of a shape this check can see" and not "every sensitive write is audited". The staleness half reports a `command-coverage-ignore` guarding nothing, and since D-89(c) a downstream write that carries **its own** marker no longer keeps a caller's marker alive. |
 | `check:container-imports` | `quality` | A module importing the container library — a module sees `ModuleContext` and nothing else (feature 072, FR-032). |
 | `check:doc-snippets` | `quality` | A code block marked `<!-- verbatim-from: <path> -->` that no longer appears verbatim in that file. The quickstarts are copied by every module conversion, so a stale snippet is a defect scheduled for mass production. |

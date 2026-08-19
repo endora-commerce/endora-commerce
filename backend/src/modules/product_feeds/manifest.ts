@@ -328,7 +328,10 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.openFeedCategoryMapping.description',
       icon: 'Layers',
       targetRoute: '/product-feeds/category-mapping',
-      requiredPermission: PRODUCT_FEEDS_WRITE_PERMISSION,
+      // The read code, because that is what opening the screen needs; saving a
+      // mapping needs the write one, and the palette row is the way in rather
+      // than the save (issue #232).
+      requiredPermission: PRODUCT_FEEDS_READ_PERMISSION,
       keywords: ['taksonomia', 'mapowanie kategorii', 'kategorie', 'google merchant', 'meta'],
       weight: 254,
     },
