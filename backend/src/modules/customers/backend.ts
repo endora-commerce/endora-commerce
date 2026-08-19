@@ -2,13 +2,19 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
-import type { CommandBus } from '../../commands/index.js';
 import type {
+  AddressReadPort,
   AuthSessionPort,
+  CustomerAccountAdminSearchPort,
+  CustomerAccountLifecycleWritePort,
   CustomerAccountReadPort,
   CustomerAddressReadPort,
   CustomerAuthPort,
+  CustomerGroupReadPort,
+  CustomerPasswordResetPort,
   DefaultPreferencePort,
+  OrganizationDetailsPort,
+  PersonalOrganizationPort,
   VatValidator,
 } from '@b2b/contracts';
 import { CustomerAddressReadService } from './services/customer-address-read-port.js';
@@ -63,7 +69,6 @@ import { customersModule, type CustomersModuleOptions } from './plugin.js';
 /** What `customers` resolves from the container, and the names it owns. */
 export interface CustomersCradle {
   readonly emFactory: () => EntityManager;
-  readonly commandBus: CommandBus;
   readonly auditLogService: AuditLogService;
   readonly settingsReadPort: SettingsService;
   readonly salesChannelResolutionPort: SalesChannelResolverService;
@@ -150,10 +155,9 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     customers: ctx
       .asFunction(
-        ({ emFactory, commandBus, auditLogService }: CustomersCradle) =>
+        ({ emFactory, auditLogService }: CustomersCradle) =>
           customersModule({
             emFactory,
-            commandBus,
             auditLogService,
             // Every one of these is another module's gated port and is stored by
             // the constructor, so a singleton may not hold one directly.
@@ -163,7 +167,7 @@ export function registerModule(ctx: ModuleContext): void {
             // cradle field resolved to a direct class-type import, an ordinary
             // FR-011 edge that happened to share the container name.
             customerAuthService: lazyPort<CustomerAuthPort>(ctx, 'customerAuthPort'),
-            passwordResetService: lazyPort<CustomersCradle['passwordResetService']>(
+            passwordResetService: lazyPort<CustomerPasswordResetPort>(
               ctx,
               'passwordResetService',
             ),
@@ -178,6 +182,37 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'customerAccountReadPort',
             ),
+            // Feature 075, Phase C — the rest of `customer_accounts`' surface
+            // this module's screens run on. Every one of these replaced a
+            // direct load or mutation of that module's `CustomerAccount`
+            // entity: the block/unblock/delete/restore/assign writes, the
+            // retention scrub, the admin list's paginated query, and the
+            // customer-group names beside it.
+            customerAccountLifecycleWritePort: lazyPort<CustomerAccountLifecycleWritePort>(
+              ctx,
+              'customerAccountLifecycleWritePort',
+            ),
+            customerAccountAdminSearchPort: lazyPort<CustomerAccountAdminSearchPort>(
+              ctx,
+              'customerAccountAdminSearchPort',
+            ),
+            customerGroupReadPort: lazyPort<CustomerGroupReadPort>(ctx, 'customerGroupReadPort'),
+            // `organizations`' row-level read (names on the admin list, the
+            // existence check on the assignment screen) and its personal-org
+            // provisioner, which the B2C registration and the retention sweep
+            // both go through. Both replaced an `em.findOne(Organization, …)`
+            // — and the sweep's three-field scrub of that row — here.
+            organizationDetailsPort: lazyPort<OrganizationDetailsPort>(
+              ctx,
+              'organizationDetailsPort',
+            ),
+            personalOrganizationPort: lazyPort<PersonalOrganizationPort>(
+              ctx,
+              'personalOrganizationPort',
+            ),
+            // `addresses`' read: the org-shared book a customer may pick a
+            // delivery address from, which this module used to query directly.
+            addressReadPort: lazyPort<AddressReadPort>(ctx, 'addressReadPort'),
             customFieldValues: lazyPort<CustomersCradle['customFieldValueService']>(
               ctx,
               'customFieldValueService',

@@ -486,22 +486,32 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<PersonalOrganizationPort>(
     'personalOrganizationPort',
     ctx
-      .asFunction(({ emFactory }: OrganizationsCradle): PersonalOrganizationPort => {
-        const service = new PersonalOrganizationService(emFactory, {
-          // Feature 075, Phase C — `lazyPort` rather than a captured value:
-          // the gates stay live inside this singleton, and the service reads
-          // them per call.
-          read: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
-          write: lazyPort<CustomerAccountMemberWritePort>(
-            ctx,
-            'customerAccountMemberWritePort',
-          ),
-        });
-        return {
-          ensureForCustomerAccount: async (customerAccountId) =>
-            toOrganizationRecord(await service.ensureForCustomerAccountId(customerAccountId)),
-        };
-      })
+      .asFunction(
+        ({ emFactory, auditLogService }: OrganizationsCradle): PersonalOrganizationPort => {
+          const service = new PersonalOrganizationService(
+            emFactory,
+            {
+              // Feature 075, Phase C — `lazyPort` rather than a captured value:
+              // the gates stay live inside this singleton, and the service reads
+              // them per call.
+              read: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+              write: lazyPort<CustomerAccountMemberWritePort>(
+                ctx,
+                'customerAccountMemberWritePort',
+              ),
+            },
+            auditLogService,
+          );
+          return {
+            ensureForCustomerAccount: async (customerAccountId) =>
+              toOrganizationRecord(await service.ensureForCustomerAccountId(customerAccountId)),
+            anonymizeIfOrphaned: async (customerAccountId) => {
+              const org = await service.anonymizeIfOrphaned(customerAccountId);
+              return org ? toOrganizationRecord(org) : null;
+            },
+          };
+        },
+      )
       .singleton(),
   );
 

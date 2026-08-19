@@ -3,11 +3,9 @@ import type { ModulePlugin } from '../../http/server.js';
 import type { OrderListService } from '../orders/services/order-list-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
-import type { CommandBus } from '../../commands/index.js';
 import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import { ImpersonationService } from '../admin_users/services/impersonation-service.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
-import { PersonalOrganizationService } from '../organizations/services/personal-organization-service.js';
 import { CustomerAddressService } from './services/customer-address-service.js';
 import { CustomerDefaultsService } from './services/customer-defaults-service.js';
 import {
@@ -21,13 +19,19 @@ import { CustomerDeletionService } from './services/customer-deletion-service.js
 import { CustomerPresenceService } from './services/customer-presence-service.js';
 import { CartQueryService } from '../carts/services/cart-query-service.js';
 import { AnonymizationSweepWorker } from './workers/anonymization-sweep-worker.js';
-import type { PasswordResetService as PasswordResetServiceType } from '../customer_accounts/services/password-reset-service.js';
 import type { Mailer } from '../email/services/mailer.js';
 import type {
+  AddressReadPort,
   AuthSessionPort,
+  CustomerAccountAdminSearchPort,
+  CustomerAccountLifecycleWritePort,
   CustomerAccountReadPort,
   CustomerAuthPort,
+  CustomerGroupReadPort,
+  CustomerPasswordResetPort,
   DefaultPreferencePort,
+  OrganizationDetailsPort,
+  PersonalOrganizationPort,
   VatValidator,
 } from '@b2b/contracts';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
@@ -56,7 +60,7 @@ export interface CustomersModuleOptions {
    * MFA argument differed between them.
    */
   customerAuthService: CustomerAuthPort;
-  passwordResetService: PasswordResetServiceType;
+  passwordResetService: CustomerPasswordResetPort;
   emFactory: () => EntityManager;
   /**
    * `auth`'s published session port, resolved under the name the contract
@@ -79,6 +83,25 @@ export interface CustomersModuleOptions {
    */
   authSessionPort: AuthSessionPort;
   customerAccountReadPort: CustomerAccountReadPort;
+  /**
+   * Feature 075, Phase C — the rest of `customer_accounts`' published surface
+   * this module's own screens run on: the lifecycle writes it used to perform
+   * by mutating that module's entity, the admin list's query, and the group
+   * names beside it.
+   */
+  customerAccountLifecycleWritePort: CustomerAccountLifecycleWritePort;
+  customerAccountAdminSearchPort: CustomerAccountAdminSearchPort;
+  customerGroupReadPort: CustomerGroupReadPort;
+  /**
+   * `organizations`' published surface: the row-level read the admin list and
+   * the assignment screen ask for names and existence with, and the personal
+   * organisation a B2C registration provisions — which is also what the
+   * retention sweep cascades onto.
+   */
+  organizationDetailsPort: OrganizationDetailsPort;
+  personalOrganizationPort: PersonalOrganizationPort;
+  /** `addresses`' published read: the org-shared book a customer may pick from. */
+  addressReadPort: AddressReadPort;
   /**
    * Which organizations the acting staff member may see —
    * `organizations`' `organizationSalesRepScopePort` (issue #108).
@@ -128,10 +151,12 @@ export interface CustomersModuleOptions {
   resolveDeletionRetentionDays: () => Promise<number>;
   /** Reads `customers.presence_freshness_minutes`. */
   resolvePresenceFreshnessMinutes: () => Promise<number>;
-  /** Feature 055 — validates + persists Customer custom-field values on the admin edit path. */
+  /**
+   * Feature 055 — validates Customer custom-field values on the admin edit
+   * path. The persistence is `customer_accounts`': its lifecycle port runs the
+   * Command and takes this validator as the merge (feature 075).
+   */
   customFieldValues?: CustomFieldValueService;
-  /** Feature 054/055 — audits the custom-field write co-transactionally when provided. */
-  commandBus?: CommandBus;
 }
 
 export interface CustomersModuleHandle {
@@ -150,16 +175,18 @@ export function customersModule(options: CustomersModuleOptions): {
   handle: () => CustomersModuleHandle;
 } {
   const customerAuthService = options.customerAuthService;
-  const personalOrganizationService = new PersonalOrganizationService(options.emFactory);
   const registrationService = new CustomerRegistrationService({
-    emFactory: options.emFactory,
+    accounts: options.customerAccountLifecycleWritePort,
     sessionService: options.sessionService,
     resolveAllowRegistrationWithoutOrganization:
       options.resolveAllowRegistrationWithoutOrganization,
-    personalOrganizationService,
-    auditLog: options.auditLogService,
+    personalOrganizations: options.personalOrganizationPort,
   });
-  const customerAddressService = new CustomerAddressService(options.emFactory, options.auditLogService);
+  const customerAddressService = new CustomerAddressService(
+    options.emFactory,
+    options.addressReadPort,
+    options.auditLogService,
+  );
   const customerDefaultsService = new CustomerDefaultsService(
     options.emFactory,
     options.defaultPreferencePort,
@@ -167,9 +194,9 @@ export function customersModule(options: CustomersModuleOptions): {
   );
   const authorityService = new CustomerAuthorityService(options.salesRepVisibility);
   const moderationService = new CustomerModerationService(
-    options.emFactory,
+    options.customerAccountReadPort,
+    options.customerAccountLifecycleWritePort,
     authorityService,
-    options.auditLogService,
     {
       destroyAllForCustomer: (customerAccountId) =>
         options.sessionService.destroyAllForCustomer(customerAccountId),
@@ -181,20 +208,24 @@ export function customersModule(options: CustomersModuleOptions): {
     options.customerAccountReadPort,
     options.auditLogService,
   );
-  const queryService = new CustomerAdminQueryService(
-    options.emFactory,
-    customerDefaultsService,
-  );
+  const queryService = new CustomerAdminQueryService(options.emFactory, customerDefaultsService, {
+    accounts: options.customerAccountReadPort,
+    accountSearch: options.customerAccountAdminSearchPort,
+    organizations: options.organizationDetailsPort,
+    customerGroups: options.customerGroupReadPort,
+  });
   const orgAssignmentService = new CustomerOrgAssignmentService(
-    options.emFactory,
+    options.customerAccountReadPort,
+    options.customerAccountLifecycleWritePort,
+    options.organizationDetailsPort,
     authorityService,
-    options.auditLogService,
   );
   const cartQueryService = new CartQueryService(options.emFactory);
   const deletionService = new CustomerDeletionService(
-    options.emFactory,
+    options.customerAccountReadPort,
+    options.customerAccountLifecycleWritePort,
+    options.personalOrganizationPort,
     authorityService,
-    options.auditLogService,
     {
       destroyAllForCustomer: (customerAccountId) =>
         options.sessionService.destroyAllForCustomer(customerAccountId),
@@ -207,6 +238,7 @@ export function customersModule(options: CustomersModuleOptions): {
         options.sessionService.listRecentlyActiveCustomers(windowMinutes),
     },
     options.resolvePresenceFreshnessMinutes,
+    options.customerAccountReadPort,
   );
   const passwordResetService = options.passwordResetService;
   const anonymizationSweepWorker = new AnonymizationSweepWorker(
@@ -217,7 +249,7 @@ export function customersModule(options: CustomersModuleOptions): {
   const plugin: ModulePlugin = async (app) => {
     await registerCustomersRegisterRoutes(app, { registrationService });
     await registerCustomersSelfRoutes(app, {
-      emFactory: options.emFactory,
+      accounts: options.customerAccountReadPort,
       requireCustomer: options.requireCustomer,
       resolveCustomerActor: options.resolveCustomerActor,
       customerAuthService,
@@ -227,7 +259,8 @@ export function customersModule(options: CustomersModuleOptions): {
       customerDefaultsService,
     });
     await registerCustomersAdminRoutes(app, {
-      emFactory: options.emFactory,
+      accounts: options.customerAccountReadPort,
+      accountWrites: options.customerAccountLifecycleWritePort,
       requireAdmin: options.requireAdmin,
       resolveModerationActor: options.resolveModerationActor,
       moderationService,
@@ -246,7 +279,6 @@ export function customersModule(options: CustomersModuleOptions): {
       auditLogService: options.auditLogService,
       storefrontBaseUrl: options.storefrontBaseUrl,
       ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
-      ...(options.commandBus ? { commandBus: options.commandBus } : {}),
     });
   };
 

@@ -1,6 +1,9 @@
-import type { CustomerAddress as CustomerAddressDTO, OrganizationAddressRef } from '@b2b/contracts';
+import type {
+  AddressRecord,
+  CustomerAddress as CustomerAddressDTO,
+  OrganizationAddressRef,
+} from '@b2b/contracts';
 import type { CustomerAddress } from './entities/customer-address.entity.js';
-import type { Address } from '../addresses/entities/address.entity.js';
 
 /** Maps a persisted CustomerAddress to its API contract shape. */
 export function serializeCustomerAddress(a: CustomerAddress): CustomerAddressDTO {
@@ -20,8 +23,14 @@ export function serializeCustomerAddress(a: CustomerAddress): CustomerAddressDTO
   };
 }
 
-/** Maps an org-shared Address to the read-only reference shape. */
-export function serializeOrganizationAddress(a: Address): OrganizationAddressRef {
+/**
+ * Maps an org-shared address to the read-only reference shape.
+ *
+ * Feature 075 — the argument is `addresses`' published {@link AddressRecord},
+ * not its `Address` entity: this module only ever read the columns the record
+ * carries, and an entity crossing a boundary is what the port exists to stop.
+ */
+export function serializeOrganizationAddress(a: AddressRecord): OrganizationAddressRef {
   return {
     id: a.id,
     organizationId: a.organizationId,

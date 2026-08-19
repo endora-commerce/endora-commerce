@@ -671,6 +671,24 @@ export interface OrganizationRestrictionPort {
  */
 export interface PersonalOrganizationPort {
   ensureForCustomerAccount(customerAccountId: string): Promise<OrganizationRecord>;
+
+  /**
+   * Feature 051, the other end of the same rule — the retention sweep's
+   * cascade. Once the single member of a personal organisation has been
+   * anonymised, the organisation is left with nobody in it and its name is
+   * derived from that person's name, so it is scrubbed and soft-deleted too.
+   *
+   * Answers `null`, and writes nothing, in every case where the cascade does
+   * not apply: an org-less account, an organisation that is not personal, one
+   * already soft-deleted, and one that still has a live member. That is why it
+   * takes the **account** id rather than the organisation's — the caller
+   * (`customers`' anonymisation sweep) knows which customer it just scrubbed
+   * and must not be the one deciding whether the organisation qualifies.
+   *
+   * Idempotent: a second call over the same account finds the organisation
+   * already soft-deleted and answers `null`.
+   */
+  anonymizeIfOrphaned(customerAccountId: string): Promise<OrganizationRecord | null>;
 }
 
 /** One sales-rep ↔ organisation assignment row. */
