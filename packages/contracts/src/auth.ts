@@ -88,6 +88,13 @@ export interface AuthSessionPort {
   loadSession(cookieValue: string): Promise<AuthResolvedSession | null>;
   destroySession(sessionId: string): Promise<void>;
   destroyAllForCustomer(customerAccountId: string): Promise<void>;
+  /**
+   * Revoke every session an admin user holds — the ones they signed in with
+   * and the impersonations they started. Called when their password is set by
+   * somebody other than the current session, so a credential the reset was
+   * meant to withdraw cannot outlive it (issue #252).
+   */
+  destroyAllForAdmin(adminUserId: string): Promise<void>;
   touchLastSeen(sessionId: string): Promise<void>;
   /** Customer-account ids seen inside the window. Feature 040's "online" view. */
   listRecentlyActiveCustomers(windowMinutes: number): Promise<string[]>;

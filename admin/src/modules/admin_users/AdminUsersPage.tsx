@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
+import { KeyRound, Trash2 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -42,6 +42,9 @@ export function AdminUsersPage(): ReactNode {
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Which row has its reset form open, and the last reset that succeeded.
+  const [resetFor, setResetFor] = useState<string | null>(null);
+  const [resetDone, setResetDone] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -119,6 +122,28 @@ export function AdminUsersPage(): ReactNode {
     [refresh, t],
   );
 
+  const handleResetPassword = useCallback(
+    async (user: AdminUser, password: string): Promise<void> => {
+      setError(null);
+      setResetDone(null);
+      try {
+        await apiClient.post<{ data: AdminUser }>(
+          `/api/v1/admin/admin-users/${user.id}/password`,
+          { password },
+        );
+        setResetFor(null);
+        setResetDone(user.email);
+      } catch (err) {
+        setError(
+          err instanceof ApiError
+            ? err.envelope.error.message
+            : t('adminUsers.error.resetPassword'),
+        );
+      }
+    },
+    [t],
+  );
+
   const handleRemove = useCallback(
     async (user: AdminUser): Promise<void> => {
       if (!confirm(t('adminUsers.confirmRemove', { email: user.email }))) return;
@@ -153,6 +178,14 @@ export function AdminUsersPage(): ReactNode {
         </Alert>
       ) : null}
 
+      {resetDone ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>
+            {t('adminUsers.resetPassword.done', { email: resetDone })}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       <Card className="mb-4">
         <CardHeader>
           <CardTitle>{t('adminUsers.create.title')}</CardTitle>
@@ -182,47 +215,74 @@ export function AdminUsersPage(): ReactNode {
               <TableBody>
                 {users.map((u) => (
                   // Anchor target for deep-links (e.g. the audit-log actor column).
-                  <TableRow key={u.id} id={`admin-user-${u.id}`} className="scroll-mt-24">
-                    <TableCell className="font-medium">{u.email}</TableCell>
-                    <TableCell>
-                      {u.firstName} {u.lastName}
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={u.adminRoleId ?? ''}
-                        onChange={(e): void => void handleAssignRole(u.id, e.target.value)}
-                      >
-                        <option value="">{t('adminUsers.unassigned')}</option>
-                        {roles.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {translateRoleName(t, r)}
-                          </option>
-                        ))}
-                      </Select>
-                    </TableCell>
-                    <TableCell>{t(`adminUsers.status.${u.status}`)}</TableCell>
-                    <TableCell>{u.twoFactorEnabled ? t('adminUsers.twoFactorOn') : '—'}</TableCell>
-                    <TableCell>{formatDateTime(u.lastLoginAt)}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(): void => void handleToggleStatus(u)}
+                  <Fragment key={u.id}>
+                    <TableRow id={`admin-user-${u.id}`} className="scroll-mt-24">
+                      <TableCell className="font-medium">{u.email}</TableCell>
+                      <TableCell>
+                        {u.firstName} {u.lastName}
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={u.adminRoleId ?? ''}
+                          onChange={(e): void => void handleAssignRole(u.id, e.target.value)}
                         >
-                          {u.status === 'active' ? t('adminUsers.deactivate') : t('adminUsers.reactivate')}
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={(): void => void handleRemove(u)}
-                        >
-                          <Trash2 />
-                          {t('adminUsers.remove')}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                          <option value="">{t('adminUsers.unassigned')}</option>
+                          {roles.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {translateRoleName(t, r)}
+                            </option>
+                          ))}
+                        </Select>
+                      </TableCell>
+                      <TableCell>{t(`adminUsers.status.${u.status}`)}</TableCell>
+                      <TableCell>{u.twoFactorEnabled ? t('adminUsers.twoFactorOn') : '—'}</TableCell>
+                      <TableCell>{formatDateTime(u.lastLoginAt)}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(): void =>
+                              setResetFor((current) => (current === u.id ? null : u.id))
+                            }
+                            aria-expanded={resetFor === u.id}
+                            aria-controls={`admin-user-reset-${u.id}`}
+                          >
+                            <KeyRound />
+                            {t('adminUsers.resetPassword.action')}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(): void => void handleToggleStatus(u)}
+                          >
+                            {u.status === 'active' ? t('adminUsers.deactivate') : t('adminUsers.reactivate')}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={(): void => void handleRemove(u)}
+                          >
+                            <Trash2 />
+                            {t('adminUsers.remove')}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {resetFor === u.id ? (
+                      <TableRow>
+                        <TableCell colSpan={7} id={`admin-user-reset-${u.id}`}>
+                          <ResetPasswordForm
+                            user={u}
+                            onCancel={(): void => setResetFor(null)}
+                            onSubmit={(password): Promise<void> =>
+                              handleResetPassword(u, password)
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>
@@ -230,6 +290,61 @@ export function AdminUsersPage(): ReactNode {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/**
+ * Peer password reset (issue #252). Inline rather than in a modal: the admin
+ * design system has no dialog primitive, and Principle IX says reuse before
+ * adding one. The hint is not decoration — resetting ends every session the
+ * target holds, and an operator who resets their own account here is signed
+ * out by it.
+ */
+function ResetPasswordForm({
+  user,
+  onCancel,
+  onSubmit,
+}: {
+  user: AdminUser;
+  onCancel: () => void;
+  onSubmit: (password: string) => Promise<void>;
+}): ReactNode {
+  const t = useTranslation('core');
+  const [password, setPassword] = useState('');
+
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(e: FormEvent): void => {
+        e.preventDefault();
+        void onSubmit(password).then(() => setPassword(''));
+      }}
+    >
+      <p className="text-sm font-medium">
+        {t('adminUsers.resetPassword.title', { email: user.email })}
+      </p>
+      <p className="text-sm text-muted-foreground">{t('adminUsers.resetPassword.hint')}</p>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-2">
+          <Label htmlFor={`reset-${user.id}`}>{t('adminUsers.field.password')}</Label>
+          <Input
+            id={`reset-${user.id}`}
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e): void => setPassword(e.target.value)}
+            minLength={12}
+            required
+          />
+        </div>
+        <Button type="submit" size="sm">
+          {t('adminUsers.resetPassword.submit')}
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+          {t('adminUsers.resetPassword.cancel')}
+        </Button>
+      </div>
+    </form>
   );
 }
 

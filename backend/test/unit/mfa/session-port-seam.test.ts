@@ -71,6 +71,7 @@ async function buildApp(): Promise<{ app: FastifyInstance; created: AuthCreateSe
     loadSession: refusing('loadSession'),
     destroySession: refusing('destroySession'),
     destroyAllForCustomer: refusing('destroyAllForCustomer'),
+    destroyAllForAdmin: refusing('destroyAllForAdmin'),
     touchLastSeen: refusing('touchLastSeen'),
     listRecentlyActiveCustomers: refusing('listRecentlyActiveCustomers'),
   };

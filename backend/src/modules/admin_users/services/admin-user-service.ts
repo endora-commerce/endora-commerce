@@ -1,6 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
-import { ERROR_CODES, normalizeEmailAddress, type AdminRolePort } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  normalizeEmailAddress,
+  type AdminRolePort,
+  type AuthSessionPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
@@ -14,7 +19,7 @@ import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js
  *
  *   - email uniqueness (DB partial unique enforces, mapped to 409)
  *   - role existence on assignment
- *   - password rehash on create only (rotation lives elsewhere)
+ *   - password rehash on create, on self-rotation, and on a peer reset
  *   - soft delete via `deletedAt`; status flip is the everyday lever
  */
 
@@ -61,6 +66,12 @@ export class AdminUserService {
      * is its question and not a second `em.findOne` against its table.
      */
     private readonly adminRoles: AdminRolePort,
+    /**
+     * `auth`'s session surface (feature 075, Phase C). A password write has to
+     * be able to withdraw the sessions the old password minted, and those rows
+     * belong to `auth`.
+     */
+    private readonly sessions: AuthSessionPort,
     private readonly auditLog?: AuditLogService,
   ) {}
 
@@ -206,6 +217,47 @@ export class AdminUserService {
       user.passwordHash = await hashPassword(input.password);
     }
     this.#audit(em, 'admin_user.update', user.id, null, { email: user.email, status: user.status });
+    await em.flush();
+    return user;
+  }
+
+  /**
+   * Set an admin user's password on someone else's authority — issue #252.
+   *
+   * This is the module's password-write seam, and it is written to be the only
+   * one: the e-mail-keyed self-service reset that follows the packaging
+   * programme differs in **who is authorised** (a token instead of a peer's
+   * `admin_users:manage`), not in what the write does. It calls this.
+   *
+   * Two things happen, in this order:
+   *
+   *  1. every session the target holds is revoked, and
+   *  2. the new hash is persisted with an `admin_user.change_password` audit
+   *     row that records the target and the route taken — never the password
+   *     and never its hash.
+   *
+   * The revocation runs **before** the flush on purpose. It reaches another
+   * module, so it can refuse; refusing first means the reset either takes
+   * effect whole or not at all, where a flush-then-revoke order could leave a
+   * changed password with the old password's sessions still answering. A
+   * revocation that succeeded over a flush that then failed only signs the
+   * target out, which their existing password undoes.
+   *
+   * No `catch` around the port call: an operator told "reset" while the old
+   * sessions kept working would be told something false.
+   */
+  async resetPassword(id: string, newPassword: string): Promise<AdminUser> {
+    const em = this.emFactory();
+    const user = await this.#getByIdOn(em, id);
+    // Hashed before the revocation so the window between "signed out" and
+    // "new password live" is not an argon2 pass wide.
+    const passwordHash = await hashPassword(newPassword);
+    await this.sessions.destroyAllForAdmin(user.id);
+    user.passwordHash = passwordHash;
+    this.#audit(em, 'admin_user.change_password', user.id, null, {
+      email: user.email,
+      via: 'peer_reset',
+    });
     await em.flush();
     return user;
   }
