@@ -64,6 +64,13 @@
  *
  * ## The population is the whole tree, because the fold is now reachable
  *
+ * (And note the limit of that claim, which issue #245 measured: this check sees
+ * a fold written **outside** the helper, so a slugifier with **no fold step at
+ * all** writes nothing for it to see. Two shipped that way for a year, deleting
+ * `ł` rather than folding it, while this check read clean over both. What
+ * closes that gap is `slugify` in `@b2b/contracts` — one generator every slug
+ * site composes — not a widening of this rule.)
+ *
  * It was `admin/src` and `admin/test` alone when this check landed, and the
  * header said why each other tree was out: none of them could import
  * `admin/src/lib/text-normalization.ts`. That was true and it was the defect,
@@ -76,9 +83,9 @@
  *   - **`admin/`** — where all four private copies grew (issue #236), each an
  *     import away from the helper. `admin/src/lib/text-normalization.ts` is now
  *     a two-line composition over the shared fold, not a second copy of it.
- *   - **`backend/`** — folds in two slugifiers, both carrying the `ł` bug. They
- *     are ledgered by name below rather than repaired: they compute
- *     **already-persisted** values.
+ *   - **`backend/`** — held the last two ledgered folds until issue #245 routed
+ *     them, and five more slug generators, through `slugify` in
+ *     `@b2b/contracts`. It folds nowhere of its own now.
  *   - **`storefront/`** — folds nowhere today. It is in the population so that
  *     the first fold written there is the one that gets refused, which is the
  *     only moment the rule is cheap to keep.
@@ -152,9 +159,9 @@ export const POPULATION_ROOTS: Readonly<Record<string, string>> = {
     'from a fold it could not find. Its own tests are in: a test that recomputes ' +
     'an expected value with its own fold is a fifth copy that happens to be green.',
   backend:
-    'Folds in two slugifiers today, both carrying the `l` bug, both ledgered ' +
-    'below because they compute persisted, externally-visible keys. It imports ' +
-    '@b2b/contracts everywhere else, so the shared fold is one import away.',
+    'Held the last two ledgered folds, both carrying the `l` bug, until issue ' +
+    '#245 routed them through the shared slug generator. It folds nowhere of ' +
+    'its own now, and is scanned so the next one written here is refused.',
   storefront:
     'Folds nowhere today, which is exactly when a rule is cheap to keep: the ' +
     'first fold written here is refused before it can be copied.',
@@ -206,68 +213,35 @@ export interface LedgerEntry {
 /**
  * Folds outside the helper that are not (yet) violations, with the reason.
  *
- * **Two-way, and per file by count** — an unledgered fold fails the build, a
+ * **Empty, and a two-way ratchet.** An unledgered fold fails the build, a
  * ledgered file whose count moved fails it too, and an entry naming a file that
- * no longer folds fails it as well. Never raise a number to make the build
- * pass: add the import.
+ * no longer folds fails it as well — which is how the last two entries left:
+ * issue #245 repaired them and the staleness half went red until they were
+ * deleted. Never raise a number to make the build pass: add the import.
  *
- * It holds exactly two **slugifiers**, both in `backend/`, and it holds them
- * for one reason: each computes a value that is **already persisted** and
- * **externally visible**. A feed template filename is what a human was handed
- * and hands on; a category slug is a storefront URL. Fold either differently
- * and the same input produces a different key — which is a rename of live
- * data, not a repair. Both are additionally `NFKD` rather than `NFD`, so they
- * also fold compatibility characters (`fi` ligature to `fi`, superscript two
- * to `2`, full-width forms), and the shared fold does not.
+ * It opened with four entries, two in `admin/` and two in `backend/`, and every
+ * one of them was retired by the same owner ruling (2026-08-19): new values are
+ * to be correct, historical ones are **not** migrated, because only two
+ * developer environments exist and re-slugging live rows buys nobody anything.
+ * !753 took the admin pair, and issue #245 took the backend pair along with the
+ * five other slug generators the sweep for them turned up.
  *
- * Note what is *not* the reason: "slugs are different from search". They are
- * not — the admin helper's own header names slug generators as one of its two
- * kinds of caller, and `PageEditor`, `BlockEditor` and `BlogPostEditor` already
- * use it. Distinguishing a search fold from a slug fold in the *rule* was
- * considered and rejected: it would exempt a whole category on the strength of
- * files whose real problem is that their output is a stored key.
+ * Note what is *not* a reason to add one back: "slugs are different from
+ * search". They are not — the whole family this check exists for is slug
+ * generators, and since issue #245 all eight of them compose `slugify` from
+ * `@b2b/contracts`, which composes `foldDiacritics`. Nor is "the value is
+ * already persisted": that is an argument for not *migrating* the old rows,
+ * which is the owner's standing ruling, and not an argument for computing the
+ * next one wrongly.
  *
- * **The two `admin/` entries this ledger opened with are gone (issue #239).**
- * `product_feeds/api.ts` and `newsletter/pages/TagsPage.tsx` both import the
- * shared fold now. The owner ruled on 2026-08-19 that new values are to be
- * correct and historical ones are not migrated: only two developer
- * environments exist, so renaming their feeds and tags buys nobody anything.
- * The admin feed slug also gave up NFKD's compatibility mappings in that
- * repair, which was ruled the smaller loss — those mappings only reach a slug
- * through characters nobody types into a feed name, while `ł` was being
- * deleted out of every Polish one.
- *
- * The two backend entries were not discovered by widening the population: they
- * were named in this file's header from the day it landed, as folds the rule
- * could not reach because no shared fold was reachable from `backend/`.
- * `foldDiacritics` makes them reachable, so they are ledgered debt with a
- * retiring condition instead of a paragraph. Issue #239 was scoped to the admin
- * SPA and did not rule on them.
+ * And note what this check **cannot** see, so an empty ledger is not read as
+ * more than it is: it counts folds written *outside* the helper, so a slugifier
+ * with no fold step at all is invisible to it. Two were —
+ * `cms-template-layout.ts` and `pim_ergonode`'s `slugFromSourceCode`, both
+ * deleting `ł` rather than folding it, neither ever reported here. What closes
+ * that gap is the shared generator, not this list.
  */
-export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {
-  'backend/src/modules/product_feeds/services/feed-template-io.service.ts': {
-    findings: 2,
-    reason:
-      'templateDocumentFilename — the name of the JSON file a human is handed ' +
-      'and hands on. NFKD, and it drops `ł` outright (`Łatwy szablon` becomes ' +
-      '`atwy-szablon`), so repairing it changes the filename of every template ' +
-      'already exported and possibly linked.',
-    retiredBy:
-      "the ruling issue #239 took for the admin pair, extended to this one — #239 " +
-      'was scoped to the admin SPA and left the backend slugifiers untouched.',
-  },
-  'backend/src/modules/catalog/services/catalog-admin.service.ts': {
-    findings: 2,
-    reason:
-      'CatalogAdminService.slugify — category and attribute slugs, which are ' +
-      'stored, unique-constrained and reachable as storefront URLs. NFKD, and ' +
-      'it drops `ł` the same way. Re-folding it is a URL migration with a ' +
-      'redirect story, which is a decision nobody has taken.',
-    retiredBy:
-      "the ruling issue #239 took for the admin pair, extended to this one — #239 " +
-      'was scoped to the admin SPA and left the backend slugifiers untouched.',
-  },
-};
+export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {};
 
 /** Which half of a fold a finding is. */
 export type FoldKind =

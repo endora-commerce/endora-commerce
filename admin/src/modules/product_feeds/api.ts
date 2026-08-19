@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import { normalize } from '@/lib/text-normalization';
+import { slugify as sharedSlugify } from '@b2b/contracts';
 import type {
   FeedDeliveryAttempt,
   FeedDeliveryConfig,
@@ -473,19 +473,28 @@ export const productFeedsClient = {
 /**
  * Kebab-cases a feed name into a slug candidate, the way the operator expects.
  *
- * The fold is `lib/text-normalization.ts`, **imported, never re-implemented**
- * (issue #239). The private one-liner this used to carry deleted `\u0142` instead
- * of folding it \u2014 U+0142 has no canonical decomposition, so NFD left it
- * standing and the `[^a-z0-9]` collapse then swallowed it: `Kana\u0142 sprzeda\u017cy`
- * produced `kana-sprzedazy`, a slug missing a letter for no reason the
- * operator can see.
+ * The generator is `slugify` from `@b2b/contracts`, **imported, never
+ * re-implemented** (issues #239, #245). !753 repaired the fold here by
+ * composing `lib/text-normalization.ts`; issue #245 found seven more copies of
+ * the same four-line chain and moved the whole thing — fold, collapse, cut,
+ * trim, fallback — into one function the backend, the admin and the storefront
+ * all import.
  *
- * **It also drops NFKD for NFD, deliberately.** The compatibility mappings
- * NFKD adds over NFD only reach a slug through characters that map *into*
- * `[a-z0-9]` \u2014 the `fi` ligature, superscript digits, full-width forms. None
- * of them is typed into a feed name, and where one is, it now collapses to the
- * `-` separator rather than to a wrong letter, so the slug stays legal. That
- * is a much smaller loss than deleting a letter out of every Polish name.
+ * The private one-liner this started as deleted `ł` instead of folding it:
+ * U+0142 has no canonical decomposition, so NFD left it standing and the
+ * `[^a-z0-9]` collapse swallowed it. `Kanał sprzedaży` produced
+ * `kana-sprzedazy`, a slug missing a letter for no reason the operator can see.
+ *
+ * **The shared generator is NFD, not NFKD, deliberately.** The compatibility
+ * mappings NFKD adds only reach a slug through characters that map *into*
+ * `[a-z0-9]` — the `fi` ligature, superscript digits, full-width forms. None of
+ * them is typed into a feed name, and where one is, it now collapses to the `-`
+ * separator rather than to a wrong letter, so the slug stays legal. That is a
+ * much smaller loss than deleting a letter out of every Polish name.
+ *
+ * The 160-character cut is this caller's own and is passed explicitly: the
+ * eight callers cap at 80, 150, 160, 180 or not at all, and a cap decides which
+ * new values collide under that caller's constraint.
  *
  * Slugs already published are **not** migrated (owner's ruling, 2026-08-19).
  * A feed's slug is a URL somebody may have handed to Google; re-folding it is
@@ -493,10 +502,7 @@ export const productFeedsClient = {
  * New slugs are correct from here on.
  */
 export function slugify(value: string): string {
-  return normalize(value)
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 160);
+  return sharedSlugify(value, { maxLength: 160 });
 }
 
 // ---------------------------------------------------------------------------

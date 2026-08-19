@@ -150,4 +150,56 @@ describe('CatalogAdminService.createProduct — audited via Command Bus [real DB
     expect(second.slug).not.toBe(first.slug);
     expect(second.slug).toMatch(/^slug-collision-product-\d+$/);
   });
+
+  /**
+   * Issues #240 / #245 — the slug is folded, and the private one-liner
+   * `CatalogAdminService.slugify` used to carry did not fold `ł`: U+0142 has no
+   * canonical decomposition, so NFKD left it standing and the `[^a-z0-9]+`
+   * collapse deleted it. A Polish product name lost a letter, silently, in the
+   * one value that becomes a storefront URL.
+   *
+   * The fixtures are names this repository ships: `Łączniki` and `Wiertła` are
+   * catalog labels from `backend/src/seeds/dev-catalog-seed.ts`.
+   */
+  it('folds Polish letters in the slug instead of deleting them', async () => {
+    // `łaczniki` before the strip; the leading `ł` became a separator and the
+    // trim then removed it, so the slug read `aczniki`.
+    const fasteners = await withSystemScope('issue #245 test — Polish slug', () =>
+      service.createProduct(productRequest('PL-SLUG-1', 'Łączniki')),
+    );
+    expect(fasteners.slug).toBe('laczniki');
+
+    // A non-leading `ł`: `wierta` before the repair, a letter short in the
+    // middle of the word rather than at its start.
+    const drills = await withSystemScope('issue #245 test — Polish slug', () =>
+      service.createProduct(productRequest('PL-SLUG-2', 'Wiertła')),
+    );
+    expect(drills.slug).toBe('wiertla');
+  });
+
+  /**
+   * The NFKD-for-NFD trade in the one place it could bite: two names that NFKD
+   * kept apart can now fold together, because a compatibility character maps to
+   * the `-` separator instead of into `[a-z0-9]`.
+   *
+   * It is not a unique-constraint failure and cannot become one — the slug goes
+   * through `allocateUniqueSlug`, which probes `products.slug` and appends
+   * `-2`, `-3`, … until the table is clear. The second product gets a suffixed
+   * slug rather than a collision, which is exactly what two products sharing a
+   * plain name already get. Asserted here so the trade is a decision on the
+   * record rather than a surprise (see `slugify`'s doc block).
+   */
+  it('disambiguates rather than colliding when a compatibility character folds away', async () => {
+    const squared = await withSystemScope('issue #245 test — compatibility fold', () =>
+      service.createProduct(productRequest('PL-SLUG-3', 'Kabel² miedziany')),
+    );
+    const cubed = await withSystemScope('issue #245 test — compatibility fold', () =>
+      service.createProduct(productRequest('PL-SLUG-4', 'Kabel³ miedziany')),
+    );
+
+    // NFKD produced `kabel2-miedziany` and `kabel3-miedziany`; NFD sends both
+    // superscripts to the separator, so the second is suffixed instead.
+    expect(squared.slug).toBe('kabel-miedziany');
+    expect(cubed.slug).toMatch(/^kabel-miedziany-\d+$/);
+  });
 });
