@@ -13,6 +13,45 @@
  * fk-dependency-drift.test.ts: an entry survives only while it is *both* still
  * a real foreign key (M1) *and* still undeclared (M2). Adding a 16th entry is a
  * visible, reviewable act.
+ *
+ * ## Why feature 081 left all 13 exactly as they were (T022, D-113)
+ *
+ * Feature 081 replaced the old migration order — timestamps corrected by the
+ * module dependency graph — with a topological sort of that graph. Removing the
+ * correction removes the accident that used to make an undeclared cross-module
+ * foreign key work, so the obvious next thought is that these 13 undeclared
+ * edges now need something. They do not, and this paragraph exists because an
+ * unchanged file invites the next reader to "finish" it.
+ *
+ * Three measured facts, in the order they matter (research.md §3):
+ *
+ * 1. **All 13 are baseline-block facts.** Every one is created by a migration
+ *    stamped April or June 2026 — at or before `BASELINE_THROUGH`
+ *    (`20260801T000000`). The baseline block is emitted first, in ascending
+ *    timestamp order, and is never reordered by the dependency graph; it is
+ *    closed, and the scaffolder clamps every new core stamp past the boundary.
+ *    So no declaration could change where any of them runs.
+ * 2. **Promoting them into `dependencies` would close cycles — 11 of the 13.**
+ *    Added one at a time, 11 find the target already reaching the source; added
+ *    together they collapse 14 modules into one strongly connected component.
+ *    That is not a fixable oversight: `sales_channels`' junction tables must
+ *    follow `catalog`'s `products`, and `catalog`'s channel-scoping columns must
+ *    follow `sales_channels`' own table. Both are true, and no module-level edge
+ *    can express both.
+ * 3. **The field that could express it is ruled unspellable.** An ordering edge
+ *    that the migration order reads and the lifecycle does not is D-44 §5's
+ *    fourth quadrant — order without bind — kept deliberately unspellable in
+ *    `packages/contracts/src/modules.ts` (the doc block above
+ *    `ModuleNonBindingDependencySchema`). D-113 withdrew D-108, which had
+ *    proposed exactly that field. The per-*migration* escape that would work is
+ *    specified and deliberately not built:
+ *    `specs/081-per-module-migration-order/contracts/ordering-algorithm.md` §7.
+ *
+ * What replaced the accident is the position half of `fk-dependency-drift.test.ts`
+ * (FR-013), and its exemption (a) — "the referenced table is created in the
+ * baseline block" — is precisely fact 1. It reports zero findings on this tree,
+ * and the first post-baseline migration that needs one of these edges is what
+ * will say so, by name.
  */
 export type DroppedEdgeRule =
   /** Rule 1 — a platform-root module never depends on a domain module. */
