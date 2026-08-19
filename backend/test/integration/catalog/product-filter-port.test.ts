@@ -1,6 +1,12 @@
 import { afterAll, afterEach, beforeEach, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CatalogProductFilter } from '@b2b/contracts';
+import {
+  ANONYMOUS_PRODUCT_AUDIENCE,
+  isProductVisibleTo,
+  productVisibilitySchema,
+  type CatalogProductFilter,
+  type ProductVisibility,
+} from '@b2b/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { CatalogProductFilterService } from '../../../src/modules/catalog/services/catalog-product-filter.service.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
@@ -235,6 +241,85 @@ describe('catalogProductFilterPort — the sellable selection scan [integration]
     });
   });
 
+  /**
+   * The audience half of the floor, and the parity that keeps it honest
+   * (issue #259).
+   *
+   * A product feed is read by Google — an anonymous, unauthenticated consumer —
+   * so the audience this port answers for is
+   * {@link ANONYMOUS_PRODUCT_AUDIENCE}, exactly as the sitemap's is. The floor
+   * said `visibility = 'public'` and stopped, which is not the whole answer: an
+   * operator can save `public` **with** a non-empty `allowed_organization_ids`,
+   * and the allow-list restricts whatever the visibility column says. A feed
+   * carrying such a row advertises to the whole web an assortment reserved for
+   * one distributor.
+   *
+   * The expectation below is **computed by `isProductVisibleTo`**, never
+   * written out. That is the mechanism that keeps the SQL in `sellableFloor`
+   * and the TypeScript predicate in `@b2b/contracts` in step: the only way for
+   * the two to disagree is for this test to go red, and the domain it sweeps is
+   * `productVisibilitySchema.options` × (empty, non-empty), so a fourth
+   * visibility value enters the sweep the moment the enum grows.
+   *
+   * Both methods are asserted for every row, because `countSellable` is what an
+   * operator is shown before saving and `listSellable` is what the next run
+   * emits. A repair that narrowed one and not the other would keep the
+   * disclosure or start lying about the number, and this file is where that has
+   * to be caught.
+   */
+  describe('the floor answers for the anonymous audience', () => {
+    it('agrees with `isProductVisibleTo` on every visibility × allow-list state', async () => {
+      const seeded = await seedAudienceMatrix(em);
+      const wantedIds = seeded.map((row) => row.id);
+
+      const rows = await port.listSellable({ productIds: wantedIds, filter: { kind: 'all' } });
+      const returned = new Set(rows.map((row) => row.id));
+
+      for (const row of seeded) {
+        const expected = isProductVisibleTo(row, ANONYMOUS_PRODUCT_AUDIENCE);
+        expect(
+          returned.has(row.id),
+          `${row.sku} — visibility ${row.visibility}, allow-list ${
+            row.allowedOrganizationIds.length === 0 ? 'empty' : 'non-empty'
+          }`,
+        ).toBe(expected);
+      }
+    });
+
+    it('counts exactly what it lists, so the pre-save number is the run’s number', async () => {
+      const seeded = await seedAudienceMatrix(em);
+      const wantedIds = seeded.map((row) => row.id);
+      const visible = seeded.filter((row) =>
+        isProductVisibleTo(row, ANONYMOUS_PRODUCT_AUDIENCE),
+      ).length;
+
+      const listed = await port.listSellable({ productIds: wantedIds, filter: { kind: 'all' } });
+      const counted = await port.countSellable({ productIds: wantedIds, filter: { kind: 'all' } });
+
+      expect(counted).toBe(listed.length);
+      expect(counted).toBe(visible);
+    });
+
+    it('keeps a `public` product with a non-empty allow-list out, filter or no filter', async () => {
+      // The one row the old floor let through, asked for by name: a filter that
+      // names it explicitly must not widen the floor past the audience, exactly
+      // as it cannot widen it past `status` or `deleted_at`.
+      const seeded = await seedAudienceMatrix(em);
+      const restricted = seeded.find(
+        (row) => row.visibility === 'public' && row.allowedOrganizationIds.length > 0,
+      )!;
+
+      const filter: CatalogProductFilter = {
+        kind: 'condition',
+        field: { kind: 'column', column: 'id' },
+        op: 'in',
+        values: [restricted.id],
+      };
+      expect(await port.listSellable({ productIds: [restricted.id], filter })).toEqual([]);
+      expect(await port.countSellable({ productIds: [restricted.id], filter })).toBe(0);
+    });
+  });
+
   it('selects nothing for `none`, and nothing for an operator given no value', async () => {
     expect(await port.countSellable({ productIds: all(), filter: { kind: 'none' } })).toBe(0);
 
@@ -339,4 +424,54 @@ async function seedSkus(
   );
   await em.persistAndFlush(rows);
   return Object.fromEntries(rows.map((row) => [row.sku, row.id]));
+}
+
+/** One seeded row of the audience matrix, carrying the two columns it is about. */
+interface AudienceMatrixRow {
+  id: string;
+  sku: string;
+  visibility: ProductVisibility;
+  allowedOrganizationIds: string[];
+}
+
+/**
+ * Every state the two audience columns can be in, seeded as sellable rows.
+ *
+ * The sweep is the enum × (empty, non-empty) rather than a hand-listed set, so
+ * a visibility value added to `productVisibilitySchema` arrives here without
+ * anybody remembering to add it — the parity assertion then decides whether the
+ * SQL floor and `isProductVisibleTo` still agree about it.
+ *
+ * Every row is `active`, unarchived and not soft-deleted: the other half of the
+ * floor is asserted elsewhere in this file, and a row that failed it would make
+ * an absence prove nothing.
+ */
+async function seedAudienceMatrix(em: EntityManager): Promise<AudienceMatrixRow[]> {
+  const ORG = '33333333-3333-4333-8333-333333333333';
+  const combinations = productVisibilitySchema.options.flatMap((visibility) =>
+    [[], [ORG]].map((allowedOrganizationIds) => ({ visibility, allowedOrganizationIds })),
+  );
+  const rows = combinations.map((combination, index) =>
+    em.create(Product, {
+      type: 'simple' as const,
+      description: {},
+      attributeSetId: SET_ID,
+      attributeValues: {},
+      sku: `AUDIENCE-${combination.visibility.toUpperCase()}-${
+        combination.allowedOrganizationIds.length === 0 ? 'OPEN' : 'LISTED'
+      }`,
+      slug: `audience-fixture-${index}`,
+      status: 'active',
+      visibility: combination.visibility,
+      allowedOrganizationIds: combination.allowedOrganizationIds,
+      name: { 'en-US': `Audience ${index}` },
+    }),
+  );
+  await em.persistAndFlush(rows);
+  return rows.map((row) => ({
+    id: row.id,
+    sku: row.sku,
+    visibility: row.visibility,
+    allowedOrganizationIds: [...row.allowedOrganizationIds],
+  }));
 }
