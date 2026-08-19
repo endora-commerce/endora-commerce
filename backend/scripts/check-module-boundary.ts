@@ -190,8 +190,10 @@ import {
 import { pluralize } from '../src/db/pluralizing-naming-strategy.js';
 import {
   loadRegisteredModuleIds,
+  modulePopulationCoverage,
   vacuousModulePopulation,
 } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const SRC_ROOT = join(BACKEND_ROOT, 'src');
@@ -1127,6 +1129,20 @@ async function main(): Promise<void> {
   const sqlFindings = result.violations
     .concat(result.ledgered)
     .filter((finding) => finding.predicate === 'sql').length;
+  // What was read, in the shared grammar (issue #244). `files` counts both
+  // walks — the module sources judged and the schema sources the table→owner
+  // map is built from — because a half-read schema makes the SQL predicate
+  // report *fewer* reaches rather than fail. No `sites=`: this check records
+  // the reaches it finds and never counts the specifiers and table references
+  // it cleared, so there is no examined-unit number without a second walk;
+  // ledgered in `test/helpers/check-read-sizes.ts`.
+  reportReadSize({
+    prefix: '[module-boundary]',
+    files: sources.size + schema.size,
+    coverage: [
+      modulePopulationCoverage({ registered: registeredModules, files: [...sources.keys()] }),
+    ],
+  });
   console.log(
     `[module-boundary] module files=${files.length} cross-module reaches=${result.total} ` +
       `(imports=${result.total - sqlFindings} sql=${sqlFindings}) ` +

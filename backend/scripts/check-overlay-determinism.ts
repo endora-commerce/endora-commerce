@@ -17,6 +17,7 @@ import {
   renderOverrideManifest,
 } from './generate-override-manifest.js';
 import { GENERATED_ARTIFACT_PATHS, renderAll } from './generate-composer.js';
+import { reportReadSize } from './lib/read-size.js';
 
 /** Why an artifact failed, or `null` when it is byte-identical to the committed file. */
 export type ArtifactVerdict =
@@ -116,7 +117,7 @@ async function main(): Promise<void> {
   // same tree walk and committed the same way, so they are checked here rather
   // than in a second script with the same shape. Feature 071's F2 added the two
   // `db/` registries to that same walk, for the same reason.
-  const ok = [
+  const verdicts = [
     ...(await renderAll()).map((artifact) =>
       check(artifact.label, artifact.outputPath, artifact.content),
     ),
@@ -131,8 +132,17 @@ async function main(): Promise<void> {
         overrideManifestRegenerateHint(deployment),
       );
     }),
-  ].every(Boolean);
-  if (!ok) process.exit(1);
+  ];
+  // What was read, beside what was found (issue #244). The population is the
+  // committed artefacts compared, and it is the number that moves when a
+  // deployment stops being discovered under `src/apps/` — the shape of issue
+  // #120, where one deployment's artefact was looked at by no run at all.
+  // `self-reported`: the list comes from the generators themselves, and the
+  // independent half is `coveredArtifactPaths()` against the `*.generated.ts`
+  // files on disk, which is the companion test's assertion rather than a
+  // second walk here.
+  reportReadSize({ prefix: '[overlay:check]', files: verdicts.length });
+  if (!verdicts.every(Boolean)) process.exit(1);
   process.stdout.write('[overlay:check] all generated artifacts deterministic ✓\n');
 }
 

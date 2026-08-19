@@ -44,6 +44,8 @@ const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const BACKEND_ROOT = join(REPO_ROOT, 'backend');
 const TSX = join(BACKEND_ROOT, 'node_modules', '.bin', 'tsx');
 const SCRIPT = join(BACKEND_ROOT, 'scripts', 'check-diacritic-folds.ts');
+/** The shared read-size reporter the check imports (issue #244). */
+const READ_SIZE_LIB = join(BACKEND_ROOT, 'scripts', 'lib', 'read-size.ts');
 const TYPESCRIPT = join(BACKEND_ROOT, 'node_modules', 'typescript');
 
 /** U+0300–U+036F written as the characters themselves, the way one backend slugifier does. */
@@ -95,6 +97,11 @@ function fixtureRepository(
   const checker = join(root, 'node_modules', 'scripts', 'check-diacritic-folds.ts');
   mkdirSync(dirname(checker), { recursive: true });
   copyFileSync(SCRIPT, checker);
+  // The check imports the shared reporter by a relative path, so the copy needs
+  // it beside itself or the fixture run dies at module resolution and every
+  // exit code below reads as 1.
+  mkdirSync(join(dirname(checker), 'lib'), { recursive: true });
+  copyFileSync(READ_SIZE_LIB, join(dirname(checker), 'lib', 'read-size.ts'));
   symlinkSync(TYPESCRIPT, join(root, 'node_modules', 'typescript'), 'dir');
   if (options.ledger !== undefined) {
     // The real ledger is empty since issue #245, so the CLI can no longer be

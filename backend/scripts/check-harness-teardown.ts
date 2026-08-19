@@ -75,6 +75,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { reportReadSize } from './lib/read-size.js';
 
 const TEST_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'test');
 
@@ -328,6 +329,11 @@ function main(): void {
     console.log('');
   }
 
+  // What was read, beside what was found (issue #244): the ledger is empty, so
+  // every count on the line below is zero on a clean tree and zero on a walk
+  // that opened nothing. `self-reported`: the population is `backend/test`,
+  // which nothing else in the tree derives.
+  reportReadSize({ prefix: '[harness-teardown]', files: sources.size });
   console.log(
     `[harness-teardown] hand-released harness resources=${result.total} ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +

@@ -76,6 +76,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 /**
  * The whole of `src/` is scanned, not `modules/` plus `kernel/`.
@@ -432,7 +433,7 @@ async function main(): Promise<void> {
   // the emptiness guard blind, because `src/` minus `src/modules` is still 105
   // files and a scan of those reports `violations=0` (issue #215). The floor is
   // per registered module, derived from the manifest index.
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[channel-resolution]',
     srcRoot: SRC_ROOT,
     files: scanned,
@@ -452,6 +453,10 @@ async function main(): Promise<void> {
     console.log('');
   }
 
+  // What was read, beside what was found (issue #244): this check printed five
+  // finding counts and no input size at all, so `violations=0` said nothing
+  // about whether the scan happened.
+  reportReadSize({ prefix: '[channel-resolution]', files: scanned.length, coverage: [coverage] });
   console.log(
     `[channel-resolution] violations=${all.length} blocking=${blocking.length} ` +
       `allow-listed=${allowed.length} allow-list-size=${ALLOW_LIST.size} stale-allow=${stale.length} ` +

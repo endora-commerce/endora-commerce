@@ -33,6 +33,8 @@ import {
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const TSX = join(REPO_ROOT, 'backend', 'node_modules', '.bin', 'tsx');
 const SCRIPT = join(REPO_ROOT, 'backend', 'scripts', 'check-nul-bytes.ts');
+/** The shared read-size reporter the check imports (issue #244). */
+const READ_SIZE_LIB = join(REPO_ROOT, 'backend', 'scripts', 'lib', 'read-size.ts');
 
 const bytes = (text: string): Uint8Array => new TextEncoder().encode(text);
 
@@ -67,6 +69,11 @@ function fixtureRepository(): FixtureRepository {
   const checker = join(root, 'node_modules', 'scripts', 'check-nul-bytes.ts');
   mkdirSync(dirname(checker), { recursive: true });
   copyFileSync(SCRIPT, checker);
+  // The check imports the shared reporter by a relative path, so the copy needs
+  // it beside itself or the fixture run dies at module resolution and every
+  // exit code below reads as 1.
+  mkdirSync(join(dirname(checker), 'lib'), { recursive: true });
+  copyFileSync(READ_SIZE_LIB, join(dirname(checker), 'lib', 'read-size.ts'));
 
   return {
     root,

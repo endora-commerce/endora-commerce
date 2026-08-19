@@ -72,6 +72,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { isGetKnexCall, sqlTableAccesses } from './lib/sql-tables.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -366,7 +367,7 @@ async function main(): Promise<void> {
   // without `src/modules` is 7% of the tree: reading the remainder finds no
   // escape and reports "clean" (issue #215). The floor is the manifest index,
   // so it tracks the module list rather than restating it.
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[transaction-context]',
     srcRoot: SRC_ROOT,
     files: [...sources.keys()],
@@ -385,6 +386,12 @@ async function main(): Promise<void> {
     console.log('');
   }
 
+  // What was read, beside what was found (issue #244).
+  reportReadSize({
+    prefix: '[transaction-context]',
+    files: sources.size,
+    coverage: [coverage],
+  });
   console.log(
     `[transaction-context] statements written inside a transaction that escape it=${result.total} ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +

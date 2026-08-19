@@ -66,6 +66,7 @@ import {
   type NonBindingPortEdge,
 } from '../src/modules/_lifecycle/services/gating-graph.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -2076,7 +2077,7 @@ async function main(): Promise<void> {
   // surviving `lazyPort` — so a **partial** move, which is what a package split
   // performs, leaves both guards green over a fraction of the edges. The floor
   // is one source per registered module, derived from the manifest index.
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[port-deps]',
     srcRoot: SRC_ROOT,
     files,
@@ -2319,6 +2320,15 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
+  // What was read, in the shared grammar (issue #244). The port resolutions are
+  // the finer population: `resolutions.length === 0` was already a floor, but a
+  // number that halves silently is the case the floor cannot see.
+  reportReadSize({
+    prefix: '[port-deps]',
+    files: files.length,
+    sites: resolutions.length,
+    coverage: [coverage],
+  });
   console.log(
     `[port-deps] modules scanned=${new Set(files.map(moduleOf)).size} ` +
       `resolutions=${resolutions.length} violations=${violations.length} ` +

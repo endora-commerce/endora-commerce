@@ -148,6 +148,46 @@ describe('check-naming.sh', () => {
     expect(result.output).toContain('needs git');
   });
 
+  it('says how many files it read, and what corroborates that number', () => {
+    // Issue #244. Every rule below printed a verdict and none printed an input
+    // size, so a run that judged two files and a run that judged five thousand
+    // ended in the same green tick.
+    const result = fixture.run('check-naming.sh');
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).toMatch(/\[naming] read: files=\d+ sources=manifest-index:1\/1/);
+  });
+
+  it('exits 2 on a full-mode listing that misses a registered module', () => {
+    // The *short* walk, which is a different predicate from the empty one: the
+    // listing below is non-empty, every existing floor passes on it, and the
+    // module the index registers contributed nothing to it.
+    fixture.listsExactly(['backend/src/kernel/thing.ts']);
+    const result = fixture.run('check-naming.sh');
+    expect(result.status, result.output).toBe(2);
+    expect(result.output).toContain('residue of its population');
+  });
+
+  it('exits 2 when the manifest index it derives the expectation from is gone', () => {
+    // An expectation derived from a missing file is not an expectation, and a
+    // check that quietly fell back to "self-reported" would be back where it
+    // started.
+    fixture.removeManifestIndex();
+    const result = fixture.run('check-naming.sh');
+    expect(result.status, result.output).toBe(2);
+    expect(result.output).toContain('manifest index');
+  });
+
+  it('does not refuse an empty --diff listing — the one population allowed to be empty', () => {
+    // The carve-out, asserted rather than assumed: in --diff mode the
+    // population is the merge request, so zero is "this one touched nothing in
+    // scope". Refusing it would fail the pipeline on a docs-only change. Full
+    // mode is the test above, and the two must not converge.
+    fixture.listsExactly([]);
+    const result = fixture.run('check-naming.sh', ['--diff'], { FAKE_GIT_HAS_BASE_REF: '0' });
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).toContain('[naming] read: files=0 sources=self-reported');
+  });
+
   it('exits 2 when the module tree is gone but the listing is not (issue #215)', () => {
     // Two of the four rules read `backend/src/modules` off the filesystem
     // rather than off the listing, so a moved module tree left them iterating
@@ -224,6 +264,35 @@ describe('check-language.sh', () => {
     expect(result.status).toBe(2);
     expect(result.output).toContain('needs git');
   });
+
+  it('says how many files it read, over both of its scopes', () => {
+    // Issue #244. `files` is the source listing plus the docs listing, because
+    // the two scans are one run and one green tick covers both.
+    const result = fixture.run('check-language.sh');
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).toMatch(/\[language] read: files=2 sources=manifest-index:1\/1/);
+  });
+
+  it('exits 2 on a full-mode listing that misses a registered module', () => {
+    fixture.listsExactly(['backend/src/kernel/thing.ts']);
+    const result = fixture.run('check-language.sh');
+    expect(result.status, result.output).toBe(2);
+    expect(result.output).toContain('residue of its population');
+  });
+
+  it('exits 2 when the manifest index it derives the expectation from is gone', () => {
+    fixture.removeManifestIndex();
+    const result = fixture.run('check-language.sh');
+    expect(result.status, result.output).toBe(2);
+    expect(result.output).toContain('manifest index');
+  });
+
+  it('does not refuse an empty --diff listing', () => {
+    fixture.listsExactly([], []);
+    const result = fixture.run('check-language.sh', ['--diff'], { FAKE_GIT_HAS_BASE_REF: '0' });
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).toContain('[language] read: files=0 sources=self-reported');
+  });
 });
 
 /**
@@ -263,5 +332,14 @@ describe('check-pdfmake-footprint.sh', () => {
     const result = fixture.run('check-pdfmake-footprint.sh');
     expect(result.status).toBe(2);
     expect(result.output).toContain('nothing was measured');
+  });
+
+  it('says how many files it measured, not only how many bytes', () => {
+    // Issue #244: `du` on a directory that exists and holds almost nothing
+    // reports a small size, which this gate reads as "under budget". The file
+    // count is what tells a pruned install from a healthy one.
+    fixture.installPdfmake(15 * 1024 * 1024);
+    const result = fixture.run('check-pdfmake-footprint.sh');
+    expect(result.output).toMatch(/\[pdfmake-gate] read: files=\d+ sources=self-reported/);
   });
 });

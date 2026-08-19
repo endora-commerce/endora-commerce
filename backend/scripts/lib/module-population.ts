@@ -85,6 +85,36 @@ export function modulesWithoutSources(input: ModulePopulationInput): string[] {
 }
 
 /**
+ * What the index expected of the walk and what the walk delivered, in the shape
+ * `scripts/lib/read-size.ts` prints (issue #244).
+ *
+ * The floor below already computes both numbers to decide whether to refuse;
+ * returning them is what lets the check *print* them, so a run that was never
+ * short still says which population it covered. A number nothing prints is a
+ * number nobody can see going wrong.
+ */
+export interface ModulePopulationCoverage {
+  readonly source: 'manifest-index';
+  /** Registered modules this check is expected to read, exclusions removed. */
+  readonly expected: number;
+  /** How many of them the walk produced at least one file for. */
+  readonly covered: number;
+}
+
+/** The two numbers, without the refusal — the same derivation, printed. */
+export function modulePopulationCoverage(
+  input: ModulePopulationInput,
+): ModulePopulationCoverage {
+  const excluded = new Set(input.excluded ?? []);
+  const expected = input.registered.filter((id) => !excluded.has(id)).length;
+  return {
+    source: 'manifest-index',
+    expected,
+    covered: expected - modulesWithoutSources(input).length,
+  };
+}
+
+/**
  * The sentence a check prints before `process.exit(2)`, or `null` when the walk
  * covered every module the index registers.
  *
@@ -126,6 +156,10 @@ export async function loadRegisteredModuleIds(srcRoot: string): Promise<readonly
  * is nine chances to write the one that returns instead — and a check whose
  * guard is subtly wrong is invisible by construction, since it reports green
  * either way.
+ *
+ * Returns the coverage it just enforced, so the caller can hand it to
+ * `reportReadSize` and print the corroboration rather than only its own count
+ * of files (issue #244).
  */
 export async function refuseVacuousModulePopulation(input: {
   /** The check's log prefix, e.g. `[subscribe-seam]`. */
@@ -134,7 +168,7 @@ export async function refuseVacuousModulePopulation(input: {
   readonly srcRoot: string;
   readonly files: readonly string[];
   readonly excluded?: readonly string[];
-}): Promise<void> {
+}): Promise<ModulePopulationCoverage> {
   let registered: readonly string[];
   try {
     registered = await loadRegisteredModuleIds(input.srcRoot);
@@ -145,15 +179,16 @@ export async function refuseVacuousModulePopulation(input: {
         'nothing to compare the walk against; refusing to report a vacuous pass',
     );
     process.exit(2);
-    return;
   }
-  const reason = vacuousModulePopulation({
+  const population: ModulePopulationInput = {
     registered,
     files: input.files,
     ...(input.excluded === undefined ? {} : { excluded: input.excluded }),
-  });
+  };
+  const reason = vacuousModulePopulation(population);
   if (reason !== null) {
     console.error(`${input.prefix} ${reason}`);
     process.exit(2);
   }
+  return modulePopulationCoverage(population);
 }

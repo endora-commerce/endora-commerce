@@ -123,8 +123,11 @@ import ts from 'typescript';
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
 import {
   loadRegisteredModuleIds,
+  modulePopulationCoverage,
   vacuousModulePopulation,
+  type ModulePopulationCoverage,
 } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const RELATION_DECORATORS = new Set(['ManyToOne', 'OneToMany', 'OneToOne', 'ManyToMany']);
 
@@ -661,14 +664,16 @@ async function main(): Promise<void> {
   // index; an index that cannot be read is itself a reason, because the floor
   // would otherwise be silently absent.
   const vacuous: string[] = [];
+  let coverage: ModulePopulationCoverage | null = null;
   if (files.length === 0) vacuous.push('no sources under src/ (rule A)');
   else {
     try {
-      const reason = vacuousModulePopulation({
-        registered: await loadRegisteredModuleIds(SRC_ROOT),
-        files,
-      });
+      const population = { registered: await loadRegisteredModuleIds(SRC_ROOT), files };
+      const reason = vacuousModulePopulation(population);
       if (reason !== null) vacuous.push(`${reason} (rule A)`);
+      // Kept for the read line below, so the corroboration this already
+      // enforces is also disclosed on a run that passes it (issue #244).
+      coverage = modulePopulationCoverage(population);
     } catch (error: unknown) {
       vacuous.push(`the module index under ${SRC_ROOT} could not be read: ${String(error)}`);
     }
@@ -682,6 +687,17 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
+  // What was read, in the shared grammar (issue #244). Three rules, one walk:
+  // `files` is every source the run opened — rule B's platform files and rule
+  // C's closure are subsets of it, and both are on their own lines below — and
+  // `sites` is the units judged, the ORM relations of rule A plus the outward
+  // imports of rule B.
+  reportReadSize({
+    prefix: '[kernel-boundary]',
+    files: files.length,
+    sites: findings.length + outward.length,
+    coverage: coverage === null ? [] : [coverage],
+  });
   console.log(
     `[kernel-boundary] sources=${files.length} relation files=${relationFiles.length} ` +
       `relations=${findings.length} ` +

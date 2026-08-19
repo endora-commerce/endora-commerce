@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import ts from 'typescript';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 /**
  * Command-coverage check — feature 054 (FR-009 / FR-010, Constitution Principle XIII).
@@ -839,7 +840,7 @@ async function main(): Promise<void> {
   // and the check reports on those instead. The floor is therefore one file per
   // registered module — minus the ones this check excludes by argument — and it
   // is derived from the manifest index rather than counted here.
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[command-coverage]',
     srcRoot: join(process.cwd(), 'src'),
     files,
@@ -861,6 +862,14 @@ async function main(): Promise<void> {
     }
   }
 
+  // What was read, beside what was found (issue #244). The line below counts
+  // findings only, so `0 blocking, 0 report-only` reads the same whether the
+  // walk covered 1364 files or five overlay ones.
+  reportReadSize({
+    prefix: '[command-coverage]',
+    files: files.length,
+    coverage: [coverage],
+  });
   process.stdout.write(
     `\ncommand-coverage: ${blocking} blocking, ${reportOnly} report-only ` +
       `(migrated modules: ${migrated.length > 0 ? migrated.join(', ') : 'none'})\n`,

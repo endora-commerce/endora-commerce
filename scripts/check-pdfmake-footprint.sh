@@ -19,6 +19,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck source=scripts/lib/read-size.sh
+source "$SCRIPT_DIR/lib/read-size.sh"
+
 # 32 MB headroom over the ~14.6 MB measured at install time. The number
 # is intentionally generous: this gate is a tripwire against accidents,
 # not a tight budget.
@@ -51,6 +54,14 @@ if [ -z "$target" ]; then
   echo "[pdfmake-gate] pdfmake is not installed — nothing was measured; run pnpm install first." >&2
   exit 2
 fi
+
+# What was read, beside what was found (issue #244). `du` on a directory that
+# exists but holds almost nothing — a half-written pnpm store entry, a package
+# whose files were pruned — reports a small size, which this gate reads as
+# "under budget" and reports as a pass. The file count is what tells the two
+# apart. `self-reported`: nothing in the tree derives how many files a
+# dependency ships.
+read_size_report '[pdfmake-gate]' "$(find "$target" -type f | wc -l)" - self-reported
 
 actual=$(du -sb "$target" | awk '{print $1}')
 if [ "$actual" -gt "$MAX_BYTES" ]; then

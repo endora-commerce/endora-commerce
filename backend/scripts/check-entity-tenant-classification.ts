@@ -21,6 +21,7 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const CLASSIFICATION_DECORATORS = new Set([
   'OrgScoped',
@@ -95,7 +96,7 @@ async function main(): Promise<void> {
   // on the residue and the check reports every entity classified — over a tree
   // it did not read (issue #215). The expectation is per registered module and
   // comes from the manifest index.
-  await refuseVacuousModulePopulation({
+  const coverage = await refuseVacuousModulePopulation({
     prefix: '[tenant-classification]',
     srcRoot: SRC_ROOT,
     files,
@@ -129,6 +130,16 @@ async function main(): Promise<void> {
     console.log('');
   }
 
+  // What was read, in the shared grammar (issue #244). The entity classes are
+  // this check's finer population: the file count stayed at 1459 through the
+  // module-tree move that broke the attribution, and only a per-site number
+  // would have moved with it.
+  reportReadSize({
+    prefix: '[tenant-classification]',
+    files: files.length,
+    sites: findings.length,
+    coverage: [coverage],
+  });
   console.log(
     `[tenant-classification] sources=${files.length} entity files=${entityFiles.length} ` +
       `entities=${findings.length} classified=${classified.length} ` +

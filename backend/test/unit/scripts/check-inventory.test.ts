@@ -111,6 +111,7 @@ import {
   type ProvenCheck,
 } from '../../helpers/check-proof-entry.js';
 import { createShellCheckFixture } from '../../helpers/shell-check-fixture.js';
+import { RECORDED_READ_SIZES } from '../../helpers/check-read-sizes.js';
 
 /**
  * The inventory of static checks, and the two properties none of them had
@@ -147,6 +148,16 @@ import { createShellCheckFixture } from '../../helpers/shell-check-fixture.js';
  *   4. **It pins where each check runs and how it refuses a vacuous pass**, and
  *      compares that against `.gitlab-ci.yml` — a check that quietly leaves the
  *      job, or joins it, has to say so here.
+ *   5. **It requires each check to say what it read**, not only what it found
+ *      (issue #244). Everything above proves a check can still go red on a
+ *      violation; none of it can tell "found nothing" from "read nothing", and
+ *      that is what the last seven defects were — a walk that came back short,
+ *      a population definition that excluded a live entry point, a file that
+ *      hid a site, a spread that bypassed a type check, a transform that ate
+ *      41% of the file, a population defined by the presence of the thing being
+ *      checked. So every check prints its input size in one grammar and
+ *      `test/helpers/check-read-sizes.ts` records it; `readSize` is the field,
+ *      and the band lives with the records.
  *
  * **One proof per shape the check claims to refuse**, not one per check. A
  * single count would let a check go blind on four of its five signals behind the
@@ -196,6 +207,20 @@ interface RedProof {
  */
 type ResidueGuard = 'derived-population' | 'not-a-module-walk';
 
+/**
+ * Whether the check prints the size of what it read (issue #244).
+ *
+ * `reported` means its output carries a line in the shared grammar —
+ * `[prefix] read: files=… sites=… sources=…` — from
+ * `backend/scripts/lib/read-size.ts` or its shell twin, and that
+ * `test/helpers/check-read-sizes.ts` records what that line says on the current
+ * tree. `deferred` is the honest word for a check that does not, and it needs
+ * an entry in `READ_SIZE_DEFERRED` below naming what it would take: a partial
+ * rollout that reads as complete is the defect family this whole mechanism is
+ * about, one level up.
+ */
+type ReadSizeDisclosure = 'reported' | 'deferred';
+
 interface CheckEntry extends ProvenCheck {
   /** Path relative to the repository root. */
   readonly script: string;
@@ -207,6 +232,7 @@ interface CheckEntry extends ProvenCheck {
   readonly companionTest: string;
   readonly vacuousGuard: VacuousGuard;
   readonly residueGuard: ResidueGuard;
+  readonly readSize: ReadSizeDisclosure;
   /** Shape name → its proof. Every one must come back non-zero. */
   readonly red: Readonly<Record<string, RedProof>>;
 }
@@ -1467,6 +1493,27 @@ function shellRed(script: string, prepare: (f: ReturnType<typeof createShellChec
   }
 }
 
+/**
+ * 1 when the shell check **refused** the fixture rather than judging it.
+ *
+ * Separate from {@link shellRed} because the two are different verdicts and a
+ * proof that accepted either would go green on a check that had stopped telling
+ * "this tree is wrong" from "I could not read this tree" — which is the whole
+ * of issue #113, and the reason exit 2 exists.
+ */
+function shellRefusal(
+  script: string,
+  prepare: (f: ReturnType<typeof createShellCheckFixture>) => void,
+): number {
+  const fixture = createShellCheckFixture();
+  try {
+    prepare(fixture);
+    return fixture.run(script).status === 2 ? 1 : 0;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
 /** A file for `check-nul-bytes`: its path and its raw bytes, the check's own input. */
 const nulFile = (path: string, text: string): ScannedFile => ({
   path,
@@ -1515,6 +1562,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-channel-resolution.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       'raw-channel-header': top(() =>
@@ -1560,6 +1608,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/commands/check-command-coverage.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       'unaudited-sensitive-write': top(
@@ -1645,6 +1694,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/container-import-check.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       import: top(() => containerAnalyze("import { asClass } from 'awilix';\n", MODULE_FILE).length),
@@ -1672,6 +1722,7 @@ const CHECKS: readonly CheckEntry[] = [
     vacuousGuard: 'exit-2',
     // Its population is the citing documents, not the tree they cite; a moved
     // target is a citation that no longer matches, which is a finding.
+    readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
       'drifted-quotation': top(() => snippetFindings(DRIFTED_DOC, 'not a verbatim quotation')),
@@ -1692,6 +1743,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/tenancy/classification-check.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       unclassified: top(() =>
@@ -1717,6 +1769,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/entry-scope-check.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       cli: top(() =>
@@ -1797,6 +1850,7 @@ const CHECKS: readonly CheckEntry[] = [
     // bundles for P2. A module whose bundle is not where it looks turns every
     // one of its codes into a finding, so a residue reads as 208 violations
     // rather than as a clean tree.
+    readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     // Two predicates, and the second (feature 082, D-127) has **no ledger** —
     // not an empty one. Every P2 repair is a JSON line moved or deleted plus at
@@ -1879,6 +1933,7 @@ const CHECKS: readonly CheckEntry[] = [
     companionTest: 'backend/test/unit/scripts/check-fixture-substitution.test.ts',
     vacuousGuard: 'exit-2',
     // Walks `backend/test`, not `backend/src/modules`.
+    readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
       // The block six files carried, letter for letter (issue #159).
@@ -1958,6 +2013,7 @@ const CHECKS: readonly CheckEntry[] = [
     companionTest: 'backend/test/unit/scripts/check-shared-table-wipes.test.ts',
     vacuousGuard: 'exit-2',
     // Walks `backend/test`.
+    readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
       // The block all eight comparison files carried (issue #166).
@@ -2020,6 +2076,7 @@ const CHECKS: readonly CheckEntry[] = [
     companionTest: 'backend/test/unit/scripts/check-harness-teardown.test.ts',
     vacuousGuard: 'exit-2',
     // Walks `backend/test`.
+    readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
       'app-close': top(() =>
@@ -2096,6 +2153,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/boundary-check.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       'rule-a-cross-module-relation': top(() =>
@@ -2142,6 +2200,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-module-boundary.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       'value-import': top(() =>
@@ -2438,6 +2497,7 @@ const CHECKS: readonly CheckEntry[] = [
     vacuousGuard: 'verdict',
     // Compares committed artefacts against a regenerated pair; a moved tree
     // makes them differ, which is the finding.
+    readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
       stale: top(() => artifactVerdicts('rendered\n', () => 'stale\n', 'stale')),
@@ -2470,6 +2530,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/port-catch-check.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       'port-own-name': top(() => checkPortCatches({ sources: PORT_CATCH_TREE }, {}).violations.length),
@@ -2544,6 +2605,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/port-dependency-check.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       'undeclared-dependency': top(() =>
@@ -2795,6 +2857,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/port-shape-check.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       'optional-method-on-port': top(
@@ -2973,6 +3036,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-action-route-permissions.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       'action-declaring-no-code': top(
@@ -3060,6 +3124,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/kernel/subscribe-seam-check.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       'bus-shaped-receiver': top(
@@ -3120,6 +3185,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-transaction-context.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       'knex-instance': top(
@@ -3198,6 +3264,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-entry-presence.test.ts',
     vacuousGuard: 'exit-2',
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       setInterval: top(() =>
@@ -3278,6 +3345,7 @@ const CHECKS: readonly CheckEntry[] = [
     // half the manifests go unread. Every registered module ships a
     // `manifest.ts` by construction, so the floor is exact and needs no
     // `excluded` list.
+    readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
       // The identifier spelling, as the withdrawn cut wrote it.
@@ -3350,6 +3418,7 @@ const CHECKS: readonly CheckEntry[] = [
     companionTest: 'backend/test/unit/scripts/check-nul-bytes.test.ts',
     vacuousGuard: 'exit-2',
     // Walks the whole repository, and every file in it is its population.
+    readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
       'raw-nul-in-source': top(
@@ -3451,6 +3520,7 @@ const CHECKS: readonly CheckEntry[] = [
     // It touches the module tree without being a walk *of* it: its population is
     // never derived from module ids, so a moved tree leaves it no residue to
     // read as the tree. Its emptiness guard is the anchored helper itself.
+    readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
       'nfd-decomposition': top(
@@ -3636,6 +3706,7 @@ const CHECKS: readonly CheckEntry[] = [
     companionTest: 'backend/test/unit/scripts/i18n-hardcoded-strings.test.ts',
     vacuousGuard: 'exit-2',
     // Walks the admin SPA.
+    readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
       'jsx-text': top(
@@ -3667,6 +3738,7 @@ const CHECKS: readonly CheckEntry[] = [
     // full-mode run that finds no module there (issue #215) — but it is a
     // shell script, so it cannot share the TypeScript floor and is proven in
     // `shell-checks.test.ts` instead.
+    readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
       'module-folder': top(() =>
@@ -3712,6 +3784,13 @@ const CHECKS: readonly CheckEntry[] = [
           );
         }),
       ),
+      // Issue #244's shape, and the one the pre-existing floors are green on:
+      // a listing that is non-empty and misses the module the index registers.
+      'short-listing': top(() =>
+        shellRefusal('check-naming.sh', (fixture) => {
+          fixture.listsExactly(['backend/src/kernel/thing.ts']);
+        }),
+      ),
     },
   },
   {
@@ -3722,6 +3801,7 @@ const CHECKS: readonly CheckEntry[] = [
     companionTest: 'backend/test/unit/scripts/shell-checks.test.ts',
     vacuousGuard: 'exit-2',
     // Its population is the git listing, which the empty-listing guard covers.
+    readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
       'source-comment': top(() =>
@@ -3739,6 +3819,14 @@ const CHECKS: readonly CheckEntry[] = [
           fixture.write('docs/docs/intro.md', `# Wstęp\n\nTo jest opis modułu.\n`);
         }),
       ),
+      // Issue #244. Both of this check's scopes are read out of the same
+      // listing, so a listing short of a registered module is a scan of a
+      // residue — with the two emptiness guards above green on it.
+      'short-listing': top(() =>
+        shellRefusal('check-language.sh', (fixture) => {
+          fixture.listsExactly(['backend/src/kernel/thing.ts']);
+        }),
+      ),
     },
   },
   {
@@ -3752,6 +3840,7 @@ const CHECKS: readonly CheckEntry[] = [
     companionTest: 'backend/test/unit/scripts/shell-checks.test.ts',
     vacuousGuard: 'exit-2',
     // Its population is one installed package.
+    readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
       // Both install layouts, because the repository's own is the hoisted one:
@@ -3935,8 +4024,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // Two shapes, two scopes, and the ledger's stale direction.
       'backend/scripts/check-transaction-context.ts': 5,
       'backend/scripts/i18n-hardcoded-strings.ts': 2,
-      'scripts/check-naming.sh': 5,
-      'scripts/check-language.sh': 2,
+      // Four rules, the fifth (migration class scope) that reads the
+      // filesystem, and issue #244's short listing — the shape every one of
+      // this script's other floors is green on.
+      'scripts/check-naming.sh': 6,
+      // Two scopes, plus the short listing both of them are read out of.
+      'scripts/check-language.sh': 3,
       'scripts/check-pdfmake-footprint.sh': 2,
     });
   });
@@ -4005,6 +4098,90 @@ describe('a check whose population is the module tree proves it read the tree', 
     expect(unmarked, `proven in ${PROOF_FILE} but unmarked here: ${unmarked.join(', ')}`).toEqual(
       [],
     );
+  });
+});
+
+/**
+ * Checks that do not yet print what they read, with what it would take.
+ *
+ * **Two-way**, and empty: all twenty-seven print a read line today. An entry
+ * here is a check whose green still cannot be told from a check that read
+ * nothing, which is the family issue #244 closes — so an entry is a statement
+ * that one member of the family is still live, not a to-do.
+ */
+const READ_SIZE_DEFERRED: Readonly<Record<string, string>> = {};
+
+describe('every check says how much it read (issue #244)', () => {
+  // The other half of "a green means something". The rest of this file proves
+  // each check can still see a violation; none of it can tell a clean tree from
+  // a population that quietly emptied — and that is what the last seven defects
+  // were. Each check therefore prints its input size in one grammar, and
+  // `test/helpers/check-read-sizes.ts` records what that line says on this
+  // tree. The behavioural half — spawning each check and comparing — is
+  // `check-read-size.test.ts`, for the same reason the moved-tree proof is its
+  // own file: twenty-seven spawns are too slow to sit in a file a developer
+  // runs constantly.
+  const RECORDS_FILE = 'backend/test/helpers/check-read-sizes.ts';
+  const RATCHET_FILE = 'backend/test/unit/scripts/check-read-size.test.ts';
+  const reported = CHECKS.filter((check) => check.readSize === 'reported');
+
+  it('has a recorded read size for every check that reports one', () => {
+    const unrecorded = reported
+      .map((check) => check.script)
+      .filter((script) => !(script in RECORDED_READ_SIZES));
+    expect(unrecorded, `${RECORDS_FILE} records nothing for: ${unrecorded.join(', ')}`).toEqual([]);
+  });
+
+  it('records nothing for a check the inventory does not name', () => {
+    const listed = new Set(CHECKS.map((check) => check.script));
+    expect(Object.keys(RECORDED_READ_SIZES).filter((script) => !listed.has(script))).toEqual([]);
+  });
+
+  it('names the shared reporter in the script itself', () => {
+    // Presence, not behaviour: a private `console.log` that happened to spell
+    // the grammar would drift from it, and the point of a shared reporter is
+    // that the ratchet parses one shape for twenty-seven checks.
+    const missing = reported
+      .filter((check) => !/reportReadSize|read_size_report/.test(read(check.script)))
+      .map((check) => check.script);
+    expect(missing, `these do not call the shared reporter: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('reconciles against the manifest index wherever the population is the module tree', () => {
+    // The floor cannot be self-reported (issue #215): a check that computes its
+    // own population and then prints it has said the same thing twice. Where an
+    // independent derivation exists it must be named on the read line — and for
+    // a module walk it always exists. The converse is deliberately not asserted:
+    // the two shell checks reconcile against the same index while staying
+    // `not-a-module-walk` here, because `moved-module-tree.test.ts` spawns tsx
+    // scripts over a fixture backend and a shell check needs a git work tree.
+    const unreconciled = CHECKS.filter((check) => check.residueGuard === 'derived-population')
+      .filter((check) => !(RECORDED_READ_SIZES[check.script]?.sources ?? []).includes('manifest-index'))
+      .map((check) => check.script);
+    expect(unreconciled).toEqual([]);
+  });
+
+  it('has a reason for every check that discloses nothing', () => {
+    const undeclared = CHECKS.filter((check) => check.readSize === 'deferred')
+      .map((check) => check.script)
+      .filter((script) => READ_SIZE_DEFERRED[script] === undefined);
+    expect(undeclared).toEqual([]);
+  });
+
+  it('has no deferral entry for a check that discloses its read size', () => {
+    const stale = Object.keys(READ_SIZE_DEFERRED).filter(
+      (script) => CHECKS.find((check) => check.script === script)?.readSize !== 'deferred',
+    );
+    expect(stale).toEqual([]);
+  });
+
+  it('is ratcheted by a file that drives the records rather than a copy of them', () => {
+    // The two-way link, in the idiom `residueGuard` uses for the moved-tree
+    // proof: the expensive half lives elsewhere and is exactly what a future
+    // edit would delete without noticing.
+    const ratchet = read(RATCHET_FILE);
+    expect(ratchet).toContain('RECORDED_READ_SIZES');
+    expect(ratchet).toContain('parseReadSize');
   });
 });
 
