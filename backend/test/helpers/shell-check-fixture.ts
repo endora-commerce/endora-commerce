@@ -117,6 +117,14 @@ export function createShellCheckFixture(): ShellCheckFixture {
   };
 
   write('backend/src/modules/orders/order-service.ts', '// English comment.\nexport const a = 1;\n');
+  // A correctly module-scoped migration. `check-naming.sh`'s class-scope rule
+  // reads the filesystem, not the listing, and exits 2 on a tree with no
+  // migration at all — so without this file every red case above would come
+  // back 2 instead of the finding it is testing for.
+  write(
+    'backend/src/modules/orders/migrations/20260901T000000_orders_init.ts',
+    'export class Migration20260901T000000OrdersInit extends Migration {}\n',
+  );
   write('docs/docs/intro.md', '# Intro\n\nEnglish prose.\n');
   lists(['backend/src/modules/orders/order-service.ts']);
 

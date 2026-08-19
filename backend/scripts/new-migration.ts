@@ -2,7 +2,7 @@
 import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { UNCORRECTED_THROUGH } from '../src/db/migration-order.js';
+import { BASELINE_THROUGH } from '../src/db/migration-order.js';
 
 /**
  * Scaffolds a migration file in its owning module's `migrations/` directory.
@@ -10,9 +10,11 @@ import { UNCORRECTED_THROUGH } from '../src/db/migration-order.js';
  * Usage:
  *   pnpm --filter backend run migration:new -- --module orders --name placement_intents
  *
- * The naming and registration rules are specified once, in
+ * The naming and registration rules are specified in
  * specs/065-manifest-aware-migrations/contracts/naming-convention.md §1, §2
- * and §6. This script implements them and nothing else.
+ * and §6, as amended by
+ * specs/081-per-module-migration-order/contracts/migration-identity.md. This
+ * script implements them and nothing else.
  *
  * It writes the file and stops there. Registration used to be two printed lines
  * to paste into a hand-maintained registry; since feature 071's F2 the registry
@@ -103,14 +105,19 @@ export function parseStamp(stamp: string): Date {
 }
 
 /**
- * Advances by whole seconds until the stamp is free anywhere in the tree.
+ * Advances by whole seconds until the stamp is free anywhere in the core tree.
+ *
+ * Tree-wide freedom is a tidiness rule, not an ordering one: a timestamp
+ * orders migrations only within their own module, so two modules may legally
+ * share one. Keeping core stamps distinct just keeps the committed registry
+ * readable.
  *
  * `after` is a floor the result must strictly exceed. The CLI passes
- * `UNCORRECTED_THROUGH`: everything at or before it is emitted in plain
- * chronological order and is never dependency-corrected, so a new migration
- * landing inside that block would silently opt out of the correction its
- * module's `dependencies` are supposed to buy it. Clamping here keeps every
- * new migration in the corrected region.
+ * `BASELINE_THROUGH`: everything the core registry contributed at or before it
+ * is the frozen historical prefix, whose order is history and is never
+ * recomputed. A new migration landing inside that block would be ordered by
+ * that history instead of by its module's `dependencies`, so the clamp keeps
+ * every new core migration in the open block.
  */
 export function nextFreeStamp(from: Date, taken: ReadonlySet<string>, after?: string): string {
   const cursor = new Date(from.getTime());
@@ -171,6 +178,11 @@ export function buildScaffold(input: ScaffoldInput): Scaffold {
     ` * \`pnpm --filter backend run composer:generate\` and commit the result. An\n` +
     ` * unregistered migration does not run, and the round-trip guard fails the\n` +
     ` * build for it.\n` +
+    ` *\n` +
+    ` * This stamp orders this migration against its own module's migrations and\n` +
+    ` * against nothing else. What puts it after another module's table is that\n` +
+    ` * module appearing in this one's manifest \`dependencies\` — declare it if\n` +
+    ` * this migration references a table it owns.\n` +
     ` */\n` +
     `export class ${className} extends Migration {\n` +
     `  override async up(): Promise<void> {\n` +
@@ -252,7 +264,7 @@ function main(): void {
   }
 
   validateModuleId(args.module, knownModuleIds());
-  const stamp = nextFreeStamp(new Date(), takenStamps(), UNCORRECTED_THROUGH);
+  const stamp = nextFreeStamp(new Date(), takenStamps(), BASELINE_THROUGH);
   const scaffold = buildScaffold({ moduleId: args.module, slug: args.name, stamp });
 
   const absolutePath = resolve(backendRoot, scaffold.relativePath);

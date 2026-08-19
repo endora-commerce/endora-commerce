@@ -13,12 +13,14 @@
 // test/unit/db/migrations-registry.test.ts fails the build on a stale artefact.
 //
 // **Declaration order has no effect on execution order.** That is computed by
-// migration-order.ts from each migration's UTC timestamp, corrected by the
-// module-manifest dependency graph, with UNCORRECTED_THROUGH marking the
-// pre-065 block that is emitted chronologically. Entries below are grouped by
-// owning module purely so the diff reads; never "fix" an ordering surprise by
-// moving a line, and there is nothing to move — regenerating restores it. Bump
-// the timestamp or fix the manifest `dependencies` instead.
+// migration-order.ts: the frozen historical prefix marked by BASELINE_THROUGH,
+// then module by module in a topological order of the manifest dependency
+// graph, each module's migrations contiguous and ascending by timestamp. A
+// timestamp orders a module's own migrations and nothing else. Entries below
+// are grouped by owning module purely so the diff reads; never "fix" an
+// ordering surprise by moving a line, and there is nothing to move —
+// regenerating restores it. Fix the manifest `dependencies` instead; a
+// timestamp cannot fix a cross-module position.
 //
 // The `moduleId` is load-bearing beyond ordering: a hard uninstall reverts
 // exactly the migrations registered under the module being removed

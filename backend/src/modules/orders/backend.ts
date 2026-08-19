@@ -238,7 +238,7 @@ export function registerModule(ctx: ModuleContext): void {
    * `payments` and `shipments` each host a registry an adapter may push a
    * custom renderer into, and each publishes it as a gated port. Both declare
    * `orders` in their own `dependencies`, so declaring them here would close a
-   * cycle `migration-order.ts` fails on; and recording them in
+   * cycle `test/unit/db/module-graph.test.ts` fails on; and recording them in
    * `acknowledgedDependencies` — which drops the ordering and keeps the bind —
    * would make two deactivatable modules undeactivatable for as long as the
    * platform takes orders, because `orders` is non-deactivatable. A buyer who

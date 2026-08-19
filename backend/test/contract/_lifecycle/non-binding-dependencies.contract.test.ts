@@ -26,8 +26,7 @@ import {
  * feeds it.
  */
 
-const UNCORRECTED_THROUGH = '20260801T000000';
-const HORIZON_DAYS = 45;
+const BASELINE_THROUGH = '20260801T000000';
 
 /** Builds a class whose `.name` is exactly the supplied migration name. */
 function migrationClass(name: string): MigrationClass {
@@ -55,7 +54,8 @@ function orderingGraph(
 
 /**
  * `reader`'s migration is stamped *before* `writer`'s, and both are past the
- * watermark — so a declared dependency inverts them and anything else does not.
+ * watermark — so a declared dependency puts `writer` first and anything else
+ * leaves the two modules unrelated, where the id sorts them (`reader` first).
  */
 const ENTRIES: readonly MigrationRegistryEntry[] = [
   entry('reader', '20260901T090000', 'ReaderTable'),
@@ -66,9 +66,8 @@ function emitted(manifests: readonly ModuleManifest[]): string[] {
   return orderMigrations({
     entries: ENTRIES,
     moduleDependencies: orderingGraph(manifests),
-    uncorrectedThrough: UNCORRECTED_THROUGH,
-    correctionHorizonDays: HORIZON_DAYS,
-  }).map((migration) => migration.name);
+    baselineThrough: BASELINE_THROUGH,
+  }).migrations.map((migration) => migration.name);
 }
 
 const writer = defineModuleManifest({
@@ -102,16 +101,16 @@ const readerWithdrawing = defineModuleManifest({
 });
 
 describe('nonBindingDependencies — invisible to the migration order', () => {
-  it('a declared dependency does correct an inverted pair', () => {
+  it('a declared dependency does order the pair', () => {
     // The control. Without it the assertion below would pass on a graph that
-    // corrects nothing at all.
+    // reads no edges at all.
     expect(emitted([writer, readerDeclaring])).toEqual([
       'Migration20260902T090000WriterTable',
       'Migration20260901T090000ReaderTable',
     ]);
   });
 
-  it('the same edge declared as non-binding leaves the order chronological', () => {
+  it('the same edge declared as non-binding leaves the two modules unrelated', () => {
     expect(emitted([writer, readerWithdrawing])).toEqual([
       'Migration20260901T090000ReaderTable',
       'Migration20260902T090000WriterTable',
