@@ -91,6 +91,7 @@ import type { NewsletterBridge } from './modules/newsletter/backend.js';
 // Feature 066 — Google Tag Manager.
 import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
+import { createRequestLanguageResolver } from './kernel/i18n/request-language.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
@@ -2273,11 +2274,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     apiInterceptors,
     errorEnvelope: {
       errorTranslationTargets: ERROR_TRANSLATION_KEYS,
-      resolvePreferredLanguage: async (request) => {
-        if (request.actor.kind !== 'admin') return null;
-        const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
-        return adminUser?.preferredLanguage === 'pl' ? 'pl' : 'en';
-      },
+      // Issue #234 — the ladder is one kernel function, and the root keeps the
+      // one rung that reads a module's table (D-137). What stood here was
+      // `if (request.actor.kind !== 'admin') return null`, which the envelope
+      // turns into the platform fallback: every Polish error sentence the
+      // platform ships was unreachable for a buyer.
+      resolvePreferredLanguage: createRequestLanguageResolver({
+        adminPreferredLanguage: async (adminUserId) =>
+          (await em().findOne(AdminUser, { id: adminUserId }))?.preferredLanguage ?? null,
+      }),
       translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
         const translated = await adminI18nCradle.adminI18nService.translate(
           moduleId,

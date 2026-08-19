@@ -157,6 +157,7 @@ import { Asset } from '../../src/modules/assets_library/entities/asset.entity.js
 import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../src/modules/pwa/backend.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
+import { createRequestLanguageResolver } from '../../src/kernel/i18n/request-language.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js';
 import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
@@ -2482,11 +2483,16 @@ export async function setupBackendServer(
     apiInterceptors,
     errorEnvelope: {
       errorTranslationTargets: ERROR_TRANSLATION_KEYS,
-      resolvePreferredLanguage: async (request) => {
-        if (request.testActor?.kind !== 'admin') return null;
-        const adminUser = await em().findOne(AdminUser, { id: request.testActor.adminUserId });
-        return adminUser?.preferredLanguage === 'pl' ? 'pl' : 'en';
-      },
+      // The same call production makes, from the same kernel function (D-137).
+      // The `request.testActor` read this replaces was the residual drift
+      // between the two roots: `registerTestAuth` mirrors every resolved actor
+      // onto `request.actor` too (`test-actors.ts`), so the shared resolver
+      // answers correctly here, and `harness-parity.test.ts` pins that neither
+      // root grows a second spelling of the ladder.
+      resolvePreferredLanguage: createRequestLanguageResolver({
+        adminPreferredLanguage: async (adminUserId) =>
+          (await em().findOne(AdminUser, { id: adminUserId }))?.preferredLanguage ?? null,
+      }),
       translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
         const translated = await adminI18nCradle.adminI18nService.translate(
           moduleId,

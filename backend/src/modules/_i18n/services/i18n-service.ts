@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
-  ADMIN_LANGUAGE_FALLBACK,
-  SUPPORTED_ADMIN_LANGUAGES,
+  LANGUAGE_FALLBACK,
+  SUPPORTED_LANGUAGES,
   type I18nCoverageLanguage,
   type I18nCoverageModule,
   type I18nCoverageResponse,
@@ -193,12 +193,12 @@ export class I18nService {
     for (const moduleId of Array.from(allModuleIds).sort()) {
       const langs = byModule.get(moduleId) ?? new Map();
       const languages: I18nCoverageLanguage[] = [];
-      for (const lang of SUPPORTED_ADMIN_LANGUAGES) {
+      for (const lang of SUPPORTED_LANGUAGES) {
         if (langFilter && !langFilter.has(lang)) continue;
         const entries = langs.get(lang) ?? {};
-        const otherEntries = lang === ADMIN_LANGUAGE_FALLBACK
-          ? (Array.from(langs.entries()).find(([k]) => k !== ADMIN_LANGUAGE_FALLBACK)?.[1] ?? {})
-          : (langs.get(ADMIN_LANGUAGE_FALLBACK) ?? {});
+        const otherEntries = lang === LANGUAGE_FALLBACK
+          ? (Array.from(langs.entries()).find(([k]) => k !== LANGUAGE_FALLBACK)?.[1] ?? {})
+          : (langs.get(LANGUAGE_FALLBACK) ?? {});
         // Static-scan missing: keys present in any other language but absent
         // in this one.
         const staticMissing = new Set<string>();
@@ -288,9 +288,9 @@ export class I18nService {
     if (requested != null) {
       return interpolate(requested, params);
     }
-    if (language !== ADMIN_LANGUAGE_FALLBACK) {
+    if (language !== LANGUAGE_FALLBACK) {
       const fallback = await this.getMergedBundleForLanguage(
-        ADMIN_LANGUAGE_FALLBACK,
+        LANGUAGE_FALLBACK,
         em,
       );
       const englishValue = fallback.bundles[moduleId]?.[key];
@@ -316,7 +316,7 @@ export class I18nService {
 }
 
 // Allowed: list of supported languages re-exported for tests / consumers.
-export { SUPPORTED_ADMIN_LANGUAGES, BundleLoadError };
+export { SUPPORTED_LANGUAGES, BundleLoadError };
 
 /** Manifest id of the platform-internal i18n module (= the chrome bundle owner). */
 const I18N_CHROME_MODULE_ID = '_i18n';
