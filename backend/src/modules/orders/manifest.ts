@@ -121,7 +121,7 @@ export const manifest = defineModuleManifest({
   ],
   /**
    * Feature 073, Amendment A1 — real port edges whose `dependencies` entry
-   * would close a cycle `src/db/migration-order.ts` fails on. Read by the
+   * would close a cycle `test/unit/db/module-graph.test.ts` fails on. Read by the
    * flip-time refusals and by `check-port-dependencies`; read by neither the
    * install order nor the migration order.
    *
@@ -318,7 +318,7 @@ export const manifest = defineModuleManifest({
       reason:
         'The customer invoice download and the admin bulk print read the document `invoices` ' +
         'owns. `invoices` declares this module — an invoice is raised against an order — so ' +
-        '`dependencies` would close a cycle `migration-order.ts` fails on, and an ' +
+        '`dependencies` would close a cycle `module-graph.test.ts` fails on, and an ' +
         'acknowledged edge would keep the bind and make `invoices.enabled` unusable, because ' +
         'this module is non-deactivatable. Both routes ask presence and answer 404 ' +
         '`INVOICE_NOT_READY`, which is the answer an order that has not been invoiced yet ' +

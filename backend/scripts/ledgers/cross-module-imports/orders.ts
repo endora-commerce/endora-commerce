@@ -126,7 +126,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
       '(`invoices.order_id` -> `orders.id`, `on delete restrict`), so the proforma row ' +
       '`placeOrder` opens must see its order inside one transaction. `invoices` declares ' +
       '`orders`, so the manifest edge the constraint requires is already carried on that ' +
-      'side; declaring the reverse would close a cycle `migration-order.ts` fails on. The ' +
+      'side; declaring the reverse would close a cycle `module-graph.test.ts` fails on. The ' +
       'read half of this module`s invoice surface is NOT here — the customer download and the ' +
       'admin bulk print go through `invoiceReadPort` / `invoicePdfPort` and are declared ' +
       '`degrades-without`. Only the co-transactional create is left.',

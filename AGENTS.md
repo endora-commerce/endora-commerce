@@ -400,18 +400,31 @@ number", never pick a number, never edit an execution list.
    for `--module core`), named `<YYYYMMDDTHHmmss>_<module-segment>_<slug>.ts` with a UTC
    timestamp. The class name is derived mechanically from the filename
    (`Migration<STAMP><PascalCaseTail>`); it is the name persisted in `mikro_orm_migrations`,
-   so never rename an applied class.
+   so never rename an applied class. **The tail must begin with the owning module's
+   segment** (`orders` → `Migration…Orders…`, `_i18n` → `Migration…I18n…`, core →
+   `Migration…Core…`) — that is what makes a class name unique across every module the
+   platform can compose, including one installed from a package. `orderMigrations` refuses a
+   violation as `unscoped-name` and `check:naming` refuses one in the core tree.
 2. **Register it** — run `pnpm --filter backend run composer:generate` and commit
    **`backend/src/db/migrations-registry.generated.ts`** alongside the migration. The
    registry is generated from a filesystem walk (feature 071, F2) and replaced the
    hand-ordered `migrationsList` in `mikro-orm.config.ts`; never edit it by hand. An
    unregistered migration does not run; `test/unit/db/migrations-registry.test.ts` and
    `overlay:check` both fail the build for a stale artefact.
-3. **Do not order by hand.** Declaration order in the registry has no effect — and there is
-   nothing to reorder, since regenerating restores it. Execution order is computed by
-   `backend/src/db/migration-order.ts` from the timestamps, corrected by the module-manifest
-   dependency graph (45-day horizon). If `db:fresh` fails on ordering, bump the timestamp or
-   fix the manifest `dependencies`.
+3. **Do not order by hand, and do not order by timestamp.** Declaration order in the
+   registry has no effect — and there is nothing to reorder, since regenerating restores it.
+   Execution order is computed by `backend/src/db/migration-order.ts` (feature 081): a frozen
+   historical prefix, then **module by module** in a topological order of the manifest
+   `dependencies` graph, each module's migrations contiguous and ascending by timestamp. So a
+   **timestamp orders a module's own migrations and nothing else** — two modules may legally
+   share one, and moving a stamp cannot change a cross-module position. If `db:fresh` fails on
+   ordering, the answer is always the manifest `dependencies` of the module that owns the
+   referencing table. The 45-day correction horizon, the dependency-inversion edges and the
+   `unresolvable-order` failure are gone; a dependency **cycle** is now a reported diagnostic
+   rather than a boot failure — red in `test/unit/db/module-graph.test.ts`, logged at `warn`
+   at boot — because the graph is the primary ordering and a manifest can arrive from an
+   installed package, so a throw would let one stranger's declaration stop a shop's own schema
+   from migrating.
 4. **Cross-module FK ⇒ declare the dependency.** A new foreign key to another module's table
    requires that module in your manifest's `dependencies` (transitively), or
    `pnpm --filter backend exec vitest run test/unit/db/fk-dependency-drift.test.ts` fails.
@@ -423,12 +436,15 @@ number", never pick a number, never edit an execution list.
    T020 did), and ship the rename with a note telling every developer to rebuild:
    `DATABASE_URL=…/b2b_test pnpm --filter backend run db:fresh` plus
    `pnpm --filter backend run db:reset` for the dev database.
-6. **Never scaffold a migration stamped at or before `UNCORRECTED_THROUGH`**
-   (`20260801T000000`, `backend/src/db/migration-order.ts`). Everything at or before it is
-   the pre-065 block: it is emitted in plain chronological order and is **not**
-   dependency-corrected, so a migration landing there silently loses the ordering its
-   manifest `dependencies` are supposed to buy it. `migration:new` clamps the stamp for you;
-   do not hand-write one below the watermark.
+6. **Never scaffold a migration stamped at or before `BASELINE_THROUGH`**
+   (`20260801T000000`, `backend/src/db/migration-order.ts`). Everything the committed core
+   registry contributed at or before it is the **frozen historical prefix**: its order is
+   history — the pre-065 block contradicts the manifest graph in 37 places, and recomputing it
+   produces an order a fresh database cannot apply — so a migration landing there is ordered
+   by that history instead of by its module's `dependencies`. The block is closed and is never
+   drained. `migration:new` clamps the stamp for you; do not hand-write one below the
+   watermark. Membership also takes the entry's **origin**: only the committed core registry
+   may join, so a package's back-dated stamp cannot.
 
 **Entities are registered the same way.** `backend/src/db/entities-registry.generated.ts`
 comes out of the same command and the same walk: add the `@Entity()` class under the
@@ -436,8 +452,12 @@ module's `entities/`, run `composer:generate`, commit the artefact. Both registr
 core-only — an overlay module cannot ship a migration, so the generator refuses an entity or
 a migration under `backend/src/apps/` rather than emitting schema nothing creates.
 
-Full guide: `docs/docs/architecture/migrations.md`; contracts under
-`specs/065-manifest-aware-migrations/contracts/`.
+Full guide: `docs/docs/architecture/migrations.md`. Contracts:
+`specs/081-per-module-migration-order/contracts/ordering-algorithm.md` (normative for the
+order) and `migration-identity.md` (naming and uniqueness);
+`specs/065-manifest-aware-migrations/contracts/naming-convention.md` §1–§2 (still the only
+filename and class-name recognizers) and `fk-dependency-check.md`. The `065` ordering contract
+is superseded.
 
 ### i18n
 
@@ -502,7 +522,10 @@ the term rather than translating it.** Two deliberate carve-outs exist:
   (`docs/docs/contributing/translations.md`) qualifies.
 
 `pnpm run check:naming` (Principle VI) checks backend module folder shape, migration
-identifiers, Zod contract keys and route segments. Module folders are plural snake_case;
+identifiers, Zod contract keys, route segments and — since feature 081 — that a migration
+**class name is scoped by its owning module** (`unscoped-name`; zero findings when it landed,
+and it exits 2 on a tree that holds no migration rather than reporting a vacuous green).
+Module folders are plural snake_case;
 `_`-prefixed infra modules (`_i18n`, `_lifecycle`), singular named surfaces and vendor/
 protocol proper nouns are allow-listed in `scripts/check-naming.sh`. A `z.object()` field
 that must stay snake_case because it is **persisted verbatim** (a JSONB envelope with a SQL

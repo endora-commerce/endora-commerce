@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BASELINE_THROUGH,
   orderMigrations,
-  UNCORRECTED_THROUGH,
   type MigrationRegistryEntry,
 } from '../../../src/db/migration-order.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
@@ -41,11 +41,21 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
 const FROZEN_PREFIX_LENGTH = 112;
 
 /**
- * How many positions the emitted order is expected to differ from
- * `PRE_081_ORDER` in. Exactly one task may move this number, and it must say
- * why in its commit message.
+ * How many positions the emitted order differs from `PRE_081_ORDER` in.
+ *
+ * Feature 081 moved it from 0 to **26**, and no later change may move it
+ * again without saying why. All 26 are in the open block, where the rule
+ * changed from "chronology, corrected inside a 45-day horizon" to "module by
+ * module in dependency order" — the spec measured the same 26 against
+ * `master@4186aec0`. Four open-block entries keep their position by
+ * coincidence, and the frozen prefix keeps all 112 of its own by rule.
+ *
+ * A database that has applied them does not care: `mikro_orm_migrations` keys
+ * applied work by class name, no name moved, and umzug filters applied
+ * migrations out of `pending` regardless of list position. Measured, not
+ * assumed — see the rehearsal in the merge request.
  */
-const EXPECTED_MOVED_POSITIONS = 0;
+const EXPECTED_MOVED_POSITIONS = 26;
 
 const MODULE_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map<
   string,
@@ -59,9 +69,8 @@ function emittedOrder(entries: readonly MigrationRegistryEntry[] = MIGRATION_REG
   return orderMigrations({
     entries,
     moduleDependencies: MODULE_DEPENDENCIES,
-    uncorrectedThrough: UNCORRECTED_THROUGH,
-    correctionHorizonDays: 45,
-  }).map((migration) => migration.name);
+    baselineThrough: BASELINE_THROUGH,
+  }).migrations.map((migration) => migration.name);
 }
 
 /** The order feature 065's algorithm emitted, captured verbatim. Do not regenerate. */
@@ -238,7 +247,7 @@ describe('migration order — the pre-081 baseline (T001)', () => {
     // before the watermark, and only those, in the prefix.
     const stampOf = (name: string): string =>
       name.slice('Migration'.length, 'Migration'.length + 15);
-    const withinWatermark = PRE_081_ORDER.filter((name) => stampOf(name) <= UNCORRECTED_THROUGH);
+    const withinWatermark = PRE_081_ORDER.filter((name) => stampOf(name) <= BASELINE_THROUGH);
 
     expect(withinWatermark).toHaveLength(FROZEN_PREFIX_LENGTH);
     expect(PRE_081_ORDER.slice(0, FROZEN_PREFIX_LENGTH)).toEqual(withinWatermark);

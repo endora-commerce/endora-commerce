@@ -119,7 +119,7 @@ export const manifest = defineModuleManifest({
    * Feature 075, Phase C — the two edges this module genuinely has and cannot
    * declare above, because `carts/manifest.ts` declares **this** module and
    * `orders` declares `carts`. An ordinary declaration would close a cycle,
-   * which `backend/src/db/migration-order.ts` refuses outright.
+   * which `backend/test/unit/db/module-graph.test.ts` fails the build on.
    *
    * Neither is a schema edge, so nothing is lost by keeping them out of the
    * install and migration order: `cartWritePort` is the quote-to-cart

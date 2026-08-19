@@ -20,7 +20,7 @@ export const manifest = defineModuleManifest({
    * `customerAccountReadPort` instead of querying `customer_accounts`' entity.
    *
    * It is acknowledged rather than declared, because the ordinary declaration
-   * closes a cycle `migration-order.ts` and the composer generator both refuse:
+   * closes a cycle `module-graph.test.ts` and the composer generator both refuse:
    * `customer_accounts` → `price_lists` → `catalog` → `admin_users`. The same
    * shape `auth` records against `customer_accounts` and `admin_roles` against
    * this module.

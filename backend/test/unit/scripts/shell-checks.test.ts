@@ -1,3 +1,5 @@
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createShellCheckFixture,
@@ -97,6 +99,40 @@ describe('check-naming.sh', () => {
     const result = fixture.run('check-naming.sh');
     expect(result.status).toBe(1);
     expect(result.output).toContain('orderItems');
+  });
+
+  it('goes red on a migration class scoped by the wrong module', () => {
+    fixture.write(
+      'backend/src/modules/orders/migrations/20270101T000000_orders_probe.ts',
+      'export class Migration20270101T000000CatalogProbe extends Migration {}\n',
+    );
+    const result = fixture.run('check-naming.sh');
+    expect(result.status).toBe(1);
+    expect(result.output).toContain('Migration20270101T000000CatalogProbe');
+    expect(result.output).toContain('Migration<STAMP>Orders');
+  });
+
+  it('accepts an underscore-prefixed module id by its segment', () => {
+    // The control for the rule above: `_i18n`'s segment is `i18n`, so `I18n`
+    // is correct and a rule that compared the raw id would flag it.
+    fixture.write(
+      'backend/src/modules/_i18n/migrations/20270101T000000_i18n_probe.ts',
+      'export class Migration20270101T000000I18nProbe extends Migration {}\n',
+    );
+    expect(fixture.run('check-naming.sh').status).toBe(0);
+  });
+
+  it('exits 2 when the tree holds no migration at all', () => {
+    // The class-scope rule reads the filesystem rather than the listing, so a
+    // tree with no migration would have it judge nothing while the other four
+    // rules reported clean.
+    rmSync(join(fixture.root, 'backend/src/modules/orders/migrations'), {
+      recursive: true,
+      force: true,
+    });
+    const result = fixture.run('check-naming.sh');
+    expect(result.status).toBe(2);
+    expect(result.output).toContain('vacuous');
   });
 
   it('exits 2 on an empty full-tree listing instead of reporting a clean tree', () => {

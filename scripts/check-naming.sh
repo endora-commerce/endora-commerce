@@ -7,6 +7,9 @@
 #      table / column names (we want snake_case).
 #   3. JSON literal keys inside Zod contracts and route bodies are camelCase.
 #   4. URL path segments inside Fastify route registrations are kebab-case.
+#   5. A migration class name is scoped by its owning module — the tail after
+#      `Migration<STAMP>` begins with the PascalCase form of the module's
+#      segment (feature 081, contracts/migration-identity.md §2).
 #
 # Modes:
 #   --diff          scan only files changed against $BASE_REF (defaults to origin/master).
@@ -270,6 +273,89 @@ for f in "${route_files[@]}"; do
       fail=1
     done
   done < <(grep -nE "['\"]/api/v1/" "$f" || true)
+done
+
+# ──────────────────────────────────────────────────────────────────────────
+# 5. Migration class names are module-scoped.
+#
+# `Migration<STAMP><Tail>` and `<Tail>` must begin with the PascalCase form of
+# the owning module's segment (`_i18n` → `I18n`, `src/db/migrations/` → `Core`).
+# The class name is what `mikro_orm_migrations` stores, so it is the database's
+# key for "what has run"; scoping it by module is what makes it unique across
+# every module the platform can compose, including one that arrives from an
+# installed package the generator never sees.
+#
+# `orderMigrations` enforces the same rule at runtime (`unscoped-name`), which
+# is the only place a package's name can be checked. This is the build-time
+# half, for the core tree.
+# ──────────────────────────────────────────────────────────────────────────
+
+# `orders` → `Orders`, `customer_accounts` → `CustomerAccounts`, `_i18n` → `I18n`.
+# POSIX awk only — the CI image ships mawk, not gawk.
+pascal_segment() {
+  printf '%s\n' "${1#_}" | awk -F'_' '{
+    out = ""
+    for (i = 1; i <= NF; i++) {
+      if (length($i) == 0) continue
+      out = out toupper(substr($i, 1, 1)) substr($i, 2)
+    }
+    print out
+  }'
+}
+
+class_files=()
+for f in "${changed_files[@]}"; do
+  if [[ "$f" == backend/src/modules/*/migrations/*.ts ]] ||
+     [[ "$f" == backend/src/db/migrations/*.ts ]]; then
+    class_files+=("$f")
+  fi
+done
+if [[ "$mode" == "full" ]]; then
+  while IFS= read -r f; do class_files+=("$f"); done < <(
+    { find backend/src/modules -path '*/migrations/*.ts' 2>/dev/null
+      find backend/src/db/migrations -name '*.ts' 2>/dev/null; }
+  )
+fi
+if [ "${#class_files[@]}" -gt 0 ]; then
+  mapfile -t class_files < <(printf '%s\n' "${class_files[@]}" | sort -u)
+fi
+
+# A full-tree run that finds no migration at all has judged nothing, and would
+# report the same green as a tree whose every class name is correct. In --diff
+# mode an empty list is the ordinary "this MR touched no migration".
+if [[ "$mode" == "full" ]] && [ "${#class_files[@]}" -eq 0 ]; then
+  red "✗ check-naming found no migration file under backend/src — the migration"
+  red "  class-scope rule would judge nothing. Refusing to report a vacuous pass."
+  exit 2
+fi
+
+for f in "${class_files[@]}"; do
+  [ -f "$f" ] || continue
+  if [[ "$f" == backend/src/db/migrations/* ]]; then
+    module_id="core"
+  else
+    module_id="${f#backend/src/modules/}"
+    module_id="${module_id%%/*}"
+  fi
+  prefix="$(pascal_segment "$module_id")"
+  while IFS= read -r class_name; do
+    [ -n "$class_name" ] || continue
+    # 'Migration' (9) + '<YYYYMMDDTHHmmss>' (15) = 24 characters of preamble.
+    class_tail="${class_name:24}"
+    case "$class_tail" in
+      "$prefix"*) ;;
+      *)
+        red "✗ Migration class $class_name in $f is not scoped by its module."
+        red "  Module \"$module_id\" requires the name Migration<STAMP>${prefix}… —"
+        red "  the class name is the database's key for what has run, and scoping it"
+        red "  by module is what keeps it unique platform-wide."
+        fail=1
+        ;;
+    esac
+  done < <(
+    grep -oE 'export class Migration[0-9]{8}T[0-9]{6}[A-Za-z0-9]*' "$f" 2>/dev/null |
+      sed 's/^export class //' || true
+  )
 done
 
 if [ "$fail" -eq 0 ]; then

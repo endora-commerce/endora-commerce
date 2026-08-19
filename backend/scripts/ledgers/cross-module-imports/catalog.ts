@@ -49,7 +49,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'count()`. A knex builder names its table as a call argument, so this crossed the ' +
     'boundary while naming no import specifier and no SQL statement. Note the direction ' +
     'the remedy cannot take: `carts` already declares `catalog`, so `catalog` declaring ' +
-    '`carts` would close a cycle `migration-order.ts` fails on. Retired by: `carts` ' +
+    '`carts` would close a cycle `module-graph.test.ts` fails on. Retired by: `carts` ' +
     'answering "does anything of mine reference this product?" itself — either a veto on ' +
     'a `product.delete.requested` event, or the acknowledged reverse port edge D-94.3 ' +
     'establishes for exactly this shape.',

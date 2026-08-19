@@ -48,8 +48,8 @@ export const manifest = defineModuleManifest({
   // decorator with `organizationDetailsPort`. It is acknowledged rather than
   // declared for the reason `price_lists` is, one line down: `organizations`
   // declares this module (the org-scoped catalogue restriction is a list of
-  // products), so declaring it back closes a cycle and `migration-order` fails
-  // the build on one. The module is non-deactivatable, so the acknowledgement
+  // products), so declaring it back closes a cycle and `module-graph.test.ts`
+  // fails the build on one. The module is non-deactivatable, so the acknowledgement
   // binds nothing an operator can flip.
   // Feature 073, Amendment A1 — with its operator clause deleted rather than
   // updated (issue #216). That clause distinguished this pair from the
@@ -81,8 +81,8 @@ export const manifest = defineModuleManifest({
         '`price_lists` declares this module — a price list is a list of prices for ' +
         'products, and it must install after them — while the external catalog ' +
         'namespace prices its responses through the pricing engine. Declaring the ' +
-        'second direction closes the cycle, and `migration-order` fails the build ' +
-        'on it, which is how this was found.',
+        'second direction closes the cycle, and `module-graph.test.ts` fails the ' +
+        'build on it, which is how this was found.',
     },
   ],
   // D-44 — four edges that are real to the container and bind no operator.

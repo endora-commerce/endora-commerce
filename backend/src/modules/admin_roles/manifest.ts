@@ -18,7 +18,7 @@ export const manifest = defineModuleManifest({
   /**
    * Feature 075, Phase C — the two reads of the `AdminUser` row became
    * `adminUserReadPort`, and `admin_users` declares this module, so declaring
-   * it back in `dependencies` closes a cycle that `migration-order.ts` and the
+   * it back in `dependencies` closes a cycle that `module-graph.test.ts` and the
    * composer generator both refuse. The mutual shape
    * `acknowledgedDependencies` exists for, and the same one `auth` records
    * against `customer_accounts`.

@@ -10,7 +10,7 @@ import { ALL_ENTITIES } from '../../../src/db/entities-registry.generated.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import {
   orderMigrations,
-  UNCORRECTED_THROUGH,
+  BASELINE_THROUGH,
   type MigrationRegistryEntry,
 } from '../../../src/db/migration-order.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
@@ -426,9 +426,8 @@ describe('T055 — the removed module contributes no schema', () => {
       orderMigrations({
         entries,
         moduleDependencies,
-        uncorrectedThrough: UNCORRECTED_THROUGH,
-        correctionHorizonDays: 45,
-      }).map((migration) => migration.name);
+        baselineThrough: BASELINE_THROUGH,
+      }).migrations.map((migration) => migration.name);
 
     const owned = MIGRATION_REGISTRY.filter((entry) => entry.moduleId === SUBJECT);
     expect(owned).toEqual([]);

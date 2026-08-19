@@ -3486,8 +3486,9 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
-    // Four rules in the script's header, four proofs. The route-segment rule had
-    // no red fixture anywhere until issue #130.
+    // Five rules in the script's header, five proofs. The route-segment rule had
+    // no red fixture anywhere until issue #130; the class-scope rule arrived
+    // with feature 081 and with its own.
     script: 'scripts/check-naming.sh',
     npmScript: 'check:naming',
     job: 'quality:static',
@@ -3530,6 +3531,16 @@ const CHECKS: readonly CheckEntry[] = [
             "app.get('/api/v1/orderItems', handler);\n",
           );
           fixture.lists(['backend/src/modules/orders/routes.admin.ts']);
+        }),
+      ),
+      // The fifth rule reads the filesystem rather than the listing, so the
+      // fixture is a file on disk and no `lists()` call goes with it.
+      'migration-class-scope': top(() =>
+        shellRed('check-naming.sh', (fixture) => {
+          fixture.write(
+            'backend/src/modules/orders/migrations/20270101T000000_orders_probe.ts',
+            'export class Migration20270101T000000CatalogProbe extends Migration {}\n',
+          );
         }),
       ),
     },
@@ -3746,7 +3757,7 @@ describe('every red proof enters at the top of the analysis', () => {
       // Two shapes, two scopes, and the ledger's stale direction.
       'backend/scripts/check-transaction-context.ts': 5,
       'backend/scripts/i18n-hardcoded-strings.ts': 2,
-      'scripts/check-naming.sh': 4,
+      'scripts/check-naming.sh': 5,
       'scripts/check-language.sh': 2,
       'scripts/check-pdfmake-footprint.sh': 2,
     });

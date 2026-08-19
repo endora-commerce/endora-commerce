@@ -392,7 +392,7 @@ export function registerModule(ctx: ModuleContext): void {
   // list refers to one by id. Under the previous owner the single real foreign
   // key into `customer_groups` — `customer_accounts.customer_group_id` — forced
   // this module to declare `price_lists`, which made the reverse declaration a
-  // cycle `src/db/migration-order.ts` refuses. The key is intra-module now and
+  // cycle `test/unit/db/module-graph.test.ts` refuses. The key is intra-module now and
   // the class of problem is gone rather than routed around.
   //
   // `customerGroupService` keeps its container name: both composition roots

@@ -944,8 +944,10 @@ export class ModuleLifecycleOrchestrator {
    * orchestrator must never pull in the ORM config) and the migration name is
    * always `cls.name`, which is exactly what `mikro_orm_migrations.name`
    * stores. Ordering is ascending timestamp, which for a single module is the
-   * resolved execution order: `orderMigrations` guarantees intra-module
-   * chronology (contracts/ordering-algorithm.md, invariant I2).
+   * resolved execution order: `orderMigrations` emits a module's migrations
+   * contiguously and in ascending timestamp order
+   * (specs/081-per-module-migration-order/contracts/ordering-algorithm.md,
+   * invariants J2 and J3).
    *
    * Best-effort: a module with no migrations logs a warning and reverts
    * nothing, and a failing revert stops the loop rather than widening the gap.
