@@ -155,6 +155,17 @@ quality:
     # are two-way and are not expected to empty: an entry says why a site is right
     # to keep running while its module is off.
     - pnpm --filter backend run check:entry-presence
+    # Issue #216 — a reason string may not assert a lock the manifests
+    # contradict. The locked set is derived from `activation.nonDeactivatable`
+    # on every run (`scripts/lib/switchable-modules.ts`), so a sentence
+    # restating it is a copy no run re-derives: a shard withdrew a written port
+    # conversion on the ground that a module with an activation control could
+    # not be switched off, and nothing in the repository could tell. D-100
+    # forbade the shape in acknowledged-edge reasons; this enforces it wherever
+    # a reason is written — ledger shards, the ledgers that live inside a check,
+    # and every module manifest. No ledger: a claim the manifests contradict is
+    # never right to stand.
+    - pnpm --filter backend run check:lock-claims
     # Issue #111 — a test releases a harness-owned resource through
     # `teardownBackendServer`, never by closing it itself. Seventy-seven files had
     # copied the same three lines (`app.close`, `redis.disconnect`, `orm.close`)

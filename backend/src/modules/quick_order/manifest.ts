@@ -89,6 +89,29 @@ export const manifest = defineModuleManifest({
     'quote_requests',
     'settings',
   ],
+  // D-44 — real to the container, binding on no operator.
+  nonBindingDependencies: [
+    {
+      moduleId: 'customers',
+      name: 'customerAddressReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'a personal (buyer-owned) address stops being an eligible ordering default; the ' +
+        'organisation’s shared addresses still resolve, and one-click buy hides itself for ' +
+        'buyers whose default was personal',
+      reason:
+        'Issue #216 — the personal-address branch of the default-eligibility check reads ' +
+        '`customers`’ address book, and it is probed on every eligibility question. Failing ' +
+        'closed would answer 503 for the whole preference resolution, and with it one-click ' +
+        'buy for *every* buyer, because a CRM surface was switched off. The degrade is not ' +
+        'invented for the occasion: Principle XVII says an absent module behaves as if never ' +
+        'installed, and on a platform without `customers` there are no personal addresses — ' +
+        'only org-shared ones are eligible. Dropping an ineligible default to null is what ' +
+        'FR-020 already specifies. Reached through a presence probe ahead of the port, per ' +
+        'call, because a closed gate throws rather than answering null and an operator ' +
+        'switching the module back on must not need a restart.',
+    },
+  ],
   // Feature 073 (Constitution XVII) — its own activation control at last.
   // Until T139 this module had no presence of its own: `shopping_lists` mounted
   // its routes, so `shopping_lists.enabled` switched both off together and

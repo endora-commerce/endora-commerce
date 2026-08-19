@@ -1,19 +1,19 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  type AddressReadPort,
+  type CustomerAccountReadPort,
+  type CustomerAddressReadPort,
+  type DeliveryMethodReadPort,
+  type OrganizationRestrictionPort,
+  type PaymentMethodReadPort,
   type QuickOrderPreference,
   type QuickOrderPreferenceScope,
   type QuickOrderPreferenceUpsert,
   type QuickOrderResolvedDefaults,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
-import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.entity.js';
-import { Address } from '../../addresses/entities/address.entity.js';
-import { CustomerAddress } from '../../customers/entities/customer-address.entity.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import type { OrganizationRestrictionService } from '../../organizations/services/organization-restriction-service.js';
 import { QuickOrderDefaultPreference } from '../entities/quick-order-default-preference.entity.js';
 import type { PreferenceAuditContext } from '@b2b/contracts';
 import { canManagePreference, type PreferenceActor } from './default-preference-authz.js';
@@ -30,6 +30,11 @@ import {
  */
 export type { PreferenceAuditContext };
 
+/** No allow-list at all, or an empty one: both mean every method is allowed. */
+function unrestricted(allowed: string[] | null): allowed is null {
+  return allowed === null || allowed.length === 0;
+}
+
 const FIELDS = [
   'defaultPaymentMethodId',
   'defaultDeliveryMethodId',
@@ -43,11 +48,32 @@ const FIELDS = [
  * (customer-over-org with use-time eligibility re-check). Every write is
  * audited (FR-021).
  */
+export interface DefaultPreferenceCollaborators {
+  /** `customer_accounts` — whose defaults these are. */
+  readonly customerAccounts: CustomerAccountReadPort;
+  /** `payment_methods` — is the stored default still a live method? */
+  readonly paymentMethods: PaymentMethodReadPort;
+  /** `delivery_methods` — the same question, delivery side. */
+  readonly deliveryMethods: DeliveryMethodReadPort;
+  /** `addresses` — the organisation's shared addresses. */
+  readonly addresses: AddressReadPort;
+  /**
+   * `customers` — the buyer's personal addresses (feature 040).
+   *
+   * The one collaborator whose owner may be absent without this service
+   * failing: see the null object in `backend.ts` and the module's
+   * `nonBindingDependencies` entry.
+   */
+  readonly customerAddresses: CustomerAddressReadPort;
+  /** `organizations` — the buyer organisation's method allow-lists. */
+  readonly restriction: OrganizationRestrictionPort;
+}
+
 export class DefaultPreferenceService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly auditLog: AuditLogService,
-    private readonly restriction?: OrganizationRestrictionService,
+    private readonly ports: DefaultPreferenceCollaborators,
   ) {}
 
   /** Raw stored row for a scope (null if unset). */
@@ -72,7 +98,7 @@ export class DefaultPreferenceService {
     const em = this.emFactory();
 
     const targetCustomerOrgId =
-      input.scope === 'customer' ? await this.customerOrganizationId(em, input.scopeId) : null;
+      input.scope === 'customer' ? await this.customerOrganizationId(input.scopeId) : null;
     if (!canManagePreference(actor, { scope: input.scope, scopeId: input.scopeId }, targetCustomerOrgId)) {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Not allowed to manage these defaults.');
     }
@@ -115,7 +141,7 @@ export class DefaultPreferenceService {
    */
   async resolveForCustomer(customerAccountId: string): Promise<QuickOrderResolvedDefaults> {
     const em = this.emFactory();
-    const organizationId = await this.customerOrganizationId(em, customerAccountId);
+    const organizationId = await this.customerOrganizationId(customerAccountId);
 
     const customerRow = this.rowFields(
       await em.findOne(QuickOrderDefaultPreference, { scope: 'customer', scopeId: customerAccountId }),
@@ -131,21 +157,30 @@ export class DefaultPreferenceService {
 
     const resolved = resolvePreferenceFields(customerRow, orgRow);
 
-    const allow = organizationId && this.restriction
-      ? await this.restriction.readAllowLists(organizationId)
+    // Two spellings of "unrestricted", and both mean allow-everything. `null`
+    // is the degrade the owner put inside its own return type (composition
+    // checklist item 7) — an organisation the restriction module cannot find —
+    // and an **empty array** is an organisation with no link rows, which is the
+    // ordinary case. Reading either as "nothing is allowed" drops every stored
+    // default silently; see `isPaymentEligible`.
+    const allowedPayment = organizationId
+      ? await this.ports.restriction.allowedIdsFor(organizationId, 'paymentMethodIds')
+      : null;
+    const allowedDelivery = organizationId
+      ? await this.ports.restriction.allowedIdsFor(organizationId, 'deliveryMethodIds')
       : null;
 
     const payment = await this.keepIf(resolved.payment, (id) =>
-      this.isPaymentEligible(em, id, allow?.paymentMethodIds ?? []),
+      this.isPaymentEligible(id, allowedPayment),
     );
     const delivery = await this.keepIf(resolved.delivery, (id) =>
-      this.isDeliveryEligible(em, id, allow?.deliveryMethodIds ?? []),
+      this.isDeliveryEligible(id, allowedDelivery),
     );
     const billing = await this.keepIf(resolved.billing, (id) =>
-      this.isAddressEligible(em, id, organizationId, customerAccountId),
+      this.isAddressEligible(id, organizationId, customerAccountId),
     );
     const shipping = await this.keepIf(resolved.shipping, (id) =>
-      this.isAddressEligible(em, id, organizationId, customerAccountId),
+      this.isAddressEligible(id, organizationId, customerAccountId),
     );
 
     return {
@@ -170,53 +205,44 @@ export class DefaultPreferenceService {
     return (await eligible(field.id)) ? field : { id: null, source: null };
   }
 
-  private async isPaymentEligible(
-    em: EntityManager,
-    id: string,
-    allowed: string[],
-  ): Promise<boolean> {
-    const method = await em.findOne(PaymentMethod, { id });
+  private async isPaymentEligible(id: string, allowed: string[] | null): Promise<boolean> {
+    const method = await this.ports.paymentMethods.findById(id);
     if (!method || method.status !== 'active') return false;
-    return allowed.length === 0 || allowed.includes(id);
+    return unrestricted(allowed) || allowed.includes(id);
   }
 
-  private async isDeliveryEligible(
-    em: EntityManager,
-    id: string,
-    allowed: string[],
-  ): Promise<boolean> {
-    const method = await em.findOne(DeliveryMethod, { id });
+  private async isDeliveryEligible(id: string, allowed: string[] | null): Promise<boolean> {
+    const method = await this.ports.deliveryMethods.findById(id);
     if (!method || method.status !== 'active') return false;
-    return allowed.length === 0 || allowed.includes(id);
+    return unrestricted(allowed) || allowed.includes(id);
   }
 
   private async isAddressEligible(
-    em: EntityManager,
     id: string,
     organizationId: string | null,
     customerAccountId: string,
   ): Promise<boolean> {
-    // Org-shared address belonging to the customer's organization.
-    const orgAddress = await em.findOne(Address, { id });
-    if (
-      orgAddress &&
-      !orgAddress.deletedAt &&
-      organizationId !== null &&
-      orgAddress.organizationId === organizationId
-    ) {
-      return true;
+    // Org-shared address belonging to the customer's organization. `liveOnly`
+    // because this answer feeds a choice rather than a rendering: without it
+    // `findById` returns soft-deleted rows and a deleted address becomes an
+    // eligible one-click default (AddressReadPort's doc block).
+    if (organizationId !== null) {
+      const orgAddress = await this.ports.addresses.findById(organizationId, id, {
+        liveOnly: true,
+      });
+      if (orgAddress) return true;
     }
-    // Feature 040 — personal address owned by the customer.
-    const personal = await em.findOne(CustomerAddress, { id });
-    return (
-      personal != null &&
-      !personal.deletedAt &&
-      personal.customerAccountId === customerAccountId
-    );
+    // Feature 040 — personal address owned by the customer. Same `liveOnly`
+    // reason, and the port already scopes by account, so the ownership check
+    // cannot be forgotten.
+    const personal = await this.ports.customerAddresses.findById(customerAccountId, id, {
+      liveOnly: true,
+    });
+    return personal !== null;
   }
 
-  private async customerOrganizationId(em: EntityManager, customerAccountId: string): Promise<string | null> {
-    const customer = await em.findOne(CustomerAccount, { id: customerAccountId });
+  private async customerOrganizationId(customerAccountId: string): Promise<string | null> {
+    const customer = await this.ports.customerAccounts.findById(customerAccountId);
     return customer?.organizationId ?? null;
   }
 

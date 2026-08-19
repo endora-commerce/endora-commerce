@@ -51,11 +51,17 @@ export const manifest = defineModuleManifest({
   // products), so declaring it back closes a cycle and `migration-order` fails
   // the build on one. The module is non-deactivatable, so the acknowledgement
   // binds nothing an operator can flip.
-  // Feature 073, Amendment A1. This one differs from the `organizations` pairs
-  // in the way that matters to an operator: `price_lists` is deactivatable
-  // (`price_lists.enabled`), so without this declaration the pricing engine
-  // could be switched off underneath a live resolver in a core commerce module,
-  // and nothing would refuse the flip.
+  // Feature 073, Amendment A1 — with its operator clause deleted rather than
+  // updated (issue #216). That clause distinguished this pair from the
+  // `organizations` one by naming a `price_lists` activation control and
+  // reasoning that the pricing engine could therefore be switched off
+  // underneath a live resolver. Feature 074 withdrew that control: it was one
+  // of the nineteen that never accepted a deactivation, and the pricing module
+  // is locked on both axes today. So the clause contradicted the manifests, in
+  // the file a reviewer opens to understand the edge, and the distinction it
+  // drew no longer exists. Per D-100 a reason states the ground a human had to
+  // decide, not a fact `lib/switchable-modules.ts` re-derives on every run —
+  // the ground here is the cycle, and the entry below says so.
   acknowledgedDependencies: [
     {
       moduleId: 'organizations',

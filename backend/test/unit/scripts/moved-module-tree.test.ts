@@ -63,6 +63,14 @@ const CHECKS: readonly MovedTreeCheck[] = [
   { script: 'check-entry-presence.ts', args: [], prefix: '[entry-presence]' },
   { script: 'check-entry-scope.ts', args: [], prefix: '[entry-scope]' },
   { script: 'check-kernel-boundary.ts', args: [], prefix: '[kernel-boundary]' },
+  // Issue #216. Only *part* of its population is the module tree — the
+  // manifests; its ledger shards and the checks' own ledgers live under
+  // `scripts/`, which a module move does not touch. That is what makes it the
+  // trap this file exists for: ~56 artefacts survive the move, so
+  // `files.length === 0` is green, the regenerated index still answers for 65
+  // modules, so the locked set is complete, and the check would read half the
+  // manifests and print `violations=0`.
+  { script: 'check-lock-claims.ts', args: [], prefix: '[lock-claims]' },
   { script: 'check-module-boundary.ts', args: [], prefix: '[module-boundary]' },
   { script: 'check-port-catches.ts', args: [], prefix: '[port-catches]' },
   { script: 'check-port-dependencies.ts', args: [], prefix: '[port-deps]' },

@@ -8,6 +8,7 @@ import type {
   CustomerAccountReadPort,
   CustomerAddressReadPort,
   CustomerAuthPort,
+  DefaultPreferencePort,
   VatValidator,
 } from '@b2b/contracts';
 import { CustomerAddressReadService } from './services/customer-address-read-port.js';
@@ -72,9 +73,6 @@ export interface CustomersCradle {
   readonly passwordResetService: CustomersModuleOptions['passwordResetService'];
   readonly customFieldValueService: NonNullable<CustomersModuleOptions['customFieldValues']>;
   readonly rfqService: CustomersModuleOptions['rfqService'];
-  readonly organizationRestrictionPort: NonNullable<
-    CustomersModuleOptions['organizationRestrictionService']
-  >;
   /** Owned by `organizations`: which organizations a staff member may act on. */
   readonly organizationSalesRepScopePort: CustomersModuleOptions['salesRepVisibility'];
   readonly emailMailer: CustomersModuleOptions['mailer'];
@@ -185,9 +183,6 @@ export function registerModule(ctx: ModuleContext): void {
               'customFieldValueService',
             ),
             rfqService: lazyPort<CustomersCradle['rfqService']>(ctx, 'rfqService'),
-            organizationRestrictionService: lazyPort<
-              CustomersCradle['organizationRestrictionPort']
-            >(ctx, 'organizationRestrictionPort'),
             // Issue #108 — `organizations`' scope, not a private copy of its
             // wiring. The copy this replaces omitted the optional subtree deps,
             // so feature 056's roll-up was skipped for every block / unblock /
@@ -202,6 +197,14 @@ export function registerModule(ctx: ModuleContext): void {
             // factory below is a singleton and stores what it is handed, and a
             // captured gate keeps answering after its owner is switched off.
             vatValidator: lazyPort<VatValidator>(ctx, 'vatValidatorPort'),
+            // Issue #216 — the ordering defaults this module renders and edits
+            // belong to `quick_order`. Until now it built a **second instance**
+            // of that module's `DefaultPreferenceService` from an import of its
+            // directory, so the two holders had to be converted together and
+            // the port published for this consumer went unreached. Binding, per
+            // the port's own contract: a switched-off `quick_order` answers 503
+            // `MODULE_DISABLED` at the seam rather than half a set of defaults.
+            defaultPreferencePort: lazyPort<DefaultPreferencePort>(ctx, 'defaultPreferencePort'),
             storefrontBaseUrl: cradle().storefrontBaseUrl,
             requireAdmin: (permission) => async (req, reply) =>
               cradle().requireAdmin(permission)(req, reply),

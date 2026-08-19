@@ -1,7 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomerDefaults } from '@b2b/contracts';
-import type { DefaultPreferenceService } from '../../quick_order/services/default-preference-service.js';
-import type { PreferenceAuditContext } from '../../quick_order/services/default-preference-service.js';
+import type {
+  CustomerDefaults,
+  DefaultPreferencePort,
+  PreferenceAuditContext,
+} from '@b2b/contracts';
 import type { CustomerAddressService } from './customer-address-service.js';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
 
@@ -11,7 +13,12 @@ import { CustomerAddress } from '../entities/customer-address.entity.js';
  * Split source of truth (research §R5, reconciled with the existing schema):
  *   - default **payment / delivery method** → the quick_order
  *     `QuickOrderDefaultPreference` (scope `customer`), which checkout already
- *     consumes.
+ *     consumes. Reached through `defaultPreferencePort` (issue #216). This
+ *     module used to build a **second instance** of `quick_order`'s
+ *     `DefaultPreferenceService` out of an import of that module's directory,
+ *     which is what kept the port — published for exactly this consumer —
+ *     unreached, and what blocked converting that service's own entity reads
+ *     to ports.
  *   - default **billing / shipping address** → the `isDefault` flag on the
  *     customer's personal `customer_addresses` rows. (The preference table's
  *     address columns FK to the org `addresses` table, so personal addresses
@@ -27,7 +34,7 @@ export interface CustomerDefaultsPatch {
 export class CustomerDefaultsService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly preferences: DefaultPreferenceService,
+    private readonly preferences: DefaultPreferencePort,
     private readonly addresses: CustomerAddressService,
   ) {}
 

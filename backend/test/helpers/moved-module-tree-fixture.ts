@@ -58,7 +58,7 @@ const RESIDUE_ROOTS: readonly string[] = [
 ];
 
 /**
- * The one module directory the fixture keeps, and only its `services/`.
+ * The one module directory the fixture keeps: its `services/` and its manifest.
  *
  * `check-port-dependencies` imports the deactivation ledger and the gating
  * graph as *code*, and three other checks import that script; without them the
@@ -67,6 +67,13 @@ const RESIDUE_ROOTS: readonly string[] = [
  * is not merely short, it produces files for exactly one of the 65 registered
  * modules, so a floor that only asked "did any module turn up?" would still
  * report clean.
+ *
+ * **`manifest.ts` is kept too** (issue #216). A module directory without its
+ * manifest is not a module directory any deployment could hold, and a check
+ * whose population *is* the manifests — `check-lock-claims` reads the reason
+ * strings and comments in them — then finds nothing for the kept module either.
+ * Its control would refuse the population it is supposed to agree with, and the
+ * refusal would prove nothing.
  */
 export const KEPT_MODULE = '_lifecycle';
 
@@ -88,6 +95,12 @@ export interface MovedModuleTreeFixture {
   cleanup: () => void;
 }
 
+/** The real `activation` block of a registered module, or `undefined`. */
+function realActivation(id: string): unknown {
+  const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === id);
+  return (entry?.manifest as { activation?: unknown } | undefined)?.activation;
+}
+
 /** The stub the fixture puts where the generated index lives. */
 function stubManifestIndex(ids: readonly string[]): string {
   return [
@@ -95,19 +108,41 @@ function stubManifestIndex(ids: readonly string[]): string {
     '//',
     '// The ids are the real ones, read from the committed index when the fixture',
     '// was built, so the expected population tracks the tree rather than a list',
-    '// typed out here. The manifests are inert: every consumer in this fixture',
-    '// reads ids, and importing 65 real manifests would import 65 module trees',
-    '// the fixture deliberately does not have.',
+    '// typed out here. The manifests are otherwise inert: every consumer in this',
+    '// fixture reads ids, and importing 65 real manifests would import 65 module',
+    '// trees the fixture deliberately does not have.',
+    '//',
+    '// `activation` is the one field carried across verbatim (issue #216).',
+    '// `lib/switchable-modules.ts` derives the locked set from it, and two checks',
+    '// already read that set; a stub that dropped it made "no module is locked"',
+    '// the answer in the fixture, which is a state those checks are right to',
+    '// refuse — so they exited 2 over the residue for a reason that had nothing',
+    '// to do with the residue, and their controls exited 2 as well.',
     'export interface DiscoveredManifestEntry {',
     '  id: string;',
-    '  manifest: { id: string; name: string; version: string; dependencies: string[] };',
+    '  manifest: {',
+    '    id: string;',
+    '    name: string;',
+    '    version: string;',
+    '    dependencies: string[];',
+    '    activation?: {',
+    '      settingCode?: string;',
+    '      default?: boolean;',
+    '      nonDeactivatable?: boolean;',
+    '      reason?: string;',
+    '    };',
+    '  };',
     '}',
     '',
     'export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [',
-    ...ids.map(
-      (id) =>
-        `  { id: '${id}', manifest: { id: '${id}', name: '${id}', version: '1.0.0', dependencies: [] } },`,
-    ),
+    ...ids.map((id) => {
+      const activation = realActivation(id);
+      const tail = activation === undefined ? '' : `, activation: ${JSON.stringify(activation)}`;
+      return (
+        `  { id: '${id}', manifest: { id: '${id}', name: '${id}', ` +
+        `version: '1.0.0', dependencies: []${tail} } },`
+      );
+    }),
     '];',
     '',
   ].join('\n');
@@ -154,6 +189,10 @@ export function createMovedModuleTreeFixture(
   cpSync(
     join(BACKEND_ROOT, 'src', 'modules', KEPT_MODULE, 'registered-manifests.ts'),
     join(backend, 'src', 'modules', KEPT_MODULE, 'registered-manifests.ts'),
+  );
+  cpSync(
+    join(BACKEND_ROOT, 'src', 'modules', KEPT_MODULE, 'manifest.ts'),
+    join(backend, 'src', 'modules', KEPT_MODULE, 'manifest.ts'),
   );
   writeFileSync(
     join(backend, 'src', 'modules', KEPT_MODULE, 'manifest-index.generated.ts'),
