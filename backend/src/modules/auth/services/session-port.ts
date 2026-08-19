@@ -68,6 +68,7 @@ export function createAuthSessionPort(sessionService: SessionService): AuthSessi
     destroySession: (sessionId) => sessionService.destroySession(sessionId),
     destroyAllForCustomer: (customerAccountId) =>
       sessionService.destroyAllForCustomer(customerAccountId),
+    destroyAllForAdmin: (adminUserId) => sessionService.destroyAllForAdmin(adminUserId),
     touchLastSeen: (sessionId) => sessionService.touchLastSeen(sessionId),
     listRecentlyActiveCustomers: (windowMinutes) =>
       sessionService.listRecentlyActiveCustomers(windowMinutes),

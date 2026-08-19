@@ -65,7 +65,7 @@ async function makeAccount(password: string): Promise<CustomerAccount> {
   } as unknown as CustomerAccount;
 }
 
-/** Only the six methods `AuthSessionPort` publishes — never `auth`'s class. */
+/** Only the methods `AuthSessionPort` publishes — never `auth`'s class. */
 function sessionPort(record: { cookieValue: string; expiresAt: Date }): {
   port: AuthSessionPort;
   destroyed: () => string[];
@@ -94,6 +94,7 @@ function sessionPort(record: { cookieValue: string; expiresAt: Date }): {
       destroyed.push(sessionId);
     },
     destroyAllForCustomer: async () => {},
+    destroyAllForAdmin: async () => {},
     touchLastSeen: async () => {},
     listRecentlyActiveCustomers: async () => [],
   };

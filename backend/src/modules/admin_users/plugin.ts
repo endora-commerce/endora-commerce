@@ -85,6 +85,7 @@ export function adminModule(
   const adminUserService = new AdminUserService(
     options.emFactory,
     options.adminRolePort,
+    options.authSessionPort,
     options.auditLogService,
   );
   const handle: AdminModuleHandle = {

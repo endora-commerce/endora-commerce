@@ -94,6 +94,24 @@ export const updateAdminUserSelfRequestSchema = z
   .strict();
 export type UpdateAdminUserSelfRequest = z.infer<typeof updateAdminUserSelfRequestSchema>;
 
+/**
+ * Peer password reset (issue #252) — one operator sets another operator's
+ * password. Deliberately its own payload rather than a `password` field on
+ * `updateAdminUserRequestSchema`: setting a password is not an edit to a field
+ * alongside a name change. It has its own audit action and its own side effect
+ * (every session the target holds is revoked), and a request that renamed and
+ * reset in one call would have to answer for both.
+ *
+ * The bound matches `createAdminUserRequestSchema` — the same password, made
+ * by the same operator, on the same account.
+ */
+export const resetAdminUserPasswordRequestSchema = z
+  .object({
+    password: z.string().min(12).max(256),
+  })
+  .strict();
+export type ResetAdminUserPasswordRequest = z.infer<typeof resetAdminUserPasswordRequestSchema>;
+
 // --- Admin role CRUD --------------------------------------------------------
 
 export const upsertAdminRoleRequestSchema = z.object({

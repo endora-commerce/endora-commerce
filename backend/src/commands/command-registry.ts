@@ -287,7 +287,15 @@ export const COMMAND_REGISTRY = {
   'admin_user.create': { reversible: false, description: 'Create an admin user' },
   'admin_user.update': { reversible: false, description: 'Update an admin user' },
   'admin_user.delete': { reversible: false, description: 'Soft-delete an admin user' },
-  'admin_user.change_password': { reversible: false, description: 'Admin changes their password' },
+  // Issue #252 — one action for every way an admin password gets set, with
+  // `stateAfter.via` naming which. Two emitters today: `peer_reset` from the
+  // route a colleague uses, and `self_service` from `AdminAuthService`, whose
+  // verify-then-rotate method no route reaches yet (the profile screen rotates
+  // through the self PATCH and audits `admin_user.update`).
+  'admin_user.change_password': {
+    reversible: false,
+    description: "Set an admin user's password (self-rotation or peer reset)",
+  },
   // Addresses module (US1).
   'address.create': { reversible: false, description: 'Create an org address' },
   'address.update': { reversible: false, description: 'Update an org address' },

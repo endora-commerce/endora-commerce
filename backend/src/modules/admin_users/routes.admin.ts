@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   createAdminUserRequestSchema,
+  resetAdminUserPasswordRequestSchema,
   updateAdminUserRequestSchema,
   updateAdminUserSelfRequestSchema,
   upsertAdminRoleRequestSchema,
@@ -160,6 +161,41 @@ export async function registerAdminUsersAdminRoutes(
         ...(body.adminRoleId !== undefined ? { adminRoleId: body.adminRoleId } : {}),
         ...(body.status !== undefined ? { status: body.status } : {}),
       });
+      return { data: serializeAdminUser(user) };
+    },
+  );
+
+  // --- Peer password reset (issue #252) ---------------------------------------
+  //
+  // The capability `admin_users`' manifest has always promised. Gated by
+  // `admin_users:manage`, the same code that already gates creating an admin
+  // user and assigning it any role — including the role holding `*`. A
+  // narrower code would be absent from every role on every deployment that
+  // exists today, so shipping one would leave the lockout it closes open until
+  // somebody with `*` edited the roles, which is the bootstrap problem again.
+  //
+  // An operator holding the code may target themselves. There is no role
+  // hierarchy here to rank a reset against, and the same code already assigns
+  // any role including the one holding `*`, so a self-target guard would close
+  // nothing — while making this route disagree with the e-mail-keyed flow that
+  // follows, which is self-targeted by construction.
+  //
+  // Own path rather than a `password` field on the PATCH: setting a password
+  // has its own audit action and revokes the target's sessions, and a request
+  // that renamed and reset in one call would have to answer for both.
+  // `/password-reset` is deliberately left free for the e-mail-keyed flow that
+  // follows, so the two never collide on one verb — this one **sets** a
+  // password, that one will **send** a link, exactly as
+  // `POST /api/v1/admin/customers/:id/password-reset` already does.
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/admin-users/:id/password',
+    {
+      preHandler: requireAdmin('admin_users:manage'),
+      schema: { body: resetAdminUserPasswordRequestSchema },
+    },
+    async (request) => {
+      const body = resetAdminUserPasswordRequestSchema.parse(request.body);
+      const user = await adminUserService.resetPassword(request.params.id, body.password);
       return { data: serializeAdminUser(user) };
     },
   );

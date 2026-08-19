@@ -154,6 +154,7 @@ function sessionPort(record: { cookieValue: string; expiresAt: Date }): {
     loadSession: async () => null,
     destroySession: async () => {},
     destroyAllForCustomer: async () => {},
+    destroyAllForAdmin: async () => {},
     touchLastSeen: async () => {},
     listRecentlyActiveCustomers: async () => [],
   };
@@ -201,6 +202,24 @@ function accountReadPort(): {
   return { port, scopedLookups: () => scopedLookups };
 }
 
+/**
+ * A session port that records only what a password write asks of it: which
+ * admin's sessions were revoked, and — through `revokedBefore` — whether the
+ * revocation happened before the row was flushed (issue #252).
+ */
+function revocationRecordingSessionPort(): {
+  port: AuthSessionPort;
+  revoked: () => string[];
+} {
+  const revoked: string[] = [];
+  const port = {
+    destroyAllForAdmin: async (adminUserId: string) => {
+      revoked.push(adminUserId);
+    },
+  } as unknown as AuthSessionPort;
+  return { port, revoked: () => revoked };
+}
+
 function recordingAuditLog(): { log: AuditLogService; actions: () => string[] } {
   const actions: string[] = [];
   const log = {
@@ -235,7 +254,7 @@ describe('admin_users — sessions, roles and the impersonation target over port
     const { em } = ownTablesOnly(null);
     const { port, lookups } = rolePort([ROLE]);
 
-    const created = await new AdminUserService(em, port).create({
+    const created = await new AdminUserService(em, port, revocationRecordingSessionPort().port).create({
       email: 'New.Operator@example.test',
       password: 'a-very-strong-pass',
       firstName: 'Nia',
@@ -252,7 +271,7 @@ describe('admin_users — sessions, roles and the impersonation target over port
     const { port } = rolePort([]);
 
     await expect(
-      new AdminUserService(em, port).create({
+      new AdminUserService(em, port, revocationRecordingSessionPort().port).create({
         email: 'new.operator@example.test',
         password: 'a-very-strong-pass',
         firstName: 'Nia',
