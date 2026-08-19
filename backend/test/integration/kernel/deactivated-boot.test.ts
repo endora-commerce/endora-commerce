@@ -125,6 +125,14 @@ const UNDECLARED = 'health_checks';
 const ALL_MODULE_IDS = REGISTERED_MANIFESTS.map((e) => e.manifest.id);
 
 /**
+ * Whether the mock below is simulating the absences yet.
+ *
+ * `false` for the warm-up boot in `beforeAll` — see the note there — and `true`
+ * for the composition every case in this file is about.
+ */
+let simulatingAbsence = false;
+
+/**
  * The operator's write, without a database.
  *
  * `composeApp()` loads presence from PostgreSQL before the first module
@@ -135,16 +143,18 @@ const ALL_MODULE_IDS = REGISTERED_MANIFESTS.map((e) => e.manifest.id);
  */
 vi.mock('../../../src/modules/_lifecycle/services/presence-load.js', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../../src/modules/_lifecycle/services/presence-load.js')>();
+    await importOriginal<
+      typeof import('../../../src/modules/_lifecycle/services/presence-load.js')
+    >();
   return {
     ...actual,
     loadModulePresence: async (
       opts: Parameters<typeof actual.loadModulePresence>[0],
     ): Promise<void> => {
       await actual.loadModulePresence(opts);
-      const { registryCache: cache } = await import(
-        '../../../src/kernel/lifecycle/registry-cache.js'
-      );
+      if (!simulatingAbsence) return;
+      const { registryCache: cache } =
+        await import('../../../src/kernel/lifecycle/registry-cache.js');
       cache.__setEnabledForTesting(
         ALL_MODULE_IDS.filter((id) => !(PLATFORM_UNAVAILABLE as readonly string[]).includes(id)),
         { deactivated: [...DEACTIVATED] },
@@ -154,7 +164,9 @@ vi.mock('../../../src/modules/_lifecycle/services/presence-load.js', async (impo
 });
 
 describe('the production composition root boots with modules switched off', () => {
-  let composition: Awaited<ReturnType<typeof import('../../../src/composition.js').composeApp>> | undefined;
+  let composition:
+    | Awaited<ReturnType<typeof import('../../../src/composition.js').composeApp>>
+    | undefined;
   let app: FastifyInstance | undefined;
   let compositionError: unknown;
   const originalRole = process.env['BACKEND_ROLE'];
@@ -172,6 +184,34 @@ describe('the production composition root boots with modules switched off', () =
 
     const { composeApp } = await import('../../../src/composition.js');
     const { buildServer } = await import('../../../src/http/server.js');
+
+    // A **third** composition, against the budget `production-boot.test.ts`
+    // states, and it buys a stated premise rather than another case.
+    //
+    // This file's subject is a platform that has run before and is now being
+    // started with modules switched off. It used to get that for free: every
+    // invocation shared one `b2b_test`, so by the time this file ran, some
+    // other file had booted the platform and every module's one-time boot write
+    // was already done. Since issue #189 a run starts from a freshly migrated
+    // clone, and the premise has to be established rather than inherited —
+    // otherwise this file passes or fails on which files ran before it, which
+    // is the property that issue is about. Run alone against a fresh database
+    // on the pre-#189 harness, it failed 19 of its 22 cases.
+    //
+    // It also names a hazard this file exists to prevent, now standing again:
+    // `invoices` grandfathers its numbering pattern from a `ctx.onBoot` hook
+    // (feature 078, D-95.3), the write goes through `settings`' port, and the
+    // service rethrows `ModuleDisabledError` deliberately — "the write is the
+    // whole point of the hook". So a **first** boot of a deployment that does
+    // not install `settings` still dies in composition, exactly the D-40 shape
+    // described at the top of this file. The warm-up makes that write happen
+    // once, with everything present, which is what a real upgrade does; it does
+    // not repair the first-boot case, and nothing here claims it does.
+    simulatingAbsence = false;
+    const warmup = await composeApp();
+    await warmup.dispose();
+
+    simulatingAbsence = true;
     try {
       composition = await composeApp();
       app = await buildServer({

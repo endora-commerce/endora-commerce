@@ -4,9 +4,11 @@ import { fileURLToPath } from 'node:url';
 import {
   TEST_DATABASE_NAME_PATTERN,
   isolationMode,
+  keepRunDatabase,
   parseRunDatabaseName,
   redisUrlWithDatabase,
   runDatabaseName,
+  sharedDatabaseReason,
   strandedRunDatabases,
   templateDatabaseName,
   withDatabase,
@@ -159,6 +161,34 @@ describe('run-isolation — the mode', () => {
     expect(() => isolationMode({ BACKEND_TEST_ISOLATION: 'maybe' })).toThrow(
       /BACKEND_TEST_ISOLATION/,
     );
+  });
+});
+
+describe('run-isolation — when a run shares the base database instead', () => {
+  it('does not, by default', () => {
+    expect(sharedDatabaseReason({}, BASE)).toBeUndefined();
+  });
+
+  it('does when the mode says so', () => {
+    expect(sharedDatabaseReason({ BACKEND_TEST_ISOLATION: 'shared' }, BASE)).toBe('explicit');
+  });
+
+  it('does when somebody overrode the test-database guard', () => {
+    // `ALLOW_NON_TEST_DATABASE_URL` is a person deliberately pointing the suite
+    // at a database whose name breaks the convention. A name derived from it
+    // would break it too, and isolation may not widen that judgement — so it
+    // stands down rather than throwing at somebody who already said they know.
+    expect(sharedDatabaseReason({}, 'scratch')).toBe('name-override');
+  });
+});
+
+describe('run-isolation — keeping the run database', () => {
+  it('drops it unless asked, and reads the ask the way a shell writes one', () => {
+    expect(keepRunDatabase({})).toBe(false);
+    expect(keepRunDatabase({ BACKEND_TEST_KEEP_DATABASE: '' })).toBe(false);
+    expect(keepRunDatabase({ BACKEND_TEST_KEEP_DATABASE: '0' })).toBe(false);
+    expect(keepRunDatabase({ BACKEND_TEST_KEEP_DATABASE: 'false' })).toBe(false);
+    expect(keepRunDatabase({ BACKEND_TEST_KEEP_DATABASE: '1' })).toBe(true);
   });
 });
 

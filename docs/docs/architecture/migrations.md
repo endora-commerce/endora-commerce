@@ -381,8 +381,11 @@ re-runs the migration against a schema that already has it:
   half-applying: you lose the run, not the database.
 
 So a rename ships with a coordinated rebuild — every developer runs
-`DATABASE_URL=…/b2b_test pnpm --filter backend run db:fresh` for the test database and
+`DATABASE_URL=…/b2b_test_tpl pnpm --filter backend run db:fresh` for the test database and
 `pnpm --filter backend run db:reset` for the dev one, in the same window as the merge.
+`b2b_test_tpl` is the migrated template every test invocation is cloned from since issue
+#189; dropping it does the same job, because the next invocation recreates and re-migrates
+it from scratch.
 `db:fresh` and `db:reset` read `backend/.env` and default to the **dev** database, so
 always pass `DATABASE_URL` explicitly when you mean the test one. CI builds an empty
 database and needs no intervention.
