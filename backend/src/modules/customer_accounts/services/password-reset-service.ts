@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, normalizeEmailAddress } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 // Feature 075, Phase C — a pure function over its argument, so it lives in the
 // kernel rather than behind a gate that would answer 503 to "hash this string".
@@ -34,7 +34,14 @@ export class PasswordResetService {
     // limited, account-enumeration-safe); the actual password change is audited
     // at confirmReset (customer_account.password_reset).
     const em = this.emFactory();
-    const customer = await em.findOne(CustomerAccount, { email, deletedAt: null });
+    // Folded like every other lookup on this table (see `normalizeEmailAddress`).
+    // An unmatched address is indistinguishable from an unknown one here — the
+    // method answers `{ rawToken: null }` to both — so a case-sensitive compare
+    // silently denied a reset to exactly the accounts that most needed one.
+    const customer = await em.findOne(CustomerAccount, {
+      email: normalizeEmailAddress(email),
+      deletedAt: null,
+    });
     if (!customer) return { rawToken: null };
 
     const rawToken = randomBytes(32).toString('base64url');

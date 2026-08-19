@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
+import { normalizeEmailAddress } from '@b2b/contracts';
 import type {
   AuthSessionPort,
   CustomerAccountAdminSearchPort,
@@ -344,8 +345,13 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(({ emFactory, auditLogService }: CustomerAccountsCradle) => ({
         async resolveByEmail(email: string): Promise<{ id: string } | null> {
           return withSystemScope('mfa: resolve customer by email', async () => {
+            // The address arrives from the provider's claim, in whatever case
+            // that provider chose to send it; the row is folded, so the compare
+            // is too. Unfolded, a returning buyer would be offered registration
+            // for an account they already have — and `autoCreate` below would
+            // then be refused by the unique index.
             const customer = await emFactory().findOne(CustomerAccount, {
-              email,
+              email: normalizeEmailAddress(email),
               deletedAt: null,
             });
             return customer ? { id: customer.id } : null;
@@ -385,7 +391,7 @@ export function registerModule(ctx: ModuleContext): void {
           return withSystemScope('mfa: auto-create customer from social login', async () => {
             const em = emFactory();
             const account = em.create(CustomerAccount, {
-              email,
+              email: normalizeEmailAddress(email),
               // No password was ever chosen for this account: it signs in
               // through the provider. A random one keeps the column non-null
               // without minting a credential anybody could guess — and issue
