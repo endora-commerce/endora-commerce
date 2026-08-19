@@ -245,6 +245,12 @@ export const COMMAND_REGISTRY = {
   'mfa.disable': { reversible: false, description: 'Disable a subject 2FA' },
   'mfa.regenerate_recovery_codes': { reversible: false, description: 'Regenerate 2FA recovery codes' },
   'mfa.set_org_enforcement': { reversible: false, description: 'Set org 2FA enforcement policy' },
+  // Issue #194 — the account holder severs a federated identity. Not
+  // reversible: re-linking means signing in with the provider again.
+  'mfa.social_unlink': {
+    reversible: false,
+    description: 'Unlink a federated identity from an account',
+  },
   // Transactional emails module (US1).
   'email_block.create': { reversible: false, description: 'Create an email block' },
   'email_block.update': { reversible: false, description: 'Update an email block' },

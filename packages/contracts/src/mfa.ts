@@ -134,11 +134,39 @@ export const mfaRegenerateRequestSchema = z.object({
 });
 export type MfaRegenerateRequest = z.infer<typeof mfaRegenerateRequestSchema>;
 
+/**
+ * Why an account may not sever a federated identity (issue #194).
+ *
+ * `last_credential` — it is the account's only link, and the platform cannot
+ * tell whether its holder has ever chosen a password: an account created by a
+ * social sign-in is given a random one at signup. Removing the link could
+ * therefore remove the only credential its holder can use, so it is refused
+ * until another credential is in place.
+ */
+export const mfaSocialUnlinkBlockedReasonSchema = z.enum(['last_credential']);
+export type MfaSocialUnlinkBlockedReason = z.infer<typeof mfaSocialUnlinkBlockedReasonSchema>;
+
 export const mfaSocialLinkSummarySchema = z.object({
   provider: mfaSocialProviderSchema,
   email: z.string(),
   linkedAt: z.string(),
+  /** The surface renders the unlink control from this, never from its own guess. */
+  canUnlink: z.boolean(),
+  unlinkBlockedReason: mfaSocialUnlinkBlockedReasonSchema.nullable(),
 });
+export type MfaSocialLinkSummary = z.infer<typeof mfaSocialLinkSummarySchema>;
+
+/** `DELETE {prefix}/social-links/:provider` — one link per provider per account. */
+export const mfaSocialUnlinkParamsSchema = z.object({
+  provider: mfaSocialProviderSchema,
+});
+export type MfaSocialUnlinkParams = z.infer<typeof mfaSocialUnlinkParamsSchema>;
+
+export const mfaSocialUnlinkResponseSchema = z.object({
+  status: z.literal('unlinked'),
+  provider: mfaSocialProviderSchema,
+});
+export type MfaSocialUnlinkResponse = z.infer<typeof mfaSocialUnlinkResponseSchema>;
 
 export const mfaStatusResponseSchema = z.object({
   totpActive: z.boolean(),

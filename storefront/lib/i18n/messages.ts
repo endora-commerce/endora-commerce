@@ -202,7 +202,13 @@ export type MessageKey =
   | 'auth.federated.groupLabel'
   | 'auth.federated.divider'
   | 'auth.federated.google'
-  | 'auth.federated.microsoft';
+  | 'auth.federated.microsoft'
+  // Issue #194 — the linked-identities panel on the account security page.
+  | 'account.socialLinks.heading'
+  | 'account.socialLinks.intro'
+  | 'account.socialLinks.linkedOn'
+  | 'account.socialLinks.remove'
+  | 'account.socialLinks.lastCredential';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -418,6 +424,14 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'auth.federated.divider': 'or',
     'auth.federated.google': 'Continue with Google',
     'auth.federated.microsoft': 'Continue with Microsoft',
+    // Issue #194 — linked identities.
+    'account.socialLinks.heading': 'Linked accounts',
+    'account.socialLinks.intro':
+      'These external accounts can sign you in. Removing one does not delete your account.',
+    'account.socialLinks.linkedOn': 'Linked on',
+    'account.socialLinks.remove': 'Remove',
+    'account.socialLinks.lastCredential':
+      'This is the last sign-in identity linked to your account, and it cannot be removed. We cannot confirm that you have another way to sign in — an account created through a sign-in provider is given a password nobody is told — so removing it could lock you out for good. There is no way to remove it at the moment.',
   },
   'pl-PL': {
     'nav.home': 'Strona glowna',
@@ -632,6 +646,14 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'auth.federated.divider': 'lub',
     'auth.federated.google': 'Kontynuuj przez Google',
     'auth.federated.microsoft': 'Kontynuuj przez Microsoft',
+    // Issue #194 — linked identities.
+    'account.socialLinks.heading': 'Powiązane konta',
+    'account.socialLinks.intro':
+      'Za pomocą tych zewnętrznych kont możesz się logować. Usunięcie powiązania nie usuwa Twojego konta.',
+    'account.socialLinks.linkedOn': 'Powiązano',
+    'account.socialLinks.remove': 'Usuń',
+    'account.socialLinks.lastCredential':
+      'To ostatnia tożsamość logowania powiązana z Twoim kontem i nie można jej usunąć. Nie możemy potwierdzić, że masz inny sposób logowania — konto założone przez dostawcę logowania otrzymuje hasło, którego nikt nie zna — więc usunięcie mogłoby trwale odciąć Ci dostęp. Obecnie nie ma możliwości usunięcia tego powiązania.',
   },
 };
 

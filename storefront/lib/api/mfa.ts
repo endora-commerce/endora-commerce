@@ -64,12 +64,28 @@ export async function setOrganizationMfaPolicy(
  * httpOnly).
  */
 
+/**
+ * One federated identity linked to the account (issue #194).
+ *
+ * `canUnlink` is the **server's** verdict, not a count the storefront takes:
+ * an account created by a social sign-in has a random password nobody knows,
+ * so removing its last link can remove its only way in. `unlinkBlockedReason`
+ * names why, so the surface can offer the repair instead of a dead end.
+ */
+export interface MfaSocialLink {
+  provider: 'google' | 'microsoft';
+  email: string;
+  linkedAt: string;
+  canUnlink: boolean;
+  unlinkBlockedReason: 'last_credential' | null;
+}
+
 export interface MfaStatus {
   totpActive: boolean;
   recoveryCodesRemaining: number;
   totpEnabledForScope: boolean;
   totpEnforcedForScope: boolean;
-  socialLinks: Array<{ provider: string; email: string; linkedAt: string }>;
+  socialLinks: MfaSocialLink[];
 }
 
 export async function getMfaStatus(
@@ -112,6 +128,22 @@ export async function disableMfa(sessionCookie: string, code: string): Promise<v
     method: 'POST',
     path: '/api/v1/account/mfa/disable',
     body: { code },
+    sessionCookie,
+  });
+}
+
+/**
+ * Sever a linked identity (issue #194). The backend refuses — 409
+ * `MFA_SOCIAL_LAST_CREDENTIAL` — when it is the account's only link, whatever
+ * the surface rendered.
+ */
+export async function unlinkMfaSocialIdentity(
+  sessionCookie: string,
+  provider: MfaSocialLink['provider'],
+): Promise<void> {
+  await apiMutate<{ status: 'unlinked'; provider: string }>({
+    method: 'DELETE',
+    path: `/api/v1/account/mfa/social-links/${provider}`,
     sessionCookie,
   });
 }

@@ -365,6 +365,10 @@ export const ERROR_CODES = {
   MFA_NO_ACTIVE_ENROLMENT: 'MFA_NO_ACTIVE_ENROLMENT',
   MFA_REAUTH_REQUIRED: 'MFA_REAUTH_REQUIRED',
   MFA_NOT_ENABLED: 'MFA_NOT_ENABLED',
+  // Issue #194 — unlinking a federated identity that is the account's only
+  // credential is refused: an account created by a social sign-in holds a
+  // random password nobody knows, so the link is the way back in.
+  MFA_SOCIAL_LAST_CREDENTIAL: 'MFA_SOCIAL_LAST_CREDENTIAL',
   // Feature 055 — Custom Fields Layer.
   CUSTOM_FIELD_NOT_FOUND: 'CUSTOM_FIELD_NOT_FOUND',
   CUSTOM_FIELD_KEY_CONFLICT: 'CUSTOM_FIELD_KEY_CONFLICT',

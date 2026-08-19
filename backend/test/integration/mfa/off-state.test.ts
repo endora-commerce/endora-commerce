@@ -44,6 +44,8 @@ const ADMIN_EMAIL = 'platform-admin@example.com';
 const CUSTOMER_COOKIE = { b2b_session: 'stub-customer-session' };
 const CUSTOMER_EMAIL = 'stub-customer@example.com';
 const SOCIAL_EMAIL = 'social-only-customer@example.com';
+/** Filled in `beforeAll` from the federated sign-in's own `Set-Cookie`. */
+const SOCIAL_CUSTOMER_COOKIE = { b2b_session: '' };
 
 function totpCode(secretBase32: string, offsetMs = 0): string {
   const totp = new TOTP({
@@ -116,10 +118,14 @@ describe('mfa off-state — login degrades to password-only (D-96, FR-033)', () 
       url: '/api/v1/auth/customer/oauth/google/start',
     });
     const state = new URL(start.headers['location'] as string).searchParams.get('state')!;
-    await h.app.inject({
+    const callback = await h.app.inject({
       method: 'GET',
       url: `/api/v1/auth/customer/oauth/google/callback?code=${encodeURIComponent(SOCIAL_EMAIL)}&state=${encodeURIComponent(state)}`,
     });
+    // The session that sign-in minted — the only way to speak *as* the account
+    // the platform created, which is the account issue #194 is about.
+    SOCIAL_CUSTOMER_COOKIE.b2b_session =
+      callback.cookies.find((c) => c.name === 'b2b_session')!.value;
   });
 
   afterAll(async () => {
@@ -177,6 +183,15 @@ describe('mfa off-state — login degrades to password-only (D-96, FR-033)', () 
         { method: 'POST', url: '/api/v1/auth/customer/mfa/verify', payload: { challengeId: 'x', code: '000000' } },
         { method: 'GET', url: '/api/v1/admin/account/mfa/status', cookies: ADMIN_COOKIE },
         { method: 'GET', url: '/api/v1/account/mfa/status', cookies: CUSTOMER_COOKIE },
+        // Issue #194 — the identity list and the unlink are `mfa`'s surface
+        // too, so they go with it. The unlink is asserted against a link that
+        // really exists (the fixture's), so the 503 is the gate refusing and
+        // not a 404 that would answer the same way with the module on.
+        {
+          method: 'DELETE',
+          url: '/api/v1/account/mfa/social-links/google',
+          cookies: SOCIAL_CUSTOMER_COOKIE,
+        },
       ],
       adminPresence: { cookies: ADMIN_COOKIE },
       settingWrite: {
@@ -279,6 +294,27 @@ describe('mfa off-state — login degrades to password-only (D-96, FR-033)', () 
     const enrolments = await h.em().find(MfaEnrolment, { status: 'active' });
     expect(enrolments.find((e) => e.subjectType === 'admin')?.id).toBe(adminEnrolmentId);
     expect(enrolments.find((e) => e.subjectType === 'customer')?.id).toBe(customerEnrolmentId);
+  });
+
+  it('restored: the social identity link is listed again, unchanged (issue #194)', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/account/mfa/status',
+      cookies: SOCIAL_CUSTOMER_COOKIE,
+    });
+    expect(res.statusCode).toBe(200);
+    const links = (res.json().data as { socialLinks: Array<Record<string, unknown>> }).socialLinks;
+    expect(links).toHaveLength(1);
+    // The account the federated sign-in created: one link, and the module
+    // refuses to remove it because it is the only credential its holder has —
+    // the same account whose route back in, with `mfa` off, is a password
+    // reset. Switching the module off and on again changed neither.
+    expect(links[0]).toMatchObject({
+      provider: 'google',
+      email: SOCIAL_EMAIL,
+      canUnlink: false,
+      unlinkBlockedReason: 'last_credential',
+    });
   });
 
   it('reports the live enrolment count the deactivation dialog renders', async () => {
