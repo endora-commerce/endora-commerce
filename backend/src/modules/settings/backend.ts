@@ -106,37 +106,19 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
 
     settingsShopInfoResolver: ctx
-      .asFunction(
-        ({ emFactory }: SettingsCradle) =>
-          new ShopInfoResolver(emFactory, lazyPort<SettingsService>(ctx, 'settingsReadPort')),
-      )
+      .asFunction(() => new ShopInfoResolver(lazyPort<SettingsService>(ctx, 'settingsReadPort')))
       .singleton(),
 
     settingsHomepageResolver: ctx
-      .asFunction(
-        ({ emFactory }: SettingsCradle) =>
-          new HomepageResolver(emFactory, lazyPort<SettingsService>(ctx, 'settingsReadPort')),
-      )
+      .asFunction(() => new HomepageResolver(lazyPort<SettingsService>(ctx, 'settingsReadPort')))
       .singleton(),
 
     settingsProductCardButtonsResolver: ctx
-      .asFunction(
-        ({ emFactory }: SettingsCradle) =>
-          new ProductCardButtonsResolver(
-            emFactory,
-            lazyPort<SettingsService>(ctx, 'settingsReadPort'),
-          ),
-      )
+      .asFunction(() => new ProductCardButtonsResolver(lazyPort<SettingsService>(ctx, 'settingsReadPort')))
       .singleton(),
 
     settingsSpeculationRulesResolver: ctx
-      .asFunction(
-        ({ emFactory }: SettingsCradle) =>
-          new SpeculationRulesResolver(
-            emFactory,
-            lazyPort<SettingsService>(ctx, 'settingsReadPort'),
-          ),
-      )
+      .asFunction(() => new SpeculationRulesResolver(lazyPort<SettingsService>(ctx, 'settingsReadPort')))
       .singleton(),
   });
 

@@ -3,18 +3,13 @@ import { ShopInfoResolver } from '../../../src/modules/settings/services/shop-in
 import type { SettingsService, SettingsReadResult } from '../../../src/kernel/settings/settings.service.js';
 
 /**
- * Unit test for the shop-info mapping. Uses fakes for the EntityManager
- * connection (channel resolution) and the SettingsService (value resolution)
- * so the field-to-code mapping and the empty-string degradation are exercised
- * without a DB.
+ * Unit test for the shop-info mapping. The SettingsService is faked so the
+ * field-to-code mapping and the empty-string degradation are exercised without
+ * a DB. There is no EntityManager fake since feature 075 / D-87: the resolver
+ * takes the channel id its route resolved instead of looking one up.
  */
 
-function fakeEmFactory(channelId: string | null) {
-  const conn = {
-    execute: async () => (channelId ? [{ id: channelId }] : []),
-  };
-  return () => ({ getConnection: () => conn }) as never;
-}
+const CHANNEL_ID = '11111111-2222-3333-4444-555555555555';
 
 function fakeSettings(
   values: Map<string, SettingsReadResult<unknown>>,
@@ -39,8 +34,8 @@ describe('ShopInfoResolver', () => {
       ['shop.support_email', { ok: true, value: 'support@acme.test' }],
       ['shop.phone', { ok: true, value: '+48 111 222 333' }],
     ]);
-    const resolver = new ShopInfoResolver(fakeEmFactory('ch-1'), fakeSettings(values));
-    const info = await resolver.resolve('main');
+    const resolver = new ShopInfoResolver(fakeSettings(values));
+    const info = await resolver.resolve(CHANNEL_ID);
     expect(info).toEqual({
       name: 'Acme',
       address: '1 Main St',
@@ -55,16 +50,20 @@ describe('ShopInfoResolver', () => {
       ['shop.support_email', { ok: true, value: 'support@acme.test' }],
       // everything else missing / not registered
     ]);
-    const resolver = new ShopInfoResolver(fakeEmFactory('ch-1'), fakeSettings(values));
-    const info = await resolver.resolve('main');
+    const resolver = new ShopInfoResolver(fakeSettings(values));
+    const info = await resolver.resolve(CHANNEL_ID);
     expect(info.supportEmail).toBe('support@acme.test');
     expect(info.name).toBe('');
     expect(info.phone).toBe('');
   });
 
-  it('returns all-empty when the channel cannot be resolved', async () => {
-    const resolver = new ShopInfoResolver(fakeEmFactory(null), fakeSettings(new Map()));
-    const info = await resolver.resolve(undefined);
+  it('degrades every field when the channel has nothing configured', async () => {
+    // This case used to be "the channel cannot be resolved", fed by an
+    // EntityManager fake returning no row. The lookup is gone (feature 075 /
+    // D-87) and the all-empty answer now means what it says: a real channel
+    // with no `shop.*` value set.
+    const resolver = new ShopInfoResolver(fakeSettings(new Map()));
+    const info = await resolver.resolve(CHANNEL_ID);
     expect(info).toEqual({
       name: '',
       address: '',
