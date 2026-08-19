@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { SearchListResult, SearchQueryContext } from '@b2b/contracts';
+import {
+  ANONYMOUS_PRODUCT_AUDIENCE,
+  type SearchListResult,
+  type SearchQueryContext,
+} from '@b2b/contracts';
 import { createSearchQueryPort } from '../../../src/modules/search/services/search-query-port.js';
 import { SearchBackendUnavailable } from '../../../src/modules/search/services/search-query.service.js';
 
@@ -17,6 +21,7 @@ import { SearchBackendUnavailable } from '../../../src/modules/search/services/s
  */
 
 const ctx: SearchQueryContext = {
+  audience: ANONYMOUS_PRODUCT_AUDIENCE,
   resolvedChannel: {
     id: '00000000-0000-0000-0000-0000000000c1',
     code: 'pl_retail',

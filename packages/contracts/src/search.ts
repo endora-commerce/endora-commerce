@@ -10,7 +10,11 @@
 // suggest contracts below. US2 / US3 schemas land later.
 
 import { z } from 'zod';
-import { productSummarySchema, type ProductSummary } from './catalog.js';
+import {
+  productSummarySchema,
+  type ProductAudience,
+  type ProductSummary,
+} from './catalog.js';
 import { displayModeSchema } from './price-lists.js';
 
 // ---------------------------------------------------------------------------
@@ -205,6 +209,14 @@ export interface ResolvedSearchChannel {
 
 export interface SearchQueryContext {
   resolvedChannel: ResolvedSearchChannel;
+  /**
+   * Who is asking (issue #227). The index is not the authority on this: it
+   * carries `visibility` as a filterable attribute and has never carried
+   * `allowed_organization_ids` at all, so the answer is recomputed against the
+   * Postgres rows the hits hydrate from — the same place this path already
+   * insists the price comes from.
+   */
+  audience: ProductAudience;
   preferredLanguage?: string | undefined;
 }
 

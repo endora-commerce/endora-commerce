@@ -9,6 +9,7 @@ import type { ProductAttribute } from '../../../src/modules/catalog/entities/pro
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { AttributeSetAttribute } from '../../../src/modules/catalog/entities/attribute-set-attribute.entity.js';
 import { createAttributeFixture } from '../../helpers/seed-catalog.js';
+import { ANONYMOUS_PRODUCT_AUDIENCE } from '@b2b/contracts';
 
 /**
  * Feature 012 / T067 — `visibleAttributes` projection p95 latency.
@@ -176,7 +177,10 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
     for (let i = 0; i < iterations; i++) {
       const slug = productSlugs[i % productSlugs.length]!;
       const t0 = performance.now();
-      const detail = await svc.getProductByIdOrSlug(slug, { resolvedChannel });
+      const detail = await svc.getProductByIdOrSlug(slug, {
+        resolvedChannel,
+        audience: ANONYMOUS_PRODUCT_AUDIENCE,
+      });
       samples.push(performance.now() - t0);
       minProjected = Math.min(minProjected, detail.visibleAttributes?.length ?? 0);
     }

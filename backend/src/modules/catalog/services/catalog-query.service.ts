@@ -20,6 +20,7 @@ import { BundleSlotOption } from '../entities/bundle-slot-option.entity.js';
 import { resolvePrimaryAssetUrls } from './primary-asset-url.js';
 import {
   ERROR_CODES,
+  isProductVisibleTo,
   listingPriceMoney,
   type AssetReadPort,
   type AssetRecord,
@@ -28,6 +29,7 @@ import {
   type FilterDefinition,
   type ListingPrice,
   type ListingPricePort,
+  type ProductAudience,
   type ProductDetail,
   type ProductSummary,
   type ProductVariant as VariantDto,
@@ -81,6 +83,20 @@ export interface CatalogResolvedChannel {
 export interface CatalogQueryContext {
   /** The request's resolved sales channel (from `getResolvedChannel()`). */
   resolvedChannel: CatalogResolvedChannel;
+  /**
+   * Who is asking (issue #227). Every read in this service applies
+   * {@link isProductVisibleTo} with it, next to the channel filter that was
+   * already here — `visibility` and `allowed_organization_ids` were read by no
+   * query on this surface, so an anonymous `GET` of a product an operator
+   * marked `organization_restricted` returned it in full.
+   *
+   * **Required, not defaulted.** A default would have to be the anonymous
+   * audience to fail closed, and a route that forgot to resolve its caller
+   * would then quietly stop serving the buyer their own restricted catalogue —
+   * a bug that reads as "the operator's allow-list does not work" and is found
+   * by nobody. Two route files pass it; `tsc` names the third.
+   */
+  audience: ProductAudience;
   /**
    * Language preference — BCP-47. Used to pick the right string out of the
    * multilingual JSONB blobs. Falls back to the Sales Channel's default language,
@@ -331,8 +347,8 @@ export class CatalogQueryService {
         ? encodeObjectCursor({ createdAt: page[page.length - 1]!.createdAt.toISOString(), id: page[page.length - 1]!.id })
         : null;
 
-    // Sales Channel visibility — only products associated with the channel
-    // are returned. If no channel, everything public-visibility.
+    // Sales Channel membership — only products associated with the channel are
+    // returned, failing closed to the empty set.
     const visibleIds = await this.filterByChannel(
       page.map((p) => p.id),
       channel,
@@ -341,6 +357,16 @@ export class CatalogQueryService {
     // Attribute filter post-filtering (simple equality on attributeValues JSONB).
     const filtered = page.filter((p) => {
       if (!visibleIds.has(p.id)) return false;
+      // Issue #227 — the second scoping axis, alongside the channel one above.
+      // It is applied here, on the page, rather than in the `where` for the
+      // same reason the channel filter is: the allow-list test is a JSONB
+      // containment the ORM query object cannot spell, and splitting the two
+      // axes across the query and the page would leave the `limit` accounting
+      // to reason about twice instead of once. The known cost is this path's
+      // existing one — a page narrowed after the fetch can come back shorter
+      // than `limit` — and it is bounded by how much of a catalogue an
+      // operator restricts.
+      if (!isProductVisibleTo(p, ctx.audience)) return false;
       if (!params.attributeFilters) return true;
       for (const [k, values] of Object.entries(params.attributeFilters)) {
         const av = p.attributeValues[k];
@@ -387,6 +413,15 @@ export class CatalogQueryService {
     // behave like it doesn't exist. Avoids exposing non-public catalogue.
     const visibleIds = await this.filterByChannel([product.id], channel);
     if (!visibleIds.has(product.id)) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
+
+    // Issue #227 — and the same answer for the audience axis. 404 rather than
+    // 403: a caller who may not see the row may not learn it exists either,
+    // and a 403 on a slug tells them it does. This is also the gate the
+    // `/links` and `/bundle-configuration/validate` routes stand behind, since
+    // both resolve their subject through here first.
+    if (!isProductVisibleTo(product, ctx.audience)) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
 
@@ -789,8 +824,8 @@ export class CatalogQueryService {
       { orderBy: { sortOrder: 'asc' } },
     );
 
-    // Directly-assigned, channel-visible products per category.
-    const directSets = await this.directProductSetsByCategory(em, channel);
+    // Directly-assigned products per category that this caller may see.
+    const directSets = await this.directProductSetsByCategory(em, channel, ctx.audience);
 
     const byParent = new Map<string | null, Category[]>();
     for (const row of rows) {
@@ -842,7 +877,12 @@ export class CatalogQueryService {
     // Build option / range facets by scanning Products in the channel.
     const products = await em.find(Product, { status: 'active', deletedAt: null });
     const visibleIds = await this.filterByChannel(products.map((p) => p.id), channel);
-    const visible = products.filter((p) => visibleIds.has(p.id));
+    // Issue #227 — a facet count is a disclosure too. "Brass (3)" on a
+    // catalogue holding two brass products the caller may see is the third
+    // one, named by arithmetic.
+    const visible = products.filter(
+      (p) => visibleIds.has(p.id) && isProductVisibleTo(p, ctx.audience),
+    );
 
     const definitions = attrs.map((a) => {
       const label = this.pickLang(a.label, ctx.preferredLanguage, channel);
@@ -1321,20 +1361,38 @@ export class CatalogQueryService {
   private async directProductSetsByCategory(
     em: EntityManager,
     channel: CatalogResolvedChannel,
+    audience: ProductAudience,
   ): Promise<Map<string, Set<string>>> {
     const base = await em.execute<{ category_id: string; product_id: string }[]>(
       `select category_id, product_id from product_categories`,
     );
     if (base.length === 0) return new Map();
 
-    // Filter by visibility.
+    // Channel membership.
     const visibleIds = await this.filterByChannel(
       base.map((r) => r.product_id),
       channel,
     );
+    // Issue #227 — and the audience axis, which needs the two columns this
+    // path never loaded: `product_categories` carries ids and nothing else, so
+    // the rows come back here rather than the predicate going down there. The
+    // category tree publishes a `productCount` per node, and a count is the
+    // one field a restricted product can still move.
+    const restricted = new Set(
+      (
+        await em.find(
+          Product,
+          { id: { $in: [...visibleIds] } },
+          { fields: ['id', 'visibility', 'allowedOrganizationIds'] },
+        )
+      )
+        .filter((p) => !isProductVisibleTo(p, audience))
+        .map((p) => p.id),
+    );
     const sets = new Map<string, Set<string>>();
     for (const row of base) {
       if (!visibleIds.has(row.product_id)) continue;
+      if (restricted.has(row.product_id)) continue;
       let set = sets.get(row.category_id);
       if (!set) {
         set = new Set<string>();

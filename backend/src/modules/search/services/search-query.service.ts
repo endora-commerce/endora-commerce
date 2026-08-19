@@ -1,12 +1,14 @@
 import { Meilisearch, type SearchResponse } from 'meilisearch';
 import {
   ERROR_CODES,
+  isProductVisibleTo,
   listingPriceMoney,
   type CatalogAttributeReadPort,
   type CatalogProductReadPort,
   type CatalogProductRecord,
   type ListingPrice,
   type ListingPricePort,
+  type ProductAudience,
   type ProductSummary,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
@@ -47,6 +49,8 @@ export interface ResolvedSearchChannel {
 
 export interface SearchQueryContext {
   resolvedChannel: ResolvedSearchChannel;
+  /** Who is asking (issue #227) — see the published `SearchQueryContext`. */
+  audience: ProductAudience;
   preferredLanguage?: string | undefined;
 }
 
@@ -202,7 +206,18 @@ export class SearchQueryService {
     // Hydrate the channel-aware price + multilingual name override from
     // Postgres. This protects against stale index data and keeps R-18
     // (hide price on non-public channels) authoritative on Postgres.
-    const products = await this.products.findByIds(hits.map((h) => h.id));
+    //
+    // Issue #227 — and the audience answer, for the same reason and in the
+    // same place. It is **not** pushed into the Meilisearch filter expression:
+    // the index carries `visibility` but has never carried
+    // `allowed_organization_ids`, so a filter there could cover one of the two
+    // columns and would still need this pass to be correct — while reading, to
+    // the next author, as though the question were settled upstream. The cost
+    // is the one this path already pays for a stale index: a page can come
+    // back shorter than `limit`.
+    const products = (await this.products.findByIds(hits.map((h) => h.id))).filter((p) =>
+      isProductVisibleTo(p, ctx.audience),
+    );
     const productById = new Map(products.map((p) => [p.id, p]));
     // A channel that withholds prices is not asked for them (R-18), so the
     // resolution never runs and every hit reports `null`.
@@ -218,7 +233,8 @@ export class SearchQueryService {
     const summaries: ProductSummary[] = [];
     for (const hit of hits) {
       const product = productById.get(hit.id);
-      if (!product) continue; // Index pointed at a deleted row.
+      // Index pointed at a deleted row, or at one this audience may not see.
+      if (!product) continue;
       summaries.push(
         searchHitSummary(
           product,

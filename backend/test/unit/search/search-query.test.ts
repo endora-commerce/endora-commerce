@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CatalogProductReadPort } from '@b2b/contracts';
+import { ANONYMOUS_PRODUCT_AUDIENCE, type CatalogProductReadPort } from '@b2b/contracts';
 import {
   buildFilterExpression,
   buildSort,
@@ -78,6 +78,7 @@ describe('SearchQueryService — reserved-fallback contract', () => {
       service.listProducts(
         { limit: 10 },
         {
+          audience: ANONYMOUS_PRODUCT_AUDIENCE,
           resolvedChannel: {
             id: '00000000-0000-4000-8000-000000000000',
             code: 'test',

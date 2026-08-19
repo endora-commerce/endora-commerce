@@ -6,10 +6,12 @@ import type { BundleService } from './services/bundle.service.js';
 import {
   productLinkKindSchema,
   validateBundleConfigurationRequestSchema,
+  type ProductAudience,
   type SearchQueryPort,
 } from '@b2b/contracts';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { productAudienceOf } from './services/request-audience.js';
 
 /**
  * Public catalog routes (US1 read surface).
@@ -240,6 +242,7 @@ function readContext(request: FastifyRequest): {
     defaultCurrency: string;
     defaultLanguage: string;
   };
+  audience: ProductAudience;
   preferredLanguage?: string | undefined;
 } {
   // Feature 053 / FR-002: the sales channel is resolved once by the canonical
@@ -255,6 +258,7 @@ function readContext(request: FastifyRequest): {
       defaultCurrency: ch.defaultCurrency,
       defaultLanguage: ch.defaultLanguage,
     },
+    audience: productAudienceOf(request),
     preferredLanguage,
   };
 }
