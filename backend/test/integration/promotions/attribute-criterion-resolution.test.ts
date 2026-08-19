@@ -4,7 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import type { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { CatalogQueryService } from '../../../src/modules/catalog/services/catalog-query.service.js';
 import { CatalogProductReadService } from '../../../src/modules/catalog/services/catalog-product-read.service.js';
 import {
@@ -83,8 +84,10 @@ describe('PromotionService — attribute criterion resolution (T056)', () => {
     } as CatalogProductReadPort;
     // Issue #164 — the two catalog ports are the second and third arguments and
     // no longer optional, so this suite's recording pair is passed where every
-    // composition passes one.
-    svc = new PromotionService(h.em, catalog, recordingProducts);
+    // composition passes one. Issue #251 made the four behind them required as
+    // well, so the service comes from the helper: it resolves those four from
+    // the container and takes only the two this suite has a reason to wrap.
+    svc = promotionServiceFor(h, { attributes: catalog, products: recordingProducts });
     // Mark `material` as promo-eligible for the duration of the suite.
     const em = h.em();
     const material = await findAttributeExtensionByKey(em, 'material');

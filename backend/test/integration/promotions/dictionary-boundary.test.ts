@@ -6,7 +6,13 @@ import type { DictionaryValidator } from '../../../src/modules/dictionaries/serv
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { Currency } from '../../../src/modules/currencies/entities/currency.entity.js';
 import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
-import { unreachableCatalogPorts } from '../../helpers/promotion-service.js';
+import {
+  unreachableCatalogPorts,
+  unreachableOrganizationStatus,
+} from '../../helpers/promotion-service.js';
+import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
+import { EventBus } from '../../../src/events/bus.js';
 
 describe('Promotions dictionary boundary', () => {
   let db: TestDb;
@@ -31,12 +37,20 @@ describe('Promotions dictionary boundary', () => {
     // ports that refuse rather than ones that answer emptily: the second is the
     // shape the optional parameters used to produce.
     const catalog = unreachableCatalogPorts('the dictionary boundary suite composes no container');
+    // Issue #251 — the remaining four arguments are required too. The two the
+    // upsert path actually exercises are the real kernel services over this
+    // suite's transactional `em` (the channel bind and the audit row); the
+    // org-status resolver refuses, because this suite creates no Organization
+    // and never calls `applyToCart`.
+    const auditLog = new AuditLogService(() => em);
     service = new PromotionService(
       () => em,
       catalog.attributes,
       catalog.products,
-      undefined,
+      new SalesChannelMembershipService(() => em, new EventBus(), auditLog),
       validator,
+      unreachableOrganizationStatus('the dictionary boundary suite creates no Organization'),
+      auditLog,
     );
   });
 
