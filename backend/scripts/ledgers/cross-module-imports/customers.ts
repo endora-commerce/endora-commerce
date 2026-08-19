@@ -14,7 +14,9 @@
  * is a boundary the repository has decided to keep, and it needs a reason that
  * says so.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   'modules/customers/plugin.ts:admin_users/services/impersonation-service':
     'F3 Phase C — customers. Retired by the customers cut merge request.',
   'modules/customers/plugin.ts:carts/services/cart-query-service':

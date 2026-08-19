@@ -14,7 +14,9 @@
  * is a boundary the repository has decided to keep, and it needs a reason that
  * says so.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   // The `_i18n` cut merge request retired the other three: the two
   // `AdminUserService` sites became `adminUserPreferencePort`, and the
   // `LoadedManifestRegistry` type became the structural view this module

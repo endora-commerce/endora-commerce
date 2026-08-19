@@ -17,7 +17,9 @@
  * could not see, and three of the four sit beside a `catalogCategoryReadPort` call that
  * already asks `catalog` the next question.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   'modules/inventory/routes.ts:sql:catalog/product_categories':
     'Issue #187 seed — the availability route reads `catalog`\'s `product_categories` with ' +
     '`knex(\'product_categories\').where(\'product_id\', …)` to find the categories a ' +

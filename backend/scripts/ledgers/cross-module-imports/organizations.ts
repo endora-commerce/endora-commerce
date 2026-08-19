@@ -22,7 +22,9 @@
  * which to hand the file a port its own container resolved. Both entries carry
  * the question that retires them.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   'modules/organizations/routes.sales-reps.ts:admin_users/entities/admin-user.entity':
     'F3 Phase C — organizations, deliberately left. The reads are `AdminUserReadPort.findById` ' +
     'and `.findByIds`, both published, but this route file is registered by `quote_requests` ' +

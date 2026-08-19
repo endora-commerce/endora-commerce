@@ -128,12 +128,22 @@
  * because a single table makes all 45 cut merge requests edit one file, and that
  * is the serialisation point this design exists to remove.
  *
- * It fails **six** ways, not two: an unledgered import fails, a stale entry
+ * It fails **seven** ways, not two: an unledgered import fails, a stale entry
  * fails, an empty shard fails (delete the file instead), an orphan shard fails,
  * a **misfiled** entry fails — without that one, an engineer blocked on
  * `catalog` could park an `orders` finding in `catalog.ts` and both merge
- * requests would read green — and a **permanent entry with no retiring
- * condition** fails.
+ * requests would read green — a **permanent entry with no retiring condition**
+ * fails, and a shard that **declares an entry type of its own** fails
+ * (issue #217). The last one is what makes the sixth reachable: `payments` was
+ * typed `Readonly<Record<string, string>>` for as long as it existed, so its
+ * co-transactional seam could claim permanence in prose only — it counted
+ * toward `ledger-size` as debt nothing was going to drain, and
+ * {@link permanentEntryIssue} had no field to run on. It was not one file
+ * departing from a convention: **29 of the 33 shards** were typed that way, the
+ * four exceptions being the shards that had already had to hold a permanent
+ * entry, so the rule could not have been learned from the others' example. The
+ * declared type is now read from the shard's own source and compared against
+ * {@link CANONICAL_SHARD_ENTRY_TYPE}.
  *
  * There is **no global count** anyone can raise to make the build pass (FR-028):
  * `ledger-size` is derived from the walk and printed, never written down.
@@ -168,7 +178,7 @@
  *
  * Usage: `tsx scripts/check-module-boundary.ts [--list] [--tests] [--module <id>]`
  * Exit 0 = every cross-module reach is ledgered in its own shard;
- * exit 1 = at least one is not, or the ledger lies in one of the other four ways;
+ * exit 1 = at least one is not, or the ledger lies in one of the other six ways;
  * exit 2 = the check read nothing — no module sources, no ledger directory, or a
  * table→owner map in which **either** pass resolved zero tables. Each pass
  * proves it looked, and a silently empty migration pass is precisely the
@@ -330,6 +340,62 @@ export interface LedgerShard {
   readonly moduleId: string;
   /** Key → the reason it still stands and the question that retires it. */
   readonly entries: Readonly<Record<string, LedgerEntry>>;
+  /**
+   * The shard file's source text, so the analysis can read the entry type the
+   * file **declares** — see {@link shardShapeIssue}.
+   *
+   * `undefined` means "built in memory, no file to declare a type in", which is
+   * what the check's own fixtures hand in; {@link loadLedgerShards} always sets
+   * it, and refuses a shard whose file read back empty, so a real run cannot
+   * skip the signal by supplying nothing.
+   */
+  readonly source?: string;
+}
+
+/**
+ * The one entry type a shard may declare (issue #217).
+ *
+ * A shard is loaded through a dynamic `import`, so `tsc` sees its annotation and
+ * the check does not — and the annotation decides what an author is *able* to
+ * write in the file. `payments` declared `Readonly<Record<string, string>>`, so
+ * a `{ permanent: true, reason, retiredBy }` entry was a type error in it: the
+ * one edge a foreign key holds co-transactional had to claim permanence in
+ * prose, counted toward `ledger-size` as debt nothing would drain, and
+ * {@link permanentEntryIssue} never ran over that shard at all.
+ */
+export const CANONICAL_SHARD_ENTRY_TYPE = 'Readonly<Record<string, LedgerEntry>>';
+
+/** `export const entries: <type> =`, with the type as the only capture. */
+const ENTRY_DECLARATION = /export\s+const\s+entries\s*:([^=]+)=/;
+
+/**
+ * The entry type a shard's source declares, whitespace-normalised, or `null`
+ * when it declares none.
+ *
+ * Text rather than types, because the shard is imported at runtime: what the
+ * check can compare is the sentence the author wrote.
+ */
+export function declaredEntryType(source: string): string | null {
+  const declared = ENTRY_DECLARATION.exec(source)?.[1];
+  if (declared === undefined) return null;
+  const normalised = declared.replace(/\s+/g, ' ').trim();
+  return normalised === '' ? null : normalised;
+}
+
+/**
+ * Why a shard's declared entry type is not acceptable, or `null` when it is —
+ * including when the shard has no source, which is an in-memory fixture rather
+ * than a file that got the declaration wrong.
+ */
+export function shardShapeIssue(moduleId: string, source: string | undefined): string | null {
+  if (source === undefined) return null;
+  const declared = declaredEntryType(source);
+  if (declared === CANONICAL_SHARD_ENTRY_TYPE) return null;
+  const found = declared === null ? 'declares no entry type' : `declares \`${declared}\``;
+  return (
+    `${moduleId} ${found} — a shard declares \`${CANONICAL_SHARD_ENTRY_TYPE}\`, or a ` +
+    'permanent entry cannot be written in it and its permanence is never checked (issue #217)'
+  );
 }
 
 /**
@@ -407,6 +473,8 @@ export interface CheckResult {
   readonly permanentKeys: readonly string[];
   /** A permanent entry that states no reason or no retiring condition. */
   readonly permanentIssues: readonly string[];
+  /** A shard whose file declares an entry type of its own (issue #217). */
+  readonly shardShapeIssues: readonly string[];
   /** What each pass of the table→owner map resolved, and what is left over. */
   readonly tableOwners: TableOwnerReport;
 }
@@ -723,11 +791,14 @@ export function checkModuleBoundary(
   const orphanShards: string[] = [];
   const permanentKeys: string[] = [];
   const permanentIssues: string[] = [];
+  const shardShapeIssues: string[] = [];
 
   for (const shard of shards) {
     const keys = Object.keys(shard.entries);
     if (keys.length === 0) emptyShards.push(shard.moduleId);
     if (!modules.has(shard.moduleId)) orphanShards.push(shard.moduleId);
+    const shapeIssue = shardShapeIssue(shard.moduleId, shard.source);
+    if (shapeIssue !== null) shardShapeIssues.push(shapeIssue);
     for (const key of keys) {
       const file = fileOfKey(key);
       const owner = file === null ? null : moduleLocationOf(file);
@@ -764,6 +835,7 @@ export function checkModuleBoundary(
     misfiledEntries: misfiledEntries.sort(),
     permanentKeys: permanentKeys.sort(),
     permanentIssues: permanentIssues.sort(),
+    shardShapeIssues: shardShapeIssues.sort(),
     tableOwners: sql.report,
   };
 }
@@ -847,7 +919,14 @@ export async function loadLedgerShards(directory: string): Promise<LedgerShard[]
     if (typeof entries !== 'object' || entries === null) {
       throw new Error(`ledger shard '${moduleId}' failed to load: it exports no 'entries' record`);
     }
-    shards.push({ moduleId, entries: entries as Readonly<Record<string, string>> });
+    // The imported value cannot say what the file *declares*, so the source is
+    // carried alongside it — and an empty read is "read nothing" like the two
+    // failures above, never a shard the shape signal silently skips.
+    const source = readFileSync(join(directory, name), 'utf8');
+    if (source.trim() === '') {
+      throw new Error(`ledger shard '${moduleId}' failed to load: its source read back empty`);
+    }
+    shards.push({ moduleId, entries: entries as Readonly<Record<string, LedgerEntry>>, source });
   }
   return shards;
 }
@@ -1213,6 +1292,15 @@ async function main(): Promise<void> {
     for (const issue of result.permanentIssues) console.error(`  - ${issue}`);
   }
 
+  if (result.shardShapeIssues.length > 0) {
+    console.error(
+      '\nA ledger shard declares one entry type. A shard of its own typing decides what an\n' +
+        'author can write in it — a string-typed one cannot hold a permanent entry at all,\n' +
+        'so the rule above never runs over it (issue #217):',
+    );
+    for (const issue of result.shardShapeIssues) console.error(`  - ${issue}`);
+  }
+
   const failed =
     result.violations.length > 0 ||
     result.stale.length > 0 ||
@@ -1220,6 +1308,7 @@ async function main(): Promise<void> {
     result.orphanShards.length > 0 ||
     result.misfiledEntries.length > 0 ||
     result.permanentIssues.length > 0 ||
+    result.shardShapeIssues.length > 0 ||
     exemptionIssues.length > 0;
   process.exit(failed ? 1 : 0);
 }

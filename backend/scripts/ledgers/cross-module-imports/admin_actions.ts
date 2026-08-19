@@ -15,7 +15,9 @@
  * its table as a call argument, so neither the import predicate nor D-87's statement path
  * could see it. It is not a new coupling — it is a coupling the check could not see.
  */
-export const entries: Readonly<Record<string, string>> = {
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
   'modules/admin_actions/services/admin-actions-service.ts:sql:kernel/module_registrations':
     'Issue #187 seed — the palette query joins the kernel\'s `module_registrations` table ' +
     'to keep actions whose module is not installed out of the result, and it does so with ' +
