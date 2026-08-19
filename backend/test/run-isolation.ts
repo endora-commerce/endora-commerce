@@ -117,6 +117,25 @@ export function isolationMode(env: NodeJS.ProcessEnv = process.env): IsolationMo
   );
 }
 
+/**
+ * Why this run is sharing the base database rather than taking one of its own,
+ * or `undefined` when it is not.
+ */
+export function sharedDatabaseReason(
+  env: NodeJS.ProcessEnv,
+  baseName: string,
+): 'explicit' | 'name-override' | undefined {
+  if (isolationMode(env) === 'shared') return 'explicit';
+  if (!TEST_DATABASE_NAME_PATTERN.test(baseName)) return 'name-override';
+  return undefined;
+}
+
+/** Whether this run keeps its database for a post-mortem instead of dropping it. */
+export function keepRunDatabase(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env[KEEP_DATABASE_ENV]?.trim();
+  return raw !== undefined && raw !== '' && raw !== '0' && raw !== 'false';
+}
+
 function assertSafeIdentifier(name: string): void {
   if (!/^[A-Za-z0-9_]+$/.test(name)) {
     throw new Error(

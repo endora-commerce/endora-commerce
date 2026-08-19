@@ -38,9 +38,11 @@ import {
   ISOLATION_ENV,
   KEEP_DATABASE_ENV,
   TEST_DATABASE_NAME_PATTERN,
-  isolationMode,
+  databaseNameOf,
+  keepRunDatabase,
   redisUrlNamesDatabase,
   runIdentity,
+  sharedDatabaseReason,
 } from './run-isolation.js';
 import {
   dropRunDatabase,
@@ -205,17 +207,23 @@ export default async function globalSetup(): Promise<Teardown | void> {
 
   const baseUrl = resolveTestDatabaseUrl();
 
-  // The pre-#189 behaviour, kept as an explicit opt-out: every invocation on
-  // one database. Worth having for a post-mortem — the run database is dropped
-  // when the run ends, and sometimes what you want is the database a failing
-  // run left behind, under a name you already know.
-  if (isolationMode() === 'shared') {
+  // The pre-#189 behaviour, on either of two grounds. The first is an explicit
+  // opt-out, worth having for a post-mortem — the run database is dropped when
+  // the run ends, and sometimes what you want is the database a failing run
+  // left behind, under a name you already know. The second is
+  // ALLOW_NON_TEST_DATABASE_URL: that override is somebody deliberately
+  // pointing the suite at a database whose name breaks the convention, and a
+  // name derived from it would break it too. Isolation refuses to widen the
+  // judgement, so it stands down instead of throwing at a person who already
+  // said they know what they are doing.
+  const shared = sharedDatabaseReason(process.env, databaseNameOf(baseUrl));
+  if (shared !== undefined) {
     process.env['DATABASE_URL'] = baseUrl;
     await ensureDatabaseExists(baseUrl);
     await applyMigrations();
     process.stdout.write(
-      `[test-setup] ${ISOLATION_ENV}=shared — this invocation shares ` +
-        `${new URL(baseUrl).pathname.replace(/^\//, '')} with every other one.\n`,
+      `[test-setup] ${shared === 'explicit' ? `${ISOLATION_ENV}=shared` : 'ALLOW_NON_TEST_DATABASE_URL'}` +
+        ` — this invocation shares ${databaseNameOf(baseUrl)} with every other one.\n`,
     );
     return;
   }
@@ -254,7 +262,7 @@ export default async function globalSetup(): Promise<Teardown | void> {
 
   return async () => {
     await lease?.release();
-    if (process.env[KEEP_DATABASE_ENV]) {
+    if (keepRunDatabase()) {
       process.stdout.write(
         `[test-setup] ${KEEP_DATABASE_ENV} is set — keeping ${run.name}. ` +
           `Drop it yourself, or leave it for the sweep in ~4 h.\n`,
