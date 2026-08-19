@@ -3,6 +3,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type {
   AuthSessionPort,
+  CustomerAccountAdminSearchPort,
+  CustomerAccountLifecycleWritePort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
   CustomerAuthPort,
@@ -33,6 +35,10 @@ import {
   createCustomerAuthPort,
   createCustomerRolePort,
 } from './services/customer-account-ports.js';
+import {
+  CustomerAccountAdminSearchService,
+  CustomerAccountLifecycleWriteService,
+} from './services/customer-account-lifecycle-ports.js';
 import { CustomerAuthService } from './services/customer-auth-service.js';
 import { CustomerGroupReadService } from './services/customer-group-read-port.js';
 import { CustomerGroupService } from './services/customer-group-service.js';
@@ -168,6 +174,37 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
           new CustomerAccountMemberWriteService(emFactory, auditLogService),
+      )
+      .singleton(),
+  );
+
+  /**
+   * Feature 075, Phase C — the account lifecycle `customers` runs over this
+   * table, and the list its admin screen reads it with.
+   *
+   * `customers` is the management surface over these accounts and it ran both
+   * by holding the entity: block, unblock, soft-delete, restore, the retention
+   * sweep's scrub, the organisation and group assignments, standalone
+   * registration and the custom-field patch, plus the paginated admin query.
+   * The policy — who may act on whom, and the "an organisation keeps an
+   * administrator" guard — stayed on that side; the statement and its one audit
+   * row are here.
+   */
+  ctx.di.providePort<CustomerAccountLifecycleWritePort>(
+    'customerAccountLifecycleWritePort',
+    ctx
+      .asFunction(
+        ({ emFactory, auditLogService, commandBus }: CustomerAccountsCradle) =>
+          new CustomerAccountLifecycleWriteService(emFactory, auditLogService, commandBus),
+      )
+      .singleton(),
+  );
+
+  ctx.di.providePort<CustomerAccountAdminSearchPort>(
+    'customerAccountAdminSearchPort',
+    ctx
+      .asFunction(
+        ({ emFactory }: CustomerAccountsCradle) => new CustomerAccountAdminSearchService(emFactory),
       )
       .singleton(),
   );
