@@ -46,6 +46,19 @@ Each entry MUST carry a stable `id`, a translatable `labelKey`, an `icon` from t
 allowlist, and a `targetRoute`. Optional fields are `descriptionKey`, `requiredPermission`,
 `keywords` (up to 10), and `weight` (default 100).
 
+`requiredPermission` is optional in the schema and all but mandatory in practice: it must be
+**the code the backend enforces on the route behind `targetRoute`**, so the palette never
+advertises a 403 and never hides a screen from an operator entitled to open it. Both failures
+happened — `settings/open-settings` shipped with no code at all against a `settings:read`
+route, and `inventory/open-inventory` declared `catalog:write` against an `orders:read` one —
+and the permission inventory could not see either, because it sweeps whether a code is
+*enforced somewhere*, not whether it is enforced *here*.
+`pnpm --filter backend run check:action-route-permissions` compares the two, resolving the SPA
+`targetRoute` to the admin API route that gates it. Leave the field unset only when the
+destination genuinely has no gate; where the screen is read-gated but the action's label
+promises a write, the field cannot say both, and the disagreement is recorded in that check's
+ledger rather than guessed at.
+
 Within-module `id` uniqueness is enforced by the manifest's Zod schema — installing a
 manifest with two actions sharing an id fails the install with a clear, indexed error.
 

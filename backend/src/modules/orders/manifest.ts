@@ -425,7 +425,13 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.orderStatusConfig.description',
       icon: 'Settings',
       targetRoute: '/orders/statuses',
-      requiredPermission: 'orders:write',
+      // The code that gates the destination: `GET /api/v1/admin/orders/statuses`
+      // is `orders:read`, so a read-only operator can open the screen and this
+      // action is what tells them it exists. Declaring `orders:write` — on the
+      // view that the screen is a configuration editor — hid it from them
+      // instead (issue #232). If the editor reading is the right one, it is the
+      // route that has to change, and that is a behaviour change of its own.
+      requiredPermission: 'orders:read',
       keywords: ['order status', 'lifecycle', 'statusy', 'cykl życia'],
       weight: 225,
     },

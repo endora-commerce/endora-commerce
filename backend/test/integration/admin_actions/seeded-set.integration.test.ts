@@ -131,19 +131,21 @@ describe('seeded action set (integration, v1)', () => {
     }
   });
 
-  it('an operator with no permissions sees only the no-permission actions (settings/open-settings)', async () => {
+  it('an operator with no permissions sees no seeded action at all', async () => {
     const service = buildService([]);
     const result = await service.listVisibleForOperator({
       language: 'en',
       adminUserId: 'guest',
     });
     const visible = result.actions.filter((a) => MODULE_IDS.includes(a.moduleId));
-    // settings.open-settings is the only seeded action without a
-    // requiredPermission — it should be the only one a no-perms
-    // operator sees.
-    expect(visible.map((a) => `${a.moduleId}:${a.actionId}`)).toEqual([
-      'settings:open-settings',
-    ]);
+    // This used to assert that `settings:open-settings` survives, on the
+    // grounds that it was the one seeded action without a `requiredPermission`.
+    // That absence was the defect (issue #232), not a property: `/settings` is
+    // `requireAdmin('settings:read')`, so the row this test protected was a
+    // guaranteed 403 for every role that reached it. With the code declared,
+    // an operator holding nothing is offered nothing — which is what Principle
+    // XVI item 2 asks for.
+    expect(visible.map((a) => `${a.moduleId}:${a.actionId}`)).toEqual([]);
   });
 });
 

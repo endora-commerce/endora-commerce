@@ -77,6 +77,9 @@ const RESIDUE_ROOTS: readonly string[] = [
  */
 export const KEPT_MODULE = '_lifecycle';
 
+/** Single files of other modules a spawned check imports as code. */
+const KEPT_MODULE_FILES: readonly string[] = ['admin_roles/permission-inventory.ts'];
+
 export interface MovedModuleTreeOptions {
   /**
    * What the stub index registers. Defaults to every real module id — the
@@ -194,6 +197,15 @@ export function createMovedModuleTreeFixture(
     join(BACKEND_ROOT, 'src', 'modules', KEPT_MODULE, 'manifest.ts'),
     join(backend, 'src', 'modules', KEPT_MODULE, 'manifest.ts'),
   );
+  // Same reason as the two files above: `check-action-route-permissions`
+  // imports the gate-argument resolver as *code*, so without it that spawn dies
+  // at module resolution and its proof would pass for the wrong reason. It is
+  // one file of one module, so the fixture stays the hard case — the walk still
+  // produces sources for two of the 65 registered modules.
+  for (const file of KEPT_MODULE_FILES) {
+    mkdirSync(join(backend, 'src', 'modules', dirname(file)), { recursive: true });
+    cpSync(join(BACKEND_ROOT, 'src', 'modules', file), join(backend, 'src', 'modules', file));
+  }
   writeFileSync(
     join(backend, 'src', 'modules', KEPT_MODULE, 'manifest-index.generated.ts'),
     stubManifestIndex(options.registeredIds ?? DISCOVERED_MANIFESTS.map((entry) => entry.id)),

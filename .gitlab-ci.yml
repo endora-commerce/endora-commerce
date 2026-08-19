@@ -166,6 +166,18 @@ quality:
     # and every module manifest. No ledger: a claim the manifests contradict is
     # never right to stand.
     - pnpm --filter backend run check:lock-claims
+    # Issue #232 — a manifest action's `requiredPermission` is the code enforced
+    # on its own `targetRoute`. The permission inventory sweeps two directions,
+    # enforced ⇒ grantable and grantable ⇒ enforced, and both of the defects that
+    # produced this check passed it: `settings`' palette entry declared no code
+    # at all against an `settings:read` route, and `inventory`'s declared
+    # `catalog:write` against an `orders:read` one — real codes, enforced
+    # somewhere, on the wrong route. Agreement is sufficiency, not equality, so a
+    # member of an any-of gate passes it. `ACTION_PERMISSION_DISAGREEMENTS` is a
+    # two-way ratchet holding the three verb-labelled actions whose screen needs
+    # a read code to open and a write code to use — a single field cannot say
+    # both, and the choice is the owner's.
+    - pnpm --filter backend run check:action-route-permissions
     # Issue #111 — a test releases a harness-owned resource through
     # `teardownBackendServer`, never by closing it itself. Seventy-seven files had
     # copied the same three lines (`app.close`, `redis.disconnect`, `orm.close`)

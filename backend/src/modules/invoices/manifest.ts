@@ -190,7 +190,9 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.invoiceTemplates.description',
       icon: 'Layers',
       targetRoute: '/invoices/templates',
-      requiredPermission: 'invoices:write',
+      // `invoices:read` — `GET /api/v1/admin/invoice-templates` is read-gated,
+      // and the row is a destination rather than an operation (issue #232).
+      requiredPermission: 'invoices:read',
       keywords: ['invoice template', 'szablon faktury', 'pdf'],
       weight: 245,
     },

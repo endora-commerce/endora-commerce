@@ -14,6 +14,10 @@ import {
   collectScannedFiles,
   isMigratedModulePath,
 } from '../../../scripts/check-command-coverage.js';
+import {
+  analyse as actionRouteAnalyse,
+  type ActionRecord,
+} from '../../../scripts/check-action-route-permissions.js';
 import { analyzeSource as containerAnalyze } from '../../../scripts/check-container-imports.js';
 import {
   checkDocument,
@@ -261,6 +265,18 @@ const PORT_DOC = (container: string): string =>
     '  list(): Promise<Record[]>;',
     '}',
   ].join('\n');
+
+/** One gated admin route, as a module writes it — the route half of issue #232. */
+const ACTION_ROUTE_FILE = 'modules/inventory/routes.admin.ts';
+const GATED_ADMIN_ROUTE =
+  "app.get('/api/v1/admin/inventory', { preHandler: requireAdmin('orders:read') }, h);";
+
+/** The manifest half: `settings`' shape, the one action of 53 that declared none. */
+const ACTION_WITHOUT_CODE: ActionRecord = {
+  moduleId: 'inventory',
+  actionId: 'open-inventory',
+  targetRoute: '/inventory',
+};
 
 const UNAUDITED_WRITE = `
   export class ThingService {
@@ -2750,6 +2766,96 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // Five shapes, because a wrong permission and an unreadable one fail
+    // differently: the two directions of a bad code (declared none, declared
+    // another module's), and the three ways the target cannot be resolved
+    // (nothing registers it, the candidates disagree, the gate cannot be read).
+    // The last is the one that would turn every `missing` finding into a pass if
+    // it went blind, since an unreadable `preHandler` read as "no gate" agrees
+    // with everything. Each fixture is source text: a proof handed a ready-made
+    // route record would skip the gate reading the comparison rests on.
+    script: 'backend/scripts/check-action-route-permissions.ts',
+    npmScript: 'check:action-route-permissions',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-action-route-permissions.test.ts',
+    vacuousGuard: 'exit-2',
+    residueGuard: 'derived-population',
+    red: {
+      'action-declaring-no-code': top(
+        () =>
+          actionRouteAnalyse(
+            {
+              sources: new Map([[ACTION_ROUTE_FILE, GATED_ADMIN_ROUTE]]),
+              actions: [ACTION_WITHOUT_CODE],
+            },
+            {},
+          ).violations.length,
+      ),
+      'action-declaring-another-routes-code': top(
+        () =>
+          actionRouteAnalyse(
+            {
+              sources: new Map([[ACTION_ROUTE_FILE, GATED_ADMIN_ROUTE]]),
+              actions: [{ ...ACTION_WITHOUT_CODE, requiredPermission: 'catalog:write' }],
+            },
+            {},
+          ).violations.length,
+      ),
+      'target-route-nothing-registers': top(
+        () =>
+          actionRouteAnalyse(
+            {
+              sources: new Map([[ACTION_ROUTE_FILE, GATED_ADMIN_ROUTE]]),
+              actions: [
+                { ...ACTION_WITHOUT_CODE, moduleId: 'ghosts', targetRoute: '/ghost' },
+              ],
+            },
+            {},
+          ).violations.length,
+      ),
+      'candidates-that-disagree': top(
+        () =>
+          actionRouteAnalyse(
+            {
+              sources: new Map([
+                [
+                  ACTION_ROUTE_FILE,
+                  [
+                    "app.get('/api/v1/admin/inventory/state', { preHandler: requireAdmin('orders:read') }, h);",
+                    "app.get('/api/v1/admin/inventory/presence', { preHandler: requireAdmin() }, h);",
+                  ].join('\n'),
+                ],
+              ]),
+              actions: [{ ...ACTION_WITHOUT_CODE, requiredPermission: 'orders:read' }],
+            },
+            {},
+          ).violations.length,
+      ),
+      'gate-it-cannot-read': top(
+        () =>
+          actionRouteAnalyse(
+            {
+              sources: new Map([
+                [
+                  ACTION_ROUTE_FILE,
+                  "app.get('/api/v1/admin/inventory', { preHandler: guards[level] }, h);",
+                ],
+              ]),
+              actions: [ACTION_WITHOUT_CODE],
+            },
+            {},
+          ).violations.length,
+      ),
+      'stale-ledger-entry': top(
+        () =>
+          actionRouteAnalyse(
+            { sources: new Map([[ACTION_ROUTE_FILE, GATED_ADMIN_ROUTE]]), actions: [] },
+            { 'inventory:open-inventory': 'undecided' },
+          ).stale.length,
+      ),
+    },
+  },
+  {
     // Three signals, and the fixture for each names only its own: a bus-shaped
     // receiver with an event name no signal 3 would match, a domain event off a
     // receiver no signal 1 would match, and a cast around a bus. Written as one
@@ -3341,6 +3447,9 @@ describe('every red proof enters at the top of the analysis', () => {
       CHECKS.map((check) => [check.script, Object.keys(check.red).length]),
     );
     expect(shapes).toEqual({
+      // Two directions of a wrong code, three ways a target cannot be resolved,
+      // and the ledger's stale direction.
+      'backend/scripts/check-action-route-permissions.ts': 6,
       'backend/scripts/check-channel-resolution.ts': 5,
       // Five, plus D-89's five: `em.create` joining the vocabulary, the two
       // narrowings that keep it from manufacturing findings, the field
