@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomerAccountReadPort, OnlineCustomer } from '@b2b/contracts';
+import type { OnlineCustomer } from '@b2b/contracts';
+import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { Session } from '../../auth/entities/session.entity.js';
 
 /**
@@ -16,12 +17,6 @@ export class CustomerPresenceService {
     private readonly emFactory: () => EntityManager,
     private readonly sessions: RecentActivityPort,
     private readonly resolveFreshnessMinutes: () => Promise<number>,
-    /**
-     * Feature 075 — `customer_accounts`' published read, where this service ran
-     * `em.find(CustomerAccount, …)` over that module's table. The four fields
-     * it renders are all on the record.
-     */
-    private readonly accounts: CustomerAccountReadPort,
   ) {}
 
   async listOnline(): Promise<OnlineCustomer[]> {
@@ -29,9 +24,9 @@ export class CustomerPresenceService {
     const ids = await this.sessions.listRecentlyActiveCustomers(windowMinutes);
     if (ids.length === 0) return [];
 
-    const customers = await this.accounts.findByIds(ids, { activeOnly: true });
-    // Latest activity per customer, for the displayed timestamp.
     const em = this.emFactory();
+    const customers = await em.find(CustomerAccount, { id: { $in: ids }, deletedAt: null });
+    // Latest activity per customer, for the displayed timestamp.
     const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000);
     const sessions = await em.find(
       Session,
