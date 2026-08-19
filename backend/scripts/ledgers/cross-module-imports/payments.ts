@@ -13,18 +13,38 @@
  * three left are all in `receive-payment-handler.ts`, and none of them carries
  * the sweep's default reason: one is **permanent** under D-78 point 2, and two
  * wait on a named merge request rather than on a date.
+ *
+ * The permanent one said so in prose only until issue #217. A bare string is
+ * read as a draining reason whatever it spells, so the entry counted toward
+ * `ledger-size` — debt the sweep is measured against, over a seam a foreign key
+ * holds — and `permanentEntryIssue` never ran on it, which is the check that
+ * refuses a permanence claim naming no retiring condition. It is now the same
+ * `{ permanent: true, reason, retiredBy }` shape `catalog`, `orders` and
+ * `shipments` carry, so the classification is structural rather than a word in
+ * a sentence.
  */
-export const entries: Readonly<Record<string, string>> = {
-  'modules/payments/services/receive-payment-handler.ts:orders/entities/order.entity':
-    'PERMANENT (D-78 point 2). `payments.order_id` carries a declared foreign key into ' +
-    '`orders.id` — `payments_order_fk`, `on delete restrict` — and a gateway callback moves ' +
-    'the payment row and the order’s `status` / `paymentStatus` inside one `em.transactional`, ' +
-    'so either both land or neither does. `emFactory` forks per call, so a read port executes ' +
-    'on the owner’s EntityManager, in a different transaction; routing this write through one ' +
-    'would trade the atomicity for a boundary without saying so. D-78 rules such a seam kept, ' +
-    'on the caller’s EntityManager, and **declared**: `orders` is in this module’s manifest ' +
-    '`dependencies`, this entry names the constraint, and the import site carries a comment ' +
-    'saying which transaction the write runs in. Retired by: nothing. It is the answer.',
+import type { LedgerEntry } from '../../check-module-boundary.js';
+
+export const entries: Readonly<Record<string, LedgerEntry>> = {
+  'modules/payments/services/receive-payment-handler.ts:orders/entities/order.entity': {
+    permanent: true,
+    reason:
+      'PERMANENT (D-78 point 2). `payments.order_id` carries a declared foreign key into ' +
+      '`orders.id` — `payments_order_fk`, `on delete restrict` — and a gateway callback moves ' +
+      'the payment row and the order’s `status` / `paymentStatus` inside one `em.transactional`, ' +
+      'so either both land or neither does. `emFactory` forks per call, so a read port executes ' +
+      'on the owner’s EntityManager, in a different transaction; routing this write through one ' +
+      'would trade the atomicity for a boundary without saying so. D-78 rules such a seam kept, ' +
+      'on the caller’s EntityManager, and **declared**: `orders` is in this module’s manifest ' +
+      '`dependencies`, this entry names the constraint, and the import site carries a comment ' +
+      'saying which transaction the write runs in. `shipments` carries the identical seam in ' +
+      '`receive-shipment-handler.ts`, settled the same way by D-90.',
+    retiredBy:
+      'F4 gives `orders` a package entry point, at which point this is a package dependency the ' +
+      'manifest already declares rather than an import of internals. Dropping ' +
+      '`payments_order_fk` would retire it too, and would cost the invariant the constraint ' +
+      'buys — a payment row pointing at no order.',
+  },
   'modules/payments/services/receive-payment-handler.ts:payment_methods/entities/payment-method.entity':
     'F3 Phase C — a pure read with a port ready for it (`paymentMethodReadPort`), blocked on ' +
     'the constructor rather than on the read. `stripe`, `payu`, `tpay` and `autopay` each ' +
