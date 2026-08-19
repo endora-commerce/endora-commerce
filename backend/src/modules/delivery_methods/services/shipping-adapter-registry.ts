@@ -17,6 +17,36 @@ import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js
  *
  * Collision policy mirrors the PaymentAdapterRegistry: last-writer-wins with a
  * warning, so a re-registration during a hot reload or re-enable does not throw.
+ *
+ * **The push happens once, during composition; every read happens later, per
+ * operation.** That half was written down only for the payment twin, and the
+ * omission is what a contributor infers a rule from: nothing here is read while
+ * modules are being composed, so an adapter that is not in the table yet — or
+ * whose owner is switched off — is not a fault a contributor can observe, let
+ * alone react to. The reads are `ShippingMethodEligibilityService.filter` on
+ * `GET /api/v1/delivery-methods`, the `isRegistered` guard on the admin upsert
+ * `PUT /api/v1/admin/delivery-methods/:code`, `orders` re-validating the chosen
+ * method and firing `onOrderCreated` at placement, `ShipmentService.create`
+ * firing `onShipmentCreated`, and the order-confirmation e-mail resolving
+ * `renderers.email`. Each of those runs inside a request, after every boot hook
+ * has run.
+ *
+ * So a contributor's boot hook **pushes and returns**: it does not check that
+ * the table already holds anything, does not verify that `delivery_methods` is
+ * present, and never treats an absent adapter as fatal. A throw there is not a
+ * delivery method dropping out — `runBootHooks` attributes the failure to the
+ * module and re-throws `ModuleCompositionError`, and `index.ts` turns that into
+ * `process.exit(1)`, so an operator's switch takes down the next start instead
+ * of one adapter. Nor may the push probe presence (D-67/D-68): the enumeration
+ * here already answers that question, per read, and a probe at the push would
+ * make switching a carrier back on require a restart. A hook that also *does
+ * work* is split in two before either rule applies — the working half probes,
+ * the contributing half never does.
+ *
+ * There is likewise no order to get right between contributors. Every push
+ * lands in one process-wide table (`registry-singleton.ts`) during composition,
+ * and no read of it happens until a request does; an adapter a colleague
+ * contributes is visible to the first read either way.
  */
 export interface RegistryLogger {
   warn(message: string): void;
