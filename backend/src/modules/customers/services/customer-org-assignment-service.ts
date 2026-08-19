@@ -1,9 +1,11 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type CustomerAccountLifecycleWritePort,
+  type CustomerAccountReadPort,
+  type CustomerAccountRecord,
+  type OrganizationDetailsPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 import type { ModerationActor } from './customer-moderation-service.js';
 
@@ -12,65 +14,59 @@ import type { ModerationActor } from './customer-moderation-service.js';
  * Organization (feature 040, US5 / FR-026). Both actions are authority-checked
  * and audited; unassigning the last usable org admin is refused (depletion
  * guard, mirroring moderation).
+ *
+ * **Feature 075, Phase C — neither row is this module's.** The membership
+ * column belongs to `customer_accounts` and the organisation it points at
+ * belongs to `organizations`; both are reached through their published ports
+ * now, and the audit row goes with the write. The authority checks and the
+ * depletion guard stay here, because they are this module's policy.
  */
 export class CustomerOrgAssignmentService {
   constructor(
-    private readonly emFactory: () => EntityManager,
+    private readonly accounts: CustomerAccountReadPort,
+    private readonly accountWrites: CustomerAccountLifecycleWritePort,
+    private readonly organizations: OrganizationDetailsPort,
     private readonly authority: CustomerAuthorityService,
-    private readonly auditLog: AuditLogService,
   ) {}
 
   async assign(
     customerAccountId: string,
     organizationId: string,
     actor: ModerationActor,
-  ): Promise<CustomerAccount> {
-    const em = this.emFactory();
-    const customer = await this.loadActive(em, customerAccountId);
+  ): Promise<CustomerAccountRecord> {
+    const customer = await this.loadActive(customerAccountId);
 
     // Actor must be able to manage the customer in its CURRENT state and in
     // the TARGET organization.
     await this.assertAuthorized(actor, customer.organizationId ?? null);
     await this.assertAuthorized(actor, organizationId);
 
-    const org = await em.findOne(Organization, { id: organizationId });
+    const org = await this.organizations.findById(organizationId);
     if (!org) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
     }
 
-    const before = { organizationId: customer.organizationId ?? null };
-    customer.organizationId = organizationId;
-    await em.flush();
-
-    await this.auditLog.record({
+    return this.accountWrites.setOrganization(customer.id, organizationId, {
       actorAdminUserId: actor.adminUserId,
-      action: 'customer_account.organization_assigned',
-      objectType: 'customer_account',
-      objectId: customer.id,
-      stateBefore: before,
-      stateAfter: { organizationId },
     });
-    return customer;
   }
 
   async unassign(
     customerAccountId: string,
     actor: ModerationActor,
-  ): Promise<CustomerAccount> {
-    const em = this.emFactory();
-    const customer = await this.loadActive(em, customerAccountId);
+  ): Promise<CustomerAccountRecord> {
+    const customer = await this.loadActive(customerAccountId);
     await this.assertAuthorized(actor, customer.organizationId ?? null);
 
     if (!customer.organizationId) return customer; // already standalone
 
     // Refuse to strand the org without an admin.
     if (customer.role === 'organization_admin') {
-      const remaining = await em.count(CustomerAccount, {
-        organizationId: customer.organizationId,
-        role: 'organization_admin',
-        deletedAt: null,
-        id: { $ne: customer.id },
-      });
+      const remaining = await this.accounts.countByOrganizationRole(
+        customer.organizationId,
+        'organization_admin',
+        { excludeCustomerAccountId: customer.id, activeOnly: true },
+      );
       if (remaining === 0) {
         throw new HttpError(
           409,
@@ -80,19 +76,9 @@ export class CustomerOrgAssignmentService {
       }
     }
 
-    const before = { organizationId: customer.organizationId };
-    customer.organizationId = null;
-    await em.flush();
-
-    await this.auditLog.record({
+    return this.accountWrites.setOrganization(customer.id, null, {
       actorAdminUserId: actor.adminUserId,
-      action: 'customer_account.organization_unassigned',
-      objectType: 'customer_account',
-      objectId: customer.id,
-      stateBefore: before,
-      stateAfter: { organizationId: null },
     });
-    return customer;
   }
 
   /** Sets (or clears) the customer's direct customer-group (feature 040, US6). */
@@ -100,28 +86,17 @@ export class CustomerOrgAssignmentService {
     customerAccountId: string,
     customerGroupId: string | null,
     actor: ModerationActor,
-  ): Promise<CustomerAccount> {
-    const em = this.emFactory();
-    const customer = await this.loadActive(em, customerAccountId);
+  ): Promise<CustomerAccountRecord> {
+    const customer = await this.loadActive(customerAccountId);
     await this.assertAuthorized(actor, customer.organizationId ?? null);
 
-    const before = { customerGroupId: customer.customerGroupId ?? null };
-    customer.customerGroupId = customerGroupId;
-    await em.flush();
-
-    await this.auditLog.record({
+    return this.accountWrites.setCustomerGroup(customer.id, customerGroupId, {
       actorAdminUserId: actor.adminUserId,
-      action: 'customer_account.group_assigned',
-      objectType: 'customer_account',
-      objectId: customer.id,
-      stateBefore: before,
-      stateAfter: { customerGroupId },
     });
-    return customer;
   }
 
-  private async loadActive(em: EntityManager, id: string): Promise<CustomerAccount> {
-    const customer = await em.findOne(CustomerAccount, { id, deletedAt: null });
+  private async loadActive(id: string): Promise<CustomerAccountRecord> {
+    const customer = await this.accounts.findById(id, { activeOnly: true });
     if (!customer) {
       throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
     }

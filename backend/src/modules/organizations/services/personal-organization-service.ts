@@ -6,6 +6,7 @@ import {
   type CustomerAccountRecord,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { Organization } from '../entities/organization.entity.js';
 
 /**
@@ -23,22 +24,11 @@ export interface PersonalOrganizationAccountPorts {
 }
 
 /**
- * The account fields this service reads, as a shape rather than a class.
- *
- * {@link PersonalOrganizationService.ensureFor} takes one of these and a live
- * `EntityManager` the caller is mid-transaction in. `customers` is the only
- * caller and passes its managed `CustomerAccount`, which satisfies this shape
- * structurally — so the entity stops being *named* here while that module
- * waits for its own Phase-C merge request. The overload goes with it; the
- * whole flow is `ensureForCustomerAccountId` on the other side of the port.
+ * The name a scrubbed personal organisation is renamed to. It matches the one
+ * `customer_accounts` writes over the member's own first and last name,
+ * because a personal organisation's name *is* that person's name.
  */
-export interface PersonalOrganizationAccountShape {
-  id: string;
-  organizationId?: string | null;
-  firstName: string;
-  lastName: string;
-  email: string;
-}
+export const ANONYMIZED_ORGANIZATION_NAME = 'Deleted customer';
 
 /**
  * Feature 051 — provisions and guards single-member Personal Organizations for
@@ -49,13 +39,18 @@ export class PersonalOrganizationService {
   constructor(
     private readonly emFactory: () => EntityManager,
     /**
-     * Absent only where there is no container to resolve a port from:
-     * `customers` still constructs this service by hand and calls the
-     * `ensureFor` overload, which needs neither. The two methods that do need
-     * them say so and refuse without them. Required outright once `customers`
-     * is cut and that overload goes.
+     * Required since `customers`' Phase-C cut: the `ensureFor` overload that
+     * needed neither port — it took the caller's managed `CustomerAccount` and
+     * its `EntityManager` — went with that cut, and every method left reads
+     * this module's neighbour through its ports.
      */
-    private readonly accounts?: PersonalOrganizationAccountPorts,
+    private readonly accounts: PersonalOrganizationAccountPorts,
+    /**
+     * Feature 075 — `anonymizeIfOrphaned` records the scrub. It used to be
+     * written by `customers`' deletion sweep, on a row that module does not
+     * own; the write and its one audit row moved here together.
+     */
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   /** Name an individual's organization from their profile, falling back to the email local-part. */
@@ -64,38 +59,6 @@ export class PersonalOrganizationService {
   ): string {
     const full = `${account.firstName ?? ''} ${account.lastName ?? ''}`.trim();
     return full.length > 0 ? full : account.email.split('@')[0]!;
-  }
-
-  /**
-   * Return the customer's organization, provisioning a personal one iff none is
-   * linked, writing the membership through the caller's own unit of work.
-   *
-   * @deprecated Retired by `customers`' Phase-C merge request, which is the one
-   * caller. Use {@link ensureForCustomerAccountId}.
-   */
-  async ensureFor(
-    account: PersonalOrganizationAccountShape,
-    em: EntityManager = this.emFactory(),
-  ): Promise<Organization> {
-    // command-coverage-ignore: idempotent auto-provisioning of a customer's
-    // personal (B2C) organization on first transact — a system invariant repair
-    // (returns the existing org if any), not an operator-initiated write.
-    if (account.organizationId) {
-      const existing = await em.findOne(Organization, { id: account.organizationId });
-      if (existing) return existing;
-    }
-    const org = em.create(Organization, {
-      name: PersonalOrganizationService.personalName(account),
-      taxId: personalTaxId(account.id),
-      status: 'active',
-      vatStatus: 'vat_exempt',
-      isPersonal: true,
-      registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
-    });
-    await em.persistAndFlush(org);
-    account.organizationId = org.id;
-    await em.flush();
-    return org;
   }
 
   /**
@@ -154,6 +117,57 @@ export class PersonalOrganizationService {
   }
 
   /**
+   * Feature 051, the other end of the same rule — the retention sweep's
+   * cascade, moved here with `customers`' Phase-C cut.
+   *
+   * That module ran it by loading this module's `Organization`, renaming it,
+   * blanking its registered address and stamping `deletedAt` — three writes on
+   * a row it does not own, plus the audit entry describing them. The decision
+   * is this module's: a personal organisation whose single member has been
+   * anonymised has nobody in it and carries that person's name.
+   *
+   * Writes nothing and answers `null` whenever the cascade does not apply, so a
+   * caller cannot get it wrong by asking too often.
+   */
+  async anonymizeIfOrphaned(customerAccountId: string): Promise<Organization | null> {
+    const account = await this.#accounts().read.findById(customerAccountId);
+    if (!account?.organizationId) return null;
+
+    const em = this.emFactory();
+    const org = await em.findOne(Organization, { id: account.organizationId });
+    if (!org || !org.isPersonal || org.deletedAt) return null;
+
+    // Any surviving (non-deleted) member keeps the organisation alive. For a
+    // personal one this is empty once its single member has been soft-deleted.
+    const members = await this.#accounts().read.listByOrganization(org.id, { activeOnly: true });
+    if (members.length > 0) return null;
+
+    // command-coverage-ignore: the retention sweep's cascade over a
+    // member-less personal organization — a system-initiated scrub on a timer,
+    // audited below with the null actor that fact deserves, not an
+    // operator-initiated write with an actor to attribute it to.
+    const before = { name: org.name };
+    org.name = ANONYMIZED_ORGANIZATION_NAME;
+    org.registeredAddress = {
+      street: '-',
+      city: '-',
+      postalCode: '-',
+      country: org.registeredAddress.country,
+    };
+    org.deletedAt = new Date();
+    await em.flush();
+    await this.auditLog?.record({
+      actorAdminUserId: null,
+      action: 'organization.anonymized',
+      objectType: 'organization',
+      objectId: org.id,
+      stateBefore: before,
+      stateAfter: { anonymizedAt: org.deletedAt.toISOString(), isPersonal: true },
+    });
+    return org;
+  }
+
+  /**
    * Guard: a personal organization is single-member and MUST never gain a second
    * customer. Call before attaching a customer to an organization.
    */
@@ -173,11 +187,6 @@ export class PersonalOrganizationService {
   }
 
   #accounts(): PersonalOrganizationAccountPorts {
-    if (!this.accounts) {
-      throw new Error(
-        'PersonalOrganizationService: this method reads `customer_accounts` through its ports; construct the service with them.',
-      );
-    }
     return this.accounts;
   }
 }

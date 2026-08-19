@@ -1,11 +1,11 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type AuthSessionPort } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type AuthSessionPort,
+  type CustomerAccountLifecycleWritePort,
+  type CustomerAccountRecord,
+  type PersonalOrganizationPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { hashPassword } from '../../auth/services/password-hasher.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { PersonalOrganizationService } from '../../organizations/services/personal-organization-service.js';
 
 /**
  * CustomerRegistrationService — standalone (org-less) sign-up (feature 040,
@@ -15,26 +15,35 @@ import type { PersonalOrganizationService } from '../../organizations/services/p
  * when disabled, registration is refused with a clear, actionable error so
  * the storefront can steer the visitor toward Organization registration.
  *
- * On success the new account is created with `organizationId = null` and an
- * auto-login session is minted (parity with the Organization registration
- * flow which also logs the first user straight in).
+ * On success the new account is created with `organizationId = null`, a
+ * personal organization is provisioned for it, and an auto-login session is
+ * minted (parity with the Organization registration flow which also logs the
+ * first user straight in).
+ *
+ * **Feature 075, Phase C — this service writes no table.** It used to create
+ * `customer_accounts`' entity itself, hash the password with `auth`'s hasher,
+ * and hand its own `EntityManager` to `organizations`' provisioner. All three
+ * are owner-side now: the account and its audit row come from
+ * `customerAccountLifecycleWritePort`, the hashing goes with them (a caller
+ * that hashes is a caller that has to be told which algorithm the owner uses),
+ * and the organisation comes from `personalOrganizationPort`. What is left
+ * here is the policy — whether an org-less registration is allowed at all —
+ * which is this module's setting.
  */
 export interface CustomerRegistrationDeps {
-  emFactory: () => EntityManager;
+  /** `customer_accounts`' account lifecycle. Creates the row and audits it. */
+  accounts: CustomerAccountLifecycleWritePort;
   /**
    * `auth`'s published session port (D-98.2), not the `SessionService` class
    * this used to import: the only method reached here is `createSession`, the
    * port declares it, and `authSessionPort` is the name the contract
-   * publishes. Resolving the class name instead was the leak issue #196 is
-   * about — the same shape D-98.1 repaired for `addressService`.
+   * publishes.
    */
   sessionService: AuthSessionPort;
   /** Reads `customers.allow_registration_without_organization` (the per-channel B2C gate). */
   resolveAllowRegistrationWithoutOrganization: () => Promise<boolean>;
   /** Feature 051 — provisions a single-member personal organization for a B2C customer. */
-  personalOrganizationService: PersonalOrganizationService;
-  /** Feature 054 — audits standalone registration co-transactionally when provided. */
-  auditLog?: AuditLogService;
+  personalOrganizations: PersonalOrganizationPort;
 }
 
 export interface RegisterStandaloneInput {
@@ -47,7 +56,7 @@ export interface RegisterStandaloneInput {
 }
 
 export interface RegisterStandaloneResult {
-  customerAccount: CustomerAccount;
+  customerAccount: CustomerAccountRecord;
   sessionCookieValue: string;
   sessionExpiresAt: Date;
 }
@@ -68,53 +77,34 @@ export class CustomerRegistrationService {
       );
     }
 
-    const em = this.deps.emFactory();
-    const existing = await em.findOne(CustomerAccount, { email: input.email });
-    if (existing) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.EMAIL_ALREADY_REGISTERED,
-        'An account with this email already exists.',
-      );
-    }
-
-    const passwordHash = await hashPassword(input.password);
-    const customer = em.create(CustomerAccount, {
+    // The duplicate-address refusal is inside the write, so a registration
+    // racing its own pre-check still answers 409 rather than a 500 off the
+    // unique index.
+    const customerAccount = await this.deps.accounts.createStandalone({
       email: input.email,
-      passwordHash,
-      // Issue #222 — the visitor typed this password on the registration form.
-      passwordSetAt: new Date(),
+      password: input.password,
       firstName: input.firstName,
       lastName: input.lastName,
-      organizationId: null,
     });
-    if (this.deps.auditLog) {
-      // Self-registration is pre-auth (no ambient actor) — records the account
-      // creation with a null actor.
-      recordAuditFromContext(this.deps.auditLog, em, {
-        action: 'customer_account.register_standalone',
-        objectType: 'customer_account',
-        objectId: customer.id,
-        stateBefore: null,
-        stateAfter: { email: customer.email },
-      });
-    }
-    await em.persistAndFlush(customer);
 
     // Feature 051 — a B2C customer is backed by a single-member personal
     // organization, so ordering/RFQ/credit/invoices work and the tenant guard
-    // isolates each individual as their own tenant (no null-org path).
-    await this.deps.personalOrganizationService.ensureFor(customer, em);
+    // isolates each individual as their own tenant (no null-org path). The
+    // binding is written on `customer_accounts`' side of that port, so the
+    // record this service already holds is one field out of date.
+    const organization = await this.deps.personalOrganizations.ensureForCustomerAccount(
+      customerAccount.id,
+    );
 
     const session = await this.deps.sessionService.createSession({
       kind: 'customer',
-      customerAccountId: customer.id,
+      customerAccountId: customerAccount.id,
       ...(input.ip !== undefined ? { ipAddress: input.ip } : {}),
       ...(input.userAgent !== undefined ? { userAgent: input.userAgent } : {}),
     });
 
     return {
-      customerAccount: customer,
+      customerAccount: { ...customerAccount, organizationId: organization.id },
       sessionCookieValue: session.cookieValue,
       sessionExpiresAt: session.expiresAt,
     };
