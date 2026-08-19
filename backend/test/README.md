@@ -96,6 +96,12 @@ So an invocation gets resources of its own, with nothing to remember:
 | PostgreSQL | `<base>_r_<stamp>_<rand>`, cloned from the migrated template `<base>_tpl` | dropped by the run's teardown; a crashed run's database is swept by a later invocation once it is 4 h old and unconnected |
 | Redis | a logical database index, leased in index 0 and emptied before the run | released by the teardown; the lease expires 5 minutes after a crashed run stops refreshing it |
 
+Index 0 is never leased and never emptied: it holds the leases themselves, and it is the one
+`pnpm run dev` uses (`backend/.env` ships `redis://localhost:6379`). Before this, every
+`setupBackendServer` ran its stale-cache drop against index 0 — `session:*`,
+`sales-channels:*`, `settings:v1:*` — so a test run logged the developer's own dev session
+out, roughly 225 times per suite.
+
 `<base>_tpl` is the only database migrations are applied to, under an advisory lock so
 concurrent invocations cannot race on it; a run database is a `create database … template …`
 file copy (0.2 s warm). Nothing runs tests against the template, which is what keeps it idle
