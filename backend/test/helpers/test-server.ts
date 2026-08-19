@@ -47,6 +47,7 @@ import {
   createRootContainer,
   registerOrm,
   registerValues,
+  requiredModulesFrom,
   type KernelContainer,
 } from '../../src/kernel/index.js';
 import type { DecorationRecord } from '../../src/kernel/compose.js';
@@ -961,6 +962,11 @@ export async function setupBackendServer(
     log: { info: () => {}, warn: () => {}, error: () => {} },
     interceptorRegistry: apiInterceptors,
     ownership: registrationOwnership,
+    // Issue #258 — mirrors `composition.ts`: derived from the same resolved
+    // manifest set this harness seeded presence from, so a test that withdraws
+    // a required module meets the refusal production would meet, at the point
+    // production meets it.
+    requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
   });
 
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.

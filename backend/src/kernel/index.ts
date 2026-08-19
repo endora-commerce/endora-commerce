@@ -45,6 +45,16 @@ export {
 } from './compose.js';
 
 export {
+  absentRequiredModules,
+  assertRequiredModulesPresent,
+  requiredModulesFrom,
+  RequiredModuleAbsentError,
+  type RequiredModule,
+  type RequiredModuleFinding,
+  type RequiredModulePresence,
+} from './lifecycle/required-modules.js';
+
+export {
   enterPlatformScope,
   enterSystemScope,
   getCurrentPlatformScope,
