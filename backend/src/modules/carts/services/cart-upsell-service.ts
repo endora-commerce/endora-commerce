@@ -1,5 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CatalogProductReadPort, CatalogProductRecord } from '@b2b/contracts';
+import {
+  isProductVisibleTo,
+  type CatalogProductReadPort,
+  type CatalogProductRecord,
+  type ProductAudience,
+} from '@b2b/contracts';
 import { CartItem } from '../entities/cart-item.entity.js';
 
 /**
@@ -35,7 +40,17 @@ export class CartUpsellService {
     private readonly catalogProducts: CatalogProductReadPort,
   ) {}
 
-  async forCart(cartId: string, limit: number): Promise<CartUpsellCandidate[]> {
+  async forCart(
+    cartId: string,
+    limit: number,
+    /**
+     * Who is looking at the strip (issue #227). Required: this method returns
+     * a product's name, slug and thumbnail for rows the buyer never asked for
+     * by id, which makes it a listing rather than a lookup, and a listing that
+     * defaulted its audience would silently show the wrong one.
+     */
+    audience: ProductAudience,
+  ): Promise<CartUpsellCandidate[]> {
     if (limit <= 0) return [];
     const em = this.emFactory();
 
@@ -62,7 +77,12 @@ export class CartUpsellService {
     if (matchCountByTarget.size === 0) return [];
 
     const targetIds = Array.from(matchCountByTarget.keys());
-    const products = await this.catalogProducts.findByIds(targetIds);
+    // Issue #227 — an up-sell target is a product the buyer never named, so
+    // the strip is a listing. A link from a product they may see to one they
+    // may not does not make the second one theirs to see.
+    const products = (await this.catalogProducts.findByIds(targetIds)).filter((p) =>
+      isProductVisibleTo(p, audience),
+    );
     const byId = new Map(products.map((p) => [p.id, p]));
 
     const candidates: CartUpsellCandidate[] = targetIds

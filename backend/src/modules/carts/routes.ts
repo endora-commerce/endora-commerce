@@ -23,6 +23,7 @@ import type { Cart } from './entities/cart.entity.js';
 import type { CartItem } from './entities/cart-item.entity.js';
 
 import { HttpError } from '../../http/error-envelope.js';
+import { productAudienceOf } from '../../http/product-audience.js';
 import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 
 const ANON_COOKIE = 'b2b_cart_anon';
@@ -588,7 +589,11 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     if (!cart) return { data: [] };
     const parsed = cartUpsellsQuerySchema.parse(request.query ?? {});
     const limit = parsed.limit ?? 12;
-    const candidates = await deps.cartUpsellService.forCart(cart.id, limit);
+    const candidates = await deps.cartUpsellService.forCart(
+      cart.id,
+      limit,
+      productAudienceOf(request),
+    );
     return { data: candidates };
   });
 }

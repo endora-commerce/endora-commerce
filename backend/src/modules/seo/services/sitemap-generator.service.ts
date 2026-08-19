@@ -1,10 +1,12 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import type {
-  CatalogCategoryReadPort,
-  CatalogProductReadPort,
-  ChannelMemberEntityType,
-  CmsPageReadPort,
+import {
+  ANONYMOUS_PRODUCT_AUDIENCE,
+  isProductVisibleTo,
+  type CatalogCategoryReadPort,
+  type CatalogProductReadPort,
+  type ChannelMemberEntityType,
+  type CmsPageReadPort,
 } from '@b2b/contracts';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
@@ -136,7 +138,16 @@ export class SitemapGeneratorService {
         activeOnly: true,
       })
     )
-      .filter((p) => p.visibility === 'public' && p.archivedAt === null)
+      // Issue #227 — `visibility === 'public'` was here, and it is not the
+      // whole answer: an operator can save `public` **with** a non-empty
+      // `allowed_organization_ids`, which restricts the row to the
+      // organisations it names whatever the visibility column says. A sitemap
+      // is read by crawlers, so the audience is the anonymous one, and
+      // `isProductVisibleTo` answers both columns for it — the `public` half
+      // unchanged, the allow-list half for the first time.
+      .filter(
+        (p) => isProductVisibleTo(p, ANONYMOUS_PRODUCT_AUDIENCE) && p.archivedAt === null,
+      )
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 
     // Feature 068 — a deactivated category is not a customer-reachable URL, so
