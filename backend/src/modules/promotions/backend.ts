@@ -22,22 +22,28 @@ import { registerPromotionRoutes } from './routes.js';
 import type { PromotionRuleTargetPorts } from './routes.js';
 
 /**
- * `promotions` — six optional arguments, one of which is a gate (feature 072,
- * wave 2, T115).
+ * `promotions` — six optional arguments, four of which were gates (feature 072,
+ * wave 2, T115; closed by issue #251).
  *
- * The one worth naming is `resolveOrganizationStatus`, documented as
+ * The one worth naming was `resolveOrganizationStatus`, documented as
  * *"Defaults to 'skip' the gate when omitted (legacy composition)"*. Feature 026
  * US5 exists so an org-targeted promotion only fires for an **active**
- * Organization — a suspended or moderated customer should not keep receiving
- * negotiated discounts. Omitting the resolver skips that check entirely, so the
- * promotion applies to every organization regardless of status. Both roots pass
- * it, so nothing is live; it is a gate whose absent form is open, which is the
- * shape this transition has now removed ten times.
+ * Organization — a blocked or moderated customer should not keep receiving
+ * negotiated discounts. Omitting the resolver skipped that check entirely, so
+ * the promotion applied to every organization regardless of status.
  *
- * `salesChannelMembership`, `dictionaryValidator` and `auditLog` are the same
- * story in quieter registers: without the first a new promotion binds to no
- * channel, without the second its language scope validates nothing, without the
- * third the write is unrecorded.
+ * `salesChannelMembership`, `dictionaryValidator` and `auditLog` were the same
+ * story in quieter registers: without the first a new promotion bound to no
+ * channel and `applyToCart` did no channel filtering at all, without the second
+ * an unknown currency code was stored, without the third the write was
+ * unrecorded.
+ *
+ * All four are required arguments now. Both roots always passed them, so
+ * nothing was live — but `test/helpers/promotion-service.ts` passed none of
+ * them, so ten suites asserted against a service four gates quieter than the
+ * composed one. That is what an optional dependency production always supplies
+ * costs: the absent branch is untested by construction and only tests ever run
+ * it.
  *
  * **One bundle stays in the root**, for the reason `megamenu`'s did.
  * `ruleTargets` reads `organizations`, `categories`, `payment_methods` and
@@ -155,20 +161,22 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory, auditLogService }: PromotionsCradle) =>
           new PromotionService(
             emFactory,
-            // The two required ones first (issue #164): both are resolved for
-            // every composition, so the type no longer says otherwise.
+            // Every argument up to and including `auditLog` is required
+            // (issues #164 and #251): each is resolved for every composition,
+            // so the type no longer says otherwise. `auditLogger` and
+            // `actionRegistry` follow, and are the only two with a default —
+            // both are genuine defaults (a console sink, the built-in action
+            // catalogue), not gates an omission opens.
             lazyPort<CatalogPromoAttributePort>(ctx, 'catalogPromoAttributePort'),
             lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
             lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
-            undefined, // auditLogger — default console
             async (orgId: string) =>
               (
                 await ctx
                   .cradle<PromotionsCradle>()
                   .organizationReadPort.loadEffectiveOrganization(orgId)
               )?.status ?? null,
-            undefined, // actionRegistry — default built-ins
             auditLogService,
           ),
       )

@@ -63,11 +63,29 @@ describe('placeOrder — customer-group targeted promotion (issue #177)', () => 
     outsider!.customerGroupId = wholesale.id;
     await em.persistAndFlush([member!, outsider!]);
 
+    // Issue #251 — the promotion engine's channel gate is live in every
+    // composition now (`salesChannelMembership` used to be optional and this
+    // rig omitted it). `upsert` binds the promotion to the system-default
+    // channel, and a cart that resolved to **no** channel matches no
+    // channel-bound promotion — FR-005, fail closed. `seedCartForStubCustomer`
+    // leaves `salesChannelId` unset, which no real cart is (D-47…D-51), so both
+    // carts are placed in the default channel: the difference this file asserts
+    // is the customer group and nothing else.
+    const defaultChannelId = (await h.salesChannels.resolver.getSystemDefault()).id;
+
     await seedCartForStubCustomer(em);
+    const memberCart = await em.findOne(Cart, {
+      customerAccountId: TEST_CUSTOMER_ID,
+      status: 'active',
+    });
+    memberCart!.salesChannelId = defaultChannelId;
+    await em.persistAndFlush(memberCart!);
+
     const outsiderCart = em.create(Cart, {
       customerAccountId: TEST_CUSTOMER_RFQ_ID,
       organizationId: TEST_ORGANIZATION_ID,
       status: 'active',
+      salesChannelId: defaultChannelId,
     });
     await em.persistAndFlush(outsiderCart);
     await em.persistAndFlush(

@@ -13,6 +13,7 @@ import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/se
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
 import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { OrderAppliedPromotion } from '../../../src/modules/orders/entities/order-applied-promotion.entity.js';
+import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 /**
@@ -26,7 +27,19 @@ describe('placeOrder — automatic promotion carried to order (feature 045)', ()
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    await seedCartForStubCustomer(h.em());
+    const em = h.em();
+    await seedCartForStubCustomer(em);
+    // Issue #251 — the promotion engine's channel gate is live in every
+    // composition now (`salesChannelMembership` used to be optional and this
+    // rig omitted it). `upsert` binds the promotion to the system-default
+    // channel, and a cart that resolved to **no** channel matches no
+    // channel-bound promotion — FR-005, fail closed. `seedCartForStubCustomer`
+    // leaves `salesChannelId` unset, which no real cart is (D-47…D-51), so the
+    // cart is placed in the default channel here.
+    const cart = await em.findOne(Cart, { customerAccountId: TEST_CUSTOMER_ID, status: 'active' });
+    cart!.salesChannelId = (await h.salesChannels.resolver.getSystemDefault()).id;
+    await em.persistAndFlush(cart!);
+
     const promotionService = promotionServiceFor(h);
     const promo = await promotionService.upsert({
       name: 'Auto 10% off',

@@ -38,6 +38,14 @@ describe('placeOrder — coupon discount stamped on the order (feature 036)', ()
     const em = h.em();
     const cart = await em.findOne(Cart, { customerAccountId: TEST_CUSTOMER_ID, status: 'active' });
     cart!.appliedPromotionCode = 'CHECKOUT10';
+    // Issue #251 — the promotion engine's channel gate is live in every
+    // composition now (`salesChannelMembership` used to be optional and this
+    // rig omitted it). `upsert` binds the promotion to the system-default
+    // channel, and a cart that resolved to **no** channel matches no
+    // channel-bound promotion — FR-005, fail closed. `seedCartForStubCustomer`
+    // leaves `salesChannelId` unset, which no real cart is (D-47…D-51), so the
+    // cart is placed in the default channel here.
+    cart!.salesChannelId = (await h.salesChannels.resolver.getSystemDefault()).id;
     await em.persistAndFlush(cart!);
   });
   afterAll(async () => {
