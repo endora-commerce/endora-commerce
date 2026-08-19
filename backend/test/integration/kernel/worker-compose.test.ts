@@ -6,7 +6,7 @@ import { EventBus } from '../../../src/events/bus.js';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { MODULES } from '../../../src/composition.generated.js';
-import { stripCommentsAndStrings } from '../../../scripts/check-entry-scope.js';
+import { codeOnly } from '../../../scripts/lib/source-text.js';
 
 /**
  * `BACKEND_ROLE=worker` composes the same application (T054).
@@ -78,8 +78,11 @@ describe('T054 — the worker role', () => {
 
   it('registers no HTTP routes: the worker entry point never listens', () => {
     // Comments stripped: the file *documents* that it never listens, and a
-    // check that a prose sentence satisfies is not a check.
-    const source = stripCommentsAndStrings(readFileSync(WORKER_ENTRY, 'utf8'));
+    // check that a prose sentence satisfies is not a check. Through the shared
+    // parser-backed helper (issue #241) — `check-entry-scope.ts` used to export
+    // a regex pair for this and no longer strips anything at all, its own
+    // questions being answered from the syntax tree since issue #237.
+    const source = codeOnly(readFileSync(WORKER_ENTRY, 'utf8'), 'worker.ts');
     // The worker composes through the one composition root, which walks the
     // generated list…
     expect(source).toContain('composeApp');

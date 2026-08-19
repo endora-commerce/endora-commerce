@@ -28,8 +28,9 @@ import {
   ENTITY_DECORATOR_HINT,
 } from '../../../scripts/check-entity-tenant-classification.js';
 import {
-  analyzeSource as entryScopeAnalyze,
   declaredProgramEntryPoints,
+  findEntrySites,
+  staleAllowances,
   violationsOf,
   type EntryKind,
 } from '../../../scripts/check-entry-scope.js';
@@ -929,20 +930,19 @@ const UNSCOPED_SELF_RESCHEDULING = `
 `;
 
 /**
- * Entry points in one synthetic file that establish no scope and are not exempt.
+ * Entry sites in one synthetic file that establish no scope and are not ledgered.
  *
  * `kind` is asserted, not merely counted: the classifier is what went blind in
- * issue #128, and it fails by putting a file in the wrong class as readily as by
+ * issue #128, and it fails by putting a site in the wrong class as readily as by
  * dropping it.
  */
-function unscopedEntryPoints(
+function unscopedEntrySites(
   file: string,
   source: string,
   kind: EntryKind,
   declared: ReadonlySet<string> = new Set(),
 ): number {
-  const entry = entryScopeAnalyze(file, source, declared);
-  return violationsOf(entry === null ? [] : [entry]).filter((e) => e.kind === kind).length;
+  return violationsOf(findEntrySites(file, source, declared)).filter((e) => e.kind === kind).length;
 }
 
 /**
@@ -954,7 +954,76 @@ function unscopedEntryPoints(
  */
 function unscopedDeclaredProgram(packageJson: string, file: string, source: string): number {
   const declared = new Set(declaredProgramEntryPoints(packageJson));
-  return unscopedEntryPoints(file, source, 'program', declared);
+  return unscopedEntrySites(file, source, 'program', declared);
+}
+
+/**
+ * Issue #237, and the reason the rewrite exists: one file, two entry sites, one
+ * of them right.
+ *
+ * This is `kernel/lifecycle/registry-cache.ts` as issue #235 found it — a pub/sub
+ * handler reading the database with no scope, and a correctly wrapped
+ * `setInterval` 130 lines below. The file-level check reported it `scoped`,
+ * because a file-level answer is a disjunction.
+ */
+const TWO_SITES_ONE_RIGHT = `
+  export class Cache {
+    watch(subscriber) {
+      subscriber.on('message', () => { void this.refreshFromDb(); });
+    }
+    degrade() {
+      setInterval(() => {
+        void enterSystemScope('cache: degraded refresh', () => this.refreshFromDb());
+      }, 30000);
+    }
+  }
+`;
+
+/**
+ * The granularity itself, proven as a **discrimination**: the unscoped site is
+ * reported *while* its sibling in the same file is scoped.
+ *
+ * Returning the violation count alone would go green on a check that had gone
+ * back to answering per file and simply called the whole file unscoped — the
+ * opposite defect, equally wrong. So the sibling's `scoped` is a precondition:
+ * lose it and this proof reports nothing at all.
+ */
+function unscopedSiteBesideAScopedOne(): number {
+  const sites = findEntrySites('/repo/backend/src/kernel/lifecycle/registry-cache.ts', TWO_SITES_ONE_RIGHT);
+  if (sites.filter((site) => site.kind === 'interval' && site.scoped).length !== 1) return 0;
+  return violationsOf(sites).filter((site) => site.kind === 'message').length;
+}
+
+/**
+ * The same disjunction at its last hiding place: a **file-level** site — a
+ * declared program — whose own top-level execution opens nothing, in a file
+ * whose Worker opens a scope correctly. Asked over the whole file, the program
+ * reads scoped off the Worker's wrapper.
+ */
+function unscopedProgramBesideAScopedWorker(): number {
+  const declared = new Set(declaredProgramEntryPoints(DECLARING_PACKAGE_JSON));
+  const sites = findEntrySites(
+    '/repo/backend/src/seeds/dev-catalog-seed.ts',
+    "const w = new Worker(Q, (job) => enterSystemScope('seed: job', () => run(job)));\nvoid main();",
+    declared,
+  );
+  if (sites.filter((site) => site.kind === 'worker' && site.scoped).length !== 1) return 0;
+  return violationsOf(sites).filter((site) => site.kind === 'program').length;
+}
+
+/**
+ * The ledger's second direction, entered from source: a site the ledger exempts
+ * that now opens a scope of its own. Handing `staleAllowances` a ready-made
+ * record would prove the set subtraction and nothing above it — including the
+ * key derivation, which is where a per-site ledger can silently stop matching.
+ */
+function staleLedgerEntry(): number {
+  const key = 'src/modules/settings/scripts/modules-install.ts:<file>:cli';
+  const sites = findEntrySites(
+    '/repo/backend/src/modules/settings/scripts/modules-install.ts',
+    "void enterSystemScope('cli: module install', main);",
+  );
+  return staleAllowances(sites).filter((stale) => stale === key).length;
 }
 
 /**
@@ -1623,21 +1692,21 @@ const CHECKS: readonly CheckEntry[] = [
     residueGuard: 'derived-population',
     red: {
       cli: top(() =>
-        unscopedEntryPoints(
+        unscopedEntrySites(
           '/repo/backend/src/modules/search/scripts/reindex.ts',
           'void main();',
           'cli',
         ),
       ),
       worker: top(() =>
-        unscopedEntryPoints(
+        unscopedEntrySites(
           '/repo/backend/src/modules/search/workers/index-worker.ts',
           "const worker = new Worker('search.index', handle);",
           'worker',
         ),
       ),
       'interval-setInterval': top(() =>
-        unscopedEntryPoints(
+        unscopedEntrySites(
           '/repo/backend/src/modules/search/plugin.ts',
           'setInterval(() => { void reindex(); }, 60000);',
           'interval',
@@ -1645,7 +1714,7 @@ const CHECKS: readonly CheckEntry[] = [
       ),
       // The spelling the classifier could not see until issue #128.
       'interval-self-rescheduling': top(() =>
-        unscopedEntryPoints(
+        unscopedEntrySites(
           '/repo/backend/src/modules/search/plugin.ts',
           UNSCOPED_SELF_RESCHEDULING,
           'interval',
@@ -1661,6 +1730,33 @@ const CHECKS: readonly CheckEntry[] = [
           'main().catch((err) => { process.exit(1); });',
         ),
       ),
+      // Issue #235's own class: a message delivered off a socket the composition
+      // opened has no caller to inherit a context from, and the check had no
+      // population for it at all.
+      'pubsub-message': top(() =>
+        unscopedEntrySites(
+          '/repo/backend/src/kernel/lifecycle/registry-cache.ts',
+          "subscriber.on('message', () => { void refreshFromDb(em); });",
+          'message',
+        ),
+      ),
+      // Issue #237 — `kernel/container.ts` is under no `scripts/` directory, is
+      // no declared program, constructs no Worker and starts no timer, so no
+      // file-level class ever contained its shutdown handler. The event is a
+      // loop variable there, which is why an unreadable one stays in.
+      'process-lifecycle': top(() =>
+        unscopedEntrySites(
+          '/repo/backend/src/kernel/container.ts',
+          'for (const signal of signals) process.once(signal, handler);',
+          'process',
+        ),
+      ),
+      // The granularity itself, and the reason for the rewrite: without this
+      // proof the per-site change is unevidenced.
+      'unscoped-site-beside-a-scoped-one': top(unscopedSiteBesideAScopedOne),
+      'file-level-site-beside-a-scoped-worker': top(unscopedProgramBesideAScopedWorker),
+      // The ledger's second direction.
+      'stale-ledger-entry': top(staleLedgerEntry),
     },
   },
   {
@@ -3703,8 +3799,13 @@ describe('every red proof enters at the top of the analysis', () => {
       // Three timer shapes plus D-68's four boot-hook ones. The count is the
       // point: the check grew a construct, so its proof had to grow with it.
       'backend/scripts/check-entry-presence.ts': 7,
-      // Four shapes, plus issue #228's fifth: the population's second source.
-      'backend/scripts/check-entry-scope.ts': 5,
+      // Five, plus issue #237's five: the two site classes a file-level
+      // population could not hold (a pub/sub handler, a process-lifecycle
+      // handler), the two discriminations that are the granularity itself — an
+      // unscoped site reported while its sibling stays scoped, at site level and
+      // at file level — and the ledger's stale direction, which a per-site key
+      // can break without breaking anything else.
+      'backend/scripts/check-entry-scope.ts': 10,
       'backend/scripts/check-error-translations.ts': 2,
       // Three shapes the read reaches the fallback through, four fabrications
       // the fallback performs; the two axes are independent, so the count is
