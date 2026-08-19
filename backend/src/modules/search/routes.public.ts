@@ -1,7 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
-  ANONYMOUS_PRODUCT_AUDIENCE,
   ERROR_CODES,
   RecordPhraseRequestSchema,
   SearchSuggestQuerySchema,
@@ -14,6 +13,7 @@ import {
   type SearchSuggestResponse,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import { productAudienceOf } from '../../http/product-audience.js';
 import {
   currentSalesChannel,
   getResolvedChannel,
@@ -268,27 +268,9 @@ function readContext(request: FastifyRequest): {
       defaultCurrency: ch.defaultCurrency,
       defaultLanguage: ch.defaultLanguage,
     },
-    audience: suggestAudience(request),
+    audience: productAudienceOf(request),
     ...(preferredLanguage !== undefined ? { preferredLanguage } : {}),
   };
 }
 
-/**
- * Who the type-ahead is answering (issue #227).
- *
- * The suggest popup is served to anyone who loads a storefront page, signed in
- * or not, so it needs the same audience the full listing resolves — `catalog`
- * reads it off `request.actor` for its own routes and this surface reads the
- * same actor for the same reason. An unbound API key and a buyer whose account
- * has no Organization are both authenticated with no organisation: they see
- * `logged_in_only` rows and no allow-listed ones.
- */
-function suggestAudience(request: FastifyRequest): ProductAudience {
-  const actor = request.actor as
-    | { kind: string; organizationId?: string | null }
-    | undefined;
-  if (actor && (actor.kind === 'customer' || actor.kind === 'api_key')) {
-    return { organizationId: actor.organizationId ?? null, authenticated: true };
-  }
-  return ANONYMOUS_PRODUCT_AUDIENCE;
-}
+

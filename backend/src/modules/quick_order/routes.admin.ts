@@ -36,7 +36,11 @@ export async function registerQuickOrderAdminRoutes(
       const body = quickOrderImportRequestSchema.parse(request.body);
       const maxRows = await resolveImportMaxRows();
       const parse = await parseImportRequest(body);
-      const result = await pipeline.run(parse, { maxRows });
+      // Issue #227 — `'unrestricted'`, and stated rather than omitted. This
+      // route is gated by `orders:write`, and the operator names the
+      // organisation on the *build* call one step later, so at import time
+      // there is no buyer whose allow-list this run could be scoped by.
+      const result = await pipeline.run(parse, { maxRows, audience: 'unrestricted' });
       return { data: result };
     },
   );

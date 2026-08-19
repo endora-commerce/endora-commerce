@@ -6,6 +6,7 @@ import {
   comparisonSetDisplayModeInputSchema,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import { productAudienceOf } from '../../http/product-audience.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import {
   ComparisonFullError,
@@ -91,6 +92,7 @@ export async function registerComparisonsPublicRoutes(
         owner,
         channel.id,
         body.productId,
+        productAudienceOf(request),
       );
     } catch (err) {
       throw translate(err);

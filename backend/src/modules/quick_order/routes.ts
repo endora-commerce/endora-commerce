@@ -6,6 +6,7 @@ import {
   type CatalogQuickSearchPort,
 } from '@b2b/contracts';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { productAudienceOf } from '../../http/product-audience.js';
 import type { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import type { QuickOrderBuildService } from './services/quick-order-build-service.js';
 import { parseImportRequest } from './services/import-from-request.js';
@@ -54,7 +55,14 @@ export async function registerQuickOrderRoutes(
       const body = quickOrderImportRequestSchema.parse(request.body);
       const maxRows = await deps.resolveImportMaxRows();
       const parse = await parseImportRequest(body);
-      const result = await pipeline.run(parse, { maxRows });
+      // Issue #227 — the audience is the buyer's own, off the session this
+      // route already requires. The type-ahead below has had it since issue
+      // #174; the pasted-SKU path next to it had not, and a SKU list is the
+      // easier of the two to enumerate.
+      const result = await pipeline.run(parse, {
+        maxRows,
+        audience: productAudienceOf(request),
+      });
       return { data: result };
     },
   );

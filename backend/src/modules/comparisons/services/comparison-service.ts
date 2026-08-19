@@ -4,10 +4,13 @@ import {
   listingPriceMoney,
   type CatalogAttributeReadPort,
   type CatalogProductReadPort,
+  ANONYMOUS_PRODUCT_AUDIENCE,
+  isProductVisibleTo,
   type ComparisonOwnerView,
   type ComparisonDisplayMode,
   type ListingPrice,
   type ListingPricePort,
+  type ProductAudience,
 } from '@b2b/contracts';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { SettingsService } from '../../../kernel/settings/settings.service.js';
@@ -164,13 +167,26 @@ export class ComparisonService {
     owner: ComparisonOwner,
     salesChannelId: string,
     productId: string,
+    /**
+     * Who is comparing (issue #227). Defaulted to the anonymous audience so a
+     * composition that has not been taught to resolve its caller refuses a
+     * restricted product rather than adding it — the fail-closed end. The
+     * public route passes the real one.
+     */
+    audience: ProductAudience = ANONYMOUS_PRODUCT_AUDIENCE,
   ): Promise<Comparison> {
     // command-coverage-ignore: transient customer working state (like carts) —
     // self-service convenience data, not an audited domain-state mutation.
     const em = this.emFactory();
 
     const product = await this.catalogProducts.findById(productId);
-    if (!product) throw new ProductNotFoundError(productId);
+    // Issue #227 — a comparison row discloses the product's name, SKU, price
+    // and every comparable attribute value, so a product this shopper may not
+    // see may not enter their comparison. Same answer as a product that does
+    // not exist: `ProductNotFoundError` is what the route turns into a 404.
+    if (!product || !isProductVisibleTo(product, audience)) {
+      throw new ProductNotFoundError(productId);
+    }
 
     let comparison = await em.findOne(Comparison, ownerWhere(owner));
     if (!comparison) {

@@ -5,6 +5,12 @@ import { ANONYMOUS_PRODUCT_AUDIENCE, type ProductAudience } from '@b2b/contracts
  * The {@link ProductAudience} of a request, off the actor the auth plugin
  * resolved (issue #227).
  *
+ * It lives beside {@link testAdminUserId} rather than in `catalog`, for the
+ * reason that helper does: it reads a `FastifyRequest` decoration and nothing
+ * else, and six modules serve a product to a buyer. A copy per module is six
+ * chances to answer "is an unbound API key authenticated?" differently, and the
+ * answer is not obvious enough to be re-derived six times.
+ *
  * Three actor kinds can reach a catalogue read, and each answers differently:
  *
  *  - **`customer`** — a signed-in buyer. `organizationId` is stamped on the

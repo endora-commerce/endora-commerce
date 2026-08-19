@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   availabilityNotificationRequestSchema,
   inventoryDisplayModeSchema,
+  isProductVisibleTo,
   type CatalogCategoryReadPort,
   type CatalogProductReadPort,
   type CustomerAccountReadPort,
@@ -15,6 +16,7 @@ import type { WarehouseChannelService } from './services/warehouse-channel-servi
 import type { StockLevelService } from './services/stock-level-service.js';
 import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { productAudienceOf } from '../../http/product-audience.js';
 import { StockLevel } from './entities/stock-level.entity.js';
 import { resolveDisplayBand } from './services/display-band-resolver.js';
 import { resolveThresholds } from './services/threshold-resolver.js';
@@ -173,7 +175,10 @@ export async function registerInventoryRoutes(
       const productId = request.params.id;
       const em = emFactory();
       const product = await catalogProducts.findById(productId);
-      if (!product) {
+      // Issue #227 — this route is anonymous and answers "how many of this
+      // product are there". Both halves of that are a disclosure about a
+      // product an operator restricted: that it exists, and how it is selling.
+      if (!product || !isProductVisibleTo(product, productAudienceOf(request))) {
         reply.status(404);
         return {
           error: {

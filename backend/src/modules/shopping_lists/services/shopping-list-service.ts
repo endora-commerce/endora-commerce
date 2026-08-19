@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, isProductVisibleTo } from '@b2b/contracts';
 import type { CartWritePort, CatalogProductReadPort, RfqCustomerPort } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ShoppingList } from '../entities/shopping-list.entity.js';
@@ -215,7 +215,17 @@ export class ShoppingListService {
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
     const product = await this.catalogProducts.findById(input.productId);
-    if (!product) {
+    // Issue #227 — the saved list renders each line's name and price on every
+    // later read, so a product this buyer may not see may not be saved to it.
+    // The audience comes off the same `CustomerContext` the list is owned by;
+    // `organizationId` is what the allow-list is matched against.
+    if (
+      !product ||
+      !isProductVisibleTo(product, {
+        organizationId: ctx.organizationId,
+        authenticated: true,
+      })
+    ) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
     const item = em.create(ShoppingListItem, {

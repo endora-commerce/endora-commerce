@@ -11,7 +11,7 @@ import {
 } from '@b2b/contracts';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
-import { productAudienceOf } from './services/request-audience.js';
+import { productAudienceOf } from '../../http/product-audience.js';
 
 /**
  * Public catalog routes (US1 read surface).

@@ -7,7 +7,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
-import { productAudienceOf } from './services/request-audience.js';
+import { productAudienceOf } from '../../http/product-audience.js';
 import type { CatalogQueryService } from './services/catalog-query.service.js';
 import type { CatalogOrgPriceDecorator } from './services/catalog-org-price-decorator.js';
 
