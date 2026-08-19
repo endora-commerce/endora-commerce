@@ -6,12 +6,14 @@ import {
   SearchSuggestQuerySchema,
   SEARCH_PHRASE_MAX_LENGTH,
   SEARCH_SUGGEST_LIMIT_MAX,
+  type ProductAudience,
   type ProductSummary,
   type RecordPhraseResponse,
   type SearchSuggestItem,
   type SearchSuggestResponse,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import { productAudienceOf } from '../../http/product-audience.js';
 import {
   currentSalesChannel,
   getResolvedChannel,
@@ -246,6 +248,7 @@ function parseSuggestQuery(request: FastifyRequest): {
 
 function readContext(request: FastifyRequest): {
   resolvedChannel: ResolvedSearchChannel;
+  audience: ProductAudience;
   preferredLanguage?: string | undefined;
 } {
   // Feature 053 / FR-002: read the channel resolved once by the canonical
@@ -265,6 +268,9 @@ function readContext(request: FastifyRequest): {
       defaultCurrency: ch.defaultCurrency,
       defaultLanguage: ch.defaultLanguage,
     },
+    audience: productAudienceOf(request),
     ...(preferredLanguage !== undefined ? { preferredLanguage } : {}),
   };
 }
+
+

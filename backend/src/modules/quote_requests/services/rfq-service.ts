@@ -2,6 +2,8 @@ import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  isProductVisibleTo,
+  type ProductAudience,
   type QuoteRequest as RfqDto,
   type QuoteRequestSummary,
   type CreateQuoteRequest,
@@ -221,11 +223,14 @@ export class RfqService {
       throw new HttpError(400, ERROR_CODES.RFQ_EMPTY, 'Quote Request must have at least one line item.');
     }
     const em = this.deps.emFactory();
-    const products = await this.deps.catalogProducts.findByIds(
-      input.items.map((it) => it.productId),
-    );
+    const products = (
+      await this.deps.catalogProducts.findByIds(input.items.map((it) => it.productId))
+    ).filter((p) => isProductVisibleTo(p, rfqAudience(ctx)));
     const productById = new Map(products.map((p) => [p.id, p]));
     if (productById.size !== new Set(input.items.map((it) => it.productId)).size) {
+      // Issue #227 — a line the buyer may not see is refused the same way a
+      // line naming a product that does not exist is. One message for both, so
+      // the response cannot be used to tell "restricted" from "absent".
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
     }
 
@@ -351,11 +356,13 @@ export class RfqService {
     if (body.headerNote !== undefined) rfq.headerNote = body.headerNote ?? null;
 
     if (body.items) {
-      const products = await this.deps.catalogProducts.findByIds(
-        body.items.map((it) => it.productId),
-      );
+      const products = (
+        await this.deps.catalogProducts.findByIds(body.items.map((it) => it.productId))
+      ).filter((p) => isProductVisibleTo(p, rfqAudience(ctx)));
       const productById = new Map(products.map((p) => [p.id, p]));
       if (productById.size !== new Set(body.items.map((it) => it.productId)).size) {
+        // Issue #227 — see `createForCustomer`. A revision may not add a line
+        // the original submission could not have carried.
         throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
       }
       const existingItems = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
@@ -894,4 +901,15 @@ function groupBy<T, K>(arr: T[], key: (t: T) => K): Map<K, T[]> {
     else out.set(k, [v]);
   }
   return out;
+}
+
+/**
+ * The {@link ProductAudience} an RFQ line speaks for (issue #227).
+ *
+ * A quote request is always a signed-in buyer's, and its `organizationId` is
+ * the one the RFQ is filed under — so it is also the one the product's
+ * allow-list has to name.
+ */
+function rfqAudience(ctx: CustomerContext): ProductAudience {
+  return { organizationId: ctx.organizationId, authenticated: true };
 }

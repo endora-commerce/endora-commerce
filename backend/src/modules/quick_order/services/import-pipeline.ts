@@ -1,4 +1,5 @@
 import type {
+  ProductAudience,
   QuickOrderImportResponse,
   RecognizedQuickOrderItem,
   RejectedQuickOrderItem,
@@ -25,11 +26,45 @@ export interface VariantBySku {
   parentProductId: string;
 }
 
+/**
+ * Who an import run answers for (issue #227) — a buyer's audience, or the
+ * operator surface `'unrestricted'`.
+ *
+ * The second arm is not a bypass looking for a home: `POST
+ * /api/v1/admin/quick-order/import` is gated by `orders:write` and the operator
+ * names the organisation on the *build* call, one step later, so at import time
+ * there is no buyer to answer for and the permission is the enforcement. It is
+ * spelled as a literal rather than as an optional argument because an optional
+ * one is the same bypass with nothing to grep for.
+ */
+export type QuickOrderImportAudience = ProductAudience | 'unrestricted';
+
 export interface QuickOrderCatalogLookup {
-  /** Products whose own SKU matches one of `skus`. */
-  findProductsBySku(skus: string[]): Promise<ProductLike[]>;
-  /** Variants whose own SKU matches one of `skus` (row referenced a variant directly). */
-  findVariantsBySku(skus: string[]): Promise<VariantBySku[]>;
+  /**
+   * Products whose own SKU matches one of `skus`, **and that this buyer may
+   * see** (issue #227).
+   *
+   * The audience is a parameter rather than a filter the pipeline applies
+   * afterwards because that is what keeps the two answers identical: a SKU
+   * nobody sells and a SKU restricted to another distributor both come back
+   * absent, and the pipeline rejects both as `product_not_found` without
+   * knowing there was a difference. A pasted SKU list is otherwise an
+   * enumeration oracle over an operator's private assortment — the same defect
+   * as issue #174's type-ahead, on the surface next to it.
+   */
+  findProductsBySku(
+    skus: string[],
+    audience: QuickOrderImportAudience,
+  ): Promise<ProductLike[]>;
+  /**
+   * Variants whose own SKU matches one of `skus` (row referenced a variant
+   * directly), restricted by the **parent** product's answer — a variant has no
+   * visibility of its own.
+   */
+  findVariantsBySku(
+    skus: string[],
+    audience: QuickOrderImportAudience,
+  ): Promise<VariantBySku[]>;
   /** All variants under the given parent products (for attribute-column resolution). */
   findVariantsByParent(productIds: string[]): Promise<Array<VariantLike & { parentProductId: string }>>;
 }
@@ -68,7 +103,10 @@ function isPurchasable(product: ProductLike): boolean {
 export class QuickOrderImportPipeline {
   constructor(private readonly lookup: QuickOrderCatalogLookup) {}
 
-  async run(parse: ParseOutcome, opts: { maxRows?: number } = {}): Promise<QuickOrderImportResponse> {
+  async run(
+    parse: ParseOutcome,
+    opts: { maxRows?: number; audience: QuickOrderImportAudience },
+  ): Promise<QuickOrderImportResponse> {
     const rejected: RejectedQuickOrderItem[] = [];
 
     if (!parse.headerOk) {
@@ -95,8 +133,8 @@ export class QuickOrderImportPipeline {
 
     const skus = Array.from(new Set(candidates.map((c) => c.sku)));
     const [products, variantsBySku] = await Promise.all([
-      this.lookup.findProductsBySku(skus),
-      this.lookup.findVariantsBySku(skus),
+      this.lookup.findProductsBySku(skus, opts.audience),
+      this.lookup.findVariantsBySku(skus, opts.audience),
     ]);
     const productBySku = new Map(products.map((p) => [p.sku, p]));
     const variantBySku = new Map(variantsBySku.map((v) => [v.sku, v]));

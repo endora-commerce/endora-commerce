@@ -2,8 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PriceListService } from './services/price-list-service.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
-import type { CatalogProductReadPort } from '@b2b/contracts';
+import { isProductVisibleTo, type CatalogProductReadPort } from '@b2b/contracts';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { productAudienceOf } from '../../http/product-audience.js';
 
 export interface StorefrontPricingRoutesDeps {
   priceListService: PriceListService;
@@ -39,7 +40,12 @@ export async function registerStorefrontPricingRoutes(
     '/api/v1/storefront/pricing/display-mode/:productId',
     async (request, reply) => {
       const product = await catalogProductRead.findById(request.params.productId);
-      if (!product) {
+      // Issue #227 — both routes below are anonymous by design, and both took
+      // a bare product id and answered about it. Whether a price is even
+      // displayed for a product an operator restricted to one distributor is
+      // that operator's answer, so the row has to pass the audience test before
+      // this route says anything about it at all.
+      if (!product || !isProductVisibleTo(product, productAudienceOf(request))) {
         reply.status(404);
         return { error: { code: 'NOT_FOUND', message: 'Product not found.' } };
       }
@@ -63,7 +69,9 @@ export async function registerStorefrontPricingRoutes(
     '/api/v1/storefront/products/:id/resolved-price',
     async (request, reply) => {
       const product = await catalogProductRead.findById(request.params.id);
-      if (!product) {
+      // Issue #227 — see the display-mode route above. A resolved price is the
+      // most direct disclosure this module has.
+      if (!product || !isProductVisibleTo(product, productAudienceOf(request))) {
         reply.status(404);
         return { error: { code: 'NOT_FOUND', message: 'Product not found.' } };
       }

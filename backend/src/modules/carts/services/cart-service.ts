@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type CartMergeOutcome } from '@b2b/contracts';
+import {
+  ANONYMOUS_PRODUCT_AUDIENCE,
+  ERROR_CODES,
+  isProductVisibleTo,
+  type CartMergeOutcome,
+  type ProductAudience,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
@@ -172,7 +178,16 @@ export class CartService {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Quantity must be > 0.');
     }
     const product = await this.catalogProducts.findById(input.productId);
-    if (!product) {
+    // Issue #227 — a product this shopper may not see is a product they may not
+    // put in a cart. The read port is the row-level one and applies no policy of
+    // its own, deliberately: an order line has to resolve its product long after
+    // the operator restricted it. That makes enforcement the caller's, and this
+    // caller is holding a `productId` the buyer chose.
+    //
+    // 404 and not 403, matching the product detail: a caller who may not see the
+    // row may not learn it exists, and the two answers are indistinguishable to
+    // an honest client because they are the same answer.
+    if (!product || !isProductVisibleTo(product, cartAudience(actor))) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
 
@@ -599,4 +614,21 @@ export class CartService {
     if (actor.anonymousToken && cart.anonymousCartToken === actor.anonymousToken) return;
     throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart not found.');
   }
+}
+
+/**
+ * The {@link ProductAudience} a cart operation speaks for (issue #227).
+ *
+ * An anonymous cart is the anonymous audience — the token in the cookie
+ * identifies a basket, not a buyer, and it is minted by asking for one. A
+ * signed-in shopper carries their Organization, `null` included: the guest-style
+ * accounts of feature 026 have none, and they are exactly the caller
+ * `logged_in_only` distinguishes from the public.
+ */
+function cartAudience(actor: {
+  customer?: CustomerContext;
+  anonymousToken?: string;
+}): ProductAudience {
+  if (!actor.customer) return ANONYMOUS_PRODUCT_AUDIENCE;
+  return { organizationId: actor.customer.organizationId, authenticated: true };
 }

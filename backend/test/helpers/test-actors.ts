@@ -21,6 +21,8 @@ import { createRequireAdmin } from '../../src/modules/auth/require-admin.js';
  */
 
 export const TEST_ORGANIZATION_ID = '00000000-0000-4000-8000-0000000000aa';
+/** A second Organization, so a test can tell "not disclosed" from "disclosed to everyone". */
+export const OTHER_TEST_ORGANIZATION_ID = '00000000-0000-4000-8000-0000000000ab';
 export const TEST_CUSTOMER_ID = '00000000-0000-4000-8000-0000000000a1';
 export const TEST_CUSTOMER_RFQ_ID = '00000000-0000-4000-8000-0000000000a2';
 export const TEST_CUSTOMER_EMPTY_ID = '00000000-0000-4000-8000-0000000000a3';
@@ -90,6 +92,14 @@ export const CUSTOMER_COOKIES: Record<string, { customerAccountId: string; organ
   'stub-customer-session-cl-b': {
     customerAccountId: '00000000-0000-4000-8000-0000000000a6',
     organizationId: TEST_ORGANIZATION_ID,
+  },
+  // A buyer of a *different* Organization (issue #227). Every visibility
+  // enforcement test needs one: "the restricted product is not disclosed" is
+  // only a claim about enforcement when a signed-in buyer who is not on the
+  // allow-list is refused, next to one who is on it and is served.
+  'stub-customer-session-other-org': {
+    customerAccountId: '00000000-0000-4000-8000-0000000000a7',
+    organizationId: OTHER_TEST_ORGANIZATION_ID,
   },
   // Stock-race customers (T100 fixture).
   'stub-customer-session-race-a': {

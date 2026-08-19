@@ -1623,6 +1623,100 @@ export interface CatalogProductRecord {
   fulfilmentStrategyWarehouseOrder: string[] | null;
 }
 
+/**
+ * Who is asking for a product — the single input every enforcing read path
+ * needs beyond the row itself (issue #227).
+ *
+ * Two fields rather than one, because `organizationId === null` conflates two
+ * callers that the `logged_in_only` visibility distinguishes: an anonymous
+ * crawler, and a signed-in buyer whose account carries no Organization (the
+ * guest-style Customer of feature 026). The first must not see a
+ * `logged_in_only` row; the second must.
+ *
+ * An `organizationId` is never asserted by the caller: it comes off the
+ * resolved actor — the customer session's Organization, or a bound API key's.
+ */
+export interface ProductAudience {
+  /**
+   * The asking buyer's Organization, or `null` when the caller has none.
+   * Matched against `allowed_organization_ids` by membership, never by
+   * prefix or by comparing the array to anything.
+   */
+  readonly organizationId: string | null;
+  /** `true` for any caller the platform has identified; `false` for the public. */
+  readonly authenticated: boolean;
+}
+
+/**
+ * The most restrictive audience there is. Anything it may see, every other
+ * audience may see too — which is what makes it the right default for a path
+ * that has not yet been taught to resolve its caller, and the right constant
+ * for a test that means "the public".
+ */
+export const ANONYMOUS_PRODUCT_AUDIENCE: ProductAudience = {
+  organizationId: null,
+  authenticated: false,
+};
+
+/**
+ * Does this audience get to see this product?
+ *
+ * **This is the platform's one answer.** `Product.visibility` and
+ * `Product.allowedOrganizationIds` have been persisted, defaulted and
+ * operator-editable since the foundation migration, and until issue #227 a
+ * single read path out of two dozen enforced them — `catalog`'s quick-search,
+ * repaired for issue #174 after a buyer's type-ahead disclosed products
+ * restricted to other organisations. Every other surface answered the question
+ * its own way or not at all, so the repair starts by making the question have
+ * one answer that a listing, a PDP, a search hit, a cart line, a comparison and
+ * a feed row can all reach.
+ *
+ * It lives in `@b2b/contracts` rather than in `catalog` because the record it
+ * reads is already published here: twenty modules hold a
+ * {@link CatalogProductRecord}, both columns are on it, and a predicate over a
+ * published shape needs no port, no manifest edge and no `catalog` on the other
+ * end of a call. A module that holds the row can enforce; a module that cannot
+ * hold the row has nothing to enforce over.
+ *
+ * The rule, in the order it is decided:
+ *
+ *  1. **A non-empty `allowedOrganizationIds` decides alone**, and it restricts
+ *     whatever `visibility` says — `public` included. `public` with an
+ *     allow-list naming three organisations is a state an operator can save
+ *     today, and reading it as "public wins" discloses exactly the rows the
+ *     operator named someone else on.
+ *  2. Otherwise the allow-list is empty and the answer is `visibility`'s alone:
+ *     `public` to everybody; `logged_in_only` to any authenticated caller;
+ *     `organization_restricted` **to nobody**. That last one is the reading
+ *     that surprises: the restriction was asked for and names no organisation,
+ *     so the permissive reading of it would disclose the row to the whole
+ *     world.
+ *
+ * The SQL half of the same rule — the one `catalog`'s quick-search applies
+ * inside its statement, where a post-filter would break the `limit` — asks with
+ * `@>` containment over the JSONB array, so the buyer's id has to be an element
+ * of the list rather than a substring of the serialised bag. Keep the two in
+ * step; `backend/test/unit/catalog/product-visibility-predicate.test.ts` is the
+ * truth table both are read against.
+ *
+ * What this predicate is **not** is the channel answer. Channel scoping is
+ * Principle XII's, travels through `sales_channel_products` and the sanctioned
+ * bridge accessors, and is a second filter every buyer-facing path owes on top
+ * of this one.
+ */
+export function isProductVisibleTo(
+  product: Pick<CatalogProductRecord, 'visibility' | 'allowedOrganizationIds'>,
+  audience: ProductAudience,
+): boolean {
+  const allowed = product.allowedOrganizationIds ?? [];
+  if (allowed.length > 0) {
+    return audience.organizationId !== null && allowed.includes(audience.organizationId);
+  }
+  if (product.visibility === 'organization_restricted') return false;
+  if (product.visibility === 'logged_in_only') return audience.authenticated;
+  return true;
+}
+
 /** A category row, as the eight modules that read one see it. */
 export interface CatalogCategoryRecord {
   id: string;
