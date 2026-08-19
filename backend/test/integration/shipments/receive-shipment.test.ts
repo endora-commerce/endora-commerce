@@ -14,6 +14,7 @@ import {
 import { ReceiveShipmentHandler } from '../../../src/modules/shipments/services/receive-shipment-handler.js';
 import type { ShippingEventBus } from '../../../src/modules/shipments/services/events.js';
 import { ShipmentService } from '../../../src/modules/shipments/services/shipment-service.js';
+import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
 import { builtInShippingAdapters } from '../../../src/modules/delivery_methods/adapters/built-in-adapters.js';
 import { EnumOrderStatusRegistry } from '../../../src/modules/delivery_methods/services/order-status-registry.port.js';
@@ -88,7 +89,13 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
     };
 
   const shipmentService = (): ShipmentService =>
-    new ShipmentService(h.em, registry, ports().orderReadPort, ports().deliveryMethodReadPort);
+    new ShipmentService(
+      h.em,
+      registry,
+      ports().orderReadPort,
+      ports().deliveryMethodReadPort,
+      new AuditLogService(h.em),
+    );
 
   const receiveHandler = (events?: ShippingEventBus): ReceiveShipmentHandler =>
     new ReceiveShipmentHandler(

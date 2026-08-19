@@ -119,18 +119,40 @@ describe('shipments — the shipment-created notifier reports what happened (#78
     const logged: Logged[] = [];
     const sender = new CapturingSender();
 
-    await expect(notifier(sender, logged).notify(ORDER_ID, SHIPMENT_ID)).resolves.toEqual({
+    await expect(notifier(sender, logged).notify(ORDER_ID, SHIPMENT_ID, 'pending')).resolves.toEqual({
       sent: true,
     });
     expect(sender.sent).toHaveLength(1);
     expect(logged).toHaveLength(0);
   });
 
+  /**
+   * Issue #250 — the send that must not happen. A `pending_manual` shipment is
+   * one no carrier was ever asked for, so "your order has shipped" would name
+   * a parcel nobody is carrying. The sender is a working one here on purpose:
+   * the refusal has to come from the shipment's state, not from the plumbing
+   * being absent, or the test would pass for the wrong reason.
+   */
+  it('sends nothing for a shipment no carrier was asked for, and says which reason it was', async () => {
+    const logged: Logged[] = [];
+    const sender = new CapturingSender();
+
+    await expect(
+      notifier(sender, logged).notify(ORDER_ID, SHIPMENT_ID, 'pending_manual'),
+    ).resolves.toEqual({ sent: false, reason: 'carrier_not_contacted' });
+    expect(sender.sent).toHaveLength(0);
+    expect(logged[0]!.context).toMatchObject({
+      orderId: ORDER_ID,
+      shipmentId: SHIPMENT_ID,
+      reason: 'carrier_not_contacted',
+    });
+  });
+
   it('reports the e-mail the operator switched off', async () => {
     const logged: Logged[] = [];
 
     await expect(
-      notifier(new CapturingSender({ status: 'deactivated' }), logged).notify(ORDER_ID, SHIPMENT_ID),
+      notifier(new CapturingSender({ status: 'deactivated' }), logged).notify(ORDER_ID, SHIPMENT_ID, 'pending'),
     ).resolves.toEqual({ sent: false, reason: 'deactivated' });
     expect(logged[0]!.context).toMatchObject({
       orderId: ORDER_ID,
@@ -146,6 +168,7 @@ describe('shipments — the shipment-created notifier reports what happened (#78
       notifier(new CapturingSender({ status: 'no_transport' }), logged).notify(
         ORDER_ID,
         SHIPMENT_ID,
+        'pending',
       ),
     ).resolves.toEqual({ sent: false, reason: 'no_transport' });
     expect(logged).toHaveLength(1);
@@ -154,7 +177,7 @@ describe('shipments — the shipment-created notifier reports what happened (#78
   it('reports the absence of a sender rather than a silent return', async () => {
     const logged: Logged[] = [];
 
-    await expect(notifier(undefined, logged).notify(ORDER_ID, SHIPMENT_ID)).resolves.toEqual({
+    await expect(notifier(undefined, logged).notify(ORDER_ID, SHIPMENT_ID, 'pending')).resolves.toEqual({
       sent: false,
       reason: 'no_sender',
     });
@@ -167,7 +190,7 @@ describe('shipments — the shipment-created notifier reports what happened (#78
     await expect(
       notifier(new CapturingSender(), logged, {
         customer: { id: 'customer-1', email: null } as unknown as CustomerAccountRecord,
-      }).notify(ORDER_ID, SHIPMENT_ID),
+      }).notify(ORDER_ID, SHIPMENT_ID, 'pending'),
     ).resolves.toEqual({ sent: false, reason: 'no_recipient' });
   });
 
@@ -175,7 +198,7 @@ describe('shipments — the shipment-created notifier reports what happened (#78
     const logged: Logged[] = [];
 
     await expect(
-      notifier(new CapturingSender(), logged, { order: null }).notify(ORDER_ID, SHIPMENT_ID),
+      notifier(new CapturingSender(), logged, { order: null }).notify(ORDER_ID, SHIPMENT_ID, 'pending'),
     ).resolves.toEqual({ sent: false, reason: 'order_not_found' });
   });
 
@@ -199,7 +222,7 @@ describe('shipments — the shipment-created notifier reports what happened (#78
       log: (message, context) => logged.push({ message, context }),
     });
 
-    await expect(subject.notify(ORDER_ID, SHIPMENT_ID)).rejects.toBeInstanceOf(ModuleDisabledError);
+    await expect(subject.notify(ORDER_ID, SHIPMENT_ID, 'pending')).rejects.toBeInstanceOf(ModuleDisabledError);
     // Not logged as `failed`: a capability that is off is not a send that broke.
     expect(logged).toHaveLength(0);
   });
@@ -212,7 +235,7 @@ describe('shipments — the shipment-created notifier reports what happened (#78
       },
     };
 
-    await expect(notifier(throwing, logged).notify(ORDER_ID, SHIPMENT_ID)).resolves.toEqual({
+    await expect(notifier(throwing, logged).notify(ORDER_ID, SHIPMENT_ID, 'pending')).resolves.toEqual({
       sent: false,
       reason: 'failed',
     });
@@ -228,7 +251,7 @@ describe('shipments — the shipment-created notifier reports what happened (#78
     };
 
     await expect(
-      notifier(disabled, logged).notify(ORDER_ID, SHIPMENT_ID),
+      notifier(disabled, logged).notify(ORDER_ID, SHIPMENT_ID, 'pending'),
     ).rejects.toBeInstanceOf(ModuleDisabledError);
   });
 });

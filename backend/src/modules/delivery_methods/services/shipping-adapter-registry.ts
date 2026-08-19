@@ -105,6 +105,23 @@ export class ShippingAdapterRegistry implements ShippingAdapterRegistryPort {
     return this.entries.get(adapterKey)?.module ?? null;
   }
 
+  /**
+   * The module that contributed `adapterKey` and is **not** effectively
+   * present, or `null` when the adapter is available or was never contributed.
+   *
+   * The fourth reader, and the only one that answers the question instead of
+   * exposing the table. `get()` returns `undefined` for two situations an
+   * operator cannot act on identically — a key nobody ever contributed, and a
+   * key whose carrier module is switched off — so `shipments` asks this one to
+   * tell them apart before it decides what state to open the row in (issue
+   * #250). Its payment twin is `GatewayRefundRegistry.absentOwnerFor` (D-71).
+   */
+  absentOwnerFor(adapterKey: string): string | null {
+    const entry = this.entries.get(adapterKey);
+    if (!entry || this.isModulePresent(entry.module)) return null;
+    return entry.module;
+  }
+
   /** Registered AND its owner effectively present. */
   isAvailable(adapterKey: string): boolean {
     const entry = this.entries.get(adapterKey);

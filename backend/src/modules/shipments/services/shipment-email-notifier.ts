@@ -6,6 +6,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CustomerAccountReadPort,
   OrderReadPort,
+  ShipmentStatus,
   TransactionalEmailSender,
 } from '@b2b/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
@@ -20,6 +21,14 @@ import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entit
  * #67, and anything the bare `catch` absorbed all produced that same `void`.
  */
 export type ShipmentEmailNotSentReason =
+  /**
+   * The shipment opened `pending_manual`: no carrier was asked for it, so
+   * there is no carrier, no label and no tracking number to tell the customer
+   * about (issue #250). Telling a buyer their order has shipped when nothing
+   * has been handed to anyone is worse than telling them nothing, and it is
+   * not recoverable — the correcting message is one nobody sends.
+   */
+  | 'carrier_not_contacted'
   /** No transactional sender is wired in this composition. */
   | 'no_sender'
   /** The event named an order this process cannot load. */
@@ -79,7 +88,17 @@ export class ShipmentEmailNotifier {
    * named in the return value; a shipment must not be un-created because the
    * notification failed.
    */
-  async notify(orderId: string, shipmentId: string): Promise<ShipmentEmailResult> {
+  async notify(
+    orderId: string,
+    shipmentId: string,
+    status: ShipmentStatus,
+  ): Promise<ShipmentEmailResult> {
+    // First, and before any plumbing is consulted: this is a decision about the
+    // shipment, not about the mail. A `pending_manual` row is one no carrier
+    // was ever asked for, so "your order has shipped" would be false.
+    if (status === 'pending_manual') {
+      return this.notSent(orderId, shipmentId, 'carrier_not_contacted');
+    }
     const sender = this.deps.getTransactionalEmailSender();
     if (!sender) return this.notSent(orderId, shipmentId, 'no_sender');
     try {

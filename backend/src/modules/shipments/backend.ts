@@ -7,11 +7,13 @@ import type {
   OrderReadPort,
   OrderStatusAnnouncePort,
   OrderStatusRegistry,
+  ShipmentStatus,
   ShippingAdapterRegistryPort,
   ShippingEmailRendererPort,
 } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { ShipmentService } from './services/shipment-service.js';
 import { resolveShippingEmailRenderer } from './services/shipping-email-renderer.js';
@@ -57,6 +59,8 @@ import { SHIPMENT_CREATED_DEFAULT } from './email-templates/transactional-defaul
 export interface ShipmentsCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
+  /** Platform-owned name — the sink for the `pending_manual` audit row. */
+  readonly auditLogService: AuditLogService;
   readonly requireAdmin: RequireAdminFactory;
   readonly shippingAdapterRegistry: ShippingAdapterRegistryPort;
   readonly shippingOrderStatusRegistry: OrderStatusRegistry;
@@ -98,12 +102,13 @@ export function registerModule(ctx: ModuleContext): void {
     'shipmentService',
     ctx
       .asFunction(
-        ({ emFactory, eventBus }: ShipmentsCradle) =>
+        ({ emFactory, eventBus, auditLogService }: ShipmentsCradle) =>
           new ShipmentService(
             emFactory,
             lazyPort<ShippingAdapterRegistryPort>(ctx, 'shippingAdapterRegistry'),
             lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
             lazyPort<DeliveryMethodReadPort>(ctx, 'deliveryMethodReadPort'),
+            auditLogService,
             eventBus as ShippingEventBus,
           ),
       )
@@ -147,11 +152,15 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   ctx.subscribe('shipment.created.v1', async (payload) => {
-    const { orderId, shipmentId } = payload as unknown as {
+    const { orderId, shipmentId, status } = payload as unknown as {
       orderId: string;
       shipmentId: string;
+      status: ShipmentStatus;
     };
-    await ctx.cradle<ShipmentsCradle>().shipmentEmailNotifier.notify(orderId, shipmentId);
+    // The state travels with the event because the notifier's decision depends
+    // on it: a shipment no carrier was asked for sends no "your order has
+    // shipped" (issue #250).
+    await ctx.cradle<ShipmentsCradle>().shipmentEmailNotifier.notify(orderId, shipmentId, status);
   });
 
   ctx.routes(async (app) => {
