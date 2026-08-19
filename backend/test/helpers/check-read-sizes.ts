@@ -155,8 +155,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-diacritic-folds.ts': {
     prefix: '[diacritic-folds]',
     run: { kind: 'tsx', path: 'scripts/check-diacritic-folds.ts', args: [] },
-    files: 3825,
-    sites: null,
+    files: 3862,
+    // It had none until issue #244, on the stated ground that "the unit is the
+    // fold, and a file without one is exactly what #244 is about". True of the
+    // two fold signals and no longer the whole check: the `slug-run` signal
+    // judges every `.replace()` whose pattern it can read, cleared ones
+    // included, so there is now a population here that does not move with the
+    // findings.
+    sites: 319,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -336,8 +342,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
  */
 export const READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE: Readonly<Record<string, string>> = {
   'backend/scripts/check-diacritic-folds.ts':
-    'the population is every source file in the repository that could contain a fold. ' +
-    'Nothing derives that set: a fold is legal anywhere, which is the whole of issue #244.',
+    'the population is every source file in the repository that could contain a fold or ' +
+    'build a slug. Nothing derives that set: both are legal anywhere, which is the whole ' +
+    'of issues #240 and #244.',
   'backend/scripts/check-doc-snippets.ts':
     'the population is the markdown under `docs/docs` and `specs`. A document enrols by ' +
     'carrying a marker, and no registry lists which documents ought to cite a source.',
@@ -388,9 +395,6 @@ export const READ_SIZE_WITHOUT_A_SITE_POPULATION: Readonly<Record<string, string
     '`analyzeSource` discards as it goes.',
   'backend/scripts/check-container-imports.ts':
     'the unit is the file: one import of the container library per file is the whole rule.',
-  'backend/scripts/check-diacritic-folds.ts':
-    'the unit is the fold, and a file without one is exactly what issue #244 is about — ' +
-    'so a site count here would be a finding count wearing another name.',
   'backend/scripts/check-entry-presence.ts':
     'reports the entry points that fail the rule; the ones that decide presence correctly ' +
     'are not collected.',

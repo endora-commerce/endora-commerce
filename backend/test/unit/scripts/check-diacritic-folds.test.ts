@@ -662,6 +662,57 @@ describe('check-diacritic-folds — what the slug run does not refuse', () => {
   });
 });
 
+describe('check-diacritic-folds — the site population it discloses', () => {
+  // `sites=` is a ratchet input (issue #244), so it has to count the population
+  // and not the findings. A number that moved with the findings would answer
+  // the wrong question — which is the mistake `check-entry-scope` had already
+  // made once, printing the files that hold an entry site rather than the files
+  // it opened.
+  const source = [
+    "export const compact = (s: string) => s.replace(/[^A-Za-z0-9]/g, '');",
+    "export const slug = (s: string) => s.replace(/[^a-z0-9]+/g, '-');",
+    "export const trimmed = (s: string) => s.replace(/^-+|-+$/g, '');",
+    "export const literal = (s: string) => s.replace('x', 'y');",
+  ].join('\n');
+
+  it('counts every readable `.replace()` it judged, cleared ones included', () => {
+    // Three of the four: the bare string pattern is not a pattern this check can
+    // read, so it is honestly outside the population rather than silently in it.
+    const analysis = analyzeFile(source, 'admin/src/lib/thing.ts');
+    expect(analysis.replaceSites).toBe(3);
+    expect(analysis.findings.map((finding) => finding.kind)).toEqual(['slug-run']);
+  });
+
+  it('does not move when a finding is repaired', () => {
+    // The property that makes the number worth recording: routing the one slug
+    // builder through the shared generator empties the findings and leaves the
+    // population where it was, minus only the call that went away.
+    const repaired = analyzeFile(
+      source.replace("s.replace(/[^a-z0-9]+/g, '-')", 'slugify(s)'),
+      'admin/src/lib/thing.ts',
+    );
+    expect(repaired.findings).toEqual([]);
+    expect(repaired.replaceSites).toBe(2);
+  });
+
+  it('is summed across the scanned files by the check itself', () => {
+    const result = checkDiacriticFolds(
+      [file('admin/src/lib/a.ts', source), file('admin/src/lib/b.ts', source)],
+      {},
+      {},
+    );
+    expect(result.replaceSites).toBe(6);
+    // ...and the excluded subtrees contribute none of it, or the disclosed
+    // number would describe a population the check does not judge.
+    const withExclusions = checkDiacriticFolds(
+      [file('admin/src/lib/a.ts', source), file('backend/scripts/check-x.ts', source)],
+      {},
+      {},
+    );
+    expect(withExclusions.replaceSites).toBe(3);
+  });
+});
+
 /** The two predicates the slug signal is assembled from, read directly. */
 describe('check-diacritic-folds — the slug vocabulary', () => {
   it('recognises an ASCII-alphanumeric negated class and its quantifier', () => {
