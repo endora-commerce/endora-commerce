@@ -421,10 +421,15 @@ number", never pick a number, never edit an execution list.
    ordering, the answer is always the manifest `dependencies` of the module that owns the
    referencing table. The 45-day correction horizon, the dependency-inversion edges and the
    `unresolvable-order` failure are gone; a dependency **cycle** is now a reported diagnostic
-   rather than a boot failure — red in `test/unit/db/module-graph.test.ts`, logged at `warn`
-   at boot — because the graph is the primary ordering and a manifest can arrive from an
-   installed package, so a throw would let one stranger's declaration stop a shop's own schema
-   from migrating.
+   rather than a boot failure — because the graph is the primary ordering and a manifest can
+   arrive from an installed package, so a throw would let one stranger's declaration stop a
+   shop's own schema from migrating. It has **three readers and three reactions**, and the
+   split is the point: red in `test/unit/db/module-graph.test.ts` for a cycle in this
+   repository, logged at `warn` at boot for one on a running platform, and **refused by the
+   `_lifecycle` orchestrator** for one that is about to arrive — `install` walks the installed
+   set plus the arriving module with `findModuleCycles` and refuses with `manifest-cycle`
+   (exit `65`) when a component holds it. Only the arriving module's component is refused; a
+   loop between two already-installed modules blocks nobody else's install.
 4. **Cross-module FK ⇒ declare the dependency.** A new foreign key to another module's table
    requires that module in your manifest's `dependencies` (transitively), or
    `pnpm --filter backend exec vitest run test/unit/db/fk-dependency-drift.test.ts` fails.

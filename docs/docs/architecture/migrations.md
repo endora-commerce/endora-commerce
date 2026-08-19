@@ -214,7 +214,22 @@ shop's core schema from migrating*. Three readers react instead:
 |--------|----------|
 | `backend/test/unit/db/module-graph.test.ts` | asserts **zero** diagnostics over the committed manifests — a cycle in this repository is still a red build |
 | `backend/src/db/mikro-orm.config.ts` | logs each diagnostic at `warn`, naming its members |
-| the `_lifecycle` orchestrator | **not yet built** — FR-012 will refuse to install a module whose arrival creates one |
+| the `_lifecycle` orchestrator | refuses an install whose arrival closes a cycle, naming every member and exiting `65` |
+
+The three reactions differ on purpose, and the difference is where each one sits. A cycle
+**in this repository** is a mistake made by someone who can fix it before anything ships,
+so it is a red build. A cycle **on a running platform** is already deployed, so the
+platform says so and keeps serving — nothing else it could do would leave the operator
+better off. A cycle that is about to **arrive** is refused, because the install is the one
+moment where refusing costs nothing: nothing downstream of the module exists yet, and the
+operator is standing right there.
+
+The refusal is scoped to the arriving module: the graph it walks is the installed set plus
+that module, and only a component holding it is refused. A loop between two modules that
+are already installed does not block a third module's install — that would reproduce, one
+command later, exactly the platform-wide stall the no-throw rule exists to prevent. It
+walks the graph with `findModuleCycles` from `migration-order.ts`, so the member list an
+operator reads at the install prompt is the same list the boot warning would print.
 
 ### Accepted limitation
 

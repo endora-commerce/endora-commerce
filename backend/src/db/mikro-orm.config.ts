@@ -51,9 +51,12 @@ const { migrations: migrationsList, diagnostics } = orderMigrations({
 // A dependency cycle is a diagnostic, not a throw: the graph is the primary
 // ordering now, so refusing here would let one mis-declared manifest stop the
 // whole platform's schema from migrating. Nothing in this file branches on it —
-// test/unit/db/module-graph.test.ts fails the build on a cycle in this
-// repository, which is the only refusal that exists today. The install-time
-// refusal for a cycle arriving from a package is FR-012 and is not yet built.
+// warning is the whole reaction, and the platform boots and serves. The other
+// two readers refuse instead, each where refusing costs nothing:
+// test/unit/db/module-graph.test.ts fails the build on a cycle in the committed
+// manifests, and the _lifecycle orchestrator refuses an install whose arrival
+// closes one (FR-012). test/unit/db/migration-order-boot-warning.test.ts is the
+// proof that this warning fires on a cycle and is silent without one.
 for (const diagnostic of diagnostics) {
   console.warn(diagnostic.message);
 }
