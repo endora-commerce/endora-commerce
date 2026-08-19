@@ -28,6 +28,7 @@ import {
 } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { LoadedManifestRegistry } from './manifest-loader.js';
 import { MIGRATION_REGISTRY } from '../../../db/migrations-registry.generated.js';
+import { findModuleCycles } from '../../../db/migration-order.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -209,6 +210,8 @@ export class ModuleLifecycleOrchestrator {
           { missing },
         );
       }
+
+      await this.assertInstallClosesNoCycle(moduleId, installedSet);
 
       // Mark 'installing' so a crash leaves a paper trail.
       await this.upsertRegistration(moduleId, {
@@ -748,6 +751,64 @@ export class ModuleLifecycleOrchestrator {
    * has that nothing else does. `test/unit/_lifecycle/orchestrator.test.ts`
    * pins that carve-out.
    */
+  /**
+   * Refuse an install whose arrival closes a dependency cycle, naming every
+   * member (feature 081, FR-012).
+   *
+   * A cycle is not thrown by `orderMigrations`: the manifest graph is the whole
+   * cross-module migration order now, and a manifest can arrive from an
+   * installed package, so refusing there would let one stranger's declaration
+   * stop a shop's own schema from migrating. It comes back as a diagnostic with
+   * three readers instead, and this is the third — the moment the loop would be
+   * *created* is the one moment where refusing costs nothing, because nothing
+   * downstream of it exists yet.
+   *
+   * The graph is the **installed** set plus the arriving module, and only a
+   * component holding the arriving module is refused: a loop between two other
+   * modules is somebody else's problem, and blocking every later install on it
+   * would reproduce the platform-wide stall the no-throw rule exists to
+   * prevent. It reuses `findModuleCycles` rather than `ModuleDepGraph.hasCycle`
+   * — one walk, so the install refusal and the migration order cannot disagree
+   * about what a cycle is, and the operator reads the same member list in both.
+   */
+  private async assertInstallClosesNoCycle(
+    moduleId: string,
+    installed: ReadonlySet<string>,
+  ): Promise<void> {
+    const nodes = new Set<string>([...installed, moduleId]);
+    const graph = new Map<string, readonly string[]>();
+    for (const id of nodes) {
+      // An orphan registration row — installed, no manifest — declares nothing
+      // we can read, so it contributes a node and no edge.
+      const declared = this.deps.registry.modules.get(id)?.manifest.dependencies ?? [];
+      graph.set(
+        id,
+        declared.filter((dependency) => nodes.has(dependency)),
+      );
+    }
+
+    const closed = findModuleCycles(graph).find((diagnostic) =>
+      diagnostic.modules.includes(moduleId),
+    );
+    if (!closed) return;
+
+    await this.deps.auditLog.record({
+      actorAdminUserId: null,
+      action: 'module.dependency_blocked',
+      objectType: 'module',
+      objectId: moduleId,
+      stateAfter: { command: 'install', cycle: closed.modules },
+    });
+    throw new LifecycleError(
+      'manifest-cycle',
+      `module "${moduleId}" cannot be installed: with it, the modules ` +
+        `[${closed.modules.join(', ')}] depend on each other in a loop. Nothing can be ` +
+        `installed, migrated or removed before the modules it depends on, so a loop has ` +
+        `no order at all. Fix the \`dependencies\` array in one of them.`,
+      { moduleId, cycle: closed.modules },
+    );
+  }
+
   private assertDeactivatable(moduleId: string): void {
     const activation = this.deps.registry.modules.get(moduleId)?.manifest.activation;
     if (!activation || !('nonDeactivatable' in activation)) return;

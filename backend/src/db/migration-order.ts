@@ -380,25 +380,23 @@ function sortComponents(
   return ordered;
 }
 
-export function orderMigrations(input: OrderMigrationsInput): MigrationOrderResult {
-  const { entries, moduleDependencies, baselineThrough } = input;
-  const parsed = parseEntries(entries, moduleDependencies);
-
+/** Step 3 — the ordering graph of a module dependency map, and its components. */
+function orderingGraph(moduleDependencies: ReadonlyMap<string, readonly string[]>): {
+  components: string[][];
+  neighboursOf: (id: string) => readonly string[];
+} {
   const nodes = [...moduleDependencies.keys()];
   if (!moduleDependencies.has(CORE_MODULE_ID)) nodes.push(CORE_MODULE_ID);
   // Edges to ids absent from the map are skipped; a *migration* claiming such
   // a module is rejected by Step 1 instead.
   const neighboursOf = (id: string): readonly string[] =>
     (moduleDependencies.get(id) ?? []).filter((dependency) => moduleDependencies.has(dependency));
-  const components = stronglyConnectedComponents(nodes, neighboursOf);
+  return { components: stronglyConnectedComponents(nodes, neighboursOf), neighboursOf };
+}
 
-  // Reported, never thrown: the graph is the primary ordering now, so a throw
-  // would mean a stranger's manifest can stop a shop's own schema from
-  // migrating. The readers want different reactions — a red unit test
-  // (`test/unit/db/module-graph.test.ts`), a `warn` at boot, and eventually the
-  // lifecycle refusing an install that closes a loop (FR-012, not yet built) —
-  // and none of them belongs in a pure function.
-  const diagnostics: MigrationOrderDiagnostic[] = components
+/** A component of more than one module is a cycle, and is reported, never thrown. */
+function cycleDiagnostics(components: readonly string[][]): MigrationOrderDiagnostic[] {
+  return components
     .filter((members) => members.length > 1)
     .map((members) => ({
       kind: 'module-cycle' as const,
@@ -408,6 +406,41 @@ export function orderMigrations(input: OrderMigrationsInput): MigrationOrderResu
         `Their migrations are emitted as one block in timestamp order, because the ` +
         `declarations contain no order. Fix the \`dependencies\` array in one of them.`,
     }));
+}
+
+/**
+ * Every dependency cycle in a module graph, in the same shape and wording
+ * `orderMigrations` reports — one strongly connected component of more than
+ * one module per diagnostic, members sorted.
+ *
+ * Exported for the third reader of the diagnostic (081 FR-012): the
+ * `_lifecycle` orchestrator refuses an install whose arrival closes a cycle,
+ * which is the one moment where refusing costs nothing. The other two readers
+ * are `test/unit/db/module-graph.test.ts`, which fails the build on a cycle in
+ * the committed manifests, and the ORM configuration, which warns at boot and
+ * keeps serving. Three reactions, one graph walk — the split is the point, and
+ * a second walk somewhere else would be free to disagree with this one about
+ * what a cycle is.
+ */
+export function findModuleCycles(
+  moduleDependencies: ReadonlyMap<string, readonly string[]>,
+): readonly MigrationOrderDiagnostic[] {
+  return cycleDiagnostics(orderingGraph(moduleDependencies).components);
+}
+
+export function orderMigrations(input: OrderMigrationsInput): MigrationOrderResult {
+  const { entries, moduleDependencies, baselineThrough } = input;
+  const parsed = parseEntries(entries, moduleDependencies);
+
+  const { components, neighboursOf } = orderingGraph(moduleDependencies);
+
+  // Reported, never thrown: the graph is the primary ordering now, so a throw
+  // would mean a stranger's manifest can stop a shop's own schema from
+  // migrating. The readers want different reactions — a red unit test
+  // (`test/unit/db/module-graph.test.ts`), a `warn` at boot, and the lifecycle
+  // refusing an install that closes a loop (FR-012) — and none of them belongs
+  // in a pure function.
+  const diagnostics = cycleDiagnostics(components);
 
   const baseline: ParsedMigration[] = [];
   const openByModule = new Map<string, ParsedMigration[]>();
