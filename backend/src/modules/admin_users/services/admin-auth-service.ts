@@ -1,5 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type AuthSessionPort, type MfaLoginPort } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  normalizeEmailAddress,
+  type AuthSessionPort,
+  type MfaLoginPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
@@ -41,7 +46,15 @@ export class AdminAuthService {
     userAgent?: string;
   }): Promise<AdminLoginOutcome> {
     const em = this.emFactory();
-    const admin = await em.findOne(AdminUser, { email: input.email, deletedAt: null });
+    // The address is folded before it is compared, because it was folded before
+    // it was stored: Postgres' `=` on `text` is case-sensitive, so an operator
+    // created as `Anna.Nowak@endora.pl` matched no row when they typed the
+    // address they were handed, and the refusal below says nothing about
+    // casing. `normalizeEmailAddress` is the same fold the write applies.
+    const admin = await em.findOne(AdminUser, {
+      email: normalizeEmailAddress(input.email),
+      deletedAt: null,
+    });
     if (!admin || admin.status !== 'active') {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Invalid email or password.');
     }

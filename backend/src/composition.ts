@@ -9,7 +9,7 @@ import { resolveCustomerRollupSubtreeIds } from './modules/customer_accounts/ser
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type ProductAvailability } from '@b2b/contracts';
+import { ERROR_CODES, normalizeEmailAddress, type ProductAvailability } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
 import { ApiInterceptorRegistry } from './http/interceptors/index.js';
@@ -806,7 +806,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
     autoCreateCustomer: (email: string) => customerSocialLogin().autoCreate(email),
     resolveAdminByEmail: async (email: string) => {
-      const a = await em().findOne(AdminUser, { email, deletedAt: null, status: 'active' });
+      // The claim's spelling is the identity provider's, and the row holds the
+      // folded address, so the two are compared in the one form both modules
+      // store (issue #249). This read is still a root's — `admin_users` has no
+      // port for it — so the fold is written here rather than behind one.
+      const a = await em().findOne(AdminUser, {
+        email: normalizeEmailAddress(email),
+        deletedAt: null,
+        status: 'active',
+      });
       return a ? { id: a.id } : null;
     },
   };

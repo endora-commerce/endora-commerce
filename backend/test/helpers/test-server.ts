@@ -71,7 +71,7 @@ import {
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
 import { buildStaticRegistry } from '../../src/modules/_lifecycle/services/static-registry.js';
 import type { LoadedManifestRegistry } from '../../src/modules/_lifecycle/services/manifest-loader.js';
-import { ERROR_CODES, type ProductAvailability } from '@b2b/contracts';
+import { ERROR_CODES, normalizeEmailAddress, type ProductAvailability } from '@b2b/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
@@ -1425,7 +1425,14 @@ export async function setupBackendServer(
       resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
       autoCreateCustomer: (email: string) => customerSocialLogin().autoCreate(email),
       resolveAdminByEmail: async (email: string) => {
-        const a = await em().findOne(AdminUser, { email, deletedAt: null, status: 'active' });
+        // Folded like production's (issue #249): the harness writes this read
+        // out rather than forwarding to a port, so a divergence here would be
+        // a test suite that cannot see the defect.
+        const a = await em().findOne(AdminUser, {
+          email: normalizeEmailAddress(email),
+          deletedAt: null,
+          status: 'active',
+        });
         return a ? { id: a.id } : null;
       },
     },

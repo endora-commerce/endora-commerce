@@ -31,19 +31,24 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
  * position must be in the open block.
  *
  * Note on the counts. `specs/081-per-module-migration-order/` measured 141
- * migrations (112 baseline, 29 open) against `master@4186aec0`. Two migrations
- * have landed since — `Migration20260819T074816CustomerAccountsPasswordSetAt`
- * and `Migration20260819T142837CustomerAccountsFoldEmailCase`, both open-block
- * entries — so the numbers here are 143/112/31. The frozen prefix, which is the
- * claim the feature rests on, is the spec's 112 unchanged.
+ * migrations (112 baseline, 29 open) against `master@4186aec0`. Three
+ * migrations have landed since —
+ * `Migration20260819T074816CustomerAccountsPasswordSetAt`,
+ * `Migration20260819T142837CustomerAccountsFoldEmailCase` and
+ * `Migration20260819T155150AdminUsersFoldEmailCase`, all open-block entries —
+ * so the numbers here are 144/112/32. The frozen prefix, which is the claim the
+ * feature rests on, is the spec's 112 unchanged.
  *
- * A new migration is therefore added to `PRE_081_ORDER` in the position feature
- * 065's algorithm would have emitted it: `…FoldEmailCase` is stamped after
- * `…PasswordSetAt` and owned by the same module, so chronology and the
- * dependency-inversion corrections both put it immediately behind it. That is
- * not a regeneration — the 142 positions the literal already held are
- * untouched, and `EXPECTED_MOVED_POSITIONS` stayed at 26, which is the evidence
- * that the insertion did not move anybody.
+ * A new migration is added to `PRE_081_ORDER` in the position feature 065's
+ * algorithm would have emitted it. That position is **computed, not guessed**:
+ * the 065 algorithm is a pure function and it is still in the history, so
+ * running `orderMigrations` as of `master@a139e1b7^` over today's registry
+ * reproduces this literal entry for entry and says where the new name lands.
+ * It is not a regeneration by the code this baseline guards — that code is the
+ * rewritten `src/db/migration-order.ts`, and it emits the new name three
+ * positions earlier. The 143 positions the literal already held are untouched,
+ * and `EXPECTED_MOVED_POSITIONS` stayed at 26, which is the evidence that the
+ * insertion did not move anybody.
  */
 
 const FROZEN_PREFIX_LENGTH = 112;
@@ -62,8 +67,21 @@ const FROZEN_PREFIX_LENGTH = 112;
  * applied work by class name, no name moved, and umzug filters applied
  * migrations out of `pending` regardless of list position. Measured, not
  * assumed — see the rehearsal in the merge request.
+ *
+ * **26 → 28**, and this is the "saying why". Issue #249's backfill
+ * (`Migration20260819T155150AdminUsersFoldEmailCase`) is the first migration
+ * the two algorithms place differently: 065's chronology puts it at 115, among
+ * the August stamps it sits between, while 081 puts it at 113 because
+ * `admin_users` comes early in the dependency topological order. Exactly two
+ * positions change status — the new migration itself, and
+ * `Migration20260817T070014EmailDeliveryRecord`, which the new entry displaces
+ * from 113 to 114 in the emitted order while the frozen baseline keeps it at
+ * 113. Nothing else moves, and nothing in the frozen prefix does. A migration
+ * that lands on a position the two algorithms agree about still leaves this
+ * number alone; one that does not is expected to move it, by two, and to say
+ * which two.
  */
-const EXPECTED_MOVED_POSITIONS = 26;
+const EXPECTED_MOVED_POSITIONS = 28;
 
 const MODULE_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map<
   string,
@@ -198,6 +216,7 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260816T203339CoreRetireCoreActivationSettings',
   'Migration20260817T070014EmailDeliveryRecord',
   'Migration20260801T111001TransactionalEmailsEmailDefaultsReseed',
+  'Migration20260819T155150AdminUsersFoldEmailCase',
   'Migration20260804T152604CatalogWidenProductSku',
   'Migration20260804T160244CatalogCategoryActivation',
   'Migration20260819T074816CustomerAccountsPasswordSetAt',
