@@ -112,6 +112,18 @@ export const ISOLATION_ENV = 'BACKEND_TEST_ISOLATION';
 /** Set this to keep the run database after the run, for a post-mortem. */
 export const KEEP_DATABASE_ENV = 'BACKEND_TEST_KEEP_DATABASE';
 
+/**
+ * The base DSN, exported to the workers by `global-setup.ts` on the isolated
+ * path only.
+ *
+ * Its **presence is the statement** "this invocation has a migrated template,
+ * and a file that needs a database of its own may clone it" — which is what
+ * `setupMigratorTestDb` asks. Nothing derives it from the run database's name:
+ * a run database is `<base>_r_<stamp>_<token>` and taking the base back out of
+ * one would be a second, weaker spelling of `runDatabaseName`.
+ */
+export const BASE_DATABASE_URL_ENV = 'BACKEND_TEST_BASE_URL';
+
 export type IsolationMode = 'per-invocation' | 'shared';
 
 export function isolationMode(env: NodeJS.ProcessEnv = process.env): IsolationMode {

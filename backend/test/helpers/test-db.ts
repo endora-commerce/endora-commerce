@@ -2,6 +2,8 @@ import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../src/db/mikro-orm.config.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { assertServicesAvailable } from '../declared-services.js';
+import { BASE_DATABASE_URL_ENV } from '../run-isolation.js';
+import { cloneTemplateForCaller, dropRunDatabase } from '../run-isolation-provision.js';
 
 /**
  * Transaction-rollback fixture pattern (R-03):
@@ -59,7 +61,11 @@ export interface TestDb {
 export async function setupTestDb(): Promise<TestDb> {
   // Issue #211 — see the note in `setupBackendServer`; same seam, same reason.
   assertServicesAvailable('setupTestDb');
-  const orm = await MikroORM.init(mikroOrmConfig);
+  return openTestDb(mikroOrmConfig);
+}
+
+async function openTestDb(config: typeof mikroOrmConfig): Promise<TestDb> {
+  const orm = await MikroORM.init(config);
   let activeEm: EntityManager | undefined;
 
   // Read outside any test transaction, once per file: the channel is platform
@@ -103,6 +109,73 @@ export async function setupTestDb(): Promise<TestDb> {
         activeEm = undefined;
       }
       await orm.close(true);
+    },
+  };
+}
+
+/**
+ * A database of this file's own, for a test that drives the real migrator.
+ *
+ * Every other fixture in this file mutates rows inside a transaction that is
+ * rolled back. `orm.getMigrator().up()` / `.down()` mutates the **schema**,
+ * outside any such fixture — and since per-invocation isolation (issue #189)
+ * the run database is the invocation's only copy, so a migration sequence that
+ * dies half-way is not one red file: measured, it was 21 red files in
+ * `test/integration/catalog`, 20 of them collateral, each with a message that
+ * pointed at itself.
+ *
+ * So the file gets its own clone of the same migrated template the run was
+ * cloned from — a `create database … template …` file copy, a fraction of a
+ * second — and `close()` drops it. A file using this seam owes its neighbours
+ * nothing: it does not have to leave the schema migrated, which is exactly the
+ * `afterAll` that was doing the damage.
+ *
+ * Who may call it is a declared, two-way-checked list:
+ * `test/migrator-driving-tests.ts`, kept honest by
+ * `test/unit/harness/migrator-driving-ledger.test.ts`.
+ *
+ * Under `BACKEND_TEST_ISOLATION=shared` there is no template to clone — the
+ * base env var is not exported — so this falls back to `setupTestDb()` and says
+ * so. That is the escape hatch's cost, declared rather than discovered: the
+ * shared path is the pre-#189 behaviour in full, and this is part of it.
+ */
+export async function setupMigratorTestDb(): Promise<TestDb> {
+  assertServicesAvailable('setupMigratorTestDb');
+  const baseUrl = process.env[BASE_DATABASE_URL_ENV];
+  if (!baseUrl) {
+    process.stdout.write(
+      `[test-db] ${BASE_DATABASE_URL_ENV} is not set, so this invocation has no template to ` +
+        `clone — a migrator-driving file is running against the shared database, and a ` +
+        `migration sequence that fails here will take the rest of the run with it.\n`,
+    );
+    const shared = await setupTestDb();
+    const closeShared = shared.close;
+    return {
+      ...shared,
+      close: async () => {
+        // The compensation the caller no longer owes anybody, owed again here
+        // because on this path the caller *is* sharing: leave the schema
+        // migrated for the files after it. It lives in the seam rather than in
+        // an `afterAll`, so the file reads the same in both modes and only the
+        // mode that needs it pays. A failure re-migrating is the run's problem
+        // and is raised, but the ORM is closed either way.
+        try {
+          await shared.orm.getMigrator().up();
+        } finally {
+          await closeShared();
+        }
+      },
+    };
+  }
+
+  const clone = await cloneTemplateForCaller(baseUrl);
+  const db = await openTestDb({ ...mikroOrmConfig, clientUrl: clone.url });
+  const closeOrm = db.close;
+  return {
+    ...db,
+    close: async () => {
+      await closeOrm();
+      await dropRunDatabase(baseUrl, clone.name, () => {});
     },
   };
 }

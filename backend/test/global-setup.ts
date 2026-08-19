@@ -35,6 +35,7 @@ import {
   UNREACHABLE_SERVICE_URLS,
 } from './declared-services.js';
 import {
+  BASE_DATABASE_URL_ENV,
   ISOLATION_ENV,
   KEEP_DATABASE_ENV,
   TEST_DATABASE_NAME_PATTERN,
@@ -281,6 +282,12 @@ export default async function globalSetup(): Promise<Teardown | void> {
     },
   });
   process.env['DATABASE_URL'] = run.url;
+  // A file that drives the real migrator may not do it to the database its
+  // neighbours share — the run database is this invocation's only copy, so a
+  // migration sequence that dies half-way takes the whole invocation with it.
+  // Exporting the base is what lets `setupMigratorTestDb` clone the same
+  // template this run was cloned from; see `test/migrator-driving-tests.ts`.
+  process.env[BASE_DATABASE_URL_ENV] = baseUrl;
 
   // The same defect on the other service: the 20-file batch that "passed alone"
   // would still have collided on Redis keys. An explicit index in REDIS_URL is

@@ -135,6 +135,29 @@ Under `BACKEND_TEST_ISOLATION=shared` the same drift accumulates in the base dat
 run says so and does nothing else: that database is one you named or kept, so it is not the
 harness's to drop. Drop it yourself and re-run, or drop the escape hatch.
 
+### A test that drives the migrator takes a database of its own
+
+Every other integration test mutates *rows*, inside a transaction the fixture rolls back or a
+truncate the next file repeats. A test that calls `orm.getMigrator().up()` or `.down()` mutates
+the **schema**, outside either — and the run database is this invocation's only copy, so a
+migration sequence that dies half-way does not fail alone. Measured on the failure above:
+`test/integration/catalog` was **21 files red**, and 20 of 20 green with the one migrator-driving
+file excluded. Twenty messages about `relation "sales_channels" does not exist` and a failed
+harness truncate, each pointing at itself, for a cause in the file nobody reads last.
+
+So such a file calls `setupMigratorTestDb()` instead of `setupTestDb()`. It clones the same
+migrated template this invocation was cloned from — a file copy — and drops it in teardown, so
+however badly the migration sequence goes, it goes there. It also owes its neighbours nothing:
+no `migrator.up()` in `afterAll` to leave the schema behind for them, which is the hook that was
+doing the damage. Re-measured with that file deliberately broken mid-migration: **1 red, 20
+green**.
+
+Who may call it is declared in `test/migrator-driving-tests.ts`, one entry per file with its
+reason, and `test/unit/harness/migrator-driving-ledger.test.ts` keeps it honest in both
+directions and checks that every entry is actually using the seam. Under
+`BACKEND_TEST_ISOLATION=shared` there is no template to clone, so the seam falls back to the
+shared database and prints why — that is part of what the escape hatch costs.
+
 Two escape hatches, both explicit:
 
 - `BACKEND_TEST_ISOLATION=shared` — the pre-#189 behaviour, every invocation on the base

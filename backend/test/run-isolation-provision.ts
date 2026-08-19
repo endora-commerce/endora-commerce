@@ -219,6 +219,32 @@ export async function provisionRunDatabase(input: ProvisionInput): Promise<RunDa
   return { url: withDatabase(input.baseUrl, name), name, template };
 }
 
+/**
+ * A database of this template's, for a caller that is not the invocation.
+ *
+ * The advisory lock is the same one provisioning takes, and for the same
+ * reason: it is what keeps the template idle at the moment a clone starts.
+ * `setupMigratorTestDb` is the only caller — a test file that drives the real
+ * migrator and must not do it to the database its neighbours share.
+ */
+export async function cloneTemplateForCaller(baseUrl: string): Promise<RunDatabase> {
+  const base = databaseNameOf(baseUrl);
+  const template = templateDatabaseName(base);
+  const name = runDatabaseName(base);
+  const admin = await connectAdmin(baseUrl);
+  try {
+    await admin.query('select pg_advisory_lock($1)', [advisoryLockKey(template)]);
+    try {
+      await cloneFromTemplate(admin, name, template);
+    } finally {
+      await admin.query('select pg_advisory_unlock($1)', [advisoryLockKey(template)]);
+    }
+  } finally {
+    await admin.end();
+  }
+  return { url: withDatabase(baseUrl, name), name, template };
+}
+
 export async function dropRunDatabase(
   baseUrl: string,
   name: string,
