@@ -9,12 +9,21 @@ import { defineModuleManifest } from '@b2b/contracts';
  * migration 052). The core module itself has no install/uninstall hook.
  *
  * Recognition condition (feature 035, FR-001): a *separate* platform module is
- * recognised as a shipping-method adapter iff its `installHook` registers a
- * `ShippingAdapter` in the process-wide `shippingAdapterRegistry` (see
- * services/registry-singleton.ts) and reconciles a `delivery_methods` row via
- * `DeliveryMethodReconciler.ensureMethodForAdapter(...)`. Its `uninstallHook`
- * SHOULD `shippingAdapterRegistry.unregister(adapterKey)`; the row + its
- * Shipments are preserved (FR-003). See docs/docs/modules/shipping-methods.md.
+ * recognised as a shipping-method adapter iff it registers a `ShippingAdapter`
+ * in the process-wide `shippingAdapterRegistry` (see
+ * services/registry-singleton.ts) from its **boot hook**, naming itself as the
+ * contributing module. Not from `installHook`: the registry is an in-memory
+ * table per process, install runs once in the CLI process, and the serving
+ * process reads what its own composition pushed. The `delivery_methods` row is
+ * static reference data and ships as the contributing module's migration;
+ * `DeliveryMethodReconciler.ensureMethodForAdapter(...)` stays available from
+ * an `installHook` for a row that must be created from code.
+ *
+ * No `uninstallHook` withdraws the adapter, and none should: the registry
+ * records the contributing module on every entry and filters its enumeration on
+ * that module's effective state, so an absent contributor is answered at the
+ * read. The row and its Shipments are preserved either way (FR-003). See
+ * docs/docs/modules/delivery_methods.md § *When the registry is read*.
  */
 export const manifest = defineModuleManifest({
   id: 'delivery_methods',
