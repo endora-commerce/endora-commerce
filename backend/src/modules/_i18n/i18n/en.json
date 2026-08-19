@@ -78,6 +78,8 @@
   "adminRoles.permission.pim_ergonode:write": "Manage Ergonode integration",
   "adminRoles.permission.platform.modules.activate": "Switch modules on and off",
   "adminRoles.permission.platform.modules.read": "View module lifecycle",
+  "adminRoles.permission.price_lists:read": "View price lists and pricing rules",
+  "adminRoles.permission.price_lists:write": "Edit price lists, brackets and display modes",
   "adminRoles.permission.product_feeds:read": "View product feeds",
   "adminRoles.permission.product_feeds:write": "Manage product feeds",
   "adminRoles.permission.promotions:delete": "Delete promotions and rules",
