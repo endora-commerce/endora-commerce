@@ -88,6 +88,19 @@ export const comparisonAttributeRowSchema = z.object({
 });
 export type ComparisonAttributeRow = z.infer<typeof comparisonAttributeRowSchema>;
 
+/**
+ * Whose prices the columns carry.
+ *
+ * The viewer's identity decides the figures, always: `organization` means they
+ * were resolved against the reader's own price lists, `channel` that they are
+ * the sales channel's public ones. A share token decides *which products* are
+ * in a comparison and never *which prices* are shown, so sender and recipient
+ * legitimately see different numbers on one link — and a reader who cannot tell
+ * which they are looking at cannot act on either.
+ */
+export const comparisonPricedForSchema = z.enum(['organization', 'channel']);
+export type ComparisonPricedFor = z.infer<typeof comparisonPricedForSchema>;
+
 // ---------------------------------------------------------------------------
 // Full owner-facing read response.
 // ---------------------------------------------------------------------------
@@ -100,6 +113,16 @@ export const comparisonOwnerViewSchema = z.object({
   maxProducts: z.number().int().positive(),
   products: z.array(comparisonProductSummarySchema),
   comparableAttributes: z.array(comparisonAttributeRowSchema),
+  /** Whose prices the `products[].price` figures are. */
+  pricedFor: comparisonPricedForSchema,
+  /**
+   * How many products the comparison holds that this viewer may not see.
+   * Zero for almost every read; non-zero for a recipient the owner's
+   * restricted products are not disclosed to, and for an owner whose own
+   * product was restricted after they added it. The count is what lets a
+   * shorter table say so instead of being silently shorter.
+   */
+  hiddenProductCount: z.number().int().nonnegative(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -141,6 +164,20 @@ export const comparisonSharedViewSchema = z.object({
   displayMode: comparisonDisplayModeSchema,
   products: z.array(comparisonProductSummarySchema),
   comparableAttributes: z.array(comparisonAttributeRowSchema),
+  /**
+   * Whose prices these are — the recipient's own, or the channel's. The
+   * sender's are never among the answers: the token carries the products, not
+   * a pricing identity.
+   */
+  pricedFor: comparisonPricedForSchema,
+  /**
+   * How many of the sender's products this recipient may not see. The token
+   * grants access to the comparison, never to what is in it, so a recipient's
+   * table is the sender's minus whatever the sender's organisation alone is
+   * entitled to — and it says how much is missing rather than being quietly
+   * shorter.
+   */
+  hiddenProductCount: z.number().int().nonnegative(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

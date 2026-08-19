@@ -66,9 +66,15 @@ export const manifest = defineModuleManifest({
   // projecting the catalogue's legacy attribute. The edge binds — comparing
   // products on prices the platform is refusing to serve is exactly the
   // failure the port gate exists to prevent.
+  //
+  // `organizations` joined with the viewer-priced comparison: the columns are
+  // resolved for whoever is looking, and the engine selects a group-targeted
+  // price list by the buyer's customer group, which is a field on the
+  // organisation row.
   dependencies: [
     'catalog',
     'customer_accounts',
+    'organizations',
     'price_lists',
     'sales_channels',
     'settings',

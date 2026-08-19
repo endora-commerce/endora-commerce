@@ -75,7 +75,13 @@ export async function registerComparisonsPublicRoutes(
     }
     const channel = getResolvedChannel(request);
     reply.header('cache-control', 'no-store');
-    return { data: await comparisonService.buildOwnerView(comparison, channel.id) };
+    return {
+      data: await comparisonService.buildOwnerView(
+        comparison,
+        channel.id,
+        { kind: 'buyer', audience: productAudienceOf(request) },
+      ),
+    };
   });
 
   // -----------------------------------------------------------------
@@ -98,7 +104,13 @@ export async function registerComparisonsPublicRoutes(
       throw translate(err);
     }
     reply.header('cache-control', 'no-store');
-    return { data: await comparisonService.buildOwnerView(comparison, channel.id) };
+    return {
+      data: await comparisonService.buildOwnerView(
+        comparison,
+        channel.id,
+        { kind: 'buyer', audience: productAudienceOf(request) },
+      ),
+    };
   });
 
   // -----------------------------------------------------------------
@@ -121,7 +133,13 @@ export async function registerComparisonsPublicRoutes(
       }
       const channel = getResolvedChannel(request);
       reply.header('cache-control', 'no-store');
-      return { data: await comparisonService.buildOwnerView(comparison, channel.id) };
+      return {
+        data: await comparisonService.buildOwnerView(
+          comparison,
+          channel.id,
+          { kind: 'buyer', audience: productAudienceOf(request) },
+        ),
+      };
     },
   );
 
@@ -141,7 +159,13 @@ export async function registerComparisonsPublicRoutes(
     }
     const channel = getResolvedChannel(request);
     reply.header('cache-control', 'no-store');
-    return { data: await comparisonService.buildOwnerView(comparison, channel.id) };
+    return {
+      data: await comparisonService.buildOwnerView(
+        comparison,
+        channel.id,
+        { kind: 'buyer', audience: productAudienceOf(request) },
+      ),
+    };
   });
 
   // -----------------------------------------------------------------
@@ -155,7 +179,11 @@ export async function registerComparisonsPublicRoutes(
       const comparison = await comparisonService.getForOwner(owner);
       if (!comparison) throw notFoundComparison();
       const channel = getResolvedChannel(request);
-      const view = await comparisonService.buildOwnerView(comparison, channel.id);
+      const view = await comparisonService.buildOwnerView(
+        comparison,
+        channel.id,
+        { kind: 'buyer', audience: productAudienceOf(request) },
+      );
       if (view.products.length === 0) {
         throw new HttpError(
           409,
