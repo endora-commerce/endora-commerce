@@ -49,9 +49,22 @@ function constructedNames(source: string): Set<string> {
   return names;
 }
 
-/** Source with comments removed — a mention of a call is not a call. */
+/**
+ * Source with comments removed — a mention of a call is not a call.
+ *
+ * **Line comments go first, and the order is the whole correctness of this
+ * function** (issue #234). Run the other way round, a `//` line ending in a
+ * route glob opens a block comment that never closes:
+ * `// … under /api/v1/admin/assets/*` at `test-server.ts:1544` swallowed the
+ * next **1172 lines** — 30% of the harness, including its single
+ * `runBootHooks()` call and the whole `errorEnvelope` wiring — so anything
+ * asserted over `codeOnly(harness)` inside that window was green because the
+ * text was gone, not because the property held. Stripping line comments first
+ * removes the fake opener with the line it sits on; nothing else about either
+ * pass changes, and no assertion in this file changes its verdict.
+ */
 function codeOnly(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  return source.replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
 }
 
 /** `fooModule(` calls — the hand-wired module factories. */
@@ -144,6 +157,45 @@ describe('T075 — a converted module costs no test-helper edit', () => {
       const calls = [...source.matchAll(/\.runBootHooks\s*\(/g)].length;
       expect(calls).toBe(1);
     }
+  });
+});
+
+/**
+ * The drift that made issue #234 unfindable, pinned (feature 083, R10 / D-137).
+ *
+ * Both roots wrote their own `resolvePreferredLanguage` closure. They were not
+ * the same closure: production branched on `request.actor`, the harness on
+ * `request.testActor` — a difference no test could see, because both were
+ * wrong the same way for every non-admin actor and the suite asserted the
+ * English they produced. That is the exact failure mode this file exists for:
+ * a wiring difference the suite reports green over.
+ *
+ * The policy is one kernel function now, and each root keeps one line — the
+ * admin lookup, the only rung that reads a module's table. These two
+ * assertions are what stops a second spelling of the ladder growing back.
+ */
+describe('083 — both roots resolve a request language through one function', () => {
+  it('each root constructs the shared resolver rather than writing a ladder', () => {
+    for (const [root, source] of [
+      ['harness', harness],
+      ['production', production],
+    ] as const) {
+      const calls = [...codeOnly(source).matchAll(/createRequestLanguageResolver\(/g)].length;
+      expect(calls, `${root} does not construct the shared request-language resolver`).toBe(1);
+    }
+  });
+
+  it('the harness reads the same actor property production does', () => {
+    // `registerTestAuth` mirrors every resolved actor onto `request.actor` as
+    // well as onto the harness's own decoration, so the shared resolver —
+    // which reads the production property — answers correctly here too. The
+    // harness-only property reappearing inside the `errorEnvelope` block means
+    // the two roots have started answering different questions again.
+    const code = codeOnly(harness);
+    const block = code.slice(code.indexOf('errorEnvelope: {'));
+    const envelopeBlock = block.slice(0, block.indexOf('\n    },'));
+    expect(envelopeBlock).toContain('createRequestLanguageResolver(');
+    expect(envelopeBlock).not.toContain('testActor');
   });
 });
 

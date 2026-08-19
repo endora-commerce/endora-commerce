@@ -1,7 +1,7 @@
 import { initOrm, closeOrm } from '../../../db/index.js';
 import { I18nService } from '../services/i18n-service.js';
 import {
-  SUPPORTED_ADMIN_LANGUAGES,
+  SUPPORTED_LANGUAGES,
   type SupportedAdminLanguage,
 } from '@b2b/contracts';
 import { enterSystemScope } from '../../../kernel/scope.js';
@@ -39,7 +39,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
       out.modules = (argv[i + 1] ?? '').split(',').filter(Boolean);
       i += 1;
     } else if (a === '--languages' || a === '--language') {
-      const supported = new Set<string>(SUPPORTED_ADMIN_LANGUAGES);
+      const supported = new Set<string>(SUPPORTED_LANGUAGES);
       out.languages = (argv[i + 1] ?? '')
         .split(',')
         .filter((v) => supported.has(v)) as SupportedAdminLanguage[];

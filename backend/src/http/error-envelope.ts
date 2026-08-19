@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { ADMIN_LANGUAGE_FALLBACK, ERROR_CODES, type ErrorCode, type ErrorEnvelope, type SupportedAdminLanguage } from '@b2b/contracts';
+import { LANGUAGE_FALLBACK, ERROR_CODES, type ErrorCode, type ErrorEnvelope, type SupportedLanguage } from '@b2b/contracts';
 import { ZodError, type core as zodCore } from 'zod';
 import { hasZodFastifySchemaValidationErrors } from '@fastify/type-provider-zod';
 
@@ -96,7 +96,7 @@ export interface ErrorEnvelopeOptions {
   translateErrorMessage?: (args: {
     moduleId: string;
     key: string;
-    language: SupportedAdminLanguage;
+    language: SupportedLanguage;
     originalMessage: string;
     /**
      * Values for the `{placeholder}`s in the sentence, read off the error's
@@ -112,11 +112,27 @@ export interface ErrorEnvelopeOptions {
     params?: Record<string, string | number>;
     request: FastifyRequest;
   }) => Promise<string>;
-  resolvePreferredLanguage?: (request: FastifyRequest) => Promise<SupportedAdminLanguage | null | undefined>;
+  /**
+   * Which language this response is written in, decided per audience.
+   *
+   * Injected for the same reason the two functions above are: the *policy* —
+   * the buyer's q-weighted header, the channel backstop, the admin's stored
+   * preference — lives in `src/kernel/i18n/request-language.ts`, and
+   * `src/http` may not import `src/kernel` (the kernel already imports
+   * `HttpError` from here, so an edge back is the package cycle D-52 refuses).
+   * Both composition roots may import both, and that is what joins them
+   * (feature 083, D-137).
+   *
+   * Absent, or answering nothing, the envelope falls back to
+   * `LANGUAGE_FALLBACK`. That fallback used to be reached by **every** buyer,
+   * because both roots' closures returned `null` for a non-admin actor — issue
+   * #234, and the reason the constant is no longer called "admin".
+   */
+  resolvePreferredLanguage?: (request: FastifyRequest) => Promise<SupportedLanguage | null | undefined>;
 }
 
 export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelopeOptions = {}): void {
-  app.addHook('preSerialization', async (request, _reply, payload) => {
+  app.addHook('preSerialization', async (request, reply, payload) => {
     if (!options.translateErrorMessage || !isErrorEnvelope(payload)) return payload;
     const target = options.errorTranslationTargets?.[payload.error.code];
     if (!target) return payload;
@@ -166,7 +182,7 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
     // the place a client can branch on too.
     const params = messageParams(payload.error.details);
     const token = refusalToken(payload.error.details);
-    const language = (await options.resolvePreferredLanguage?.(request)) ?? ADMIN_LANGUAGE_FALLBACK;
+    const language = (await options.resolvePreferredLanguage?.(request)) ?? LANGUAGE_FALLBACK;
     const translated = await options.translateErrorMessage({
       moduleId: target.moduleId,
       key: token === null ? target.key : `${target.key}.${token}`,
@@ -181,6 +197,20 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
     // token key above — untranslated prose that is true beats a rendered
     // sentence that is not.
     if (hasUnfilledPlaceholder(translated)) return payload;
+    // Say which language was chosen, and that the body varies with the header
+    // that chose it (D-139 § 8.2). The sales-channel resolver already echoes
+    // `X-Sales-Channel` on every response for exactly this reason, and the
+    // precedent is the right one: a resolution nobody can see is a resolution
+    // nobody audits. Had this header existed, issue #234 — every buyer
+    // answered in English — would have been visible in a browser's network tab
+    // from the first day.
+    //
+    // `Vary` is set only here, on a response whose body genuinely varies:
+    // `catalog`, `search` and `cms` vary content on the same header and carry
+    // no `Vary` either, which is a pre-existing cache-key gap this feature does
+    // not widen and does not fix (T024).
+    reply.header('Content-Language', language);
+    varyBy(reply, 'Accept-Language');
     return {
       ...payload,
       error: {
@@ -315,6 +345,26 @@ function messageParams(
     if (typeof value === 'string' || typeof value === 'number') params[name] = value;
   }
   return Object.keys(params).length > 0 ? params : undefined;
+}
+
+/**
+ * Add one field name to the response's `Vary`, keeping whatever is already
+ * there.
+ *
+ * `reply.header('Vary', …)` replaces, and `@fastify/cors` writes `Vary: Origin`
+ * on a cross-origin response — so a plain set would trade one cache-key defect
+ * for another: every buyer's language, or every allowed origin, collapsing onto
+ * one cached entry.
+ */
+function varyBy(reply: FastifyReply, field: string): void {
+  const existing = reply.getHeader('Vary');
+  const current = Array.isArray(existing) ? existing.join(', ') : (existing ?? '');
+  const fields = String(current)
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (fields.some((part) => part.toLowerCase() === field.toLowerCase())) return;
+  reply.header('Vary', [...fields, field].join(', '));
 }
 
 /** `{name}` left standing after interpolation — see the call site. */

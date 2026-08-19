@@ -130,7 +130,11 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Sales-Channel', 'Accept-Language', 'If-Match', 'X-Request-Id'],
-    exposedHeaders: ['X-Request-Id', 'ETag'],
+    // `Content-Language` carries the language the error envelope answered in
+    // (feature 083, D-139 § 8.2). Without it here, a cross-origin storefront or
+    // admin build cannot read the header at all, which is the whole point of
+    // echoing it.
+    exposedHeaders: ['X-Request-Id', 'ETag', 'Content-Language'],
   });
   await app.register(cookie, { secret: options.sessionCookieSecret });
 
