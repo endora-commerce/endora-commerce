@@ -61,6 +61,7 @@ how to consume it.
 | [inpost](./inpost) | InPost ShipX shipping (locker Geowidget + courier, PDF labels) | yes |
 | [payments](./payments) | Payment driver dispatch + settlement events | yes |
 | [pim_ergonode](./pim_ergonode) | Read-only inbound connector for the Ergonode PIM — products, attribute values, category placement, media and optional prices, on demand or on a schedule | yes (admin) |
+| [pim_pimcore](./pim_pimcore) | Read-only inbound connector for Pimcore Data Hub — full-import bootstrap, then push + manual object sync for products, attributes, categories, media and optional prices | yes (admin) |
 | [price_lists](./price_lists) | Customer / group / default pricing with volume tiers + per-category adjustments | yes |
 | [promotions](./promotions) | Cart-level percentage / amount / free-delivery discounts with eligibility filters | yes |
 | [quick_order](./quick_order) | CSV-import + type-ahead helpers for buyers ordering by SKU | yes |
