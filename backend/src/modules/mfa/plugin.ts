@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
-import type { AuthSessionPort, MfaLoginPort } from '@b2b/contracts';
+import type { AuthSessionPort, CustomerPasswordStatePort, MfaLoginPort } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
@@ -47,6 +47,13 @@ export interface MfaModuleOptions {
   auditLogService: AuditLogService;
   /** Constitution XIII — the unlink is a security-relevant, audited write. */
   commandBus: CommandBus;
+  /**
+   * Issue #222 — whether a customer account has a password on record, which is
+   * what decides whether its last federated identity may be severed. Mandatory:
+   * a composition without it would have to guess, and the two guesses are "lock
+   * the holder out" and "refuse forever".
+   */
+  customerPasswordState: CustomerPasswordStatePort;
   sessionService: AuthSessionPort;
   /** Resolves the system-default sales-channel id for global setting reads. */
   resolveDefaultChannelId?: () => Promise<string | null>;
@@ -119,7 +126,11 @@ export function mfaModule(options: MfaModuleOptions): {
   // Deliberately not behind the `oauthProvider` check below: the links an
   // account already holds stay listable and severable after an operator turns
   // a provider off, which is precisely when somebody goes looking for them.
-  const socialLinkService = new SocialLinkService(options.emFactory, options.commandBus);
+  const socialLinkService = new SocialLinkService(
+    options.emFactory,
+    options.commandBus,
+    options.customerPasswordState,
+  );
 
   const plugin: ModulePlugin = async (app) => {
     if (!enrolmentService) return; // enrolment disabled without an encryption key

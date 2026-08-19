@@ -20,6 +20,7 @@ export class CustomerAccount {
     | 'updatedAt'
     | 'role'
     | 'emailVerifiedAt'
+    | 'passwordSetAt'
     | 'twoFactorSecret'
     | 'twoFactorConfirmedAt'
     | 'lastLoginAt'
@@ -55,6 +56,26 @@ export class CustomerAccount {
 
   @Property({ type: 'string', length: 512 })
   passwordHash!: string;
+
+  /**
+   * Issue #222 — when a password somebody supplied was last set on this
+   * account. `null` means "no such password is on record", which covers both
+   * the account federated sign-in auto-created (its hash is a random pair of
+   * UUIDs nobody was told) and every row written before this column existed.
+   *
+   * It exists because `passwordHash` is NOT NULL for *every* account and
+   * therefore answers a different question from the one that matters on a
+   * security surface: whether the holder has a credential they can actually
+   * use. `SocialLinkService` is the first reader — it refuses to sever an
+   * account's last federated identity while this is null.
+   *
+   * Stamped by every write of a caller-supplied password (registration, the
+   * member write port, a redeemed reset token, a self-service change) and
+   * deliberately **not** by the generated hash. The anonymization sweep clears
+   * it back to null with the hash it scrubs.
+   */
+  @Property({ type: 'datetime', nullable: true })
+  passwordSetAt?: Date | null;
 
   @Property({ type: 'string', length: 120 })
   firstName!: string;

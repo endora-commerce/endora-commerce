@@ -2,7 +2,12 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import { ERROR_CODES } from '@b2b/contracts';
-import type { AuthSessionPort, MfaEnrolmentCountPort, MfaLoginPort } from '@b2b/contracts';
+import type {
+  AuthSessionPort,
+  CustomerPasswordStatePort,
+  MfaEnrolmentCountPort,
+  MfaLoginPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
@@ -224,6 +229,15 @@ export function registerModule(ctx: ModuleContext): void {
             },
             auditLogService,
             commandBus,
+            // Issue #222 — `customer_accounts`' published answer to "does this
+            // account have a password on record". Resolved lazily like the
+            // session port beside it: a captured gate would keep answering
+            // after its owner went away, and this one decides whether somebody
+            // may remove their last way into their account.
+            customerPasswordState: lazyPort<CustomerPasswordStatePort>(
+              ctx,
+              'customerPasswordStatePort',
+            ),
             // Feature 075 Phase C — `auth`'s published session surface, not its
             // `SessionService` class. The two fields the second factor reads
             // (the cookie value and its expiry) travel as plain data; the

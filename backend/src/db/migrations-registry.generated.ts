@@ -125,6 +125,7 @@ import { Migration20260611T140351CustomerAccountsOrganizationOptional } from '..
 import { Migration20260611T140403CustomerAccountsLifecycle } from '../modules/customer_accounts/migrations/20260611T140403_customer_accounts_lifecycle.js';
 import { Migration20260718T200341CustomerAccountsCustomerAccountCustomFieldValues } from '../modules/customer_accounts/migrations/20260718T200341_customer_accounts_customer_account_custom_field_values.js';
 import { Migration20260720T044255CustomerAccountsCustomerSubtreeRollup } from '../modules/customer_accounts/migrations/20260720T044255_customer_accounts_customer_subtree_rollup.js';
+import { Migration20260819T074816CustomerAccountsPasswordSetAt } from '../modules/customer_accounts/migrations/20260819T074816_customer_accounts_password_set_at.js';
 
 // ── customers ───────────────────────────────────────────────────────────────
 import { Migration20260611T140404CustomersCustomerAddressesInit } from '../modules/customers/migrations/20260611T140404_customers_customer_addresses_init.js';
@@ -382,6 +383,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('customer_accounts', Migration20260611T140403CustomerAccountsLifecycle),
   migration('customer_accounts', Migration20260718T200341CustomerAccountsCustomerAccountCustomFieldValues),
   migration('customer_accounts', Migration20260720T044255CustomerAccountsCustomerSubtreeRollup),
+  migration('customer_accounts', Migration20260819T074816CustomerAccountsPasswordSetAt),
 
   // ── customers ───────────────────────────────────────────────────────────────
   migration('customers', Migration20260611T140404CustomersCustomerAddressesInit),

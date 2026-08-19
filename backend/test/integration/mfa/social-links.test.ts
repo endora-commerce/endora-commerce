@@ -6,6 +6,9 @@ import {
 } from '../../helpers/test-server.js';
 import { MfaSocialIdentity } from '../../../src/modules/mfa/entities/mfa-social-identity.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
+import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
 
 /**
  * Issue #194 — a customer can see the identities linked to their account and
@@ -18,11 +21,10 @@ import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.
  * The refusal is the part worth reading. An account created *by* a federated
  * sign-in holds a random password nobody was ever told
  * (`customer_accounts/backend.ts`), so removing its only link removes the only
- * credential its holder can use — and nothing in the tree records whether a
- * password was ever actually chosen, so "does this account have a usable
- * password" cannot be asked. The module therefore refuses the **last** link for
- * every account, names the reason, and the status response says so before the
- * click rather than after it.
+ * credential its holder can use. Issue #222 gave the platform the datum that
+ * tells the two apart — `customer_accounts.password_set_at` — so the rule is no
+ * longer "refuse every last link" but "refuse the last link of an account with
+ * no password on record", and the sentence names the step that lifts it.
  */
 const CUSTOMER_COOKIE = { b2b_session: 'stub-customer-session' };
 const CUSTOMER_EMAIL = 'stub-customer@example.com';
@@ -88,7 +90,10 @@ describe('MFA social identity links — list + unlink (issue #194)', () => {
     customerId = google!.subjectId;
   });
 
-  // Exactly one Google link before each test, so no order decides an outcome.
+  // Exactly one Google link, and no password on record, before each test — so
+  // no order decides an outcome. The second half matters since issue #222: the
+  // refusal now reads `password_set_at`, and the test below that sets one would
+  // otherwise decide the verdict of every test after it.
   beforeEach(async () => {
     const em = h.em();
     await em.nativeDelete(MfaSocialIdentity, { subjectId: customerId });
@@ -99,7 +104,9 @@ describe('MFA social identity links — list + unlink (issue #194)', () => {
       providerSubject: 'google-sub-194',
       email: CUSTOMER_EMAIL,
     });
+    await em.nativeUpdate(CustomerAccount, { id: customerId }, { passwordSetAt: null });
     await em.flush();
+    em.clear();
   });
 
   afterAll(async () => {
@@ -113,7 +120,7 @@ describe('MFA social identity links — list + unlink (issue #194)', () => {
     expect(typeof links[0]!.linkedAt).toBe('string');
   });
 
-  it('refuses to remove the only link, and says so before the click', async () => {
+  it('refuses to remove the only link of an account with no password on record', async () => {
     const links = await status();
     expect(links[0]).toMatchObject({
       canUnlink: false,
@@ -128,16 +135,14 @@ describe('MFA social identity links — list + unlink (issue #194)', () => {
     // This is the bundle's wording, which differs from the thrower's on
     // purpose — it is the discriminator that says the lookup really happened.
     expect(res.json().error?.message).toBe(
-      'This is the last sign-in identity linked to the account, and it cannot be removed. ' +
-        'The platform cannot confirm that the account has another way in — an account created ' +
-        'through a sign-in provider is given a password nobody is told — so removing it could ' +
-        'lock its holder out for good.',
+      'This is the last sign-in identity linked to the account, and the account has no ' +
+        'password on record — removing it could lock its holder out for good. Set a password ' +
+        'for the account first, then this link can be removed.',
     );
-    // The sentence states a fact, not an instruction. The rule counts links,
-    // so "set a password first" — which this said until review — names a step
-    // that lifts nothing, and a security screen that sends its reader on an
-    // errand with no effect is worse than one that plainly says no.
-    expect(res.json().error?.message).not.toContain('Set a password');
+    // Issue #222 — the instruction is back, and it is back because it now
+    // works: `password_set_at` is what the rule reads, and the next test walks
+    // the step this sentence names.
+    expect(res.json().error?.message).toContain('Set a password');
     // A refusal is a refusal: the row is untouched.
     expect(await linkRows()).toHaveLength(1);
   });
@@ -177,6 +182,40 @@ describe('MFA social identity links — list + unlink (issue #194)', () => {
     expect(after[0]).toMatchObject({ provider: 'microsoft', canUnlink: false });
   });
 
+  it('removes the only link once the holder has set a password (issue #222)', async () => {
+    // The step the refusal above names, walked through the route a holder
+    // really walks. Nothing else about the account changes.
+    const changed = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/me/password',
+      cookies: CUSTOMER_COOKIE,
+      payload: {
+        currentPassword: STUB_CUSTOMER_PASSWORD,
+        newPassword: 'a-password-the-holder-picked',
+      },
+    });
+    expect(changed.statusCode, changed.body).toBeLessThan(300);
+
+    const links = await status();
+    expect(links[0]).toMatchObject({ canUnlink: true, unlinkBlockedReason: null });
+
+    const res = await unlink('google');
+    expect(res.statusCode).toBe(200);
+    expect(await linkRows()).toHaveLength(0);
+
+    // Leave the seeded credential as the rest of the harness expects it.
+    const restored = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/me/password',
+      cookies: CUSTOMER_COOKIE,
+      payload: {
+        currentPassword: 'a-password-the-holder-picked',
+        newPassword: STUB_CUSTOMER_PASSWORD,
+      },
+    });
+    expect(restored.statusCode).toBeLessThan(300);
+  });
+
   it('404s a provider this account has no link for', async () => {
     const res = await unlink('microsoft');
     expect(res.statusCode).toBe(404);
@@ -196,5 +235,42 @@ describe('MFA social identity links — list + unlink (issue #194)', () => {
     });
     expect(res.statusCode).toBe(200);
     expect((res.json().data as { socialLinks: SocialLinkSummary[] }).socialLinks).toEqual([]);
+  });
+
+  /**
+   * Issue #222 — the admin arm needs no column, because an `admin_users` row
+   * cannot exist without a password somebody supplied: `create` takes a
+   * required `password`, and federated sign-in's admin branch matches an
+   * existing admin and never creates one. So an admin's last link is severable,
+   * and `test/unit/mfa/admin-password-is-structural.test.ts` is what keeps that
+   * premise from rotting quietly.
+   */
+  it('lets an admin remove their last link — an admin password is always one a person set', async () => {
+    const em = h.em();
+    em.create(MfaSocialIdentity, {
+      subjectType: 'admin',
+      subjectId: TEST_ADMIN_ID,
+      provider: 'google',
+      providerSubject: 'google-sub-222-admin',
+      email: 'stub-admin@example.com',
+    });
+    await em.flush();
+
+    const listed = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/account/mfa/status',
+      cookies: ADMIN_COOKIE,
+    });
+    const links = (listed.json().data as { socialLinks: SocialLinkSummary[] }).socialLinks;
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ canUnlink: true, unlinkBlockedReason: null });
+
+    const res = await h.app.inject({
+      method: 'DELETE',
+      url: '/api/v1/admin/account/mfa/social-links/google',
+      cookies: ADMIN_COOKIE,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(await h.em().find(MfaSocialIdentity, { subjectId: TEST_ADMIN_ID })).toHaveLength(0);
   });
 });

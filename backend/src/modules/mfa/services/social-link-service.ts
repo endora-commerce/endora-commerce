@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import type {
+  CustomerPasswordStatePort,
   MfaSocialLinkSummary,
   MfaSocialProvider,
   MfaSubjectRef,
@@ -25,28 +26,37 @@ import { MfaSocialIdentity } from '../entities/mfa-social-identity.entity.js';
  * signup (`customer_accounts/backend.ts`) — one nobody was ever told. So
  * `password_hash is not null` is true for such an account and answers a
  * different question from the one that matters here, which is whether the
- * holder has a credential they can actually use. **Nothing in the tree records
- * that**: there is no `passwordSetAt`, no `mustChangePassword`, no flag on the
- * account saying a password was ever chosen.
+ * holder has a credential they can actually use.
  *
- * Rather than guess, this refuses to remove the **last** link of any account
- * and names the reason (`last_credential`). Where another link remains, the
- * removal goes through. An active TOTP enrolment deliberately does not unblock
- * it: a second factor is not a first one, and nobody signs in with TOTP alone.
+ * Issue #194 could not ask that question and therefore refused the **last**
+ * link of every account, absolutely. Issue #222 added the datum —
+ * `customer_accounts.password_set_at`, read here over
+ * {@link CustomerPasswordStatePort} — so the rule is now the narrower and
+ * truthful one: refuse the last link **only** while the account has no password
+ * on record. Where another link remains, or a password has been set, the
+ * removal goes through. An active TOTP enrolment still does not unblock it: a
+ * second factor is not a first one, and nobody signs in with TOTP alone.
  *
- * **The refusal is currently absolute, and every sentence about it says so.**
- * The first draft told the holder to set a password first — but the rule counts
- * links, so setting one lifts nothing; there is no datum for it to read. An
- * instruction with no effect is worse on a security surface than a plain "no",
- * so both the thrown message and the `errors.MFA_SOCIAL_LAST_CREDENTIAL`
- * sentence state that the link cannot be removed and why. The way out is a
- * `passwordSetAt` (or equivalent) on the account: when that lands, this rule
- * and those sentences change in the same commit.
+ * That is also what makes the sentence at the seam an instruction again. It
+ * told the holder to set a password first, then said plainly that there was no
+ * way out (!723), because with the rule counting links the instruction named a
+ * step that lifted nothing. It lifts it now, so the wording went back — in the
+ * thrown message and in `errors.MFA_SOCIAL_LAST_CREDENTIAL`, both languages.
+ *
+ * **The admin arm asks nobody.** An `AdminUser` cannot exist without a password
+ * somebody supplied: `AdminUserService.create` takes a required one (as does
+ * `createAdminUserRequestSchema`), and `SocialIdentityService.signInAdmin`
+ * matches an existing admin and refuses when there is none — there is no
+ * auto-create on that side to mint a random hash. So the answer is structurally
+ * `true` and a second column would record a constant.
+ * `test/unit/mfa/admin-password-is-structural.test.ts` is what keeps that
+ * premise from rotting quietly.
  */
 export class SocialLinkService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly commandBus: CommandBus,
+    private readonly passwordState: CustomerPasswordStatePort,
   ) {}
 
   /** The links this subject holds, in link order, each with its unlink verdict. */
@@ -56,13 +66,15 @@ export class SocialLinkService {
       { subjectType: subject.subjectType, subjectId: subject.subjectId },
       { orderBy: { linkedAt: 'asc' } },
     );
-    const isLast = rows.length <= 1;
+    // Only the single-link case can be blocked, so only it asks — a status call
+    // for an account with two links, or none, has nothing to look up.
+    const blocked = rows.length === 1 && !(await this.#hasPasswordOnRecord(subject));
     return rows.map((row) => ({
       provider: row.provider as MfaSocialProvider,
       email: row.email,
       linkedAt: row.linkedAt.toISOString(),
-      canUnlink: !isLast,
-      unlinkBlockedReason: isLast ? ('last_credential' as const) : null,
+      canUnlink: !blocked,
+      unlinkBlockedReason: blocked ? ('last_credential' as const) : null,
     }));
   }
 
@@ -93,11 +105,11 @@ export class SocialLinkService {
             `No ${provider} identity is linked to this account.`,
           );
         }
-        if (rows.length <= 1) {
+        if (rows.length <= 1 && !(await this.#hasPasswordOnRecord(subject))) {
           throw new HttpError(
             409,
             ERROR_CODES.MFA_SOCIAL_LAST_CREDENTIAL,
-            'This is the last sign-in identity linked to the account and cannot be removed: the platform cannot confirm the account has another way in.',
+            'This is the last sign-in identity linked to the account and it has no password on record: set a password for the account first, then it can be removed.',
           );
         }
         const before = {
@@ -109,5 +121,21 @@ export class SocialLinkService {
         return { result: undefined, before, after: null };
       },
     };
+  }
+
+  /**
+   * Whether the subject has a password its holder can use.
+   *
+   * Deliberately not wrapped in a `catch`. `customer_accounts` declares itself
+   * non-deactivatable, so the gate on its port cannot be reached today — but a
+   * `catch` here would be the fail-open shape whatever the manifest says, and
+   * the wrong answer to this question removes somebody's last way into their
+   * account. A `ModuleDisabledError` must surface as 503, not as "no password
+   * on record" and not as "has one".
+   */
+  async #hasPasswordOnRecord(subject: MfaSubjectRef): Promise<boolean> {
+    // Structurally true — see the class doc block.
+    if (subject.subjectType === 'admin') return true;
+    return (await this.passwordState.passwordSetAt(subject.subjectId)) !== null;
   }
 }

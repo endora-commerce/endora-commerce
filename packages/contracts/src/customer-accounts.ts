@@ -415,6 +415,38 @@ export interface CustomerPasswordResetPort {
 }
 
 /**
+ * Container name: `customerPasswordStatePort`. Owner: `customer_accounts`.
+ *
+ * Whether the account has a password its holder can actually use — issue #222.
+ *
+ * `passwordHash` cannot answer that and never travels anyway: it is NOT NULL
+ * for every account, because federated auto-create mints a random one to keep
+ * the column satisfied. So a consumer asking "is there another way into this
+ * account" over `password_hash is not null` gets `true` for exactly the
+ * accounts where it is false.
+ *
+ * Deliberately not a field on {@link CustomerAccountRecord}. That record is
+ * read by nineteen modules; the state of a credential is a question one module
+ * asks — `mfa`, before severing an account's last federated identity — and a
+ * targeted port is what keeps it that way.
+ *
+ * The date rather than a boolean, because the one is derivable from the other
+ * and an account surface that wants to show *when* a password was set should
+ * not need a second method for it. `null` means no such password is on record:
+ * either none was ever set, or the row predates the column.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its
+ * manifest's `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CustomerPasswordStatePort {
+  /** `null` for an unknown id as well — an account nobody can find has no password on record. */
+  passwordSetAt(customerAccountId: string): Promise<Date | null>;
+}
+
+/**
  * Container name: `customerRolePort`. Owner: `customer_accounts`.
  *
  * (It said `roleService` until issue #192. Nothing registers that name; the

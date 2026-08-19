@@ -10,6 +10,7 @@ import {
   type CustomerAccountRecord,
   type CustomerAccountRole,
   type CustomerAuthPort,
+  type CustomerPasswordStatePort,
   type CustomerRolePort,
 } from '@b2b/contracts';
 import { recordAuditFromContext } from '../../../commands/index.js';
@@ -188,6 +189,31 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
 }
 
 /**
+ * Issue #222 — the one credential fact that crosses this boundary, and it
+ * crosses as a date rather than as anything derived from the hash.
+ *
+ * Separate from {@link CustomerAccountReadService} on purpose: that read port
+ * is what nineteen modules resolve, and the mapping above deliberately drops
+ * `passwordHash`. "Does this account have a password its holder can use" is a
+ * question one module asks, so it gets a port one module resolves.
+ *
+ * An unknown id answers `null`, not a throw: the caller's question is about a
+ * credential, and "no account" and "no password on record" want the same
+ * refusal from every caller there could be.
+ */
+export class CustomerPasswordStateService implements CustomerPasswordStatePort {
+  constructor(private readonly emFactory: () => EntityManager) {}
+
+  async passwordSetAt(customerAccountId: string): Promise<Date | null> {
+    // A full load rather than a projection: a partially-loaded entity in the
+    // identity map is a hazard for whatever flushes next in the same unit of
+    // work, and only the date leaves this method either way.
+    const account = await this.emFactory().findOne(CustomerAccount, { id: customerAccountId });
+    return account?.passwordSetAt ?? null;
+  }
+}
+
+/**
  * The member lifecycle `organizations` runs over this module's table
  * (feature 075, Phase C).
  *
@@ -226,6 +252,11 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
       organizationId: input.organizationId,
       email,
       passwordHash: await hashPassword(input.password),
+      // Issue #222 — a password somebody supplied, so the account has one on
+      // record from its first moment. This is the write both organisation
+      // registration (the holder typed it) and the member admin surface (an
+      // operator set it and hands it over) go through.
+      passwordSetAt: new Date(),
       firstName: input.firstName,
       lastName: input.lastName,
       role: input.role,

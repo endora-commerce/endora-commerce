@@ -1,7 +1,7 @@
 {
   "adminRoles.permission.mfa:reset": "Resetowanie 2FA użytkownika",
   "adminRoles.permission.mfa:manage": "Zarządzanie politykami 2FA i wymuszaniem w Organizacji",
-  "errors.MFA_SOCIAL_LAST_CREDENTIAL": "To ostatnia tożsamość logowania powiązana z kontem i nie można jej usunąć. Platforma nie może potwierdzić, że konto ma inny sposób logowania — konto założone przez dostawcę logowania otrzymuje hasło, którego nikt nie zna — więc usunięcie mogłoby trwale odciąć dostęp do konta.",
+  "errors.MFA_SOCIAL_LAST_CREDENTIAL": "To ostatnia tożsamość logowania powiązana z kontem, a konto nie ma zapisanego hasła — usunięcie jej mogłoby trwale odciąć dostęp do konta. Najpierw ustaw hasło do konta, a potem to powiązanie będzie można usunąć.",
   "errors.MFA_ALREADY_ENROLLED": "Uwierzytelnianie dwuskładnikowe jest już skonfigurowane na tym koncie i nie ma nic więcej do ustawienia. Aby przenieść je do innej aplikacji uwierzytelniającej, najpierw je wyłącz, a potem skonfiguruj od nowa.",
   "errors.MFA_INVALID_CHALLENGE": "Ten krok logowania nie jest już ważny — wygasł albo został już zakończony. Zaloguj się ponownie, aby rozpocząć nowy.",
   "errors.MFA_INVALID_CODE": "Ten kod nie został przyjęty. Kod z aplikacji uwierzytelniającej jest ważny tylko przez około pół minuty, więc poczekaj na kolejny i wpisz go bez spacji; kodu odzyskiwania można użyć tylko raz.",
