@@ -1,11 +1,20 @@
-import { describe, expect, it } from 'vitest';
-import { existsSync, readdirSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { deriveFkGraph, KERNEL_OWNER, type FkEdge } from '../../helpers/fk-graph.js';
+import {
+  deriveFkGraph,
+  KERNEL_OWNER,
+  type FkEdge,
+  type FkGraph,
+  type FkReference,
+  type MigrationSource,
+} from '../../helpers/fk-graph.js';
 import { TABLE_OWNER_OVERRIDES } from './table-owner-overrides.js';
 import { ACKNOWLEDGED_FK_EDGES, type AcknowledgedFkEdge } from './acknowledged-fk-edges.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { BASELINE_THROUGH } from '../../../src/db/migration-order.js';
 
 /**
  * FK-vs-manifest drift validator — cases V1-V10 of
@@ -459,5 +468,473 @@ describe('fk ownership map — V10 core owns nothing', () => {
       `'core' is a migration-ownership pseudo-module and owns no table; these ` +
         `resolved to it: ${coreOwned.join(', ')}`,
     ).toEqual([]);
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Feature 081, FR-013 — the POSITION half.
+ *
+ * Everything above asks "is this cross-module foreign key declared?". This half
+ * asks "will the two migrations run in the right order?", and it exists because
+ * until feature 081 nothing had to ask.
+ *
+ * Before !750 the emitted order was timestamps *corrected* by the module
+ * dependency graph, and that correction is what made a cross-module foreign key
+ * work: if `A`'s migration referenced `B`'s table, the correction pulled `B`
+ * ahead whether or not anyone had declared the edge, as long as the two stamps
+ * sat within the 45-day horizon. Feature 081 deleted the correction — the order
+ * is now a topological sort of the declared graph with contiguous per-module
+ * chains — so an undeclared edge is no longer rescued by anything. This check is
+ * the replacement for that accident, not an addition to it (D-113 §3).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+type PositionFindingKind =
+  /** An open-block foreign key whose two chains nothing orders (FR-013). */
+  | 'undeclared-open-edge'
+  /**
+   * The scan could not decide where one of the two migrations sits. Reported
+   * rather than skipped: a green that can mean "not looking" is issue #113.
+   */
+  | 'unclassifiable-position';
+
+interface PositionFinding {
+  kind: PositionFindingKind;
+  message: string;
+}
+
+/**
+ * The order the emitted migration list is in, restated as a predicate.
+ *
+ * `contracts/ordering-algorithm.md` §2 emits the baseline block first (Step 2),
+ * then one contiguous chain per module component in a topological order of the
+ * declared `dependencies` graph, with `'core'` drained first (Steps 4 and 5).
+ * So a foreign key created by migration `M` in chain `dm`, pointing at a table
+ * created by migration `C` in chain `cm`, runs after its target when:
+ *
+ *   (a) `C` is in the baseline block — the whole baseline precedes the whole
+ *       open block, unconditionally;
+ *   (b) `cm === 'core'` — core's component is drained first inside the open
+ *       block, and nothing declares core, so every core migration precedes
+ *       every module migration. This is what covers the kernel: no module-owned
+ *       migration may create or alter a kernel-owned table, asserted by
+ *       `kernel-migration-ownership.test.ts`, so every kernel table's creator
+ *       is a core migration. That matters, because `kernel` has no manifest and
+ *       can never appear in a `dependencies` array — an edge into it must be
+ *       exempt by a derived fact, not by an assumption;
+ *   (c) `cm === dm` — one module's chain is contiguous and internally
+ *       chronological (J2, J3), and `C` is older than `M`;
+ *   (d) `cm` is in `dm`'s transitive dependency closure — the declared edge,
+ *       which is the whole point.
+ *
+ * Anything else is emitted in an order nothing fixes, so a fresh database may
+ * run `M` before `C` and fail on the missing relation.
+ *
+ * Two deliberate scope notes:
+ *
+ * - The module tested is the migration's **owning chain** (`declaredIn.moduleId`
+ *   and the creator's), not the owner of either table. A migration is emitted in
+ *   its own module's chain; `core`'s foundation migration creates tables owned by
+ *   `catalog`, and it is core's position, not catalog's, that orders it.
+ * - The population is the declaration half's: cross-module *ownership* edges.
+ *   A pair of same-owner tables created by two different chains is therefore
+ *   invisible here. Today only `core` creates another module's tables and core
+ *   is emitted first, so that shape has no instance; if it acquires one, this
+ *   comment is where to start.
+ *
+ * Baseline membership is tested on the stamp alone. The full rule is stamp
+ * **and** `origin === 'core'` (`migration-order.ts`), but this scan walks
+ * `backend/src` and out-of-core code contributes no schema (D-105), so every
+ * file it can read is core.
+ */
+function findPositionViolations(
+  graph: FkGraph,
+  dependencies: ReadonlyMap<string, readonly string[]>,
+  baselineThrough: string,
+): PositionFinding[] {
+  const findings: PositionFinding[] = [];
+
+  for (const reference of graph.references) {
+    const declaring = reference.declaredIn;
+
+    if (declaring.timestamp === undefined) {
+      findings.push({
+        kind: 'unclassifiable-position',
+        message: unclassifiableMessage(
+          reference,
+          `its declaring file ${declaring.file} has no parsable migration stamp, so the ` +
+            `check cannot tell which block it is emitted in`,
+        ),
+      });
+      continue;
+    }
+
+    // The baseline block is closed, never reordered, and cannot grow: the
+    // scaffolder clamps every new core stamp past the boundary. A foreign key
+    // created inside it is history, and history already applied.
+    if (declaring.timestamp <= baselineThrough) continue;
+
+    const creator = graph.tableCreators.get(reference.toTable);
+    if (creator === undefined || creator.timestamp === undefined) {
+      findings.push({
+        kind: 'unclassifiable-position',
+        message: unclassifiableMessage(
+          reference,
+          creator === undefined
+            ? `no migration in the tree creates the referenced table "${reference.toTable}", ` +
+                `so the check cannot tell when it comes into existence`
+            : `the migration creating "${reference.toTable}" (${creator.file}) has no parsable ` +
+                `stamp, so the check cannot tell which block it is emitted in`,
+        ),
+      });
+      continue;
+    }
+
+    if (creator.timestamp <= baselineThrough) continue;
+    if (creator.moduleId === 'core') continue;
+    if (creator.moduleId === declaring.moduleId) continue;
+    if (closureOf(declaring.moduleId, dependencies).has(creator.moduleId)) continue;
+
+    findings.push({
+      kind: 'undeclared-open-edge',
+      message: positionViolationMessage(reference, creator),
+    });
+  }
+
+  return findings;
+}
+
+function positionViolationMessage(reference: FkReference, creator: MigrationSource): string {
+  const declaring = reference.declaredIn;
+  return (
+    `[fk-position] cross-module foreign key with nothing to order it:\n` +
+    `  ${reference.fromTable} → ${reference.toTable}\n` +
+    `  module "${reference.from}" creates this foreign key in ${declaring.file} ` +
+    `(emitted in chain "${declaring.moduleId}", after the baseline block), and the ` +
+    `referenced table "${reference.toTable}" — owned by module "${reference.to}" — is ` +
+    `created in ${creator.file} (chain "${creator.moduleId}", also after the baseline ` +
+    `block).\n` +
+    `  Since feature 081 the emitted order is a topological sort of the declared ` +
+    `\`dependencies\` graph, and chain "${declaring.moduleId}" declares nothing that ` +
+    `reaches "${creator.moduleId}", so a fresh database may run ${declaring.file} first ` +
+    `and fail with \`relation "${reference.toTable}" does not exist\`.\n\n` +
+    `  Fix one of:\n` +
+    `    (a) add '${creator.moduleId}' to \`dependencies\` in ` +
+    `${declaring.moduleId}/manifest.ts  ← usually this\n` +
+    `    (b) move the constraint into a migration owned by "${reference.from}", the module ` +
+    `that owns the referencing table, so that module's declarations order it\n` +
+    `    (c) if neither is possible, the per-migration ordering edge specified — and ` +
+    `deliberately not built — in ` +
+    `specs/081-per-module-migration-order/contracts/ordering-algorithm.md §7 is the ` +
+    `escape, and this failure is its first call site.`
+  );
+}
+
+function unclassifiableMessage(reference: FkReference, why: string): string {
+  return (
+    `[fk-position] cannot place a cross-module foreign key in the emitted order:\n` +
+    `  ${reference.fromTable} → ${reference.toTable} (module "${reference.from}" → ` +
+    `module "${reference.to}")\n` +
+    `  ${why}.\n` +
+    `  An undecidable position is reported, never skipped: a check that answers ` +
+    `"no findings" because it could not look is the failure mode issue #113 names.`
+  );
+}
+
+/**
+ * The population the position check reads: cross-module foreign keys created
+ * after the baseline block. Extracted so the floor asserted against the real
+ * tree is itself provable — an empty scan produces an empty population, and G7
+ * shows that, so "zero findings" cannot come to mean "nothing was read".
+ */
+function openBlockReferencesOf(graph: FkGraph, baselineThrough: string): FkReference[] {
+  return graph.references.filter(
+    (reference) =>
+      reference.declaredIn.timestamp === undefined ||
+      reference.declaredIn.timestamp > baselineThrough,
+  );
+}
+
+describe('fk position — FR-013 the real tree', () => {
+  const openBlockReferences = openBlockReferencesOf(graph, BASELINE_THROUGH);
+
+  it('no open-block foreign key crosses into a chain nothing orders', () => {
+    const findings = findPositionViolations(graph, MANIFEST_DEPENDENCIES, BASELINE_THROUGH);
+    expect(
+      findings.map((finding) => finding.message),
+      findings.map((finding) => finding.message).join('\n\n'),
+    ).toEqual([]);
+  });
+
+  // "Zero findings" is only worth something if there was something to find.
+  // Both floors below are derived from the scan itself and name what they read,
+  // rather than pinning a number a narrowing walk would still clear (D-100).
+  it('read a non-empty population of open-block cross-module foreign keys', () => {
+    const modules = [...new Set(openBlockReferences.map((reference) => reference.from))].sort();
+    expect(
+      openBlockReferences.length,
+      `the position check examined no open-block foreign key at all — the scan, not ` +
+        `the tree, is the likely cause`,
+    ).toBeGreaterThan(0);
+    expect(modules.length, `open-block foreign keys come from: ${modules.join(', ')}`).
+      toBeGreaterThan(0);
+  });
+
+  it('resolved a creating migration for every table any migration creates', () => {
+    // The exemptions all hinge on the creators map. A map that lost entries
+    // would turn every affected reference into an `unclassifiable-position`
+    // finding rather than a silent pass, but it would also bury the real
+    // signal, so it is asserted here in its own right.
+    const uncreated = [...graph.createdTables].filter((table) => !graph.tableCreators.has(table));
+    expect(
+      uncreated,
+      `these tables are created by a migration the scan read, yet no creating ` +
+        `migration was recorded for them: ${uncreated.join(', ')}`,
+    ).toEqual([]);
+  });
+});
+
+/**
+ * T021 — the red proofs for the position check, one per shape it refuses, plus
+ * a discrimination fixture for every exemption.
+ *
+ * Every fixture enters at the **top** of the analysis: it is a throwaway `src/`
+ * tree on disk, read by the same `deriveFkGraph` the real tree is read by, and
+ * handed to the same `findPositionViolations`. Nothing here constructs an
+ * `FkReference` or a `MigrationSource` by hand — a fixture that enters below the
+ * classifier cannot catch a blind classifier, which is issue #130's lesson and
+ * the reason the whole parse, ownership and creator chain is exercised on the
+ * way in.
+ *
+ * Stamps: `20260501T000000` is inside the baseline block (`BASELINE_THROUGH` is
+ * `20260801T000000`), `2026090*` is outside it.
+ */
+describe('fk position — T021 proofs', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'fk-position-'));
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  /** `src/modules/<moduleId>/entities/<table>.entity.ts` — the ownership claim. */
+  function entity(moduleId: string, table: string): void {
+    const dir = join(root, 'modules', moduleId, 'entities');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, `${table}.entity.ts`),
+      `import { Entity } from '@mikro-orm/core';\n` +
+        `@Entity({ tableName: '${table}' })\n` +
+        `export class Some {}\n`,
+      'utf8',
+    );
+  }
+
+  /**
+   * A migration file carrying `sql`. `moduleId: 'core'` writes into
+   * `src/db/migrations/`, which is how the scan recognizes the core chain.
+   */
+  function migration(moduleId: string, filename: string, sql: string): void {
+    const dir =
+      moduleId === 'core'
+        ? join(root, 'db', 'migrations')
+        : join(root, 'modules', moduleId, 'migrations');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, filename),
+      `import { Migration } from '@mikro-orm/migrations';\n` +
+        `export class X extends Migration {\n` +
+        `  override async up(): Promise<void> {\n` +
+        `    this.addSql(\`${sql}\`);\n` +
+        `  }\n` +
+        `}\n`,
+      'utf8',
+    );
+  }
+
+  function creates(table: string): string {
+    return `create table "${table}" ("id" uuid not null, constraint "${table}_pkey" primary key ("id"));`;
+  }
+
+  function createsReferencing(table: string, target: string): string {
+    return (
+      `create table "${table}" (\n` +
+      `  "id" uuid not null,\n` +
+      `  "${target}_id" uuid not null references "${target}" ("id") on update cascade\n` +
+      `);`
+    );
+  }
+
+  function findings(dependencies: Record<string, readonly string[]>): PositionFinding[] {
+    return findPositionViolations(
+      deriveFkGraph(root),
+      new Map(Object.entries(dependencies)),
+      BASELINE_THROUGH,
+    );
+  }
+
+  /** The one shape FR-013 exists for. */
+  it('P1 refuses an open-block foreign key into an open-block table nothing declares', () => {
+    entity('a', 'a_table');
+    entity('b', 'b_table');
+    migration('b', '20260901T000000_b_init.ts', creates('b_table'));
+    migration('a', '20260902T000000_a_init.ts', createsReferencing('a_table', 'b_table'));
+
+    const found = findings({ a: [], b: [] });
+
+    expect(found.map((finding) => finding.kind)).toEqual(['undeclared-open-edge']);
+    const message = found[0]!.message;
+    // FR-013: both modules, both tables, and the remedies.
+    expect(message).toContain('a_table');
+    expect(message).toContain('b_table');
+    expect(message).toContain('module "a"');
+    expect(message).toContain('module "b"');
+    expect(message).toContain('modules/a/migrations/20260902T000000_a_init.ts');
+    expect(message).toContain('modules/b/migrations/20260901T000000_b_init.ts');
+    expect(message).toContain("add 'b' to `dependencies` in a/manifest.ts");
+    expect(message).toContain('move the constraint into a migration owned by "a"');
+    expect(message).toContain('ordering-algorithm.md §7');
+  });
+
+  /** The second refused shape: the check could not place the migration. */
+  it('P2 refuses a foreign key whose declaring file has no parsable stamp', () => {
+    entity('a', 'a_table');
+    entity('b', 'b_table');
+    migration('b', '20260901T000000_b_init.ts', creates('b_table'));
+    // A file sharing the migrations directory under a name the naming contract
+    // does not recognize. `migrations-registry.test.ts` refuses one that is a
+    // migration; this asserts the position check does not quietly ignore the
+    // SQL inside it in the meantime.
+    migration('a', 'helper.ts', createsReferencing('a_table', 'b_table'));
+
+    const found = findings({ a: ['b'], b: [] });
+
+    expect(found.map((finding) => finding.kind)).toEqual(['unclassifiable-position']);
+    expect(found[0]!.message).toContain('helper.ts');
+    expect(found[0]!.message).toContain('no parsable migration stamp');
+  });
+
+  /** The same refused shape, reached from the other end of the edge. */
+  it('P3 refuses a foreign key into a table no migration creates', () => {
+    entity('a', 'a_table');
+    // `b_table` is claimed by an entity — so the edge resolves — but no
+    // migration brings it into existence, so its position is undecidable.
+    entity('b', 'b_table');
+    migration('a', '20260902T000000_a_init.ts', createsReferencing('a_table', 'b_table'));
+
+    const found = findings({ a: ['b'], b: [] });
+
+    expect(found.map((finding) => finding.kind)).toEqual(['unclassifiable-position']);
+    expect(found[0]!.message).toContain('no migration in the tree creates the referenced table');
+    expect(found[0]!.message).toContain('b_table');
+  });
+
+  /** Exemption (d) — the declared edge, which is the remedy P1 recommends. */
+  it('G1 accepts the same edge once the dependency is declared', () => {
+    entity('a', 'a_table');
+    entity('b', 'b_table');
+    migration('b', '20260901T000000_b_init.ts', creates('b_table'));
+    migration('a', '20260902T000000_a_init.ts', createsReferencing('a_table', 'b_table'));
+
+    expect(findings({ a: ['b'], b: [] })).toEqual([]);
+  });
+
+  it('G2 accepts an edge declared transitively', () => {
+    entity('a', 'a_table');
+    entity('b', 'b_table');
+    migration('b', '20260901T000000_b_init.ts', creates('b_table'));
+    migration('a', '20260902T000000_a_init.ts', createsReferencing('a_table', 'b_table'));
+
+    expect(findings({ a: ['c'], c: ['b'], b: [] })).toEqual([]);
+  });
+
+  /** Exemption (a) — this is what makes the 13 acknowledged edges a non-event. */
+  it('G3 accepts an undeclared edge into a table the baseline block creates', () => {
+    entity('a', 'a_table');
+    entity('b', 'b_table');
+    migration('b', '20260501T000000_b_init.ts', creates('b_table'));
+    migration('a', '20260902T000000_a_init.ts', createsReferencing('a_table', 'b_table'));
+
+    expect(findings({ a: [], b: [] })).toEqual([]);
+  });
+
+  /**
+   * Exemption (b) — core is drained first inside the open block, so an
+   * undeclared edge into a table a core migration creates is ordered. This is
+   * also the kernel's exemption: kernel tables are core-created by rule.
+   */
+  it('G4 accepts an undeclared edge into a table an open-block core migration creates', () => {
+    entity('a', 'a_table');
+    entity('b', 'b_table');
+    migration('core', '20260901T000000_core_late.ts', creates('b_table'));
+    migration('a', '20260902T000000_a_init.ts', createsReferencing('a_table', 'b_table'));
+
+    expect(findings({ a: [], b: [] })).toEqual([]);
+  });
+
+  /**
+   * The baseline block is out of the population: its order is history, it is
+   * closed, and the scaffolder clamps every new core stamp past the boundary,
+   * so a baseline migration cannot acquire a new foreign key.
+   */
+  it('G5 ignores a foreign key created by a baseline-block migration', () => {
+    entity('a', 'a_table');
+    entity('b', 'b_table');
+    migration('b', '20260901T000000_b_init.ts', creates('b_table'));
+    migration('a', '20260501T000000_a_init.ts', createsReferencing('a_table', 'b_table'));
+
+    expect(findings({ a: [], b: [] })).toEqual([]);
+  });
+
+  /**
+   * A module's own chain is contiguous and chronological (J2, J3), so an edge
+   * created and targeted inside one chain needs no declaration. The two tables
+   * still have different owners here — `sales_channels`' bridge tables are the
+   * real instance of a chain creating a table another module owns.
+   */
+  it('G6 accepts an edge whose target is created by the same chain', () => {
+    entity('a', 'a_table');
+    entity('b', 'b_table');
+    migration('a', '20260901T000000_a_target.ts', creates('b_table'));
+    migration('a', '20260902T000000_a_init.ts', createsReferencing('a_table', 'b_table'));
+
+    expect(findings({ a: [], b: [] })).toEqual([]);
+  });
+
+  /**
+   * The fixtures above are only worth what the scan reading them is worth: an
+   * empty tree would make every green above pass for the wrong reason.
+   */
+  /**
+   * The floor the real-tree describe asserts, shown to move. Without it, a scan
+   * that reads nothing — a moved tree, a narrowed walk, a source root resolved
+   * against the wrong working directory, all of which happen — reports the same
+   * "no findings" as a clean tree.
+   */
+  it('G7 an empty tree yields an empty population, which is what the floor refuses', () => {
+    expect(openBlockReferencesOf(deriveFkGraph(root), BASELINE_THROUGH)).toEqual([]);
+
+    entity('a', 'a_table');
+    entity('b', 'b_table');
+    migration('b', '20260901T000000_b_init.ts', creates('b_table'));
+    migration('a', '20260902T000000_a_init.ts', createsReferencing('a_table', 'b_table'));
+
+    expect(openBlockReferencesOf(deriveFkGraph(root), BASELINE_THROUGH)).toHaveLength(1);
+  });
+
+  it('G0 the fixture tree is actually read', () => {
+    entity('a', 'a_table');
+    entity('b', 'b_table');
+    migration('b', '20260901T000000_b_init.ts', creates('b_table'));
+    migration('a', '20260902T000000_a_init.ts', createsReferencing('a_table', 'b_table'));
+
+    const derived = deriveFkGraph(root);
+    expect(derived.references.map((reference) => `${reference.from}→${reference.to}`)).toEqual([
+      'a→b',
+    ]);
+    expect(derived.references[0]!.declaredIn.timestamp).toBe('20260902T000000');
+    expect(derived.tableCreators.get('b_table')?.moduleId).toBe('b');
   });
 });
