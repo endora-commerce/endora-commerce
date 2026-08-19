@@ -31,13 +31,14 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
  * position must be in the open block.
  *
  * Note on the counts. `specs/081-per-module-migration-order/` measured 141
- * migrations (112 baseline, 29 open) against `master@4186aec0`. Four
+ * migrations (112 baseline, 29 open) against `master@4186aec0`. Five
  * migrations have landed since —
  * `Migration20260819T074816CustomerAccountsPasswordSetAt`,
  * `Migration20260819T142837CustomerAccountsFoldEmailCase`,
- * `Migration20260819T155150AdminUsersFoldEmailCase` and
- * `Migration20260819T171006ShipmentsStatusPendingManual`, all open-block
- * entries — so the numbers here are 145/112/33. The frozen prefix, which is the
+ * `Migration20260819T155150AdminUsersFoldEmailCase`,
+ * `Migration20260819T171006ShipmentsStatusPendingManual` and
+ * `Migration20260819T193653PimErgonodeFoldDerivedKeys`, all open-block
+ * entries — so the numbers here are 146/112/34. The frozen prefix, which is the
  * claim the feature rests on, is the spec's 112 unchanged.
  *
  * A new migration is added to `PRE_081_ORDER` in the position feature 065's
@@ -93,8 +94,21 @@ const FROZEN_PREFIX_LENGTH = 112;
  * moved, so the count grows by one rather than by three. Measured by running
  * 065's `orderMigrations` (from `master@a139e1b7^`) over the registry with and
  * without the new entry, which is the method the paragraph above prescribes.
+ *
+ * **29 → 30, by one**, and this is that saying. Issue #260's back-fill
+ * (`Migration20260819T193653PimErgonodeFoldDerivedKeys`) is now the newest
+ * stamp, so 065's chronology emits it **last**, at 145; 081 emits it at 127,
+ * immediately after `Migration20260804T190439PimErgonodeInit`, because a
+ * module's migrations are contiguous and `pim_ergonode` precedes
+ * `product_feeds` in the dependency topological order. Exactly one position
+ * changes status — the new migration's own, at 145. Every position from 127 to
+ * 144 shifts by one in the emitted order and every one of them was already
+ * moved, so the count grows by one rather than by nineteen. Measured the same
+ * way: 065's `orderMigrations` from `master@a139e1b7^`, run over today's
+ * registry, reproduces the literal below entry for entry and puts the new name
+ * at 145.
  */
-const EXPECTED_MOVED_POSITIONS = 29;
+const EXPECTED_MOVED_POSITIONS = 30;
 
 const MODULE_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map<
   string,
@@ -259,6 +273,7 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk',
   'Migration20260818T081253CartsCartCompletedOrderFk',
   'Migration20260819T171006ShipmentsStatusPendingManual',
+  'Migration20260819T193653PimErgonodeFoldDerivedKeys',
 ];
 
 describe('migration order — the pre-081 baseline (T001)', () => {

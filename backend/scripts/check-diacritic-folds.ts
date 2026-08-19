@@ -351,55 +351,29 @@ export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {}
  * fails it too, and an entry naming a file that no longer builds a slug fails
  * as well. Never raise a number to make the build pass — call `slugify`.
  *
- * Both entries are in `pim_ergonode`, both derive an identifier from an
- * Ergonode source code, and both carry the defect this signal exists for: they
- * go straight from `toLowerCase()` to an ASCII allow-list, so `ŁĄCZNIKI` is
- * written `_czniki` rather than `laczniki`. Ergonode codes are free text and a
- * Polish catalogue writes them in Polish — `category-phase.ts`'s own doc block
- * says so, having been repaired for exactly this by issue #245.
+ * **Empty since issue #260.** It opened with the two `pim_ergonode` key
+ * derivations, and they were never exceptions to the rule — they were the same
+ * defect deferred, on the ground that repairing it was a data decision rather
+ * than a code one. What made it a data decision, and what separated them from
+ * the eight sites issue #245 simply repaired: those eight compute a value
+ * **once, at create time**, and find the row again by a stored mapping, while
+ * these two are re-derived on **every run** in order to find an existing row.
+ * Changing the derivation therefore did not produce a better key for the next
+ * import; it produced a **second** attribute beside every Polish-coded one.
  *
- * **Neither is an exception to the rule; both are the same defect deferred.**
- * The distinction is not decoration: a ledger whose entries say "the rule does
- * not apply here" is a ledger that has outgrown its predicate, and this one
- * says "the rule applies and the repair is a data decision".
+ * The owner took that decision (2026-08-19, "do it properly"). The derivations
+ * now compose `slugify` — the option value with `preserve: '-'`, since its
+ * stored grammar has two usable punctuation characters — and
+ * `…_pim_ergonode_fold_derived_keys.ts` re-derives every imported attribute key
+ * and renames the rows, collisions the fold creates included.
  *
- * What makes them a data decision, and what separates them from the eight sites
- * issue #245 simply repaired: those eight compute a value **once, at create
- * time**, and find the row again by a stored mapping. These two are re-derived
- * on **every run** in order to find an existing row — `key-derivation.ts`'s own
- * header says "repeated imports converge on the same attribute rather than
- * growing a new one per run". Changing the derivation therefore does not
- * produce a better key for the next import; it produces a **second** attribute
- * beside every Polish-coded one already imported, and a second option value
- * beside every product value that references one. That is a migration with a
- * back-fill, which is why the owner ruling issue #245 took does not reach here.
+ * Note what is **not** a reason to add an entry back: "this value is a lookup
+ * key". That was this ledger's whole content and it is now a statement about
+ * what a repair costs, not about whether one is owed. A derived lookup key
+ * whose input is persisted can be migrated; one whose input is not persisted
+ * should be storing its input.
  */
-export const SLUG_RUNS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {
-  'backend/src/modules/pim_ergonode/services/key-derivation.ts': {
-    findings: 1,
-    reason:
-      'sanitiseSourceCode — the body of a custom-field key (`ergonode_<body>`), ' +
-      're-derived on every import run to find the attribute a previous run created. ' +
-      'It deletes every non-ASCII letter rather than folding it, so an Ergonode code ' +
-      'spelled `KOD_ŁĄCZNIKA` keys as `kod__cznika`. Routing it through `slugify` ' +
-      'changes the key, and a changed key does not correct the old attribute — it ' +
-      'creates a new one beside it on the next run.',
-    retiredBy:
-      'an owner ruling on re-deriving these two keys with a back-fill of the existing ' +
-      "`ErgonodeAttributeMapping` rows. Issue #245's ruling does not reach here: it " +
-      'covered values computed once at create time, and these are lookup keys.',
-  },
-  'backend/src/modules/pim_ergonode/services/import/attribute-phase.ts': {
-    findings: 1,
-    reason:
-      'deriveOptionValue — a select option value, stored and referenced by every ' +
-      'product value the later phases project onto it, and re-derived on every run ' +
-      'for exactly that reason. Same deletion (`CZERWONY_ŻÓŁTY` becomes ' +
-      '`czerwony__ty`), same consequence: a repaired derivation orphans the option ' +
-      'the products already point at.',
-    retiredBy: 'the same ruling as `key-derivation.ts`; the two move together or not at all.',
-  },
-};
+export const SLUG_RUNS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {};
 
 /** Which shape a finding is. */
 export type FoldKind =

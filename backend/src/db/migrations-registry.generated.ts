@@ -210,6 +210,7 @@ import { Migration20260816T053830PayuSeedPaymentMethods } from '../modules/payu/
 
 // ── pim_ergonode ────────────────────────────────────────────────────────────
 import { Migration20260804T190439PimErgonodeInit } from '../modules/pim_ergonode/migrations/20260804T190439_pim_ergonode_init.js';
+import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '../modules/pim_ergonode/migrations/20260819T193653_pim_ergonode_fold_derived_keys.js';
 
 // ── price_lists ─────────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '../modules/price_lists/migrations/20260426T075235_price_lists_pricing_init.js';
@@ -471,6 +472,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── pim_ergonode ────────────────────────────────────────────────────────────
   migration('pim_ergonode', Migration20260804T190439PimErgonodeInit),
+  migration('pim_ergonode', Migration20260819T193653PimErgonodeFoldDerivedKeys),
 
   // ── price_lists ─────────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),
