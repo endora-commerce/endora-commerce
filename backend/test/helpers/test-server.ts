@@ -1490,8 +1490,17 @@ export async function setupBackendServer(
   // its routes now. The operator presence axis stays a root's to supply:
   // which modules a deployment ships is not this module's business.
   composedModules.contribute({
-    moduleActivationProbe: (moduleId: string) =>
-      effectiveState.presence(moduleId)?.operatorActivated ?? true,
+    // Issue #225 — the reading and its generation, contributed as one value.
+    // The palette memoises what the reading produced, so a root that handed
+    // over the reading alone would hand over a cache nothing can drop: the
+    // pub/sub message that announces a flip arrives while `refreshFromDb` is
+    // still in flight, and the snapshot rebuilt on it is built from the
+    // presence before the flip.
+    modulePresenceProbe: {
+      isActivated: (moduleId: string): boolean =>
+        effectiveState.presence(moduleId)?.operatorActivated ?? true,
+      version: (): number => effectiveState.presenceVersion(),
+    },
   });
 
   // Feature 058 — Credentials module.

@@ -816,6 +816,42 @@ absent. That derivation lives in `backend/scripts/lib/switchable-modules.ts` and
 is shared with `check-port-catches`' `OWNER LOCKED` (D-63), so an owner who
 withdraws a lock re-reds both checks on the same run, with no ledger to edit.
 
+### A cache over presence compares the generation, not the notification
+
+`b2b:module:state-changed` announces a change whose effect on `registryCache` is
+still a PostgreSQL round-trip away: `refreshFromDb` is what installs the new
+maps, and it is `async`. A consumer that memoises anything derived from presence
+and drops that memo **in a subscriber** therefore rebuilds from the presence
+*before* the change and then keeps the result until the next message — which may
+be never. `admin_actions` did exactly that (issue #225): a palette request landing
+inside the window cached a switched-off module's actions permanently, and the
+defect was independent of which of the two `on('message')` handlers had been
+registered first, because the window is opened by the refresh being asynchronous
+rather than by the order of the listeners. It is the same family as issues #33,
+#45 and #213 — an invalidation whose correctness is a function of dispatch order.
+
+The kernel's answer is a **pull**, `effectiveState.presenceVersion()`: a counter
+the registry cache moves when a completed load installs presence whose content
+differs from the presence before it. A consumer records the number its snapshot
+was built under and compares on every read:
+
+```ts
+const version = this.presence.version();
+if (version !== this.cachedPresenceVersion) {
+  this.cachedPresenceVersion = version;
+  this.invalidate();
+}
+```
+
+Nothing registers, so there is no order to get wrong, and a service constructed
+after a refresh still reads the right number. It moves on **content**, not on
+refresh count: every process refreshes on every state change and the degraded
+timer refreshes every five seconds, so a per-refresh counter would drop the memo
+each time and make it worthless during a Redis outage. Keep the subscriber if it
+still earns its keep — it covers the inputs presence does not move, such as an
+install that rewrites `module_actions` rows or translation bundles — but it must
+not be the thing the answer's correctness rests on.
+
 ### Writing an ordering rationale that does not rot
 
 Collapsing the two passes invalidated nothing in the code and fifteen comments in

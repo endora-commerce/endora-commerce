@@ -34,6 +34,14 @@ export interface EffectiveModuleState {
   all(): readonly ModulePresenceState[];
   isDegraded(): boolean;
   /**
+   * Issue #225 — the generation of the presence every read above answers from.
+   * It changes when a refresh installs presence that differs from the presence
+   * before it, and it is what a consumer caching a projection of presence
+   * compares against so its cache cannot outlive the refresh that followed the
+   * state change it was rebuilt for.
+   */
+  presenceVersion(): number;
+  /**
    * The module whose activation control is stored under `settingCode`, or
    * `undefined` when the code is an ordinary setting. The settings write path
    * asks this so an activation code cannot be flipped through the generic
@@ -97,6 +105,10 @@ export class ModuleEffectiveState implements EffectiveModuleState {
 
   isDegraded(): boolean {
     return this.cache.isDegraded();
+  }
+
+  presenceVersion(): number {
+    return this.cache.presenceVersion();
   }
 
   activationControlOwner(settingCode: string): string | undefined {

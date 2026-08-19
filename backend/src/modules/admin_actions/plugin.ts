@@ -7,7 +7,10 @@ import type {
 } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import { AdminActionsReconciler } from './services/admin-actions-reconciler.js';
-import { AdminActionsService } from './services/admin-actions-service.js';
+import {
+  AdminActionsService,
+  type ModulePresenceProbe,
+} from './services/admin-actions-service.js';
 import {
   registerAdminActionsRoutes,
 } from './routes.admin.js';
@@ -65,11 +68,12 @@ export interface AdminActionsModuleDeps {
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
   log?: { info(msg: string): void; warn(msg: string): void };
   /**
-   * Feature 073 — the operator presence axis, passed straight through to the
-   * service. See `AdminActionsServiceDeps.isModuleActivated` for why it is
-   * injected rather than read from the lifecycle singleton.
+   * Feature 073 / issue #225 — the operator presence axis and its generation,
+   * passed straight through to the service. See
+   * `AdminActionsServiceDeps.presence` for why it is injected rather than read
+   * from the lifecycle singleton, and why the two halves are one value.
    */
-  isModuleActivated: (moduleId: string) => boolean;
+  presence: ModulePresenceProbe;
 }
 
 export interface AdminActionsModuleHandle {
@@ -100,7 +104,7 @@ export function adminActionsModule(deps: AdminActionsModuleDeps): AdminActionsMo
     i18nService: deps.i18nService,
     permissionService: deps.permissionService,
     ...(deps.redisSubscriber ? { redisSubscriber: deps.redisSubscriber } : {}),
-    ...(deps.isModuleActivated ? { isModuleActivated: deps.isModuleActivated } : {}),
+    ...(deps.presence ? { presence: deps.presence } : {}),
     log,
   });
 
