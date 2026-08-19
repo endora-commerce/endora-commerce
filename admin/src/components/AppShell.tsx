@@ -60,13 +60,18 @@ import { useViewportTier } from './hooks/useViewportTier.js';
 import { NotificationBell } from './notifications';
 import { useAdminActions } from '@/lib/admin-actions/useAdminActions';
 import { useModulePresence } from '@/lib/module-presence';
+import {
+  useSurfaceVisibility,
+  type GatedSurface,
+  type PermissionRequirement,
+} from '@/lib/surface-visibility';
 import { resolveIcon } from '@/lib/admin-actions/icon-map';
 import { getPromptCapability, listUnseenPromptRequests } from '@/lib/prompt-actions/api';
 import { PromptModePanel } from './prompt-actions/PromptModePanel';
 import { SpeechToTextButton } from './SpeechToTextButton';
 import type { PromptActionRequestDto } from '@b2b/contracts';
 
-interface NavItem {
+interface NavItem extends GatedSurface {
   to: string;
   /**
    * Translation key under the `core` scope. Resolved at render time so
@@ -75,21 +80,25 @@ interface NavItem {
   labelKey: string;
   icon: LucideIcon;
   /**
-   * Optional permission code that gates the entry's visibility. When
-   * unset, the entry renders for every authenticated admin. When set,
-   * the entry is hidden unless `useAuth().hasPermission(code)` returns
-   * true (the wildcard `*` permission held by `platform_admin`
-   * satisfies every code).
+   * The permission code (or any-of set) that gates the entry's visibility, read
+   * from the **route that gates the destination** rather than copied from the
+   * entry above it. When unset, the entry renders for every authenticated admin
+   * because the destination genuinely has no gate. When set, the entry is hidden
+   * unless `useAuth().hasPermission(code)` returns true (the wildcard `*`
+   * permission held by `platform_admin` satisfies every code).
+   *
+   * Issue #230 filled the gaps this comment used to record as an open count:
+   * `/orders` (`orders:read`) and `/quote-requests` (`rfqs:handle`) were both
+   * advertised to roles that would collect a 403 on arrival.
    */
-  requiredPermission?: string;
+  requiredPermission?: PermissionRequirement;
   /**
    * The module that owns this destination, or `null` for a surface the admin
    * shell owns itself (the dashboard). Feature 073 / FR-031: the sidebar is
    * resolved from the server's effective enabled-set, and permission is not a
-   * proxy for module ownership — 27 of these entries carry no
-   * `requiredPermission` at all, including `/orders` and `/quote-requests`.
-   * Explicit attribution is what keeps a new entry from being silently
-   * unfiltered.
+   * proxy for module ownership — the two axes are filtered separately by
+   * `isSurfaceVisible`. Explicit attribution is what keeps a new entry from
+   * being silently unfiltered.
    */
   module: string | null;
 }
@@ -119,14 +128,14 @@ const NAV: NavSection[] = [
     key: 'sales',
     labelKey: 'appShell.section.sales',
     items: [
-      { to: '/orders', labelKey: 'appShell.nav.orders', icon: ClipboardCheck, module: 'orders' },
+      { to: '/orders', labelKey: 'appShell.nav.orders', icon: ClipboardCheck, requiredPermission: 'orders:read', module: 'orders' },
       // Quick order is not a second destination — it is the other way of
       // getting lines into the same order, so it lives behind a tab on the
       // order-entry page rather than on its own sidebar row.
-      { to: '/orders/new', labelKey: 'appShell.nav.newOrder', icon: ClipboardCheck, module: 'orders' },
-      { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck, module: 'orders' },
+      { to: '/orders/new', labelKey: 'appShell.nav.newOrder', icon: ClipboardCheck, requiredPermission: 'orders:write', module: 'orders' },
+      { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck, requiredPermission: 'orders:read', module: 'orders' },
       { to: '/returns', labelKey: 'appShell.nav.returns', icon: Package, requiredPermission: 'returns:read', module: 'returns' },
-      { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText, module: 'quote_requests' },
+      { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText, requiredPermission: 'rfqs:handle', module: 'quote_requests' },
       // Templates are how an invoice is rendered, not a separate destination:
       // they are reached through the tab strip on the invoices page.
       { to: '/invoices', labelKey: 'appShell.nav.invoices', icon: Receipt, requiredPermission: 'invoices:read', module: 'invoices' },
@@ -137,11 +146,11 @@ const NAV: NavSection[] = [
     key: 'catalog',
     labelKey: 'appShell.section.catalog',
     items: [
-      { to: '/catalog/products', labelKey: 'appShell.nav.products', icon: Package, module: 'catalog' },
-      { to: '/catalog/categories', labelKey: 'appShell.nav.categories', icon: Boxes, module: 'catalog' },
-      { to: '/catalog/attributes', labelKey: 'appShell.nav.attributes', icon: Tag, module: 'catalog' },
-      { to: '/catalog/attribute-sets', labelKey: 'appShell.nav.attributeSets', icon: Tag, module: 'catalog' },
-      { to: '/catalog/attachment-types', labelKey: 'appShell.nav.attachmentTypes', icon: FileText, module: 'catalog' },
+      { to: '/catalog/products', labelKey: 'appShell.nav.products', icon: Package, requiredPermission: 'catalog:read', module: 'catalog' },
+      { to: '/catalog/categories', labelKey: 'appShell.nav.categories', icon: Boxes, requiredPermission: 'catalog:read', module: 'catalog' },
+      { to: '/catalog/attributes', labelKey: 'appShell.nav.attributes', icon: Tag, requiredPermission: 'catalog:read', module: 'catalog' },
+      { to: '/catalog/attribute-sets', labelKey: 'appShell.nav.attributeSets', icon: Tag, requiredPermission: 'catalog:read', module: 'catalog' },
+      { to: '/catalog/attachment-types', labelKey: 'appShell.nav.attachmentTypes', icon: FileText, requiredPermission: 'catalog:read', module: 'catalog' },
       {
         to: '/assets-library',
         labelKey: 'appShell.nav.assetsLibrary',
@@ -181,11 +190,11 @@ const NAV: NavSection[] = [
     key: 'inventory',
     labelKey: 'appShell.section.inventory',
     items: [
-      { to: '/inventory', labelKey: 'appShell.nav.stockOverview', icon: Box, module: 'inventory' },
-      { to: '/warehouses', labelKey: 'appShell.nav.warehouses', icon: WarehouseIcon, module: 'inventory' },
-      { to: '/inventory/low-stock', labelKey: 'appShell.nav.lowStock', icon: TrendingDown, module: 'inventory' },
-      { to: '/inventory/notifications', labelKey: 'appShell.nav.notifyWhenAvailable', icon: BellOutline, module: 'inventory' },
-      { to: '/inventory/import', labelKey: 'appShell.nav.importStock', icon: PackageOpen, module: 'inventory' },
+      { to: '/inventory', labelKey: 'appShell.nav.stockOverview', icon: Box, requiredPermission: 'orders:read', module: 'inventory' },
+      { to: '/warehouses', labelKey: 'appShell.nav.warehouses', icon: WarehouseIcon, requiredPermission: 'orders:read', module: 'inventory' },
+      { to: '/inventory/low-stock', labelKey: 'appShell.nav.lowStock', icon: TrendingDown, requiredPermission: 'orders:read', module: 'inventory' },
+      { to: '/inventory/notifications', labelKey: 'appShell.nav.notifyWhenAvailable', icon: BellOutline, requiredPermission: 'orders:read', module: 'inventory' },
+      { to: '/inventory/import', labelKey: 'appShell.nav.importStock', icon: PackageOpen, requiredPermission: 'catalog:write', module: 'inventory' },
     ],
   },
   {
@@ -195,9 +204,9 @@ const NAV: NavSection[] = [
       { to: '/price-lists', labelKey: 'appShell.nav.priceLists', icon: CircleDollarSign, requiredPermission: 'price_lists:read', module: 'price_lists' },
       { to: '/promotions', labelKey: 'appShell.nav.promotions', icon: PercentDiamond, requiredPermission: 'promotions:read', module: 'promotions' },
       { to: '/promotion-rules', labelKey: 'appShell.nav.promotionRules', icon: PercentDiamond, requiredPermission: 'promotions:read', module: 'promotions' },
-      { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt, module: 'taxes' },
-      { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck, module: 'delivery_methods' },
-      { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard, module: 'payment_methods' },
+      { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt, requiredPermission: 'catalog:write', module: 'taxes' },
+      { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck, requiredPermission: 'catalog:read', module: 'delivery_methods' },
+      { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard, requiredPermission: 'catalog:read', module: 'payment_methods' },
       // Stripe settings are no longer a top-level sidebar entry — they are
       // reached as an "integration" from the Payment methods page (below).
     ],
@@ -220,11 +229,16 @@ const NAV: NavSection[] = [
         requiredPermission: 'customers:read',
         module: 'customers',
       },
+      // Any-of, because the route is any-of: the organizations list is gated by
+      // `requireAdminAny(['customers:read', 'customers:manage'])`
+      // (`backend/src/modules/organizations/routes.admin.ts:148`). Naming only
+      // the read code — as this entry did — hid the screen from a role holding
+      // just `customers:manage`.
       {
         to: '/organizations',
         labelKey: 'appShell.nav.organizations',
         icon: Building2,
-        requiredPermission: 'customers:read',
+        requiredPermission: ['customers:read', 'customers:manage'],
         module: 'organizations',
       },
       // Feature 076 (D-79) — customer groups belong to the customer, so the
@@ -238,7 +252,7 @@ const NAV: NavSection[] = [
         requiredPermission: 'customer_groups:read',
         module: 'customer_accounts',
       },
-      { to: '/credit-limits', labelKey: 'appShell.nav.creditLimits', icon: CreditCard, module: 'credit_limits' },
+      { to: '/credit-limits', labelKey: 'appShell.nav.creditLimits', icon: CreditCard, requiredPermission: 'credit_limits:manage', module: 'credit_limits' },
       {
         to: '/comparisons',
         labelKey: 'appShell.nav.comparisons',
@@ -261,7 +275,7 @@ const NAV: NavSection[] = [
       },
       { to: '/dictionary', labelKey: 'appShell.nav.dictionary', icon: Languages, requiredPermission: 'dictionary.write', module: 'dictionaries' },
       { to: '/admin/dictionaries/audit', labelKey: 'appShell.nav.dictionaryAudit', icon: ListChecks, requiredPermission: 'dictionary.write', module: 'dictionaries' },
-      { to: '/seo', labelKey: 'appShell.nav.seo', icon: Search, module: 'seo' },
+      { to: '/seo', labelKey: 'appShell.nav.seo', icon: Search, requiredPermission: 'catalog:write', module: 'seo' },
     ],
   },
   {
@@ -375,8 +389,13 @@ const NAV: NavSection[] = [
         requiredPermission: 'platform.modules.read',
         module: null,
       },
-      { to: '/admin-users', labelKey: 'appShell.nav.users', icon: Users, module: 'admin_users' },
-      { to: '/admin-roles', labelKey: 'appShell.nav.roles', icon: ShieldCheck, module: 'admin_roles' },
+      { to: '/admin-users', labelKey: 'appShell.nav.users', icon: Users, requiredPermission: 'admin_users:manage', module: 'admin_users' },
+      // `admin_users:manage`, not an `admin_roles:*` code: `admin_roles` ships no
+      // routes at all, and the screen is fed by `/api/v1/admin/admin-roles` in
+      // `admin_users` (`admin_users/routes.admin.ts:177`). The module attribution
+      // and the permission answer to two different questions here, which is the
+      // whole reason they are two fields.
+      { to: '/admin-roles', labelKey: 'appShell.nav.roles', icon: ShieldCheck, requiredPermission: 'admin_users:manage', module: 'admin_roles' },
       // Bulk operations may span many domains (not just products), so the
       // entry lives under System. The URL stays `/catalog/bulk-operations`
       // to keep existing deep-links (e.g. the bulk-edit "queued" ack) valid.
@@ -396,9 +415,9 @@ const NAV: NavSection[] = [
         requiredPermission: 'custom_fields:read',
         module: 'custom_fields',
       },
-      { to: '/audit-log', labelKey: 'appShell.nav.auditLog', icon: ListChecks, module: 'audit_logs' },
-      { to: '/api-keys', labelKey: 'appShell.nav.apiKeys', icon: KeyRound, module: 'api_keys' },
-      { to: '/webhooks', labelKey: 'appShell.nav.webhooks', icon: Webhook, module: 'webhooks' },
+      { to: '/audit-log', labelKey: 'appShell.nav.auditLog', icon: ListChecks, requiredPermission: 'audit_log:read', module: 'audit_logs' },
+      { to: '/api-keys', labelKey: 'appShell.nav.apiKeys', icon: KeyRound, requiredPermission: 'integrations:manage', module: 'api_keys' },
+      { to: '/webhooks', labelKey: 'appShell.nav.webhooks', icon: Webhook, requiredPermission: 'integrations:manage', module: 'webhooks' },
       {
         to: '/credentials',
         labelKey: 'appShell.nav.credentials',
@@ -406,7 +425,7 @@ const NAV: NavSection[] = [
         requiredPermission: 'credentials:read',
         module: 'credentials',
       },
-      { to: '/import-export', labelKey: 'appShell.nav.importExport', icon: Upload, module: 'import_export' },
+      { to: '/import-export', labelKey: 'appShell.nav.importExport', icon: Upload, requiredPermission: 'catalog:write', module: 'import_export' },
       {
         to: '/settings',
         labelKey: 'appShell.nav.settings',
@@ -923,7 +942,7 @@ function buildCrumbs(pathname: string): Crumb[] {
   }));
 }
 
-interface PaletteItem {
+interface PaletteItem extends GatedSurface {
   group: 'Navigate' | 'Actions' | 'Assistant';
   /**
    * For static Navigate items: a translation key under the `core` scope.
@@ -944,45 +963,103 @@ interface PaletteItem {
   /**
    * The module that owns the destination, or `null` for a shell surface.
    *
-   * Feature 073 / FR-032. These 28 entries are the **real** palette leak: the
+   * Feature 073 / FR-032 closed the module-state half of the palette leak: the
    * server-fed Actions group has filtered on `module_registrations.state` since
-   * feature 020, but this array is merged in below gated by neither permission
-   * nor module state — `/inventory`, `/comparisons`, `/newsletter/*`,
-   * `/webhooks`, `/credentials` and `/promotions` among them. A palette entry
-   * for an absent module is a link to a 503.
+   * feature 020, while this array was merged in unfiltered — `/inventory`,
+   * `/comparisons`, `/newsletter/*`, `/webhooks`, `/credentials` and
+   * `/promotions` among them. A palette entry for an absent module is a link to
+   * a 503.
    */
   module?: string | null;
+  /**
+   * The permission the destination's route enforces. Issue #230 — the other
+   * half of the same leak, and the half that survives after module state has
+   * done its job: an operator whose modules are all present still saw palette
+   * entries for screens their role cannot open, which Principle XVI item 2
+   * forbids in as many words. `PaletteItem` had no such field at all, so no
+   * amount of data could have gated these rows.
+   *
+   * Unset means the destination genuinely has no gate (the dashboard) or, for
+   * a registry-driven Actions row, that the server already filtered it —
+   * `AdminActionsService` resolves both axes before the row reaches us.
+   */
+  requiredPermission?: PermissionRequirement;
 }
 
+/**
+ * The static Navigate group.
+ *
+ * **Every `requiredPermission` here is read from the backend route that gates
+ * the destination, not from the sidebar entry beside it.** Copying a neighbour
+ * is how a wrong code gets propagated twice, and several of these are not what
+ * the neighbourhood suggests:
+ *
+ *  - `/inventory` and `/warehouses` are gated by `orders:read`, not by anything
+ *    named after inventory (`inventory/routes.admin.ts:103,183`);
+ *  - `/payment-methods` and `/delivery-methods` by `catalog:read`
+ *    (`payment_methods/routes.ts:108`, `delivery_methods/routes.ts:97`);
+ *  - `/api-keys` and `/webhooks` by one shared `integrations:manage`
+ *    (`api_keys/routes.ts:20`, `webhooks/routes.ts:21`);
+ *  - `/dictionary` and its audit view by `dictionary.write` — the module
+ *    declares no read code, so reading the dictionary requires the write one
+ *    (`dictionaries/routes.admin.ts:72`);
+ *  - `/organizations` by `requireAdminAny(['customers:read',
+ *    'customers:manage'])`, which is why the field takes an any-of array.
+ *
+ * **Denied entries are hidden, not shown disabled** — the same treatment module
+ * absence already gets, and applied identically in the sidebar and in the
+ * dashboard's quick actions. Three reasons, in order of weight:
+ *
+ *  1. The Actions group in this very dialog already hides on permission;
+ *     `AdminActionsService` filters server-side before the row is sent. Showing
+ *     Navigate rows disabled would make one palette use two opposite treatments
+ *     for two groups the operator does not distinguish — identical-looking rows
+ *     that behave differently (Law of Similarity).
+ *  2. On an empty query the palette lists every Navigate entry. For a
+ *     single-domain role that is a wall of unusable rows in the surface whose
+ *     entire job is to shorten the path to the one thing you asked for (Hick).
+ *  3. Keyboard and pointer must reach the same conclusion. The Arrow/Enter loop
+ *     below indexes `items` directly, so a disabled row would still be
+ *     selectable by keyboard and `Enter` would navigate into a 403 — a
+ *     disabled-row design would need `aria-disabled`, a linked reason and cursor
+ *     skipping to be honest. Hiding makes the two paths identical by
+ *     construction and leaves nothing for a screen reader to announce.
+ *
+ * The cost of hiding is real and is answered elsewhere: "you do not have access
+ * to this" is actionable in a way "this module is not installed" is not, so it
+ * belongs at the point of failure — the 403 an operator reaches by bookmark or
+ * deep link — rather than in an index the operator is scanning for something
+ * else. That screen is not part of this change; see the report.
+ */
 const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.home', sub: 'appShell.palette.sub.dashboard', icon: HomeIcon, to: '/', keywords: 'home dashboard strona główna pulpit' , module: null },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.products', sub: 'appShell.palette.sub.catalogRows', icon: Package, to: '/catalog/products', keywords: 'products catalog items produkty katalog' , module: 'catalog' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.stockOverview', sub: 'appShell.palette.sub.stockLevels', icon: Factory, to: '/inventory', keywords: 'inventory stock warehouse magazyn stany' , module: 'inventory' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.priceLists', sub: 'appShell.palette.sub.pricingRules', icon: CircleDollarSign, to: '/price-lists', keywords: 'pricing prices price list cennik' , module: 'price_lists' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.organizations', sub: 'appShell.palette.sub.customerAccounts', icon: Building2, to: '/organizations', keywords: 'org orgs customer organization organizacja klient' , module: 'organizations' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.creditLimits', sub: 'appShell.palette.sub.creditLimits', icon: CreditCard, to: '/credit-limits', keywords: 'credit limit limits balance terms limity kredytowe saldo' , module: 'credit_limits' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.orders', sub: 'appShell.palette.sub.openOrders', icon: ClipboardCheck, to: '/orders', keywords: 'orders sales zamówienia sprzedaż' , module: 'orders' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.quoteRequests', sub: 'appShell.palette.sub.customerRfqs', icon: FileText, to: '/quote-requests', keywords: 'rfq quote zapytanie ofertowe' , module: 'quote_requests' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.comparisons', sub: 'appShell.palette.sub.compareAudit', icon: Scale, to: '/comparisons', keywords: 'compare comparisons porównanie' , module: 'comparisons' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.categories', sub: 'appShell.palette.sub.categoryTree', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree kategorie' , module: 'catalog' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.attributes', sub: 'appShell.palette.sub.attributeDefinitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes atrybuty' , module: 'catalog' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.salesChannels', sub: 'appShell.palette.sub.storefrontChannels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels kanał sprzedaży' , module: 'sales_channels' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.paymentMethods', sub: 'appShell.palette.sub.paymentMethods', icon: CreditCard, to: '/payment-methods', keywords: 'payment methods pay gateway checkout metody płatności płatności bramka' , module: 'payment_methods' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.deliveryMethods', sub: 'appShell.palette.sub.deliveryMethods', icon: Truck, to: '/delivery-methods', keywords: 'delivery shipping methods courier metody dostawy wysyłka kurier' , module: 'delivery_methods' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionary', sub: 'appShell.palette.sub.dictionary', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n słownik kraje waluty języki' , module: 'dictionaries' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionaryAudit', sub: 'appShell.palette.sub.dictionaryAudit', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references audyt słownika' , module: 'dictionaries' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.settings', sub: 'appShell.palette.sub.platformConfiguration', icon: Settings, to: '/settings', keywords: 'settings configuration config ustawienia konfiguracja' , module: 'settings' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.apiKeys', sub: 'appShell.palette.sub.apiKeys', icon: KeyRound, to: '/api-keys', keywords: 'api keys bearer token integration klucze api token integracja' , module: 'api_keys' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.webhooks', sub: 'appShell.palette.sub.webhooks', icon: Webhook, to: '/webhooks', keywords: 'webhook webhooks events signing secret integration webhooki zdarzenia integracja' , module: 'webhooks' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.credentials', sub: 'appShell.palette.sub.credentials', icon: KeyRound, to: '/credentials', keywords: 'credentials credential secrets provider llm smtp poświadczenia sekrety dostawca' , module: 'credentials' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.promotions', sub: 'appShell.palette.sub.promotions', icon: PercentDiamond, to: '/promotions', keywords: 'promotion promotions discount coupon marketing promocje rabaty kupony' , module: 'promotions' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.promotionRules', sub: 'appShell.palette.sub.promotionRules', icon: PercentDiamond, to: '/promotion-rules', keywords: 'promotion rules rule builder reguły promocji' , module: 'promotions' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterSubscribers', sub: 'appShell.palette.sub.newsletterSubscribers', icon: Newspaper, to: '/newsletter/subscribers', keywords: 'newsletter subscribers marketing subskrybenci newslettera' , module: 'newsletter' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterCampaigns', sub: 'appShell.palette.sub.newsletterCampaigns', icon: Newspaper, to: '/newsletter/campaigns', keywords: 'newsletter campaigns email marketing kampanie newslettera' , module: 'newsletter' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterAutomations', sub: 'appShell.palette.sub.newsletterAutomations', icon: Newspaper, to: '/newsletter/automations', keywords: 'newsletter automations workflow automatyzacje newslettera' , module: 'newsletter' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.transactionalEmails', sub: 'appShell.palette.sub.transactionalEmails', icon: Inbox, to: '/transactional-emails', keywords: 'transactional emails notifications maile transakcyjne powiadomienia' , module: 'transactional_emails' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.emailBlocks', sub: 'appShell.palette.sub.emailBlocks', icon: Inbox, to: '/transactional-emails/blocks', keywords: 'email blocks fragments bloki maili' , module: 'transactional_emails' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.emailTemplates', sub: 'appShell.palette.sub.emailTemplates', icon: Inbox, to: '/transactional-emails/templates', keywords: 'email templates layout szablony maili' , module: 'transactional_emails' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.products', sub: 'appShell.palette.sub.catalogRows', icon: Package, to: '/catalog/products', keywords: 'products catalog items produkty katalog', requiredPermission: 'catalog:read' , module: 'catalog' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.stockOverview', sub: 'appShell.palette.sub.stockLevels', icon: Factory, to: '/inventory', keywords: 'inventory stock warehouse magazyn stany', requiredPermission: 'orders:read' , module: 'inventory' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.priceLists', sub: 'appShell.palette.sub.pricingRules', icon: CircleDollarSign, to: '/price-lists', keywords: 'pricing prices price list cennik', requiredPermission: 'price_lists:read' , module: 'price_lists' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.organizations', sub: 'appShell.palette.sub.customerAccounts', icon: Building2, to: '/organizations', keywords: 'org orgs customer organization organizacja klient', requiredPermission: ['customers:read', 'customers:manage'] , module: 'organizations' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.creditLimits', sub: 'appShell.palette.sub.creditLimits', icon: CreditCard, to: '/credit-limits', keywords: 'credit limit limits balance terms limity kredytowe saldo', requiredPermission: 'credit_limits:manage' , module: 'credit_limits' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.orders', sub: 'appShell.palette.sub.openOrders', icon: ClipboardCheck, to: '/orders', keywords: 'orders sales zamówienia sprzedaż', requiredPermission: 'orders:read' , module: 'orders' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.quoteRequests', sub: 'appShell.palette.sub.customerRfqs', icon: FileText, to: '/quote-requests', keywords: 'rfq quote zapytanie ofertowe', requiredPermission: 'rfqs:handle' , module: 'quote_requests' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.comparisons', sub: 'appShell.palette.sub.compareAudit', icon: Scale, to: '/comparisons', keywords: 'compare comparisons porównanie', requiredPermission: 'comparisons:read' , module: 'comparisons' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.categories', sub: 'appShell.palette.sub.categoryTree', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree kategorie', requiredPermission: 'catalog:read' , module: 'catalog' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.attributes', sub: 'appShell.palette.sub.attributeDefinitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes atrybuty', requiredPermission: 'catalog:read' , module: 'catalog' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.salesChannels', sub: 'appShell.palette.sub.storefrontChannels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels kanał sprzedaży', requiredPermission: 'sales_channels:read' , module: 'sales_channels' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.paymentMethods', sub: 'appShell.palette.sub.paymentMethods', icon: CreditCard, to: '/payment-methods', keywords: 'payment methods pay gateway checkout metody płatności płatności bramka', requiredPermission: 'catalog:read' , module: 'payment_methods' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.deliveryMethods', sub: 'appShell.palette.sub.deliveryMethods', icon: Truck, to: '/delivery-methods', keywords: 'delivery shipping methods courier metody dostawy wysyłka kurier', requiredPermission: 'catalog:read' , module: 'delivery_methods' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionary', sub: 'appShell.palette.sub.dictionary', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n słownik kraje waluty języki', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionaryAudit', sub: 'appShell.palette.sub.dictionaryAudit', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references audyt słownika', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.settings', sub: 'appShell.palette.sub.platformConfiguration', icon: Settings, to: '/settings', keywords: 'settings configuration config ustawienia konfiguracja', requiredPermission: 'settings:read' , module: 'settings' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.apiKeys', sub: 'appShell.palette.sub.apiKeys', icon: KeyRound, to: '/api-keys', keywords: 'api keys bearer token integration klucze api token integracja', requiredPermission: 'integrations:manage' , module: 'api_keys' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.webhooks', sub: 'appShell.palette.sub.webhooks', icon: Webhook, to: '/webhooks', keywords: 'webhook webhooks events signing secret integration webhooki zdarzenia integracja', requiredPermission: 'integrations:manage' , module: 'webhooks' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.credentials', sub: 'appShell.palette.sub.credentials', icon: KeyRound, to: '/credentials', keywords: 'credentials credential secrets provider llm smtp poświadczenia sekrety dostawca', requiredPermission: 'credentials:read' , module: 'credentials' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.promotions', sub: 'appShell.palette.sub.promotions', icon: PercentDiamond, to: '/promotions', keywords: 'promotion promotions discount coupon marketing promocje rabaty kupony', requiredPermission: 'promotions:read' , module: 'promotions' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.promotionRules', sub: 'appShell.palette.sub.promotionRules', icon: PercentDiamond, to: '/promotion-rules', keywords: 'promotion rules rule builder reguły promocji', requiredPermission: 'promotions:read' , module: 'promotions' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterSubscribers', sub: 'appShell.palette.sub.newsletterSubscribers', icon: Newspaper, to: '/newsletter/subscribers', keywords: 'newsletter subscribers marketing subskrybenci newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterCampaigns', sub: 'appShell.palette.sub.newsletterCampaigns', icon: Newspaper, to: '/newsletter/campaigns', keywords: 'newsletter campaigns email marketing kampanie newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterAutomations', sub: 'appShell.palette.sub.newsletterAutomations', icon: Newspaper, to: '/newsletter/automations', keywords: 'newsletter automations workflow automatyzacje newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.transactionalEmails', sub: 'appShell.palette.sub.transactionalEmails', icon: Inbox, to: '/transactional-emails', keywords: 'transactional emails notifications maile transakcyjne powiadomienia', requiredPermission: 'transactional_emails:read' , module: 'transactional_emails' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.emailBlocks', sub: 'appShell.palette.sub.emailBlocks', icon: Inbox, to: '/transactional-emails/blocks', keywords: 'email blocks fragments bloki maili', requiredPermission: 'transactional_emails:read' , module: 'transactional_emails' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.emailTemplates', sub: 'appShell.palette.sub.emailTemplates', icon: Inbox, to: '/transactional-emails/templates', keywords: 'email templates layout szablony maili', requiredPermission: 'transactional_emails:read' , module: 'transactional_emails' },
   // Feature 020 — the Actions group is now sourced from the module
   // registry via useAdminActions(); the previously-hardcoded "New
   // product" and "Import products" entries are declared by the
@@ -995,6 +1072,7 @@ export function AppShell(): ReactNode {
   // no sidebar entry and no palette entry; neither surface recombines the two
   // presence axes, because the server already did.
   const { isPresent: isModulePresent } = useModulePresence();
+  const isVisible = useSurfaceVisibility();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsed());
@@ -1132,11 +1210,12 @@ export function AppShell(): ReactNode {
             // entirely, which is what makes a whole domain disappear when every
             // module in it is off — the same behaviour restricted admins have
             // always had.
-            const visibleItems = section.items.filter(
-              (item) =>
-                (!item.requiredPermission || hasPermission(item.requiredPermission)) &&
-                (item.module === null || isModulePresent(item.module)),
-            );
+            //
+            // Issue #230 — the predicate is `isSurfaceVisible`, shared with the
+            // command palette and the dashboard quick actions. The palette used
+            // to run a second, weaker copy of it; a shared helper is what stops
+            // the three from disagreeing again.
+            const visibleItems = section.items.filter(isVisible);
             if (visibleItems.length === 0) return null;
             // Feature 019 / 021 — section labels go through useTranslation('core').
             // The empty-labelKey "main" cluster keeps no label; every other
@@ -1548,7 +1627,7 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   const t = useTranslation('core');
   const tp = useTranslation('prompt_actions');
   const { hasPermission } = useAuth();
-  const { isPresent: isModulePresent } = useModulePresence();
+  const isVisible = useSurfaceVisibility();
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
   const [mode, setMode] = useState<'search' | 'prompt'>('search');
@@ -1610,14 +1689,12 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
     [registryActions],
   );
 
-  // Feature 073 / FR-032 — the Navigate group, presence-filtered. The Actions
-  // group needs nothing here: the server already resolves both axes for it.
+  // Feature 073 / FR-032 plus issue #230 — the Navigate group, filtered on both
+  // axes by the same predicate the sidebar uses. The Actions group needs nothing
+  // here: the server already resolves both axes for it.
   const navigateItems = useMemo<PaletteItem[]>(
-    () =>
-      PALETTE_ITEMS.filter(
-        (item) => item.module == null || isModulePresent(item.module),
-      ),
-    [isModulePresent],
+    () => PALETTE_ITEMS.filter(isVisible),
+    [isVisible],
   );
 
   // Build a derived view that translates Navigate-group keys at render
