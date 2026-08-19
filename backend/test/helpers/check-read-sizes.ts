@@ -92,17 +92,27 @@ export interface RecordedReadSize {
    * and {@link READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE} carries the reason.
    */
   readonly sources: readonly string[];
-  /**
-   * Why this check's file count is not stable across checkouts, when it is not.
-   *
-   * Present means the **upper** bound is not asserted: the count legitimately
-   * grows with whatever the working tree holds, so a ceiling would fail on a
-   * developer's machine for a reason that says nothing about the check. The
-   * lower bound still holds — the defect direction is the one that matters —
-   * and the reason has to name what makes the population move.
-   */
-  readonly volatilePopulation?: string;
 }
+
+/**
+ * There is deliberately no `volatilePopulation` escape hatch here.
+ *
+ * One existed, for exactly one check. `check-nul-bytes` walks the whole
+ * repository, and a working tree that had built the docs site or served an
+ * upload read 8288 files where a clean checkout read 5163 — so its ceiling was
+ * suppressed with that reason attached, and the record said the count
+ * "legitimately grows with whatever the working tree holds". It did not: the
+ * trees producing the gap were `docs/.docusaurus` and `backend/var/assets`,
+ * both named in `.gitignore`, neither declared in `SKIPPED_DIRECTORIES`. Issue
+ * #248 declared them, the two trees now agree to the file, and the ceiling is
+ * back.
+ *
+ * The field is gone with it rather than left dormant, because a suppression
+ * nobody uses is a way to make a ceiling disappear without measuring anything,
+ * and the whole of this file's rule is the sentence above: never widen the band
+ * to make a run pass. If a population turns up that genuinely moves, the field
+ * comes back in the merge request that measured it.
+ */
 
 /**
  * Recorded on 2026-08-19, from a run of each check over `master`.
@@ -224,18 +234,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-nul-bytes.ts': {
     prefix: '[nul-bytes]',
     run: { kind: 'tsx', path: 'scripts/check-nul-bytes.ts', args: [] },
-    // Recorded on a clean checkout, which is what CI reads. See
-    // `volatilePopulation`: this is the one check whose population grows with
-    // whatever the working tree happens to hold.
-    files: 5163,
+    // Both bounds are asserted again (issue #248). The number now agrees
+    // between a clean checkout and a tree that had built the docs site and
+    // served uploads — 8288 against 5163 before, 5165 against 5165 after —
+    // because the two generated trees that made them differ, `.docusaurus` and
+    // `backend/var/assets`, are declared exclusions. Re-recorded here on this
+    // branch, which is the tree the exclusions were measured on.
+    files: 5172,
     sites: null,
     sources: [],
-    volatilePopulation:
-      'the population is the whole repository minus the trees named in ' +
-      '`SKIPPED_DIRECTORIES`, and a generated tree that is not named there — a built ' +
-      'Docusaurus site adds some three thousand files — is scanned like source. So a ' +
-      'developer who has built the docs legitimately reads far more than a clean ' +
-      'checkout does, and only the lower bound is a statement about the check.',
   },
   'backend/scripts/check-overlay-determinism.ts': {
     prefix: '[overlay:check]',

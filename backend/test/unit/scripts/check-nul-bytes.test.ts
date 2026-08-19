@@ -1,9 +1,7 @@
-import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   BINARY_EXTENSIONS,
@@ -15,8 +13,13 @@ import {
   isScannablePath,
   NUL_BYTES_ALLOWED,
   SKIPPED_DIRECTORIES,
+  SKIPPED_PATH_PREFIXES,
   type ScannedFile,
 } from '../../../scripts/check-nul-bytes.js';
+import {
+  createNulBytesFixture,
+  type NulBytesFixture,
+} from '../../helpers/nul-bytes-check-fixture.js';
 
 /**
  * Companion test for `check-nul-bytes` (issue #190).
@@ -31,10 +34,6 @@ import {
  */
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
-const TSX = join(REPO_ROOT, 'backend', 'node_modules', '.bin', 'tsx');
-const SCRIPT = join(REPO_ROOT, 'backend', 'scripts', 'check-nul-bytes.ts');
-/** The shared read-size reporter the check imports (issue #244). */
-const READ_SIZE_LIB = join(REPO_ROOT, 'backend', 'scripts', 'lib', 'read-size.ts');
 
 const bytes = (text: string): Uint8Array => new TextEncoder().encode(text);
 
@@ -44,54 +43,23 @@ function nulPastGitWindow(path: string): ScannedFile {
   return { path, bytes: bytes(`${padding}const key = \`a\0b\`;\n`) };
 }
 
-const temporaryRoots: string[] = [];
-
-interface FixtureRepository {
-  readonly root: string;
-  write(path: string, content: Uint8Array): void;
-  run(): { status: number | null; output: string };
-}
-
 /**
- * A synthetic repository with a copy of the check inside it.
- *
- * The script derives its root from its own location — `<script>/../..`, the
- * idiom `shell-check-fixture.ts` already uses for the two bash checks — so a
- * copy at `<tmp>/node_modules/scripts/` scans `<tmp>` and nothing else. The
- * `node_modules` level is chosen on purpose: it is pruned, so the copy is not
- * in its own population and an untouched fixture really is an **empty** tree.
- * Without that the exit-2 guard would be assertable only as source text, which
- * is the shape issue #113 is about.
+ * The synthetic repository lives in `test/helpers/nul-bytes-check-fixture.ts`,
+ * because the inventory's red proof of the issue #248 exclusions needs the same
+ * on-disk tree: a `ScannedFile` record enters *below* the walk, and a directory
+ * exclusion is a decision the walk takes.
  */
-function fixtureRepository(): FixtureRepository {
-  const root = mkdtempSync(join(tmpdir(), 'nul-bytes-check-'));
-  temporaryRoots.push(root);
-  const checker = join(root, 'node_modules', 'scripts', 'check-nul-bytes.ts');
-  mkdirSync(dirname(checker), { recursive: true });
-  copyFileSync(SCRIPT, checker);
-  // The check imports the shared reporter by a relative path, so the copy needs
-  // it beside itself or the fixture run dies at module resolution and every
-  // exit code below reads as 1.
-  mkdirSync(join(dirname(checker), 'lib'), { recursive: true });
-  copyFileSync(READ_SIZE_LIB, join(dirname(checker), 'lib', 'read-size.ts'));
+let fixture: NulBytesFixture | undefined;
 
-  return {
-    root,
-    write: (path, content) => {
-      const full = join(root, path);
-      mkdirSync(dirname(full), { recursive: true });
-      writeFileSync(full, content);
-    },
-    run: () => {
-      const result = spawnSync(TSX, [checker], { encoding: 'utf8' });
-      return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
-    },
-  };
-}
-
-afterAll(() => {
-  for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
+afterEach(() => {
+  fixture?.cleanup();
+  fixture = undefined;
 });
+
+function fixtureRepository(): NulBytesFixture {
+  fixture = createNulBytesFixture();
+  return fixture;
+}
 
 describe('check-nul-bytes — what it refuses', () => {
   it('reports a raw NUL in a TypeScript source', () => {
@@ -222,7 +190,12 @@ describe('check-nul-bytes — the ledger', () => {
   });
 
   it('gives every declared exclusion a reason', () => {
-    for (const table of [SKIPPED_DIRECTORIES, BINARY_EXTENSIONS, BINARY_FILENAMES]) {
+    for (const table of [
+      SKIPPED_DIRECTORIES,
+      SKIPPED_PATH_PREFIXES,
+      BINARY_EXTENSIONS,
+      BINARY_FILENAMES,
+    ]) {
       for (const [key, reason] of Object.entries(table)) {
         expect(reason.length, `${key} has no reason`).toBeGreaterThan(10);
       }
@@ -265,6 +238,43 @@ describe('check-nul-bytes — the exit codes', () => {
     const result = repo.run();
     expect(result.status).toBe(0);
     expect(result.output).toContain('violations=0');
+  });
+
+  // Issue #248. These enter as a **tree on disk**, not as `ScannedFile`
+  // records, because that is the only input above both consumers of an
+  // exclusion: the walk, which prunes the directory, and `isScannablePath`,
+  // which states the rule. A record-based proof is handed a path the walk
+  // already chose to emit, so it cannot see a pruning that stopped happening.
+  //
+  // Each is a discrimination — a NUL in the generated tree and a NUL in a
+  // source file beside it — because "the generated file was not reported" is
+  // green on a check that reported nothing whatsoever.
+  it.each([
+    ['docs/.docusaurus/registry.js', 'a name-anchored generated tree'],
+    ['backend/var/assets/ab/abcdef.xml', 'a path-anchored data tree'],
+  ])('skips %s (%s) while still reporting the source beside it', (generated) => {
+    const repo = fixtureRepository();
+    repo.write(generated, bytes('const k = `a\0b`;\n'));
+    repo.write('backend/src/modules/orders/graph.ts', bytes('const k = `a\0b`;\n'));
+    const result = repo.run();
+    expect(result.status).toBe(1);
+    expect(result.output).toContain('violations=1');
+    expect(result.output).toContain('backend/src/modules/orders/graph.ts');
+    expect(result.output).not.toContain(generated);
+  });
+
+  it('counts the pruned tree out of the read size, not merely out of the findings', () => {
+    // The saving is the point of issue #248 and it is a *read* count, which no
+    // finding-level assertion can reach: a check that walked three thousand
+    // generated files and then discarded them would pass every test above.
+    const repo = fixtureRepository();
+    repo.write('backend/src/modules/orders/graph.ts', bytes('const key = `a\\0b`;\n'));
+    for (let index = 0; index < 20; index += 1) {
+      repo.write(`docs/.docusaurus/route-${index}.json`, bytes('{"a":1}\n'));
+    }
+    const result = repo.run();
+    expect(result.status).toBe(0);
+    expect(result.output).toContain('[nul-bytes] read: files=1 ');
   });
 });
 

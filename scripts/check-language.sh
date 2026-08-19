@@ -118,25 +118,125 @@ include_globs=(
 )
 
 # ──────────────────────────────────────────────────────────────────────────
-# Citation blanking. Reads a file on stdin, writes it back with every
-# cited segment replaced by a space, one output line per input line so
-# grep -n still reports the file's real line numbers.
-#   $1 — "docs" or "source"
-#   $@ — the proper-noun list
+# The prose scan, batched (issue #247).
+#
+# One perl process reads the whole listing off stdin and reports every
+# violating line in it. It used to be six processes *per source file* —
+# `file` and `grep` to decide binary, `grep -F` for the opt-out marker, `perl`
+# to blank the citations, `grep -P` for what survived, `cut` for the line
+# number — plus a `sed` per hit to re-read the raw line, over a listing of
+# four thousand. Some twenty-five thousand spawns for 30 MB of text: 48 s
+# measured, of which the reading is 0.03 s. `quality:static` paid it on every
+# merge request and every push to `master` and nobody was timing it; the read-
+# size ratchet (!764) only made it visible. Batched, the same scan is 1.0 s.
+#
+# The rules are the same rules — the differential proof is byte-for-byte over
+# a 46-file carve-out fixture and over this whole tree with the diacritic
+# class widened to 19 079 findings — moved inside the one process that was
+# already doing the hard part.
+#
+# The scanner reads:
+#   argv — kind ("docs" or "source"), the diacritic class, the opt-out
+#          marker, then the proper-noun list;
+#   stdin — the file paths, one per line.
+# It prints the same report the shell used to and exits 1 when it found
+# anything, 0 when it did not.
 # ──────────────────────────────────────────────────────────────────────────
-strip_citations() {
-  perl -CSDA -e '
-    my $kind  = shift @ARGV;
-    my @nouns = @ARGV;
+prose_scanner='
+  my ($kind, $diacritics, $marker, @nouns) = @ARGV;
+  # Paths arrive as bytes and are opened as bytes; the prose is decoded per
+  # file, so a path is never re-encoded on its way to open().
+  binmode(STDIN, ":raw");
+  binmode(STDOUT, ":encoding(UTF-8)");
+
+  my $label = $kind eq "docs"
+    ? "Non-English characters in docs file"
+    : "Non-English comment in source file";
+
+  # Per-extension comment-line regex — the same patterns the shell used to
+  # hand to `grep -P`, which is PCRE, so they are perl patterns already. Each
+  # matches only a line that carries a comment marker AND a diacritic, so a
+  # plain string literal or identifier is silently ignored.
+  my $script_like = qr/(?:\/\/|\/\*|^\s*\*(?!\/))[^\n]*$diacritics/;
+  my $html_like   = qr/(?:<!--[^\n]*$diacritics|$diacritics[^\n]*-->)/;
+  my $shell_like  = qr/^\s*#(?!!)[^\n]*$diacritics/;
+  # A docs page is prose throughout, so its pattern is the class itself — which
+  # is also the pre-filter below, and the reason the docs scan pays for that
+  # filter nothing at all.
+  my $has_diacritic = qr/$diacritics/;
+
+  sub pattern_for {
+    my ($path) = @_;
+    return $has_diacritic if $kind eq "docs";
+    return $script_like
+      if $path =~ /\.(?:ts|tsx|cts|mts|js|jsx|cjs|mjs|css|scss)$/;
+    return $html_like  if $path =~ /\.html$/;
+    return $shell_like if $path =~ /\.sh$/;
+    return undef;
+  }
+
+  my $found = 0;
+  while (my $path = <STDIN>) {
+    chomp $path;
+    next unless length $path;
+    next unless -f $path;
+    my $re = pattern_for($path);
+    next unless defined $re;
+
+    open(my $fh, "<:raw", $path) or next;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    next unless defined $raw;
+
+    # A binary file among the source extensions is not prose. This replaces
+    # the `file --mime | grep charset=binary` pair, on the byte that made
+    # `file` say so; the docs scan never had the test and does not gain one.
+    next if $kind ne "docs" && index($raw, "\0") >= 0;
+    # The documented opt-out, matched anywhere in the file, on the raw bytes
+    # exactly as `grep -qF` matched it.
+    next if index($raw, $marker) >= 0;
+
+    # Undecodable bytes are not UTF-8 prose, and the diacritic class cannot
+    # match them: `grep -P` under LC_ALL=C.UTF-8 found nothing in such a file
+    # either, so skipping it keeps the old answer.
+    my $text = $raw;
+    next unless utf8::decode($text);
+
+    # Every pattern below ends in the diacritic class, and the blanking only
+    # ever *removes* text — so a file, and later a line, that holds no
+    # diacritic at all cannot produce a hit whatever else it contains. Asking
+    # once per file is what keeps the scan off the 99% of this tree that is
+    # plain ASCII; without it the substitutions alone run several million
+    # times and cost ten seconds.
+    next unless $text =~ $has_diacritic;
+
+    # Split on the line terminator rather than opening an in-memory file
+    # handle. Perl refuses to map a string holding a code point above 0xFF
+    # into one, and the diacritics this check looks for are mostly above it:
+    # `\N{U+0142}` is 0x142. A handle would fail to open on exactly the files
+    # worth reading, and skipping them would look like a clean tree — the
+    # differential run against the previous implementation caught it.
+    my $lineno = 0;
     my $fenced = 0;
-    while (my $line = <STDIN>) {
+    my @hits;
+    for my $line (split /(?<=\n)/, $text) {
+      $lineno++;
+      # The reported text is the raw line, terminator stripped and nothing
+      # else — `sed -n "${n}p"` did exactly this, a CR on a CRLF line
+      # included, and the differential proof is byte-for-byte.
+      my $original = $line;
+      $original =~ s/\n\z//;
+
       # Fenced code blocks (docs only) are data wholesale.
       if ($kind eq "docs" && $line =~ /^\s*(?:```|~~~)/) {
         $fenced = !$fenced;
-        print "\n";
         next;
       }
-      if ($fenced) { print "\n"; next; }
+      next if $fenced;
+      # The per-line half of the same argument. It has to sit *after* the fence
+      # toggle, which every line has to be offered, and before the blanking,
+      # which is the expensive part.
+      next unless $line =~ $has_diacritic;
 
       $line =~ s/\Q$_\E/ /g for @nouns;
       $line =~ s/`[^`\n]*`/ /g;                                   # inline code
@@ -151,34 +251,26 @@ strip_citations() {
         # delimiters to sit on a word boundary.
         $line =~ s/(?<![\w`])_[^_\n]+_(?![\w`])/ /g;
       }
-      print $line;
+
+      push @hits, [$lineno, $original] if $line =~ $re;
     }
-  ' -- "$@"
-}
 
-# Reports every line of $1 whose *prose* matches the grep -P pattern $2.
-# Returns 0 when the file is clean, 1 when it is not.
-report_violations() {
-  local file="$1" kind="$2" line_pattern="$3" label="$4"
-  local -a hits
+    next unless @hits;
+    $found = 1;
+    print "\033[31m\x{2717} $label $path:\033[0m\n";
+    printf("    %s:%s\n", $_->[0], $_->[1]) for @hits;
+  }
+  exit($found ? 1 : 0);
+'
 
-  if grep -qF "$optout_marker" "$file" 2>/dev/null; then
-    return 0
-  fi
-
-  mapfile -t hits < <(
-    strip_citations "$kind" "${proper_nouns[@]}" < "$file" \
-      | LC_ALL=C.UTF-8 grep -nP "$line_pattern" 2>/dev/null \
-      | cut -d: -f1 || true
-  )
-
-  [ "${#hits[@]}" -gt 0 ] || return 0
-
-  red "✗ $label $file:"
-  for n in "${hits[@]}"; do
-    printf '    %s:%s\n' "$n" "$(sed -n "${n}p" "$file")"
-  done
-  return 1
+# Runs the scanner over a file list. $1 is the kind, the rest are the paths.
+# Returns 0 when every one of them is clean, 1 when any is not.
+scan_prose() {
+  local kind="$1"
+  shift
+  [ "$#" -gt 0 ] || return 0
+  printf '%s\n' "$@" \
+    | perl -CA -e "$prose_scanner" -- "$kind" "$pattern" "$optout_marker" "${proper_nouns[@]}"
 }
 
 # Which listing is actually in use. `--diff` degrades to a full scan when the
@@ -211,44 +303,10 @@ for f in "${candidate_files[@]}"; do
   done
 done
 
-# Per-extension comment-line regex. Each pattern matches only lines that
-# carry a comment marker AND contain a diacritic, so plain string
-# literals and identifiers are silently ignored.
-#   .ts/.tsx/.js/.jsx/.cjs/.mjs/.cts/.mts/.css/.scss:
-#       `// …` (line or trailing), `/* …`, ` * …` (JSDoc/TSDoc continuation)
-#   .html:
-#       `<!-- …` and `… -->`
-#   .sh:
-#       `# …` (excluding the `#!` shebang on the very first line)
-comment_pattern_for() {
-  case "$1" in
-    *.ts|*.tsx|*.cts|*.mts|*.js|*.jsx|*.cjs|*.mjs|*.css|*.scss)
-      printf '%s' '(//|/\*|^\s*\*(?!/))[^\n]*'"$pattern"
-      ;;
-    *.html)
-      printf '%s' '(<!--[^\n]*'"$pattern"'|'"$pattern"'[^\n]*-->)'
-      ;;
-    *.sh)
-      printf '%s' '^\s*#(?!!)[^\n]*'"$pattern"
-      ;;
-    *)
-      printf ''
-      ;;
-  esac
-}
-
 fail=0
 
 if [ "${#tracked[@]}" -gt 0 ]; then
-  for f in "${tracked[@]}"; do
-    [ -f "$f" ] || continue
-    if file -b --mime "$f" 2>/dev/null | grep -q 'charset=binary'; then
-      continue
-    fi
-    cp="$(comment_pattern_for "$f")"
-    [ -z "$cp" ] && continue
-    report_violations "$f" source "$cp" "Non-English comment in source file" || fail=1
-  done
+  scan_prose source "${tracked[@]}" || fail=1
 fi
 
 # --- Docs-site scope ------------------------------------------------------
@@ -304,10 +362,7 @@ else
 fi
 
 if [ "${#docs_files[@]}" -gt 0 ]; then
-  for f in "${docs_files[@]}"; do
-    [ -f "$f" ] || continue
-    report_violations "$f" docs "$pattern" "Non-English characters in docs file" || fail=1
-  done
+  scan_prose docs "${docs_files[@]}" || fail=1
 fi
 
 if [ "$fail" -eq 0 ]; then
