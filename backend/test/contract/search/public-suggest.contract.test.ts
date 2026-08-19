@@ -1,9 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  ERROR_CODES,
-  SearchSuggestResponseSchema,
-  type CatalogProductReadPort,
-} from '@b2b/contracts';
+import { ERROR_CODES, SearchSuggestResponseSchema } from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -12,6 +8,7 @@ import {
 import { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
+import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.js';
 
 /**
  * T010 — Contract test for `GET /api/v1/search/suggest` (US1, feature 006).
@@ -30,17 +27,6 @@ import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
 
 const meilisearchHost = process.env['MEILISEARCH_URL'] ?? 'http://localhost:7700';
 const meilisearchKey = process.env['MEILISEARCH_API_KEY'] ?? 'devMasterKeyChangeMe';
-
-/**
- * The container's `catalogProductReadPort` — feature 075, Phase C. The indexer
- * takes `catalog`'s published read port instead of querying its table, so a
- * hand-built indexer here resolves the same registration the composed module
- * does rather than a second reader of the same rows.
- */
-function catalogProductReadPort(handle: BackendServerHandle): CatalogProductReadPort {
-  return (handle.container.cradle as never as { catalogProductReadPort: CatalogProductReadPort })
-    .catalogProductReadPort;
-}
 
 describe('GET /api/v1/search/suggest — feature 006 / US1', () => {
   let h: BackendServerHandle;
@@ -71,7 +57,7 @@ describe('GET /api/v1/search/suggest — feature 006 / US1', () => {
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
       attributeRead: h.catalogAttributeRead,
-      products: catalogProductReadPort(h),
+      ...searchIndexerNeighbourPorts(h),
     });
     const channels = await h.em().find(SalesChannel, {});
     for (const channel of channels) {

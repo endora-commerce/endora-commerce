@@ -24,7 +24,13 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
   // `SettingsAdminAuditContext`, and `SYSTEM_ATTRIBUTE_SCOPES` comes from
   // `@b2b/contracts`, where Phase P relocated it.
   //
-  // Four remain and each says why below. The `search:reindex` group is the
+  // Five remain, all of them the same CLI entry point, and each says why
+  // below. The four `sql` entries this shard carried are gone: the indexer's
+  // `product_categories` / `categories` joins are `catalogCategoryReadPort`
+  // and its two `sales_channel_products` statements are the kernel membership
+  // accessor Principle XII reserves the bridge for.
+  //
+  // The `search:reindex` group is the
   // **shape** `_i18n` escalated one cut earlier and not an oversight of this
   // one: it is a module-owned CLI entry point, so it has no container and no
   // `ModuleContext`, nothing to resolve a port from, and it hand-builds the
@@ -60,24 +66,17 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'F3 Phase C — search, escalated. Same CLI entry point, same missing container: the ' +
     'product read port the indexer now takes is built by hand here. Retired by the ruling ' +
     'on how a module CLI script reaches a composition-root input.',
-  'modules/search/services/search-indexer.ts:sql:catalog/categories':
-    'D-87 seed — `search` reads `catalog`\'s `categories` table in raw SQL. The statement ' +
-    'names no import specifier, so the boundary it crosses compiles and returns rows. ' +
-    'Retired by: `catalogCategoryReadPort`, resolved through `lazyPort` with `catalog` ' +
-    'declared in this module\'s manifest dependencies.',
-  'modules/search/services/search-indexer.ts:sql:catalog/product_categories':
-    'D-87 seed — `search` reads `catalog`\'s `product_categories` table in raw SQL. The ' +
-    'statement names no import specifier, so the boundary it crosses compiles and returns ' +
-    'rows. Retired by: `catalogCategoryReadPort`, resolved through `lazyPort` with ' +
-    '`catalog` declared in this module\'s manifest dependencies.',
-  'modules/search/services/search-indexer.ts:sql:catalog/products':
-    'D-87 seed — `search` reads `catalog`\'s `products` table in raw SQL. The statement ' +
-    'names no import specifier, so the boundary it crosses compiles and returns rows. ' +
-    'Retired by: `catalogProductReadPort`, resolved through `lazyPort` with `catalog` ' +
-    'declared in this module\'s manifest dependencies.',
-  'modules/search/services/search-indexer.ts:sql:kernel/sales_channel_products':
-    'D-87 seed — `search` reads the `sales_channel_products` membership bridge directly. ' +
-    'Principle XII says the `sales_channel_*` bridges are read and written only through ' +
-    'the channel-membership service. Retired by: ' +
-    '`SalesChannelMembershipPort.listEntityIdsForChannel`.',
+  // The fifth is the same cost paid a second time, for the same reason and by
+  // the same merge request that removed this shard's four `sql` entries: the
+  // indexer's category reads became `catalogCategoryReadPort`, and this script
+  // is still the one caller with nothing to resolve it from. It is one import
+  // traded for four raw statements that crossed the boundary invisibly — and
+  // an import is at least a specifier a check can see.
+  //
+  // Its kernel sibling costs nothing here: the membership accessor the same
+  // change introduced is `src/kernel` code, which a module may name.
+  'modules/search/scripts/reindex.ts:catalog/services/catalog-category-read.service':
+    'F3 Phase C — search, escalated. Same CLI entry point, same missing container: the ' +
+    'category read port the indexer now takes is built by hand here. Retired by the ruling ' +
+    'on how a module CLI script reaches a composition-root input.',
 };
