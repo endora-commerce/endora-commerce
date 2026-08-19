@@ -14,6 +14,8 @@ import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
+import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
@@ -248,12 +250,12 @@ async function seedRestrictedProduct(h: BackendServerHandle): Promise<string> {
  * buyer names the buyer it was priced for.
  */
 async function seedPriceLists(h: BackendServerHandle): Promise<void> {
-  await h
-    .em()
-    .getConnection()
-    .execute(
-      `truncate table "price_list_price_brackets", "price_list_products", "price_lists" cascade`,
-    );
+  // Scoped to this file's own product (issue #166): emptying `price_lists`
+  // would be a claim about the platform, and the two amounts below are only
+  // meaningful against whatever else the platform is already serving.
+  const em = h.em();
+  await em.nativeDelete(PriceListPriceBracket, { productId: SEED_PRODUCT_101_ID });
+  await em.nativeDelete(PriceListProduct, { productId: SEED_PRODUCT_101_ID });
   await new DefaultPriceListMigrator(h.em).seedDefault();
   const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
 
