@@ -138,6 +138,10 @@ export class CustomerDeletionService {
     customer.firstName = ANONYMIZED_NAME;
     customer.lastName = ANONYMIZED_NAME;
     customer.passwordHash = ANONYMIZED_PASSWORD_HASH;
+    // Issue #222 — the scrubbed hash is a placeholder, not a credential, so the
+    // account has no password on record any more. Leaving the stamp would say
+    // the opposite of what the scrub just did.
+    customer.passwordSetAt = null;
     customer.twoFactorSecret = null;
     customer.twoFactorConfirmedAt = null;
     customer.anonymizedAt = new Date();

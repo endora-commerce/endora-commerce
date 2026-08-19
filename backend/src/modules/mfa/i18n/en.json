@@ -1,7 +1,7 @@
 {
   "adminRoles.permission.mfa:reset": "Reset a user's 2FA",
   "adminRoles.permission.mfa:manage": "Manage 2FA policies and organization enforcement",
-  "errors.MFA_SOCIAL_LAST_CREDENTIAL": "This is the last sign-in identity linked to the account, and it cannot be removed. The platform cannot confirm that the account has another way in — an account created through a sign-in provider is given a password nobody is told — so removing it could lock its holder out for good.",
+  "errors.MFA_SOCIAL_LAST_CREDENTIAL": "This is the last sign-in identity linked to the account, and the account has no password on record — removing it could lock its holder out for good. Set a password for the account first, then this link can be removed.",
   "errors.MFA_ALREADY_ENROLLED": "Two-factor authentication is already set up on this account, so there is nothing left to configure. To move it to a different authenticator app, switch it off first and then set it up again.",
   "errors.MFA_INVALID_CHALLENGE": "This sign-in step is no longer valid — it has expired, or it was already finished. Sign in again to start a new one.",
   "errors.MFA_INVALID_CODE": "That code was not accepted. A code from your authenticator app is only valid for about half a minute, so wait for the next one and enter it without spaces; a recovery code can be used only once.",

@@ -19,14 +19,19 @@ import type { MfaSocialLink } from '../../lib/api/mfa';
  * what the panel adds is telling the buyer *before* the click rather than
  * after it.
  *
- * **The blocked state offers no route out, because there is none.** It said
- * "set a password first, then you can remove it" for exactly one review round:
- * the rule the server enforces counts links, so setting a password does not
- * lift it — nothing records whether a password was ever chosen. That sentence
- * sent the holder on an errand with no effect, on the screen whose whole value
- * is that its statements can be trusted. It now says the link cannot be
- * removed and why. When the missing datum lands (a `passwordSetAt` on the
- * account), the sentence and the rule change together.
+ * **The blocked state names the step that lifts it, and the step works.** It
+ * said "set a password first" until issue #194's review, when it became a plain
+ * "this cannot be removed": the rule counted links, so setting a password lifted
+ * nothing, and a screen whose value is that its statements can be trusted must
+ * not send its reader on an errand with no effect. Issue #222 added the missing
+ * datum — `customer_accounts.password_set_at` — so the rule now reads it, the
+ * instruction is true again, and the two changed in the same commit as promised.
+ *
+ * The route out is `/password-reset/request`, **not** `/account/password` as it
+ * was before: the change-password form verifies the current password, which is
+ * exactly what a holder in this state does not have. The reset flow proves
+ * control of the address the provider already verified, which is the only proof
+ * this holder can give.
  *
  * No linked identity ⇒ no panel. An empty "Linked accounts" heading is a
  * question the reader did not ask (Law of Prägnanz).
@@ -73,8 +78,10 @@ export function SocialLinksPanel({
                 </div>
               </form>
             ) : (
-              /* No link out, deliberately — see the note above. */
-              <p className="b2b-auth__hint">{t('account.socialLinks.lastCredential')}</p>
+              <p className="b2b-auth__hint">
+                {t('account.socialLinks.lastCredential')}{' '}
+                <a href="/password-reset/request">{t('account.socialLinks.setPassword')}</a>
+              </p>
             )}
           </li>
         ))}

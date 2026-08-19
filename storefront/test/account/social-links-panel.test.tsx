@@ -8,9 +8,11 @@ import type { MfaSocialLink } from '../../lib/api/mfa';
  * account and offers to sever one.
  *
  * The refusal is rendered from the server's verdict (`canUnlink`), never from
- * a guess this component makes: the account whose only link this is has a
+ * a guess this component makes: the account whose only link this is may have a
  * random password nobody knows, so the button that would remove its last way
- * in is replaced by the route that repairs the situation first.
+ * in is replaced by the route that repairs the situation first. Since issue
+ * #222 that route exists and works — password reset, not change-password,
+ * because the holder cannot supply a current password they were never given.
  */
 const GOOGLE: MfaSocialLink = {
   provider: 'google',
@@ -46,17 +48,18 @@ describe('SocialLinksPanel', () => {
     expect(html).toContain('value="microsoft"');
   });
 
-  it('states plainly that the last link cannot be removed, and offers no errand', () => {
+  it('replaces the unlink with the reason and the step that lifts it', () => {
     const html = render([LAST_LINK]);
     expect(html).toContain(
-      'This is the last sign-in identity linked to your account, and it cannot be removed.',
+      'This is the last sign-in identity linked to your account, and your account has no password on record',
     );
-    expect(html).toContain('There is no way to remove it at the moment.');
-    // The rule the server enforces counts links, so setting a password lifts
-    // nothing. Telling the holder to set one would be an instruction with no
-    // effect on the screen whose value is that its statements are true.
+    expect(html).toContain('Set a password');
+    // Password reset, not the change-password form: that form verifies the
+    // current password, which is precisely what this holder does not have.
+    // Pointing at it is what made the first version of this sentence an errand
+    // (issue #194), and issue #222 is what makes the sentence true again.
+    expect(html).toContain('/password-reset/request');
     expect(html).not.toContain('/account/password');
-    expect(html).not.toContain('Set a password');
     // No form at all, not a disabled button: the control that would submit the
     // removal is what must be absent, and `provider` is only ever submitted by
     // that form.
@@ -72,8 +75,8 @@ describe('SocialLinksPanel', () => {
     const html = render([LAST_LINK], 'pl-PL');
     expect(html).toContain('Powiązane konta');
     expect(html).toContain(
-      'To ostatnia tożsamość logowania powiązana z Twoim kontem i nie można jej usunąć.',
+      'To ostatnia tożsamość logowania powiązana z Twoim kontem, a konto nie ma zapisanego hasła',
     );
-    expect(html).toContain('Obecnie nie ma możliwości usunięcia tego powiązania.');
+    expect(html).toContain('Ustaw hasło');
   });
 });

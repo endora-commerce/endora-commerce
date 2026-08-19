@@ -82,6 +82,8 @@ export class CustomerRegistrationService {
     const customer = em.create(CustomerAccount, {
       email: input.email,
       passwordHash,
+      // Issue #222 — the visitor typed this password on the registration form.
+      passwordSetAt: new Date(),
       firstName: input.firstName,
       lastName: input.lastName,
       organizationId: null,

@@ -138,6 +138,9 @@ export class CustomerAuthService {
       );
     }
     customer.passwordHash = await hashPassword(newPassword);
+    // Issue #222 — the holder proved the current password and chose the new
+    // one, so the account has a password on record whatever it had before.
+    customer.passwordSetAt = new Date();
     if (this.auditLog) {
       recordAuditFromContext(this.auditLog, em, {
         action: 'customer_account.change_password',

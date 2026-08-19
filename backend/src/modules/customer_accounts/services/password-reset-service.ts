@@ -66,6 +66,11 @@ export class PasswordResetService {
       );
     }
     customer.passwordHash = await hashPassword(newPassword);
+    // Issue #222 — the holder proved control of the address and chose the
+    // password themselves, so the account has one on record from here on. This
+    // is also the one route into that state for an account federated sign-in
+    // created: it never knew a current password to change.
+    customer.passwordSetAt = new Date();
     token.consumedAt = new Date();
     if (this.auditLog) {
       recordAuditFromContext(this.auditLog, em, {

@@ -823,6 +823,10 @@ async function main(): Promise<void> {
     organizationId: demoOrg.id,
     email: DEMO_BUYER_EMAIL,
     passwordHash: buyerPasswordHash,
+    // Issue #222 — the demo password is a real one, printed by this seed and
+    // used to sign in with. An unstamped row would make the dev database the
+    // one place where a usable password reads as "none on record".
+    passwordSetAt: new Date(),
     firstName: 'Demo',
     lastName: 'Buyer',
     role: 'organization_admin',

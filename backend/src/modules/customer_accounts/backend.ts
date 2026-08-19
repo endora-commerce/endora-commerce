@@ -8,6 +8,7 @@ import type {
   CustomerAuthPort,
   CustomerGroupReadPort,
   CustomerPasswordResetPort,
+  CustomerPasswordStatePort,
   CustomerRolePort,
   CustomerTotpEnrolmentPort,
   MfaLoginPort,
@@ -28,6 +29,7 @@ import { registerCustomerGroupAdminRoutes } from './routes.admin.js';
 import {
   CustomerAccountMemberWriteService,
   CustomerAccountReadService,
+  CustomerPasswordStateService,
   createCustomerAuthPort,
   createCustomerRolePort,
 } from './services/customer-account-ports.js';
@@ -175,6 +177,21 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(() =>
         createCustomerAuthPort(() => ctx.cradle<CustomerAccountsCradle>().customerAuthService),
+      )
+      .singleton(),
+  );
+
+  /**
+   * Issue #222 — whether a password its holder can use is on record. Read by
+   * `mfa` before it severs an account's last federated identity; nothing else
+   * needs it, which is why it is its own port rather than a field on
+   * `customerAccountReadPort`'s record.
+   */
+  ctx.di.providePort<CustomerPasswordStatePort>(
+    'customerPasswordStatePort',
+    ctx
+      .asFunction(
+        ({ emFactory }: CustomerAccountsCradle) => new CustomerPasswordStateService(emFactory),
       )
       .singleton(),
   );
@@ -334,8 +351,12 @@ export function registerModule(ctx: ModuleContext): void {
               email,
               // No password was ever chosen for this account: it signs in
               // through the provider. A random one keeps the column non-null
-              // without minting a credential anybody could guess.
+              // without minting a credential anybody could guess — and issue
+              // #222 is the other half of that sentence: `passwordSetAt` stays
+              // null, so a reader can tell this account from one whose holder
+              // really has a password. Do not stamp it here.
               passwordHash: await hashPassword(randomUUID() + randomUUID()),
+              passwordSetAt: null,
               firstName: '',
               lastName: '',
               role: 'regular_user',
