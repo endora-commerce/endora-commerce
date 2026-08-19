@@ -25,6 +25,7 @@ import {
 } from '../../../scripts/check-entity-tenant-classification.js';
 import {
   analyzeSource as entryScopeAnalyze,
+  declaredProgramEntryPoints,
   violationsOf,
   type EntryKind,
 } from '../../../scripts/check-entry-scope.js';
@@ -861,6 +862,18 @@ const PORT_CATCH_SHADOWED_METHOD_TREE = new Map([
  * `setInterval(` and so kept this file out of the population entirely — a
  * violation list can only stay empty for something it was never handed.
  */
+/**
+ * A `package.json` that runs a `src/` file the shape rules cannot classify —
+ * behind two commands and three flags, the way `seed:dev` runs the dev seed.
+ */
+const DECLARING_PACKAGE_JSON = JSON.stringify({
+  name: 'backend',
+  scripts: {
+    'seed:dev':
+      'pnpm run migration:up && tsx --env-file-if-exists=.env src/seeds/dev-catalog-seed.ts',
+  },
+});
+
 const UNSCOPED_SELF_RESCHEDULING = `
   const scheduleNext = (delayMs) => { timer = setTimeout(tick, delayMs); };
   const tick = () => { void reindex().then(() => scheduleNext(60000)); };
@@ -873,9 +886,26 @@ const UNSCOPED_SELF_RESCHEDULING = `
  * issue #128, and it fails by putting a file in the wrong class as readily as by
  * dropping it.
  */
-function unscopedEntryPoints(file: string, source: string, kind: EntryKind): number {
-  const entry = entryScopeAnalyze(file, source);
+function unscopedEntryPoints(
+  file: string,
+  source: string,
+  kind: EntryKind,
+  declared: ReadonlySet<string> = new Set(),
+): number {
+  const entry = entryScopeAnalyze(file, source, declared);
   return violationsOf(entry === null ? [] : [entry]).filter((e) => e.kind === kind).length;
+}
+
+/**
+ * The declared-program shape (issue #228), entered where a real run enters it:
+ * a `package.json` **text**, so the derivation that turns a script command into
+ * an entry point runs. Handing over a ready-made path set would prove the
+ * classifier over a population the parse is what produces — and the parse is the
+ * part that had never existed.
+ */
+function unscopedDeclaredProgram(packageJson: string, file: string, source: string): number {
+  const declared = new Set(declaredProgramEntryPoints(packageJson));
+  return unscopedEntryPoints(file, source, 'program', declared);
 }
 
 /**
@@ -1553,6 +1583,16 @@ const CHECKS: readonly CheckEntry[] = [
           '/repo/backend/src/modules/search/plugin.ts',
           UNSCOPED_SELF_RESCHEDULING,
           'interval',
+        ),
+      ),
+      // Issue #228 — the shape the *population* could not see: a program
+      // `package.json` runs that is under no `scripts/` directory, constructs no
+      // Worker and starts no timer. `unscoped=0` said nothing about it.
+      'declared-program': top(() =>
+        unscopedDeclaredProgram(
+          DECLARING_PACKAGE_JSON,
+          '/repo/backend/src/seeds/dev-catalog-seed.ts',
+          'main().catch((err) => { process.exit(1); });',
         ),
       ),
     },
@@ -3207,7 +3247,8 @@ describe('every red proof enters at the top of the analysis', () => {
       // Three timer shapes plus D-68's four boot-hook ones. The count is the
       // point: the check grew a construct, so its proof had to grow with it.
       'backend/scripts/check-entry-presence.ts': 7,
-      'backend/scripts/check-entry-scope.ts': 4,
+      // Four shapes, plus issue #228's fifth: the population's second source.
+      'backend/scripts/check-entry-scope.ts': 5,
       'backend/scripts/check-error-translations.ts': 2,
       // Three shapes the read reaches the fallback through, four fabrications
       // the fallback performs; the two axes are independent, so the count is

@@ -17,14 +17,43 @@
  * it elsewhere is a code-review problem; a file with no scope at all is the
  * failure this catches, and it is the one that has actually happened.
  *
- * Three entry classes are detectable statically:
+ * Four entry classes are detectable statically:
  *
  *   - **CLI scripts** — anything under a `scripts/` directory in `src/`.
+ *   - **Declared programs** — a `src/` file `package.json` runs as a process of
+ *     its own. See below.
  *   - **BullMQ consumers** — a file that constructs a `Worker`.
  *   - **Interval sweeps** — a file that starts a repeating timer. `interval` is
  *     the *shape*, not the constructor: `setInterval`, and equally a `setTimeout`
  *     whose callback re-arms it. It is also the word the scope itself uses
  *     (`ScopeEntryPointKind`), which is why the label stays.
+ *
+ * ## Why `package.json` is the second source of the population (issue #228)
+ *
+ * The first three classes are **shapes**, and the shapes were written from what
+ * the tree held when FR-020 landed. `src/seeds/dev-catalog-seed.ts` is none of
+ * them: it is a top-level `main()` that truncates and repopulates a dozen
+ * modules' tables, run by `pnpm --filter backend run seed:dev`, and it
+ * established no scope. The check printed `unscoped=0` — and that zero said
+ * nothing about the file, because the file was never in the population.
+ *
+ * That is issue #215's failure by another mechanism: there the *walks* came back
+ * short, here the *population definition* excluded a real entry point. Both
+ * report a green that means "not looking", and nothing in the output told the
+ * two apart.
+ *
+ * So the population has a second source, and it is not another shape: it is the
+ * repository's own declaration of what it runs. Every `src/**.ts` path named by
+ * a script in `backend/package.json` is a process entry point by construction —
+ * `pnpm run <name>` starts it, no HTTP request is involved, and nothing above it
+ * can open a scope on its behalf. A new runnable file therefore enters the
+ * population the day its package script is written, rather than the day someone
+ * remembers to teach this file a new shape.
+ *
+ * The two sources are a **union**, and both halves are needed:
+ * `sales_channels/scripts/backfill-quote-channel.ts` has no package script
+ * (it is run directly), and the seed is under no `scripts/` directory. Either
+ * source alone is smaller than the truth.
  *
  * That last class was classified by grepping for `setInterval(` until issue #128,
  * so `search`'s reindex loop — a self-rescheduling `setTimeout` — was outside the
@@ -49,12 +78,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hasRepeatingTimer } from './lib/repeating-timers.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
 
-const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
+const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+const SRC_ROOT = join(BACKEND_ROOT, 'src');
 
 /** The two functions that open a scope. Nothing else counts as establishing one. */
 const ENTRY_TOKENS = ['enterPlatformScope(', 'enterSystemScope('] as const;
 
-export type EntryKind = 'cli' | 'worker' | 'interval';
+export type EntryKind = 'cli' | 'program' | 'worker' | 'interval';
 
 export interface EntryPoint {
   readonly file: string;
@@ -83,6 +113,30 @@ export const NO_SCOPE_NEEDED: ReadonlyMap<string, string> = new Map([
   [
     'src/modules/settings/scripts/modules-uninstall.ts',
     'Deprecation shim: spawns `module:uninstall` and forwards argv.',
+  ],
+  [
+    'src/index.ts',
+    'The HTTP server root. It composes and listens; it opens no EntityManager ' +
+      'of its own. Every execution underneath it opens its own scope — ' +
+      '`kernel/request-scope-hook.ts` per request, `composition.ts` and ' +
+      '`kernel/compose.ts` per boot reconciler and boot hook. Falsified the day ' +
+      'this file does database work directly.',
+  ],
+  [
+    'src/worker.ts',
+    'The queue-consumer process root. It composes the same graph as the API and ' +
+      'never listens; every consumer opens its own scope at its `new Worker(...)`, ' +
+      'and all eleven of them are in this population and scoped. The two ' +
+      '`process.once` shutdown handlers close the app and dispose the ' +
+      'composition — no query, nothing to scope.',
+  ],
+  [
+    'src/db/migrate.ts',
+    'The migration runner. MikroORM\'s migrator executes each migration through ' +
+      'the connection as SQL and builds no entity query, so no global tenant ' +
+      'filter is ever consulted; no migration in the tree touches the ' +
+      'EntityManager. Falsified the day one does — and that migration would need ' +
+      'the scope, not this runner.',
   ],
 ]);
 
@@ -115,9 +169,42 @@ export function stripCommentsAndStrings(source: string): string {
     .replace(/"(?:[^"\\\n]|\\.)*"/g, "''");
 }
 
-/** Which entry class `file` belongs to, or `null` when it is not an entry point. */
-export function classify(file: string, source: string): EntryKind | null {
+/**
+ * The `src/` files `package.json` runs as a process of their own.
+ *
+ * Read out of the **command**, not out of the script name: `seed:dev` is
+ * `pnpm run migration:up && tsx --env-file-if-exists=.env src/seeds/…`, so the
+ * entry point is the second of two commands behind three flags. `dist/` paths
+ * are ignored (this check reads sources) and so are `scripts/` paths outside
+ * `src/`, which the walk never sees.
+ */
+export function declaredProgramEntryPoints(packageJson: string): string[] {
+  const parsed = JSON.parse(packageJson) as { scripts?: Record<string, string> };
+  const found = new Set<string>();
+  for (const command of Object.values(parsed.scripts ?? {})) {
+    for (const match of command.matchAll(/\bsrc\/[\w./@-]+\.ts\b/g)) found.add(match[0]);
+  }
+  return [...found].sort();
+}
+
+const NOTHING_DECLARED: ReadonlySet<string> = new Set();
+
+/**
+ * Which entry class `file` belongs to, or `null` when it is not an entry point.
+ *
+ * `declared` is the set `declaredProgramEntryPoints` returned, passed in rather
+ * than read here so a caller — a test especially — decides what the repository
+ * says it runs. A file under `scripts/` that is *also* declared stays `cli`:
+ * fourteen of the fifteen are both, and moving them would make the count move
+ * for no reason.
+ */
+export function classify(
+  file: string,
+  source: string,
+  declared: ReadonlySet<string> = NOTHING_DECLARED,
+): EntryKind | null {
   if (/\/scripts\//.test(file)) return 'cli';
+  if (declared.has(relative(file))) return 'program';
   const code = stripCommentsAndStrings(source);
   if (/new Worker[<(]/.test(code)) return 'worker';
   // The repeating-timer shape is read from the syntax tree, not from the text:
@@ -132,8 +219,12 @@ export function establishesScope(source: string): boolean {
   return ENTRY_TOKENS.some((token) => code.includes(token));
 }
 
-export function analyzeSource(file: string, source: string): EntryPoint | null {
-  const kind = classify(file, source);
+export function analyzeSource(
+  file: string,
+  source: string,
+  declared: ReadonlySet<string> = NOTHING_DECLARED,
+): EntryPoint | null {
+  const kind = classify(file, source, declared);
   if (kind === null) return null;
   return { file, kind, scoped: establishesScope(source) };
 }
@@ -170,8 +261,34 @@ async function main(): Promise<void> {
     srcRoot: SRC_ROOT,
     files,
   });
+  const declaredPaths = declaredProgramEntryPoints(
+    readFileSync(join(BACKEND_ROOT, 'package.json'), 'utf8'),
+  );
+  const walked = new Set(files.map(relative));
+  // The second population source can go short the same two ways the walk can:
+  // a `scripts` block this cannot read at all, and a declaration whose file has
+  // been renamed away underneath it. The first is "not looking" and exits 2;
+  // the second is a package script pointing at nothing, reported below.
+  if (declaredPaths.length === 0) {
+    console.error(
+      '[entry-scope] backend/package.json declares no `src/**.ts` entry point — ' +
+        'refusing to report a vacuous pass over half this check\'s population',
+    );
+    process.exit(2);
+  }
+  const unresolved = declaredPaths.filter((path) => !walked.has(path));
+  if (unresolved.length === declaredPaths.length) {
+    console.error(
+      `[entry-scope] backend/package.json declares ${declaredPaths.length} ` +
+        '`src/**.ts` entry point(s) and the walk found none of them — ' +
+        'refusing to report a vacuous pass',
+    );
+    process.exit(2);
+  }
+  const declared = new Set(declaredPaths);
+
   const entries = files
-    .map((f) => analyzeSource(f, readFileSync(f, 'utf8')))
+    .map((f) => analyzeSource(f, readFileSync(f, 'utf8'), declared))
     .filter((e): e is EntryPoint => e !== null);
   const violations = violationsOf(entries);
   const stale = staleAllowances(entries);
@@ -201,8 +318,12 @@ async function main(): Promise<void> {
   }
 
   const byKind = (kind: EntryKind): number => entries.filter((e) => e.kind === kind).length;
+  // `entries` is printed because the population size is the number that says
+  // whether a widening did anything: a finding count that moves without it is
+  // finding something else (issue #228).
   console.log(
-    `[entry-scope] cli=${byKind('cli')} worker=${byKind('worker')} ` +
+    `[entry-scope] entries=${entries.length} cli=${byKind('cli')} ` +
+      `program=${byKind('program')} worker=${byKind('worker')} ` +
       `interval=${byKind('interval')} unscoped=${violations.length}`,
   );
 
@@ -220,7 +341,17 @@ async function main(): Promise<void> {
     for (const path of stale) console.error(`  - ${path}`);
   }
 
-  process.exit(violations.length === 0 && stale.length === 0 ? 0 : 1);
+  if (unresolved.length > 0) {
+    console.error(
+      '\npackage.json runs these `src/` files and they are not in the tree — ' +
+        'the population lost an entry point to a rename:',
+    );
+    for (const path of unresolved) console.error(`  - ${path}`);
+  }
+
+  process.exit(
+    violations.length === 0 && stale.length === 0 && unresolved.length === 0 ? 0 : 1,
+  );
 }
 
 // Run as CLI only — importing this module (e.g. from a unit test) must not
