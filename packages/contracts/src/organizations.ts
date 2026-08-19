@@ -6,6 +6,7 @@ import {
   uuidSchema,
 } from './common.js';
 import { fulfilmentStrategySchema, type FulfilmentStrategy } from './inventory.js';
+import { foldDiacritics } from './text-normalization.js';
 
 /**
  * Organizations, customer accounts, addresses, invitations — Source of truth
@@ -496,33 +497,18 @@ export interface OrganizationDetailsPort {
   searchIdsByName(query: string): Promise<string[]>;
 }
 
-const NON_DECOMPOSING_LATIN: Record<string, string> = {
-  Ł: 'L',
-  ł: 'l',
-  Ø: 'O',
-  ø: 'o',
-  Đ: 'D',
-  đ: 'd',
-  Ð: 'D',
-  ð: 'd',
-  Þ: 'Th',
-  þ: 'th',
-  ß: 'ss',
-  Æ: 'AE',
-  æ: 'ae',
-  Œ: 'OE',
-  œ: 'oe',
-};
-
 /**
  * Diacritic-insensitive normalisation for the organisation's `name_search`
  * column and for any query string matched against it.
  *
- * Strips every Unicode combining mark using NFD decomposition, then maps the
+ * The character fold itself is `foldDiacritics` in `text-normalization.ts`,
+ * shared with `admin/` and reachable from `storefront/` (issue #240): it strips
+ * every Unicode combining mark through NFD decomposition and then maps the
  * handful of precomposed Latin letters NFD does not decompose (notably Polish
- * `ł`/`Ł`, Scandinavian `ø`/`Ø`, Czech `đ`/`Đ`, Icelandic `ð`/`Ð`, `þ`/`Þ`,
- * German `ß`, ligatures `æ` and `œ`) to their ASCII approximations, lowercases
- * the result and collapses internal whitespace.
+ * `ł`/`Ł`, Scandinavian `ø`/`Ø`, Croatian `đ`/`Đ`, Icelandic `ð`/`Ð`,
+ * `þ`/`Þ`, German `ß`, ligatures `æ` and `œ`). What is specific to an
+ * organisation name is the whitespace policy below, and only that: a name typed
+ * with a double space must match one stored with a single one.
  *
  * Published as a **function, not a port** (FR-013): it is pure over its
  * argument, so switching `organizations` off does not change the answer, and a
@@ -530,15 +516,16 @@ const NON_DECOMPOSING_LATIN: Record<string, string> = {
  * entity's `@BeforeCreate` / `@BeforeUpdate` hooks and `orders`' list filter
  * both call it, and they must agree or the filter silently stops matching.
  *
+ * That agreement is why the fold is characterised rather than merely tested:
+ * `backend/test/unit/organizations/name-search-fold-characterisation.test.ts`
+ * pins the output for every input this function can meet, because a change here
+ * re-folds nothing already written to `name_search` and reports no error when
+ * the two stop agreeing.
+ *
  * Node natives only (Principle IV).
  */
 export function normalizeOrganizationName(input: string): string {
-  const stripped = input.normalize('NFD').replace(/\p{Diacritic}/gu, '');
-  let mapped = '';
-  for (const ch of stripped) {
-    mapped += NON_DECOMPOSING_LATIN[ch] ?? ch;
-  }
-  return mapped.toLowerCase().replace(/\s+/g, ' ').trim();
+  return foldDiacritics(input).replace(/\s+/g, ' ').trim();
 }
 
 /**

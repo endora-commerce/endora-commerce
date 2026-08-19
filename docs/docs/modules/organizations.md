@@ -215,9 +215,14 @@ and `<OrganizationPickerMulti>` (multi-select) on top of the existing
 `q` parameter is diacritic-insensitive: a query of `lodz` finds
 "Bauhaus Łódź" via the denormalized `name_search` column populated
 by the Organization entity's `@BeforeCreate` / `@BeforeUpdate` hooks.
-`normalizeOrganizationName` handles NFD decomposition + an explicit
-table for precomposed Latin letters NFD doesn't split (`ł`/`Ł`, `ø`/`Ø`,
-`đ`/`Đ`, `ð`/`Ð`, `þ`/`Þ`, `ß`, `æ`, `œ`).
+`normalizeOrganizationName` is that fold plus the whitespace policy the
+column needs. The fold itself is `foldDiacritics`
+(`packages/contracts/src/text-normalization.ts`), shared with the admin
+panel since issue #240: NFD decomposition, a strip of the combining
+marks, then an explicit table for the precomposed Latin letters NFD
+doesn't split (`ł`/`Ł`, `ø`/`Ø`, `đ`/`Đ`, `ð`/`Ð`, `þ`/`Þ`, `ß`, `æ`,
+`œ`). Changing that table re-folds new rows differently from old ones,
+so it is a migration of `name_search`, not an edit.
 
 ### New settings (declared on the manifest)
 

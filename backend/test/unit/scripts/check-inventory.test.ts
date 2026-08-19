@@ -3264,18 +3264,24 @@ const CHECKS: readonly CheckEntry[] = [
     // wrote `normalize('NFD').replace(/\p{Diacritic}/gu, '')` inside a year and
     // all four shipped the same bug, because `ł` has no canonical
     // decomposition. Seven shapes it must see — two decomposing forms, four
-    // spellings of the strip, and the strip standing alone — and four it must
+    // spellings of the strip, and the strip standing alone — and five it must
     // not, each proven as a discrimination because "no finding" is green when
     // the check is blind. The comment discrimination is the load-bearing one:
     // four files in this tree quote the wrong one-liner on purpose, so a
     // text-level implementation reports the documentation that exists to
-    // prevent the defect.
+    // prevent the defect. Its population is the whole tree since the fold moved
+    // into `@b2b/contracts`: the rule "use the shared fold" had nothing to mean
+    // in a package that could not reach one, which is why three packages that
+    // fold were excluded by the first version of this entry.
     script: 'backend/scripts/check-diacritic-folds.ts',
     npmScript: 'check:diacritic-folds',
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-diacritic-folds.test.ts',
     vacuousGuard: 'exit-2',
-    // Walks the admin SPA and its tests; the module tree is not its population.
+    // Walks four whole packages — `admin`, `backend`, `storefront`, `packages`.
+    // It touches the module tree without being a walk *of* it: its population is
+    // never derived from module ids, so a moved tree leaves it no residue to
+    // read as the tree. Its emptiness guard is the anchored helper itself.
     residueGuard: 'not-a-module-walk',
     red: {
       'nfd-decomposition': top(
@@ -3381,24 +3387,51 @@ const CHECKS: readonly CheckEntry[] = [
           ['admin/src/modules/cms/text-normalization.ts'],
         ),
       ),
-      // `backend/`, `packages/` and `storefront/` are out for reasons stated in
-      // the header, not for want of looking. Widening a root without deciding
-      // what it folds against turns this red.
-      'tree-outside-the-population-excluded': top(() =>
+      // `backend/`, `packages/` and `storefront/` were out until issue #240,
+      // for one stated reason: none of them could import a fold that lived in
+      // `admin/src`. `foldDiacritics` in `@b2b/contracts` is reachable from all
+      // three, so all three are in — and a narrowing shows up here as a red
+      // test rather than as a smaller number.
+      'every-package-that-can-import-the-fold-is-scanned': top(() =>
         exactlyFoldPaths(
           [
             foldSource(
               'backend/src/modules/catalog/services/catalog-admin.service.ts',
               naiveFold('NFKD', '/\\p{Diacritic}/gu'),
             ),
-            foldSource(
-              'packages/contracts/src/organizations.ts',
-              naiveFold('NFD', '/\\p{Diacritic}/gu'),
-            ),
-            foldSource('storefront/src/lib/search.ts', naiveFold('NFD', '/\\p{Diacritic}/gu')),
+            foldSource('packages/api-client/src/search.ts', naiveFold('NFD', '/\\p{Diacritic}/gu')),
+            foldSource('storefront/lib/search.ts', naiveFold('NFD', '/\\p{Diacritic}/gu')),
             foldSource('admin/src/lib/thing.ts', naiveFold('NFD', '/\\p{Diacritic}/gu')),
           ],
-          ['admin/src/lib/thing.ts'],
+          [
+            'admin/src/lib/thing.ts',
+            'backend/src/modules/catalog/services/catalog-admin.service.ts',
+            'packages/api-client/src/search.ts',
+            'storefront/lib/search.ts',
+          ],
+        ),
+      ),
+      // The two subtrees that have to be able to spell the refused shapes: the
+      // checks, and the fixtures that prove each shape is still seen. Exact path
+      // prefixes, not a `scripts` name rule — a module directory of that name
+      // would otherwise exempt itself, which is issue #197 one level up.
+      'the-checks-and-their-fixtures-are-excluded-by-path': top(() =>
+        exactlyFoldPaths(
+          [
+            foldSource(
+              'backend/scripts/check-diacritic-folds.ts',
+              naiveFold('NFD', '/\\p{Diacritic}/gu'),
+            ),
+            foldSource(
+              'backend/test/unit/scripts/check-inventory.test.ts',
+              naiveFold('NFD', '/\\p{Diacritic}/gu'),
+            ),
+            foldSource(
+              'backend/src/modules/catalog/scripts/reindex.ts',
+              naiveFold('NFD', '/\\p{Diacritic}/gu'),
+            ),
+          ],
+          ['backend/src/modules/catalog/scripts/reindex.ts'],
         ),
       ),
       // The ledger's second direction: a per-file count that no longer matches.
@@ -3647,9 +3680,13 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-command-coverage.ts': 10,
       'backend/scripts/check-container-imports.ts': 5,
       // Two decomposing forms, four spellings of the strip, the strip standing
-      // alone, four exclusions proven as discriminations, the ledger's stale
-      // direction, and the guard that is the exemption itself.
-      'backend/scripts/check-diacritic-folds.ts': 13,
+      // alone, five exclusions proven as discriminations, the ledger's stale
+      // direction, and the guard that is the exemption itself. The population
+      // widened to the whole tree when the fold became reachable from it, so
+      // one discrimination turned into two: the packages that are now in, and
+      // the two subtrees that stay out because spelling the refused shape is
+      // their job.
+      'backend/scripts/check-diacritic-folds.ts': 14,
       'backend/scripts/check-doc-snippets.ts': 4,
       'backend/scripts/check-entity-tenant-classification.ts': 2,
       // Three timer shapes plus D-68's four boot-hook ones. The count is the

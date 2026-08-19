@@ -153,3 +153,7 @@ export * from './admin-notifications.js';
 // The bulk-import report both owners answer in and `import_export` renders
 // (feature 075, D-74). Not a module's port surface — a shape two of them share.
 export * from './import-export.js';
+// The one diacritic fold, reachable from every package (issue #240). Not an API
+// shape: a pure text utility that was correct and unfindable inside
+// `normalizeOrganizationName` until six copies of it had been written.
+export * from './text-normalization.js';

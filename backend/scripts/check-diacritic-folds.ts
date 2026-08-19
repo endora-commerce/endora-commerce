@@ -1,9 +1,10 @@
 /**
- * CI check — the admin folds diacritics in exactly one place (issue #240).
+ * CI check — this repository folds diacritics in exactly one place (issue #240).
  *
  * ## The defect, four times in a year
  *
- * `admin/src/lib/text-normalization.ts` exists because the obvious one-liner
+ * `packages/contracts/src/text-normalization.ts` exists because the obvious
+ * one-liner
  *
  * ```
  * input.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
@@ -12,9 +13,11 @@
  * is **wrong for Polish** and reads as if it were right. `ł` is U+0142, a
  * standalone code point with no canonical decomposition: NFD leaves it exactly
  * where it was, so the strip has nothing to remove and the fold silently does
- * nothing for every word carrying one. Same for `Ø đ ħ ŧ`. The shared helper
- * hand-maps those stroked letters **before** it decomposes, which is the whole
- * reason it is longer than one line.
+ * nothing for every word carrying one. Same for `Ø đ ð þ ß æ œ`. The shared
+ * fold decomposes, strips, and **then** maps those letters, which is the whole
+ * reason it is longer than one line. (The map runs last rather than first on
+ * purpose: `Ǿ` decomposes to `Ø` plus an acute, so a map applied first never
+ * sees the letter the decomposition is about to expose.)
  *
  * Four private copies of the one-liner had grown by issue #236 — the ⌘K
  * palette, the page-builder drawer, the combobox and the multi-select — and
@@ -45,47 +48,51 @@
  * split across two functions leaves each half alone, and each half alone is
  * still a second implementation of the thing that has one owner.
  *
- * There is no legitimate non-folding reason to decompose a string in this
- * admin. If one arrives — grapheme-aware truncation is the plausible candidate
- * — it goes in the ledger with its reason, not into a widening of the rule.
+ * There is no legitimate non-folding reason to decompose a string anywhere in
+ * this repository. If one arrives — grapheme-aware truncation is the plausible
+ * candidate — it goes in the ledger with its reason, not into a widening of the
+ * rule.
  *
  * ## Literal nodes, so a comment is out of the population by construction
  *
  * The predicate reads **literal nodes** of the TypeScript AST, in the idiom of
- * `check-module-boundary`'s SQL predicate. That is not an optimisation: the
- * helper's own header quotes the wrong one-liner, `AppShell.tsx` quotes it
- * again to say why it does not use it, and two admin tests quote it a third
- * time. A text-level check reports all four and gets switched off within a
- * week. A node-level one cannot see a comment at all.
+ * `check-module-boundary`'s SQL predicate. That is not an optimisation: both
+ * `text-normalization.ts` files quote the wrong one-liner in their headers,
+ * `AppShell.tsx` quotes it again to say why it does not use it, and two admin
+ * tests quote it a third time. A text-level check reports all five and gets
+ * switched off within a week. A node-level one cannot see a comment at all.
  *
- * ## The population, and the four trees that are not in it
+ * ## The population is the whole tree, because the fold is now reachable
  *
- * `admin/src` and `admin/test` — the app that owns the shared helper, and its
- * tests, which can import it just as easily. A test that recomputes an expected
- * value with its own fold is the same defect wearing a test's clothes.
+ * It was `admin/src` and `admin/test` alone when this check landed, and the
+ * header said why each other tree was out: none of them could import
+ * `admin/src/lib/text-normalization.ts`. That was true and it was the defect,
+ * not a property of the trees. The correct fold had been in `@b2b/contracts`
+ * the whole time — inside `normalizeOrganizationName`, named after one caller,
+ * which is why six authors wrote their own instead of finding it. Issue #240
+ * extracted it as `foldDiacritics`, and the four packages below can all import
+ * it, so the rule "use the shared fold" now has something to mean everywhere:
  *
- * Out of the population, each for a stated reason rather than for want of
- * looking (the question was left open by issue #236):
+ *   - **`admin/`** — where all four private copies grew (issue #236), each an
+ *     import away from the helper. `admin/src/lib/text-normalization.ts` is now
+ *     a two-line composition over the shared fold, not a second copy of it.
+ *   - **`backend/`** — folds in two slugifiers, both carrying the `ł` bug. They
+ *     are ledgered by name below rather than repaired: they compute
+ *     **already-persisted** values.
+ *   - **`storefront/`** — folds nowhere today. It is in the population so that
+ *     the first fold written there is the one that gets refused, which is the
+ *     only moment the rule is cheap to keep.
+ *   - **`packages/`** — holds the shared fold itself, excluded by exact path.
+ *     Every other package is scanned like any other consumer.
  *
- *   - **`storefront/`** — a separate Next.js app that cannot import from
- *     `admin/src`, and which folds diacritics **nowhere today**: `.normalize(`
- *     has zero occurrences under `storefront/src`. There is no rule for it to
- *     break and no helper for it to break it against.
- *   - **`backend/`** — cannot import `admin/src` either. It does fold, in two
- *     slugifiers (`product_feeds/services/feed-template-io.service.ts`,
- *     `catalog/services/catalog-admin.service.ts`), and both carry the `ł`
- *     bug. They are real defects and are recorded as such in issue #239; they
- *     are not violations *of this rule*, because this rule says "use the shared
- *     helper" and there is no shared helper reachable from a backend module.
- *   - **`packages/`** — `contracts`' `normalizeOrganizationName` is a **correct**
- *     fold: it maps the non-decomposing Latin letters itself, exactly as the
- *     admin helper does. Reporting it would be reporting the repair.
- *   - **`backend/scripts` and this check's own tests** — they must be able to
- *     name the shapes they refuse.
+ * `EXCLUDED_SUBTREES` names the two places that must be able to write the
+ * shapes this check refuses: the checks themselves and their companion tests.
+ * Both are declared with reasons rather than pruned by a glob, for the same
+ * reason the roots are.
  *
- * Widening the population later means naming a fold every widened tree can
- * reach. That is a design decision, not a regex edit, which is why the reasons
- * are declared as data below rather than left implicit in a glob.
+ * Out of the population and staying out: `specs/` (contract sketches, not code
+ * that runs) and the repository-root build config, neither of which folds
+ * anything.
  *
  * ## The exclusion is path-anchored
  *
@@ -93,7 +100,10 @@
  * a name rule ("a file called `text-normalization.ts`") and not a directory
  * rule ("anything under `lib/`"): issue #197's lesson is that a second file can
  * satisfy a name-shaped exemption and thereby appoint itself the owner of the
- * fold, which is the precise failure this check exists to prevent.
+ * fold, which is the precise failure this check exists to prevent. There are
+ * two files called `text-normalization.ts` in the tree today — the fold in
+ * `packages/contracts/` and the admin's trim over it — and exactly one of them
+ * is exempt.
  *
  * The same path is the vacuous-pass guard's subject. The helper must exist and
  * must still contain **both** shapes, or the check exits 2 — because a helper
@@ -118,9 +128,16 @@ const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..')
  * The one file allowed to fold, as an exact repo-relative path.
  *
  * Path-anchored on purpose — see the header. A second `text-normalization.ts`
- * elsewhere in the tree is a violation, which is the point.
+ * elsewhere in the tree is a violation, which is the point; the admin file of
+ * that name is in the population and passes because it imports rather than
+ * folds.
+ *
+ * It moved here from `admin/src/lib/` when issue #240 extracted `foldDiacritics`
+ * into `@b2b/contracts`. That move is what let the population widen: an
+ * exemption is only worth anything where the exempted file is reachable, and
+ * neither `backend/` nor `storefront/` could ever have imported the admin one.
  */
-export const SHARED_FOLD_HELPER = 'admin/src/lib/text-normalization.ts';
+export const SHARED_FOLD_HELPER = 'packages/contracts/src/text-normalization.ts';
 
 /**
  * The trees scanned, and why each is in the population.
@@ -130,21 +147,49 @@ export const SHARED_FOLD_HELPER = 'admin/src/lib/text-normalization.ts';
  * see which claim was dropped rather than inferring it from a glob.
  */
 export const POPULATION_ROOTS: Readonly<Record<string, string>> = {
-  'admin/src':
-    'The app that owns the shared fold. All four private copies (issue #236) ' +
-    'grew here, each one an import away from the helper.',
-  'admin/test':
-    'The same app. A test that recomputes an expected value with its own fold ' +
-    'is a fifth copy that happens to be green.',
+  admin:
+    'Where all four private copies grew (issue #236), each one an import away ' +
+    'from a fold it could not find. Its own tests are in: a test that recomputes ' +
+    'an expected value with its own fold is a fifth copy that happens to be green.',
+  backend:
+    'Folds in two slugifiers today, both carrying the `l` bug, both ledgered ' +
+    'below because they compute persisted values (issue #239). It imports ' +
+    '@b2b/contracts everywhere else, so the shared fold is one import away.',
+  storefront:
+    'Folds nowhere today, which is exactly when a rule is cheap to keep: the ' +
+    'first fold written here is refused before it can be copied.',
+  packages:
+    'Holds the shared fold itself, exempt by exact path. Every other package is ' +
+    'a consumer like any other and is scanned like one.',
 };
 
 /** File extensions parsed. Anything else is not a module that can import the helper. */
 export const SOURCE_EXTENSIONS: readonly string[] = ['.ts', '.tsx'];
 
+/**
+ * Subtrees inside a population root that are excluded, with the reason.
+ *
+ * Both entries are places that must be able to **write** the shapes this check
+ * refuses, because naming them is their job. They are exact path prefixes, not
+ * a `scripts` directory-name rule: a module directory called `scripts` would
+ * silently exempt itself under the latter, which is issue #197's lesson applied
+ * one level up from `SHARED_FOLD_HELPER`.
+ */
+export const EXCLUDED_SUBTREES: Readonly<Record<string, string>> = {
+  'backend/scripts':
+    'The checks themselves, this one included. A check that cannot spell the ' +
+    'pattern it refuses cannot refuse it.',
+  'backend/test/unit/scripts':
+    "The checks' companion tests. Every fixture in them is a deliberate " +
+    'spelling of a refused shape, and a red proof that cannot be written is ' +
+    'issue #130 restated.',
+};
+
 /** Directory names pruned wherever they occur under a population root. */
 export const SKIPPED_DIRECTORIES: Readonly<Record<string, string>> = {
   node_modules: "Installed dependencies: third-party code, not this repository's source.",
   dist: 'Build output, reproduced from source by the build.',
+  '.next': "Next.js build output, regenerated by the storefront's build.",
   coverage: 'Coverage report output, regenerated by every run.',
 };
 
@@ -166,21 +211,30 @@ export interface LedgerEntry {
  * no longer folds fails it as well. Never raise a number to make the build
  * pass: add the import.
  *
- * It holds exactly the two admin **slugifiers**, and it holds them because
- * their repair is not the import swap every search caller's was. Both are
- * `NFKD`, not `NFD`: `NFKD` additionally folds compatibility characters
- * (`ﬁ` → `fi`, `²` → `2`, full-width forms), so swapping them onto the shared
- * `NFD` helper changes the slug computed for names that contain one — and a
- * slug is **persisted**, in a feed URL an operator has already published and in
- * a newsletter tag code the backend validates. That is a data migration wearing
- * a one-line diff, and it is issue #239's, not this check's.
+ * It holds exactly four **slugifiers**, two in `admin/` and two in `backend/`,
+ * and it holds them for one reason: each computes a value that is **already
+ * persisted** somewhere. A feed slug sits in a URL an operator has published, a
+ * newsletter tag code is validated against `CODE_RE` by the backend, a feed
+ * template filename is what a human was handed, a category slug is a link. Fold
+ * any of them differently and the same input produces a different key — which
+ * is a rename of live data, not a repair. Three of the four are additionally
+ * `NFKD` rather than `NFD`, so they also fold compatibility characters
+ * (`fi` ligature to `fi`, superscript two to `2`, full-width forms), and the
+ * shared fold does not. That is a data migration wearing a one-line diff, and
+ * it is issue #239's, not this check's.
  *
  * Note what is *not* the reason: "slugs are different from search". They are
- * not — the shared helper's own header names slug generators as one of its two
+ * not — the admin helper's own header names slug generators as one of its two
  * kinds of caller, and `PageEditor`, `BlockEditor` and `BlogPostEditor` already
  * use it. Distinguishing a search fold from a slug fold in the *rule* was
- * considered and rejected: it would have exempted a whole category on the
- * strength of two files whose real problem is the compatibility mapping.
+ * considered and rejected: it would exempt a whole category on the strength of
+ * four files whose real problem is that their output is a stored key.
+ *
+ * The two backend entries are not new defects found by widening the population:
+ * they were named in this file's header from the day it landed, as folds the
+ * rule could not reach because no shared fold was reachable from `backend/`.
+ * `foldDiacritics` makes them reachable, so they become ledgered debt with a
+ * retiring condition instead of a paragraph.
  */
 export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {
   'admin/src/modules/product_feeds/api.ts': {
@@ -194,10 +248,31 @@ export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {
   'admin/src/modules/newsletter/pages/TagsPage.tsx': {
     findings: 2,
     reason:
-      'Newsletter tag/field code generator. The code is persisted and validated ' +
-      'against CODE_RE by the backend, so a fold that produces a different code ' +
-      'for the same label is a rename of live tags.',
+      'Newsletter tag/field code generator. NFD rather than NFKD, so this one ' +
+      'has no compatibility mappings to lose — but it drops the stroked letters ' +
+      'the shared fold maps, and the code it produces is persisted and validated ' +
+      'against CODE_RE by the backend. A label carrying an `l` with a stroke ' +
+      'currently yields a code with the letter deleted; the shared fold yields ' +
+      'one with an `l` in its place. That is a rename of live tags.',
     retiredBy: 'issue #239 — one fold for slugs, with the NFKD migration it needs.',
+  },
+  'backend/src/modules/product_feeds/services/feed-template-io.service.ts': {
+    findings: 2,
+    reason:
+      'templateDocumentFilename — the name of the JSON file a human is handed ' +
+      'and hands on. NFKD, and it drops `ł` outright (`Łatwy szablon` becomes ' +
+      '`atwy-szablon`), so repairing it changes the filename of every template ' +
+      'already exported and possibly linked.',
+    retiredBy: 'issue #239 — one fold for slugs, with the migration it needs.',
+  },
+  'backend/src/modules/catalog/services/catalog-admin.service.ts': {
+    findings: 2,
+    reason:
+      'CatalogAdminService.slugify — category and attribute slugs, which are ' +
+      'stored, unique-constrained and reachable as storefront URLs. NFKD, and ' +
+      'it drops `ł` the same way. Re-folding it is a URL migration with a ' +
+      'redirect story, which is a decision nobody has taken.',
+    retiredBy: 'issue #239 — one fold for slugs, with the migration it needs.',
   },
 };
 
@@ -253,6 +328,9 @@ export function isDiacriticPattern(text: string): boolean {
 export function isScannablePath(path: string): boolean {
   if (path === SHARED_FOLD_HELPER) return false;
   if (!SOURCE_EXTENSIONS.some((extension) => path.endsWith(extension))) return false;
+  if (Object.keys(EXCLUDED_SUBTREES).some((subtree) => path.startsWith(`${subtree}/`))) {
+    return false;
+  }
   const segments = path.split('/');
   if (segments.slice(0, -1).some((segment) => SKIPPED_DIRECTORIES[segment] !== undefined)) {
     return false;
@@ -438,12 +516,15 @@ function main(): void {
   if (result.violations.length > 0) {
     console.error(
       '\nA diacritic fold outside the shared helper (issue #240).\n' +
-        `Import { normalize } from '@/lib/text-normalization' instead. The one-liner\n` +
+        `Import { foldDiacritics } from '@b2b/contracts' instead — or, in the admin,\n` +
+        `{ normalize } from '@/lib/text-normalization', which is that fold plus a trim.\n` +
+        'The one-liner\n' +
         "`normalize('NFD').replace(/\\p{Diacritic}/gu, '')` reads as complete and is not:\n" +
         '`ł` has no canonical decomposition, so NFD leaves it alone and the strip has\n' +
         'nothing to remove. Four private copies shipped that bug — typing `naglowek`\n' +
         'found no block named `Nagłówek`, and `platnosci` found no `Metody płatności`.\n' +
-        'The shared helper hand-maps the stroked letters before it decomposes.\n',
+        'The shared fold decomposes, strips, and then maps the letters NFD left\n' +
+        'standing — which is the step the one-liner is missing.\n',
     );
     for (const finding of result.violations) {
       console.error(

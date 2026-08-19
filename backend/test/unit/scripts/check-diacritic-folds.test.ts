@@ -9,6 +9,7 @@ import {
   analyzeSource,
   checkDiacriticFolds,
   DIACRITIC_FOLDS_ALLOWED,
+  EXCLUDED_SUBTREES,
   findDiacriticFolds,
   helperStillFolds,
   isDiacriticPattern,
@@ -29,6 +30,14 @@ import {
  * written as raw combining characters, a strip with no decomposition beside it
  * — plus the exclusions, proven as *discriminations* so that widening one by
  * accident shows up as a red test rather than as a smaller number.
+ *
+ * The population is the whole tree since issue #240 extracted `foldDiacritics`
+ * into `@b2b/contracts`. Before that, `backend/`, `storefront/` and `packages/`
+ * were excluded for a stated reason — none of them could import a helper that
+ * lived in `admin/src` — and the discrimination below asserted their absence.
+ * It now asserts the opposite for the same reason read forwards: a fold in any
+ * of them is reported, because the shared one is an import away. What stays out
+ * is the two subtrees whose job is to spell the refused shapes.
  */
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -246,21 +255,40 @@ describe('check-diacritic-folds — what it does not refuse', () => {
     ).toEqual([decoy]);
   });
 
-  it('leaves the trees outside the population alone while reporting the admin', () => {
-    // Each of these folds — two of them naively — and each is out of the
-    // population for a reason stated in the check's header, not for want of
-    // looking. Widening a root without deciding what it folds against turns
-    // this red.
+  it('reports a fold in every package that can import the shared one', () => {
+    // The widening, as a discrimination. Each of these was excluded before
+    // issue #240 for one reason — no shared fold was reachable from it — and
+    // each is in now for the same reason read forwards. Narrowing a root back
+    // turns this red rather than reporting a smaller number.
     const naive = "export const s = (v: string) => v.normalize('NFKD').replace(/\\p{Diacritic}/gu, '');";
     expect(
       foldPaths([
         file('backend/src/modules/catalog/services/catalog-admin.service.ts', naive),
-        file('packages/contracts/src/organizations.ts', naive),
-        file('storefront/src/lib/search.ts', naive),
-        file('backend/scripts/check-diacritic-folds.ts', naive),
+        file('packages/api-client/src/search.ts', naive),
+        file('storefront/lib/search.ts', naive),
         file('admin/src/lib/thing.ts', naive),
       ]),
-    ).toEqual(['admin/src/lib/thing.ts']);
+    ).toEqual([
+      'admin/src/lib/thing.ts',
+      'backend/src/modules/catalog/services/catalog-admin.service.ts',
+      'packages/api-client/src/search.ts',
+      'storefront/lib/search.ts',
+    ]);
+  });
+
+  it('leaves the checks and their fixtures alone while reporting a backend module', () => {
+    // The two subtrees that must be able to spell what the rule refuses: this
+    // check, and the tests that prove it still sees each shape. They are exact
+    // path prefixes rather than a `scripts` name rule, so a module directory
+    // called `scripts` cannot exempt itself.
+    const naive = "export const s = (v: string) => v.normalize('NFKD').replace(/\\p{Diacritic}/gu, '');";
+    expect(
+      foldPaths([
+        file('backend/scripts/check-diacritic-folds.ts', naive),
+        file('backend/test/unit/scripts/check-inventory.test.ts', naive),
+        file('backend/src/modules/catalog/scripts/reindex.ts', naive),
+      ]),
+    ).toEqual(['backend/src/modules/catalog/scripts/reindex.ts']);
   });
 
   it('leaves a build artefact alone while reporting its source', () => {
@@ -288,8 +316,18 @@ describe('check-diacritic-folds — what it does not refuse', () => {
   it('reads path segments, so a file named like a pruned directory stays in the population', () => {
     expect(isScannablePath('admin/src/lib/dist.ts')).toBe(true);
     expect(isScannablePath('admin/src/dist/bundle.ts')).toBe(false);
+    expect(isScannablePath('storefront/.next/types/route.ts')).toBe(false);
     expect(isScannablePath('admin/src/lib/text-normalization.md')).toBe(false);
     expect(isScannablePath(SHARED_FOLD_HELPER)).toBe(false);
+    // The admin file of the same name is in the population and passes because
+    // it imports the fold instead of writing one — the exemption is one path.
+    expect(isScannablePath('admin/src/lib/text-normalization.ts')).toBe(true);
+    expect(isScannablePath('backend/scripts/check-diacritic-folds.ts')).toBe(false);
+    expect(isScannablePath('backend/src/modules/catalog/services/x.ts')).toBe(true);
+    // Neither trees outside the four roots nor non-source files.
+    expect(isScannablePath('specs/067-product-feed/contracts/product-feeds.contracts.ts')).toBe(
+      false,
+    );
   });
 });
 
@@ -359,10 +397,18 @@ describe('check-diacritic-folds — the ledger', () => {
     ]);
   });
 
-  it('holds only the two slugifiers, each with a reason and a retiring condition', () => {
+  it('holds only the four slugifiers, each with a reason and a retiring condition', () => {
+    // Two in `admin/`, two in `backend/`. The backend pair is not a discovery
+    // of the widened population: both were named in the check's header from the
+    // day it landed, as folds the rule could not reach. `foldDiacritics` makes
+    // them reachable, so they are ledgered debt with a retiring condition
+    // instead of a paragraph — and every one of the four is ledgered because it
+    // computes an already-persisted value, never because slugs are exempt.
     expect(Object.keys(DIACRITIC_FOLDS_ALLOWED).sort()).toEqual([
       'admin/src/modules/newsletter/pages/TagsPage.tsx',
       'admin/src/modules/product_feeds/api.ts',
+      'backend/src/modules/catalog/services/catalog-admin.service.ts',
+      'backend/src/modules/product_feeds/services/feed-template-io.service.ts',
     ]);
     for (const [path, entry] of Object.entries(DIACRITIC_FOLDS_ALLOWED)) {
       expect(entry.reason.length, `${path} has no reason`).toBeGreaterThan(30);
@@ -374,6 +420,15 @@ describe('check-diacritic-folds — the ledger', () => {
   it('gives every population root a reason', () => {
     for (const [root, reason] of Object.entries(POPULATION_ROOTS)) {
       expect(reason.length, `${root} has no reason`).toBeGreaterThan(20);
+    }
+  });
+
+  it('gives every excluded subtree a reason', () => {
+    // An exclusion without a reason is a glob, and a glob is how a tree stops
+    // being scanned without anyone deciding that it should.
+    expect(Object.keys(EXCLUDED_SUBTREES).length).toBeGreaterThan(0);
+    for (const [subtree, reason] of Object.entries(EXCLUDED_SUBTREES)) {
+      expect(reason.length, `${subtree} has no reason`).toBeGreaterThan(20);
     }
   });
 });
@@ -443,7 +498,7 @@ describe('check-diacritic-folds — the exit codes', () => {
     const result = repo.run();
     expect(result.status).toBe(0);
     expect(result.output).toContain('violations=0');
-    expect(result.output).toContain('ledgered=4');
+    expect(result.output).toContain('ledgered=8');
   });
 
   it('exits 1 when a ledger entry no longer describes the file it names', () => {
@@ -454,7 +509,7 @@ describe('check-diacritic-folds — the exit codes', () => {
     const result = repo.run();
     expect(result.status).toBe(1);
     expect(result.output).toContain('violations=0');
-    expect(result.output).toContain('stale=2');
+    expect(result.output).toContain('stale=4');
   });
 });
 
@@ -474,5 +529,26 @@ describe('check-diacritic-folds — the tree it guards', () => {
     const source = readFileSync(join(REPO_ROOT, path), 'utf8');
     expect(analyzeSource(source, path), `${path} folds on its own again`).toEqual([]);
     expect(source).toContain("from '@/lib/text-normalization'");
+  });
+
+  it('the admin helper composes the shared fold rather than carrying a second map', () => {
+    // It is in the population now: it is not the anchored path any more, and it
+    // passes because it imports. The map it used to carry disagreed with the
+    // shared one over 19 code points, which is the shape of the defect issue
+    // #240 is about — two correct-looking folds, neither knowing about the other.
+    const path = 'admin/src/lib/text-normalization.ts';
+    const source = readFileSync(join(REPO_ROOT, path), 'utf8');
+    expect(analyzeSource(source, path), `${path} folds on its own again`).toEqual([]);
+    expect(source).toContain("import { foldDiacritics } from '@b2b/contracts'");
+  });
+
+  it('the anchored helper is the one in @b2b/contracts, reachable from every package', () => {
+    expect(SHARED_FOLD_HELPER).toBe('packages/contracts/src/text-normalization.ts');
+    expect(HELPER_SOURCE).toContain('export function foldDiacritics');
+    // Exported from the package index, or no consumer outside it can import it
+    // and the widened population has a rule nobody can obey.
+    expect(readFileSync(join(REPO_ROOT, 'packages/contracts/src/index.ts'), 'utf8')).toContain(
+      "export * from './text-normalization.js';",
+    );
   });
 });
