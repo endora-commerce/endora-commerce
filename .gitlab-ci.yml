@@ -218,6 +218,18 @@ quality:
     # six sat at byte 8032 and git itself still called it text.
     # `NUL_BYTES_ALLOWED` is an empty two-way ratchet.
     - pnpm --filter backend run check:nul-bytes
+    # Issue #240 — the admin folds diacritics in one place. The one-liner
+    # `normalize('NFD').replace(/\p{Diacritic}/gu, '')` reads as complete and is
+    # not: `ł` is a standalone code point with no canonical decomposition, so NFD
+    # leaves it where it was and the strip removes nothing. Four private copies
+    # had grown by !745 — typing `naglowek` found no block named `Nagłówek`, and
+    # `platnosci` found no `Metody płatności` in any picker — and the only thing
+    # standing between them and a fifth was a paragraph in a file header. Reads
+    # literal AST nodes, so the four files that quote the wrong one-liner to
+    # explain why they do not use it are out of the population by construction.
+    # `DIACRITIC_FOLDS_ALLOWED` is a per-file two-way ratchet holding the two
+    # slugifiers whose NFKD mappings are baked into persisted slugs (issue #239).
+    - pnpm --filter backend run check:diacritic-folds
     # Documentation code blocks are quotations, not paraphrases. The quickstarts
     # are copied by every module conversion, so a stale snippet is a defect
     # scheduled for mass production — six were found across three batches before

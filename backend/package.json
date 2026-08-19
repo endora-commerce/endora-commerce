@@ -66,6 +66,7 @@
     "check:fixture-substitution": "tsx scripts/check-fixture-substitution.ts",
     "check:shared-table-wipes": "tsx scripts/check-shared-table-wipes.ts",
     "check:nul-bytes": "tsx scripts/check-nul-bytes.ts",
+    "check:diacritic-folds": "tsx scripts/check-diacritic-folds.ts",
     "check:port-shape": "tsx scripts/check-port-shape.ts",
     "check:transaction-context": "tsx scripts/check-transaction-context.ts",
     "check:action-route-permissions": "tsx scripts/check-action-route-permissions.ts"

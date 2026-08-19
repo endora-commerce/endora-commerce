@@ -84,6 +84,14 @@ import {
   type ScannedFile,
 } from '../../../scripts/check-nul-bytes.js';
 import {
+  analyzeSource as diacriticAnalyze,
+  checkDiacriticFolds,
+  findDiacriticFolds,
+  helperStillFolds,
+  SHARED_FOLD_HELPER,
+  type ScannedFile as FoldSource,
+} from '../../../scripts/check-diacritic-folds.js';
+import {
   checkEntryPresence,
   keyOf as entryPresenceKeyOf,
   type EntryConstruct,
@@ -1380,6 +1388,23 @@ const nulPastGitWindow = (path: string): ScannedFile =>
 /** 1 when exactly the expected paths came back — the shape a discrimination needs. */
 const exactlyNulPaths = (files: readonly ScannedFile[], expected: readonly string[]): number =>
   JSON.stringify(findNulBytes(files).map((f) => f.path)) === JSON.stringify(expected) ? 1 : 0;
+
+/** A file for `check-diacritic-folds`: a repo-relative path and its source text. */
+const foldSource = (path: string, source: string): FoldSource => ({ path, source });
+
+/** The naive one-liner four admin authors wrote, parameterised by its two halves. */
+const naiveFold = (form: 'NFD' | 'NFKD', strip: string): string =>
+  `export const n = (v: string) => v.normalize('${form}').replace(${strip}, '');`;
+
+/** U+0300–U+036F as the characters themselves — how one backend slugifier spells it. */
+const RAW_COMBINING_RANGE = `[${'̀'}-${'ͯ'}]`;
+
+/** 1 when exactly the expected paths folded — the shape a discrimination needs. */
+const exactlyFoldPaths = (files: readonly FoldSource[], expected: readonly string[]): number =>
+  JSON.stringify([...new Set(findDiacriticFolds(files).map((f) => f.path))]) ===
+  JSON.stringify(expected)
+    ? 1
+    : 0;
 
 // --- the inventory ----------------------------------------------------------
 
@@ -3235,6 +3260,170 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // Issue #240 — the wrong answer that looks like the right one. Four authors
+    // wrote `normalize('NFD').replace(/\p{Diacritic}/gu, '')` inside a year and
+    // all four shipped the same bug, because `ł` has no canonical
+    // decomposition. Seven shapes it must see — two decomposing forms, four
+    // spellings of the strip, and the strip standing alone — and four it must
+    // not, each proven as a discrimination because "no finding" is green when
+    // the check is blind. The comment discrimination is the load-bearing one:
+    // four files in this tree quote the wrong one-liner on purpose, so a
+    // text-level implementation reports the documentation that exists to
+    // prevent the defect.
+    script: 'backend/scripts/check-diacritic-folds.ts',
+    npmScript: 'check:diacritic-folds',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-diacritic-folds.test.ts',
+    vacuousGuard: 'exit-2',
+    // Walks the admin SPA and its tests; the module tree is not its population.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'nfd-decomposition': top(
+        () =>
+          diacriticAnalyze(
+            naiveFold('NFD', '/\\p{Diacritic}/gu'),
+            'admin/src/modules/cms/components/PageBuilderDrawer.tsx',
+          ).filter((f) => f.kind === 'decomposition').length,
+      ),
+      // A second spelling of the same defect: a check grepping only for `NFD`
+      // reads `product_feeds/api.ts` clean.
+      'nfkd-decomposition': top(
+        () =>
+          diacriticAnalyze(
+            naiveFold('NFKD', '/\\p{Diacritic}/gu'),
+            'admin/src/modules/product_feeds/api.ts',
+          ).filter((f) => f.kind === 'decomposition').length,
+      ),
+      'diacritic-property-strip': top(
+        () =>
+          diacriticAnalyze(
+            naiveFold('NFD', '/\\p{Diacritic}/gu'),
+            'admin/src/components/ui/combobox.tsx',
+          ).filter((f) => f.kind === 'diacritic-strip').length,
+      ),
+      'combining-range-strip': top(
+        () =>
+          diacriticAnalyze(
+            naiveFold('NFD', '/[\\u0300-\\u036f]/g'),
+            'admin/src/modules/newsletter/pages/TagsPage.tsx',
+          ).filter((f) => f.kind === 'diacritic-strip').length,
+      ),
+      // The range written as the characters themselves. The file that spells it
+      // this way contains no backslash-u at all, so an escape-only rule reads
+      // it clean.
+      'raw-combining-range-strip': top(
+        () =>
+          diacriticAnalyze(
+            naiveFold('NFD', `/${RAW_COMBINING_RANGE}/g`),
+            'admin/src/lib/thing.ts',
+          ).filter((f) => f.kind === 'diacritic-strip').length,
+      ),
+      'regexp-built-from-a-string': top(
+        () =>
+          diacriticAnalyze(
+            "const marks = new RegExp('\\\\p{Diacritic}', 'gu');",
+            'admin/src/lib/thing.ts',
+          ).filter((f) => f.kind === 'diacritic-strip').length,
+      ),
+      // No proximity window, on purpose: a fold split over two functions would
+      // escape one, and each half alone is still a second implementation.
+      'strip-with-no-decomposition': top(
+        () =>
+          diacriticAnalyze(
+            "export const strip = (v: string) => v.replace(/\\p{Diacritic}/gu, '');",
+            'admin/src/lib/marks.ts',
+          ).length,
+      ),
+      // The predicate reads literal nodes, so the four files that quote the
+      // wrong one-liner to explain why they do not use it are out of the
+      // population by construction. Exactly the code line comes back.
+      'quoted-in-a-comment-is-not-a-fold': top(() =>
+        exactlyFoldPaths(
+          [
+            foldSource(
+              'admin/src/components/AppShell.tsx',
+              [
+                '/**',
+                " * `normalize('NFD').replace(/\\p{Diacritic}/gu, '')` is wrong — `ł` does",
+                " * not decompose, and `NFKD` with `[\\u0300-\\u036f]` is no better.",
+                ' */',
+                'export const a = 1;',
+              ].join('\n'),
+            ),
+            foldSource('admin/src/lib/thing.ts', naiveFold('NFD', '/\\p{Diacritic}/gu')),
+          ],
+          ['admin/src/lib/thing.ts'],
+        ),
+      ),
+      // `NFC` and `NFKC` compose; they never expose a combining mark to strip,
+      // so they are outside the rule rather than exempt from it.
+      'composing-form-is-not-a-fold': top(() =>
+        exactlyFoldPaths(
+          [
+            foldSource('admin/src/lib/a.ts', "const a = v.normalize('NFC').normalize('NFKC');"),
+            foldSource('admin/src/lib/b.ts', "const b = v.normalize('NFD');"),
+          ],
+          ['admin/src/lib/b.ts'],
+        ),
+      ),
+      // Issue #197's lesson: the exemption is one exact path, so a second file
+      // named `text-normalization.ts` cannot appoint itself the owner of the
+      // fold — which is the precise failure this check exists to prevent.
+      'helper-excluded-by-path-not-by-name': top(() =>
+        exactlyFoldPaths(
+          [
+            foldSource(SHARED_FOLD_HELPER, naiveFold('NFD', '/\\p{Diacritic}/gu')),
+            foldSource(
+              'admin/src/modules/cms/text-normalization.ts',
+              naiveFold('NFD', '/\\p{Diacritic}/gu'),
+            ),
+          ],
+          ['admin/src/modules/cms/text-normalization.ts'],
+        ),
+      ),
+      // `backend/`, `packages/` and `storefront/` are out for reasons stated in
+      // the header, not for want of looking. Widening a root without deciding
+      // what it folds against turns this red.
+      'tree-outside-the-population-excluded': top(() =>
+        exactlyFoldPaths(
+          [
+            foldSource(
+              'backend/src/modules/catalog/services/catalog-admin.service.ts',
+              naiveFold('NFKD', '/\\p{Diacritic}/gu'),
+            ),
+            foldSource(
+              'packages/contracts/src/organizations.ts',
+              naiveFold('NFD', '/\\p{Diacritic}/gu'),
+            ),
+            foldSource('storefront/src/lib/search.ts', naiveFold('NFD', '/\\p{Diacritic}/gu')),
+            foldSource('admin/src/lib/thing.ts', naiveFold('NFD', '/\\p{Diacritic}/gu')),
+          ],
+          ['admin/src/lib/thing.ts'],
+        ),
+      ),
+      // The ledger's second direction: a per-file count that no longer matches.
+      'stale-ledger-entry': top(
+        () =>
+          checkDiacriticFolds(
+            [foldSource('admin/src/modules/product_feeds/api.ts', 'export const a = 1;')],
+            {
+              'admin/src/modules/product_feeds/api.ts': {
+                findings: 2,
+                reason: 'A reason that has outlived its fold.',
+                retiredBy: 'issue #239',
+              },
+            },
+          ).stale.length,
+      ),
+      // The vacuous-pass guard, which is the exemption itself: a helper that no
+      // longer parses as a fold means the file moved or the analysis went
+      // blind, and either way a green would be worthless.
+      'helper-that-no-longer-folds': top(() =>
+        helperStillFolds('export const normalize = (v: string) => v.toLowerCase();') ? 0 : 1,
+      ),
+    },
+  },
+  {
     // Ran in no job until issue #116. The admin SPA carries 274 findings, so
     // `--strict` would have failed the build on standing debt rather than on a
     // regression; it runs against a per-file baseline instead, two-way like
@@ -3457,6 +3646,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // half's new subtraction.
       'backend/scripts/check-command-coverage.ts': 10,
       'backend/scripts/check-container-imports.ts': 5,
+      // Two decomposing forms, four spellings of the strip, the strip standing
+      // alone, four exclusions proven as discriminations, the ledger's stale
+      // direction, and the guard that is the exemption itself.
+      'backend/scripts/check-diacritic-folds.ts': 13,
       'backend/scripts/check-doc-snippets.ts': 4,
       'backend/scripts/check-entity-tenant-classification.ts': 2,
       // Three timer shapes plus D-68's four boot-hook ones. The count is the
