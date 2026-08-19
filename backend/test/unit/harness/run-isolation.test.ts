@@ -1,0 +1,178 @@
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import {
+  TEST_DATABASE_NAME_PATTERN,
+  isolationMode,
+  parseRunDatabaseName,
+  redisUrlWithDatabase,
+  runDatabaseName,
+  strandedRunDatabases,
+  templateDatabaseName,
+  withDatabase,
+} from '../../run-isolation.js';
+import { TEST_DATABASE_NAME_PATTERN as SEED_GUARD_PATTERN } from '../../../src/seeds/dev-seed-guard.js';
+
+/**
+ * Issue #189 — the naming and selection rules behind per-invocation isolation.
+ *
+ * Everything here is pure: no database, no Redis, so it runs in the fast unit
+ * job. The two properties that carry the safety of the whole design are the
+ * first two — a generated name must satisfy the *existing* guard (nothing about
+ * it is loosened), and a foreign database must never be selected for a drop.
+ */
+
+const BASE = 'b2b_test';
+const AT = new Date('2026-08-19T12:00:00.000Z');
+
+describe('run-isolation — generated database names', () => {
+  it('produces a run name the existing test-database guard accepts', () => {
+    const name = runDatabaseName(BASE, AT, 'a1b2c3');
+    expect(name).toMatch(TEST_DATABASE_NAME_PATTERN);
+    // The same judgement `src/seeds/dev-seed-guard.ts` makes, from its own
+    // export rather than from a second copy of the regex.
+    expect(name).toMatch(SEED_GUARD_PATTERN);
+    expect(name.length).toBeLessThanOrEqual(63);
+  });
+
+  it('produces a template name the existing guard accepts', () => {
+    const name = templateDatabaseName(BASE);
+    expect(name).toMatch(TEST_DATABASE_NAME_PATTERN);
+    expect(name).toMatch(SEED_GUARD_PATTERN);
+    expect(name).not.toBe(BASE);
+  });
+
+  it('refuses a base whose derived name would not be a test database', () => {
+    // `b2b` is the dev database. Deriving from it must throw rather than
+    // produce `b2b_r_...`, which the guard would reject anyway — the point is
+    // that the refusal happens where the name is made.
+    expect(() => runDatabaseName('b2b', AT, 'a1b2c3')).toThrow(/test database/i);
+    expect(() => templateDatabaseName('b2b')).toThrow(/test database/i);
+  });
+
+  it('refuses a base that would overflow the 63-byte identifier limit', () => {
+    const long = `${'x'.repeat(60)}_test`;
+    expect(() => runDatabaseName(long, AT, 'a1b2c3')).toThrow(/63/);
+  });
+
+  it('refuses a base carrying anything but letters, digits and underscores', () => {
+    expect(() => runDatabaseName('b2b_test"; drop database b2b; --', AT, 'a1b2c3')).toThrow(
+      /unsafe/i,
+    );
+  });
+
+  it('round-trips the creation instant it embeds', () => {
+    const name = runDatabaseName(BASE, AT, 'a1b2c3');
+    const parsed = parseRunDatabaseName(BASE, name);
+    expect(parsed).toBeDefined();
+    // Second precision — the name carries epoch seconds, not milliseconds.
+    expect(parsed?.createdAt.getTime()).toBe(Math.floor(AT.getTime() / 1000) * 1000);
+  });
+
+  it('does not recognise a database this harness did not create', () => {
+    // The three shapes actually standing on the developer machine that
+    // reported #189: the base itself, the dev database, and the hand-named
+    // escape-hatch databases agents created one per task.
+    for (const foreign of ['b2b_test', 'b2b', 'b2b_test_a112', 'b2b_integration_test']) {
+      expect(parseRunDatabaseName(BASE, foreign)).toBeUndefined();
+    }
+  });
+});
+
+describe('run-isolation — sweeping stranded run databases', () => {
+  const now = new Date('2026-08-19T12:00:00.000Z');
+  const hoursAgo = (h: number): Date => new Date(now.getTime() - h * 3600_000);
+  const old = runDatabaseName(BASE, hoursAgo(9), 'aaaaaa');
+  const recent = runDatabaseName(BASE, hoursAgo(1), 'bbbbbb');
+  const mine = runDatabaseName(BASE, hoursAgo(8), 'cccccc');
+  const busyButOld = runDatabaseName(BASE, hoursAgo(7), 'dddddd');
+
+  it('selects only names this harness generated, old enough, and unconnected', () => {
+    const stranded = strandedRunDatabases({
+      base: BASE,
+      names: [old, recent, mine, busyButOld, 'b2b', 'b2b_test', 'b2b_test_a112'],
+      busy: new Set([busyButOld]),
+      keep: mine,
+      now,
+      maxAgeMs: 4 * 3600_000,
+      limit: 25,
+    });
+    expect(stranded).toEqual([old]);
+  });
+
+  it('never selects a database outside the generated pattern, however old', () => {
+    const stranded = strandedRunDatabases({
+      base: BASE,
+      names: ['b2b', 'b2b_test', 'b2b_test_a112', 'b2b_078_test'],
+      busy: new Set(),
+      keep: '',
+      now,
+      maxAgeMs: 0,
+      limit: 25,
+    });
+    expect(stranded).toEqual([]);
+  });
+
+  it('caps how many it drops in one invocation', () => {
+    const names = Array.from({ length: 40 }, (_, i) =>
+      runDatabaseName(BASE, hoursAgo(9), i.toString(16).padStart(6, '0')),
+    );
+    expect(
+      strandedRunDatabases({
+        base: BASE,
+        names,
+        busy: new Set(),
+        keep: '',
+        now,
+        maxAgeMs: 4 * 3600_000,
+        limit: 25,
+      }),
+    ).toHaveLength(25);
+  });
+});
+
+describe('run-isolation — URLs', () => {
+  it('swaps the database name and keeps everything else about the DSN', () => {
+    expect(withDatabase('postgresql://b2b:b2b@postgres:5432/b2b_test', 'b2b_test_tpl')).toBe(
+      'postgresql://b2b:b2b@postgres:5432/b2b_test_tpl',
+    );
+  });
+
+  it('points a Redis DSN at a logical database index', () => {
+    expect(redisUrlWithDatabase('redis://localhost:6379', 7)).toBe('redis://localhost:6379/7');
+    expect(redisUrlWithDatabase('rediss://user:pw@redis:6380/0', 3)).toBe(
+      'rediss://user:pw@redis:6380/3',
+    );
+  });
+});
+
+describe('run-isolation — the mode', () => {
+  it('isolates by default, so nobody has to know it exists', () => {
+    expect(isolationMode({})).toBe('per-invocation');
+  });
+
+  it('can be turned off explicitly, for a run whose database you want to inspect', () => {
+    expect(isolationMode({ BACKEND_TEST_ISOLATION: 'shared' })).toBe('shared');
+  });
+
+  it('refuses a value it does not know rather than guessing', () => {
+    expect(() => isolationMode({ BACKEND_TEST_ISOLATION: 'maybe' })).toThrow(
+      /BACKEND_TEST_ISOLATION/,
+    );
+  });
+});
+
+describe('the test-database convention', () => {
+  it('is spelled once, and `global-setup.ts` reads it from here', () => {
+    // `test/unit/seeds/dev-seed-guard.test.ts` pins the seed guard's copy to
+    // this module's. This half pins the harness's: `global-setup.ts` must
+    // import the predicate rather than re-spell the regex, which is what it
+    // used to do.
+    const globalSetup = readFileSync(
+      fileURLToPath(new URL('../../global-setup.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(globalSetup).toMatch(/from '\.\/run-isolation\.js'/);
+    expect(globalSetup).not.toMatch(/\/\(\^\|_\)test\(_\|\$\)\//);
+  });
+});
