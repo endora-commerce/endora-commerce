@@ -1,7 +1,11 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, ORDER_STATUS_ON_HOLD, type ReceivePayment } from '@b2b/contracts';
-import type { OrderStatusRegistry } from '@b2b/contracts';
+import type {
+  OrderStatusAnnouncePort,
+  OrderStatusRegistry,
+  PaymentMethodReadPort,
+} from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Payment } from '../entities/payment.entity.js';
@@ -18,17 +22,19 @@ import { Payment } from '../entities/payment.entity.js';
  * `dependencies` (the FK already required it), the ledger entry names the
  * constraint, and this comment says which transaction the write runs in.
  *
- * The other two below are **pending**, not permanent, and they wait on somebody
- * else: `stripe`, `payu`, `tpay` and `autopay` each construct this handler
- * themselves, so its constructor cannot take a port none of them can build.
- * Phase P published `receivePaymentPort` for exactly that — when the four
- * gateway cuts resolve it instead of `new ReceivePaymentHandler(…)`, the
- * payment-method read becomes `paymentMethodReadPort` and the announcement
- * becomes `orderStatusAnnouncePort`, and both imports go.
+ * **It is the only one left, and the other two went because their blocker did.**
+ * They were held open by a sentence that had stopped being true: that `stripe`,
+ * `payu`, `tpay` and `autopay` each construct this handler themselves, so its
+ * constructor could not take a port none of them can build. All four resolve
+ * `receivePaymentPort` today and the one construction left is in
+ * `payments/backend.ts`, where `ctx` is in hand — so the payment-method read is
+ * `paymentMethodReadPort` and the announcement is `orderStatusAnnouncePort`.
+ * Neither shares the constraint above: the method read is a read of a row this
+ * transaction never writes (no FK obliges it to be co-transactional, and the
+ * identical read is a port in `shipments`' twin handler), and the announcement
+ * runs **after** the commit, over a status change that is already durable.
  */
 import { Order } from '../../orders/entities/order.entity.js';
-import { emitOrderStatusAfter } from '../../orders/events/order-status-events.js';
-import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
 
 export interface PaymentEvents extends Record<string, EventBase> {
   'payment.received.v1': EventBase & {
@@ -76,6 +82,22 @@ export interface ReceivePaymentResult {
 export class ReceivePaymentHandler {
   constructor(
     private readonly emFactory: () => EntityManager,
+    /**
+     * The method behind the payment, as `payment_methods` publishes it. Read
+     * inside the settlement transaction, as `shipments` reads its delivery
+     * method: it is a read of a row this transaction never writes, so it is not
+     * held by `payments_order_fk` and carries none of the atomicity the `Order`
+     * import above does. When `payment_methods` is off it throws, inside the
+     * transaction, and the payment and the order roll back together.
+     */
+    private readonly paymentMethodRead: PaymentMethodReadPort,
+    /**
+     * The templated `order.status.*.after` announcement, which `orders` owns
+     * because the status set is admin-configurable and the event names are
+     * therefore not known at compile time. Called after the commit, over a
+     * status change that is already durable.
+     */
+    private readonly orderStatusAnnounce: OrderStatusAnnouncePort,
     private readonly orderStatusRegistry?: OrderStatusRegistry,
     private readonly events?: PaymentEventBus,
   ) {}
@@ -103,7 +125,7 @@ export class ReceivePaymentHandler {
       }
 
       const order = await tx.findOne(Order, { id: payment.orderId });
-      const method = await tx.findOne(PaymentMethod, { id: payment.paymentMethodId });
+      const method = await this.paymentMethodRead.findById(payment.paymentMethodId);
       const orderStatusBefore = order?.status ?? null;
 
       if (input.outcome === 'success') {
@@ -170,7 +192,7 @@ export class ReceivePaymentHandler {
         salesChannelId: string | null;
       };
       if (r.orderStatusBefore && r.orderStatusAfter && r.organizationId && r.salesChannelId) {
-        emitOrderStatusAfter(this.events as unknown as EventBus, {
+        this.orderStatusAnnounce.announceStatusChanged({
           orderId: result.payment.orderId,
           organizationId: r.organizationId,
           salesChannelId: r.salesChannelId,
@@ -285,7 +307,7 @@ export class ReceivePaymentHandler {
         result.organizationId &&
         result.salesChannelId
       ) {
-        emitOrderStatusAfter(this.events as unknown as EventBus, {
+        this.orderStatusAnnounce.announceStatusChanged({
           orderId: result.payment.orderId,
           organizationId: result.organizationId,
           salesChannelId: result.salesChannelId,

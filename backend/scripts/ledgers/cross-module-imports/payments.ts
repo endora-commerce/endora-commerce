@@ -9,12 +9,19 @@
  * describes one fails it too. Delete this file when the last entry goes; an
  * empty shard is refused, because a done signal that says nothing is not one.
  *
- * Eleven of this module's fourteen entries were retired by the Phase C cut. The
- * three left are all in `receive-payment-handler.ts`, and none of them carries
- * the sweep's default reason: one is **permanent** under D-78 point 2, and two
- * wait on a named merge request rather than on a date.
+ * Thirteen of this module's fourteen entries are retired. Eleven went with the
+ * Phase C cut; the other two went with C-W3, which removed the blocker they
+ * rested on rather than the seam — `stripe`, `payu`, `tpay` and `autopay` all
+ * resolve `receivePaymentPort` now, so the only `new ReceivePaymentHandler(…)`
+ * left is in `payments/backend.ts`, where `ctx` is in hand and the constructor
+ * takes `paymentMethodReadPort` and `orderStatusAnnouncePort`. Neither of the
+ * two is held by the constraint the entry below rests on: the payment-method
+ * read is a read of a row the settlement transaction never writes, and the
+ * status announcement runs after that transaction has committed.
  *
- * The permanent one said so in prose only until issue #217. A bare string is
+ * The one left is **permanent** under D-78 point 2.
+ *
+ * It said so in prose only until issue #217. A bare string is
  * read as a draining reason whatever it spells, so the entry counted toward
  * `ledger-size` — debt the sweep is measured against, over a seam a foreign key
  * holds — and `permanentEntryIssue` never ran on it, which is the check that
@@ -53,16 +60,4 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
       '`payments_order_fk` would retire it too, and would cost the invariant the constraint ' +
       'buys — a payment row pointing at no order.',
   },
-  'modules/payments/services/receive-payment-handler.ts:payment_methods/entities/payment-method.entity':
-    'F3 Phase C — a pure read with a port ready for it (`paymentMethodReadPort`), blocked on ' +
-    'the constructor rather than on the read. `stripe`, `payu`, `tpay` and `autopay` each ' +
-    'construct this handler themselves, and none of them can build a `payment_methods` port ' +
-    'without importing that module. Retired by the four gateway cuts (C-W3), which resolve ' +
-    'the `receivePaymentPort` Phase P published for exactly that instead of calling ' +
-    '`new ReceivePaymentHandler(…)`; the constructor may then take the port.',
-  'modules/payments/services/receive-payment-handler.ts:orders/events/order-status-events':
-    'F3 Phase C — the templated status announcement, blocked the same way and by the same ' +
-    'four constructions. `orderStatusAnnouncePort` is published and this module already ' +
-    'declares `orders`; what is missing is a constructor the gateways can call. Retired by ' +
-    'the four gateway cuts (C-W3), together with the entry above it.',
 };

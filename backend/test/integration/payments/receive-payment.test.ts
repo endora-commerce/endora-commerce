@@ -1,6 +1,11 @@
 import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type {
+  OrderStatusAnnouncePort,
+  OrderStatusRegistry,
+  PaymentMethodReadPort,
+} from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -68,6 +73,17 @@ async function seedOrderWithPayment(
 describe('ReceivePaymentHandler', () => {
   let h: BackendServerHandle;
   const registry = new EnumOrderStatusRegistry();
+  /**
+   * The two cross-module reads the handler makes, resolved off the composed
+   * container rather than stubbed (feature 075, C-W3). They are gated ports, so
+   * resolving them here is what the four gateways do through
+   * `receivePaymentPort`, and a test that stubbed them would stop exercising the
+   * seam it is here to keep honest.
+   */
+  const handlerPorts = (): [PaymentMethodReadPort, OrderStatusAnnouncePort] => [
+    h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
+    h.container.resolve<OrderStatusAnnouncePort>('orderStatusAnnouncePort'),
+  ];
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -78,7 +94,7 @@ describe('ReceivePaymentHandler', () => {
 
   it('marks the Payment paid and applies statusOnSuccess (T034)', async () => {
     const { order, payment } = await seedOrderWithPayment(h.em());
-    const handler = new ReceivePaymentHandler(h.em, registry);
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
 
     const res = await handler.receive({
       paymentId: payment.id,
@@ -100,7 +116,7 @@ describe('ReceivePaymentHandler', () => {
 
   it('marks the Payment failed and applies statusOnFailure (T034)', async () => {
     const { order, payment } = await seedOrderWithPayment(h.em());
-    const handler = new ReceivePaymentHandler(h.em, registry);
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
 
     const res = await handler.receive({
       paymentId: payment.id,
@@ -119,7 +135,7 @@ describe('ReceivePaymentHandler', () => {
 
   it('is idempotent on repeated success and rejects failure after paid (T035)', async () => {
     const { payment } = await seedOrderWithPayment(h.em());
-    const handler = new ReceivePaymentHandler(h.em, registry);
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
 
     await handler.receive({ paymentId: payment.id, outcome: 'success' });
     const again = await handler.receive({ paymentId: payment.id, outcome: 'success' });
@@ -132,7 +148,7 @@ describe('ReceivePaymentHandler', () => {
 
   it('opens a retry Payment after a failure, preserving prior attempts (T035)', async () => {
     const { order, payment } = await seedOrderWithPayment(h.em());
-    const handler = new ReceivePaymentHandler(h.em, registry);
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
     const service = new PaymentService(h.em);
 
     await handler.receive({ paymentId: payment.id, outcome: 'failure', failureReason: 'x' });
@@ -145,11 +161,72 @@ describe('ReceivePaymentHandler', () => {
     expect(all.map((p) => p.attemptNo)).toEqual([1, 2]);
   });
 
+  /**
+   * Feature 075, C-W3 — the payment row and the order status still commit or
+   * roll back together after the payment-method read moved onto a port.
+   *
+   * The failure is placed at the **flush**, after `receive()` has already
+   * stamped `payment.status = 'paid'` / `paidAt` and moved `order.status`: a
+   * `statusOnSuccess` longer than `orders.status` (`varchar(64)`) is refused by
+   * Postgres when the unit of work writes it. Nothing else in the handler can
+   * fail that late, and a failure earlier than the mutations would prove only
+   * that a write that never happened did not happen.
+   *
+   * The port is stubbed for exactly that one oversized field — the real
+   * `paymentMethodReadPort` is what every other case here resolves — because
+   * `payment_methods.status_on_success` is `varchar(64)` too, so the row cannot
+   * be seeded with it.
+   */
+  it('rolls the payment back with the order when the settlement flush fails (C-W3)', async () => {
+    const { method, order, payment } = await seedOrderWithPayment(h.em());
+    const [, announce] = handlerPorts();
+    const tooLongForTheColumn = 'x'.repeat(80);
+    const oversized: PaymentMethodReadPort = {
+      findById: async () => ({
+        id: method.id,
+        code: method.code,
+        name: method.name,
+        kind: method.kind,
+        adapter: method.adapter,
+        status: method.status,
+        additionalPrice: method.additionalPrice,
+        statusOnPending: method.statusOnPending,
+        statusOnSuccess: tooLongForTheColumn,
+        statusOnFailure: method.statusOnFailure,
+        createdAt: method.createdAt,
+        updatedAt: method.updatedAt,
+      }),
+      findByIds: async () => [],
+      findByCode: async () => null,
+      listAll: async () => [],
+      listActive: async () => [],
+    };
+    // `has` is the guard the handler asks before it applies a status; saying yes
+    // is what lets the oversized code reach the flush.
+    const permissive = { has: () => true } as unknown as OrderStatusRegistry;
+    const handler = new ReceivePaymentHandler(h.em, oversized, announce, permissive);
+
+    // Asserted on the message, so the test cannot pass by failing *earlier*
+    // than the writes it is here to roll back: this is Postgres refusing the
+    // write, which only happens once the unit of work flushes both rows.
+    await expect(handler.receive({ paymentId: payment.id, outcome: 'success' })).rejects.toThrow(
+      /value too long for type character varying\(64\)/i,
+    );
+
+    const em = h.em();
+    const reloadedPayment = await em.findOne(Payment, { id: payment.id }, { refresh: true });
+    expect(reloadedPayment!.status).toBe('awaiting_payment');
+    expect(reloadedPayment!.paidAt ?? null).toBeNull();
+    const reloadedOrder = await em.findOne(Order, { id: order.id }, { refresh: true });
+    expect(reloadedOrder!.status).toBe('new');
+    expect(reloadedOrder!.paymentStatus).toBe('awaiting_payment');
+  });
+
   it('reconciles a late receive even when the adapter is de-registered (T036a / R6)', async () => {
     // The method references an adapter key that is NOT in any registry; the
     // handler keys on the persisted Payment, so the late event still settles.
     const { order, payment } = await seedOrderWithPayment(h.em(), { adapter: 'removed_adapter' });
-    const handler = new ReceivePaymentHandler(h.em, registry);
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
 
     const res = await handler.receive({ paymentId: payment.id, outcome: 'success' });
     expect(res.status).toBe('paid');

@@ -4,6 +4,7 @@ import type {
   EmailDefaultsRegistryPort,
   GatewayRefundRegistryPort,
   OrderReadPort,
+  OrderStatusAnnouncePort,
   OrderStatusRegistry,
   PaymentAdapterRegistryPort,
   PaymentEmailRendererPort,
@@ -223,6 +224,20 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  /**
+   * The settlement handler, with the two cross-module reads it used to make
+   * with somebody else's entity now made through their ports (feature 075,
+   * C-W3).
+   *
+   * Both edges were ledgered as blocked on this constructor: the four gateways
+   * built their own handler, so it could take no port they could not build.
+   * They resolve `receivePaymentPort` since the C-W3 gateway cuts, so this is
+   * the only construction left and `ctx` is in hand. The `Order` entity import
+   * inside the handler stays and stays permanent — `payments_order_fk` holds it
+   * co-transactional (D-78 point 2) — and neither of these two shares that:
+   * `paymentMethodReadPort` is a read of a row the settlement never writes, and
+   * `orderStatusAnnouncePort` is called after the commit.
+   */
   ctx.di.providePort(
     'receivePaymentHandler',
     ctx
@@ -230,6 +245,8 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory, eventBus }: PaymentsCradle) =>
           new ReceivePaymentHandler(
             emFactory,
+            lazyPort<PaymentMethodReadPort>(ctx, 'paymentMethodReadPort'),
+            lazyPort<OrderStatusAnnouncePort>(ctx, 'orderStatusAnnouncePort'),
             lazyPort<OrderStatusRegistry>(ctx, 'paymentOrderStatusRegistry'),
             eventBus as PaymentEventBus,
           ),
