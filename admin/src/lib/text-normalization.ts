@@ -1,3 +1,5 @@
+import { foldDiacritics } from '@b2b/contracts';
+
 /**
  * Fold a string so two spellings of the same word compare equal.
  *
@@ -14,49 +16,44 @@
  *  - **slug and code generators** — `PageEditor`, `BlockEditor`,
  *    `BlogPostEditor`. Fold first, then collapse whatever is left to `-` / `_`.
  *
- * What it does, in order:
+ * **The fold itself is not written here.** Since issue #240 it is
+ * `foldDiacritics` from `@b2b/contracts` — the same implementation the backend
+ * writes `organizations.name_search` with. This file had grown its own copy of
+ * the map for the same reason the four private copies grew: the shared one was
+ * correct but named after a single caller (`normalizeOrganizationName`), so
+ * nobody looking for a diacritic fold found it. What is left here is the one
+ * thing that is genuinely the admin's policy: the trim.
  *
- * 1. Hand-fold a small set of stroked letters — `Ł ł Ø ø Đ đ Ħ ħ Ŧ ŧ`. This
- *    step comes **first and cannot be dropped**: those are standalone
- *    codepoints with no canonical decomposition, so NFD leaves them exactly
- *    where they were. That is the whole reason the obvious
- *    `normalize('NFD').replace(/\p{Diacritic}/gu, '')` one-liner is wrong —
- *    it reads as complete and silently fails every Polish word with an `ł`
- *    in it (`płatności`, `Nagłówek`). It is the minimum needed for our Polish
- *    UI and avoids pulling in a full Unicode-folding library.
- * 2. Decompose (NFD) to separate base characters from their combining marks.
- * 3. Strip the combining marks via `\p{Diacritic}`.
- * 4. Lowercase.
- * 5. Trim. Surrounding whitespace is noise in every caller: a search query
- *    with a leading space matched nothing at all before this step existed
- *    (Postel's Law — accept what was typed), and a slug generator strips its
- *    own edge separators anyway. Trimming here means no caller has to
- *    remember; four of the six had not.
+ * What `foldDiacritics` does, in order: decompose (NFD), strip the combining
+ * marks, map the letters NFD leaves standing (`Ł ł Ø ø Đ đ Ð ð Þ þ ß Æ æ Œ œ`),
+ * lowercase. Step three is the one the obvious
+ * `normalize('NFD').replace(/\p{Diacritic}/gu, '')` one-liner is missing, and
+ * without it the fold silently does nothing to every Polish word carrying an
+ * `ł` (`płatności`, `Nagłówek`).
+ *
+ * Then, here: **trim.** Surrounding whitespace is noise in every caller — a
+ * search query with a leading space matched nothing at all before this step
+ * existed (Postel's Law — accept what was typed), and a slug generator strips
+ * its own edge separators anyway. Trimming here means no caller has to
+ * remember; four of the six had not. The shared fold deliberately leaves
+ * whitespace alone, because what counts as one space differs by caller:
+ * `normalizeOrganizationName` also collapses internal runs, since it writes a
+ * column a `$like` reads.
  *
  * Edge cases worth knowing:
- * - `ß` has no decomposition and is not in the stroked-letter map, so it stays
- *   as `ß` (not folded to `ss`). Matching behaves like a case-insensitive
- *   substring test, not full Unicode case-folding.
+ * - `ß` folds to `ss` and `æ`/`œ` to `ae`/`oe`. The private copy this file
+ *   carried until issue #240 left all three standing; adopting the shared map
+ *   changed 19 code points in total, 15 of them this way. The other four are
+ *   `Ħ ħ Ŧ ŧ` (Maltese, Northern Sami), which the private map folded to `h`/`t`
+ *   and the shared one leaves alone. They are **not** silently re-added here:
+ *   the shared map is the one the backend writes a persisted search column
+ *   with, so growing it re-folds new rows differently from old ones — a data
+ *   migration (issue #240's report names it), not a line in this file.
+ * - Matching behaves like a case-insensitive substring test, not full Unicode
+ *   case folding.
  * - A whitespace-only string folds to the empty string, so callers that treat
  *   an empty query as "match everything" get that for free.
  */
-const STROKED_LETTER_MAP: Record<string, string> = {
-  Ł: 'L',
-  ł: 'l',
-  Ø: 'O',
-  ø: 'o',
-  Đ: 'D',
-  đ: 'd',
-  Ħ: 'H',
-  ħ: 'h',
-  Ŧ: 'T',
-  ŧ: 't',
-};
-
 export function normalize(input: string): string {
-  let folded = input;
-  for (const [src, tgt] of Object.entries(STROKED_LETTER_MAP)) {
-    if (folded.includes(src)) folded = folded.split(src).join(tgt);
-  }
-  return folded.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+  return foldDiacritics(input).trim();
 }
