@@ -122,9 +122,6 @@ describe('every static check discloses the size of what it read', () => {
             'of its population. Above it, the record is stale — re-record it here, in the ' +
             'merge request that grew the tree, and never widen the band to pass.',
         ).toBeGreaterThanOrEqual(bounds.min);
-        // A volatile population has no ceiling worth asserting — see the field's
-        // own documentation. The floor, which is the defect direction, stays.
-        if (recorded.volatilePopulation !== undefined) return;
         expect(read.files).toBeLessThanOrEqual(bounds.max);
       });
 

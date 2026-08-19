@@ -110,6 +110,7 @@ import {
   type ProofEntry,
   type ProvenCheck,
 } from '../../helpers/check-proof-entry.js';
+import { reportsOnlyTheSourceFile } from '../../helpers/nul-bytes-check-fixture.js';
 import { createShellCheckFixture } from '../../helpers/shell-check-fixture.js';
 import { RECORDED_READ_SIZES } from '../../helpers/check-read-sizes.js';
 
@@ -1532,6 +1533,19 @@ const nulPastGitWindow = (path: string): ScannedFile =>
 /** 1 when exactly the expected paths came back — the shape a discrimination needs. */
 const exactlyNulPaths = (files: readonly ScannedFile[], expected: readonly string[]): number =>
   JSON.stringify(findNulBytes(files).map((f) => f.path)) === JSON.stringify(expected) ? 1 : 0;
+
+/**
+ * The same discrimination, over a **tree on disk** rather than over records.
+ *
+ * A directory exclusion has two consumers — the walk, which prunes it, and
+ * `isScannablePath`, which states the rule — and a `ScannedFile` list enters
+ * below both: it hands the analysis a path the walk has already decided to
+ * emit. So issue #248's exclusions are proven through a spawned run over a
+ * fixture repository, which is the only input that can see a pruning stop
+ * happening. See `test/helpers/nul-bytes-check-fixture.ts`.
+ */
+const nulTreeSkips = (generated: string, source: string): number =>
+  reportsOnlyTheSourceFile(generated, source);
 
 /** A file for `check-diacritic-folds`: a repo-relative path and its source text. */
 const foldSource = (path: string, source: string): FoldSource => ({ path, source });
@@ -3502,6 +3516,17 @@ const CHECKS: readonly CheckEntry[] = [
           ['.claude/agents/endora-commerce-dev.md', 'backend/src/index.ts'],
         ),
       ),
+      // Issue #248 — a generated tree scanned as source. It is the one proof
+      // here that cannot enter as bytes: the exclusion is a decision the
+      // *walk* takes, and a `ScannedFile` list is what the walk produced. Both
+      // anchorings are proven, because they are two tables and a repair to one
+      // says nothing about the other.
+      'generated-tree-skipped-by-name': top(() =>
+        nulTreeSkips('docs/.docusaurus/registry.js', 'backend/src/modules/orders/graph.ts'),
+      ),
+      'generated-tree-skipped-by-path': top(() =>
+        nulTreeSkips('backend/var/assets/ab/abcdef.xml', 'backend/src/modules/orders/graph.ts'),
+      ),
       // The ledger's second direction: an entry naming a file that no longer
       // carries a NUL. It enters as bytes, like every other proof here.
       'stale-ledger-entry': top(
@@ -4011,8 +4036,11 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-module-boundary.ts': 32,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
-      // stop seeing — and two exclusions proven as discriminations.
-      'backend/scripts/check-nul-bytes.ts': 9,
+      // stop seeing — and two exclusions proven as discriminations. Plus issue
+      // #248's two, one per anchoring, which are the only proofs here that
+      // enter as a tree on disk rather than as bytes: a directory exclusion is
+      // a decision the walk takes, and a record list is its output.
+      'backend/scripts/check-nul-bytes.ts': 11,
       'backend/scripts/check-overlay-determinism.ts': 3,
       // Five, plus D-88's four: two shapes the backward hop now refuses and two
       // it must not follow. The last two are the limit — a free function in
