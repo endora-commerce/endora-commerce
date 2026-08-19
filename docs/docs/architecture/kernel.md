@@ -686,6 +686,72 @@ the way `product_feeds`' `reconcile` helper does. That helper is not redundant
 with a kernel decision — it is the only thing standing between a drifted schedule
 and a dead boot.
 
+### A composition without a module it requires does not reach the boot phase
+
+`activation.nonDeactivatable` guards **withdrawal**: since D-69 the lifecycle
+orchestrator refuses to disable or uninstall a module that declares it, soft and
+hard alike, with no `--force`. D-101 added the two **initial states** a manifest
+analysis can see — a module this deployment never shipped that another manifest
+names, and one carrying a `module_registrations` row the boot reconciler will not
+repair — and refuses both from `loadModulePresence`, before the registry is read.
+
+Neither could see the state that actually breaks a first boot. `invoices`
+grandfathers its numbering pattern from a `ctx.onBoot` hook whose write goes
+through `settings`' port, and `NumberingConfigurationService` re-throws
+`ModuleDisabledError` deliberately — the write is the whole point of the hook. So
+a platform whose `settings` was absent did not degrade, it exited, saying:
+
+```
+[kernel] module 'invoices' failed in its boot hook: Module 'settings' is currently disabled.
+```
+
+The wrong module, and no remedy. It had never been seen because on any database
+where the platform booted once the grandfather write has already happened and the
+hook finds nothing to do; only a genuinely first boot reaches the port
+(issue #258).
+
+The owner ruled that `settings` is too important to be absent from a deployment,
+so the answer is to make the absence unreachable rather than to make `invoices`
+tolerate it. `composeModules` refuses **before the first module registers** when
+a module the composition requires is missing:
+
+- the required set is `requiredModulesFrom(manifests)`, derived by each root from
+  the manifests it composes and handed to the composer as data — the composer is
+  given three fields per module and may not read a manifest. There is no list
+  anywhere, so withdrawing a lock changes this refusal in the same run (D-100);
+- **"required to be installed" and "cannot be switched off" are the same set, by
+  derivation and by decision.** The manifest needs no second field: an author who
+  wrote *"the platform cannot run without this"* has answered both questions with
+  one sentence, and that sentence is what the refusal prints;
+- two findings, because they have different remedies. `absent` means it was
+  composed and presence says otherwise → `module:enable <id>`. `not-composed`
+  means the manifests declare it and nothing registered it → the composed module
+  list and the manifest index disagree, so `composer:generate` and rebuild. Only
+  the composer can see the second one: `loadModulePresence` runs before the first
+  module registers, so a manifest index and a composed list that disagree both
+  look correct to it.
+
+Three refusals now rest on one manifest declaration, and D-101's closing rule
+keeps them three — *"they share a declaration and share nothing else: not a call
+site, not an error type, not a message"*. `assertDeactivatable` refuses a
+**transition an operator asked for** and answers it with an HTTP envelope;
+`assertLockedModulesPresent` refuses a **deployment that was assembled wrong**,
+from the manifests, before the database is touched;
+`assertRequiredModulesPresent` refuses a **composition that would reach its boot
+phase without a module it requires**, from what was actually registered and what
+presence actually says.
+
+The one absence it cannot see is the one D-101 names: a module that is not
+shipped at all takes its manifest with it, so *"was it locked?"* has no answer at
+this seam. That case stays with `assertLockedModulesPresent`, which asks it from
+the declarations of the modules that stayed.
+
+`test/integration/kernel/required-module-absent.test.ts` composes the production
+root with `settings` withdrawn on the platform axis and pins the sentence a
+mis-built deployment reads; `test/integration/kernel/deactivated-boot.test.ts` is
+its mirror image and no longer withdraws a locked module, because that state is
+now refused by design.
+
 ### The one thing a root still has to do in order
 
 `EventBus.dispatch` awaits its handlers in **registration order**, so

@@ -127,7 +127,7 @@ export class RequiredModuleAbsentError extends Error {
 
 function refusalMessage(findings: readonly RequiredModuleFinding[]): string {
   const lines: string[] = [
-    'This deployment will not start: its boot phase was reached without a module it requires.',
+    'This deployment will not start: it is missing a module the platform requires.',
     '',
   ];
   for (const finding of findings) {
@@ -150,9 +150,9 @@ function refusalMessage(findings: readonly RequiredModuleFinding[]): string {
   lines.push(
     'A module whose manifest declares `activation.nonDeactivatable` is required to be present,',
     'not merely un-switch-off-able: the orchestrator refuses to disable or uninstall it, and this',
-    'refuses a composition that reached its boot phase without it. Starting anyway means every',
-    'boot hook, route and worker that needs it fails one at a time, naming whichever module',
-    'happened to ask first.',
+    'refuses a composition that would reach its boot phase without it. Starting anyway means',
+    'every boot hook, route and worker that needs it fails one at a time, each naming whichever',
+    'module happened to ask first rather than the one that is missing.',
   );
   return lines.join('\n');
 }
