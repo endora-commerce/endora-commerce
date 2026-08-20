@@ -330,6 +330,32 @@ export async function registerOrderRoutes(
     return (await deps.resolveAdminOrdersScope(request)).allowAll;
   };
 
+  /**
+   * Load an order for an admin route that names one, through the tenant guard.
+   *
+   * `Order` is `@OrgScoped`, so this read carries the `org` global filter
+   * (feature 050): a scoped admin's request runs in `allowed-set` mode — the
+   * request scope hook derives it from the very same `resolveAdminOrdersScope`
+   * the list and the export use — and an order outside that set is not
+   * returned. **An order the caller may not see is therefore answered exactly
+   * as one that does not exist**, which is the answer the list already gives by
+   * omitting the row, and the answer `OrderService.#scopedOrderWhere` already
+   * documents for the customer surface: 404, never 403, so the refusal does not
+   * disclose that the order is there.
+   *
+   * Routes below that reach an order's *children* need this, because those
+   * children carry no organization column and no filter of their own —
+   * `OrderComment` is `@GlobalEntity`, `Invoice` is `@TransitivelyScoped` — so
+   * a read keyed only on `orderId` answers for every order on the platform.
+   * Routes that already load the order themselves are covered by the same
+   * filter and do not call this.
+   */
+  const loadScopedAdminOrder = async (orderId: string): Promise<Order> => {
+    const order = await emFactory().findOne(Order, { id: orderId });
+    if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+    return order;
+  };
+
   app.get(
     '/api/v1/admin/orders',
     { preHandler: requireAdmin('orders:read'), schema: { querystring: adminOrdersListQuerySchema } },
@@ -364,6 +390,18 @@ export async function registerOrderRoutes(
     },
   );
 
+  // Bulk status change. **Per item, not all-or-nothing** — and the assignment
+  // scope is one more per-item reason rather than an exception to that shape.
+  // Every other refusal this route can give (no such edge in the graph, a
+  // terminal source, no such order) is already reported per order while the
+  // rest of the batch applies, so a caller reads `changed` and `skipped` to
+  // learn what happened and never has to infer it. Refusing the whole call on
+  // one out-of-scope member would also hand a scoped admin an existence
+  // oracle: "the batch failed" would say that one of these ids is an order
+  // somebody else's, which is exactly what the 404 on the single-order route
+  // refuses to say. An out-of-scope order is reported as `not_found`, the same
+  // reason a nonexistent one gets — `classifySkip` reaches that answer through
+  // the tenant filter, not through a branch of its own.
   app.post(
     '/api/v1/admin/orders/bulk/status',
     { preHandler: requireAdmin('orders:write'), schema: { body: bulkOrderStatusRequestSchema } },
@@ -403,7 +441,15 @@ export async function registerOrderRoutes(
         // `invoices` absent there are no documents to print.
         throw new HttpError(404, ERROR_CODES.INVOICE_NOT_READY, 'Invoice is not ready yet.');
       }
-      const invoices = await invoiceRead.listForOrders(body.orderIds);
+      // Resolve the requested orders through the tenant guard before the
+      // documents are resolved. `Invoice` is scoped transitively through
+      // `Order` and so carries no filter of its own: a read keyed only on
+      // `orderId` returns the number, the total and the currency for every
+      // order named, whether or not the caller may see it. An id the filter
+      // drops contributes no page — the same answer this route already gives
+      // for an order that has no invoice.
+      const visibleOrders = await emFactory().find(Order, { id: { $in: body.orderIds } });
+      const invoices = await invoiceRead.listForOrders(visibleOrders.map((o) => o.id));
       const pdf = Buffer.from(
         invoicePdf.renderBulk(
           invoices.map((i) => ({ invoiceNumber: i.number, total: i.total, currency: i.currency })),
@@ -693,6 +739,26 @@ export async function registerOrderRoutes(
     },
   );
 
+  /**
+   * Per-order status change.
+   *
+   * This route and its bulk twin carry `requireAdmin('orders:write')` and no
+   * scope argument, and that is not the hole it reads as: the transition
+   * service reaches the order with `em.findOne(Order, …)`, `Order` is
+   * `@OrgScoped`, and the request runs in the tenant context the request-scope
+   * hook derived from `resolveAdminOrdersScope`. A scoped admin therefore gets
+   * 404 `ORDER_NOT_FOUND` for an order outside their assignments — measured,
+   * not assumed: `test/integration/orders/admin-write-scope.test.ts` drives
+   * both routes with a `sales_representative` session holding `orders:write`.
+   *
+   * An explicit `allowedOrganizationIds.includes(order.organizationId)` here
+   * would be unreachable — the filtered read never returns the row the compare
+   * would reject — and Principle XI wants tenant isolation held structurally
+   * rather than restated per route. **The guarantee does rest on the order
+   * being loaded through a filtered EntityManager**, so a future transition
+   * seam that reads through `getKnex()` or widens with `withSystemScope` would
+   * take it away silently. That test is what makes such a change go red.
+   */
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/orders/:id/status',
     {
@@ -800,6 +866,13 @@ export async function registerOrderRoutes(
     '/api/v1/admin/orders/:id/comments',
     { preHandler: requireAdmin('orders:read') },
     async (request) => {
+      // The thread is reached through the order, so the order is what
+      // authorizes it. Without this load the handler answers from
+      // `order_comments` alone — a global entity with no organization column —
+      // and hands a scoped admin the internal notes on an order the same
+      // session cannot list. The write twin below has always been covered,
+      // because `addByAdmin` loads the order to check it is non-terminal.
+      await loadScopedAdminOrder(request.params.id);
       const comments = await deps.orderCommentService.listForAdmin(request.params.id);
       return { data: comments.map(serializeComment) };
     },
