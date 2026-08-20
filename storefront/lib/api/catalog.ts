@@ -4,12 +4,19 @@ import type {
   ProductDetail,
   ProductSummary,
 } from '@b2b/contracts';
-import { apiGet, type RequestContext } from './client';
+import { apiGet, apiGetForViewer, type RequestContext } from './client';
 
 /**
  * Catalog read paths. The API returns a Zod-derived shape; we re-export
  * those types from `@b2b/contracts` so themes that only override
  * `components/*` keep the same prop contracts.
+ *
+ * The three readers that carry a **price** — the listing, the product detail
+ * and the cross-sell tiles — go through `apiGetForViewer` (issue #265). The
+ * backend has priced those three for the caller since MR !796; the storefront
+ * forwarded no credential, so every buyer was quoted the channel price and the
+ * ruling never reached the shop. `getCategoryTree` and `getFilters` carry no
+ * price and stay anonymous and shared.
  */
 
 export interface ListProductsResponse {
@@ -48,7 +55,7 @@ export async function listProducts(
     }
   }
   const qs = params.toString();
-  return apiGet<ListProductsResponse>(
+  return apiGetForViewer<ListProductsResponse>(
     `/api/v1/catalog/products${qs ? `?${qs}` : ''}`,
     ctx,
     { revalidate: 60, tags: ['catalog:products'] },
@@ -59,7 +66,7 @@ export async function getProductBySlug(
   slug: string,
   ctx: RequestContext,
 ): Promise<ProductDetail> {
-  const res = await apiGet<{ data: ProductDetail }>(
+  const res = await apiGetForViewer<{ data: ProductDetail }>(
     `/api/v1/catalog/products/${encodeURIComponent(slug)}`,
     ctx,
     { revalidate: 60, tags: ['catalog:product', `catalog:product:${slug}`] },
@@ -93,7 +100,7 @@ export async function getProductLinks(
   }>
 > {
   try {
-    const res = await apiGet<{
+    const res = await apiGetForViewer<{
       data: Array<{
         id: string;
         kind: 'related' | 'up_sell' | 'cross_sell';

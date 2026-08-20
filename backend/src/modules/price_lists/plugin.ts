@@ -137,6 +137,7 @@ export function priceListsModule(options: PriceListsModuleOptions): {
         pricingService,
         emFactory: options.emFactory,
         catalogProductRead: options.targetReads.catalogProductRead,
+        organizationDetails: options.targetReads.organizationDetails,
       });
 
       if (options.enableStatusSweeper !== false) {

@@ -52,7 +52,7 @@ import {
 } from '../../../../lib/api/quick-order';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
-import { StorefrontApiError } from '../../../../lib/api/client';
+import { StorefrontApiError, withoutViewer } from '../../../../lib/api/client';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -75,7 +75,11 @@ export async function generateMetadata({
   const variantSku = typeof search.variant === 'string' ? search.variant : null;
   const { ctx } = await getServerContext();
   try {
-    const product = await getProductBySlug(slug, ctx);
+    // Deliberately the anonymous answer, even for a signed-in buyer (issue
+    // #265): this output is the crawler's and the social card's, it carries no
+    // price to personalise, and asking it as the buyer would cost the shared
+    // Data Cache entry every visitor to this page reuses.
+    const product = await getProductBySlug(slug, withoutViewer(ctx));
     // Feature 002 (T052) — if `?variant=<sku>` is present and the
     // SKU is a known variant, surface the variant's identity in the
     // social card title so different variants get distinct previews
