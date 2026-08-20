@@ -10,8 +10,14 @@ import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/d
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 
 /**
- * T036 — shipment lifecycle routes: generate (shipment_created), list, retry,
- * and the receive_shipment ingress.
+ * T036 — shipment lifecycle routes: generate (shipment_created), list, and the
+ * receive_shipment ingress.
+ *
+ * Generate is also the retry path (FR-024), and since issue #257 it is the only
+ * one: `POST .../shipments/retry` opened attempt n+1 and contacted no carrier,
+ * so it is gone rather than repaired. The route's absence is asserted below,
+ * because deleting a method does not stop someone re-mounting a path that
+ * writes a shipment row nobody was asked about.
  */
 const adminCookies = { b2b_session: 'stub-admin-session' };
 
@@ -59,7 +65,7 @@ describe('Shipment routes', () => {
     await teardownBackendServer(h);
   });
 
-  it('generates a pending shipment, lists it, resolves it, then rejects retry after success', async () => {
+  it('generates a pending shipment, lists it, resolves it, then refuses to generate again after success', async () => {
     const orderId = await seedOrder(h.em());
 
     const gen = await h.app.inject({
@@ -91,12 +97,32 @@ describe('Shipment routes', () => {
     expect(result.status).toBe('success');
     expect(result.orderStatus).toBe('shipment_sent');
 
+    const again = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/orders/${orderId}/shipments`,
+      cookies: adminCookies,
+    });
+    expect(again.statusCode).toBe(409);
+  });
+
+  it('serves no retry route — the only way to open an attempt asks the carrier (#257)', async () => {
+    const orderId = await seedOrder(h.em());
+
     const retry = await h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/orders/${orderId}/shipments/retry`,
       cookies: adminCookies,
     });
-    expect(retry.statusCode).toBe(409);
+
+    expect(retry.statusCode).toBe(404);
+
+    // ...and it opened nothing on the way to being refused.
+    const list = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/orders/${orderId}/shipments`,
+      cookies: adminCookies,
+    });
+    expect((list.json() as { data: unknown[] }).data).toHaveLength(0);
   });
 
   it('receive with no shipmentId or (orderId+externalReference) is a validation error', async () => {

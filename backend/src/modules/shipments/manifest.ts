@@ -8,7 +8,7 @@ export const shipmentsSettingsManifest = defineModuleSettingsManifest({
       code: 'shipments.enabled',
       name: 'Shipments enabled',
       description:
-        'Switches the shipment lifecycle on or off: creating a shipment for an order, the carrier receive_shipment ingress, the retry path and the per-order shipment history. Nothing is dropped — every shipment, its status transitions and its carrier references stay in the database, and an order mid-fulfilment resumes exactly where it was.',
+        'Switches the shipment lifecycle on or off: creating a shipment for an order (which is also how a failed one is retried), the carrier receive_shipment ingress and the per-order shipment history. Nothing is dropped — every shipment, its status transitions and its carrier references stay in the database, and an order mid-fulfilment resumes exactly where it was.',
       groupCode: 'shipments',
       valueType: 'boolean',
       defaultValue: true,
@@ -18,7 +18,12 @@ export const shipmentsSettingsManifest = defineModuleSettingsManifest({
 
 /**
  * Shipments module (feature 035) — the Shipment entity and its
- * generate/receive/retry lifecycle. The delivery-side twin of `payments`.
+ * generate/receive lifecycle. The delivery-side twin of `payments`.
+ *
+ * Generating is also retrying (FR-024): a second call after a failure appends
+ * attempt n+1 and asks the carrier for it. The separate retry route that used
+ * to sit beside it was deleted by issue #257 — it opened the row and asked
+ * nobody.
  *
  * The shipping-method *catalog* (adapter registry, reconciler, eligibility)
  * lives in the sibling `delivery_methods` module; this module owns the

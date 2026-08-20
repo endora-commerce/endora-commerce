@@ -56,9 +56,14 @@ back on changes nothing about the shipments already opened; the operator
 generates the shipment again (`POST /api/v1/admin/orders/:id/shipments`), which
 appends a new attempt and asks the carrier. Reacting to the activation setting
 would mean the platform calling a carrier for parcels an operator may already
-have handled by hand, without anyone asking it to — and the retry endpoint is
-not the path, because opening a retry attempt contacts no adapter at all. The
-Delivery tab of the order surfaces the state, the reason and the button.
+have handled by hand, without anyone asking it to. The Delivery tab of the order
+surfaces the state, the reason and the button.
+
+There used to be a second endpoint here, `POST .../shipments/retry`, and issue
+#257 deleted it: it appended attempt n+1 and contacted no adapter in any state,
+so an operator who used it got a fresh `pending` row that nothing had been asked
+about. Retrying **is** generating again — the generate endpoint appends the next
+attempt, refuses only once one has succeeded, and asks the carrier for it.
 
 ## Lifecycle
 
@@ -71,15 +76,15 @@ Delivery tab of the order surfaces the state, the reason and the button.
 `receive_shipment` is **idempotent**: a success after a terminal `success` is a
 no-op; a failure after success is rejected (409, no downgrade); a missing /
 already-resolved reference is rejected without corrupting records. A failed
-generation is retried by opening a new Shipment, leaving prior attempts intact.
+generation is retried by generating again, which opens the next Shipment attempt
+and asks the carrier for it, leaving prior attempts intact.
 
 ## Public surface
 
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
-| `POST /api/v1/admin/orders/:id/shipments` | admin (`orders:write`) | Generate a shipment (`shipment_created`) |
+| `POST /api/v1/admin/orders/:id/shipments` | admin (`orders:write`) | Generate a shipment (`shipment_created`) — and retry a failed one, by generating the next attempt |
 | `GET /api/v1/admin/orders/:id/shipments` | admin (`orders:read`) | Full shipment history for the order |
-| `POST /api/v1/admin/orders/:id/shipments/retry` | admin (`orders:write`) | Open a retry Shipment after a failure |
 | `POST /api/v1/shipments/receive` | adapter/carrier ingress (admin-guarded for MVP) | `receive_shipment` outcome ingress |
 
 ## Order-status mapping
