@@ -191,12 +191,6 @@ import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_erg
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
 import type { PimPimcoreCradle } from '../../src/modules/pim_pimcore/backend.js';
-import type { PimcoreClientPort } from '../../src/modules/pim_pimcore/services/pimcore-client.port.js';
-import type { PimcoreMediaFetcherPort } from '../../src/modules/pim_pimcore/services/pimcore-media-fetcher.port.js';
-import {
-  refusingPimcoreClient,
-  ScriptedPimcoreMediaFetcher,
-} from './scripted-pimcore-client.js';
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
@@ -287,18 +281,6 @@ export interface BackendServerOptions {
    * `ScriptedErgonodeMediaFetcher` holding their files.
    */
   ergonodeMediaFetcher?: ErgonodeMediaFetcherPort;
-  /**
-   * Feature 076 — the Pimcore Data Hub source transport. Defaults to a client
-   * that THROWS on every listing/get read, so a test that forgets to script the
-   * source fails loudly instead of reaching a customer's PIM; `pim_pimcore`
-   * tests pass a `ScriptedPimcoreClient` holding their fixtures.
-   */
-  pimcoreClient?: PimcoreClientPort;
-  /**
-   * Feature 076 — the byte source for imported Pimcore media. Defaults to a
-   * fetcher that has nothing scripted and therefore answers `not_found`.
-   */
-  pimcoreMediaFetcher?: PimcoreMediaFetcherPort;
   /**
    * Feature 072 (T073) — arm the cross-process pub/sub path: subscribe the
    * second Redis client to the custom-field and module-state channels.
@@ -2033,12 +2015,6 @@ export async function setupBackendServer(
     pimErgonodeSourceOverrides: {
       ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
       mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
-    },
-    // Feature 076 — same window and reason as Ergonode: a contribution after
-    // boot would be discarded and a test could open a real socket to Pimcore.
-    pimPimcoreSourceOverrides: {
-      pimcoreClient: options.pimcoreClient ?? refusingPimcoreClient(),
-      mediaFetcher: options.pimcoreMediaFetcher ?? new ScriptedPimcoreMediaFetcher(),
     },
     productFeedsTestOverrides: {
       taxonomyDataRoot: '/nonexistent/product-feeds-taxonomies',
