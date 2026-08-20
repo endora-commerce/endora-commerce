@@ -6,6 +6,7 @@ import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import { SuccessPanel } from '../../../../components/checkout/SuccessPanel';
 import { PurchaseTracker } from '../../../../components/analytics/EcommerceTrackers';
+import { purchaseTrackingPayload } from '../../../../lib/analytics/purchase-eligibility';
 
 /**
  * Checkout Success Page (feature 036, US1). Reached after a successful
@@ -50,23 +51,17 @@ export default async function CheckoutSuccessPage({
   }
 
   const { locale } = await getServerContext();
+  // Issue #274 — the tracker used to fire for whatever order this page was
+  // handed, and PayU and Autopay returned every buyer here whatever the
+  // outcome, so declined payments counted as revenue. A gateway order now has
+  // to be confirmed; an order settled out of band (bank transfer, cash on
+  // pickup, credit limit) still counts at placement, because its payment
+  // never arrives while the buyer is on this page.
+  const purchase = purchaseTrackingPayload(order);
   return (
     <>
       {/* Feature 049 — GA4 purchase (no-op unless Enhanced Ecommerce is on). */}
-      <PurchaseTracker
-        order={{
-          transactionId: order.businessId,
-          value: order.total,
-          currency: order.currency,
-          items: order.items.map((it) => ({
-            sku: it.productSnapshot.sku,
-            name: it.productSnapshot.name,
-            price: it.unitPrice,
-            quantity: it.quantity,
-            currency: order.currency,
-          })),
-        }}
-      />
+      {purchase ? <PurchaseTracker order={purchase} /> : null}
       <SuccessPanel
         businessId={order.businessId}
         orderId={order.id}
